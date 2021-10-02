@@ -125,9 +125,7 @@ api ::
        Now,
        SamlProtocolSettings,
        Logger String,
-       Logger (Msg -> Msg),
-       -- TODO(sandy): Remove me when we get rid of runSparInSem
-       Final IO
+       Logger (Msg -> Msg)
      ]
     r =>
   Opts ->
@@ -156,9 +154,7 @@ apiSSO ::
        Error SparError,
        SAML2,
        SamlProtocolSettings,
-       SAMLUserStore,
-       -- TODO(sandy): Remove me when we get rid of runSparInSem
-       Final IO
+       SAMLUserStore
      ]
     r =>
   Opts ->
@@ -325,9 +321,7 @@ authresp ::
        SAML2,
        SamlProtocolSettings,
        Error SparError,
-       SAMLUserStore,
-       -- TODO(sandy): Remove me when we get rid of runSparInSem
-       Final IO
+       SAMLUserStore
      ]
     r =>
   Maybe TeamId ->

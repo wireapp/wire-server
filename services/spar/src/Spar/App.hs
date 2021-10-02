@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -50,7 +49,6 @@ import Brig.Types.Intra (AccountStatus (..), accountStatus, accountUser)
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
-import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
@@ -65,7 +63,6 @@ import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
-import Polysemy.Final
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( IdPId (..),
@@ -113,22 +110,14 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 
-newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => Sem r a}
-  deriving (Functor)
+newtype Spar r a = Spar {fromSpar :: Sem r a}
+  deriving (Functor, Applicative, Monad)
 
 liftSem :: Sem r a -> Spar r a
 liftSem = Spar
 
 throwSparSem :: Member (Error SparError) r => SparCustomError -> Spar r a
 throwSparSem = liftSem . throw . SAML.CustomError
-
-instance Applicative (Spar r) where
-  pure a = Spar $ pure a
-  liftA2 f a b = Spar $ liftA2 f (fromSpar a) (fromSpar b)
-
-instance Monad (Spar r) where
-  return = pure
-  f >>= a = Spar $ fromSpar f >>= fromSpar . a
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -140,7 +129,7 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
-runSparInSem :: Members '[Final IO] r => Spar r a -> Sem r a
+runSparInSem :: Spar r a -> Sem r a
 runSparInSem (Spar action) = action
 
 getIdPConfig ::
@@ -164,16 +153,6 @@ getIdPConfigByIssuerOptionalSPId issuer mbteam = do
     res@(Data.GetIdPDanglingId _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
     res@(Data.GetIdPNonUnique _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
     res@(Data.GetIdPWrongTeam _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
-
-instance Member (Final IO) r => Catch.MonadThrow (Sem r) where
-  throwM = embedFinal . Catch.throwM @IO
-
-instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
-  catch m handler = withStrategicToFinal @IO $ do
-    m' <- runS m
-    st <- getInitialStateS
-    handler' <- bindS handler
-    pure $ m' `Catch.catch` \e -> handler' $ e <$ st
 
 insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = liftSem $ SAMLUserStore.insert uref uid
@@ -407,8 +386,6 @@ verdictHandler ::
        ScimTokenStore,
        IdPEffect.IdP,
        Error SparError,
-       -- TODO(sandy): Remove Final IO when removing runSparInSem
-       Final IO,
        SAMLUserStore
      ]
     r =>
@@ -452,8 +429,6 @@ verdictHandlerResult ::
        ScimTokenStore,
        IdPEffect.IdP,
        Error SparError,
-       -- TODO(sandy): Remove Final IO when removing runSparInSem
-       Final IO,
        SAMLUserStore
      ]
     r =>
@@ -469,12 +444,7 @@ verdictHandlerResult bindCky mbteam verdict = do
 
 catchVerdictErrors ::
   forall r.
-  Members
-    '[ Error SparError,
-       -- TODO(sandy): Remove Final IO when removing runSparInSem
-       Final IO
-     ]
-    r =>
+  Member (Error SparError) r =>
   Spar r VerdictHandlerResult ->
   Spar r VerdictHandlerResult
 catchVerdictErrors = liftSem . (`catch` hndlr) . runSparInSem

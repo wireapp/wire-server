@@ -147,30 +147,30 @@ apiScim =
     -- for why it's hard to catch impure exceptions.
     wrapScimErrors :: Spar r a -> Spar r a
     wrapScimErrors act = Spar $ do
-        result :: Either SomeException (Either SparError a) <- undefined -- try $ runExceptT $ fromSpar $ act
-        case result of
-          Left someException -> do
-            -- We caught an exception that's not a Spar exception at all. It is wrapped into
-            -- Scim.serverError.
-            throw . SAML.CustomError . SparScimError $
-              Scim.serverError (cs (displayException someException))
-          Right (Left err@(SAML.CustomError (SparScimError _))) ->
-            -- We caught a 'SparScimError' exception. It is left as-is.
-            throw err
-          Right (Left sparError) -> do
-            -- We caught some other Spar exception. It is rendered and wrapped into a scim error
-            -- with the same status and message, and no scim error type.
-            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging undefined sparError
-            throw . SAML.CustomError . SparScimError $
-              Scim.ScimError
-                { schemas = [Scim.Schema.Error20],
-                  status = Scim.Status $ errHTTPCode err,
-                  scimType = Nothing,
-                  detail = Just . cs $ errBody err
-                }
-          Right (Right x) -> do
-            -- No exceptions! Good.
-            pure x
+      result :: Either SomeException (Either SparError a) <- undefined -- try $ runExceptT $ fromSpar $ act
+      case result of
+        Left someException -> do
+          -- We caught an exception that's not a Spar exception at all. It is wrapped into
+          -- Scim.serverError.
+          throw . SAML.CustomError . SparScimError $
+            Scim.serverError (cs (displayException someException))
+        Right (Left err@(SAML.CustomError (SparScimError _))) ->
+          -- We caught a 'SparScimError' exception. It is left as-is.
+          throw err
+        Right (Left sparError) -> do
+          -- We caught some other Spar exception. It is rendered and wrapped into a scim error
+          -- with the same status and message, and no scim error type.
+          err :: ServerError <- undefined -- embedFinal @IO $ sparToServerErrorWithLogging undefined sparError
+          throw . SAML.CustomError . SparScimError $
+            Scim.ScimError
+              { schemas = [Scim.Schema.Error20],
+                status = Scim.Status $ errHTTPCode err,
+                scimType = Nothing,
+                detail = Just . cs $ errBody err
+              }
+        Right (Right x) -> do
+          -- No exceptions! Good.
+          pure x
 
 -- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
 -- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
