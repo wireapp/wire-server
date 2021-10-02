@@ -2,11 +2,17 @@
 
 module Spar.Sem.SAMLUserStore.Cassandra where
 
+import qualified Control.Monad.Catch as Catch
 import Cassandra
 import Imports
 import Polysemy
 import qualified Spar.Data as Data
 import Spar.Sem.SAMLUserStore
+import Polysemy.Final
+import Spar.Error
+import Polysemy.Error
+import Data.String.Conversions (cs)
+import qualified SAML2.WebSSO.Error as SAML
 
 samlUserStoreToCassandra ::
   forall m r a.
@@ -23,6 +29,15 @@ samlUserStoreToCassandra =
       DeleteByIssuer is -> Data.deleteSAMLUsersByIssuer is
       Delete uid ur -> Data.deleteSAMLUser uid ur
 
-interpretClientToIO :: Member (Final IO) r => ClientState -> Sem (Embed Client ': r) a -> Sem r a
+interpretClientToIO ::
+  Members '[Error SparError, Final IO] r =>
+  ClientState ->
+  Sem (Embed Client ': r) a ->
+  Sem r a
 interpretClientToIO ctx = interpret $ \case
-  Embed action -> embedFinal $ runClient ctx action
+  Embed action -> withStrategicToFinal @IO $ do
+    action' <- liftS $ runClient ctx action
+    st <- getInitialStateS
+    handler' <- bindS $ throw @SparError . SAML.CustomError . SparCassandraError . cs . show @SomeException
+    pure $ action' `Catch.catch` \e -> handler' $ e <$ st
+

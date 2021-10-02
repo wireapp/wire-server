@@ -66,7 +66,7 @@ import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, validateEmailIfExists, wrapMonadClientSem)
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, validateEmailIfExists, liftSem)
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
@@ -141,7 +141,7 @@ instance
           . logFilter filter'
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . liftSem . IdPEffect.getConfig) stiIdP
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
@@ -164,7 +164,7 @@ instance
           . logTokenInfo tokeninfo
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . liftSem . IdPEffect.getConfig) stiIdP
         let notfound = Scim.notFound "User" (idToText uid)
         brigUser <- lift (liftSem $ BrigAccess.getAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
         unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
@@ -215,7 +215,7 @@ validateScimUser tokinfo user = do
 
 tokenInfoToIdP :: Member IdPEffect.IdP r => ScimTokenInfo -> Scim.ScimHandler (Spar r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} = do
-  maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+  maybe (pure Nothing) (lift . liftSem . IdPEffect.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -468,7 +468,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       lift $ liftSem $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
 
       -- {(arianvp): these two actions we probably want to make transactional.}
-      lift . wrapMonadClientSem $ do
+      lift . liftSem $ do
         -- Store scim timestamps, saml credentials, scim externalId locally in spar.
         ScimUserTimesStore.write storedUser
         ST.runValidExternalId
@@ -555,7 +555,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
                 let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
                 when (new /= old) $ BrigAccess.setStatus uid new
 
-          wrapMonadClientSem $ ScimUserTimesStore.write newScimStoredUser
+          liftSem $ ScimUserTimesStore.write newScimStoredUser
           pure newScimStoredUser
 
 updateVsuUref ::
@@ -577,7 +577,7 @@ updateVsuUref team uid old new = do
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
     _ -> pure ()
 
-  wrapMonadClientSem $ do
+  liftSem $ do
     old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
     new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
@@ -671,18 +671,18 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+          mIdpConfig <- maybe (pure Nothing) (lift . liftSem . IdPEffect.getConfig) stiIdP
 
           case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
             Left _ -> pure ()
             Right veid ->
-              lift . wrapMonadClientSem $
+              lift . liftSem $
                 ST.runValidExternalId
                   (SAMLUserStore.delete uid)
                   (ScimExternalIdStore.delete stiTeam)
                   veid
 
-          lift . wrapMonadClientSem $ ScimUserTimesStore.delete uid
+          lift . liftSem $ ScimUserTimesStore.delete uid
           lift . liftSem $ BrigAccess.delete uid
           return ()
 
@@ -798,14 +798,14 @@ synthesizeStoredUser usr veid =
       let readState :: Spar r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
           readState = do
             richInfo <- liftSem $ BrigAccess.getRichInfo uid
-            accessTimes <- wrapMonadClientSem (ScimUserTimesStore.read uid)
+            accessTimes <- liftSem (ScimUserTimesStore.read uid)
             baseuri <- liftSem $ inputs $ derivedOptsScimBaseURI . derivedOpts
             pure (richInfo, accessTimes, baseuri)
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Spar r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
             when (isNothing oldAccessTimes) $ do
-              wrapMonadClientSem $ ScimUserTimesStore.write storedUser
+              liftSem $ ScimUserTimesStore.write storedUser
             when (oldManagedBy /= ManagedByScim) $ do
               liftSem $ BrigAccess.setManagedBy uid ManagedByScim
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
@@ -926,7 +926,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   where
     withUref :: SAML.UserRef -> Spar r (Maybe UserId)
     withUref uref = do
-      wrapMonadClientSem (SAMLUserStore.get uref) >>= \case
+      liftSem (SAMLUserStore.get uref) >>= \case
         Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
         Just uid -> pure (Just uid)
 
@@ -936,7 +936,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
         -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,
         -- and it never should be visible in spar, but not in brig.
         inspar, inbrig :: Spar r (Maybe UserId)
-        inspar = wrapMonadClientSem $ ScimExternalIdStore.lookup stiTeam eml
+        inspar = liftSem $ ScimExternalIdStore.lookup stiTeam eml
         inbrig = liftSem $ userId . accountUser <$$> BrigAccess.getByEmail eml
 
 logFilter :: Filter -> (Msg -> Msg)

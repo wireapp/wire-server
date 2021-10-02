@@ -24,7 +24,7 @@
 module Spar.App
   ( Spar (..),
     Env (..),
-    wrapMonadClientSem,
+    liftSem,
     verdictHandler,
     GetUserResult (..),
     getUserIdByUref,
@@ -36,8 +36,6 @@ module Spar.App
     getIdPConfigByIssuer,
     getIdPConfigByIssuerAllowOld,
     deleteTeam,
-    wrapSpar,
-    liftSem,
     getIdPConfig,
     storeIdPConfig,
     getIdPConfigByIssuerOptionalSPId,
@@ -53,7 +51,6 @@ import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
-import Control.Monad.Trans.Except (except)
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
@@ -154,14 +151,14 @@ runSparInSem (Spar action) =
     Right a -> pure a
 
 getIdPConfig :: Member IdPEffect.IdP r => IdPId -> Spar r IdP
-getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientSem . IdPEffect.getConfig
+getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . liftSem . IdPEffect.getConfig
 
 storeIdPConfig :: Member IdPEffect.IdP r => IdP -> Spar r ()
-storeIdPConfig idp = wrapMonadClientSem $ IdPEffect.storeConfig idp
+storeIdPConfig idp = liftSem $ IdPEffect.storeConfig idp
 
 getIdPConfigByIssuerOptionalSPId :: Member IdPEffect.IdP r => Issuer -> Maybe TeamId -> Spar r IdP
 getIdPConfigByIssuerOptionalSPId issuer mbteam = do
-  wrapSpar (getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
+  getIdPConfigByIssuerAllowOld issuer mbteam >>= \case
     Data.GetIdPFound idp -> pure idp
     Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
     res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
@@ -178,21 +175,8 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
     handler' <- bindS handler
     pure $ m' `Catch.catch` \e -> handler' $ e <$ st
 
--- | Call a 'Sem' command in the 'Spar' monad.  Catch all (IO) exceptions and
--- re-throw them as 500 in Handler.
-wrapMonadClientSem :: Sem r a -> Spar r a
-wrapMonadClientSem action =
-  Spar $
-    lift action
-      `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
-
-wrapSpar :: Spar r a -> Spar r a
-wrapSpar action = Spar $ do
-  fromSpar $
-    wrapMonadClientSem (runExceptT $ fromSpar action) >>= Spar . except
-
 insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Spar r ()
-insertUser uref uid = wrapMonadClientSem $ SAMLUserStore.insert uref uid
+insertUser uref uid = liftSem $ SAMLUserStore.insert uref uid
 
 -- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
 -- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
@@ -216,7 +200,7 @@ getUserIdByUref mbteam uref = userId <$$> getUserByUref mbteam uref
 
 getUserByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult User)
 getUserByUref mbteam uref = do
-  muid <- wrapMonadClientSem $ SAMLUserStore.get uref
+  muid <- liftSem $ SAMLUserStore.get uref
   case muid of
     Nothing -> pure GetUserNotFound
     Just uid -> do
@@ -244,7 +228,7 @@ instance Functor GetUserResult where
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Spar r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
-  muid <- wrapMonadClientSem $ (ScimExternalIdStore.lookup tid email)
+  muid <- liftSem $ (ScimExternalIdStore.lookup tid email)
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -327,7 +311,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
     guardScimTokens :: IdP -> Spar r ()
     guardScimTokens idp = do
       let teamid = idp ^. idpExtraInfo . wiTeam
-      scimtoks <- wrapMonadClientSem $ ScimTokenStore.getByTeam teamid
+      scimtoks <- liftSem $ ScimTokenStore.getByTeam teamid
       unless (null scimtoks) $ do
         throwSpar SparSamlCredentialsNotFound
 
@@ -358,7 +342,7 @@ bindUser buid userref = do
     let err :: Spar r a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid :: TeamId <-
-      wrapSpar (getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
+      getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing >>= \case
         Data.GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
         Data.GetIdPNotFound -> err
         Data.GetIdPDanglingId _ -> err -- database inconsistency
@@ -414,7 +398,7 @@ verdictHandler cky mbteam aresp verdict = do
   -- the InResponseTo attribute MUST match the request's ID.
   liftSem $ Logger.log SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
-  format :: Maybe VerdictFormat <- wrapMonadClientSem $ AReqIDStore.getVerdictFormat reqid
+  format :: Maybe VerdictFormat <- liftSem $ AReqIDStore.getVerdictFormat reqid
   resp <- case format of
     Just (VerdictFormatWeb) ->
       verdictHandlerResult cky mbteam verdict >>= verdictHandlerWeb
@@ -485,9 +469,9 @@ findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
 -- the old IdP is not needed any more next time.
 moveUserToNewIssuer :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> SAML.UserRef -> UserId -> Spar r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
-  wrapMonadClientSem $ SAMLUserStore.insert newUserRef uid
+  liftSem $ SAMLUserStore.insert newUserRef uid
   liftSem $ BrigAccess.setVeid uid (UrefOnly newUserRef)
-  wrapMonadClientSem $ SAMLUserStore.delete uid oldUserRef
+  liftSem $ SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
   HasCallStack =>
@@ -511,7 +495,7 @@ verdictHandlerResultCore bindCky mbteam = \case
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
-      viaBindCookie <- maybe (pure Nothing) (wrapMonadClientSem . BindCookieStore.lookup) bindCky
+      viaBindCookie <- maybe (pure Nothing) (liftSem . BindCookieStore.lookup) bindCky
       viaSparCassandra <- getUserIdByUref mbteam userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
