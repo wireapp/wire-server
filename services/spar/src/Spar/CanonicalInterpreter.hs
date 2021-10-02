@@ -9,7 +9,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Servant
-import Spar.App
+import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
@@ -32,6 +32,8 @@ import Spar.Sem.Now (Now)
 import Spar.Sem.Now.IO (nowToIO)
 import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
+import Spar.Sem.Reporter (Reporter)
+import Spar.Sem.Reporter.Wai (reporterToWai)
 import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -64,6 +66,7 @@ type CanonicalEffs =
      GalleyAccess,
      Error TTLError,
      Error SparError,
+     Reporter,
      -- TODO(sandy): Make this a Logger Text instead
      Logger String,
      Logger (TinyLog.Msg -> TinyLog.Msg),
@@ -85,6 +88,7 @@ runSparToIO ctx (Spar action) =
     . runInputConst (sparCtxOpts ctx)
     . loggerToTinyLog (sparCtxLogger ctx)
     . stringLoggerToTinyLog
+    . reporterToWai
     . runError @SparError
     . ttlErrorToSparError
     . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)

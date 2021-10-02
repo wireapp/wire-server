@@ -40,6 +40,8 @@ module Spar.App
     storeIdPConfig,
     getIdPConfigByIssuerOptionalSPId,
     runSparInSem,
+    sparToServerErrorWithLogging,
+    renderSparErrorWithLogging,
   )
 where
 
@@ -78,7 +80,7 @@ import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data (GetIdPResult (..))
-import Spar.Error
+import Spar.Error hiding (sparToServerErrorWithLogging)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
@@ -95,6 +97,8 @@ import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
+import Spar.Sem.Reporter (Reporter)
+import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -386,6 +390,7 @@ verdictHandler ::
        ScimTokenStore,
        IdPEffect.IdP,
        Error SparError,
+       Reporter,
        SAMLUserStore
      ]
     r =>
@@ -429,6 +434,7 @@ verdictHandlerResult ::
        ScimTokenStore,
        IdPEffect.IdP,
        Error SparError,
+       Reporter,
        SAMLUserStore
      ]
     r =>
@@ -444,15 +450,18 @@ verdictHandlerResult bindCky mbteam verdict = do
 
 catchVerdictErrors ::
   forall r.
-  Member (Error SparError) r =>
+  Members
+    '[ Reporter,
+       Error SparError
+     ]
+    r =>
   Spar r VerdictHandlerResult ->
   Spar r VerdictHandlerResult
 catchVerdictErrors = liftSem . (`catch` hndlr) . runSparInSem
   where
     hndlr :: SparError -> Sem r VerdictHandlerResult
     hndlr err = do
-      -- TODO(sandy): When we remove this line, we can get rid of the @Input TinyLog.Logger@ effect
-      waiErr <- renderSparErrorWithLogging undefined err
+      waiErr <- renderSparErrorWithLogging err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
@@ -770,3 +779,15 @@ deleteTeam team = liftSem $ do
         issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
     SAMLUserStore.deleteByIssuer issuer
     IdPEffect.deleteConfig idpid issuer team
+
+sparToServerErrorWithLogging :: Member Reporter r => SparError -> Sem r ServerError
+sparToServerErrorWithLogging err = do
+  let errServant = sparToServerError err
+  Reporter.report Nothing (servantToWaiError errServant)
+  pure errServant
+
+renderSparErrorWithLogging :: Member Reporter r => SparError -> Sem r (Either ServerError Wai.Error)
+renderSparErrorWithLogging err = do
+  let errPossiblyWai = renderSparError err
+  Reporter.report Nothing (either servantToWaiError id $ errPossiblyWai)
+  pure errPossiblyWai

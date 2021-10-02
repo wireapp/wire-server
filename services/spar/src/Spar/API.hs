@@ -83,6 +83,7 @@ import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
+import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -125,6 +126,7 @@ api ::
        Now,
        SamlProtocolSettings,
        Logger String,
+       Reporter,
        -- TODO(sandy): Only necessary for 'fromExceptionSem' in 'apiScim'
        Final IO,
        Logger (Msg -> Msg)
@@ -156,6 +158,7 @@ apiSSO ::
        Error SparError,
        SAML2,
        SamlProtocolSettings,
+       Reporter,
        SAMLUserStore
      ]
     r =>
@@ -323,6 +326,7 @@ authresp ::
        SAML2,
        SamlProtocolSettings,
        Error SparError,
+       Reporter,
        SAMLUserStore
      ]
     r =>
