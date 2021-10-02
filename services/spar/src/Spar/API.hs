@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -197,6 +198,7 @@ apiINTERNAL ::
     '[ ScimTokenStore,
        DefaultSsoCode,
        IdPEffect.IdP,
+       Error SparError,
        SAMLUserStore
      ]
     r =>
@@ -212,7 +214,16 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
-authreqPrecheck :: Member IdPEffect.IdP r => Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar r NoContent
+authreqPrecheck ::
+  Members
+    '[ IdPEffect.IdP,
+       Error SparError
+     ]
+    r =>
+  Maybe URI.URI ->
+  Maybe URI.URI ->
+  SAML.IdPId ->
+  Spar r NoContent
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> getIdPConfig idpid
@@ -228,6 +239,7 @@ authreq ::
        AReqIDStore,
        SAML2,
        SamlProtocolSettings,
+       Error SparError,
        IdPEffect.IdP
      ]
     r =>
@@ -238,12 +250,12 @@ authreq ::
   Maybe URI.URI ->
   SAML.IdPId ->
   Spar r (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
-authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
+authreq _ DoInitiateLogin (Just _) _ _ _ = throwSparSem SparInitLoginWithAuth
+authreq _ DoInitiateBind Nothing _ _ _ = throwSparSem SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
-    idp :: IdP <- liftSem (IdPEffect.getConfig idpid) >>= maybe (throwSpar (SparIdPNotFound (cs $ show idpid))) pure
+    idp :: IdP <- liftSem (IdPEffect.getConfig idpid) >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
           WireIdPAPIV1 -> Nothing
@@ -282,20 +294,20 @@ initializeBindCookie zusr authreqttl = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar r VerdictFormat
+validateAuthreqParams :: Member (Error SparError) r => Maybe URI.URI -> Maybe URI.URI -> Spar r VerdictFormat
 validateAuthreqParams msucc merr = case (msucc, merr) of
   (Nothing, Nothing) -> pure VerdictFormatWeb
   (Just ok, Just err) -> do
     validateRedirectURL `mapM_` [ok, err]
     pure $ VerdictFormatMobile ok err
-  _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
+  _ -> throwSparSem $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
-validateRedirectURL :: URI.URI -> Spar r ()
+validateRedirectURL :: Member (Error SparError) r => URI.URI -> Spar r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
-    throwSpar $ SparBadInitiateLoginQueryParams "invalid-schema"
+    throwSparSem $ SparBadInitiateLoginQueryParams "invalid-schema"
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
-    throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
+    throwSparSem $ SparBadInitiateLoginQueryParams "url-too-long"
 
 authresp ::
   forall r.
@@ -377,7 +389,7 @@ idpGetRaw zusr idpid = do
   _ <- liftSem $ authorizeIdP zusr idp
   liftSem (IdPEffect.getRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
+    Nothing -> throwSparSem $ SparIdPNotFound (cs $ show idpid)
 
 idpGetAll ::
   Members
@@ -438,7 +450,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   when (not idpIsEmpty) $ do
     if purge
       then doPurge
-      else throwSpar SparIdPHasBoundUsers
+      else throwSparSem SparIdPHasBoundUsers
   updateOldIssuers idp
   updateReplacingIdP idp
   -- Delete tokens associated with given IdP (we rely on the fact that
@@ -524,12 +536,20 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
 -- data contains no information about the idp issuer, only the user name, so no valid saml
 -- credentials can be created.  To fix this, we need to implement a way to associate scim
 -- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
-assertNoScimOrNoIdP :: Members '[ScimTokenStore, IdPEffect.IdP] r => TeamId -> Spar r ()
+assertNoScimOrNoIdP ::
+  Members
+    '[ ScimTokenStore,
+       Error SparError,
+       IdPEffect.IdP
+     ]
+    r =>
+  TeamId ->
+  Spar r ()
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> liftSem (ScimTokenStore.getByTeam teamid)
   numIdps <- length <$> liftSem (IdPEffect.getConfigsByTeam teamid)
   when (numTokens > 0 && numIdps > 0) $ do
-    throwSpar $
+    throwSparSem $
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
 
@@ -556,7 +576,13 @@ assertNoScimOrNoIdP teamid = do
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Members '[Random, Logger String, IdPEffect.IdP] r =>
+  Members
+    '[ Random,
+       Logger String,
+       IdPEffect.IdP,
+       Error SparError
+     ]
+    r =>
   WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
@@ -567,7 +593,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
-      idp <- liftSem (IdPEffect.getConfig replaces) >>= maybe (throwSpar (SparIdPNotFound (cs $ show mReplaces))) pure
+      idp <- liftSem (IdPEffect.getConfig replaces) >>= maybe (throwSparSem (SparIdPNotFound (cs $ show mReplaces))) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
@@ -581,11 +607,11 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       -- we're not using any properties of the arguments in this function.)
       handleIdPClash = case apiversion of
         WireIdPAPIV1 -> const $ do
-          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api_version v1 if the issuer is already in use on the wire instance."
+          throwSparSem $ SparNewIdPAlreadyInUse "you can't create an IdP with api_version v1 if the issuer is already in use on the wire instance."
         WireIdPAPIV2 -> \case
           (Right _) -> do
             -- idp' was found by lookup with teamid, so it's in the same team.
-            throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+            throwSparSem $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
           (Left _) -> do
             -- this idp *id* is from a different team, and we're in the 'WireIdPAPIV2' case, so this is fine.
             pure ()
@@ -593,7 +619,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   case idp of
     Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
     Data.GetIdPNotFound -> pure ()
-    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
+    res@(Data.GetIdPDanglingId _) -> throwSparSem . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
     Data.GetIdPNonUnique ids' {- same team didn't yield anything, but there are at least two other teams with this issuer already -} -> handleIdPClash (Left ids')
     Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
 
@@ -666,11 +692,11 @@ validateIdPUpdate ::
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <-
     liftSem (IdPEffect.getConfig _idpId) >>= \case
-      Nothing -> throwError errUnknownIdPId
+      Nothing -> liftSem $ throw errUnknownIdPId
       Just idp -> pure idp
   teamId <- liftSem $ authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
-    throwError errUnknownIdP
+    liftSem $ throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
         newIssuer = _idpMetadata ^. SAML.edIssuer
@@ -681,12 +707,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         notInUseByOthers <- case foundConfig of
           Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
           Data.GetIdPNotFound -> pure True
-          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
-          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
+          res@(Data.GetIdPDanglingId _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
+          res@(Data.GetIdPNonUnique _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
           Data.GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
-          else throwSpar SparIdPIssuerInUse
+          else throwSparSem SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
   pure (teamId, SAML.IdPConfig {..})
@@ -716,10 +742,10 @@ authorizeIdP (Just zusr) idp = do
   GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure teamid
 
-enforceHttps :: URI.URI -> Spar r ()
+enforceHttps :: Member (Error SparError) r => URI.URI -> Spar r ()
 enforceHttps uri = do
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
-    throwSpar . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
+    throwSparSem . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
 
 ----------------------------------------------------------------------------
 -- Internal API
@@ -734,7 +760,15 @@ internalDeleteTeam team = do
   deleteTeam team
   pure NoContent
 
-internalPutSsoSettings :: Members '[DefaultSsoCode, IdPEffect.IdP] r => SsoSettings -> Spar r NoContent
+internalPutSsoSettings ::
+  Members
+    '[ DefaultSsoCode,
+       Error SparError,
+       IdPEffect.IdP
+     ]
+    r =>
+  SsoSettings ->
+  Spar r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   liftSem $ DefaultSsoCode.delete
   pure NoContent
@@ -744,7 +778,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
       -- this will return a 404, which is not quite right,
       -- but it's an internal endpoint and the message clearly says
       -- "Could not find IdP".
-      throwSpar $ SparIdPNotFound mempty
+      throwSparSem $ SparIdPNotFound mempty
     Just _ -> do
       liftSem $ DefaultSsoCode.store code
       pure NoContent

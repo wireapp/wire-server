@@ -48,7 +48,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, liftSem)
+import Spar.App (Spar, liftSem, throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -131,7 +131,7 @@ createScimToken zusr CreateScimToken {..} = do
   tokenNumber <- fmap length $ liftSem $ ScimTokenStore.getByTeam teamid
   maxTokens <- liftSem $ inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
-    E.throwSpar E.SparProvisioningTokenLimitReached
+    throwSparSem E.SparProvisioningTokenLimitReached
   idps <- liftSem $ IdPEffect.getConfigsByTeam teamid
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
@@ -157,7 +157,7 @@ createScimToken zusr CreateScimToken {..} = do
     -- be changed.  currently, it relies on the fact that there is never more than one IdP.
     -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
     _ ->
-      E.throwSpar $
+      throwSparSem $
         E.SparProvisioningMoreThanOneIdP
           "SCIM tokens can only be created for a team with at most one IdP"
 

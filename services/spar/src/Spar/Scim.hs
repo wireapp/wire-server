@@ -75,12 +75,11 @@ import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
-import Spar.App (Spar (..))
+import Spar.App (Spar (..), throwSparSem)
 import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
     sparToServerErrorWithLogging,
-    throwSpar,
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
@@ -139,7 +138,7 @@ apiScim =
     hoistScim =
       hoistServer
         (Proxy @(ScimSiteAPI SparTag))
-        (wrapScimErrors . Scim.fromScimHandler (throwSpar . SparScimError))
+        (wrapScimErrors . Scim.fromScimHandler (throwSparSem . SparScimError))
     -- Wrap /all/ errors into the format required by SCIM, even server exceptions that have
     -- nothing to do with SCIM.
     --
