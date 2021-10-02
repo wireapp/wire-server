@@ -15,24 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Connection.Remote (createConnectionToRemoteUser) where
+module Brig.API.Connection.Remote (performLocalAction, performRemoteAction) where
 
-import Brig.API.Connection.Util
 import Brig.App
 import qualified Brig.Data.Connection as Data
-import qualified Brig.IO.Intra as Intra
 import Brig.Types
-import Brig.Types.User.Event
-import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import Data.Qualified
 import Data.Tagged
 import Imports
-import qualified System.Logger.Class as Log
-import System.Logger.Message
-import Wire.API.Connection (RelationWithHistory (..))
-import Wire.API.Federation.Error (federationNotImplemented)
-import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.Connection (relationWithHistory)
 
 data LocalConnectionAction
   = LocalConnect
@@ -110,48 +102,54 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
-remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
-remoteAction LocalConnect = Just RemoteConnect
-remoteAction LocalRescind = Just RemoteRescind
-remoteAction _ = Nothing
-
-executeTransition :: ConnectionAction -> Relation -> Galley Relation
-executeTransition action rel = case transition action rel of
-  Nothing -> pure rel
-  Just Accepted -> undefined
-
-reaction :: Relation -> Maybe RemoteConnectionAction
-reaction Accepted = Just RemoteConnect
-reaction Sent = Just RemoteConnect
-reaction _ = Nothing
+performTransition :: Relation -> AppIO ()
+performTransition _rel = error "TODO"
 
 performLocalAction ::
   Local UserId ->
   Remote UserId ->
   LocalConnectionAction ->
-  Galley ()
+  AppIO ()
 performLocalAction self other action = do
-  mreaction <- join <$> traverse_ notifyRemote (remoteAction self other action)
-  rel0 <- Data.lookupRelation self other
-  let rel1 = transition (LCA action) rel0
-      rel2 = maybe id (fmap (transition . RCA) mreaction) rel1
-  Data.updateConnectionStatus self other (relationWithHistory rel2)
+  -- we look up relation _before_ calling notfiyRemote, because 'transition'
+  -- decides if any action should be taken at all.
+  -- TODO: remove this comment
+  rel0 <- Data.lookupRelation self (unTagged other)
+  for_ (transition (LCA action) rel0) $ \rel1 -> do
+    mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
+    let rel2 = fromMaybe rel1 $ join $ mreaction <&> \r -> transition (RCA r) rel1
+    _time <- Data.updateConnectionStatus self (unTagged other) (relationWithHistory rel2)
+    performTransition rel2
+  where
+    remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
+    remoteAction LocalConnect = Just RemoteConnect
+    remoteAction LocalRescind = Just RemoteRescind
+    remoteAction _ = Nothing
 
+-- TODO: Describe what problem "reaction" solves
 performRemoteAction ::
   Local UserId ->
   Remote UserId ->
   RemoteConnectionAction ->
-  Galley (Maybe RemoteConnectionAction)
+  AppIO (Maybe RemoteConnectionAction)
 performRemoteAction self other action = do
-  rel0 <- Data.lookupRelation self other
-  let rel1 = transition (RCA action) rel0
-  Data.updateConnectionStatus self other (relationWithHistory rel1)
-  pure (reaction rel1)
+  rel0 <- Data.lookupRelation self (unTagged other)
+  case transition (RCA action) rel0 of
+    Nothing -> pure Nothing
+    Just rel1 -> do
+      _time <- Data.updateConnectionStatus self (unTagged other) (relationWithHistory rel1)
+      performTransition rel1
+      pure (reaction rel1)
+  where
+    reaction :: Relation -> Maybe RemoteConnectionAction
+    reaction Accepted = Just RemoteConnect
+    reaction Sent = Just RemoteConnect
+    reaction _ = Nothing
 
 -- send an RPC to the remote backend
 notifyRemote ::
   Local UserId ->
   Remote UserId ->
   RemoteConnectionAction ->
-  Galley (Maybe RemoteConnectionAction)
-notifyRemote self other action = error "TODO"
+  AppIO (Maybe RemoteConnectionAction)
+notifyRemote _self _other _action = error "TODO"

@@ -33,7 +33,6 @@ module Brig.API.Connection
   )
 where
 
-import Brig.API.Connection.Remote
 import Brig.API.Connection.Util
 import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
@@ -490,3 +489,10 @@ checkLimit u = do
   unless (n < l) $
     throwE $
       TooManyConnections (lUnqualified u)
+
+createConnectionToRemoteUser ::
+  Local UserId ->
+  ConnId ->
+  Remote UserId ->
+  ConnectionM (ResponseForExistedCreated UserConnection)
+createConnectionToRemoteUser _self _conn _other = error "TODO"
