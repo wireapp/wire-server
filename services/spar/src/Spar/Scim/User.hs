@@ -447,9 +447,8 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
           -- up.  We should consider making setUserHandle part of createUser and
           -- making it transactional.  If the user redoes the POST A new standalone
           -- user will be created.}
-          do
-            BrigAccess.setHandle buid handl
-            BrigAccess.setRichInfo buid richInfo
+          BrigAccess.setHandle buid handl
+          BrigAccess.setRichInfo buid richInfo
           pure buid
 
       -- {If we crash now,  a POST retry will fail with 409 user already exists.
@@ -576,9 +575,8 @@ updateVsuUref team uid old new = do
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
     _ -> pure ()
 
-  do
-    old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
-    new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
+  old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
+  new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
   BrigAccess.setVeid uid new
 
