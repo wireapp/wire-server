@@ -64,17 +64,16 @@ module Spar.Scim
   )
 where
 
-import Control.Monad.Catch (try)
 import Data.String.Conversions (cs)
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
 import Polysemy.Input (Input)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
-import Spar.App (Spar (..), throwSparSem)
+import Spar.App (Spar (..), runSparInSem, throwSparSem)
 import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
@@ -126,6 +125,8 @@ apiScim ::
        ScimUserTimesStore,
        ScimTokenStore,
        IdPEffect.IdP,
+       -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
+       Final IO,
        SAMLUserStore
      ]
     r =>
@@ -147,7 +148,8 @@ apiScim =
     -- for why it's hard to catch impure exceptions.
     wrapScimErrors :: Spar r a -> Spar r a
     wrapScimErrors act = Spar $ do
-      result :: Either SomeException (Either SparError a) <- undefined -- try $ runExceptT $ fromSpar $ act
+      result :: Either SomeException (Either SparError a) <-
+        runError $ fromExceptionSem @SomeException $ raise $ try @SparError $ runSparInSem act
       case result of
         Left someException -> do
           -- We caught an exception that's not a Spar exception at all. It is wrapped into

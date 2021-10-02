@@ -125,6 +125,8 @@ api ::
        Now,
        SamlProtocolSettings,
        Logger String,
+       -- TODO(sandy): Only necessary for 'fromExceptionSem' in 'apiScim'
+       Final IO,
        Logger (Msg -> Msg)
      ]
     r =>
