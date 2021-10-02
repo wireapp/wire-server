@@ -113,11 +113,11 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 
-newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ExceptT SparError (Sem r) a}
+newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => Sem r a}
   deriving (Functor)
 
 liftSem :: Sem r a -> Spar r a
-liftSem r = Spar $ lift r
+liftSem = Spar
 
 throwSparSem :: Member (Error SparError) r => SparCustomError -> Spar r a
 throwSparSem = liftSem . throw . SAML.CustomError
@@ -140,11 +140,8 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
-runSparInSem :: Members '[Final IO, Error SparError] r => Spar r a -> Sem r a
-runSparInSem (Spar action) =
-  runExceptT action >>= \case
-    Left err -> throw err
-    Right a -> pure a
+runSparInSem :: Members '[Final IO] r => Spar r a -> Sem r a
+runSparInSem (Spar action) = action
 
 getIdPConfig ::
   Members

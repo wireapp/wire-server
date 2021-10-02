@@ -77,8 +77,7 @@ type CanonicalEffs =
 
 runSparToIO :: Env -> Spar CanonicalEffs a -> IO (Either SparError a)
 runSparToIO ctx (Spar action) =
-  fmap join
-    . runFinal
+  runFinal
     . embedToFinal @IO
     . nowToIO
     . randomToIO
@@ -101,8 +100,7 @@ runSparToIO ctx (Spar action) =
     . assIDStoreToCassandra
     . bindCookieStoreToCassandra
     . sparRouteToServant (saml $ sparCtxOpts ctx)
-    . saml2ToSaml2WebSso
-    $ runExceptT action
+    $ saml2ToSaml2WebSso action
 
 runSparToHandler :: Env -> Spar CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
