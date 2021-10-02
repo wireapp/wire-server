@@ -78,7 +78,7 @@ type CanonicalEffs =
      Final IO
    ]
 
-runSparToIO :: Env -> Spar CanonicalEffs a -> IO (Either SparError a)
+runSparToIO :: Env -> Sem CanonicalEffs a -> IO (Either SparError a)
 runSparToIO ctx action =
   runFinal
     . embedToFinal @IO
@@ -106,7 +106,7 @@ runSparToIO ctx action =
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     $ saml2ToSaml2WebSso action
 
-runSparToHandler :: Env -> Spar CanonicalEffs a -> Handler a
+runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
   err <- liftIO $ runSparToIO ctx spar
   throwErrorAsHandlerException err

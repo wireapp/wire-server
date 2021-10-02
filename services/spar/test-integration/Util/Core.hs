@@ -168,6 +168,7 @@ import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
+import Polysemy (Sem)
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
@@ -1220,7 +1221,7 @@ runSimpleSP action = do
 
 runSpar ::
   (MonadReader TestEnv m, MonadIO m) =>
-  Spar.Spar CanonicalEffs a ->
+  Sem CanonicalEffs a ->
   m a
 runSpar action = do
   ctx <- (^. teSparEnv) <$> ask

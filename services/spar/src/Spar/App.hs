@@ -21,8 +21,7 @@
 
 -- | The 'Spar' monad and a set of actions (e.g. 'createUser') that can be performed in it.
 module Spar.App
-  ( type Spar,
-    Env (..),
+  ( Env (..),
     throwSparSem,
     verdictHandler,
     GetUserResult (..),
@@ -112,9 +111,7 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 
-type Spar = Sem
-
-throwSparSem :: Member (Error SparError) r => SparCustomError -> Spar r a
+throwSparSem :: Member (Error SparError) r => SparCustomError -> Sem r a
 throwSparSem = throw . SAML.CustomError
 
 data Env = Env
@@ -134,13 +131,13 @@ getIdPConfig ::
      ]
     r =>
   IdPId ->
-  Spar r IdP
+  Sem r IdP
 getIdPConfig = (>>= maybe (throwSparSem (SparIdPNotFound mempty)) pure) . IdPEffect.getConfig
 
-storeIdPConfig :: Member IdPEffect.IdP r => IdP -> Spar r ()
+storeIdPConfig :: Member IdPEffect.IdP r => IdP -> Sem r ()
 storeIdPConfig idp = IdPEffect.storeConfig idp
 
-getIdPConfigByIssuerOptionalSPId :: Members '[IdPEffect.IdP, Error SparError] r => Issuer -> Maybe TeamId -> Spar r IdP
+getIdPConfigByIssuerOptionalSPId :: Members '[IdPEffect.IdP, Error SparError] r => Issuer -> Maybe TeamId -> Sem r IdP
 getIdPConfigByIssuerOptionalSPId issuer mbteam = do
   getIdPConfigByIssuerAllowOld issuer mbteam >>= \case
     Data.GetIdPFound idp -> pure idp
@@ -149,7 +146,7 @@ getIdPConfigByIssuerOptionalSPId issuer mbteam = do
     res@(Data.GetIdPNonUnique _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
     res@(Data.GetIdPWrongTeam _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
 
-insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Spar r ()
+insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Sem r ()
 insertUser uref uid = SAMLUserStore.insert uref uid
 
 -- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
@@ -169,10 +166,10 @@ insertUser uref uid = SAMLUserStore.insert uref uid
 -- the team with valid SAML credentials.
 --
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
-getUserIdByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult UserId)
+getUserIdByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Sem r (GetUserResult UserId)
 getUserIdByUref mbteam uref = userId <$$> getUserByUref mbteam uref
 
-getUserByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult User)
+getUserByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Sem r (GetUserResult User)
 getUserByUref mbteam uref = do
   muid <- SAMLUserStore.get uref
   case muid of
@@ -200,7 +197,7 @@ instance Functor GetUserResult where
   fmap _ GetUserWrongTeam = GetUserWrongTeam
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Spar r (Maybe UserId)
+getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Sem r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
   muid <- (ScimExternalIdStore.lookup tid email)
   case muid of
@@ -236,7 +233,7 @@ createSamlUserWithId ::
   TeamId ->
   UserId ->
   SAML.UserRef ->
-  Spar r ()
+  Sem r ()
 createSamlUserWithId teamid buid suid = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire
@@ -258,7 +255,7 @@ autoprovisionSamlUser ::
     r =>
   Maybe TeamId ->
   SAML.UserRef ->
-  Spar r UserId
+  Sem r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- Id <$> Random.uuid
   autoprovisionSamlUserWithId mbteam buid suid
@@ -279,7 +276,7 @@ autoprovisionSamlUserWithId ::
   Maybe TeamId ->
   UserId ->
   SAML.UserRef ->
-  Spar r ()
+  Sem r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -288,13 +285,13 @@ autoprovisionSamlUserWithId mbteam buid suid = do
   validateEmailIfExists buid suid
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
-    guardReplacedIdP :: IdP -> Spar r ()
+    guardReplacedIdP :: IdP -> Sem r ()
     guardReplacedIdP idp = do
       unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
         throwSparSem $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
 
     -- IdPs in teams with scim tokens are not allowed to auto-provision.
-    guardScimTokens :: IdP -> Spar r ()
+    guardScimTokens :: IdP -> Sem r ()
     guardScimTokens idp = do
       let teamid = idp ^. idpExtraInfo . wiTeam
       scimtoks <- ScimTokenStore.getByTeam teamid
@@ -303,12 +300,12 @@ autoprovisionSamlUserWithId mbteam buid suid = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: forall r. Members '[GalleyAccess, BrigAccess] r => UserId -> SAML.UserRef -> Spar r ()
+validateEmailIfExists :: forall r. Members '[GalleyAccess, BrigAccess] r => UserId -> SAML.UserRef -> Sem r ()
 validateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
   _ -> pure ()
   where
-    doValidate :: SAMLEmail.Email -> Spar r ()
+    doValidate :: SAMLEmail.Email -> Sem r ()
     doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
@@ -333,10 +330,10 @@ bindUser ::
     r =>
   UserId ->
   SAML.UserRef ->
-  Spar r UserId
+  Sem r UserId
 bindUser buid userref = do
   oldStatus <- do
-    let err :: Spar r a
+    let err :: Sem r a
         err = throwSparSem . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid :: TeamId <-
       getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing >>= \case
@@ -389,7 +386,7 @@ verdictHandler ::
   Maybe TeamId ->
   SAML.AuthnResponse ->
   SAML.AccessVerdict ->
-  Spar r SAML.ResponseVerdict
+  Sem r SAML.ResponseVerdict
 verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
@@ -432,7 +429,7 @@ verdictHandlerResult ::
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
-  Spar r VerdictHandlerResult
+  Sem r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
   Logger.log SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
@@ -446,8 +443,8 @@ catchVerdictErrors ::
        Error SparError
      ]
     r =>
-  Spar r VerdictHandlerResult ->
-  Spar r VerdictHandlerResult
+  Sem r VerdictHandlerResult ->
+  Sem r VerdictHandlerResult
 catchVerdictErrors = (`catch` hndlr)
   where
     hndlr :: SparError -> Sem r VerdictHandlerResult
@@ -471,10 +468,10 @@ findUserIdWithOldIssuer ::
     r =>
   Maybe TeamId ->
   SAML.UserRef ->
-  Spar r (GetUserResult (SAML.UserRef, UserId))
+  Sem r (GetUserResult (SAML.UserRef, UserId))
 findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuerOptionalSPId issuer mbteam
-  let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Spar r (GetUserResult (SAML.UserRef, UserId))
+  let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Sem r (GetUserResult (SAML.UserRef, UserId))
       tryFind found@(GetUserFound _) _ = pure found
       tryFind _ oldIssuer = (uref,) <$$> getUserIdByUref mbteam uref
         where
@@ -483,7 +480,7 @@ findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
-moveUserToNewIssuer :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> SAML.UserRef -> UserId -> Spar r ()
+moveUserToNewIssuer :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> SAML.UserRef -> UserId -> Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
   BrigAccess.setVeid uid (UrefOnly newUserRef)
@@ -506,7 +503,7 @@ verdictHandlerResultCore ::
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
-  Spar r VerdictHandlerResult
+  Sem r VerdictHandlerResult
 verdictHandlerResultCore bindCky mbteam = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
@@ -562,7 +559,7 @@ verdictHandlerResultCore bindCky mbteam = \case
 -- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
-verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar r SAML.ResponseVerdict
+verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Sem r SAML.ResponseVerdict
 verdictHandlerWeb =
   pure . \case
     VerifyHandlerGranted cky _uid -> successPage cky
@@ -633,7 +630,7 @@ easyHtml doc =
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
 -- substituted and the client is redirected accordingly.
-verdictHandlerMobile :: (HasCallStack, Member (Error SparError) r) => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar r SAML.ResponseVerdict
+verdictHandlerMobile :: (HasCallStack, Member (Error SparError) r) => URI.URI -> URI.URI -> VerdictHandlerResult -> Sem r SAML.ResponseVerdict
 verdictHandlerMobile granted denied = \case
   VerifyHandlerGranted cky uid ->
     mkVerdictGrantedFormatMobile granted cky uid
@@ -703,7 +700,7 @@ getIdPIdByIssuerAllowOld ::
   Member IdPEffect.IdP r =>
   SAML.Issuer ->
   Maybe TeamId ->
-  Spar r (GetIdPResult SAML.IdPId)
+  Sem r (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerAllowOld issuer mbteam = do
   mbv2 <- maybe (pure Nothing) (IdPEffect.getIdByIssuerWithTeam issuer) mbteam
   mbv1v2 <- maybe (IdPEffect.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
@@ -724,7 +721,7 @@ getIdPConfigByIssuer ::
   (HasCallStack, Member IdPEffect.IdP r) =>
   SAML.Issuer ->
   TeamId ->
-  Spar r (GetIdPResult IdP)
+  Sem r (GetIdPResult IdP)
 getIdPConfigByIssuer issuer =
   getIdPIdByIssuer issuer >=> mapGetIdPResult
 
@@ -733,7 +730,7 @@ getIdPConfigByIssuerAllowOld ::
   (HasCallStack, Member IdPEffect.IdP r) =>
   SAML.Issuer ->
   Maybe TeamId ->
-  Spar r (GetIdPResult IdP)
+  Sem r (GetIdPResult IdP)
 getIdPConfigByIssuerAllowOld issuer = do
   getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
 
@@ -743,12 +740,12 @@ getIdPIdByIssuer ::
   (HasCallStack, Member IdPEffect.IdP r) =>
   SAML.Issuer ->
   TeamId ->
-  Spar r (GetIdPResult SAML.IdPId)
+  Sem r (GetIdPResult SAML.IdPId)
 getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
 
 -- | (There are probably category theoretical models for what we're doing here, but it's more
 -- straight-forward to just handle the one instance we need.)
-mapGetIdPResult :: (HasCallStack, Member IdPEffect.IdP r) => GetIdPResult SAML.IdPId -> Spar r (GetIdPResult IdP)
+mapGetIdPResult :: (HasCallStack, Member IdPEffect.IdP r) => GetIdPResult SAML.IdPId -> Sem r (GetIdPResult IdP)
 mapGetIdPResult (GetIdPFound i) = IdPEffect.getConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
 mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
 mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
@@ -759,7 +756,7 @@ mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
 deleteTeam ::
   (HasCallStack, Members '[ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r) =>
   TeamId ->
-  Spar r ()
+  Sem r ()
 deleteTeam team = do
   ScimTokenStore.deleteByTeam team
   -- Since IdPs are not shared between teams, we can look at the set of IdPs

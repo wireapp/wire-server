@@ -133,7 +133,7 @@ api ::
      ]
     r =>
   Opts ->
-  ServerT API (Spar r)
+  ServerT API (Sem r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -163,7 +163,7 @@ apiSSO ::
      ]
     r =>
   Opts ->
-  ServerT APISSO (Spar r)
+  ServerT APISSO (Sem r)
 apiSSO opts =
   (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
     :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
@@ -185,7 +185,7 @@ apiIDP ::
        Error SparError
      ]
     r =>
-  ServerT APIIDP (Spar r)
+  ServerT APIIDP (Sem r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -203,7 +203,7 @@ apiINTERNAL ::
        SAMLUserStore
      ]
     r =>
-  ServerT APIINTERNAL (Spar r)
+  ServerT APIINTERNAL (Sem r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
@@ -224,7 +224,7 @@ authreqPrecheck ::
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
-  Spar r NoContent
+  Sem r NoContent
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> getIdPConfig idpid
@@ -250,7 +250,7 @@ authreq ::
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
-  Spar r (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+  Sem r (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 authreq _ DoInitiateLogin (Just _) _ _ _ = throwSparSem SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _ = throwSparSem SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
@@ -281,7 +281,7 @@ initializeBindCookie ::
     r =>
   Maybe UserId ->
   NominalDiffTime ->
-  Spar r SetBindCookie
+  Sem r SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts {derivedOptsBindCookiePath} <- inputs derivedOpts
   msecret <-
@@ -295,7 +295,7 @@ initializeBindCookie zusr authreqttl = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: Member (Error SparError) r => Maybe URI.URI -> Maybe URI.URI -> Spar r VerdictFormat
+validateAuthreqParams :: Member (Error SparError) r => Maybe URI.URI -> Maybe URI.URI -> Sem r VerdictFormat
 validateAuthreqParams msucc merr = case (msucc, merr) of
   (Nothing, Nothing) -> pure VerdictFormatWeb
   (Just ok, Just err) -> do
@@ -303,7 +303,7 @@ validateAuthreqParams msucc merr = case (msucc, merr) of
     pure $ VerdictFormatMobile ok err
   _ -> throwSparSem $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
-validateRedirectURL :: Member (Error SparError) r => URI.URI -> Spar r ()
+validateRedirectURL :: Member (Error SparError) r => URI.URI -> Sem r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "invalid-schema"
@@ -333,7 +333,7 @@ authresp ::
   Maybe TeamId ->
   Maybe ST ->
   SAML.AuthnResponseBody ->
-  Spar r Void
+  Sem r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
@@ -344,8 +344,8 @@ authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSet
       result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
       throw @SparError $ SAML.CustomServant result
 
-    logErrors :: Spar r Void -> Spar r Void
-    logErrors action = liftSem . catch @SparError (runSparInSem action) $ \case
+    logErrors :: Sem r Void -> Sem r Void
+    logErrors action = catch @SparError action $ \case
       e@(SAML.CustomServant _) -> throw e
       e -> do
         throw @SparError . SAML.CustomServant $
@@ -354,7 +354,7 @@ authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSet
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
             ckyraw
 
-ssoSettings :: Member DefaultSsoCode r => Spar r SsoSettings
+ssoSettings :: Member DefaultSsoCode r => Sem r SsoSettings
 ssoSettings = do
   SsoSettings <$> DefaultSsoCode.get
 
@@ -373,7 +373,7 @@ idpGet ::
     r =>
   Maybe UserId ->
   SAML.IdPId ->
-  Spar r IdP
+  Sem r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -383,7 +383,7 @@ idpGetRaw ::
   Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPId ->
-  Spar r RawIdPMetadata
+  Sem r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -402,7 +402,7 @@ idpGetAll ::
      ]
     r =>
   Maybe UserId ->
-  Spar r IdPList
+  Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- IdPEffect.getConfigsByTeam teamid
@@ -432,7 +432,7 @@ idpDelete ::
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
-  Spar r NoContent
+  Sem r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -440,7 +440,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
   idpIsEmpty <- isNothing <$> SAMLUserStore.getAnyByIssuer issuer
-  let doPurge :: Spar r ()
+  let doPurge :: Sem r ()
       doPurge = do
         some <- SAMLUserStore.getSomeByIssuer issuer
         forM_ some $ \(uref, uid) -> do
@@ -465,7 +465,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     IdPEffect.deleteRawMetadata idpid
   return NoContent
   where
-    updateOldIssuers :: IdP -> Spar r ()
+    updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
     -- we *could* update @idp ^. SAML.idpExtraInfo . wiReplacedBy@ to not keep the idp about
     -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
@@ -474,7 +474,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
     -- leave old issuers dangling for now.
 
-    updateReplacingIdP :: IdP -> Spar r ()
+    updateReplacingIdP :: IdP -> Sem r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
         Data.GetIdPFound iid -> IdPEffect.clearReplacedBy $ Data.Replaced iid
@@ -500,7 +500,7 @@ idpCreate ::
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
-  Spar r IdP
+  Sem r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
@@ -520,7 +520,7 @@ idpCreateXML ::
   SAML.IdPMetadata ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
-  Spar r IdP
+  Sem r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
@@ -544,7 +544,7 @@ assertNoScimOrNoIdP ::
      ]
     r =>
   TeamId ->
-  Spar r ()
+  Sem r ()
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.getByTeam teamid
   numIdps <- length <$> IdPEffect.getConfigsByTeam teamid
@@ -575,7 +575,7 @@ assertNoScimOrNoIdP teamid = do
 -- update, delete of idps.)
 validateNewIdP ::
   forall m r.
-  (HasCallStack, m ~ Spar r) =>
+  (HasCallStack, m ~ Sem r) =>
   Members
     '[ Random,
        Logger String,
@@ -641,7 +641,7 @@ idpUpdate ::
   Maybe UserId ->
   IdPMetadataInfo ->
   SAML.IdPId ->
-  Spar r IdP
+  Sem r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
 idpUpdateXML ::
@@ -658,7 +658,7 @@ idpUpdateXML ::
   Text ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
-  Spar r IdP
+  Sem r IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
@@ -675,7 +675,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 -- info if issuer has changed.
 validateIdPUpdate ::
   forall m r.
-  (HasCallStack, m ~ Spar r) =>
+  (HasCallStack, m ~ Sem r) =>
   Members
     '[ Random,
        Logger String,
@@ -723,7 +723,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
     errUnknownIdPId = SAML.UnknownIdP . cs . SAML.idPIdToST $ _idpId
 
-withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Spar r a -> Spar r a
+withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Sem r a -> Sem r a
 withDebugLog msg showval action = do
   Logger.log SAML.Debug $ "entering " ++ msg
   val <- action
@@ -742,7 +742,7 @@ authorizeIdP (Just zusr) idp = do
   GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure teamid
 
-enforceHttps :: Member (Error SparError) r => URI.URI -> Spar r ()
+enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
 enforceHttps uri = do
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
     throwSparSem . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
@@ -750,12 +750,12 @@ enforceHttps uri = do
 ----------------------------------------------------------------------------
 -- Internal API
 
-internalStatus :: Spar r NoContent
+internalStatus :: Sem r NoContent
 internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => TeamId -> Spar r NoContent
+internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => TeamId -> Sem r NoContent
 internalDeleteTeam team = do
   deleteTeam team
   pure NoContent
@@ -768,7 +768,7 @@ internalPutSsoSettings ::
      ]
     r =>
   SsoSettings ->
-  Spar r NoContent
+  Sem r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   DefaultSsoCode.delete
   pure NoContent

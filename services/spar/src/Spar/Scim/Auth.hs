@@ -48,7 +48,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, throwSparSem)
+import Spar.App (throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -69,9 +69,9 @@ import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
-instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) where
+instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Sem r) where
   -- Validate and resolve a given token
-  authCheck :: Maybe ScimToken -> Scim.ScimHandler (Spar r) ScimTokenInfo
+  authCheck :: Maybe ScimToken -> Scim.ScimHandler (Sem r) ScimTokenInfo
   authCheck Nothing =
     Scim.throwScim (Scim.unauthorized "Token not provided")
   authCheck (Just token) =
@@ -97,7 +97,7 @@ apiScimToken ::
        Error E.SparError
      ]
     r =>
-  ServerT APIScimToken (Spar r)
+  ServerT APIScimToken (Sem r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -123,7 +123,7 @@ createScimToken ::
   Maybe UserId ->
   -- | Request body
   CreateScimToken ->
-  Spar r CreateScimTokenResponse
+  Sem r CreateScimTokenResponse
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
@@ -134,7 +134,7 @@ createScimToken zusr CreateScimToken {..} = do
     throwSparSem E.SparProvisioningTokenLimitReached
   idps <- IdPEffect.getConfigsByTeam teamid
 
-  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
+  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Sem r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
         token <- ScimToken . cs . ES.encode <$> Random.bytes 32
         tokenid <- Random.scimTokenId
@@ -169,7 +169,7 @@ deleteScimToken ::
   -- | Who is trying to delete a token
   Maybe UserId ->
   ScimTokenId ->
-  Spar r NoContent
+  Sem r NoContent
 deleteScimToken zusr tokenid = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenStore.delete teamid tokenid
@@ -183,7 +183,7 @@ listScimTokens ::
   Members '[GalleyAccess, BrigAccess, ScimTokenStore, Error E.SparError] r =>
   -- | Who is trying to list tokens
   Maybe UserId ->
-  Spar r ScimTokenList
+  Sem r ScimTokenList
 listScimTokens zusr = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenList <$> ScimTokenStore.getByTeam teamid
