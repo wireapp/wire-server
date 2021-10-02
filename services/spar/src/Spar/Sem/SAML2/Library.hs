@@ -75,9 +75,9 @@ instance Members '[Error SparError, IdPEffect.IdP, Final IO] r => SPStoreIdP Spa
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
-  storeIdPConfig = SPImpl . App.runSparInSem . App.storeIdPConfig
-  getIdPConfig = SPImpl . App.runSparInSem . App.getIdPConfig
-  getIdPConfigByIssuerOptionalSPId a = SPImpl . App.runSparInSem . App.getIdPConfigByIssuerOptionalSPId a
+  storeIdPConfig = SPImpl . App.storeIdPConfig
+  getIdPConfig = SPImpl . App.getIdPConfig
+  getIdPConfigByIssuerOptionalSPId a = SPImpl . App.getIdPConfigByIssuerOptionalSPId a
 
 instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
   throwError = SPImpl . throw

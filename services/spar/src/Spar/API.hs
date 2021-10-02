@@ -165,8 +165,8 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Spar r)
 apiSSO opts =
-  (liftSem $ SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
-    :<|> (\tid -> liftSem $ SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+  (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+    :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
     :<|> authresp Nothing
@@ -256,15 +256,15 @@ authreq _ DoInitiateBind Nothing _ _ _ = throwSparSem SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
-    idp :: IdP <- liftSem (IdPEffect.getConfig idpid) >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
+    idp :: IdP <- IdPEffect.getConfig idpid >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
-    liftSem $ SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
-  liftSem $ AReqIDStore.storeVerdictFormat authreqttl reqid vformat
+    SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
+  AReqIDStore.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
-  liftSem $ Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
+  Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
 
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
@@ -283,13 +283,13 @@ initializeBindCookie ::
   NominalDiffTime ->
   Spar r SetBindCookie
 initializeBindCookie zusr authreqttl = do
-  DerivedOpts {derivedOptsBindCookiePath} <- liftSem $ inputs derivedOpts
+  DerivedOpts {derivedOptsBindCookiePath} <- inputs derivedOpts
   msecret <-
     if isJust zusr
-      then liftSem $ Just . cs . ES.encode <$> Random.bytes 32
+      then Just . cs . ES.encode <$> Random.bytes 32
       else pure Nothing
-  cky <- fmap SetBindCookie . liftSem . SAML2.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
-  forM_ zusr $ \userid -> liftSem $ BindCookieStore.insert cky userid authreqttl
+  cky <- fmap SetBindCookie . SAML2.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
+  forM_ zusr $ \userid -> BindCookieStore.insert cky userid authreqttl
   pure cky
 
 redirectURLMaxLength :: Int
@@ -334,14 +334,14 @@ authresp ::
   Maybe ST ->
   SAML.AuthnResponseBody ->
   Spar r Void
-authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
+authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader
 
     go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Sem r Void
     go resp verdict = do
-      result :: SAML.ResponseVerdict <- runSparInSem $ verdictHandler cky mbtid resp verdict
+      result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Spar r Void -> Spar r Void
@@ -356,7 +356,7 @@ authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SamlP
 
 ssoSettings :: Member DefaultSsoCode r => Spar r SsoSettings
 ssoSettings = do
-  SsoSettings <$> liftSem DefaultSsoCode.get
+  SsoSettings <$> DefaultSsoCode.get
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -376,7 +376,7 @@ idpGet ::
   Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- getIdPConfig idpid
-  _ <- liftSem $ authorizeIdP zusr idp
+  _ <- authorizeIdP zusr idp
   pure idp
 
 idpGetRaw ::
@@ -386,8 +386,8 @@ idpGetRaw ::
   Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- getIdPConfig idpid
-  _ <- liftSem $ authorizeIdP zusr idp
-  liftSem (IdPEffect.getRawMetadata idpid) >>= \case
+  _ <- authorizeIdP zusr idp
+  IdPEffect.getRawMetadata idpid >>= \case
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSparSem $ SparIdPNotFound (cs $ show idpid)
 
@@ -404,8 +404,8 @@ idpGetAll ::
   Maybe UserId ->
   Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- liftSem $ Brig.getZUsrCheckPerm zusr ReadIdp
-  _idplProviders <- liftSem $ IdPEffect.getConfigsByTeam teamid
+  teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
+  _idplProviders <- IdPEffect.getConfigsByTeam teamid
   pure IdPList {..}
 
 -- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users
@@ -435,17 +435,17 @@ idpDelete ::
   Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- getIdPConfig idpid
-  _ <- liftSem $ authorizeIdP zusr idp
+  _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
-  idpIsEmpty <- liftSem $ isNothing <$> SAMLUserStore.getAnyByIssuer issuer
+  idpIsEmpty <- isNothing <$> SAMLUserStore.getAnyByIssuer issuer
   let doPurge :: Spar r ()
       doPurge = do
-        some <- liftSem (SAMLUserStore.getSomeByIssuer issuer)
+        some <- SAMLUserStore.getSomeByIssuer issuer
         forM_ some $ \(uref, uid) -> do
-          liftSem $ BrigAccess.delete uid
-          liftSem (SAMLUserStore.delete uid uref)
+          BrigAccess.delete uid
+          SAMLUserStore.delete uid uref
         unless (null some) doPurge
   when (not idpIsEmpty) $ do
     if purge
@@ -456,11 +456,11 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   -- Delete tokens associated with given IdP (we rely on the fact that
   -- each IdP has exactly one team so we can look up all tokens
   -- associated with the team and then filter them)
-  tokens <- liftSem $ ScimTokenStore.getByTeam team
+  tokens <- ScimTokenStore.getByTeam team
   for_ tokens $ \ScimTokenInfo {..} ->
-    when (stiIdP == Just idpid) $ liftSem $ ScimTokenStore.delete team stiId
+    when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
   -- Delete IdP config
-  liftSem $ do
+  do
     IdPEffect.deleteConfig idpid issuer team
     IdPEffect.deleteRawMetadata idpid
   return NoContent
@@ -477,7 +477,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Spar r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
-        Data.GetIdPFound iid -> liftSem $ IdPEffect.clearReplacedBy $ Data.Replaced iid
+        Data.GetIdPFound iid -> IdPEffect.clearReplacedBy $ Data.Replaced iid
         Data.GetIdPNotFound -> pure ()
         Data.GetIdPDanglingId _ -> pure ()
         Data.GetIdPNonUnique _ -> pure ()
@@ -522,13 +522,13 @@ idpCreateXML ::
   Maybe WireIdPAPIVersion ->
   Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- liftSem $ Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
-  liftSem $ GalleyAccess.assertSSOEnabled teamid
+  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
+  GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
-  liftSem $ IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
+  IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
   storeIdPConfig idp
-  forM_ mReplaces $ \replaces -> liftSem $ do
+  forM_ mReplaces $ \replaces -> do
     IdPEffect.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
   pure idp
 
@@ -546,8 +546,8 @@ assertNoScimOrNoIdP ::
   TeamId ->
   Spar r ()
 assertNoScimOrNoIdP teamid = do
-  numTokens <- length <$> liftSem (ScimTokenStore.getByTeam teamid)
-  numIdps <- length <$> liftSem (IdPEffect.getConfigsByTeam teamid)
+  numTokens <- length <$> ScimTokenStore.getByTeam teamid
+  numIdps <- length <$> IdPEffect.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $ do
     throwSparSem $
       SparProvisioningMoreThanOneIdP
@@ -589,18 +589,18 @@ validateNewIdP ::
   Maybe SAML.IdPId ->
   m IdP
 validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
-  _idpId <- SAML.IdPId <$> liftSem Random.uuid
+  _idpId <- SAML.IdPId <$> Random.uuid
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
-      idp <- liftSem (IdPEffect.getConfig replaces) >>= maybe (throwSparSem (SparIdPNotFound (cs $ show mReplaces))) pure
+      idp <- IdPEffect.getConfig replaces >>= maybe (throwSparSem (SparIdPNotFound (cs $ show mReplaces))) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
   idp <- getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
-  liftSem $ Logger.log SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  liftSem $ Logger.log SAML.Debug $ show (_idpId, oldIssuers, idp)
+  Logger.log SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  Logger.log SAML.Debug $ show (_idpId, oldIssuers, idp)
 
   let handleIdPClash :: Either id idp -> m ()
       -- (HINT: using type vars above instead of the actual types constitutes a proof that
@@ -661,8 +661,8 @@ idpUpdateXML ::
   Spar r IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
-  liftSem $ GalleyAccess.assertSSOEnabled teamid
-  liftSem $ IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
+  GalleyAccess.assertSSOEnabled teamid
+  IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
   -- try again, which would clean up cassandra state.)
@@ -691,12 +691,12 @@ validateIdPUpdate ::
   m (TeamId, IdP)
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <-
-    liftSem (IdPEffect.getConfig _idpId) >>= \case
-      Nothing -> liftSem $ throw errUnknownIdPId
+    IdPEffect.getConfig _idpId >>= \case
+      Nothing -> throw errUnknownIdPId
       Just idp -> pure idp
-  teamId <- liftSem $ authorizeIdP zusr previousIdP
+  teamId <- authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
-    liftSem $ throw errUnknownIdP
+    throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
         newIssuer = _idpMetadata ^. SAML.edIssuer
@@ -725,10 +725,10 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
 
 withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Spar r a -> Spar r a
 withDebugLog msg showval action = do
-  liftSem $ Logger.log SAML.Debug $ "entering " ++ msg
+  Logger.log SAML.Debug $ "entering " ++ msg
   val <- action
   let mshowedval = showval val
-  liftSem $ Logger.log SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  Logger.log SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
 authorizeIdP ::
@@ -770,15 +770,15 @@ internalPutSsoSettings ::
   SsoSettings ->
   Spar r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
-  liftSem $ DefaultSsoCode.delete
+  DefaultSsoCode.delete
   pure NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
-  liftSem (IdPEffect.getConfig code) >>= \case
+  IdPEffect.getConfig code >>= \case
     Nothing ->
       -- this will return a 404, which is not quite right,
       -- but it's an internal endpoint and the message clearly says
       -- "Could not find IdP".
       throwSparSem $ SparIdPNotFound mempty
     Just _ -> do
-      liftSem $ DefaultSsoCode.store code
+      DefaultSsoCode.store code
       pure NoContent

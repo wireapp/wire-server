@@ -48,7 +48,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, liftSem, throwSparSem)
+import Spar.App (Spar, throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -76,7 +76,7 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
     Scim.throwScim (Scim.unauthorized "Token not provided")
   authCheck (Just token) =
     maybe (Scim.throwScim (Scim.unauthorized "Invalid token")) pure
-      =<< lift (liftSem (ScimTokenStore.lookup token))
+      =<< lift (ScimTokenStore.lookup token)
 
 ----------------------------------------------------------------------------
 -- Token API
@@ -126,19 +126,19 @@ createScimToken ::
   Spar r CreateScimTokenResponse
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
-  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
-  liftSem $ BrigAccess.ensureReAuthorised zusr createScimTokenPassword
-  tokenNumber <- fmap length $ liftSem $ ScimTokenStore.getByTeam teamid
-  maxTokens <- liftSem $ inputs maxScimTokens
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  BrigAccess.ensureReAuthorised zusr createScimTokenPassword
+  tokenNumber <- fmap length $ ScimTokenStore.getByTeam teamid
+  maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
     throwSparSem E.SparProvisioningTokenLimitReached
-  idps <- liftSem $ IdPEffect.getConfigsByTeam teamid
+  idps <- IdPEffect.getConfigsByTeam teamid
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
-        token <- liftSem $ ScimToken . cs . ES.encode <$> Random.bytes 32
-        tokenid <- liftSem $ Random.scimTokenId
-        now <- liftSem Now.get
+        token <- ScimToken . cs . ES.encode <$> Random.bytes 32
+        tokenid <- Random.scimTokenId
+        now <- Now.get
         let info =
               ScimTokenInfo
                 { stiId = tokenid,
@@ -147,7 +147,7 @@ createScimToken zusr CreateScimToken {..} = do
                   stiIdP = midpid,
                   stiDescr = descr
                 }
-        liftSem $ ScimTokenStore.insert token info
+        ScimTokenStore.insert token info
         pure $ CreateScimTokenResponse token info
 
   case idps of
@@ -171,8 +171,8 @@ deleteScimToken ::
   ScimTokenId ->
   Spar r NoContent
 deleteScimToken zusr tokenid = do
-  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
-  liftSem $ ScimTokenStore.delete teamid tokenid
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  ScimTokenStore.delete teamid tokenid
   pure NoContent
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
@@ -185,5 +185,5 @@ listScimTokens ::
   Maybe UserId ->
   Spar r ScimTokenList
 listScimTokens zusr = do
-  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
-  ScimTokenList <$> liftSem (ScimTokenStore.getByTeam teamid)
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  ScimTokenList <$> ScimTokenStore.getByTeam teamid

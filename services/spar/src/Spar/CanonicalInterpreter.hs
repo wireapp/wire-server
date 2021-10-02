@@ -79,7 +79,7 @@ type CanonicalEffs =
    ]
 
 runSparToIO :: Env -> Spar CanonicalEffs a -> IO (Either SparError a)
-runSparToIO ctx (Spar action) =
+runSparToIO ctx action =
   runFinal
     . embedToFinal @IO
     . nowToIO
