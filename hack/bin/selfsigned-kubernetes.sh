@@ -71,7 +71,7 @@ cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostnam
     sed -e 's/^/    /' $OUTPUTNAME_LEAF_CERT-key.pem
     echo "  tlsClientCA: |"
     sed -e 's/^/    /' $OUTPUTNAME_CA.pem
-} | tee "$OUTPUT_CONFIG_INGRESS"
+} >"$OUTPUT_CONFIG_INGRESS"
 
 # the following yaml override file is needed as an override to
 # the wire-server (federator) helm chart
@@ -86,7 +86,7 @@ cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostnam
     sed -e 's/^/    /' $OUTPUTNAME_CLIENT_CERT.pem
     echo "  clientPrivateKeyContents: |"
     sed -e 's/^/    /' $OUTPUTNAME_CLIENT_CERT-key.pem
-} | tee "$OUTPUT_CONFIG_FEDERATOR"
+} >"$OUTPUT_CONFIG_FEDERATOR"
 
 # cleanup unneeded files
 rm "$OUTPUTNAME_LEAF_CERT.csr"
