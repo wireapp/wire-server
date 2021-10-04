@@ -94,10 +94,10 @@ data Api routes = Api
         :> "get-user-clients"
         :> ReqBody '[JSON] GetUserClients
         :> Post '[JSON] (UserMap (Set PubClient)),
-    sendConnectionRequest ::
+    sendConnectionAction ::
       routes
         :- "federation"
-        :> "send-connection-request"
+        :> "send-connection-action"
         :> OriginDomainHeader
         :> ReqBody '[JSON] NewConnectionRequest
         :> Post '[JSON] NewConnectionResponse
@@ -131,36 +131,21 @@ data NewConnectionRequest = NewConnectionRequest
     ncrFrom :: UserId,
     -- | The 'to' userId is understood to always have the domain of the receiving backend.
     ncrTo :: UserId,
-    -- See also NOTE: ConversationId for remote connections
-    --
-    -- In the case where the sending backend is one2one conversation owner,
-    -- scrConversationId will be a Just (and understood to be in the domain of
-    -- the sending backend)
-    -- In the case where the receiving backend is one2one conversation owner,
-    -- this will be a Nothing; and it's up to the receiver to compute
-    -- conversation Id and send it back.
-    --
-    -- If it's in the sending backend's domain, the conversation should exist when
-    -- this request is made; otherwise the receiving backend should create the
-    -- conversation.
-    ncrConversationId :: Maybe ConvId
+    ncrAction :: RemoteConnectionAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionRequest)
 
+data RemoteConnectionAction
+  = RemoteConnect
+  | RemoteRescind
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConnectionAction)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConnectionAction)
+
 newtype NewConnectionResponse = NewConnectionResponse
-  { -- | See also NOTE: ConversationId for remote connections
-    --
-    -- * Nothing when the conversation is hosted on the ConnectionRequest's
-    -- sending backend
-    -- * Just <id> when the conversation has been created on the remote
-    --   (if set, the conversationId is understood to have the domain of the remote backend)
-    nConversationId :: Maybe ConvId
-    -- TODO: do we need another field here to differentiate between
-    --  * a newConnection/conversation was created state
-    --  * a connection-already-existed state
-    -- ?
+  { ncrReaction :: Maybe RemoteConnectionAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
