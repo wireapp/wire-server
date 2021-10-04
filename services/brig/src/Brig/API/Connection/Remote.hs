@@ -102,8 +102,10 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
-performTransition :: Relation -> AppIO ()
-performTransition _rel = error "TODO"
+transitionTo :: Local UserId -> Remote UserId -> Relation -> AppIO ()
+transitionTo self other rel = do
+  _time <- Data.updateConnectionStatus self (unTagged other) (relationWithHistory rel)
+  pure ()
 
 performLocalAction ::
   Local UserId ->
@@ -111,15 +113,13 @@ performLocalAction ::
   LocalConnectionAction ->
   AppIO ()
 performLocalAction self other action = do
-  -- we look up relation _before_ calling notfiyRemote, because 'transition'
-  -- decides if any action should be taken at all.
-  -- TODO: remove this comment
   rel0 <- Data.lookupRelation self (unTagged other)
   for_ (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
-    let rel2 = fromMaybe rel1 $ join $ mreaction <&> \r -> transition (RCA r) rel1
-    _time <- Data.updateConnectionStatus self (unTagged other) (relationWithHistory rel2)
-    performTransition rel2
+    let rel2 = fromMaybe rel1 $ do
+          reactionAction <- mreaction
+          transition (RCA reactionAction) rel1
+    transitionTo self other rel2
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
     remoteAction LocalConnect = Just RemoteConnect
@@ -137,8 +137,7 @@ performRemoteAction self other action = do
   case transition (RCA action) rel0 of
     Nothing -> pure Nothing
     Just rel1 -> do
-      _time <- Data.updateConnectionStatus self (unTagged other) (relationWithHistory rel1)
-      performTransition rel1
+      transitionTo self other rel1
       pure (reaction rel1)
   where
     reaction :: Relation -> Maybe RemoteConnectionAction
