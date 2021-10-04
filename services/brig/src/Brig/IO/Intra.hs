@@ -535,11 +535,15 @@ createSelfConv u = do
         . expect2xx
 
 -- | Calls 'Galley.API.createConnectConversationH'.
-createLocalConnectConv :: UserId -> UserId -> Maybe Text -> Maybe ConnId -> AppIO ConvId
+createLocalConnectConv ::
+  Local UserId ->
+  Local UserId ->
+  Maybe Text ->
+  Maybe ConnId ->
+  AppIO ConvId
 createLocalConnectConv from to cname conn = do
-  localDomain <- viewFederationDomain
   debug $
-    logConnection from (Qualified to localDomain)
+    logConnection (lUnqualified from) (unTagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
   r <- galleyRequest POST req
@@ -549,29 +553,25 @@ createLocalConnectConv from to cname conn = do
   where
     req =
       path "/i/conversations/connect"
-        . zUser from
+        . zUser (lUnqualified from)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . contentJson
-        . lbytes (encode $ Connect to Nothing cname Nothing)
+        . lbytes (encode $ Connect (lUnqualified to) Nothing cname Nothing)
         . expect2xx
 
 createConnectConv :: Local UserId -> Qualified UserId -> Maybe Text -> Maybe ConnId -> AppIO (Qualified ConvId)
-createConnectConv lfrom qto cname conn =
+createConnectConv from to cname conn =
   foldQualified
-    lfrom
+    from
     ( \lto ->
-        unTagged . qualifyAs lfrom
-          <$> createLocalConnectConv
-            (lUnqualified lfrom)
-            (lUnqualified lto)
-            cname
-            conn
+        unTagged . qualifyAs from
+          <$> createLocalConnectConv from lto cname conn
     )
     (\_ -> throwM federationNotImplemented)
-    qto
+    to
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptLocalConnectConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
 acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
@@ -581,20 +581,20 @@ acceptLocalConnectConv from conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "accept", "v2"]
-        . zUser from
+        . zUser (lUnqualified from)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
 acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
-acceptConnectConv lfrom conn =
+acceptConnectConv from conn =
   foldQualified
-    lfrom
-    (acceptLocalConnectConv (lUnqualified lfrom) conn . lUnqualified)
+    from
+    (acceptLocalConnectConv from conn . lUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.
-blockLocalConv :: UserId -> Maybe ConnId -> ConvId -> AppIO ()
-blockLocalConv usr conn cnv = do
+blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO ()
+blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -603,7 +603,7 @@ blockLocalConv usr conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "block"]
-        . zUser usr
+        . zUser (lUnqualified lusr)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
@@ -611,12 +611,12 @@ blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO ()
 blockConv lusr conn =
   foldQualified
     lusr
-    (blockLocalConv (lUnqualified lusr) conn . lUnqualified)
+    (blockLocalConv lusr conn . lUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-unblockLocalConv usr conn cnv = do
+unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -625,7 +625,7 @@ unblockLocalConv usr conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "unblock"]
-        . zUser usr
+        . zUser (lUnqualified lusr)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
@@ -633,7 +633,7 @@ unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Convers
 unblockConv luid conn =
   foldQualified
     luid
-    (unblockLocalConv (lUnqualified luid) conn . lUnqualified)
+    (unblockLocalConv luid conn . lUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
