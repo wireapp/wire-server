@@ -23,6 +23,7 @@ module Brig.Data.Connection
     updateConnection,
     updateConnectionStatus,
     lookupConnection,
+    lookupRelation,
     lookupLocalConnectionsPage,
     lookupRelationWithHistory,
     lookupLocalConnections,
@@ -149,9 +150,9 @@ lookupRelationWithHistory self target = do
 
 lookupRelation :: Local UserId -> Qualified UserId -> AppIO Relation
 lookupRelation self target =
-  lookupRelationWithHistory self target >>= \case
-    Nothing -> CancelledWithHistory
-    Just relh -> relationDropHistory relh
+  lookupRelationWithHistory self target <&> \case
+    Nothing -> Cancelled
+    Just relh -> (relationDropHistory relh)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
