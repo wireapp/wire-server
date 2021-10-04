@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7ca3c61253dfbb1c69f3cf336a7bf166a1b50d9f92bc327012b395045112d7b7
+-- hash: 10735fce03e5965b253e8d0360c4bfca3db877730b220367acd5d14083af69c5
 
 name:           galley
 version:        0.83.0
@@ -176,6 +176,7 @@ executable galley
     , base
     , case-insensitive
     , extended
+    , extra >=1.3
     , galley
     , galley-types
     , imports
@@ -239,6 +240,7 @@ executable galley-integration
     , errors
     , exceptions
     , extended
+    , extra >=1.3
     , galley
     , galley-types
     , gundeck-types
@@ -315,6 +317,7 @@ executable galley-migrate-data
     , containers
     , exceptions
     , extended
+    , extra >=1.3
     , galley-types
     , imports
     , lens
@@ -382,6 +385,7 @@ executable galley-schema
     , case-insensitive
     , cassandra-util
     , extended
+    , extra >=1.3
     , imports
     , optparse-applicative
     , raw-strings-qq >=1.0
@@ -403,6 +407,7 @@ test-suite galley-types-tests
   other-modules:
       Test.Galley.API
       Test.Galley.API.Message
+      Test.Galley.API.One2One
       Test.Galley.Intra.User
       Test.Galley.Mapping
       Test.Galley.Roundtrip
@@ -417,6 +422,7 @@ test-suite galley-types-tests
     , case-insensitive
     , containers
     , extended
+    , extra >=1.3
     , galley
     , galley-types
     , http-types

@@ -102,11 +102,15 @@ one2OneConvId a b = case compareDomains a b of
         result =
           U.toUUID . U.mk @U.V5
             . fromMaybe UUID.nil
+            -- fromByteString only returns 'Nothing' when the input is not
+            -- exactly 16 bytes long, here this should not be a case since
+            -- 'hash' is supposed to return atleast 16 bytes and we use 'B.take
+            -- 16' to truncate it
             . UUID.fromByteString
             . L.fromStrict
             . B.take 16
             $ x
         domain
-          | (fromMaybe 0 (atMay (B.unpack x) 16)) .&. 0x80 == 0 = qDomain a
+          | fromMaybe 0 (atMay (B.unpack x) 16) .&. 0x80 == 0 = qDomain a
           | otherwise = qDomain b
      in Qualified (Id result) domain
