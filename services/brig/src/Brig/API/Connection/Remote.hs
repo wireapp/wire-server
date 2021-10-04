@@ -28,6 +28,7 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Types
+import Brig.Types.User.Event
 import Control.Error.Util (noteT)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Id as Id
@@ -110,17 +111,41 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
-transitionTo :: Local UserId -> Maybe ConnId -> Remote UserId -> Maybe UserConnection -> Maybe Relation -> MaybeT AppIO (ResponseForExistedCreated UserConnection)
+-- | Perform a state transition on a connection, handle conversation updates
+-- and push events.
+transitionTo ::
+  Local UserId ->
+  Maybe ConnId ->
+  Remote UserId ->
+  Maybe UserConnection ->
+  Maybe Relation ->
+  MaybeT AppIO (ResponseForExistedCreated UserConnection)
 transitionTo self mzcon other Nothing mbRel = do
   when (mbRel `elem` [Just Accepted, Just Sent]) $
     guardLimit self
-  qcnv <- lift $ Intra.createConnectConv self (unTagged other) Nothing mzcon
-  lift $ Created <$> Data.insertConnection self (unTagged other) (relationWithHistory (fromMaybe Cancelled mbRel)) qcnv
+  lift $ do
+    qcnv <- Intra.createConnectConv self (unTagged other) Nothing mzcon
+    connection <-
+      Data.insertConnection
+        self
+        (unTagged other)
+        (relationWithHistory (fromMaybe Cancelled mbRel))
+        qcnv
+    pushEvent self mzcon connection
+    pure $ Created connection
 transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection)
-transitionTo self _zcon _other (Just connection) (Just rel) = do
+transitionTo self mzcon _other (Just connection) (Just rel) = do
   when (notElem (ucStatus connection) [Accepted, Sent] && (rel `elem` [Accepted, Sent])) $
     guardLimit self
-  lift $ Existed <$> Data.updateConnection connection (relationWithHistory rel)
+  lift $ do
+    pushEvent self mzcon connection
+    Existed <$> Data.updateConnection connection (relationWithHistory rel)
+
+-- | Send an event to the local user when the state of a connection changes.
+pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> AppIO ()
+pushEvent self mzcon connection = do
+  let event = ConnectionUpdated connection Nothing Nothing
+  Intra.onConnectionEvent (lUnqualified self) mzcon event
 
 performLocalAction ::
   Local UserId ->
