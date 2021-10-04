@@ -261,7 +261,7 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createLocalConnection,
+        BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
         BrigAPI.createConnection = createConnection,
         BrigAPI.listLocalConnections = listLocalConnections,
         BrigAPI.listConnections = listConnections,
@@ -1085,22 +1085,23 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createLocalConnection self conn cr = do
-  API.createConnection self cr conn !>> connError
+createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified self conn cr = do
+  lself <- qualifyLocal self
+  target <- qualifyLocal (Public.crUser cr)
+  API.createConnection lself conn (unTagged target) !>> connError
 
--- | FUTUREWORK: also create remote connections: https://wearezeta.atlassian.net/browse/SQCORE-958
 createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnection self conn (Qualified otherUser otherDomain) = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
-    else throwM federationNotImplemented
+createConnection self conn target = do
+  lself <- qualifyLocal self
+  API.createConnection lself conn target !>> connError
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   let newStatus = Public.cuStatus update
-  mc <- API.updateConnection self other newStatus (Just conn) !>> connError
+  lself <- qualifyLocal self
+  lother <- qualifyLocal other
+  mc <- API.updateConnection lself lother newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
 
 -- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
@@ -1119,15 +1120,15 @@ listLocalConnections uid start msize = do
 -- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
 listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
 listConnections uid req = do
-  localDomain <- viewFederationDomain
+  self <- qualifyLocal uid
   let size = Public.gmtprSize req
-  res :: C.PageWithState Data.LocalConnection <- Data.lookupLocalConnectionsPage uid convertedState (rcast size)
-  return (pageToConnectionsPage localDomain Public.PagingLocals res)
+  res :: C.PageWithState Public.UserConnection <- Data.lookupLocalConnectionsPage self convertedState (rcast size)
+  return (pageToConnectionsPage Public.PagingLocals res)
   where
-    pageToConnectionsPage :: Domain -> Public.LocalOrRemoteTable -> Data.PageWithState Data.LocalConnection -> Public.ConnectionsPage
-    pageToConnectionsPage localDomain table page@Data.PageWithState {..} =
+    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Public.UserConnection -> Public.ConnectionsPage
+    pageToConnectionsPage table page@Data.PageWithState {..} =
       Public.MultiTablePage
-        { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
+        { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
           -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
           -- Is this type actually useless? Or the tests not good enough?
@@ -1140,7 +1141,10 @@ listConnections uid req = do
     convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
-getLocalConnection self other = lift $ API.lookupLocalConnection self other
+getLocalConnection self other = do
+  lself <- qualifyLocal self
+  lother <- qualifyLocal other
+  lift $ Data.lookupConnection lself (unTagged lother)
 
 getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
 getConnection self (Qualified otherUser otherDomain) = do
