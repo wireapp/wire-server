@@ -20,32 +20,27 @@
 module Brig.API.Federation (federationSitemap) where
 
 import qualified Brig.API.Client as API
+import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import Brig.App (viewFederationDomain)
+import Brig.App (qualifyLocal)
 import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.User as Data
-import qualified Brig.IO.Intra as Intra
 import Brig.Types (PrekeyBundle)
-import Brig.Types.User.Event (ConnectionEvent (ConnectionUpdated))
 import Brig.User.API.Handle
-import Control.Monad.Catch (throwM)
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
-import Data.Id (ClientId, Id (..), UserId)
+import Data.Id (ClientId, UserId)
 import Data.Qualified
-import Data.UUID.V4 (nextRandom)
+import Data.Tagged (Tagged (unTagged))
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Connection (RelationWithHistory (PendingWithHistory))
 import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as Federated
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
-import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Message (UserClients)
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
@@ -65,44 +60,16 @@ federationSitemap =
         Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
         Federated.searchUsers = searchUsers,
         Federated.getUserClients = getUserClients,
-        Federated.sendConnectionRequest = sendConnectionRequest
+        Federated.sendConnectionAction = sendConnectionRequest
       }
 
 sendConnectionRequest :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
 sendConnectionRequest originDomain NewConnectionRequest {..} = do
-  -- Check that the user actually exists
-  --
-  -- TODO: how do we deal with error cases? Just throwM? How does that end up on
-  -- the other side, and which federation error do we want in the end?
-  -- => add a sum type to NewConnectionResponse for the relevant error cases?
-  mUser <- lift $ Data.lookupAccount ncrTo
-  when (null mUser) $ throwM federationNotImplemented -- throwErrorDescription (InvalidUser ncrTo)
-  localDomain <- viewFederationDomain
-
-  let remoteUser = Qualified ncrFrom originDomain
-      localUser = toLocal $ Qualified ncrTo localDomain
-
-  mbRelationWHistory <- lift $ Data.lookupRelationWithHistory localUser remoteUser
-  userConnection <- case mbRelationWHistory of
-    Nothing -> do
-      convId <-
-        case ncrConversationId of
-          Nothing ->
-            -- TODO: call galley and create conv
-            throwM federationNotImplemented
-          Just cid -> pure (Qualified cid originDomain)
-
-      lift $ Data.insertConnection localUser remoteUser PendingWithHistory convId
-    Just _relationWHistory -> do
-      throwM federationNotImplemented
-
-  let e2s = ConnectionUpdated userConnection Nothing Nothing
-
-  -- onConnectionEvent's first argument is unused by gundeck
-  dummyUid <- liftIO $ Id <$> nextRandom
-  _ <- lift $ Intra.onConnectionEvent dummyUid Nothing e2s
-
-  pure $ NewConnectionResponse Nothing
+  self <- qualifyLocal ncrTo
+  let other = toRemote $ Qualified ncrFrom originDomain
+  mconnection <- lift $ Data.lookupConnection self (unTagged other)
+  maction <- lift $ performRemoteAction self other mconnection ncrAction
+  pure $ NewConnectionResponse maction
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do

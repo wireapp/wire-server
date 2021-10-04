@@ -208,10 +208,15 @@ lookupContactListWithRelation u =
 countConnections :: Local UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
   rels <- retry x1 . query selectStatus $ params One (Identity (lUnqualified u))
-  return $ foldl' count 0 rels
+  relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (lUnqualified u))
+
+  return $ foldl' count 0 rels + foldl' count 0 relsRemote
   where
     selectStatus :: QueryString R (Identity UserId) (Identity RelationWithHistory)
     selectStatus = "SELECT status FROM connection WHERE left = ?"
+
+    selectStatusRemote :: QueryString R (Identity UserId) (Identity RelationWithHistory)
+    selectStatusRemote = "SELECT status FROM connection_remote WHERE left = ?"
 
     count n (Identity s) | (relationDropHistory s) `elem` r = n + 1
     count n _ = n

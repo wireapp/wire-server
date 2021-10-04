@@ -17,11 +17,34 @@
 
 module Brig.API.Connection.Util
   ( ConnectionM,
+    checkLimit,
+    guardLimit,
   )
 where
 
 import Brig.API.Types
 import Brig.App
+import qualified Brig.Data.Connection as Data
+import Brig.Options (Settings (setUserMaxConnections))
+import Control.Error (noteT)
+import Control.Lens (view)
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe (MaybeT (..))
+import Data.Id (UserId)
+import Data.Qualified (Local, lUnqualified)
+import Imports
+import Wire.API.Connection (Relation (..))
 
 type ConnectionM = ExceptT ConnectionError AppIO
+
+-- Helpers
+
+checkLimit :: Local UserId -> ExceptT ConnectionError AppIO ()
+checkLimit u =
+  noteT (TooManyConnections (lUnqualified u)) (guardLimit u)
+
+guardLimit :: Local UserId -> MaybeT AppIO ()
+guardLimit u = do
+  n <- lift $ Data.countConnections u [Accepted, Sent]
+  l <- setUserMaxConnections <$> view settings
+  guard (n < l)

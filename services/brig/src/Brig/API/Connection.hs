@@ -42,11 +42,9 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
-import Brig.Options (setUserMaxConnections)
 import Brig.Types
 import Brig.Types.User.Event
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import qualified Data.LegalHold as LH
@@ -479,13 +477,3 @@ lookupConnections from start size = do
   lusr <- qualifyLocal from
   rs <- Data.lookupLocalConnections lusr start size
   return $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)
-
--- Helpers
-
-checkLimit :: Local UserId -> ExceptT ConnectionError AppIO ()
-checkLimit u = do
-  n <- lift $ Data.countConnections u [Accepted, Sent]
-  l <- setUserMaxConnections <$> view settings
-  unless (n < l) $
-    throwE $
-      TooManyConnections (lUnqualified u)
