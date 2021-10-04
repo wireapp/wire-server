@@ -79,6 +79,13 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomainFed2 }}
 
+  #---------------------------------------------
+  #
+  # Note that wire-server depends on databases-ephemeral being up; and in some
+  # cases on nginx-ingress also being up. If installing helm charts in a
+  # parallel way, it's expected to see some wire-server pods (namely the
+  # cassandra-migration one) fail and get restarted a few times)
+
   - name: '{{ .Values.namespace }}-wire-server'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/wire-server'

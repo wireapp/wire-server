@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-USAGE="Usage: $0"
-
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +7,7 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
-# ${DIR}/integration-cleanup.sh
+"${DIR}/integration-cleanup.sh"
 
 echo "updating recursive dependencies ..."
 charts=(fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services)
@@ -23,7 +21,7 @@ export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
 export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 "$DIR/selfsigned-kubernetes.sh"
 
-helmfile --file ${TOP_LEVEL}/hack/helmfile.yaml sync
+helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" sync
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
@@ -35,6 +33,6 @@ until resourcesReady; do
     sleep 1
 done
 
-kubectl -n ${NAMESPACE} get pods
+kubectl -n "${NAMESPACE}" get pods
 
 echo "done"

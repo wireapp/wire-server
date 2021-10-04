@@ -1,0 +1,65 @@
+# This helmfile is similar to the 'helmfile.yaml', but only spawns up components for a single backend.
+# In some situations (when not testing anything federation specific), use of a single backend is sufficient.
+#
+# The 'make kube-integration-setup-sans-federation' target uses this helmfile.
+
+helmDefaults:
+  wait: true
+  timeout: 600
+  devel: true
+
+environments:
+  default:
+    values:
+      - namespace: {{ requiredEnv "NAMESPACE" }}
+      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN" }}
+
+repositories:
+  - name: stable
+    url: 'https://charts.helm.sh/stable'
+
+releases:
+  - name: '{{ .Values.namespace }}-fake-aws'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/fake-aws'
+    values:
+      - './helm_vars/fake-aws/values.yaml'
+
+  - name: '{{ .Values.namespace }}-databases-ephemeral'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/databases-ephemeral'
+
+  - name: '{{ .Values.namespace }}-nginx-ingress-controller'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/nginx-ingress-controller'
+    values:
+      - './helm_vars/nginx-ingress-controller/values.yaml'
+
+  - name: '{{ .Values.namespace }}-nginx-ingress-services'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/nginx-ingress-services'
+    values:
+      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/certificates-namespace1.yaml'
+    set:
+      # Federation domain is also the SRV record created by the
+      # federation-test-helper service. Maybe we can find a way to make these
+      # differ, so we don't make any silly assumptions in the code.
+      - name: config.dns.federator
+        value: {{ .Values.federationDomain }}
+
+  # Note that wire-server depends on databases-ephemeral being up; and in some
+  # cases on nginx-ingress also being up. If installing helm charts in a
+  # parallel way, it's expected to see some wire-server pods (namely the
+  # cassandra-migration one) fail and get restarted a few times)
+  - name: '{{ .Values.namespace }}-wire-server'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/wire-server'
+    values:
+      - './helm_vars/wire-server/values.yaml'
+      - './helm_vars/wire-server/certificates-namespace1.yaml'
+    set:
+      - name: brig.config.optSettings.setFederationDomain
+        value: {{ .Values.federationDomain }}
+      - name: galley.config.settings.federationDomain
+        value: {{ .Values.federationDomain }}
