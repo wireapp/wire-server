@@ -73,11 +73,10 @@ import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
-import Spar.App (Spar (..), runSparInSem, throwSparSem)
+import Spar.App (sparToServerErrorWithLogging, throwSparSem)
 import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
-    sparToServerErrorWithLogging,
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
@@ -87,6 +86,7 @@ import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)
+import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -124,13 +124,14 @@ apiScim ::
        ScimExternalIdStore,
        ScimUserTimesStore,
        ScimTokenStore,
+       Reporter,
        IdPEffect.IdP,
        -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
        Final IO,
        SAMLUserStore
      ]
     r =>
-  ServerT APIScim (Spar r)
+  ServerT APIScim (Sem r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
@@ -146,10 +147,10 @@ apiScim =
     -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
-    wrapScimErrors :: Spar r a -> Spar r a
-    wrapScimErrors act = Spar $ do
+    wrapScimErrors :: Sem r a -> Sem r a
+    wrapScimErrors act = do
       result :: Either SomeException (Either SparError a) <-
-        runError $ fromExceptionSem @SomeException $ raise $ try @SparError $ runSparInSem act
+        runError $ fromExceptionSem @SomeException $ raise $ try @SparError act
       case result of
         Left someException -> do
           -- We caught an exception that's not a Spar exception at all. It is wrapped into
@@ -162,7 +163,7 @@ apiScim =
         Right (Left sparError) -> do
           -- We caught some other Spar exception. It is rendered and wrapped into a scim error
           -- with the same status and message, and no scim error type.
-          err :: ServerError <- undefined -- embedFinal @IO $ sparToServerErrorWithLogging undefined sparError
+          err :: ServerError <- sparToServerErrorWithLogging sparError
           throw . SAML.CustomError . SparScimError $
             Scim.ScimError
               { schemas = [Scim.Schema.Error20],
