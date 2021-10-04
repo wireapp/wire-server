@@ -22,12 +22,14 @@ module Brig.API.Connection.Remote
   )
 where
 
-import Brig.API.Connection.Util (ConnectionM, checkLimit, guardLimit)
+import Brig.API.Connection.Util (ConnectionM, guardLimit)
+import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Types
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
+import Control.Error.Util (noteT)
+import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Id as Id
 import Data.Qualified
 import Data.Tagged
@@ -126,15 +128,16 @@ performLocalAction ::
   Remote UserId ->
   Maybe UserConnection ->
   LocalConnectionAction ->
-  AppIO (ResponseForExistedCreated UserConnection)
+  MaybeT AppIO (ResponseForExistedCreated UserConnection)
 performLocalAction self conn other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
-  mrel1 <- for (transition (LCA action) rel0) $ \rel1 -> do
-    mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
-    pure $
-      fromMaybe rel1 $ do
-        reactionAction <- mreaction
-        transition (RCA reactionAction) rel1
+  mrel1 <- lift $
+    for (transition (LCA action) rel0) $ \rel1 -> do
+      mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
+      pure $
+        fromMaybe rel1 $ do
+          reactionAction <- mreaction
+          transition (RCA reactionAction) rel1
   transitionTo self (Just conn) other mconnection mrel1
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
@@ -177,8 +180,8 @@ performRemoteAction ::
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
       rel1 = transition (RCA action) rel0
-  void $ transitionTo self Nothing other mconnection rel1
-  pure (reaction rel1)
+  result <- runMaybeT . void $ transitionTo self Nothing other mconnection rel1
+  pure $ maybe (Just RemoteRescind) (const (reaction rel1)) result
   where
     reaction :: Maybe Relation -> Maybe RemoteConnectionAction
     reaction (Just Accepted) = Just RemoteConnect
@@ -192,4 +195,5 @@ createConnectionToRemoteUser ::
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
   mcon <- lift $ Data.lookupConnection self (unTagged other)
-  lift $ performLocalAction self zcon other mcon LocalConnect
+  noteT (TooManyConnections (lUnqualified self)) $
+    performLocalAction self zcon other mcon LocalConnect

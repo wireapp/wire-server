@@ -234,7 +234,7 @@ emptyFederatedBrig =
           FederatedBrig.claimMultiPrekeyBundle = \_ -> e "claimMultiPrekeyBundle",
           FederatedBrig.searchUsers = \_ -> e "searchUsers",
           FederatedBrig.getUserClients = \_ -> e "getUserClients",
-          FederatedBrig.sendConnectionRequest = \_ _ -> e "sendConnectionRequest"
+          FederatedBrig.sendConnectionAction = \_ _ -> e "sendConnectionAction"
         }
 
 emptyFederatedGalley :: FederatedGalley.Api (AsServerT Handler)

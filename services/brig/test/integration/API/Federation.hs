@@ -23,7 +23,6 @@ import Bilge.Assert
 import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
-import Data.Domain
 import Data.Handle (Handle (..))
 import Data.Id
 import qualified Data.Map as Map
@@ -35,9 +34,9 @@ import Imports
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
 import Test.Tasty
-import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure)
+import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
-import Wire.API.Federation.API.Brig (GetUserClients (..), NewConnectionRequest (..), NewConnectionResponse (..), SearchRequest (SearchRequest))
+import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
@@ -60,8 +59,7 @@ tests m brig fedBrigClient =
         test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
-        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/send-connection-request : " (testSendConnectionRequest brig fedBrigClient)
+        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -212,23 +210,3 @@ testGetUserClientsNotFound fedBrigClient = do
       "client set for user should match"
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
-
-testSendConnectionRequest :: Brig -> FedBrigClient -> Http ()
-testSendConnectionRequest brig fedBrigClient = do
-  remoteUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
-  convId :: ConvId <- Id <$> lift UUIDv4.nextRandom
-
-  localUserId <- userId <$> randomUser brig
-  let domain = Domain "faraway.example.com"
-  let req =
-        NewConnectionRequest
-          { ncrFrom = remoteUserId,
-            ncrTo = localUserId,
-            ncrConversationId = Just convId
-          }
-  NewConnectionResponse mConvId <- FedBrig.sendConnectionRequest fedBrigClient domain req
-  liftIO $
-    assertBool
-      "ncrConversationId is Just. When a conversationId was created requestor's backend \
-      \the receiving backend should not create or return a conversation."
-      (isNothing mConvId)
