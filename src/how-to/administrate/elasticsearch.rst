@@ -52,7 +52,7 @@ See also the elasticsearch sections in :ref:`investigative_tasks`.
 
 
 Check the health of an elasticsearch node
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To check the health of an elasticsearch node, run the following command: 
 

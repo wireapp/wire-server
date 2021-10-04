@@ -17,9 +17,10 @@ As part of the wire-server umbrella chart
 In your ``./values/wire-server/values.yaml`` file you should set the following settings:
 
 .. code:: yaml
+
    tags:
      sftd: true
-  
+
    sftd:
      host: sftd.example.com # Replace example.com with your domain
      allowOrigin: webapp.example.com # Should be the address you used for the webapp deployment

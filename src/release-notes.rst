@@ -121,8 +121,8 @@ Internal changes
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * Integration test coverage (#1696, #1704)
 
-Chat Release 2.111.0
-============
+Chart Release 2.111.0
+=====================
 
 Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-08-02
 
