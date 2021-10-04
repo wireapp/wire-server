@@ -38,7 +38,10 @@ module Spar.App
     deleteTeam,
     wrapSpar,
     liftSem,
-    type RealInterpretation,
+    getIdPConfig,
+    storeIdPConfig,
+    getIdPConfigByIssuerOptionalSPId,
+    runSparInSem,
   )
 where
 
@@ -59,26 +62,17 @@ import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Lazy as LT
-import Imports hiding (log)
+import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
-import Polysemy.Input (Input, input, inputs, runInputConst)
+import Polysemy.Input (Input, input)
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
-  ( Assertion (..),
-    AuthnRequest (..),
-    HasConfig (..),
-    HasCreateUUID (..),
-    HasLogger (..),
-    HasNow (..),
-    IdPId (..),
+  ( IdPId (..),
     Issuer (..),
-    SPHandler (..),
-    SPStoreID (..),
-    SPStoreIdP (getIdPConfigByIssuerOptionalSPId),
     UnqualifiedNameID (..),
     explainDeniedReason,
     idpExtraInfo,
@@ -95,41 +89,24 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
-import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
-import Spar.Sem.AssIDStore (AssIDStore)
-import qualified Spar.Sem.AssIDStore as AssIDStore
-import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
-import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
-import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdP (GetIdPResult (..))
 import qualified Spar.Sem.IdP as IdPEffect
-import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
-import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
-import Spar.Sem.Random.IO (randomToIO)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.SAMLUserStore.Cassandra (interpretClientToIO, samlUserStoreToCassandra)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -160,9 +137,6 @@ instance MonadError SparError (Spar r) where
 instance MonadIO (Spar r) where
   liftIO m = Spar $ lift $ embedFinal m
 
-instance Members '[Input Opts, Logger String] r => HasLogger (Spar r) where
-  logger lvl = liftSem . Logger.log lvl
-
 data Env = Env
   { sparCtxOpts :: Opts,
     sparCtxLogger :: TinyLog.Logger,
@@ -173,42 +147,26 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
-instance Member (Input Opts) r => HasConfig (Spar r) where
-  getConfig = liftSem $ inputs saml
+runSparInSem :: Members '[Final IO, Error SparError] r => Spar r a -> Sem r a
+runSparInSem (Spar action) =
+  runExceptT action >>= \case
+    Left err -> throw err
+    Right a -> pure a
 
-instance HasNow (Spar r)
+getIdPConfig :: Member IdPEffect.IdP r => IdPId -> Spar r IdP
+getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientSem . IdPEffect.getConfig
 
-instance Member Random r => HasCreateUUID (Spar r) where
-  createUUID = liftSem Random.uuid
+storeIdPConfig :: Member IdPEffect.IdP r => IdP -> Spar r ()
+storeIdPConfig idp = wrapMonadClientSem $ IdPEffect.storeConfig idp
 
-instance Member AReqIDStore r => SPStoreID AuthnRequest (Spar r) where
-  storeID i r = wrapMonadClientSem $ AReqIDStore.store i r
-  unStoreID r = wrapMonadClientSem $ AReqIDStore.unStore r
-  isAliveID r = wrapMonadClientSem $ AReqIDStore.isAlive r
-
-instance Member AssIDStore r => SPStoreID Assertion (Spar r) where
-  storeID i r = wrapMonadClientSem $ AssIDStore.store i r
-  unStoreID r = wrapMonadClientSem $ AssIDStore.unStore r
-  isAliveID r = wrapMonadClientSem $ AssIDStore.isAlive r
-
-instance Member IdPEffect.IdP r => SPStoreIdP SparError (Spar r) where
-  type IdPConfigExtra (Spar r) = WireIdP
-  type IdPConfigSPId (Spar r) = TeamId
-
-  storeIdPConfig :: IdP -> Spar r ()
-  storeIdPConfig idp = wrapMonadClientSem $ IdPEffect.storeConfig idp
-
-  getIdPConfig :: IdPId -> Spar r IdP
-  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientSem . IdPEffect.getConfig
-
-  getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar r IdP
-  getIdPConfigByIssuerOptionalSPId issuer mbteam = do
-    wrapSpar (getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
-      Data.GetIdPFound idp -> pure idp
-      Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
-      res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
-      res@(Data.GetIdPNonUnique _) -> throwSpar $ SparIdPNotFound (cs $ show res)
-      res@(Data.GetIdPWrongTeam _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+getIdPConfigByIssuerOptionalSPId :: Member IdPEffect.IdP r => Issuer -> Maybe TeamId -> Spar r IdP
+getIdPConfigByIssuerOptionalSPId issuer mbteam = do
+  wrapSpar (getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
+    Data.GetIdPFound idp -> pure idp
+    Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
+    res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+    res@(Data.GetIdPNonUnique _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+    res@(Data.GetIdPWrongTeam _) -> throwSpar $ SparIdPNotFound (cs $ show res)
 
 instance Member (Final IO) r => Catch.MonadThrow (Sem r) where
   throwM = embedFinal . Catch.throwM @IO
@@ -420,69 +378,6 @@ bindUser buid userref = do
       Deleted -> err oldStatus
       Ephemeral -> err oldStatus
       PendingInvitation -> liftSem $ BrigAccess.setStatus buid Active
-
-type RealInterpretation =
-  '[ BindCookieStore,
-     AssIDStore,
-     AReqIDStore,
-     ScimExternalIdStore,
-     ScimUserTimesStore,
-     ScimTokenStore,
-     DefaultSsoCode,
-     IdPEffect.IdP,
-     SAMLUserStore,
-     Embed (Cas.Client),
-     BrigAccess,
-     GalleyAccess,
-     Error TTLError,
-     Error SparError,
-     -- TODO(sandy): Make this a Logger Text instead
-     Logger String,
-     Logger (TinyLog.Msg -> TinyLog.Msg),
-     Input Opts,
-     Input TinyLog.Logger,
-     Random,
-     Embed IO,
-     Final IO
-   ]
-
-instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
-  type NTCTX (Spar r) = Env
-  nt :: forall a. Env -> Spar r a -> Handler a
-  nt ctx (Spar action) = do
-    err <- actionHandler
-    throwErrorAsHandlerException err
-    where
-      actionHandler :: Handler (Either SparError a)
-      actionHandler =
-        fmap join
-          . liftIO
-          . runFinal
-          . embedToFinal @IO
-          . randomToIO
-          . runInputConst (sparCtxLogger ctx)
-          . runInputConst (sparCtxOpts ctx)
-          . loggerToTinyLog (sparCtxLogger ctx)
-          . stringLoggerToTinyLog
-          . runError @SparError
-          . ttlErrorToSparError
-          . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
-          . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
-          . interpretClientToIO (sparCtxCas ctx)
-          . samlUserStoreToCassandra @Cas.Client
-          . idPToCassandra @Cas.Client
-          . defaultSsoCodeToCassandra
-          . scimTokenStoreToCassandra
-          . scimUserTimesStoreToCassandra
-          . scimExternalIdStoreToCassandra
-          . aReqIDStoreToCassandra
-          . assIDStoreToCassandra
-          . bindCookieStoreToCassandra
-          $ runExceptT action
-      throwErrorAsHandlerException :: Either SparError a -> Handler a
-      throwErrorAsHandlerException (Left err) =
-        sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
-      throwErrorAsHandlerException (Right a) = pure a
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we

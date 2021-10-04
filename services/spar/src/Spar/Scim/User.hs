@@ -76,6 +76,8 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
+import Spar.Sem.Now (Now)
+import qualified Spar.Sem.Now as Now
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -115,6 +117,7 @@ instance
        Logger String,
        Random,
        Input Opts,
+       Now,
        GalleyAccess,
        BrigAccess,
        ScimExternalIdStore,
@@ -394,6 +397,7 @@ createValidScimUser ::
   (m ~ Scim.ScimHandler (Spar r)) =>
   Members
     '[ Random,
+       Now,
        Input Opts,
        Logger (Msg -> Msg),
        Logger String,
@@ -491,6 +495,7 @@ updateValidScimUser ::
        Input Opts,
        Logger (Msg -> Msg),
        Logger String,
+       Now,
        GalleyAccess,
        BrigAccess,
        ScimExternalIdStore,
@@ -609,13 +614,13 @@ toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
         }
 
 updScimStoredUser ::
-  forall m.
-  (SAML.HasNow m) =>
+  forall r.
+  Member Now r =>
   Scim.User ST.SparTag ->
   Scim.StoredUser ST.SparTag ->
-  m (Scim.StoredUser ST.SparTag)
+  Spar r (Scim.StoredUser ST.SparTag)
 updScimStoredUser usr storedusr = do
-  SAML.Time (toUTCTimeMillis -> now) <- SAML.getNow
+  SAML.Time (toUTCTimeMillis -> now) <- liftSem Now.get
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser' ::
@@ -769,6 +774,7 @@ synthesizeStoredUser ::
   forall r.
   Members
     '[ Input Opts,
+       Now,
        Logger (Msg -> Msg),
        BrigAccess,
        ScimUserTimesStore
@@ -807,7 +813,7 @@ synthesizeStoredUser usr veid =
               liftSem $ BrigAccess.setRichInfo uid newRichInfo
 
       (richInfo, accessTimes, baseuri) <- lift readState
-      SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
+      SAML.Time (toUTCTimeMillis -> now) <- lift $ liftSem Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
       handle <- lift $ liftSem $ Brig.giveDefaultHandle (accountUser usr)
@@ -865,6 +871,7 @@ synthesizeScimUser info =
 scimFindUserByHandle ::
   Members
     '[ Input Opts,
+       Now,
        Logger (Msg -> Msg),
        BrigAccess,
        ScimUserTimesStore
@@ -892,6 +899,7 @@ scimFindUserByEmail ::
   forall r.
   Members
     '[ Input Opts,
+       Now,
        Logger (Msg -> Msg),
        BrigAccess,
        ScimExternalIdStore,
