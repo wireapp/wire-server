@@ -72,6 +72,9 @@ instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
   throwError = SPImpl . throw
   catchError m handler = SPImpl $ catch (unSPImpl m) $ unSPImpl . handler
 
+-- | To learn more about polysemy tactics, read this:
+--   * https://reasonablypolymorphic.com/blog/freer-higher-order-effects/
+--   * https://reasonablypolymorphic.com/blog/tactics/
 saml2ToSaml2WebSso ::
   forall r a.
   Members
@@ -101,7 +104,6 @@ saml2ToSaml2WebSso =
       get_c <- bindT $ uncurry mc
       ins <- getInspectorT
       s <- getInitialStateT
-
       x <- raise $ unSPImpl $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y -> inspectOrBomb ins $ get_c $ (x, y) <$ s) ab
       pure $ x <$ s
     Meta t ma mb -> do

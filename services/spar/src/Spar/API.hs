@@ -337,7 +337,7 @@ authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SamlP
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Spar r Void -> Spar r Void
-    logErrors x = liftSem . catch @SparError (runSparInSem x) $ \case
+    logErrors action = liftSem . catch @SparError (runSparInSem action) $ \case
       e@(SAML.CustomServant _) -> throw e
       e -> do
         throw @SparError . SAML.CustomServant $
