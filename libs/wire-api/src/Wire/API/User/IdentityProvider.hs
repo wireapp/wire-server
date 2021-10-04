@@ -65,6 +65,7 @@ data WireIdPAPIVersion
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform WireIdPAPIVersion)
 
+-- | (Internal issue for making v2 the default: https://wearezeta.atlassian.net/browse/SQSERVICES-781)
 defWireIdPAPIVersion :: WireIdPAPIVersion
 defWireIdPAPIVersion = WireIdPAPIV1
 

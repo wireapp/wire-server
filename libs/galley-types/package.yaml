@@ -22,6 +22,7 @@ library:
   - lens >=4.12
   - QuickCheck
   - string-conversions
+  - tagged
   - text >=0.11
   - time >=1.4
   - types-common >=0.16

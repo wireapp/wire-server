@@ -70,8 +70,10 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
-import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Intra
+import Spar.App (liftSem)
+import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Sem.BrigAccess as BrigAccess
+import qualified Spar.Sem.IdP as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
@@ -235,6 +237,22 @@ specFinalizeLogin = do
             bdy `shouldContain` "<title>wire:sso:success</title>"
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
+      let loginFailure :: HasCallStack => ResponseLBS -> TestSpar ()
+          loginFailure sparresp = liftIO $ do
+            statusCode sparresp `shouldBe` 200
+            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            bdy `shouldNotContain` "<title>wire:sso:error:success</title>"
+            bdy `shouldContain` "<title>wire:sso:error:bad-team</title>"
+            bdy `shouldContain` "window.opener.postMessage({"
+            bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+            bdy `shouldContain` "\"payload\":{"
+            bdy `shouldContain` "\"label\":\"forbidden\""
+            bdy `shouldContain` "}, receiverOrigin)"
+            hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
       context "happy flow" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           env <- ask
@@ -249,6 +267,7 @@ specFinalizeLogin = do
           liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           loginSuccess =<< submitAuthnResponse tid authnresp
+
       context "happy flow (two teams, fixed IdP entityID)" $ do
         it "works" $ do
           skipIdPAPIVersions
@@ -261,6 +280,10 @@ specFinalizeLogin = do
             (owner2, tid2) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
             idp2 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner2) metadata
             pure (tid2, idp2)
+          (tid3, idp3) <- liftIO . runHttpT (env ^. teMgr) $ do
+            (owner3, tid3) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            idp3 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner3) metadata
+            pure (tid3, idp3)
           do
             spmeta <- getTestSPMetadata tid1
             authnreq <- negotiateAuthnRequest idp1
@@ -271,6 +294,36 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp2 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid2 authnresp
+          do
+            spmeta <- getTestSPMetadata tid3
+            authnreq <- negotiateAuthnRequest idp3
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse tid3 authnresp
+
+      context "idp sends user to two teams with same issuer, nameid" $ do
+        it "fails" $ do
+          skipIdPAPIVersions
+            [ WireIdPAPIV1
+            -- (In fact, to get this to work was the reason to introduce 'WireIdPAPIVesion'.)
+            ]
+          env <- ask
+          (_, tid1, idp1, (IdPMetadataValue _ metadata, privcreds)) <- registerTestIdPWithMeta
+          (tid2, idp2) <- liftIO . runHttpT (env ^. teMgr) $ do
+            (owner2, tid2) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            idp2 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner2) metadata
+            pure (tid2, idp2)
+          subj <- liftIO $ SAML.unspecifiedNameID . UUID.toText <$> UUID.nextRandom
+          do
+            spmeta <- getTestSPMetadata tid1
+            authnreq <- negotiateAuthnRequest idp1
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp1 spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse tid1 authnresp
+          do
+            spmeta <- getTestSPMetadata tid2
+            authnreq <- negotiateAuthnRequest idp2
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
+            loginFailure =<< submitAuthnResponse tid2 authnresp
+
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
           (ownerid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
@@ -313,18 +366,22 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
             loginSuccess =<< submitAuthnResponse teamid authnresp
+
       context "unknown user" $ do
         it "creates the user" $ do
           pending
+
       context "known user A, but client device (probably a browser?) is already authenticated as another (probably non-sso) user B" $ do
         it "logs out user B, logs in user A" $ do
           pending
       -- TODO(arianvp): Ask Matthias what this even means
+
       context "more than one dsig cert" $ do
         it "accepts the first of two certs for signatures" $ do
           pending
         it "accepts the second of two certs for signatures" $ do
           pending
+
     context "unknown IdP Issuer" $ do
       it "rejects" $ do
         (_, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
@@ -813,7 +870,7 @@ specCRUDIdentityProvider = do
           pure $ idpmeta1 & edIssuer .~ (idpmeta3 ^. edIssuer)
 
         do
-          midp <- runSparCass $ Data.getIdPConfig idpid1
+          midp <- runSpar $ liftSem $ IdPEffect.getConfig idpid1
           liftIO $ do
             (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (idpmeta1 ^. edIssuer)
             (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just []
@@ -826,7 +883,7 @@ specCRUDIdentityProvider = do
               resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
               liftIO $ statusCode resp `shouldBe` 200
 
-              midp <- runSparCass $ Data.getIdPConfig idpid1
+              midp <- runSpar $ liftSem $ IdPEffect.getConfig idpid1
               liftIO $ do
                 (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (new ^. edIssuer)
                 sort <$> (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just (sort $ olds <&> (^. edIssuer))
@@ -1241,7 +1298,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       brig <- view teBrig
       resp <- call . delete $ brig . paths ["i", "users", toByteString' uid]
       liftIO $ responseStatus resp `shouldBe` status202
-      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Deleted)
+      void $ aFewTimes (runSpar $ liftSem $ BrigAccess.getStatus uid) (== Deleted)
 
 specScimAndSAML :: SpecWith TestEnv
 specScimAndSAML = do

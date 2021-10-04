@@ -19,8 +19,8 @@ module Brig.API.Internal
   ( sitemap,
     servantSitemap,
     swaggerDocsAPI,
-    ServantAPI,
-    SwaggerDocsAPI,
+    BrigIRoutes.API,
+    BrigIRoutes.SwaggerDocsAPI,
   )
 where
 
@@ -42,13 +42,12 @@ import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import qualified Brig.Types.User.EJPD as EJPD
 import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~))
+import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
@@ -57,7 +56,6 @@ import Data.Id as Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Galley.Types (UserClients (..))
 import Imports hiding (head)
 import Network.HTTP.Types.Status
@@ -67,12 +65,12 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import qualified Servant
-import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
+import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
+import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
@@ -80,41 +78,29 @@ import Wire.API.User.RichInfo
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-type EJPDRequest =
-  Summary
-    "Identify users for law enforcement.  Wire has legal requirements to cooperate \
-    \with the authorities.  The wire backend operations team uses this to answer \
-    \identification requests manually.  It is our best-effort representation of the \
-    \minimum required information we need to hand over about targets and (in some \
-    \cases) their communication peers.  For more information, consult ejpd.admin.ch."
-    :> "ejpd-request"
-    :> QueryParam'
-         [ Optional,
-           Strict,
-           Description "Also provide information about all contacts of the identified users"
-         ]
-         "include_contacts"
-         Bool
-    :> Servant.ReqBody '[Servant.JSON] EJPD.EJPDRequestBody
-    :> Post '[Servant.JSON] EJPD.EJPDResponseBody
+servantSitemap :: ServerT BrigIRoutes.API Handler
+servantSitemap =
+  Brig.User.EJPD.ejpdRequest
+    :<|> getAccountFeatureConfig
+    :<|> putAccountFeatureConfig
+    :<|> deleteAccountFeatureConfig
 
-type ServantAPI =
-  "i"
-    :> ( EJPDRequest
-       )
+-- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
+getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
+getAccountFeatureConfig uid =
+  lift (Data.lookupFeatureConferenceCalling uid)
+    >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
 
-servantSitemap :: ServerT ServantAPI Handler
-servantSitemap = Brig.User.EJPD.ejpdRequest
+putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
+putAccountFeatureConfig uid status =
+  lift $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 
-type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
+deleteAccountFeatureConfig :: UserId -> Handler NoContent
+deleteAccountFeatureConfig uid =
+  lift $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
-
-swaggerDoc :: Swagger
-swaggerDoc =
-  toSwagger (Proxy @ServantAPI)
-    & info . title .~ "Wire-Server API as Swagger 2.0 (internal end-points; incomplete) "
+swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
+swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
@@ -363,7 +349,7 @@ deleteUserNoVerify :: UserId -> Handler ()
 deleteUserNoVerify uid = do
   void $
     lift (API.lookupAccount uid)
-      >>= ifNothing (errorDescriptionToWai userNotFound)
+      >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
@@ -556,18 +542,18 @@ updateRichInfoH (uid ::: _ ::: req) = do
 
 updateRichInfo :: UserId -> RichInfoUpdate -> Handler ()
 updateRichInfo uid rup = do
-  let RichInfoAssocList richInfo = normalizeRichInfoAssocList . riuRichInfo $ rup
+  let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
   maxSize <- setRichInfoLimit <$> view settings
-  when (richInfoSize (RichInfo (RichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
+  when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
-  lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)
+  lift $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
 getRichInfoH :: UserId -> Handler Response
 getRichInfoH uid = json <$> getRichInfo uid
 
 getRichInfo :: UserId -> Handler RichInfo
-getRichInfo uid = RichInfo . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo uid)
+getRichInfo uid = RichInfo . fromMaybe mempty <$> lift (API.lookupRichInfo uid)
 
 getRichInfoMultiH :: List UserId -> Handler Response
 getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)
@@ -589,7 +575,7 @@ updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJso
 
 updateUserName :: UserId -> NameUpdate -> Handler ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd (errorDescriptionToWai invalidUser)) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -599,7 +585,7 @@ updateUserName uid (NameUpdate nameUpd) = do
           }
   lift (Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd (errorDescriptionToWai invalidUser)
+    Nothing -> throwStd (errorDescriptionTypeToWai @InvalidUser)
 
 checkHandleInternalH :: Text -> Handler Response
 checkHandleInternalH =

@@ -41,7 +41,12 @@
 module Spar.Scim.Types where
 
 import Brig.Types.Intra (AccountStatus (..))
+import Control.Lens (view)
 import Imports
+import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User.RichInfo (RichInfo (..), normalizeRichInfoAssocList)
+import Wire.API.User.Scim (ScimUserExtra (..), SparTag, sueRichInfo)
 
 -- TODO: move these somewhere else?
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
@@ -78,3 +83,17 @@ scimActiveFlagToAccountStatus oldstatus = \case
       Deleted -> Deleted -- this shouldn't happen, but it's harmless if it does.
       Ephemeral -> Ephemeral
       PendingInvitation -> PendingInvitation -- (do not activate: see 'scimActiveFlagFromAccountStatus')
+
+normalizeLikeStored :: Scim.User.User SparTag -> Scim.User.User SparTag
+normalizeLikeStored usr =
+  usr
+    { Scim.User.extra = tweakExtra $ Scim.User.extra usr,
+      Scim.User.active = tweakActive $ Scim.User.active usr,
+      Scim.User.phoneNumbers = []
+    }
+  where
+    tweakExtra :: ScimUserExtra -> ScimUserExtra
+    tweakExtra = ScimUserExtra . RichInfo . normalizeRichInfoAssocList . unRichInfo . view sueRichInfo
+
+    tweakActive :: Maybe Scim.ScimBool -> Maybe Scim.ScimBool
+    tweakActive = fmap Scim.ScimBool . maybe (Just True) Just . fmap Scim.unScimBool

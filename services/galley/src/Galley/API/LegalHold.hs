@@ -46,11 +46,11 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (Qualified (Qualified))
 import Data.Range (toRange)
+import Data.Tagged
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
-import Galley.API.Update (removeMember)
+import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -61,7 +61,7 @@ import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
 import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
-import Galley.Types (LocalMember, memConvRoleName, memId)
+import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types (status200, status404)
@@ -487,30 +487,31 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
   void $
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
-        localDomain <- viewFederationDomain
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
           let mems = Data.convLocalMembers conv
-          uidsLHStatus <- getLHStatusForUsers (memId <$> mems)
+          uidsLHStatus <- getLHStatusForUsers (lmId <$> mems)
           pure $
             zipWith
               ( \mem (mid, status) ->
-                  assert (memId mem == mid) $
-                    if memId mem == uid
+                  assert (lmId mem == mid) $
+                    if lmId mem == uid
                       then (mem, hypotheticalLHStatus)
                       else (mem, status)
               )
               mems
               uidsLHStatus
 
-        let qconv = Data.convId conv `Qualified` localDomain
+        lcnv <- qualifyLocal (Data.convId conv)
         if any
           ((== ConsentGiven) . consentGiven . snd)
-          (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
+          (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memId memberNoConsent `Qualified` localDomain) Nothing qconv (Qualified (memId memberNoConsent) localDomain)
+              lusr <- qualifyLocal (lmId memberNoConsent)
+              removeMemberFromLocalConv lcnv lusr Nothing (unTagged lusr)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (memId legalholder `Qualified` localDomain) Nothing qconv (Qualified (memId legalholder) localDomain)
+              lusr <- qualifyLocal (lmId legalholder)
+              removeMemberFromLocalConv lcnv lusr Nothing (unTagged lusr)

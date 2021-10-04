@@ -34,12 +34,18 @@ domain = Domain "golden.example.com"
 testObject_Conversation_user_1 :: Conversation
 testObject_Conversation_user_1 =
   Conversation
-    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
-      cnvType = One2OneConv,
-      cnvCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
-      cnvAccess = [],
-      cnvAccessRole = PrivateAccessRole,
-      cnvName = Just " 0",
+    { cnvMetadata =
+        ConversationMetadata
+          { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+            cnvmType = One2OneConv,
+            cnvmCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
+            cnvmAccess = [],
+            cnvmAccessRole = PrivateAccessRole,
+            cnvmName = Just " 0",
+            cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
+            cnvmMessageTimer = Nothing,
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+          },
       cnvMembers =
         ConvMembers
           { cmSelf =
@@ -55,34 +61,37 @@ testObject_Conversation_user_1 =
                   memConvRoleName = fromJust (parseRoleName "rhhdzf0j0njilixx0g0vzrp06b_5us")
                 },
             cmOthers = []
-          },
-      cnvTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
-      cnvMessageTimer = Nothing,
-      cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+          }
     }
 
 testObject_Conversation_user_2 :: Conversation
 testObject_Conversation_user_2 =
   Conversation
-    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain "golden.example.com"),
-      cnvType = SelfConv,
-      cnvCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
-      cnvAccess =
-        [ InviteAccess,
-          InviteAccess,
-          CodeAccess,
-          LinkAccess,
-          InviteAccess,
-          PrivateAccess,
-          LinkAccess,
-          CodeAccess,
-          CodeAccess,
-          LinkAccess,
-          PrivateAccess,
-          InviteAccess
-        ],
-      cnvAccessRole = NonActivatedAccessRole,
-      cnvName = Just "",
+    { cnvMetadata =
+        ConversationMetadata
+          { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain "golden.example.com"),
+            cnvmType = SelfConv,
+            cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+            cnvmAccess =
+              [ InviteAccess,
+                InviteAccess,
+                CodeAccess,
+                LinkAccess,
+                InviteAccess,
+                PrivateAccess,
+                LinkAccess,
+                CodeAccess,
+                CodeAccess,
+                LinkAccess,
+                PrivateAccess,
+                InviteAccess
+              ],
+            cnvmAccessRole = NonActivatedAccessRole,
+            cnvmName = Just "",
+            cnvmTeam = Nothing,
+            cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
+            cnvmReceiptMode = Nothing
+          },
       cnvMembers =
         ConvMembers
           { cmSelf =
@@ -117,8 +126,5 @@ testObject_Conversation_user_2 =
                         )
                   }
               ]
-          },
-      cnvTeam = Nothing,
-      cnvMessageTimer = Just (Ms {ms = 1319272593797015}),
-      cnvReceiptMode = Nothing
+          }
     }

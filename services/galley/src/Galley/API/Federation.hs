@@ -18,16 +18,16 @@ module Galley.API.Federation where
 
 import Control.Lens (itraversed, (<.>))
 import Control.Monad.Catch (throwM)
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Id (ConvId, UserId)
 import Data.Json.Util (Base64ByteString (..))
-import Data.List1 (list1)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), toRemote)
 import qualified Data.Set as Set
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
@@ -35,31 +35,33 @@ import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
 import qualified Galley.API.Update as API
-import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
+import Galley.API.Util
 import Galley.App (Galley)
 import qualified Galley.Data as Data
-import Galley.Types.Conversations.Members (InternalMember (..), LocalMember)
+import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-  ( ConversationMemberUpdate (..),
+  ( ConversationUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
     LeaveConversationRequest (..),
     LeaveConversationResponse (..),
     MessageSendRequest (..),
     MessageSendResponse (..),
-    RegisterConversation (..),
+    NewRemoteConversation (..),
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
 import Wire.API.ServantProto (FromProto (..))
 import Wire.API.User.Client (userClientMap)
 
@@ -67,16 +69,17 @@ federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      { FederationAPIGalley.registerConversation = registerConversation,
+      { FederationAPIGalley.onConversationCreated = onConversationCreated,
         FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.onConversationUpdated = onConversationUpdated,
         FederationAPIGalley.leaveConversation = leaveConversation,
-        FederationAPIGalley.receiveMessage = receiveMessage,
+        FederationAPIGalley.onMessageSent = onMessageSent,
         FederationAPIGalley.sendMessage = sendMessage
       }
 
-registerConversation :: RegisterConversation -> Galley ()
-registerConversation rc = do
+onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
+onConversationCreated domain rc = do
+  let qrc = fmap (`Qualified` domain) rc
   localDomain <- viewFederationDomain
   let localUsers =
         foldMap (\om -> guard (qDomain (omQualifiedId om) == localDomain) $> omQualifiedId om)
@@ -84,79 +87,103 @@ registerConversation rc = do
           $ rc
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
-    Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
-  forM_ (fromRegisterConversation localDomain rc) $ \(mem, c) -> do
+    Data.addLocalMembersToRemoteConv (rcCnvId qrc) localUserIds
+  forM_ (fromNewRemoteConversation localDomain qrc) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
-            (rcCnvId rc)
+            (rcCnvId qrc)
             (rcOrigUserId rc)
             (rcTime rc)
             (EdConversation c)
     pushConversationEvent Nothing event [Public.memId mem] []
 
-getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
-getConversations (GetConversationsRequest qUid gcrConvIds) = do
-  domain <- viewFederationDomain
-  convs <- Data.conversations gcrConvIds
-  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
-  pure $ GetConversationsResponse . catMaybes $ convViews
+getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
+getConversations domain (GetConversationsRequest uid cids) = do
+  let ruid = toRemote $ Qualified uid domain
+  localDomain <- viewFederationDomain
+  GetConversationsResponse
+    . catMaybes
+    . map (Mapping.conversationToRemote localDomain ruid)
+    <$> Data.localConversations cids
+
+getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
+getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
-updateConversationMemberships :: Domain -> ConversationMemberUpdate -> Galley ()
-updateConversationMemberships requestingDomain cmu = do
+onConversationUpdated :: Domain -> ConversationUpdate -> Galley ()
+onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
-  let users = case cmuAction cmu of
-        FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
-        FederationAPIGalley.ConversationMembersActionRemove toRemove -> toRemove
-      localUsers = filter ((== localDomain) . qDomain) . toList $ users
-      localUserIds = qUnqualified <$> localUsers
-      targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
-      qconvId = Qualified (cmuConvId cmu) requestingDomain
-  event <- case cmuAction cmu of
-    FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
-      unless (null localUsers) $
-        Data.addLocalMembersToRemoteConv localUserIds qconvId
-      let mems = SimpleMembers (map (uncurry SimpleMember) . toList $ toAdd)
-      pure $
-        Event
-          MemberJoin
-          qconvId
-          (cmuOrigUserId cmu)
-          (cmuTime cmu)
-          (EdMembersJoin mems)
-    FederationAPIGalley.ConversationMembersActionRemove toRemove -> do
-      case localUserIds of
-        [] -> pure ()
-        (h : t) ->
-          Data.removeLocalMembersFromRemoteConv
-            qconvId
-            (list1 h t)
-      pure $
-        Event
-          MemberLeave
-          qconvId
-          (cmuOrigUserId cmu)
-          (cmuTime cmu)
-          (EdMembersLeave . QualifiedUserIdList . toList $ toRemove)
+  let qconvId = Qualified (cuConvId cu) requestingDomain
+
+  -- Note: we generally do not send notifications to users that are not part of
+  -- the conversation (from our point of view), to prevent spam from the remote
+  -- backend. See also the comment below.
+  (presentUsers, allUsersArePresent) <- Data.filterRemoteConvMembers (cuAlreadyPresentUsers cu) qconvId
+
+  -- Perform action, and determine extra notification targets.
+  --
+  -- When new users are being added to the conversation, we consider them as
+  -- notification targets. Once we start checking connections before letting
+  -- people being added, this will be safe against spam. However, if users that
+  -- are not in the conversations are being removed or have their membership state
+  -- updated, we do **not** add them to the list of targets, because we have no
+  -- way to make sure that they are actually supposed to receive that notification.
+  extraTargets <- case cuAction cu of
+    ConversationActionAddMembers toAdd _ -> do
+      let localUsers = getLocalUsers localDomain toAdd
+      Data.addLocalMembersToRemoteConv qconvId localUsers
+      pure localUsers
+    ConversationActionRemoveMember toRemove -> do
+      let localUsers = getLocalUsers localDomain (pure toRemove)
+      Data.removeLocalMembersFromRemoteConv qconvId localUsers
+      pure []
+    ConversationActionRename _ -> pure []
+    ConversationActionMessageTimerUpdate _ -> pure []
+    ConversationActionMemberUpdate _ _ -> pure []
+    ConversationActionReceiptModeUpdate _ -> pure []
+    ConversationActionAccessUpdate _ -> pure []
+
+  -- Send notifications
+  let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)
+      targets = nubOrd $ presentUsers <> extraTargets
+
+  unless allUsersArePresent $
+    Log.warn $
+      Log.field "conversation" (toByteString' (cuConvId cu))
+        Log.~~ Log.field "domain" (toByteString' requestingDomain)
+        Log.~~ Log.msg
+          ( "Attempt to send notification about conversation update \
+            \to users not in the conversation" ::
+              ByteString
+          )
+
   -- FUTUREWORK: support bots?
-  -- send notifications
   pushConversationEvent Nothing event targets []
 
+-- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
   Domain ->
   LeaveConversationRequest ->
   Galley LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (lcLeaver lc) requestingDomain
-  fmap LeaveConversationResponse . runExceptT . void $
-    API.removeMemberFromLocalConv leaver Nothing (lcConvId lc) leaver
+  lcnv <- qualifyLocal (lcConvId lc)
+  fmap
+    ( LeaveConversationResponse
+        . maybe (Left RemoveFromConversationErrorUnchanged) Right
+    )
+    . runMaybeT
+    . void
+    . API.updateLocalConversation lcnv leaver Nothing
+    . ConversationActionRemoveMember
+    $ leaver
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
-receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
-receiveMessage domain rmUnqualified = do
+onMessageSent :: Domain -> RemoteMessage ConvId -> Galley ()
+onMessageSent domain rmUnqualified = do
   let rm = fmap (Tagged . (`Qualified` domain)) rmUnqualified
   let convId = unTagged $ rmConversation rm
       msgMetadata =
@@ -185,16 +212,11 @@ receiveMessage domain rmUnqualified = do
     mkLocalMember :: UserId -> Galley LocalMember
     mkLocalMember m =
       pure $
-        InternalMember
-          { memId = m,
-            memService = Nothing,
-            memOtrMutedStatus = Nothing,
-            memOtrMutedRef = Nothing,
-            memOtrArchived = False,
-            memOtrArchivedRef = Nothing,
-            memHidden = False,
-            memHiddenRef = Nothing,
-            memConvRoleName = Public.roleNameWireMember
+        LocalMember
+          { lmId = m,
+            lmService = Nothing,
+            lmStatus = defMemberStatus,
+            lmConvRoleName = Public.roleNameWireMember
           }
 
 sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse

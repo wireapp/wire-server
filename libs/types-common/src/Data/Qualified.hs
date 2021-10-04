@@ -23,6 +23,12 @@ module Data.Qualified
     Qualified (..),
     Remote,
     toRemote,
+    Local,
+    toLocal,
+    lUnqualified,
+    lDomain,
+    qualifyAs,
+    foldQualified,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
@@ -54,7 +60,7 @@ data Qualified a = Qualified
   { qUnqualified :: a,
     qDomain :: Domain
   }
-  deriving stock (Eq, Ord, Show, Generic, Functor)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | A type to differentiate between generally Qualified values, and values
 -- where it is known if they are coming from a Remote backend or not.
@@ -65,6 +71,31 @@ type Remote a = Tagged "remote" (Qualified a)
 -- | Convert a Qualified something to a Remote something.
 toRemote :: Qualified a -> Remote a
 toRemote = Tagged
+
+-- | A type representing a Qualified value where the domain is guaranteed to be
+-- the local one.
+type Local a = Tagged "local" (Qualified a)
+
+toLocal :: Qualified a -> Local a
+toLocal = Tagged
+
+lUnqualified :: Local a -> a
+lUnqualified = qUnqualified . unTagged
+
+lDomain :: Local a -> Domain
+lDomain = qDomain . unTagged
+
+-- | Convert an unqualified value to a qualified one, with the same tag as the
+-- given tagged qualified value.
+qualifyAs :: Tagged t (Qualified x) -> a -> Tagged t (Qualified a)
+qualifyAs (Tagged q) x = Tagged (q $> x)
+
+foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
+foldQualified loc f g q
+  | lDomain loc == qDomain q =
+    f (toLocal q)
+  | otherwise =
+    g (toRemote q)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
@@ -83,13 +114,13 @@ partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remot
 partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
 
 -- | Index a list of qualified values by domain
-partitionQualified :: [Qualified a] -> Map Domain [a]
+partitionQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
 partitionQualified = foldr add mempty
   where
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
-partitionRemote :: [Remote a] -> [(Domain, [a])]
+partitionRemote :: (Functor f, Foldable f) => f (Remote a) -> [(Domain, [a])]
 partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
 
 ----------------------------------------------------------------------

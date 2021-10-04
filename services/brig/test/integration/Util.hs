@@ -53,7 +53,7 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Qualified
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -122,6 +122,14 @@ test m n h = testCase n (void $ runHttpT m h)
 
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
+
+twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
+twoRandomUsers brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+  pure (quid1, uid1, quid2, uid2)
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -409,11 +417,32 @@ postConnection brig from to =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
 
+postConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+postConnectionQualified brig from (Qualified toUser toDomain) =
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
+
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
     brig
       . paths ["/connections", toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object ["status" .= r]
+
+putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnectionQualified brig from (Qualified to toDomain) r =
+  put $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' to]
       . contentJson
       . body payload
       . zUser from
@@ -839,3 +868,20 @@ withDomainsBlockedForRegistration opts domains sess = do
       blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+aFewTimes ::
+  (HasCallStack, MonadIO m) =>
+  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
+  Int ->
+  m a ->
+  (a -> Bool) ->
+  m a
+aFewTimes
+  retries
+  action
+  good = do
+    retrying
+      (exponentialBackoff 1000 <> limitRetries retries)
+      (\_ -> pure . not . good)
+      (\_ -> action)

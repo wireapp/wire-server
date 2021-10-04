@@ -39,20 +39,38 @@ errorDescriptionToWai ::
 errorDescriptionToWai (ErrorDescription msg) =
   mkError (statusVal (Proxy @code)) (LT.pack (symbolVal (Proxy @lbl))) (LT.fromStrict msg)
 
+errorDescriptionTypeToWai ::
+  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  ( KnownStatus code,
+    KnownSymbol lbl,
+    KnownSymbol desc,
+    e ~ ErrorDescription code lbl desc
+  ) =>
+  Error
+errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
+
 throwErrorDescription ::
   (KnownStatus code, KnownSymbol lbl, MonadThrow m) =>
   ErrorDescription code lbl desc ->
   m a
 throwErrorDescription = throwM . errorDescriptionToWai
 
+throwErrorDescriptionType ::
+  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol) m a.
+  ( KnownStatus code,
+    KnownSymbol lbl,
+    KnownSymbol desc,
+    MonadThrow m,
+    e ~ ErrorDescription code lbl desc
+  ) =>
+  m a
+throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
+
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"
 
 internalErrorWithDescription :: LText -> Error
 internalErrorWithDescription = mkError status500 "internal-error"
-
-convMemberNotFound :: Error
-convMemberNotFound = mkError status404 "no-conversation-member" "conversation member not found"
 
 invalidSelfOp :: Error
 invalidSelfOp = invalidOp "invalid operation for self conversation"
@@ -68,9 +86,6 @@ invalidAccessOp = invalidOp "invalid operation for conversation without 'code' a
 
 invalidManagedConvOp :: Error
 invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
-
-invalidTargetAccess :: Error
-invalidTargetAccess = invalidOp "invalid target access"
 
 invalidTargetUserOp :: Error
 invalidTargetUserOp = invalidOp "invalid target user for the given operation"

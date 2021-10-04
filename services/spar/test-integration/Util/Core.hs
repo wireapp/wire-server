@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -114,10 +115,9 @@ module Util.Core
     callIdpDeletePurge',
     initCassandra,
     ssoToUidSpar,
-    runSparCass,
-    runSparCassWithEnv,
     runSimpleSP,
     runSpar,
+    type RealInterpretation,
     getSsoidViaSelf,
     getSsoidViaSelf',
     getUserIdViaRef,
@@ -158,7 +158,6 @@ import Data.Range
 import Data.String.Conversions
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
@@ -169,17 +168,35 @@ import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
+import Polysemy
+import Polysemy.Error (runError)
+import Polysemy.Input
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (toLevel)
+import Spar.App (liftSem, type RealInterpretation)
 import qualified Spar.App as Spar
-import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Intra
+import Spar.Error (SparError)
+import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
+import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
+import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
+import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
+import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
+import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
+import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
+import Spar.Sem.IdP.Cassandra
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog, toLevel)
+import Spar.Sem.Random.IO (randomToIO)
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SAMLUserStore.Cassandra
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
+import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
+import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -739,7 +756,7 @@ ping req = void . get $ req . path "/i/status" . expect2xx
 
 makeTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
 makeTestIdP = do
-  apiversion <- asks (^. teWireIdPAPIVersion)
+  apiversion <- view teWireIdPAPIVersion
   SampleIdP md _ _ _ <- makeSampleIdPMetadata
   IdPConfig
     <$> (IdPId <$> liftIO UUID.nextRandom)
@@ -791,7 +808,7 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
-  apiVersion <- asks (^. teWireIdPAPIVersion)
+  apiVersion <- view teWireIdPAPIVersion
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
     (uid,tid,) <$> callIdpCreate apiVersion spar (Just uid) metadata
@@ -1079,7 +1096,7 @@ callIdpCreate apiversion sparreq_ muid metadata = do
 callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
 callIdpCreate' apiversion sparreq_ muid metadata = do
   explicitQueryParam <- do
-    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
     -- both, and not spend extra time on it.
     liftIO $ randomRIO (True, False)
   post $
@@ -1087,8 +1104,8 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
       . maybe id zUser muid
       . path "/identity-providers/"
       . ( case apiversion of
-            WireIdPAPIV1 -> Bilge.query [("api-version", Just "v1") | explicitQueryParam]
-            WireIdPAPIV2 -> Bilge.query [("api-version", Just "v2")]
+            WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
+            WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
         )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
@@ -1117,7 +1134,7 @@ callIdpCreateReplace apiversion sparreq_ muid metadata idpid = do
 callIdpCreateReplace' :: (HasCallStack, MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
 callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
   explicitQueryParam <- do
-    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
     -- both, and not spend extra time on it.
     liftIO $ randomRIO (True, False)
   post $
@@ -1125,7 +1142,7 @@ callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
       . maybe id zUser muid
       . path "/identity-providers/"
       . Bilge.query
-        ( [ ( "api-version",
+        ( [ ( "api_version",
               case apiversion of
                 WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
                 WireIdPAPIV2 -> Just "v2"
@@ -1203,33 +1220,11 @@ callDeleteDefaultSsoCode sparreq_ = do
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> Brig.UserSSOId -> m (Maybe UserId)
 ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
-  runSparCass @Client $
+  runSpar $
     runValidExternalId
-      Data.getSAMLUser
-      (Data.lookupScimExternalId tid)
+      (liftSem . SAMLUserStore.get)
+      (liftSem . ScimExternalIdStore.lookup tid)
       veid
-
-runSparCass ::
-  (HasCallStack, m ~ Client, MonadIO m', MonadReader TestEnv m') =>
-  m a ->
-  m' a
-runSparCass action = do
-  env <- ask
-  liftIO $ runClient (env ^. teCql) action
-
-runSparCassWithEnv ::
-  ( HasCallStack,
-    m ~ ReaderT Data.Env (ExceptT TTLError Cas.Client),
-    MonadIO m',
-    MonadReader TestEnv m'
-  ) =>
-  m a ->
-  m' a
-runSparCassWithEnv action = do
-  env <- ask
-  denv <- Data.mkEnv <$> (pure $ env ^. teOpts) <*> liftIO getCurrentTime
-  val <- runSparCass (runExceptT (action `runReaderT` denv))
-  either (liftIO . throwIO . ErrorCall . show) pure val
 
 runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
 runSimpleSP action = do
@@ -1239,11 +1234,38 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar a -> m a
+runSpar ::
+  (MonadReader TestEnv m, MonadIO m) =>
+  Spar.Spar RealInterpretation a ->
+  m a
 runSpar (Spar.Spar action) = do
-  env <- (^. teSparEnv) <$> ask
+  ctx <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runExceptT $ action `runReaderT` env
+    result <-
+      fmap join
+        . liftIO
+        . runFinal
+        . embedToFinal @IO
+        . randomToIO
+        . runInputConst (Spar.sparCtxLogger ctx)
+        . runInputConst (Spar.sparCtxOpts ctx)
+        . loggerToTinyLog (Spar.sparCtxLogger ctx)
+        . stringLoggerToTinyLog
+        . runError @SparError
+        . ttlErrorToSparError
+        . galleyAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpGalley ctx)
+        . brigAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpBrig ctx)
+        . interpretClientToIO (Spar.sparCtxCas ctx)
+        . samlUserStoreToCassandra @Cas.Client
+        . idPToCassandra @Cas.Client
+        . defaultSsoCodeToCassandra
+        . scimTokenStoreToCassandra
+        . scimUserTimesStoreToCassandra
+        . scimExternalIdStoreToCassandra
+        . aReqIDStoreToCassandra
+        . assIDStoreToCassandra
+        . bindCookieStoreToCassandra
+        $ runExceptT action
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
@@ -1251,7 +1273,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  musr <- aFewTimes (runSpar $ liftSem $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
   pure $ case userIdentity =<< musr of
     Just (SSOIdentity ssoid _ _) -> Just ssoid
     Just (FullIdentity _ _) -> Nothing
@@ -1264,7 +1286,7 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  aFewTimes (runSparCass $ Data.getSAMLUser uref) isJust
+  aFewTimes (runSpar $ liftSem $ SAMLUserStore.get uref) isJust
 
 checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 checkErr status mlabel = do

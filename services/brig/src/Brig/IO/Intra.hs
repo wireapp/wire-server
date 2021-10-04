@@ -89,6 +89,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
@@ -534,8 +535,9 @@ createSelfConv u = do
 -- | Calls 'Galley.API.createConnectConversationH'.
 createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe ConnId -> AppIO ConvId
 createConnectConv from to cname conn = do
+  localDomain <- viewFederationDomain
   debug $
-    logConnection from to
+    logConnection from (Qualified to localDomain)
       . remote "galley"
       . msg (val "Creating connect conversation")
   r <- galleyRequest POST req

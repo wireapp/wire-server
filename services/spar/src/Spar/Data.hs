@@ -58,13 +58,10 @@ module Spar.Data
     clearReplacedBy,
     GetIdPResult (..),
     getIdPConfig,
-    getIdPConfigByIssuer,
-    getIdPConfigByIssuerAllowOld,
-    getIdPIdByIssuer,
-    getIdPIdByIssuerAllowOld,
+    getIdPIdByIssuerWithoutTeam,
+    getIdPIdByIssuerWithTeam,
     getIdPConfigsByTeam,
     deleteIdPConfig,
-    deleteTeam,
     storeIdPRawMetadata,
     getIdPRawMetadata,
     deleteIdPRawMetadata,
@@ -110,6 +107,7 @@ import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
@@ -445,9 +443,9 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   addPrepQuery
     byIssuer
-    ( idp ^. SAML.idpId,
+    ( idp ^. SAML.idpMetadata . SAML.edIssuer,
       idp ^. SAML.idpExtraInfo . wiTeam,
-      idp ^. SAML.idpMetadata . SAML.edIssuer
+      idp ^. SAML.idpId
     )
   addPrepQuery
     byTeam
@@ -459,15 +457,11 @@ storeIdPConfig idp = retry x5 . batch $ do
     ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
     -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
-    byIssuer :: PrepQuery W (SAML.IdPId, TeamId, SAML.Issuer) ()
-    byIssuer = "INSERT INTO issuer_idp_v2 (idp, team, issuer) VALUES (?, ?, ?)"
+    byIssuer :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()
+    byIssuer = "INSERT INTO issuer_idp_v2 (issuer, team, idp) VALUES (?, ?, ?)"
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-newtype Replaced = Replaced SAML.IdPId
-
-newtype Replacing = Replacing SAML.IdPId
 
 -- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
 setReplacedBy ::
@@ -521,92 +515,22 @@ getIdPConfig idpid =
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
-data GetIdPResult a
-  = GetIdPFound a
-  | GetIdPNotFound
-  | -- | IdPId has been found, but no IdPConfig matching that Id.  (Database
-    --   inconsistency or race condition.)
-    GetIdPDanglingId SAML.IdPId
-  | -- | You were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
-    --   has more than one entry (for different teams).
-    GetIdPNonUnique [SAML.IdPId]
-  | -- | An IdP was found, but it lives in another team than the one you were looking for.
-    --   This should be handled similarly to NotFound in most cases.
-    GetIdPWrongTeam SAML.IdPId
-  deriving (Eq, Show)
-
--- | (There are probably category theoretical models for what we're doing here, but it's more
--- straight-forward to just handle the one instance we need.)
-mapGetIdPResult :: (HasCallStack, MonadClient m) => GetIdPResult SAML.IdPId -> m (GetIdPResult IdP)
-mapGetIdPResult (GetIdPFound i) = getIdPConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
-mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
-mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
-mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
-mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
-
--- | See 'getIdPIdByIssuer'.
-getIdPConfigByIssuer ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  TeamId ->
-  m (GetIdPResult IdP)
-getIdPConfigByIssuer issuer =
-  getIdPIdByIssuer issuer >=> mapGetIdPResult
-
--- | See 'getIdPIdByIssuerAllowOld'.
-getIdPConfigByIssuerAllowOld ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  Maybe TeamId ->
-  m (GetIdPResult IdP)
-getIdPConfigByIssuerAllowOld issuer = do
-  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
-
--- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
--- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
-getIdPIdByIssuer ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  TeamId ->
-  m (GetIdPResult SAML.IdPId)
-getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
-
--- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
--- single solution can be found without.
-getIdPIdByIssuerAllowOld ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  Maybe TeamId ->
-  m (GetIdPResult SAML.IdPId)
-getIdPIdByIssuerAllowOld issuer mbteam = do
-  mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerWithTeam issuer) mbteam
-  mbv1v2 <- maybe (getIdPIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
-  case (mbv1v2, mbteam) of
-    (GetIdPFound idpid, Just team) -> do
-      getIdPConfig idpid >>= \case
-        Nothing -> do
-          pure $ GetIdPDanglingId idpid
-        Just idp ->
-          pure $
-            if idp ^. SAML.idpExtraInfo . wiTeam /= team
-              then GetIdPWrongTeam idpid
-              else mbv1v2
-    _ -> pure mbv1v2
-
--- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
+-- | Find 'IdPId' without team.  Search both `issuer_idp_v2` and `issuer_idp`; in the former,
 -- make sure the result is unique (no two IdPs for two different teams).
 getIdPIdByIssuerWithoutTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerWithoutTeam issuer = do
-  (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
-    Just idpid -> pure $ GetIdPFound idpid
-    Nothing ->
-      (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
-        [] -> pure GetIdPNotFound
-        [idpid] -> pure $ GetIdPFound idpid
-        idpids@(_ : _ : _) -> pure $ GetIdPNonUnique idpids
+  (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+    [] ->
+      (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+        Just idpid -> pure $ GetIdPFound idpid
+        Nothing -> pure GetIdPNotFound
+    [idpid] ->
+      pure $ GetIdPFound idpid
+    idpids@(_ : _ : _) ->
+      pure $ GetIdPNonUnique idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
@@ -665,22 +589,6 @@ deleteIdPConfig idp issuer team = retry x5 . batch $ do
 
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
-
--- | Delete all tokens belonging to a team.
-deleteTeam ::
-  (HasCallStack, MonadClient m) =>
-  TeamId ->
-  m ()
-deleteTeam team = do
-  deleteTeamScimTokens team
-  -- Since IdPs are not shared between teams, we can look at the set of IdPs
-  -- used by the team, and remove everything related to those IdPs, too.
-  idps <- getIdPConfigsByTeam team
-  for_ idps $ \idp -> do
-    let idpid = idp ^. SAML.idpId
-        issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    deleteSAMLUsersByIssuer issuer
-    deleteIdPConfig idpid issuer team
 
 storeIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>

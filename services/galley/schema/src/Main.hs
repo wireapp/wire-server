@@ -55,6 +55,7 @@ import qualified V49_ReAddRemoteIdentifiers
 import qualified V50_AddLegalholdWhitelisted
 import qualified V51_FeatureFileSharing
 import qualified V52_FeatureConferenceCalling
+import qualified V53_AddRemoteConvStatus
 
 main :: IO ()
 main = do
@@ -95,7 +96,8 @@ main = do
       V49_ReAddRemoteIdentifiers.migration,
       V50_AddLegalholdWhitelisted.migration,
       V51_FeatureFileSharing.migration,
-      V52_FeatureConferenceCalling.migration
+      V52_FeatureConferenceCalling.migration,
+      V53_AddRemoteConvStatus.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
       -- (see also docs/developer/cassandra-interaction.md)

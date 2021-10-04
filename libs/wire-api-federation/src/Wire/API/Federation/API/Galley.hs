@@ -21,7 +21,6 @@ import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -30,7 +29,14 @@ import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
+import Wire.API.Conversation
+  ( Access,
+    AccessRole,
+    ConvType,
+    ConversationMetadata,
+    ReceiptMode,
+  )
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
@@ -45,29 +51,32 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
 -- for the current list we need.
 
+-- | For conventions see /docs/developer/federation-api-conventions.md
 data Api routes = Api
   { -- | Register a new conversation
-    registerConversation ::
+    onConversationCreated ::
       routes
         :- "federation"
         :> Summary "Register users to be in a new remote conversation"
-        :> "register-conversation"
-        :> ReqBody '[JSON] RegisterConversation
+        :> "on-conversation-created"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] (NewRemoteConversation ConvId)
         :> Post '[JSON] (),
     getConversations ::
       routes
         :- "federation"
         :> "get-conversations"
+        :> OriginDomainHeader
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
-    -- used by backend that owns the conversation to inform the backend about
-    -- add/removal of its users to the conversation
-    updateConversationMemberships ::
+    -- used by the backend that owns a conversation to inform this backend of
+    -- changes to the conversation
+    onConversationUpdated ::
       routes
         :- "federation"
-        :> "update-conversation-memberships"
+        :> "on-conversation-updated"
         :> OriginDomainHeader
-        :> ReqBody '[JSON] ConversationMemberUpdate
+        :> ReqBody '[JSON] ConversationUpdate
         :> Post '[JSON] (),
     leaveConversation ::
       routes
@@ -78,10 +87,10 @@ data Api routes = Api
         :> Post '[JSON] LeaveConversationResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
-    receiveMessage ::
+    onMessageSent ::
       routes
         :- "federation"
-        :> "receive-message"
+        :> "on-message-sent"
         :> OriginDomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] (),
@@ -98,15 +107,35 @@ data Api routes = Api
   deriving (Generic)
 
 data GetConversationsRequest = GetConversationsRequest
-  { gcrUserId :: Qualified UserId,
+  { gcrUserId :: UserId,
     gcrConvIds :: [ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
+data RemoteConvMembers = RemoteConvMembers
+  { rcmSelfRole :: RoleName,
+    rcmOthers :: [OtherMember]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConvMembers)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConvMembers)
+
+-- | A conversation hosted on a remote backend. This contains the same
+-- information as a 'Conversation', with the exception that conversation status
+-- fields (muted/archived/hidden) are omitted, since they are not known by the
+-- remote backend.
+data RemoteConversation = RemoteConversation
+  { rcnvMetadata :: ConversationMetadata,
+    rcnvMembers :: RemoteConvMembers
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConversation)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversation)
+
 newtype GetConversationsResponse = GetConversationsResponse
-  { gcresConvs :: [Conversation]
+  { gcresConvs :: [RemoteConversation]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
@@ -116,14 +145,13 @@ newtype GetConversationsResponse = GetConversationsResponse
 --
 -- FUTUREWORK: Think about extracting common conversation metadata into a
 -- separarate data type that can be reused in several data types in this module.
-data RegisterConversation = MkRegisterConversation
+data NewRemoteConversation conv = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
     -- | The user that created the conversation
     rcOrigUserId :: Qualified UserId,
-    -- | The qualified conversation ID
-    -- FUTUREWORK: Make this unqualified, assume the conversation is being hosted by OriginDomain
-    rcCnvId :: Qualified ConvId,
+    -- | The conversation ID, local to the backend invoking the RPC
+    rcCnvId :: conv,
     -- | The conversation type
     rcCnvType :: ConvType,
     rcCnvAccess :: [Access],
@@ -135,36 +163,27 @@ data RegisterConversation = MkRegisterConversation
     rcMessageTimer :: Maybe Milliseconds,
     rcReceiptMode :: Maybe ReceiptMode
   }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
 
--- | A conversation membership update, as given by ' ConversationMemberUpdate',
--- can be either a member addition or removal.
-data ConversationMembersAction
-  = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
-  | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
-
-data ConversationMemberUpdate = ConversationMemberUpdate
-  { cmuTime :: UTCTime,
-    cmuOrigUserId :: Qualified UserId,
+data ConversationUpdate = ConversationUpdate
+  { cuTime :: UTCTime,
+    cuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
     -- The ID is local to prevent putting arbitrary domain that is different
     -- than that of the backend making a conversation membership update request.
-    cmuConvId :: ConvId,
+    cuConvId :: ConvId,
     -- | A list of users from a remote backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
-    cmuAlreadyPresentUsers :: [UserId],
-    -- | Users that got either added to or removed from the conversation.
-    cmuAction :: ConversationMembersAction
+    cuAlreadyPresentUsers :: [UserId],
+    -- | Information on the specific action that caused the update.
+    cuAction :: ConversationAction
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+  deriving (Arbitrary) via (GenericUniform ConversationUpdate)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdate)
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which

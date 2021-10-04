@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0acb724202f4ba39242c1ebbe5f5db555404624b7a6be922d5a4148d38c5786d
+-- hash: a5b2ec0bd44d4fcabec564b4e7683a01cfb75cdb1c78a6eee520d6c48c95bb1d
 
 name:           galley
 version:        0.83.0
@@ -67,6 +67,7 @@ library
       Galley.Queue
       Galley.Run
       Galley.Types.Clients
+      Galley.Types.UserList
       Galley.Validation
       Main
   other-modules:
@@ -125,6 +126,7 @@ library
     , safe-exceptions >=0.1
     , saml2-web-sso >=0.18
     , servant
+    , servant-client
     , servant-server
     , servant-swagger
     , servant-swagger-ui
@@ -175,7 +177,9 @@ executable galley
     , imports
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
+    , tagged
     , types-common
     , wire-api
     , wire-api-federation
@@ -313,7 +317,9 @@ executable galley-migrate-data
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
+    , tagged
     , text
     , time
     , tinylog
@@ -361,6 +367,7 @@ executable galley-schema
       V50_AddLegalholdWhitelisted
       V51_FeatureFileSharing
       V52_FeatureConferenceCalling
+      V53_AddRemoteConvStatus
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -375,7 +382,9 @@ executable galley-schema
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
+    , tagged
     , text
     , tinylog
     , wire-api
@@ -411,8 +420,10 @@ test-suite galley-types-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , servant-swagger
     , ssl-util
+    , tagged
     , tasty
     , tasty-hspec
     , tasty-hunit

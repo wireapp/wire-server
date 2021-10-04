@@ -25,7 +25,6 @@ import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.SOP (I (..), NS (..))
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
@@ -71,22 +70,7 @@ type ConversationVerb =
      ]
     ConversationResponse
 
-type UpdateResponses =
-  '[ RespondEmpty 204 "Conversation unchanged",
-     Respond 200 "Conversation updated" Event
-   ]
-
-data UpdateResult
-  = Unchanged
-  | Updated Event
-
-instance AsUnion UpdateResponses UpdateResult where
-  toUnion Unchanged = inject (I ())
-  toUnion (Updated e) = inject (I e)
-
-  fromUnion (Z (I ())) = Unchanged
-  fromUnion (S (Z (I e))) = Updated e
-  fromUnion (S (S x)) = case x of
+type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
 data Api routes = Api
   { -- Conversations
@@ -138,7 +122,17 @@ data Api routes = Api
     listConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
-          :> Description "To retrieve the next page, a client must pass the paging_state returned by the previous page."
+          :> Description
+               "The IDs returned by this endpoint are paginated. To\
+               \ get the first page, make a call with the `paging_state` field set to\
+               \ `null` (or omitted). Whenever the `has_more` field of the response is\
+               \ set to `true`, more results are available, and they can be obtained\
+               \ by calling the endpoint again, but this time passing the value of\
+               \ `paging_state` returned by the previous call. One can continue in\
+               \ this fashion until all results are returned, which is indicated by\
+               \ `has_more` being `false`. Note that `paging_state` should be\
+               \ considered an opaque token. It should not be inspected, or stored, or\
+               \ reused across multiple unrelated invokations of the endpoint."
           :> ZUser
           :> "conversations"
           :> "list-ids"
@@ -249,7 +243,7 @@ data Api routes = Api
         :> "members"
         :> "v2"
         :> ReqBody '[Servant.JSON] InviteQualified
-        :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
+        :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event),
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     removeMemberUnqualified ::
@@ -282,6 +276,46 @@ data Api routes = Api
              '[JSON]
              RemoveFromConversationHTTPResponse
              RemoveFromConversationResponse,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberStateUpdate event to members
+    updateOtherMemberUnqualified ::
+      routes
+        :- Summary "Update membership of the specified user (deprecated)"
+        :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvMemberNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> Capture' '[Description "Target User ID"] "usr" UserId
+        :> ReqBody '[JSON] OtherMemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             (),
+    updateOtherMember ::
+      routes
+        :- Summary "Update membership of the specified user"
+        :> Description "**Note**: at least one field has to be provided."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvMemberNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+        :> ReqBody '[JSON] OtherMemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             (),
     -- This endpoint can lead to the following events being sent:
     -- - ConvRename event to members
     updateConversationNameDeprecated ::
@@ -333,6 +367,116 @@ data Api routes = Api
                Respond 200 "Conversation updated" Event
              ]
              (Maybe Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvMessageTimerUpdate event to members
+    updateConversationMessageTimerUnqualified ::
+      routes
+        :- Summary "Update the message timer for a conversation (deprecated)"
+        :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
+    updateConversationMessageTimer ::
+      routes
+        :- Summary "Update the message timer for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvReceiptModeUpdate event to members
+    updateConversationReceiptModeUnqualified ::
+      routes
+        :- Summary "Update receipt mode for a conversation (deprecated)"
+        :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "receipt-mode"
+        :> ReqBody '[JSON] ConversationReceiptModeUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
+             (UpdateResult Event),
+    updateConversationReceiptMode ::
+      routes
+        :- Summary "Update receipt mode for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "receipt-mode"
+        :> ReqBody '[JSON] ConversationReceiptModeUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
+             (UpdateResult Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members, if members get removed
+    -- - ConvAccessUpdate event to members
+    updateConversationAccessUnqualified ::
+      routes
+        :- Summary "Update access modes for a conversation (deprecated)"
+        :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "access"
+        :> ReqBody '[JSON] ConversationAccessData
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Access unchanged" "Access updated" Event)
+             (UpdateResult Event),
+    updateConversationAccess ::
+      routes
+        :- Summary "Update access modes for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "access"
+        :> ReqBody '[JSON] ConversationAccessData
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Access unchanged" "Access updated" Event)
+             (UpdateResult Event),
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"
@@ -346,7 +490,6 @@ data Api routes = Api
         :- Summary "Update self membership properties (deprecated)"
         :> Description "Use `/conversations/:domain/:conv/self` instead."
         :> CanThrow ConvNotFound
-        :> CanThrow ConvAccessDenied
         :> ZUser
         :> ZConn
         :> "conversations"
@@ -363,7 +506,6 @@ data Api routes = Api
         :- Summary "Update self membership properties"
         :> Description "**Note**: at least one field has to be provided."
         :> CanThrow ConvNotFound
-        :> CanThrow ConvAccessDenied
         :> ZUser
         :> ZConn
         :> "conversations"

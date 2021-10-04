@@ -38,6 +38,7 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
+import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -52,12 +53,16 @@ import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
+import qualified Cassandra as C
+import qualified Cassandra as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
@@ -93,7 +98,10 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
+import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -229,6 +237,7 @@ servantSitemap =
       { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
+        BrigAPI.deleteSelf = deleteUser,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
@@ -252,7 +261,14 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
+        BrigAPI.createConnectionUnqualified = createLocalConnection,
         BrigAPI.createConnection = createConnection,
+        BrigAPI.listLocalConnections = listLocalConnections,
+        BrigAPI.listConnections = listConnections,
+        BrigAPI.getConnectionUnqualified = getLocalConnection,
+        BrigAPI.getConnection = getConnection,
+        BrigAPI.updateConnectionUnqualified = updateLocalConnection,
+        BrigAPI.updateConnection = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -287,7 +303,7 @@ sitemap = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse (errorDescriptionToWai handleNotFound)
+    Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -354,7 +370,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelChangePassword) $
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
     Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
@@ -408,29 +424,6 @@ sitemap = do
     Doc.response 200 "Email address removed." Doc.end
     Doc.errorResponse lastIdentity
 
-  -- This endpoint can lead to the following events being sent:
-  -- - UserDeleted event to contacts of self
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/self" (continue deleteUserH) $
-    zauthUserId
-      .&. jsonRequest @Public.DeleteUser
-      .&. accept "application" "json"
-  document "DELETE" "deleteUser" $ do
-    Doc.summary "Initiate account deletion."
-    Doc.notes
-      "If the account has a verified identity, a verification \
-      \code is sent and needs to be confirmed to authorise the \
-      \deletion. If the account has no verified identity but a \
-      \password, it must be provided. If password is correct, or if neither \
-      \a verified identity nor a password exists, account deletion \
-      \is scheduled immediately."
-    Doc.body (Doc.ref Public.modelDelete) $
-      Doc.description "JSON body"
-    Doc.response 202 "Deletion is pending verification with a code." Doc.end
-    Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse badCredentials
-    Doc.errorResponse (errorDescriptionToWai missingAuthError)
-
   -- TODO put  where?
 
   -- This endpoint can lead to the following events being sent:
@@ -444,65 +437,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse invalidCode
-
-  -- Connection API -----------------------------------------------------
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  get "/connections" (continue listConnectionsH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. opt (query "start")
-      .&. def (unsafeRange 100) (query "size")
-  document "GET" "connections" $ do
-    Doc.summary "List the connections to other users."
-    Doc.parameter Doc.Query "start" Doc.string' $ do
-      Doc.description "User ID to start from"
-      Doc.optional
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (default 100, max 500)."
-      Doc.optional
-    Doc.returns (Doc.ref Public.modelConnectionList)
-    Doc.response 200 "List of connections" Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to self and other, if their connection states change
-  --
-  -- When changing the connection state to Sent or Accepted, this can cause events to be sent
-  -- when joining the connect conversation:
-  -- - MemberJoin event to self and other (via galley)
-  put "/connections/:id" (continue updateConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. capture "id"
-      .&. jsonRequest @Public.ConnectionUpdate
-  document "PUT" "updateConnection" $ do
-    Doc.summary "Update a connection."
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.body (Doc.ref Public.modelConnectionUpdate) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "Connection updated." Doc.end
-    Doc.response 204 "No change." Doc.end
-    Doc.errorResponse (errorDescriptionToWai connectionLimitReached)
-    Doc.errorResponse invalidTransition
-    Doc.errorResponse (errorDescriptionToWai notConnected)
-    Doc.errorResponse (errorDescriptionToWai invalidUser)
-
-  get "/connections/:id" (continue getConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. capture "id"
-  document "GET" "connection" $ do
-    Doc.summary "Get an existing connection to another user."
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "Connection" Doc.end
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidCode)
 
   -- Properties API -----------------------------------------------------
 
@@ -553,6 +488,10 @@ sitemap = do
     Doc.returns (Doc.ref Public.modelPropertyValue)
     Doc.response 200 "The property value." Doc.end
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   get "/properties" (continue listPropertyKeysH) $
     zauthUserId
       .&. accept "application" "json"
@@ -788,7 +727,7 @@ getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler 
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwErrorDescription tooManyClients
+    throwErrorDescriptionType @TooManyClients
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
@@ -799,7 +738,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwErrorDescription tooManyClients
+    throwErrorDescriptionType @TooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
@@ -855,7 +794,7 @@ getUserClientQualified quid cid = do
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwErrorDescription clientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
@@ -866,16 +805,16 @@ getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
-    ifNothing (errorDescriptionToWai userNotFound)
+    ifNothing (errorDescriptionTypeToWai @UserNotFound)
       =<< lift (Data.lookupUser NoPendingInvitations self)
   otherUser <-
-    ifNothing (errorDescriptionToWai userNotFound)
+    ifNothing (errorDescriptionTypeToWai @UserNotFound)
       =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
+  fromMaybe mempty <$> lift (API.lookupRichInfo user)
 
 getClientPrekeys :: UserId -> ClientId -> Handler [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
@@ -958,7 +897,7 @@ createUser (Public.NewUserPublic new) = do
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
-    >>= ifNothing (errorDescriptionToWai userNotFound)
+    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
 
 getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
@@ -1146,37 +1085,76 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnection self conn cr = do
+createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createLocalConnection self conn cr = do
   API.createConnection self cr conn !>> connError
 
-updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
-updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
-  newStatus <- Public.cuStatus <$> parseJsonBody req
+-- | FUTUREWORK: also create remote connections: https://wearezeta.atlassian.net/browse/SQCORE-958
+createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection self conn (Qualified otherUser otherDomain) = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
+    else throwM federationNotImplemented
+
+updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateLocalConnection self conn other update = do
+  let newStatus = Public.cuStatus update
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
-  return $ case mc of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status204 empty
+  return $ maybe Public.Unchanged Public.Updated mc
 
-listConnectionsH :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
-listConnectionsH (_ ::: uid ::: start ::: size) =
-  json @Public.UserConnectionList
-    <$> lift (API.lookupConnections uid start size)
+-- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn (Qualified otherUid otherDomain) update = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then updateLocalConnection self conn otherUid update
+    else throwM federationNotImplemented
 
-getConnectionH :: JSON ::: UserId ::: UserId -> Handler Response
-getConnectionH (_ ::: uid ::: uid') = lift $ do
-  conn <- API.lookupConnection uid uid'
-  return $ case conn of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status404 empty
+listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
+listLocalConnections uid start msize = do
+  let defaultSize = toRange (Proxy @100)
+  lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
-deleteUserH :: UserId ::: JsonRequest Public.DeleteUser ::: JSON -> Handler Response
-deleteUserH (u ::: r ::: _) = do
-  body <- parseJsonBody r
-  res <- API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
-  return $ case res of
-    Nothing -> setStatus status200 empty
-    Just ttl -> setStatus status202 (json (Public.DeletionCodeTimeout ttl))
+-- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
+listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
+listConnections uid req = do
+  localDomain <- viewFederationDomain
+  let size = Public.gmtprSize req
+  res :: C.PageWithState Data.LocalConnection <- Data.lookupLocalConnectionsPage uid convertedState (rcast size)
+  return (pageToConnectionsPage localDomain Public.PagingLocals res)
+  where
+    pageToConnectionsPage :: Domain -> Public.LocalOrRemoteTable -> Data.PageWithState Data.LocalConnection -> Public.ConnectionsPage
+    pageToConnectionsPage localDomain table page@Data.PageWithState {..} =
+      Public.MultiTablePage
+        { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
+          mtpHasMore = C.pwsHasMore page,
+          -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
+          -- Is this type actually useless? Or the tests not good enough?
+          mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+        }
+    mkState :: ByteString -> C.PagingState
+    mkState = C.PagingState . LBS.fromStrict
+
+    convertedState :: Maybe C.PagingState
+    convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
+
+getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
+getLocalConnection self other = lift $ API.lookupLocalConnection self other
+
+getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
+getConnection self (Qualified otherUser otherDomain) = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then getLocalConnection self otherUser
+    else throwM federationNotImplemented
+
+deleteUser ::
+  UserId ->
+  Public.DeleteUser ->
+  Handler (Maybe Code.Timeout)
+deleteUser u body =
+  API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUserH (r ::: _) = do

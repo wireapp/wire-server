@@ -65,7 +65,7 @@ models =
     Conversation.modelNewConversation,
     Conversation.modelTeamInfo,
     Conversation.modelConversationUpdateName,
-    Conversation.modelConversationAccessUpdate,
+    Conversation.modelConversationAccessData,
     Conversation.modelConversationReceiptModeUpdate,
     Conversation.modelConversationMessageTimerUpdate,
     Conversation.Code.modelConversationCode,

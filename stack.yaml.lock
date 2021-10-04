@@ -527,6 +527,13 @@ packages:
   original:
     hackage: cryptonite-0.28
 - completed:
+    hackage: polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
+    pantry-tree:
+      size: 4577
+      sha256: c4ca508b4a6786fc27e0f484344ce8dba119ea2f7fe47fb7379a51313a94cd10
+  original:
+    hackage: polysemy-1.6.0.0
+- completed:
     name: servant-swagger
     version: 1.1.11
     git: https://github.com/haskell-servant/servant-swagger
@@ -720,13 +727,6 @@ packages:
   original:
     hackage: compendium-client-0.2.1.1
 - completed:
-    hackage: http2-client-0.10.0.0@sha256:85b8771e9e8d4fd0b4327373ebb4a7bc7f9a293e5d7a7dc581ca4153a841da67,2604
-    pantry-tree:
-      size: 853
-      sha256: 4731a8ea6bc88cd762a99370f71c4754bcb57806844ee57a45d59e114ab1b5cb
-  original:
-    hackage: http2-client-0.10.0.0
-- completed:
     hackage: http2-grpc-types-0.5.0.0@sha256:4d34edc06a48496130f19245817a7cd7ea15c78ac8815570c3795ffc4503cf27,1445
     pantry-tree:
       size: 405
@@ -762,18 +762,29 @@ packages:
   original:
     hackage: parameterized-0.5.0.0
 - completed:
+    name: http2-client
+    version: 0.10.0.1
+    git: https://github.com/lucasdicioccio/http2-client
+    pantry-tree:
+      size: 1545
+      sha256: d0b3ab62eee8ee4c0ddec7a90fea78090815a54884646ddcdc451ff51d7e262a
+    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+  original:
+    git: https://github.com/lucasdicioccio/http2-client
+    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+- completed:
     subdir: http2-client-grpc
     name: http2-client-grpc
     version: 0.8.0.0
-    git: https://github.com/akshaymankar/http2-grpc-haskell
+    git: https://github.com/wireapp/http2-grpc-haskell
     pantry-tree:
       size: 455
-      sha256: b5ab96f6ef5bbe3dfef31e08316d54c4793cad71dbd02d5439fddaeea170e103
-    commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+      sha256: 5599a7b9b801d669e2063ffd4ab767bb8bbf12d20069de0cbd8862bca78d7e42
+    commit: eea98418672626eafbace3181ca34bf44bee91c0
   original:
     subdir: http2-client-grpc
-    git: https://github.com/akshaymankar/http2-grpc-haskell
-    commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+    git: https://github.com/wireapp/http2-grpc-haskell
+    commit: eea98418672626eafbace3181ca34bf44bee91c0
 - completed:
     name: http2
     version: 2.0.6

@@ -66,7 +66,7 @@ import Data.Time.Clock
 import Data.Timeout (TimedOut (..), Timeout, TimeoutUnit (..), (#))
 import qualified Data.UUID as UUID
 import qualified Data.ZAuth.Token as ZAuth
-import Galley.Types (Access (..), AccessRole (..), ConvMembers (..), Conversation (..), ConversationAccessUpdate (..), Event (..), EventData (..), EventType (..), NewConv (..), NewConvUnmanaged (..), OtherMember (..), OtrMessage (..), QualifiedUserIdList (..), SimpleMember (..), SimpleMembers (..))
+import Galley.Types
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
@@ -622,7 +622,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
     svcAssertConvAccessUpdate
       buf
       quid1
-      (ConversationAccessUpdate [InviteAccess] TeamAccessRole)
+      (ConversationAccessData (Set.singleton InviteAccess) TeamAccessRole)
       qcid
     svcAssertMemberLeave buf qbuid [qbuid] qcid
     wsAssertMemberLeave ws qcid qbuid [qbuid]
@@ -1345,7 +1345,7 @@ updateConversationAccess galley uid cid access role =
       . contentJson
       . body (RequestBodyLBS (encode upd))
   where
-    upd = ConversationAccessUpdate access role
+    upd = ConversationAccessData (Set.fromList access) role
 
 --------------------------------------------------------------------------------
 -- DB Operations
@@ -1745,7 +1745,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
-svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessUpdate -> Qualified ConvId -> m ()
+svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessData -> Qualified ConvId -> m ()
 svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of

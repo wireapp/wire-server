@@ -154,6 +154,7 @@ tests:
     - servant-client-core
     - tasty
     - tasty-hunit
+    - tasty-quickcheck
     - time
     - tinylog
     - types-common
@@ -197,6 +198,7 @@ executables:
     - cassandra-util
     - containers
     - cookie
+    - cql-io
     - data-timeout
     - email-validate
     - exceptions

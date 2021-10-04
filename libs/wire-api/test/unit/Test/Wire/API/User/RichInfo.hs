@@ -23,11 +23,12 @@ module Test.Wire.API.User.RichInfo where
 import Data.Aeson
 import Data.Aeson.QQ
 import Data.Aeson.Types as Aeson
-import qualified Data.Map as Map
 import Imports
+import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.User.RichInfo
 
 tests :: TestTree
@@ -41,16 +42,16 @@ testRichInfo =
           "RichInfoMapAndList to RichInfoAssocList"
           [ check
               "map comes in alpha order, at the end of the assoc list"
-              (RichInfoMapAndList (Map.fromList [("c", "3"), ("a", "1")]) [RichField "b" "2"])
-              (RichInfoAssocList [RichField "b" "2", RichField "a" "1", RichField "c" "3"]),
+              (mkRichInfoMapAndList [RichField "b" "2", RichField "c" "3", RichField "a" "1"])
+              (mkRichInfoAssocList [RichField "b" "2", RichField "c" "3", RichField "a" "1"]),
             check
               "map overwrites assoc list"
-              (RichInfoMapAndList (Map.singleton "a" "b") [RichField "a" "c"])
-              (RichInfoAssocList [RichField "a" "b"]),
+              (mkRichInfoMapAndList [RichField "a" "c"])
+              (mkRichInfoAssocList [RichField "a" "c"]),
             check
               "treats RichField keys case-insensitively"
-              (RichInfoMapAndList (Map.singleton "a" "b") [RichField "A" "c", RichField "B" "b"])
-              (RichInfoAssocList [RichField "a" "b", RichField "B" "b"])
+              (mkRichInfoMapAndList [RichField "A" "c", RichField "B" "b"])
+              (mkRichInfoAssocList [RichField "a" "c", RichField "b" "b"])
           ],
     testProperty "RichInfoAssocList <-> RichInfoMapAndList roundtrip" $ \riAssocList -> do
       toRichInfoAssocList (fromRichInfoAssocList riAssocList) === riAssocList,
@@ -70,7 +71,7 @@ testRichInfo =
                                         }
                                      }
                                    }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList mempty mempty) $ fromJSON inputJSON,
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList mempty) $ fromJSON inputJSON,
         testCase "Old RichInfoMapAndList" $ do
           let inputJSON =
                 [aesonQQ|{
@@ -81,7 +82,7 @@ testRichInfo =
                                         }
                                      }
                                    }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList mempty [RichField "foo" "bar"]) $ fromJSON inputJSON,
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList [RichField "foo" "bar"]) $ fromJSON inputJSON,
         testCase "case insensitive 'richinfo'" $ do
           let inputJSON =
                 [aesonQQ|{
@@ -92,7 +93,7 @@ testRichInfo =
                                         }
                                      }
                                    }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList mempty [RichField "foo" "bar"]) $ fromJSON inputJSON,
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList [RichField "foo" "bar"]) $ fromJSON inputJSON,
         testCase "RichInfoMapAndList as only assoc list" $ do
           let inputJSON =
                 [aesonQQ|{
@@ -100,7 +101,7 @@ testRichInfo =
                                         "richinfo": [{"type": "foo", "value": "bar"}]
                                      }
                                    }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList mempty [RichField "foo" "bar"]) $ fromJSON inputJSON,
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList [RichField "foo" "bar"]) $ fromJSON inputJSON,
         testCase "RichInfoMapAndList Map" $ do
           let inputJSON =
                 [aesonQQ|{
@@ -114,15 +115,14 @@ testRichInfo =
                                         }
                                      }
                                    }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList (Map.singleton "bar" "baz") [RichField "foo" "bar"]) $ fromJSON inputJSON,
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList [RichField "foo" "bar", RichField "bar" "baz"]) $ fromJSON inputJSON,
         testCase "Without Old RichInfoMapAndList" $ do
           let inputJSON =
                 [aesonQQ|{
                                     "urn:ietf:params:scim:schemas:extension:wire:1.0:User" : {
-                                      "bar": "baz"
                                     }
                                   }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList (Map.singleton "bar" "baz") []) $ fromJSON inputJSON,
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList []) $ fromJSON inputJSON,
         testCase "wrong version" $ do
           let inputJSON =
                 [aesonQQ|{
@@ -147,6 +147,27 @@ testRichInfo =
                                         }
                                      }
                                    }|]
-          assertEqual "RichInfoMapAndList" (Aeson.Success $ RichInfoMapAndList mempty [RichField "foo" "bar"]) $ fromJSON inputJSON
+          assertEqual "RichInfoMapAndList" (Aeson.Success $ mkRichInfoMapAndList [RichField "foo" "bar"]) $ fromJSON inputJSON
       ]
   ]
+    <> moreRichInfoNormalizationTests
+
+moreRichInfoNormalizationTests :: [TestTree]
+moreRichInfoNormalizationTests =
+  [ testGroup
+      "'toRichInfoAssocList', 'fromRichInfoAssocList'"
+      [ testCase "works (counter-example of earlier bug)" $ do
+          let x = mkRichInfoMapAndList [RichField "A" "b", RichField "a" "x"]
+              y = (fromRichInfoAssocList . toRichInfoAssocList) x
+          assertEqual mempty (toRichInfoAssocList x) (toRichInfoAssocList y),
+        testProperty "works (property)" $ \(someAssocs :: RichInfoAssocList) ->
+          (jsonroundtrip someAssocs) === someAssocs
+            .&&. (toRichInfoAssocList . fromRichInfoAssocList $ someAssocs) === someAssocs
+            .&&. (toRichInfoAssocList . jsonroundtrip . fromRichInfoAssocList $ someAssocs) === someAssocs
+      ]
+  ]
+  where
+    jsonroundtrip :: forall a. (ToJSON a, FromJSON a) => a -> a
+    jsonroundtrip = unsafeParse . Scim.jsonLower . Aeson.toJSON
+      where
+        unsafeParse = either (error . show) id . Aeson.parseEither Aeson.parseJSON

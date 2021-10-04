@@ -271,6 +271,8 @@ createUser new = do
 
   pdata <- handlePhoneActivation phone uid
 
+  lift $ initAccountFeatureConfig uid
+
   return $! CreateUserResult account edata pdata createUserTeam
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
@@ -401,6 +403,11 @@ createUser new = do
           void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
           return Nothing
       pure pdata
+
+initAccountFeatureConfig :: UserId -> AppIO ()
+initAccountFeatureConfig uid = do
+  mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
+  forM_ mbCciDefNew $ Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where

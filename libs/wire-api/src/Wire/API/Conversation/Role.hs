@@ -187,7 +187,7 @@ instance FromJSON ConversationRolesList where
 -- and cannot be created by externals. Therefore, never
 -- expose this constructor outside of this module.
 newtype RoleName = RoleName {fromRoleName :: Text}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToByteString, Hashable)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema RoleName
 

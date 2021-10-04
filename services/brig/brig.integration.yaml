@@ -176,6 +176,7 @@ optSettings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
+  setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

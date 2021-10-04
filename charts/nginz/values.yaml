@@ -97,6 +97,9 @@ nginx_conf:
     - path: /connections
       envs:
       - all
+    - path: ~* ^/list-connections$
+      envs:
+      - all
     - path: /invitations
       envs:
       - all

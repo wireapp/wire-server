@@ -27,6 +27,7 @@ module Galley.App
     applog,
     manager,
     federator,
+    brig,
     cstate,
     deleteQueue,
     createEnv,
@@ -113,6 +114,7 @@ data Env = Env
     _applog :: Logger,
     _manager :: Manager,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
+    _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
@@ -205,7 +207,7 @@ createEnv m o = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   validateOptions l o
-  Env def m o l mgr (o ^. optFederator) cass
+  Env def m o l mgr (o ^. optFederator) (o ^. optBrig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)

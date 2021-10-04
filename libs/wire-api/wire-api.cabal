@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b225ee25604ad590c2886cca427ff3612767c72e49039963f1fbafbb94a807bd
+-- hash: 4ba12caf3f3efd379bd7183a7661ac527d4da4072b7d92dd240af982bdab27de
 
 name:           wire-api
 version:        0.1.0
@@ -26,6 +26,7 @@ library
       Wire.API.Call.Config
       Wire.API.Connection
       Wire.API.Conversation
+      Wire.API.Conversation.Action
       Wire.API.Conversation.Bot
       Wire.API.Conversation.Code
       Wire.API.Conversation.Member
@@ -48,6 +49,10 @@ library
       Wire.API.Provider.Service.Tag
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.Routes.Internal.Brig
+      Wire.API.Routes.Internal.Brig.EJPD
+      Wire.API.Routes.MultiTablePaging
+      Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
@@ -149,6 +154,7 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
+    , servant-swagger-ui
     , singletons
     , sop-core
     , string-conversions
@@ -210,7 +216,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.ConnectionUpdate_user
       Test.Wire.API.Golden.Generated.Contact_user
       Test.Wire.API.Golden.Generated.Conversation_user
-      Test.Wire.API.Golden.Generated.ConversationAccessUpdate_user
+      Test.Wire.API.Golden.Generated.ConversationAccessData_user
       Test.Wire.API.Golden.Generated.ConversationCode_user
       Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user
       Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user
@@ -433,10 +439,12 @@ test-suite wire-api-tests
     , base
     , bytestring
     , bytestring-conversion
+    , case-insensitive
     , cassava
     , containers >=0.5
     , currency-codes
     , directory
+    , hscim
     , imports
     , iso3166-country-codes
     , iso639
@@ -445,6 +453,7 @@ test-suite wire-api-tests
     , pem
     , pretty
     , proto-lens
+    , servant-swagger-ui
     , string-conversions
     , swagger2
     , tasty

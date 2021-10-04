@@ -59,8 +59,10 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Galley.API.Mapping
 import Galley.Options (Opts, optFederator)
-import Galley.Types hiding (InternalMember (..))
+import Galley.Types hiding (LocalMember (..))
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
@@ -78,11 +80,17 @@ import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley
+  ( GetConversationsResponse (..),
+    RemoteConvMembers (..),
+    RemoteConversation (..),
+  )
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client
   ( QualifiedUserClients (..),
     UserClientPrekeyMap,
@@ -126,6 +134,7 @@ tests s =
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
+          test s "M:N conversation creation with N - 1 invitees should be allowed" postConvLimitOk,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
           test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
@@ -176,12 +185,20 @@ tests s =
           test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
           test s "rename conversation" putConvRenameOk,
           test s "rename qualified conversation" putQualifiedConvRenameOk,
+          test s "rename qualified conversation with remote members" putQualifiedConvRenameWithRemotesOk,
           test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
+          test s "other member update role" putOtherMemberOk,
+          test s "qualified other member update role" putQualifiedOtherMemberOk,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
           test s "member update (everything b)" putMemberAllOk,
+          test s "remote conversation member update (otr mute)" putRemoteConvMemberOtrMuteOk,
+          test s "remote conversation member update (otr archive)" putRemoteConvMemberOtrArchiveOk,
+          test s "remote conversation member update (otr hidden)" putRemoteConvMemberHiddenOk,
+          test s "remote conversation member update (everything)" putRemoteConvMemberAllOk,
           test s "conversation receipt mode update" putReceiptModeOk,
+          test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
           test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessage1,
@@ -224,11 +241,11 @@ emptyFederatedGalley =
   let e :: Text -> Handler a
       e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
    in FederatedGalley.Api
-        { FederatedGalley.registerConversation = \_ -> e "registerConversation",
-          FederatedGalley.getConversations = \_ -> e "getConversations",
-          FederatedGalley.updateConversationMemberships = \_ _ -> e "updateConversationMemberships",
+        { FederatedGalley.onConversationCreated = \_ _ -> e "onConversationCreated",
+          FederatedGalley.getConversations = \_ _ -> e "getConversations",
+          FederatedGalley.onConversationUpdated = \_ _ -> e "onConversationUpdated",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
-          FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
+          FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
         }
 
@@ -538,7 +555,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            { FederatedGalley.onMessageSent = \_ _ -> pure ()
             }
 
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -549,7 +566,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     liftIO $ do
       let expectedRequests =
             [ (F.Brig, "get-user-clients"),
-              (F.Galley, "receive-message")
+              (F.Galley, "on-message-sent")
             ]
       forM_ (zip requests expectedRequests) $ \(req, (component, rpcPath)) -> do
         F.domain req @?= domainText (qDomain deeRemote)
@@ -679,7 +696,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            { FederatedGalley.onMessageSent = \_ _ -> pure ()
             }
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -880,7 +897,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.receiveMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+            { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
             }
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -914,7 +931,7 @@ postMessageQualifiedRemoteOwningBackendFailure = do
 
   let galleyApi =
         emptyFederatedGalley
-          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
           }
 
   (resp2, _requests) <-
@@ -1028,11 +1045,11 @@ postJoinCodeConvOk = do
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
     -- changing access to non-activated should give eve access
-    let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- after removing CodeAccess, no further people can join
-    let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+    let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
     putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
 
@@ -1048,11 +1065,14 @@ postConvertCodeConv = do
   deleteConvCode alice conv !!! const 403 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
   -- cannot change to TeamAccessRole as not a team conversation
-  let teamAccess = ConversationAccessUpdate [InviteAccess] TeamAccessRole
+  let teamAccess = ConversationAccessData (Set.singleton InviteAccess) TeamAccessRole
   putAccessUpdate alice conv teamAccess !!! const 403 === statusCode
   -- change access
   WS.bracketR c alice $ \wsA -> do
-    let nonActivatedAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] NonActivatedAccessRole
+    let nonActivatedAccess =
+          ConversationAccessData
+            (Set.fromList [InviteAccess, CodeAccess])
+            NonActivatedAccessRole
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     -- test no-op
     putAccessUpdate alice conv nonActivatedAccess !!! const 204 === statusCode
@@ -1072,7 +1092,7 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 404 === statusCode
   -- create a new code; then revoking CodeAccess should make existing codes invalid
   void $ postConvCode alice conv
-  let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+  let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
   putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
 
@@ -1109,7 +1129,10 @@ postConvertTeamConv = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
         wsAssertMemberJoinWithRole qconv qmallory [qmallory] roleNameWireMember
   WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
-    let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
+    let teamAccess =
+          ConversationAccessData
+            (Set.fromList [InviteAccess, CodeAccess])
+            TeamAccessRole
     putAccessUpdate alice conv teamAccess !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
@@ -1301,30 +1324,30 @@ paginateConvListIds = do
       qChad = Qualified remoteChad chadDomain
   replicateM_ 25 $ do
     conv <- randomId
-    let cmu =
-          FederatedGalley.ConversationMemberUpdate
-            { FederatedGalley.cmuTime = now,
-              FederatedGalley.cmuOrigUserId = qChad,
-              FederatedGalley.cmuConvId = conv,
-              FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
+    let cu =
+          FederatedGalley.ConversationUpdate
+            { FederatedGalley.cuTime = now,
+              FederatedGalley.cuOrigUserId = qChad,
+              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuAlreadyPresentUsers = [],
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient chadDomain cmu
+    FederatedGalley.onConversationUpdated fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
       qDee = Qualified remoteDee deeDomain
   replicateM_ 31 $ do
     conv <- randomId
-    let cmu =
-          FederatedGalley.ConversationMemberUpdate
-            { FederatedGalley.cmuTime = now,
-              FederatedGalley.cmuOrigUserId = qDee,
-              FederatedGalley.cmuConvId = conv,
-              FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
+    let cu =
+          FederatedGalley.ConversationUpdate
+            { FederatedGalley.cuTime = now,
+              FederatedGalley.cuOrigUserId = qDee,
+              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuAlreadyPresentUsers = [],
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient deeDomain cmu
+    FederatedGalley.onConversationUpdated fedGalleyClient deeDomain cu
 
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
@@ -1359,15 +1382,15 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   -- The 3rd page will end with this domain
   replicateM_ 16 $ do
     conv <- randomId
-    let cmu =
-          FederatedGalley.ConversationMemberUpdate
-            { FederatedGalley.cmuTime = now,
-              FederatedGalley.cmuOrigUserId = qChad,
-              FederatedGalley.cmuConvId = conv,
-              FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
+    let cu =
+          FederatedGalley.ConversationUpdate
+            { FederatedGalley.cuTime = now,
+              FederatedGalley.cuOrigUserId = qChad,
+              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuAlreadyPresentUsers = [],
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient chadDomain cmu
+    FederatedGalley.onConversationUpdated fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1375,15 +1398,15 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   -- The 4th and last page will end with this domain
   replicateM_ 16 $ do
     conv <- randomId
-    let cmu =
-          FederatedGalley.ConversationMemberUpdate
-            { FederatedGalley.cmuTime = now,
-              FederatedGalley.cmuOrigUserId = qDee,
-              FederatedGalley.cmuConvId = conv,
-              FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
+    let cu =
+          FederatedGalley.ConversationUpdate
+            { FederatedGalley.cuTime = now,
+              FederatedGalley.cuOrigUserId = qDee,
+              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuAlreadyPresentUsers = [],
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient deeDomain cmu
+    FederatedGalley.onConversationUpdated fedGalleyClient deeDomain cu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -1396,17 +1419,17 @@ getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationP
 getChunkedConvs size lastSize alice pagingState n = do
   let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
   resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
-  let c = responseJsonUnsafeWithMsg "failed to parse ConvIdsPage" resp
+  let c = responseJsonUnsafeWithMsg @ConvIdsPage "failed to parse ConvIdsPage" resp
   liftIO $ do
     if n > 0
-      then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (pageConvIds c))
-      else assertEqual "Number of convs should match the last size, no more chunks to go" lastSize (length (pageConvIds c))
+      then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (mtpResults c))
+      else assertEqual "Number of convs should match the last size, no more chunks to go" lastSize (length (mtpResults c))
 
     if n > 0
-      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (pageHasMore c)
-      else assertEqual "hasMore should be False, no more chunks to go" False (pageHasMore c)
+      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (mtpHasMore c)
+      else assertEqual "hasMore should be False, no more chunks to go" False (mtpHasMore c)
 
-  return . Just $ pagePagingState c
+  return . Just $ mtpPagingState c
 
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
@@ -1476,6 +1499,15 @@ postConvQualifiedFailNotConnected = do
   postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+postConvLimitOk :: TestM ()
+postConvLimitOk = do
+  n <- fromIntegral . pred <$> view tsMaxConvSize
+  alice <- randomUser
+  bob : others <- replicateM n randomUser
+  connectUsers alice (list1 bob others)
+  postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
+    const 201 === statusCode
 
 postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
@@ -1773,13 +1805,24 @@ getConvQualifiedOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
+  localDomain <- viewFederationDomain
   g <- view tsGalley
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing Nothing
+  let meta =
+        ConversationMetadata
+          (Qualified conv localDomain)
+          RegularConv
+          alice
+          [InviteAccess]
+          ActivatedAccessRole
+          (Just "gossip")
+          Nothing
+          Nothing
+          Nothing
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)
@@ -1816,7 +1859,7 @@ testAddRemoteMember = do
     map F.domain reqs @?= replicate 2 (domainText remoteDomain)
     map (fmap F.path . F.request) reqs
       @?= [ Just "/federation/get-users-by-ids",
-            Just "/federation/update-conversation-memberships"
+            Just "/federation/on-conversation-updated"
           ]
 
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
@@ -1874,26 +1917,19 @@ testGetQualifiedRemoteConv = do
   let remoteDomain = Domain "far-away.example.com"
       bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
-      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsMember = Member aliceId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      aliceAsLocal = LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
+      aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
+      aliceAsSelfMember = localMemberToSelf aliceAsLocal
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = bobId,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers aliceAsMember [bobAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+  let mockConversation = mkConv remoteConvId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
+      expected =
+        Conversation
+          (rcnvMetadata mockConversation)
+          (ConvMembers aliceAsSelfMember (rcmOthers (rcnvMembers mockConversation)))
 
   opts <- view tsGConf
   (respAll, _) <-
@@ -1904,9 +1940,7 @@ testGetQualifiedRemoteConv = do
       (getConvQualified aliceId remoteConvId)
 
   conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
-  -- FUTUREWORK: The backend should augment returned conversation data with
-  -- Alice's membership data stored locally
-  liftIO $ assertEqual "conversation" mockConversation conv
+  liftIO $ do assertEqual "conversation metadata" expected conv
 
 testGetQualifiedRemoteConvNotFound :: TestM ()
 testGetQualifiedRemoteConvNotFound = do
@@ -1950,20 +1984,7 @@ testListRemoteConvs = do
       remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsMember = Member bobId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = alice,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+      mockConversation = mkConv remoteConvId alice roleNameWireAdmin [aliceAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
 
@@ -1980,9 +2001,9 @@ testListRemoteConvs = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
     -- FUTUREWORK: Expect membership metadata to change
-    let expected = mockConversation
+    let expected = remoteConversationView alice defMemberStatus mockConversation
     let actual = find ((== remoteConvId) . cnvQualifiedId) (convList convs)
-    assertEqual "conversations" (Just expected) actual
+    assertEqual "conversations" expected actual
     assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
 -- | Tests getting many converations given their ids.
@@ -2038,11 +2059,10 @@ testBulkGetQualifiedConvs = do
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
+  let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
-      mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
-      mockConversationB = mkConv remoteConvIdB carlId aliceAsSelfMember [carlAsOtherMember]
+      mockConversationA = mkConv remoteConvIdA bobId roleNameWireAdmin [bobAsOtherMember]
+      mockConversationB = mkConv remoteConvIdB carlId roleNameWireAdmin [carlAsOtherMember]
       req =
         ListConversationsV2 . unsafeRange $
           [ localConvId,
@@ -2071,7 +2091,12 @@ testBulkGetQualifiedConvs = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
 
   liftIO $ do
-    let expectedFound = sortOn cnvQualifiedId [localConv, mockConversationA, mockConversationB]
+    let expectedFound =
+          sortOn
+            cnvQualifiedId
+            $ maybeToList (remoteConversationView alice defMemberStatus mockConversationA)
+              <> maybeToList (remoteConversationView alice defMemberStatus mockConversationB)
+              <> [localConv]
         actualFound = sortOn cnvQualifiedId $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 
@@ -2501,6 +2526,40 @@ putQualifiedConvRenameOk = do
       evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
+putQualifiedConvRenameWithRemotesOk :: TestM ()
+putQualifiedConvRenameWithRemotesOk = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile qalice (Name "Alice")) bob [qalice]
+  let qconv = decodeQualifiedConvId resp
+
+  opts <- view tsGConf
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator opts remoteDomain (const ()) $
+        putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      FederatedGalley.cuConvId cu @?= qUnqualified qconv
+      FederatedGalley.cuAction cu @?= ConversationActionRename (ConversationRename "gossip++")
+
+    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
 putConvDeprecatedRenameOk :: TestM ()
 putConvDeprecatedRenameOk = do
   c <- view tsCannon
@@ -2550,6 +2609,74 @@ putConvRenameOk = do
       evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
+putQualifiedOtherMemberOk :: TestM ()
+putQualifiedOtherMemberOk = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      alice = qUnqualified qalice
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  let qconv = Qualified conv (qDomain qbob)
+      expectedMemberUpdateData =
+        MemberUpdateData
+          { misTarget = qalice,
+            misOtrMutedStatus = Nothing,
+            misOtrMutedRef = Nothing,
+            misOtrArchived = Nothing,
+            misOtrArchivedRef = Nothing,
+            misHidden = Nothing,
+            misHiddenRef = Nothing,
+            misConvRoleName = Just roleNameWireMember
+          }
+
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    -- demote qalice
+    putOtherMemberQualified bob qalice (OtherMemberUpdate (Just roleNameWireMember)) qconv
+      !!! const 200 === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate expectedMemberUpdateData
+
+putOtherMemberOk :: TestM ()
+putOtherMemberOk = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  qbob <- randomQualifiedUser
+  let alice = qUnqualified qalice
+      bob = qUnqualified qbob
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  let qconv = Qualified conv (qDomain qbob)
+      expectedMemberUpdateData =
+        MemberUpdateData
+          { misTarget = qalice,
+            misOtrMutedStatus = Nothing,
+            misOtrMutedRef = Nothing,
+            misOtrArchived = Nothing,
+            misOtrArchivedRef = Nothing,
+            misHidden = Nothing,
+            misHiddenRef = Nothing,
+            misConvRoleName = Just roleNameWireMember
+          }
+
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    -- demote alice
+    putOtherMember bob alice (OtherMemberUpdate (Just roleNameWireMember)) conv
+      !!! const 200 === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate expectedMemberUpdateData
+
 putMemberOtrMuteOk :: TestM ()
 putMemberOtrMuteOk = do
   putMemberOk (memberUpdate {mupOtrMuteStatus = Just 1, mupOtrMuteRef = Just "ref"})
@@ -2568,6 +2695,34 @@ putMemberHiddenOk = do
 putMemberAllOk :: TestM ()
 putMemberAllOk =
   putMemberOk
+    ( memberUpdate
+        { mupOtrMuteStatus = Just 0,
+          mupOtrMuteRef = Just "mref",
+          mupOtrArchive = Just True,
+          mupOtrArchiveRef = Just "aref",
+          mupHidden = Just True,
+          mupHiddenRef = Just "href"
+        }
+    )
+
+putRemoteConvMemberOtrMuteOk :: TestM ()
+putRemoteConvMemberOtrMuteOk = do
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 1, mupOtrMuteRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 0})
+
+putRemoteConvMemberOtrArchiveOk :: TestM ()
+putRemoteConvMemberOtrArchiveOk = do
+  putRemoteConvMemberOk (memberUpdate {mupOtrArchive = Just True, mupOtrArchiveRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupOtrArchive = Just False})
+
+putRemoteConvMemberHiddenOk :: TestM ()
+putRemoteConvMemberHiddenOk = do
+  putRemoteConvMemberOk (memberUpdate {mupHidden = Just True, mupHiddenRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupHidden = Just False})
+
+putRemoteConvMemberAllOk :: TestM ()
+putRemoteConvMemberAllOk =
+  putRemoteConvMemberOk
     ( memberUpdate
         { mupOtrMuteStatus = Just 0,
           mupOtrMuteRef = Just "mref",
@@ -2603,7 +2758,7 @@ putMemberOk update = do
           }
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
-    putMember bob update conv !!! const 200 === statusCode
+    putMember bob update qconv !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
@@ -2632,6 +2787,92 @@ putMemberOk update = do
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
     assertEqual "hidden" (memHidden memberBob) (memHidden newBob)
     assertEqual "hidden_ref" (memHiddenRef memberBob) (memHiddenRef newBob)
+
+putRemoteConvMemberOk :: MemberUpdate -> TestM ()
+putRemoteConvMemberOk update = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+
+  -- create a remote conversation with alice
+  let remoteDomain = Domain "bobland.example.com"
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  qconv <- Qualified <$> randomId <*> pure remoteDomain
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cu =
+        FederatedGalley.ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = qUnqualified qconv,
+            cuAlreadyPresentUsers = [],
+            cuAction =
+              ConversationActionAddMembers (pure qalice) roleNameWireMember
+          }
+  FederatedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
+
+  -- Expected member state
+  let memberAlice =
+        Member
+          { memId = alice,
+            memService = Nothing,
+            memOtrMutedStatus = mupOtrMuteStatus update,
+            memOtrMutedRef = mupOtrMuteRef update,
+            memOtrArchived = Just True == mupOtrArchive update,
+            memOtrArchivedRef = mupOtrArchiveRef update,
+            memHidden = Just True == mupHidden update,
+            memHiddenRef = mupHiddenRef update,
+            memConvRoleName = roleNameWireMember
+          }
+  -- Update member state & verify push notification
+  WS.bracketR c alice $ \ws -> do
+    putMember alice update qconv !!! const 200 === statusCode
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qalice
+      case evtData e of
+        EdMemberUpdate mis -> do
+          assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
+          assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
+          assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
+          assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
+          assertEqual "hidden" (mupHidden update) (misHidden mis)
+          assertEqual "hidden_ref" (mupHiddenRef update) (misHiddenRef mis)
+        x -> assertFailure $ "Unexpected event data: " ++ show x
+
+  -- Fetch remote conversation
+  let bobAsLocal = LocalMember (qUnqualified qbob) defMemberStatus Nothing roleNameWireAdmin
+  let mockConversation =
+        mkConv
+          qconv
+          (qUnqualified qbob)
+          roleNameWireMember
+          [localMemberToOther remoteDomain bobAsLocal]
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
+  opts <- view tsGConf
+  (rs, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      $ getConvQualified alice qconv
+        <!! const 200 === statusCode
+
+  -- Verify new member state
+  let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
+  liftIO $ do
+    assertBool "user" (isJust alice')
+    let newAlice = fromJust alice'
+    assertEqual "id" (memId memberAlice) (memId newAlice)
+    assertEqual "otr_muted_status" (memOtrMutedStatus memberAlice) (memOtrMutedStatus newAlice)
+    assertEqual "otr_muted_ref" (memOtrMutedRef memberAlice) (memOtrMutedRef newAlice)
+    assertEqual "otr_archived" (memOtrArchived memberAlice) (memOtrArchived newAlice)
+    assertEqual "otr_archived_ref" (memOtrArchivedRef memberAlice) (memOtrArchivedRef newAlice)
+    assertEqual "hidden" (memHidden memberAlice) (memHidden newAlice)
+    assertEqual "hidden_ref" (memHiddenRef memberAlice) (memHiddenRef newAlice)
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
@@ -2679,6 +2920,44 @@ putReceiptModeOk = do
           assertEqual "modes should match" mode 0
         _ -> assertFailure "Unexpected event data"
 
+putReceiptModeWithRemotesOk :: TestM ()
+putReceiptModeWithRemotesOk = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile qalice (Name "Alice")) bob [qalice]
+  let qconv = decodeQualifiedConvId resp
+
+  opts <- view tsGConf
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator opts remoteDomain (const ()) $
+        putQualifiedReceiptMode bob qconv (ReceiptMode 43) !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      FederatedGalley.cuConvId cu @?= qUnqualified qconv
+      FederatedGalley.cuAction cu
+        @?= ConversationActionReceiptModeUpdate
+          (ConversationReceiptModeUpdate (ReceiptMode 43))
+
+    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvReceiptModeUpdate
+      evtFrom e @?= qbob
+      evtData e
+        @?= EdConvReceiptModeUpdate
+          (ConversationReceiptModeUpdate (ReceiptMode 43))
+
 postTypingIndicators :: TestM ()
 postTypingIndicators = do
   g <- view tsGalley
@@ -2708,19 +2987,50 @@ postTypingIndicators = do
 removeUser :: TestM ()
 removeUser = do
   c <- view tsCannon
-  alice <- randomUser
-  bob <- randomQualifiedUser
-  carl <- randomQualifiedUser
-  let carl' = qUnqualified carl
-  let bob' = qUnqualified bob
-  connectUsers alice (list1 bob' [carl'])
-  conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
+  let remoteDomain = Domain "far-away.example.com"
+  [alice, bob, carl] <- replicateM 3 randomQualifiedUser
+  dee <- (`Qualified` remoteDomain) <$> randomId
+  let [alice', bob', carl'] = qUnqualified <$> [alice, bob, carl]
+  connectUsers alice' (list1 bob' [carl'])
+  conv1 <- decodeConvId <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
+  conv2 <- decodeConvId <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing
+  conv3 <- decodeConvId <$> postConv alice' [carl'] (Just "gossip3") [] Nothing Nothing
+  conv4 <- randomId -- a remote conversation at 'remoteDomain' that Alice, Bob and Dee will be in
   let qconv1 = Qualified conv1 (qDomain bob)
       qconv2 = Qualified conv2 (qDomain bob)
-  WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
-    deleteUser bob'
+
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+  let nc =
+        FederatedGalley.NewRemoteConversation
+          { FederatedGalley.rcTime = now,
+            FederatedGalley.rcOrigUserId = dee,
+            FederatedGalley.rcCnvId = conv4,
+            FederatedGalley.rcCnvType = RegularConv,
+            FederatedGalley.rcCnvAccess = [],
+            FederatedGalley.rcCnvAccessRole = PrivateAccessRole,
+            FederatedGalley.rcCnvName = Just "gossip4",
+            FederatedGalley.rcMembers = Set.fromList $ createOtherMember <$> [dee, alice, bob],
+            FederatedGalley.rcMessageTimer = Nothing,
+            FederatedGalley.rcReceiptMode = Nothing
+          }
+  FederatedGalley.onConversationCreated fedGalleyClient remoteDomain nc
+
+  WS.bracketR3 c alice' bob' carl' $ \(wsA, wsB, wsC) -> do
+    opts <- view tsGConf
+    (_, fedRequests) <-
+      withTempMockFederator opts remoteDomain (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
+        deleteUser bob' !!! const 200 === statusCode
+
+    req <- assertOne fedRequests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/leave-conversation"
+      Just (Right lc) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      FederatedGalley.lcConvId lc @?= conv4
+      FederatedGalley.lcLeaver lc @?= qUnqualified bob
+
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMembersLeave qconv1 bob [bob]
@@ -2728,9 +3038,9 @@ removeUser = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMembersLeave qconv2 bob [bob]
   -- Check memberships
-  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
-  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
-  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
+  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv1
+  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv2
+  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv3
   let other u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
@@ -2738,3 +3048,11 @@ removeUser = do
     (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
     (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+  where
+    createOtherMember :: Qualified UserId -> OtherMember
+    createOtherMember quid =
+      OtherMember
+        { omQualifiedId = quid,
+          omService = Nothing,
+          omConvRoleName = roleNameWireAdmin
+        }
