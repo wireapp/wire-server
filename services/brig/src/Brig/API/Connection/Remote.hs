@@ -22,20 +22,20 @@ module Brig.API.Connection.Remote
   )
 where
 
-import Brig.API.Connection.Util (ConnectionM, guardLimit)
+import Brig.API.Connection.Util (ConnectionM, checkLimit)
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Types
 import Brig.Types.User.Event
-import Control.Error.Util (noteT)
-import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
 import Data.Tagged
 import Imports
 import Wire.API.Connection (relationWithHistory)
+import Wire.API.Conversation (cnvQualifiedId)
 import Wire.API.Federation.API.Brig (RemoteConnectionAction (..))
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
@@ -111,6 +111,27 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
+updateOne2OneConv ::
+  Local UserId ->
+  Maybe ConnId ->
+  Remote UserId ->
+  Maybe (Qualified ConvId) ->
+  Relation ->
+  AppIO (Qualified ConvId)
+updateOne2OneConv self mzcon other mqcnv rel = do
+  qcnv <- case mqcnv of
+    Nothing -> do
+      let (sender, recipient) = case rel of
+            Pending -> (unTagged other, unTagged self)
+            _ -> (unTagged self, unTagged other)
+      Intra.createConnectConv sender recipient Nothing mzcon
+    Just c -> pure c
+  case rel of
+    Accepted -> cnvQualifiedId <$> Intra.acceptConnectConv self mzcon qcnv
+    Cancelled -> Intra.blockConv self mzcon qcnv $> qcnv
+    Blocked -> Intra.blockConv self mzcon qcnv $> qcnv
+    _ -> pure qcnv
+
 -- | Perform a state transition on a connection, handle conversation updates
 -- and push events.
 transitionTo ::
@@ -119,27 +140,44 @@ transitionTo ::
   Remote UserId ->
   Maybe UserConnection ->
   Maybe Relation ->
-  MaybeT AppIO (ResponseForExistedCreated UserConnection)
-transitionTo self mzcon other Nothing mbRel = do
-  when (mbRel `elem` [Just Accepted, Just Sent]) $
-    guardLimit self
+  ConnectionM (ResponseForExistedCreated UserConnection)
+transitionTo self _ _ Nothing Nothing =
+  throwE (InvalidTransition (lUnqualified self))
+transitionTo self mzcon other Nothing (Just rel) = do
+  -- enforce connection limit
+  when (rel `elem` [Accepted, Sent]) $
+    checkLimit self
+
   lift $ do
-    qcnv <- Intra.createConnectConv self (unTagged other) Nothing mzcon
+    -- update 1-1 connection
+    qcnv <- updateOne2OneConv self mzcon other Nothing rel
+
+    -- create connection
     connection <-
       Data.insertConnection
         self
         (unTagged other)
-        (relationWithHistory (fromMaybe Cancelled mbRel))
+        (relationWithHistory rel)
         qcnv
+
+    -- send event
     pushEvent self mzcon connection
     pure $ Created connection
 transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection)
-transitionTo self mzcon _other (Just connection) (Just rel) = do
+transitionTo self mzcon other (Just connection) (Just rel) = do
+  -- enforce connection limit
   when (notElem (ucStatus connection) [Accepted, Sent] && (rel `elem` [Accepted, Sent])) $
-    guardLimit self
+    checkLimit self
   lift $ do
-    pushEvent self mzcon connection
-    Existed <$> Data.updateConnection connection (relationWithHistory rel)
+    -- update 1-1 connection
+    void $ updateOne2OneConv self Nothing other (ucConvId connection) rel
+
+    -- update connection
+    connection' <- Data.updateConnection connection (relationWithHistory rel)
+
+    -- send event
+    pushEvent self mzcon connection'
+    pure $ Existed connection'
 
 -- | Send an event to the local user when the state of a connection changes.
 pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> AppIO ()
@@ -153,7 +191,7 @@ performLocalAction ::
   Remote UserId ->
   Maybe UserConnection ->
   LocalConnectionAction ->
-  MaybeT AppIO (ResponseForExistedCreated UserConnection)
+  ConnectionM (ResponseForExistedCreated UserConnection)
 performLocalAction self conn other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
   mrel1 <- lift $
@@ -205,8 +243,8 @@ performRemoteAction ::
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
       rel1 = transition (RCA action) rel0
-  result <- runMaybeT . void $ transitionTo self Nothing other mconnection rel1
-  pure $ maybe (Just RemoteRescind) (const (reaction rel1)) result
+  result <- runExceptT . void $ transitionTo self Nothing other mconnection rel1
+  pure $ either (const (Just RemoteRescind)) (const (reaction rel1)) result
   where
     reaction :: Maybe Relation -> Maybe RemoteConnectionAction
     reaction (Just Accepted) = Just RemoteConnect
@@ -220,5 +258,4 @@ createConnectionToRemoteUser ::
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
   mcon <- lift $ Data.lookupConnection self (unTagged other)
-  noteT (TooManyConnections (lUnqualified self)) $
-    performLocalAction self zcon other mcon LocalConnect
+  performLocalAction self zcon other mcon LocalConnect

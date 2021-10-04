@@ -127,7 +127,7 @@ createConnectionToLocalUser self conn target = do
       Log.info $
         logConnection (lUnqualified self) (unTagged target)
           . msg (val "Creating connection")
-      qcnv <- Intra.createConnectConv self (unTagged target) Nothing (Just conn)
+      qcnv <- Intra.createConnectConv (unTagged self) (unTagged target) Nothing (Just conn)
       s2o' <- Data.insertConnection self (unTagged target) SentWithHistory qcnv
       o2s' <- Data.insertConnection target (unTagged self) PendingWithHistory qcnv
       e2o <-
@@ -139,12 +139,12 @@ createConnectionToLocalUser self conn target = do
 
     update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
-      (MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self) Sent
-      (_, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self) Sent
+      (MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self)
+      (_, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self)
       (Accepted, Accepted) -> return $ Existed s2o
       (Accepted, Blocked) -> return $ Existed s2o
       (Sent, Blocked) -> return $ Existed s2o
-      (Blocked, _) -> throwE $ InvalidTransition (lUnqualified self) Sent
+      (Blocked, _) -> throwE $ InvalidTransition (lUnqualified self)
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
       (_, Accepted) -> accept s2o o2s
@@ -241,9 +241,9 @@ updateConnection self other newStatus conn = do
   o2s <- localConnection other self
   s2o' <- case (ucStatus s2o, ucStatus o2s, newStatus) of
     -- missing legalhold consent: call 'updateConectionInternal' instead.
-    (MissingLegalholdConsent, _, _) -> throwE $ InvalidTransition (lUnqualified self) newStatus
-    (_, MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self) newStatus
-    (_, _, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self) newStatus
+    (MissingLegalholdConsent, _, _) -> throwE $ InvalidTransition (lUnqualified self)
+    (_, MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self)
+    (_, _, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self)
     -- Pending -> {Blocked, Ignored, Accepted}
     (Pending, _, Blocked) -> block s2o
     (Pending, _, Ignored) -> change s2o Ignored
@@ -279,7 +279,7 @@ updateConnection self other newStatus conn = do
     -- no change
     (old, _, new) | old == new -> return Nothing
     -- invalid
-    _ -> throwE $ InvalidTransition (lUnqualified self) newStatus
+    _ -> throwE $ InvalidTransition (lUnqualified self)
   let s2oUserConn = s2o'
   lift . for_ s2oUserConn $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
