@@ -8,7 +8,9 @@ set -ex
 NAMESPACE=${NAMESPACE:-test-integration}
 export NAMESPACE_1="$NAMESPACE"
 export NAMESPACE_2="$NAMESPACE-fed2"
-export FEDERATION_DOMAIN_1="." # doesn't matter for destruction
-export FEDERATION_DOMAIN_2="." # doesn't matter for destruction
+# these don't matter for destruction but have to be set.
+export FEDERATION_DOMAIN_1="."
+export FEDERATION_DOMAIN_2="."
 
+. "$DIR/helm_overrides.sh"
 helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy

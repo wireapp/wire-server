@@ -5,6 +5,7 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
+. "$DIR/helm_overrides.sh"
 ${DIR}/integration-cleanup.sh
 
 # Sadly, even with helmfile, we still need to use use this recursive update script beforehand
@@ -16,18 +17,16 @@ done
 
 set -e
 
-echo "Generating funky secrets..."
+echo "Generating self-signed certificates..."
 
 export NAMESPACE_1="$NAMESPACE"
-export NAMESPACE_2="$NAMESPACE-fed2"
 export FEDERATION_DOMAIN_BASE="$NAMESPACE_1.svc.cluster.local"
-export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
-export FEDERATION_DOMAIN_1="$FEDERATION_DOMAIN"
+export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 "$DIR/selfsigned-kubernetes.sh" namespace1
 
+export NAMESPACE_2="$NAMESPACE-fed2"
 export FEDERATION_DOMAIN_BASE="$NAMESPACE_2.svc.cluster.local"
-export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
-export FEDERATION_DOMAIN_2="$FEDERATION_DOMAIN"
+export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 "$DIR/selfsigned-kubernetes.sh" namespace2
 
 echo "Installing charts..."

@@ -4,8 +4,10 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 
 NAMESPACE=${NAMESPACE:-test-integration}
-export FEDERATION_DOMAIN="." # doesn't matter for destruction
+# doesn't matter for destruction but needs to be set
+export FEDERATION_DOMAIN="."
 
 set -ex
 
-helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy
+. "$DIR/helm_overrides.sh"
+helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" destroy

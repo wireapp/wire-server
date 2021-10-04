@@ -5,7 +5,7 @@
 # These certificates are only meant for integration tests.
 # (The CA certificates are assumed to be re-used across the domains A and B for end2end integration tests.)
 
-set -ex
+set -e
 SUFFIX=${1:?"need suffix argument"}
 TEMP=${TEMP:-/tmp}
 CSR="$TEMP/csr.json"

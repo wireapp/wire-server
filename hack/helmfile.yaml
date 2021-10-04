@@ -1,3 +1,10 @@
+# This helfile is used for the setup of two ephemeral backends on kubernetes
+# during integration testing (including federation integration tests spanning
+# over 2 backends)
+# This helmfile is used via the './hack/bin/integration-setup-federation.sh' via
+# 'make kube-integration-setup', which set environment variables required here
+# and generate some keys.
+
 helmDefaults:
   wait: true
   timeout: 600
@@ -15,7 +22,6 @@ repositories:
   - name: stable
     url: 'https://charts.helm.sh/stable'
 
-# TODO: explore setting HELM_HOME so this list of repositories doesn't end up polluting the end user's global helm state.
 # TODO explore: have helmfile do the interpolation (and skip the "make charts" step)
 #
 # TODO: get rid of wrapper charts, use helmfile for pinning

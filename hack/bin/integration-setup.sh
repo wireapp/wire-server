@@ -7,6 +7,8 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
+. "$DIR/helm_overrides.sh"
+
 "${DIR}/integration-cleanup.sh"
 
 echo "updating recursive dependencies ..."
@@ -19,7 +21,7 @@ echo "Installing charts..."
 
 export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
 export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
-"$DIR/selfsigned-kubernetes.sh"
+"$DIR/selfsigned-kubernetes.sh" namespace1
 
 helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" sync
 
