@@ -8,7 +8,13 @@ CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 . "$DIR/helm_overrides.sh"
 ${DIR}/integration-cleanup.sh
 
-# Sadly, even with helmfile, we still need to use use this recursive update script beforehand
+# FUTUREWORK explore: have helmfile do the interpolation (and skip the "make charts" step) https://wearezeta.atlassian.net/browse/SQPIT-722
+#
+# FUTUREWORK: get rid of wrapper charts, use helmfile for pinning. Then we may not need the recursive update hack anymore: https://wearezeta.atlassian.net/browse/SQPIT-721
+#
+# Sadly, even with helmfile, we still need to use use this recursive update
+# script beforehand on all relevant charts to download the nested dependencies
+# (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
 charts=(fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services)
 for chart in "${charts[@]}"; do
@@ -17,6 +23,7 @@ done
 
 set -e
 
+# FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
 echo "Generating self-signed certificates..."
 
 export NAMESPACE_1="$NAMESPACE"

@@ -22,10 +22,6 @@ repositories:
   - name: stable
     url: 'https://charts.helm.sh/stable'
 
-# TODO explore: have helmfile do the interpolation (and skip the "make charts" step)
-#
-# TODO: get rid of wrapper charts, use helmfile for pinning
-
 releases:
   - name: '{{ .Values.namespace }}-fake-aws'
     namespace: '{{ .Values.namespace }}'

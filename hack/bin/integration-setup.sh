@@ -17,11 +17,12 @@ for chart in "${charts[@]}"; do
     "$DIR/update.sh" "$CHARTS_DIR/$chart"
 done
 
-echo "Installing charts..."
-
+echo "Generating self-signed certificates..."
 export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
 export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 "$DIR/selfsigned-kubernetes.sh" namespace1
+
+echo "Installing charts..."
 
 helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" sync
 
