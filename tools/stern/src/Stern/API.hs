@@ -268,7 +268,7 @@ routes = do
   document "GET" "ejpd-info" $ do
     Doc.summary "internal wire.com process: https://wearezeta.atlassian.net/wiki/spaces/~463749889/pages/256738296/EJPD+official+requests+process"
     Doc.parameter Doc.Query "handles" Doc.string' $
-      Doc.description "Handles of the user, separated by comments"
+      Doc.description "Handles of the user, separated by commas"
     Doc.parameter Doc.Query "include_contacts" Doc.bool' $ do
       Doc.description "If 'true', this gives you more more exhaustive information about this user (including social network)"
       Doc.optional
