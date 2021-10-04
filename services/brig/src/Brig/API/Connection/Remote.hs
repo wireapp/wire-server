@@ -19,6 +19,7 @@ module Brig.API.Connection.Remote (performLocalAction, performRemoteAction) wher
 
 import Brig.App
 import qualified Brig.Data.Connection as Data
+import qualified Brig.IO.Intra as Intra
 import Brig.Types
 import Data.Id as Id
 import Data.Qualified
@@ -102,53 +103,79 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
-transitionTo :: Local UserId -> Remote UserId -> Relation -> AppIO ()
-transitionTo self other rel = do
-  _time <- Data.updateConnectionStatus self (unTagged other) (relationWithHistory rel)
-  pure ()
+transitionTo :: Local UserId -> ConnId -> Remote UserId -> Maybe UserConnection -> Relation -> AppIO UserConnection
+transitionTo self conn other mconnection rel = do
+  connection <- case mconnection of
+    Nothing -> do
+      qcnv <- Intra.createConnectConv self (unTagged other) Nothing (Just conn)
+      Data.insertConnection self (unTagged other) (relationWithHistory rel) qcnv
+    Just connection ->
+      Data.updateConnection connection (relationWithHistory rel)
+  pure connection
 
 performLocalAction ::
   Local UserId ->
+  ConnId ->
   Remote UserId ->
+  Maybe UserConnection ->
   LocalConnectionAction ->
-  AppIO ()
-performLocalAction self other action = do
-  rel0 <- Data.lookupRelation self (unTagged other)
-  for_ (transition (LCA action) rel0) $ \rel1 -> do
+  AppIO (Maybe UserConnection)
+performLocalAction self conn other mconnection action = do
+  let rel0 = maybe Cancelled ucStatus mconnection
+  for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
     let rel2 = fromMaybe rel1 $ do
           reactionAction <- mreaction
           transition (RCA reactionAction) rel1
-    transitionTo self other rel2
+    transitionTo self conn other mconnection rel2
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
     remoteAction LocalConnect = Just RemoteConnect
     remoteAction LocalRescind = Just RemoteRescind
     remoteAction _ = Nothing
 
--- TODO: Describe what problem "reaction" solves
+    -- send an RPC to the remote backend
+    notifyRemote ::
+      Local UserId ->
+      Remote UserId ->
+      RemoteConnectionAction ->
+      AppIO (Maybe RemoteConnectionAction)
+    notifyRemote _self _other _action = pure Nothing
+
+-- | The 'RemoteConnectionAction' "reaction" that may be returned is processed
+-- by the remote caller. This extra action allows to automatically resolve some
+-- inconsistent states, for example:
+--
+-- Without any reaction
+--
+--              A         B
+-- A connects:  Sent      Pending
+-- B ignores:   Sent      Ignore
+-- B connects:  Accepted  Sent
+--
+--
+-- Using the reaction returned by A
+--
+--                         A         B
+-- A connects:             Sent      Pending
+-- B ignores:              Sent      Ignore
+-- B connects & A reacts:  Accepted  Accepted
 performRemoteAction ::
   Local UserId ->
+  ConnId ->
   Remote UserId ->
+  Maybe UserConnection ->
   RemoteConnectionAction ->
-  AppIO (Maybe RemoteConnectionAction)
-performRemoteAction self other action = do
-  rel0 <- Data.lookupRelation self (unTagged other)
+  AppIO (Maybe UserConnection, Maybe RemoteConnectionAction)
+performRemoteAction self conn other mconnection action = do
+  let rel0 = maybe Cancelled ucStatus mconnection
   case transition (RCA action) rel0 of
-    Nothing -> pure Nothing
+    Nothing -> pure (Nothing, Nothing)
     Just rel1 -> do
-      transitionTo self other rel1
-      pure (reaction rel1)
+      connection <- transitionTo self conn other mconnection rel1
+      pure (Just connection, reaction rel1)
   where
     reaction :: Relation -> Maybe RemoteConnectionAction
     reaction Accepted = Just RemoteConnect
     reaction Sent = Just RemoteConnect
     reaction _ = Nothing
-
--- send an RPC to the remote backend
-notifyRemote ::
-  Local UserId ->
-  Remote UserId ->
-  RemoteConnectionAction ->
-  AppIO (Maybe RemoteConnectionAction)
-notifyRemote _self _other _action = error "TODO"
