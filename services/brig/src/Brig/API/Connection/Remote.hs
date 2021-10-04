@@ -15,8 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Connection.Remote (performLocalAction, performRemoteAction) where
+module Brig.API.Connection.Remote
+  ( performLocalAction,
+    performRemoteAction,
+    createConnectionToRemoteUser,
+  )
+where
 
+import Brig.API.Connection.Util (ConnectionM)
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.IO.Intra as Intra
@@ -26,6 +32,7 @@ import Data.Qualified
 import Data.Tagged
 import Imports
 import Wire.API.Connection (relationWithHistory)
+import Wire.API.Routes.Public.Util (ResponseForExistedCreated (Created, Existed))
 
 data LocalConnectionAction
   = LocalConnect
@@ -103,15 +110,13 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
-transitionTo :: Local UserId -> ConnId -> Remote UserId -> Maybe UserConnection -> Relation -> AppIO UserConnection
-transitionTo self conn other mconnection rel = do
-  connection <- case mconnection of
-    Nothing -> do
-      qcnv <- Intra.createConnectConv self (unTagged other) Nothing (Just conn)
-      Data.insertConnection self (unTagged other) (relationWithHistory rel) qcnv
-    Just connection ->
-      Data.updateConnection connection (relationWithHistory rel)
-  pure connection
+transitionTo :: Local UserId -> ConnId -> Remote UserId -> Maybe UserConnection -> Maybe Relation -> AppIO (ResponseForExistedCreated UserConnection)
+transitionTo self zcon other Nothing mbRel = do
+  qcnv <- Intra.createConnectConv self (unTagged other) Nothing (Just zcon)
+  Created <$> Data.insertConnection self (unTagged other) (relationWithHistory (fromMaybe Cancelled mbRel)) qcnv
+transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection)
+transitionTo _self _zcon _other (Just connection) (Just rel) = do
+  Existed <$> Data.updateConnection connection (relationWithHistory rel)
 
 performLocalAction ::
   Local UserId ->
@@ -119,15 +124,16 @@ performLocalAction ::
   Remote UserId ->
   Maybe UserConnection ->
   LocalConnectionAction ->
-  AppIO (Maybe UserConnection)
+  AppIO (ResponseForExistedCreated UserConnection)
 performLocalAction self conn other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
-  for (transition (LCA action) rel0) $ \rel1 -> do
+  mrel1 <- for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
-    let rel2 = fromMaybe rel1 $ do
-          reactionAction <- mreaction
-          transition (RCA reactionAction) rel1
-    transitionTo self conn other mconnection rel2
+    pure $
+      fromMaybe rel1 $ do
+        reactionAction <- mreaction
+        transition (RCA reactionAction) rel1
+  transitionTo self conn other mconnection mrel1
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
     remoteAction LocalConnect = Just RemoteConnect
@@ -166,16 +172,23 @@ performRemoteAction ::
   Remote UserId ->
   Maybe UserConnection ->
   RemoteConnectionAction ->
-  AppIO (Maybe UserConnection, Maybe RemoteConnectionAction)
+  AppIO (ResponseForExistedCreated UserConnection, Maybe RemoteConnectionAction)
 performRemoteAction self conn other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
-  case transition (RCA action) rel0 of
-    Nothing -> pure (Nothing, Nothing)
-    Just rel1 -> do
-      connection <- transitionTo self conn other mconnection rel1
-      pure (Just connection, reaction rel1)
+      rel1 = transition (RCA action) rel0
+  response <- transitionTo self conn other mconnection rel1
+  pure (response, reaction rel1)
   where
-    reaction :: Relation -> Maybe RemoteConnectionAction
-    reaction Accepted = Just RemoteConnect
-    reaction Sent = Just RemoteConnect
+    reaction :: Maybe Relation -> Maybe RemoteConnectionAction
+    reaction (Just Accepted) = Just RemoteConnect
+    reaction (Just Sent) = Just RemoteConnect
     reaction _ = Nothing
+
+createConnectionToRemoteUser ::
+  Local UserId ->
+  ConnId ->
+  Remote UserId ->
+  ConnectionM (ResponseForExistedCreated UserConnection)
+createConnectionToRemoteUser self zcon other = do
+  mcon <- lift $ Data.lookupConnection self (unTagged other)
+  lift $ performLocalAction self zcon other mcon LocalConnect
