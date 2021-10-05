@@ -18,18 +18,22 @@
 module API.Federation where
 
 import API.Search.Util (refreshIndex)
+import API.User.Util
 import Bilge hiding (head)
 import Bilge.Assert
+import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
+import Data.Domain
 import Data.Handle (Handle (..))
 import Data.Id
 import qualified Data.Map as Map
-import Data.Qualified (qUnqualified)
+import Data.Qualified (Qualified (Qualified), qUnqualified)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.UUID.V4 as UUIDv4
-import Federation.Util (generateClientPrekeys)
+import Federation.Util (generateClientPrekeys, withTempMockFederator)
 import Imports
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
@@ -38,12 +42,13 @@ import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Federation.GRPC.Types hiding (body, path)
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
 import Wire.API.UserMap (UserMap (UserMap))
 
-tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
-tests m brig fedBrigClient =
+tests :: Manager -> Opt.Opts -> Brig -> FedBrigClient -> IO TestTree
+tests m opts brig fedBrigClient =
   return $
     testGroup
       "federation"
@@ -59,7 +64,11 @@ tests m brig fedBrigClient =
         test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
-        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
+        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
+        test m "POST /federation/send-connection-action : Connect OK" (testConnectOK brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Connect with Anon" (testConnectWithAnon brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Mutual Connect" (testConnectMutual opts brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Connect twice" (testConnectFromPending brig fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -203,10 +212,84 @@ testGetUserClients brig fedBrigClient = do
 
 testGetUserClientsNotFound :: FedBrigClient -> Http ()
 testGetUserClientsNotFound fedBrigClient = do
-  absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
+  absentUserId <- randomId
   UserMap userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [absentUserId])
   liftIO $
     assertEqual
       "client set for user should match"
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
+
+testConnectOK :: Brig -> FedBrigClient -> Http ()
+testConnectOK brig fedBrigClient = do
+  fromUser <- randomId
+  let fromDomain = Domain "far-away.example.com"
+  toUser <- userId <$> randomUser brig
+  res <- FedBrig.sendConnectionAction fedBrigClient fromDomain (FedBrig.NewConnectionRequest fromUser toUser FedBrig.RemoteConnect)
+  liftIO $
+    assertEqual "There should be no response action" (FedBrig.NewConnectionResponseOk Nothing) res
+  assertConnectionQualified brig toUser (Qualified fromUser fromDomain) Pending
+
+testConnectWithAnon :: Brig -> FedBrigClient -> Http ()
+testConnectWithAnon brig fedBrigClient = do
+  fromUser <- randomId
+  toUser <- userId <$> createAnonUser "anon1234" brig
+  res <- FedBrig.sendConnectionAction fedBrigClient (Domain "far-away.example.com") (FedBrig.NewConnectionRequest fromUser toUser FedBrig.RemoteConnect)
+  liftIO $
+    assertEqual "The response should specify that the user is not activated" FedBrig.NewConnectionResponseUserNotActivated res
+
+testConnectMutual :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testConnectMutual opts brig fedBrigClient = do
+  remoteUid <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteQuid = Qualified remoteUid remoteDomain
+  localUid <- userId <$> randomUser brig
+
+  -- First create a connection request from local to remote user, as this test
+  -- aims to test the behaviour of recieving a mutual request from remote
+  let mockConnectionResponse = FedBrig.NewConnectionResponseOk Nothing
+      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+  _ <- liftIO . withTempMockFederator opts remoteDomain mockResponse $ do
+    postConnectionQualified brig localUid remoteQuid !!! do
+      const 201 === statusCode
+
+  assertConnectionQualified brig localUid remoteQuid Sent
+
+  res <- FedBrig.sendConnectionAction fedBrigClient remoteDomain (FedBrig.NewConnectionRequest remoteUid localUid FedBrig.RemoteConnect)
+  liftIO $
+    assertEqual
+      "The response should have 'RemoteConnect' as action, because we cannot be sure if the remote was previously in Ignored state or not"
+      (FedBrig.NewConnectionResponseOk (Just FedBrig.RemoteConnect))
+      res
+  assertConnectionQualified brig localUid remoteQuid Accepted
+
+testConnectFromPending :: Brig -> FedBrigClient -> Http ()
+testConnectFromPending brig fedBrigClient = do
+  remoteUid <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteQuid = Qualified remoteUid remoteDomain
+  localUid <- userId <$> randomUser brig
+
+  res1 <- FedBrig.sendConnectionAction fedBrigClient remoteDomain (FedBrig.NewConnectionRequest remoteUid localUid FedBrig.RemoteConnect)
+  liftIO $
+    assertEqual
+      "There should be no response action"
+      (FedBrig.NewConnectionResponseOk Nothing)
+      res1
+  assertConnectionQualified brig localUid remoteQuid Pending
+
+  res2 <- FedBrig.sendConnectionAction fedBrigClient remoteDomain (FedBrig.NewConnectionRequest remoteUid localUid FedBrig.RemoteConnect)
+  liftIO $
+    assertEqual
+      "There should be no response action"
+      (FedBrig.NewConnectionResponseOk Nothing)
+      res2
+  assertConnectionQualified brig localUid remoteQuid Pending
+
+  res3 <- FedBrig.sendConnectionAction fedBrigClient remoteDomain (FedBrig.NewConnectionRequest remoteUid localUid FedBrig.RemoteRescind)
+  liftIO $
+    assertEqual
+      "There should be no response action"
+      (FedBrig.NewConnectionResponseOk Nothing)
+      res3
+  assertConnectionQualified brig localUid remoteQuid Cancelled

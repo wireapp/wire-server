@@ -144,6 +144,8 @@ transitionTo ::
   Maybe Relation ->
   ConnectionM (ResponseForExistedCreated UserConnection, Bool)
 transitionTo self _ _ Nothing Nothing =
+  -- This can only happen if someone tries to ignore as a first action on a
+  -- connection. This shouldn't be possible.
   throwE (InvalidTransition (lUnqualified self))
 transitionTo self mzcon other Nothing (Just rel) = do
   -- enforce connection limit

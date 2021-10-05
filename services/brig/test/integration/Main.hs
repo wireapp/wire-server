@@ -133,7 +133,7 @@ runTests iConf brigOpts otherArgs = do
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g c f brigTwo galleyTwo
-  federationEndpoints <- API.Federation.tests mg b fedBrigClient
+  federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
   withArgs otherArgs . defaultMain $
