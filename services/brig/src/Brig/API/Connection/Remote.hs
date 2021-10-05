@@ -27,6 +27,7 @@ import Brig.API.Connection.Util (ConnectionM, checkLimit)
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import qualified Brig.Data.Connection as Data
+import Brig.Federation.Client (sendConnectionAction)
 import qualified Brig.IO.Intra as Intra
 import Brig.Types
 import Brig.Types.User.Event
@@ -36,10 +37,14 @@ import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
 import Data.Tagged
+import Data.UUID.V4
 import Imports
+import Network.Wai.Utilities.Error
 import Wire.API.Connection (relationWithHistory)
-import Wire.API.Conversation (cnvQualifiedId)
-import Wire.API.Federation.API.Brig (RemoteConnectionAction (..))
+import Wire.API.Federation.API.Brig
+  ( NewConnectionResponse (..),
+    RemoteConnectionAction (..),
+  )
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 data LocalConnectionAction
@@ -122,19 +127,10 @@ updateOne2OneConv ::
   Maybe (Qualified ConvId) ->
   Relation ->
   AppIO (Qualified ConvId)
-updateOne2OneConv self mzcon other mqcnv rel = do
-  qcnv <- case mqcnv of
-    Nothing -> do
-      let (sender, recipient) = case rel of
-            Pending -> (unTagged other, unTagged self)
-            _ -> (unTagged self, unTagged other)
-      Intra.createConnectConv sender recipient Nothing mzcon
-    Just c -> pure c
-  case rel of
-    Accepted -> cnvQualifiedId <$> Intra.acceptConnectConv self mzcon qcnv
-    Cancelled -> Intra.blockConv self mzcon qcnv $> qcnv
-    Blocked -> Intra.blockConv self mzcon qcnv $> qcnv
-    _ -> pure qcnv
+updateOne2OneConv _ _ _ _ _ = do
+  -- FUTUREWORK: use galley internal API to update 1-1 conversation and retrieve ID
+  uid <- liftIO nextRandom
+  unTagged <$> qualifyLocal (Id uid)
 
 -- | Perform a state transition on a connection, handle conversation updates
 -- and push events.
@@ -200,27 +196,22 @@ performLocalAction ::
   ConnectionM (ResponseForExistedCreated UserConnection, Bool)
 performLocalAction self mzcon other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
-  mrel2 <- lift $
-    for (transition (LCA action) rel0) $ \rel1 -> do
-      mreaction <- join <$> traverse (notifyRemote self other) (remoteAction action)
-      pure $
-        fromMaybe rel1 $ do
-          reactionAction <- mreaction
-          transition (RCA reactionAction) rel1
+  mrel2 <- for (transition (LCA action) rel0) $ \rel1 -> do
+    mreaction <- fmap join . for (remoteAction action) $ \ra -> do
+      response <- sendConnectionAction self other ra !>> ConnectFederationError
+      case (response :: NewConnectionResponse) of
+        NewConnectionResponseOk reaction -> pure reaction
+        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (unTagged other))
+    pure $
+      fromMaybe rel1 $ do
+        reactionAction <- (mreaction :: Maybe RemoteConnectionAction)
+        transition (RCA reactionAction) rel1
   transitionTo self mzcon other mconnection mrel2
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
     remoteAction LocalConnect = Just RemoteConnect
     remoteAction LocalRescind = Just RemoteRescind
     remoteAction _ = Nothing
-
-    -- send an RPC to the remote backend
-    notifyRemote ::
-      Local UserId ->
-      Remote UserId ->
-      RemoteConnectionAction ->
-      AppIO (Maybe RemoteConnectionAction)
-    notifyRemote _self _other _action = pure Nothing
 
 -- | The 'RemoteConnectionAction' "reaction" that may be returned is processed
 -- by the remote caller. This extra action allows to automatically resolve some

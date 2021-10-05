@@ -133,6 +133,8 @@ data ConnectionError
     ConnectSameBindingTeamUsers
   | -- | Something doesn't work because somebody has a LH device and somebody else has not granted consent.
     ConnectMissingLegalholdConsent
+  | -- | Remote connection creation or update failed because of a federation error
+    ConnectFederationError FederationError
 
 data PasswordResetError
   = PasswordResetInProgress (Maybe Timeout)

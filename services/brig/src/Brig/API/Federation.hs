@@ -26,6 +26,7 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.App (qualifyLocal)
 import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.User as Data
 import Brig.Types (PrekeyBundle)
 import Brig.User.API.Handle
 import Data.Domain
@@ -60,16 +61,20 @@ federationSitemap =
         Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
         Federated.searchUsers = searchUsers,
         Federated.getUserClients = getUserClients,
-        Federated.sendConnectionAction = sendConnectionRequest
+        Federated.sendConnectionAction = sendConnectionAction
       }
 
-sendConnectionRequest :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
-sendConnectionRequest originDomain NewConnectionRequest {..} = do
-  self <- qualifyLocal ncrTo
-  let other = toRemote $ Qualified ncrFrom originDomain
-  mconnection <- lift $ Data.lookupConnection self (unTagged other)
-  maction <- lift $ performRemoteAction self other mconnection ncrAction
-  pure $ NewConnectionResponse maction
+sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
+sendConnectionAction originDomain NewConnectionRequest {..} = do
+  active <- lift $ Data.isActivated ncrTo
+  if active
+    then do
+      self <- qualifyLocal ncrTo
+      let other = toRemote $ Qualified ncrFrom originDomain
+      mconnection <- lift $ Data.lookupConnection self (unTagged other)
+      maction <- lift $ performRemoteAction self other mconnection ncrAction
+      pure $ NewConnectionResponseOk maction
+    else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do

@@ -144,9 +144,9 @@ data RemoteConnectionAction
   deriving (Arbitrary) via (GenericUniform RemoteConnectionAction)
   deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConnectionAction)
 
-newtype NewConnectionResponse = NewConnectionResponse
-  { ncrReaction :: Maybe RemoteConnectionAction
-  }
+data NewConnectionResponse
+  = NewConnectionResponseUserNotActivated
+  | NewConnectionResponseOk (Maybe RemoteConnectionAction)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)

@@ -60,15 +60,9 @@ import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.ErrorDescription
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
-ensureIsActivated :: Local x -> Qualified UserId -> MaybeT AppIO ()
-ensureIsActivated loc qusr = do
-  active <-
-    lift $
-      foldQualified
-        loc
-        (Data.isActivated . lUnqualified)
-        (const (pure True))
-        qusr
+ensureIsActivated :: Local UserId -> MaybeT AppIO ()
+ensureIsActivated lusr = do
+  active <- lift $ Data.isActivated (lUnqualified lusr)
   guard active
 
 ensureNotSameTeam :: Local UserId -> Qualified UserId -> ConnectionM ()
@@ -94,9 +88,7 @@ createConnection self con target = do
   when (unTagged self == target) $
     throwE (InvalidUser target)
   noteT ConnectNoIdentity $
-    ensureIsActivated self (unTagged self)
-  noteT (InvalidUser target) $
-    ensureIsActivated self target
+    ensureIsActivated self
   checkLegalholdPolicyConflictQualified self target
   ensureNotSameTeam self target
 
@@ -113,6 +105,8 @@ createConnectionToLocalUser ::
   Local UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToLocalUser self conn target = do
+  noteT (InvalidUser (unTagged target)) $
+    ensureIsActivated target
   s2o <- lift $ Data.lookupConnection self (unTagged target)
   o2s <- lift $ Data.lookupConnection target (unTagged self)
 
