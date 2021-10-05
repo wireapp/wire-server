@@ -885,3 +885,7 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (\_ -> action)
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs

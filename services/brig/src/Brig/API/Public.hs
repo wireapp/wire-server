@@ -1138,16 +1138,13 @@ listConnections uid req = do
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = do
-  lself <- qualifyLocal self
   lother <- qualifyLocal other
-  lift $ Data.lookupConnection lself (unTagged lother)
+  getConnection self (unTagged lother)
 
 getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
-getConnection self (Qualified otherUser otherDomain) = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then getLocalConnection self otherUser
-    else throwM federationNotImplemented
+getConnection self other = do
+  lself <- qualifyLocal self
+  lift $ Data.lookupConnection lself other
 
 deleteUser ::
   UserId ->

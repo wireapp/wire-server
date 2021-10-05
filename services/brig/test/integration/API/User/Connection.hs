@@ -29,10 +29,14 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
+import Data.Domain
 import Data.Id hiding (client)
 import Data.Qualified
+import Data.String.Conversions (cs)
 import qualified Data.UUID.V4 as UUID
+import Federation.Util
 import Galley.Types
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
@@ -40,14 +44,19 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
+import Wire.API.Federation.API.Brig
+import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.GRPC.Types hiding (path)
+import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Routes.MultiTablePaging
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests cl _at _conf p b _c g =
+tests cl _at opts p b _c g =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
       test p "post /connections/:domain/:uid" $ testCreateManualConnectionsQualified b,
+      test p "post /connections/:domain/:uid with remote" $ testCreateRemoteConnectionsQualified opts b,
       test p "post /connections mutual" $ testCreateMutualConnections b g,
       test p "post /connections/:domain/:uid mutual" $ testCreateMutualConnectionsQualified b g,
       test p "post /connections (bad user)" $ testCreateConnectionInvalidUser b,
@@ -132,6 +141,32 @@ testCreateManualConnectionsQualified brig = do
   let uid3 = qUnqualified quid3
   postConnectionQualified brig uid1 quid3 !!! const 400 === statusCode
   postConnectionQualified brig uid3 quid1 !!! const 403 === statusCode
+
+testCreateRemoteConnectionsQualified :: Opt.Opts -> Brig -> Http ()
+testCreateRemoteConnectionsQualified opts brig = do
+  uid1 <- userId <$> randomUser brig
+  let remoteDomain = Domain "far-away.example.com"
+  quid2 <- Qualified <$> randomId <*> pure remoteDomain
+
+  let mockConnectionResponse = NewConnectionResponseOk Nothing
+      mockResponse = OutwardResponseBody (cs $ Aeson.encode mockConnectionResponse)
+  (results, reqs) <- liftIO . withTempMockFederator opts (Domain "far-away.example.com") mockResponse $ do
+    postConnectionQualified brig uid1 quid2 <!! const 201 === statusCode
+
+  liftIO $ do
+    req <- assertOne reqs
+    F.domain req @?= domainText remoteDomain
+    fmap F.component (F.request req) @?= Just F.Brig
+    fmap F.path (F.request req) @?= Just "/federation/send-connection-action"
+    ncr <- pure $ fmap (Aeson.eitherDecode . cs . F.body) (F.request req)
+    ncr @?= Just (Right (NewConnectionRequest uid1 (qUnqualified quid2) RemoteConnect))
+
+  assertConnectionQualified brig uid1 quid2 Sent
+
+  -- Test that no connections to anonymous users can be created,
+  -- as well as that anonymous users cannot create connections.
+  uid3 <- userId <$> createAnonUser "foo3" brig
+  postConnectionQualified brig uid3 quid2 !!! const 403 === statusCode
 
 testCreateMutualConnections :: Brig -> Galley -> Http ()
 testCreateMutualConnections brig galley = do

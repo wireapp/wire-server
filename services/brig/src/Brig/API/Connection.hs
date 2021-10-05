@@ -65,16 +65,10 @@ ensureIsActivated lusr = do
   active <- lift $ Data.isActivated (lUnqualified lusr)
   guard active
 
-ensureNotSameTeam :: Local UserId -> Qualified UserId -> ConnectionM ()
+ensureNotSameTeam :: Local UserId -> Local UserId -> ConnectionM ()
 ensureNotSameTeam self target = do
   selfTeam <- lift $ Intra.getTeamId (lUnqualified self)
-  targetTeam <-
-    lift $
-      foldQualified
-        self
-        (Intra.getTeamId . lUnqualified)
-        (const (pure Nothing))
-        target
+  targetTeam <- lift $ Intra.getTeamId (lUnqualified target)
   when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
@@ -89,8 +83,6 @@ createConnection self con target = do
     throwE (InvalidUser target)
   noteT ConnectNoIdentity $
     ensureIsActivated self
-  checkLegalholdPolicyConflictQualified self target
-  ensureNotSameTeam self target
 
   -- branch according to whether we are connecting to a local or remote user
   foldQualified
@@ -107,6 +99,8 @@ createConnectionToLocalUser ::
 createConnectionToLocalUser self conn target = do
   noteT (InvalidUser (unTagged target)) $
     ensureIsActivated target
+  checkLegalholdPolicyConflict (lUnqualified self) (lUnqualified target)
+  ensureNotSameTeam self target
   s2o <- lift $ Data.lookupConnection self (unTagged target)
   o2s <- lift $ Data.lookupConnection target (unTagged self)
 
@@ -180,14 +174,6 @@ createConnectionToLocalUser self conn target = do
 
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (Data.updateConnection c s)
-
-checkLegalholdPolicyConflictQualified :: Local UserId -> Qualified UserId -> ConnectionM ()
-checkLegalholdPolicyConflictQualified self =
-  foldQualified
-    self
-    (checkLegalholdPolicyConflict (lUnqualified self) . lUnqualified)
-    -- FUTUREWORK: legal hold policy conflicts across backends
-    (\_ -> pure ())
 
 -- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
 --

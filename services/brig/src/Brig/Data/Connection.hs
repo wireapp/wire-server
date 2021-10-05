@@ -274,13 +274,13 @@ remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, Relatio
 remoteConnectionSelect = "SELECT right_domain, right_user, status, last_update, conv_domain, conv_id FROM connection_remote where left = ?"
 
 remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, UTCTimeMillis, Domain, ConvId)
-remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) ()
 remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ?"
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
-remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
