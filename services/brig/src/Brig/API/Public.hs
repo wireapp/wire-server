@@ -1098,19 +1098,15 @@ createConnection self conn target = do
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
+  lother <- qualifyLocal other
+  updateConnection self conn (unTagged lother) update
+
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn other update = do
   let newStatus = Public.cuStatus update
   lself <- qualifyLocal self
-  lother <- qualifyLocal other
-  mc <- API.updateConnection lself lother newStatus (Just conn) !>> connError
+  mc <- API.updateConnection lself other newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
-
--- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
-updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
-updateConnection self conn (Qualified otherUid otherDomain) update = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then updateLocalConnection self conn otherUid update
-    else throwM federationNotImplemented
 
 listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
 listLocalConnections uid start msize = do

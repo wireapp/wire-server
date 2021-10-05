@@ -32,7 +32,7 @@ module Brig.API.Connection
   )
 where
 
-import Brig.API.Connection.Remote (createConnectionToRemoteUser)
+import Brig.API.Connection.Remote
 import Brig.API.Connection.Util
 import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
@@ -221,12 +221,26 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status1 status2
   oneway status2 status1
 
+updateConnection ::
+  Local UserId ->
+  Qualified UserId ->
+  Relation ->
+  Maybe ConnId ->
+  ConnectionM (Maybe UserConnection)
+updateConnection self other newStatus conn =
+  let doUpdate =
+        foldQualified
+          self
+          (updateConnectionToLocalUser self)
+          (updateConnectionToRemoteUser self)
+   in doUpdate other newStatus conn
+
 -- | Change the status of a connection from one user to another.
 --
 -- Note: 'updateConnection' doesn't explicitly check that users don't belong to the same team,
 -- because a connection between two team members can not exist in the first place.
 -- {#RefConnectionTeam}
-updateConnection ::
+updateConnectionToLocalUser ::
   -- | From
   Local UserId ->
   -- | To
@@ -235,8 +249,8 @@ updateConnection ::
   Relation ->
   -- | Acting device connection ID
   Maybe ConnId ->
-  ExceptT ConnectionError AppIO (Maybe UserConnection)
-updateConnection self other newStatus conn = do
+  ConnectionM (Maybe UserConnection)
+updateConnectionToLocalUser self other newStatus conn = do
   s2o <- localConnection self other
   o2s <- localConnection other self
   s2o' <- case (ucStatus s2o, ucStatus o2s, newStatus) of
