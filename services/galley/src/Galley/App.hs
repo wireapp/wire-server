@@ -82,6 +82,7 @@ import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
 import qualified Galley.Queue as Q
+import Galley.Types.Teams (flagLegalHold)
 import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -98,6 +99,7 @@ import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified Servant
 import Ssl.Util
+import System.Exit (die)
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
 import Util.Options
@@ -181,6 +183,20 @@ validateOptions l o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
+
+  when
+    ( isJust (o ^. optFederator)
+        && settings ^. setFeatureFlags . flagLegalHold /= Teams.FeatureLegalHoldDisabledPermanently
+    )
+    $ do
+      let message =
+            ( "Legalhold cannot be activated together with Federation. \
+              \To resolve this problem either set the feature \"legalhold\" to \"disabled-by-default\" \
+              \or remove the \"federator\" endpoint configuration." ::
+                String
+            )
+      Logger.err l (msg . val $ toByteString' message)
+      die message
 
 instance MonadUnliftIO Galley where
   askUnliftIO =
