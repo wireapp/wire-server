@@ -63,12 +63,15 @@ tests m opts brig fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
+        test m "POST /federation/send-connection-action : Connect with no federation" (testConnectFederationNotAvailable brig),
         test m "POST /federation/send-connection-action : Connect OK" (testConnectOK brig fedBrigClient),
         test m "POST /federation/send-connection-action : Connect with Anon" (testConnectWithAnon brig fedBrigClient),
         test m "POST /federation/send-connection-action : Mutual Connect" (testConnectMutual opts brig fedBrigClient),
         test m "POST /federation/send-connection-action : Connect twice" (testConnectFromPending brig fedBrigClient),
         test m "POST /federation/send-connection-action : Ignore then accept" (testConnectFromIgnored opts brig fedBrigClient),
-        test m "POST /federation/send-connection-action : Ignore, remote cancels, then accept" (testSentFromIgnored opts brig fedBrigClient)
+        test m "POST /federation/send-connection-action : Ignore, remote cancels, then accept" (testSentFromIgnored opts brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Block then accept" (testConnectFromBlocked opts brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Block, remote cancels, then accept" (testSentFromBlocked opts brig fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -220,6 +223,12 @@ testGetUserClientsNotFound fedBrigClient = do
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
 
+testConnectFederationNotAvailable :: Brig -> Http ()
+testConnectFederationNotAvailable brig = do
+  (uid1, quid2) <- localAndRemoteUser brig
+  postConnectionQualified brig uid1 quid2
+    !!! const 422 === statusCode
+
 testConnectOK :: Brig -> FedBrigClient -> Http ()
 testConnectOK brig fedBrigClient = do
   (uid1, quid2) <- localAndRemoteUser brig
@@ -277,6 +286,37 @@ testSentFromIgnored opts brig fedBrigClient = do
 
   -- if the remote side rescinds, we stay in 'Ignored'
   receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteRescind Nothing Ignored
+
+  -- if we accept, and the remote does not want to connect anymore, we transition to 'Sent'
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
+
+testConnectFromBlocked :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testConnectFromBlocked opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Blocked' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Blocked
+
+  -- if the remote side sends a new connection request, we ignore it
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Blocked
+
+  -- if we accept (or send a connection request), and the remote side still
+  -- wants to connect, we transition to 'Accepted'
+  sendConnectionAction brig opts uid1 quid2 (Just FedBrig.RemoteConnect) Accepted
+
+testSentFromBlocked :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testSentFromBlocked opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Blocked' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Blocked
+
+  -- if the remote side rescinds, we stay in 'Blocked'
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteRescind Nothing Blocked
 
   -- if we accept, and the remote does not want to connect anymore, we transition to 'Sent'
   sendConnectionAction brig opts uid1 quid2 Nothing Sent
