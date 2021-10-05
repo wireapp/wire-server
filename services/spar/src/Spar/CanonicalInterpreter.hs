@@ -33,7 +33,7 @@ import Spar.Sem.Now.IO (nowToIO)
 import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
 import Spar.Sem.Reporter (Reporter)
-import Spar.Sem.Reporter.Wai (reporterToWai)
+import Spar.Sem.Reporter.Wai (reporterToTinyLogWai)
 import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -88,7 +88,7 @@ runSparToIO ctx action =
     . runInputConst (sparCtxOpts ctx)
     . loggerToTinyLog (sparCtxLogger ctx)
     . stringLoggerToTinyLog
-    . reporterToWai
+    . reporterToTinyLogWai
     . runError @SparError
     . ttlErrorToSparError
     . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)

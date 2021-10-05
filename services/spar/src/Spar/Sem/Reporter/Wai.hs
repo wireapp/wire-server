@@ -7,8 +7,8 @@ import Polysemy.Input
 import Spar.Sem.Reporter
 import qualified System.Logger as TinyLog
 
-reporterToWai :: Members '[Embed IO, Input TinyLog.Logger] r => Sem (Reporter ': r) a -> Sem r a
-reporterToWai = interpret $ \case
+reporterToTinyLogWai :: Members '[Embed IO, Input TinyLog.Logger] r => Sem (Reporter ': r) a -> Sem r a
+reporterToTinyLogWai = interpret $ \case
   Report req err -> do
     logger <- input
     embed @IO $ Wai.logError logger req err

@@ -138,6 +138,10 @@ createScimToken zusr CreateScimToken {..} = do
       caseOneOrNoIdP midpid = do
         token <- ScimToken . cs . ES.encode <$> Random.bytes 32
         tokenid <- Random.scimTokenId
+        -- FUTUREWORK(fisx): the fact that we're using @Now.get@
+        -- here means that the 'Now' effect should not contain
+        -- types from saml2-web-sso. We can just use 'UTCTime'
+        -- there, right?
         now <- Now.get
         let info =
               ScimTokenInfo
