@@ -47,7 +47,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain (Domain, domainText, mkDomain)
+import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
@@ -130,6 +130,15 @@ twoRandomUsers brig = do
   let uid1 = qUnqualified quid1
       uid2 = qUnqualified quid2
   pure (quid1, uid1, quid2, uid2)
+
+localAndRemoteUser ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m (UserId, Qualified UserId)
+localAndRemoteUser brig = do
+  uid1 <- userId <$> randomUser brig
+  quid2 <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  pure (uid1, quid2)
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>

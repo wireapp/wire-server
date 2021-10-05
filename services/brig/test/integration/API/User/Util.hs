@@ -22,6 +22,7 @@ module API.User.Util where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Data.PasswordReset
+import Brig.Options (Opts)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -43,11 +44,15 @@ import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import Data.Range (unsafeRange)
+import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
+import Federation.Util (withTempMockFederator)
 import Imports
 import Test.Tasty.HUnit
 import Util
+import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Federation.GRPC.Types hiding (body, path)
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
 newtype ConnectionLimit = ConnectionLimit Int64
@@ -310,12 +315,12 @@ countCookies brig u label = do
   return $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> [ConnectionStatus] -> m ()
-assertConnections brig u cs =
+assertConnections brig u connections =
   listConnections brig u !!! do
     const 200 === statusCode
     const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
-    check xs = all (`elem` xs) cs
+    check xs = all (`elem` xs) connections
     status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
 
 assertConnectionQualified :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Relation -> m ()
@@ -323,6 +328,39 @@ assertConnectionQualified brig u1 qu2 rel =
   getConnectionQualified brig u1 qu2 !!! do
     const 200 === statusCode
     const (Right rel) === fmap ucStatus . responseJsonEither
+
+receiveConnectionAction ::
+  Brig ->
+  FedBrigClient ->
+  UserId ->
+  Qualified UserId ->
+  FedBrig.RemoteConnectionAction ->
+  Maybe FedBrig.RemoteConnectionAction ->
+  Relation ->
+  Http ()
+receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
+  res <-
+    FedBrig.sendConnectionAction fedBrigClient (qDomain quid2) $
+      FedBrig.NewConnectionRequest (qUnqualified quid2) uid1 action
+  liftIO $ do
+    res @?= FedBrig.NewConnectionResponseOk expectedReaction
+  assertConnectionQualified brig uid1 quid2 expectedRel
+
+sendConnectionAction ::
+  Brig ->
+  Opts ->
+  UserId ->
+  Qualified UserId ->
+  Maybe FedBrig.RemoteConnectionAction ->
+  Relation ->
+  Http ()
+sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
+  let mockConnectionResponse = FedBrig.NewConnectionResponseOk reaction
+      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+  _ <- liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $ do
+    postConnectionQualified brig uid1 quid2 !!! do
+      const 201 === statusCode
+  assertConnectionQualified brig uid1 quid2 expectedRel
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
