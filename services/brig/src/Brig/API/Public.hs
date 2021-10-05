@@ -1150,7 +1150,7 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
       localPage <- pageToConnectionsPage Public.PagingLocals <$> Data.lookupLocalConnectionsPage self pagingState (rcast size)
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
-        then pure localPage {Public.mtpHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
+        then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
         else do
           remotePage <- remotesOnly self Nothing remainingSize
           pure remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
