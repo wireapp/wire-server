@@ -45,7 +45,6 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
-import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.GRPC.Types hiding (path)
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Routes.MultiTablePaging
@@ -150,7 +149,7 @@ testCreateRemoteConnectionsQualified opts brig = do
 
   let mockConnectionResponse = NewConnectionResponseOk Nothing
       mockResponse = OutwardResponseBody (cs $ Aeson.encode mockConnectionResponse)
-  (results, reqs) <- liftIO . withTempMockFederator opts (Domain "far-away.example.com") mockResponse $ do
+  (_results, reqs) <- liftIO . withTempMockFederator opts (Domain "far-away.example.com") mockResponse $ do
     postConnectionQualified brig uid1 quid2 <!! const 201 === statusCode
 
   liftIO $ do
