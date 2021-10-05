@@ -168,12 +168,12 @@ import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
+import Polysemy (Sem)
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (liftSem)
 import qualified Spar.App as Spar
 import Spar.CanonicalInterpreter
 import qualified Spar.Intra.BrigApp as Intra
@@ -1207,8 +1207,8 @@ ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
   runSpar $
     runValidExternalId
-      (liftSem . SAMLUserStore.get)
-      (liftSem . ScimExternalIdStore.lookup tid)
+      (SAMLUserStore.get)
+      (ScimExternalIdStore.lookup tid)
       veid
 
 runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
@@ -1221,7 +1221,7 @@ runSimpleSP action = do
 
 runSpar ::
   (MonadReader TestEnv m, MonadIO m) =>
-  Spar.Spar CanonicalEffs a ->
+  Sem CanonicalEffs a ->
   m a
 runSpar action = do
   ctx <- (^. teSparEnv) <$> ask
@@ -1234,7 +1234,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ liftSem $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
   pure $ case userIdentity =<< musr of
     Just (SSOIdentity ssoid _ _) -> Just ssoid
     Just (FullIdentity _ _) -> Nothing
@@ -1247,7 +1247,7 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  aFewTimes (runSpar $ liftSem $ SAMLUserStore.get uref) isJust
+  aFewTimes (runSpar $ SAMLUserStore.get uref) isJust
 
 checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 checkErr status mlabel = do

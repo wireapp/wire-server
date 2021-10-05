@@ -66,7 +66,7 @@ import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, validateEmailIfExists, wrapMonadClientSem)
+import Spar.App (GetUserResult (..), getUserIdByScimExternalId, getUserIdByUref, validateEmailIfExists)
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
@@ -126,12 +126,12 @@ instance
        SAMLUserStore
      ]
     r =>
-  Scim.UserDB ST.SparTag (Spar r)
+  Scim.UserDB ST.SparTag (Sem r)
   where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
-    Scim.ScimHandler (Spar r) (Scim.ListResponse (Scim.StoredUser ST.SparTag))
+    Scim.ScimHandler (Sem r) (Scim.ListResponse (Scim.StoredUser ST.SparTag))
   getUsers _ Nothing = do
     throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
   getUsers tokeninfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') =
@@ -141,7 +141,7 @@ instance
           . logFilter filter'
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
@@ -156,7 +156,7 @@ instance
   getUser ::
     ScimTokenInfo ->
     UserId ->
-    Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+    Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
   getUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     logScim
       ( logFunction "Spar.Scim.User.getUser"
@@ -164,9 +164,9 @@ instance
           . logTokenInfo tokeninfo
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
         let notfound = Scim.notFound "User" (idToText uid)
-        brigUser <- lift (liftSem $ BrigAccess.getAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
+        brigUser <- lift (BrigAccess.getAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
         unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
         case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
           Right veid -> synthesizeStoredUser brigUser veid
@@ -175,18 +175,18 @@ instance
   postUser ::
     ScimTokenInfo ->
     Scim.User ST.SparTag ->
-    Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+    Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
   postUser tokinfo user = createValidScimUser tokinfo =<< validateScimUser tokinfo user
 
   putUser ::
     ScimTokenInfo ->
     UserId ->
     Scim.User ST.SparTag ->
-    Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+    Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
   putUser tokinfo uid newScimUser =
     updateValidScimUser tokinfo uid =<< validateScimUser tokinfo newScimUser
 
-  deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler (Spar r) ()
+  deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler (Sem r) ()
   deleteUser tokeninfo uid =
     logScim
       ( logFunction "Spar.Scim.User.deleteUser"
@@ -202,7 +202,7 @@ instance
 -- 'ValidScimUser''.
 validateScimUser ::
   forall m r.
-  (m ~ Scim.ScimHandler (Spar r)) =>
+  (m ~ Scim.ScimHandler (Sem r)) =>
   Members '[Input Opts, IdPEffect.IdP] r =>
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
@@ -210,12 +210,12 @@ validateScimUser ::
   m ST.ValidScimUser
 validateScimUser tokinfo user = do
   mIdpConfig <- tokenInfoToIdP tokinfo
-  richInfoLimit <- lift $ liftSem $ inputs richInfoLimit
+  richInfoLimit <- lift $ inputs richInfoLimit
   validateScimUser' mIdpConfig richInfoLimit user
 
-tokenInfoToIdP :: Member IdPEffect.IdP r => ScimTokenInfo -> Scim.ScimHandler (Spar r) (Maybe IdP)
+tokenInfoToIdP :: Member IdPEffect.IdP r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} = do
-  maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+  maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -341,7 +341,7 @@ mkValidExternalId (Just idp) (Just extid) = do
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
-logScim :: forall r a. (Member (Logger (Msg -> Msg)) r) => (Msg -> Msg) -> Scim.ScimHandler (Spar r) a -> Scim.ScimHandler (Spar r) a
+logScim :: forall r a. (Member (Logger (Msg -> Msg)) r) => (Msg -> Msg) -> Scim.ScimHandler (Sem r) a -> Scim.ScimHandler (Sem r) a
 logScim context action =
   flip mapExceptT action $ \action' -> do
     eith <- action'
@@ -351,10 +351,10 @@ logScim context action =
               case Scim.detail e of
                 Just d -> d
                 Nothing -> cs (Aeson.encode e)
-        liftSem $ Logger.warn $ context . Log.msg errorMsg
+        Logger.warn $ context . Log.msg errorMsg
         pure (Left e)
       Right x -> do
-        liftSem $ Logger.info $ context . Log.msg @Text "call without exception"
+        Logger.info $ context . Log.msg @Text "call without exception"
         pure (Right x)
 
 logEmail :: Email -> (Msg -> Msg)
@@ -394,7 +394,7 @@ veidEmail (ST.EmailOnly email) = Just email
 -- This is the pain and the price you pay for the horribleness called MTL
 createValidScimUser ::
   forall m r.
-  (m ~ Scim.ScimHandler (Spar r)) =>
+  (m ~ Scim.ScimHandler (Sem r)) =>
   Members
     '[ Random,
        Now,
@@ -431,25 +431,24 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
           buid <-
             ST.runValidExternalId
               ( \uref ->
-                  liftSem $ do
+                  do
                     uid <- Id <$> Random.uuid
                     BrigAccess.createSAML uref uid stiTeam name ManagedByScim
               )
               ( \email -> do
-                  liftSem $ BrigAccess.createNoSAML email stiTeam name
+                  BrigAccess.createNoSAML email stiTeam name
               )
               veid
 
-          liftSem $ Logger.debug ("createValidScimUser: brig says " <> show buid)
+          Logger.debug ("createValidScimUser: brig says " <> show buid)
 
           -- {If we crash now, we have an active user that cannot login. And can not
           -- be bound this will be a zombie user that needs to be manually cleaned
           -- up.  We should consider making setUserHandle part of createUser and
           -- making it transactional.  If the user redoes the POST A new standalone
           -- user will be created.}
-          liftSem $ do
-            BrigAccess.setHandle buid handl
-            BrigAccess.setRichInfo buid richInfo
+          BrigAccess.setHandle buid handl
+          BrigAccess.setRichInfo buid richInfo
           pure buid
 
       -- {If we crash now,  a POST retry will fail with 409 user already exists.
@@ -462,13 +461,13 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       -- to reload the Account from brig.
       storedUser <- do
         acc <-
-          lift (liftSem $ BrigAccess.getAccount Brig.WithPendingInvitations buid)
+          lift (BrigAccess.getAccount Brig.WithPendingInvitations buid)
             >>= maybe (throwError $ Scim.serverError "Server error: user vanished") pure
         synthesizeStoredUser acc veid
-      lift $ liftSem $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
+      lift $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
 
       -- {(arianvp): these two actions we probably want to make transactional.}
-      lift . wrapMonadClientSem $ do
+      lift $ do
         -- Store scim timestamps, saml credentials, scim externalId locally in spar.
         ScimUserTimesStore.write storedUser
         ST.runValidExternalId
@@ -481,10 +480,10 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 
       -- {suspension via scim: if we don't reach the following line, the user will be active.}
       lift $ do
-        old <- liftSem $ BrigAccess.getStatus buid
+        old <- BrigAccess.getStatus buid
         let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
             active = Scim.active . Scim.value . Scim.thing $ storedUser
-        when (new /= old) $ liftSem $ BrigAccess.setStatus buid new
+        when (new /= old) $ BrigAccess.setStatus buid new
       pure storedUser
 
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
@@ -504,7 +503,7 @@ updateValidScimUser ::
        SAMLUserStore
      ]
     r =>
-  (m ~ Scim.ScimHandler (Spar r)) =>
+  (m ~ Scim.ScimHandler (Sem r)) =>
   ScimTokenInfo ->
   UserId ->
   ST.ValidScimUser ->
@@ -540,22 +539,21 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
             _ -> pure ()
 
           when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
-            liftSem $ BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
+            BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
 
           when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle) $ do
-            liftSem $ BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
+            BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
 
           when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $ do
-            liftSem $ BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
+            BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
 
-          liftSem $
-            BrigAccess.getStatusMaybe uid >>= \case
-              Nothing -> pure ()
-              Just old -> do
-                let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
-                when (new /= old) $ BrigAccess.setStatus uid new
+          BrigAccess.getStatusMaybe uid >>= \case
+            Nothing -> pure ()
+            Just old -> do
+              let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
+              when (new /= old) $ BrigAccess.setStatus uid new
 
-          wrapMonadClientSem $ ScimUserTimesStore.write newScimStoredUser
+          ScimUserTimesStore.write newScimStoredUser
           pure newScimStoredUser
 
 updateVsuUref ::
@@ -570,18 +568,17 @@ updateVsuUref ::
   UserId ->
   ST.ValidExternalId ->
   ST.ValidExternalId ->
-  Spar r ()
+  Sem r ()
 updateVsuUref team uid old new = do
   let geturef = ST.runValidExternalId Just (const Nothing)
   case (geturef old, geturef new) of
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
     _ -> pure ()
 
-  wrapMonadClientSem $ do
-    old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
-    new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
+  old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
+  new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
-  liftSem $ BrigAccess.setVeid uid new
+  BrigAccess.setVeid uid new
 
 toScimStoredUser' ::
   HasCallStack =>
@@ -618,9 +615,9 @@ updScimStoredUser ::
   Member Now r =>
   Scim.User ST.SparTag ->
   Scim.StoredUser ST.SparTag ->
-  Spar r (Scim.StoredUser ST.SparTag)
+  Sem r (Scim.StoredUser ST.SparTag)
 updScimStoredUser usr storedusr = do
-  SAML.Time (toUTCTimeMillis -> now) <- liftSem Now.get
+  SAML.Time (toUTCTimeMillis -> now) <- Now.get
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser' ::
@@ -649,7 +646,7 @@ deleteScimUser ::
     r =>
   ScimTokenInfo ->
   UserId ->
-  Scim.ScimHandler (Spar r) ()
+  Scim.ScimHandler (Sem r) ()
 deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
   logScim
     ( logFunction "Spar.Scim.User.deleteScimUser"
@@ -657,7 +654,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         . logUser uid
     )
     $ do
-      mbBrigUser <- lift (liftSem $ Brig.getBrigUser Brig.WithPendingInvitations uid)
+      mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
       case mbBrigUser of
         Nothing -> do
           -- double-deletion gets you a 404.
@@ -671,19 +668,19 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
+          mIdpConfig <- maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
 
           case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
             Left _ -> pure ()
             Right veid ->
-              lift . wrapMonadClientSem $
+              lift $
                 ST.runValidExternalId
                   (SAMLUserStore.delete uid)
                   (ScimExternalIdStore.delete stiTeam)
                   veid
 
-          lift . wrapMonadClientSem $ ScimUserTimesStore.delete uid
-          lift . liftSem $ BrigAccess.delete uid
+          lift $ ScimUserTimesStore.delete uid
+          lift $ BrigAccess.delete uid
           return ()
 
 ----------------------------------------------------------------------------
@@ -713,7 +710,7 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertExternalIdUnused :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) ()
+assertExternalIdUnused :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Sem r) ()
 assertExternalIdUnused tid veid = do
   assertExternalIdInAllowedValues
     [Nothing]
@@ -727,7 +724,7 @@ assertExternalIdUnused tid veid = do
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertExternalIdNotUsedElsewhere :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> UserId -> Scim.ScimHandler (Spar r) ()
+assertExternalIdNotUsedElsewhere :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> UserId -> Scim.ScimHandler (Sem r) ()
 assertExternalIdNotUsedElsewhere tid veid wireUserId = do
   assertExternalIdInAllowedValues
     [Nothing, Just wireUserId]
@@ -735,7 +732,7 @@ assertExternalIdNotUsedElsewhere tid veid wireUserId = do
     tid
     veid
 
-assertExternalIdInAllowedValues :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => [Maybe UserId] -> Text -> TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) ()
+assertExternalIdInAllowedValues :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => [Maybe UserId] -> Text -> TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Sem r) ()
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
     lift $
@@ -752,18 +749,18 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   unless isGood $
     throwError Scim.conflict {Scim.detail = Just errmsg}
 
-assertHandleUnused :: Member BrigAccess r => Handle -> Scim.ScimHandler (Spar r) ()
+assertHandleUnused :: Member BrigAccess r => Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
 
-assertHandleUnused' :: Member BrigAccess r => Text -> Handle -> Scim.ScimHandler (Spar r) ()
+assertHandleUnused' :: Member BrigAccess r => Text -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleUnused' msg hndl =
-  lift (liftSem $ BrigAccess.checkHandleAvailable hndl) >>= \case
+  lift (BrigAccess.checkHandleAvailable hndl) >>= \case
     True -> pure ()
     False -> throwError Scim.conflict {Scim.detail = Just msg}
 
-assertHandleNotUsedElsewhere :: Member BrigAccess r => UserId -> Handle -> Scim.ScimHandler (Spar r) ()
+assertHandleNotUsedElsewhere :: Member BrigAccess r => UserId -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleNotUsedElsewhere uid hndl = do
-  musr <- lift $ liftSem $ Brig.getBrigUser Brig.WithPendingInvitations uid
+  musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName already in use by another wire user" hndl
 
@@ -782,7 +779,7 @@ synthesizeStoredUser ::
     r =>
   UserAccount ->
   ST.ValidExternalId ->
-  Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+  Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser usr veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
@@ -795,28 +792,28 @@ synthesizeStoredUser usr veid =
       let uid = userId (accountUser usr)
           accStatus = accountStatus usr
 
-      let readState :: Spar r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+      let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
           readState = do
-            richInfo <- liftSem $ BrigAccess.getRichInfo uid
-            accessTimes <- wrapMonadClientSem (ScimUserTimesStore.read uid)
-            baseuri <- liftSem $ inputs $ derivedOptsScimBaseURI . derivedOpts
+            richInfo <- BrigAccess.getRichInfo uid
+            accessTimes <- ScimUserTimesStore.read uid
+            baseuri <- inputs $ derivedOptsScimBaseURI . derivedOpts
             pure (richInfo, accessTimes, baseuri)
 
-      let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Spar r ()
+      let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
             when (isNothing oldAccessTimes) $ do
-              wrapMonadClientSem $ ScimUserTimesStore.write storedUser
+              ScimUserTimesStore.write storedUser
             when (oldManagedBy /= ManagedByScim) $ do
-              liftSem $ BrigAccess.setManagedBy uid ManagedByScim
+              BrigAccess.setManagedBy uid ManagedByScim
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
             when (oldRichInfo /= newRichInfo) $ do
-              liftSem $ BrigAccess.setRichInfo uid newRichInfo
+              BrigAccess.setRichInfo uid newRichInfo
 
       (richInfo, accessTimes, baseuri) <- lift readState
-      SAML.Time (toUTCTimeMillis -> now) <- lift $ liftSem Now.get
+      SAML.Time (toUTCTimeMillis -> now) <- lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
-      handle <- lift $ liftSem $ Brig.giveDefaultHandle (accountUser usr)
+      handle <- lift $ Brig.giveDefaultHandle (accountUser usr)
 
       storedUser <-
         synthesizeStoredUser'
@@ -880,10 +877,10 @@ scimFindUserByHandle ::
   Maybe IdP ->
   TeamId ->
   Text ->
-  MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
+  MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByHandle mIdpConfig stiTeam hndl = do
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
-  brigUser <- MaybeT . lift . liftSem . BrigAccess.getByHandle $ handle
+  brigUser <- MaybeT . lift . BrigAccess.getByHandle $ handle
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
     Right veid -> lift $ synthesizeStoredUser brigUser veid
@@ -910,7 +907,7 @@ scimFindUserByEmail ::
   Maybe IdP ->
   TeamId ->
   Text ->
-  MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
+  MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
   -- Azure has been observed to search for externalIds that are not emails, even if the
   -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'
@@ -920,24 +917,24 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   -- a UUID, or any other text that is valid according to SCIM.
   veid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId mIdpConfig (pure email)))
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
-  brigUser <- MaybeT . lift . liftSem . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
+  brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   lift $ synthesizeStoredUser brigUser veid
   where
-    withUref :: SAML.UserRef -> Spar r (Maybe UserId)
+    withUref :: SAML.UserRef -> Sem r (Maybe UserId)
     withUref uref = do
-      wrapMonadClientSem (SAMLUserStore.get uref) >>= \case
+      SAMLUserStore.get uref >>= \case
         Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
         Just uid -> pure (Just uid)
 
-    withEmailOnly :: BT.Email -> Spar r (Maybe UserId)
+    withEmailOnly :: BT.Email -> Sem r (Maybe UserId)
     withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
       where
         -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,
         -- and it never should be visible in spar, but not in brig.
-        inspar, inbrig :: Spar r (Maybe UserId)
-        inspar = wrapMonadClientSem $ ScimExternalIdStore.lookup stiTeam eml
-        inbrig = liftSem $ userId . accountUser <$$> BrigAccess.getByEmail eml
+        inspar, inbrig :: Sem r (Maybe UserId)
+        inspar = ScimExternalIdStore.lookup stiTeam eml
+        inbrig = userId . accountUser <$$> BrigAccess.getByEmail eml
 
 logFilter :: Filter -> (Msg -> Msg)
 logFilter (FilterAttrCompare attr op val) =

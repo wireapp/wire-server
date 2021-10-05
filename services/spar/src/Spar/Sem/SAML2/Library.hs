@@ -11,6 +11,7 @@ import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Final
 import Polysemy.Input
 import Polysemy.Internal.Tactics
 import SAML2.WebSSO hiding (Error)
@@ -30,9 +31,19 @@ import Wire.API.User.Saml
 
 wrapMonadClientSPImpl :: Members '[Error SparError, Final IO] r => Sem r a -> SPImpl r a
 wrapMonadClientSPImpl action =
-  SPImpl $
-    action
-      `Catch.catch` (throw . SAML.CustomError . SparCassandraError . cs . show @SomeException)
+  SPImpl action
+    `Catch.catch` (SPImpl . throw . SAML.CustomError . SparCassandraError . cs . show @SomeException)
+
+instance Member (Final IO) r => Catch.MonadThrow (SPImpl r) where
+  throwM = SPImpl . embedFinal . Catch.throwM @IO
+
+instance Member (Final IO) r => Catch.MonadCatch (SPImpl r) where
+  catch (SPImpl m) handler = SPImpl $
+    withStrategicToFinal @IO $ do
+      m' <- runS m
+      st <- getInitialStateS
+      handler' <- bindS $ unSPImpl . handler
+      pure $ m' `Catch.catch` \e -> handler' $ e <$ st
 
 newtype SPImpl r a = SPImpl {unSPImpl :: Sem r a}
   deriving (Functor, Applicative, Monad)
@@ -64,9 +75,9 @@ instance Members '[Error SparError, IdPEffect.IdP, Final IO] r => SPStoreIdP Spa
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
-  storeIdPConfig = SPImpl . App.runSparInSem . App.storeIdPConfig
-  getIdPConfig = SPImpl . App.runSparInSem . App.getIdPConfig
-  getIdPConfigByIssuerOptionalSPId a = SPImpl . App.runSparInSem . App.getIdPConfigByIssuerOptionalSPId a
+  storeIdPConfig = SPImpl . App.storeIdPConfig
+  getIdPConfig = SPImpl . App.getIdPConfig
+  getIdPConfigByIssuerOptionalSPId a = SPImpl . App.getIdPConfigByIssuerOptionalSPId a
 
 instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
   throwError = SPImpl . throw

@@ -29,7 +29,6 @@ module Spar.Error
     SparCustomError (..),
     throwSpar,
     sparToServerErrorWithLogging,
-    renderSparErrorWithLogging,
     rethrow,
     parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
@@ -131,12 +130,6 @@ waiToServant waierr@(Wai.Error status label _ _) =
       errBody = encode waierr,
       errHeaders = []
     }
-
-renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServerError Wai.Error)
-renderSparErrorWithLogging logger err = do
-  let errPossiblyWai = renderSparError err
-  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
-  pure errPossiblyWai
 
 renderSparError :: SparError -> Either ServerError Wai.Error
 renderSparError (SAML.CustomError SparNoSuchRequest) = Right $ Wai.mkError status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."

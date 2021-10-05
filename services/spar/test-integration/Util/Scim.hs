@@ -34,7 +34,6 @@ import Data.UUID.V4 as UUID
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
-import Spar.App (liftSem)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -82,16 +81,15 @@ registerScimToken teamid midpid = do
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runSpar $
-    liftSem $
-      ScimTokenStore.insert
-        tok
-        ScimTokenInfo
-          { stiTeam = teamid,
-            stiId = scimTokenId,
-            stiCreatedAt = now,
-            stiIdP = midpid,
-            stiDescr = "test token"
-          }
+    ScimTokenStore.insert
+      tok
+      ScimTokenInfo
+        { stiTeam = teamid,
+          stiId = scimTokenId,
+          stiCreatedAt = now,
+          stiIdP = midpid,
+          stiDescr = "test token"
+        }
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered

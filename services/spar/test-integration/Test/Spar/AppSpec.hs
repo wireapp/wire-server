@@ -33,7 +33,6 @@ import Imports
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
-import Spar.App (liftSem)
 import qualified Spar.App as Spar
 import Spar.Orphans ()
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -181,5 +180,5 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           $ outcome
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
-  muid <- runSpar $ liftSem $ SAMLUserStore.get uref
+  muid <- runSpar $ SAMLUserStore.get uref
   pure (muid, outcome, loc, qry)

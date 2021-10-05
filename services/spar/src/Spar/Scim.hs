@@ -64,23 +64,19 @@ module Spar.Scim
   )
 where
 
-import Control.Monad.Catch (try)
-import Control.Monad.Except
 import Data.String.Conversions (cs)
 import Imports
 import Polysemy
-import Polysemy.Error (Error)
-import Polysemy.Input (Input, input)
+import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
+import Polysemy.Input (Input)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
-import Spar.App (Spar (..))
+import Spar.App (sparToServerErrorWithLogging, throwSparSem)
 import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
-    sparToServerErrorWithLogging,
-    throwSpar,
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
@@ -90,12 +86,12 @@ import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)
+import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
-import qualified System.Logger as TinyLog
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -117,8 +113,7 @@ configuration = Scim.Meta.empty
 apiScim ::
   forall r.
   Members
-    '[ Input TinyLog.Logger,
-       Random,
+    '[ Random,
        Input Opts,
        Logger (Msg -> Msg),
        Logger String,
@@ -129,11 +124,14 @@ apiScim ::
        ScimExternalIdStore,
        ScimUserTimesStore,
        ScimTokenStore,
+       Reporter,
        IdPEffect.IdP,
+       -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
+       Final IO,
        SAMLUserStore
      ]
     r =>
-  ServerT APIScim (Spar r)
+  ServerT APIScim (Sem r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
@@ -141,7 +139,7 @@ apiScim =
     hoistScim =
       hoistServer
         (Proxy @(ScimSiteAPI SparTag))
-        (wrapScimErrors . Scim.fromScimHandler (throwSpar . SparScimError))
+        (wrapScimErrors . Scim.fromScimHandler (throwSparSem . SparScimError))
     -- Wrap /all/ errors into the format required by SCIM, even server exceptions that have
     -- nothing to do with SCIM.
     --
@@ -149,34 +147,33 @@ apiScim =
     -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
-    wrapScimErrors :: Spar r a -> Spar r a
-    wrapScimErrors act = Spar $
-      ExceptT $ do
-        result :: Either SomeException (Either SparError a) <- try $ runExceptT $ fromSpar $ act
-        case result of
-          Left someException -> do
-            -- We caught an exception that's not a Spar exception at all. It is wrapped into
-            -- Scim.serverError.
-            pure . Left . SAML.CustomError . SparScimError $
-              Scim.serverError (cs (displayException someException))
-          Right err@(Left (SAML.CustomError (SparScimError _))) ->
-            -- We caught a 'SparScimError' exception. It is left as-is.
-            pure err
-          Right (Left sparError) -> do
-            -- We caught some other Spar exception. It is rendered and wrapped into a scim error
-            -- with the same status and message, and no scim error type.
-            logger <- input @TinyLog.Logger
-            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging logger sparError
-            pure . Left . SAML.CustomError . SparScimError $
-              Scim.ScimError
-                { schemas = [Scim.Schema.Error20],
-                  status = Scim.Status $ errHTTPCode err,
-                  scimType = Nothing,
-                  detail = Just . cs $ errBody err
-                }
-          Right (Right x) -> do
-            -- No exceptions! Good.
-            pure $ Right x
+    wrapScimErrors :: Sem r a -> Sem r a
+    wrapScimErrors act = do
+      result :: Either SomeException (Either SparError a) <-
+        runError $ fromExceptionSem @SomeException $ raise $ try @SparError act
+      case result of
+        Left someException -> do
+          -- We caught an exception that's not a Spar exception at all. It is wrapped into
+          -- Scim.serverError.
+          throw . SAML.CustomError . SparScimError $
+            Scim.serverError (cs (displayException someException))
+        Right (Left err@(SAML.CustomError (SparScimError _))) ->
+          -- We caught a 'SparScimError' exception. It is left as-is.
+          throw err
+        Right (Left sparError) -> do
+          -- We caught some other Spar exception. It is rendered and wrapped into a scim error
+          -- with the same status and message, and no scim error type.
+          err :: ServerError <- sparToServerErrorWithLogging sparError
+          throw . SAML.CustomError . SparScimError $
+            Scim.ScimError
+              { schemas = [Scim.Schema.Error20],
+                status = Scim.Status $ errHTTPCode err,
+                scimType = Nothing,
+                detail = Just . cs $ errBody err
+              }
+        Right (Right x) -> do
+          -- No exceptions! Good.
+          pure x
 
 -- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
 -- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
