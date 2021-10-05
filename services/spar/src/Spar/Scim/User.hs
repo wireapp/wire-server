@@ -311,7 +311,7 @@ mkValidExternalId _ Nothing = do
   throwError $
     Scim.badRequest
       Scim.InvalidValue
-      (Just "externalId is required for SAML users")
+      (Just "externalId is required")
 mkValidExternalId Nothing (Just extid) = do
   let err =
         Scim.badRequest
