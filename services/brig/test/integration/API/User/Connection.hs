@@ -162,8 +162,7 @@ testCreateRemoteConnectionsQualified opts brig = do
 
   assertConnectionQualified brig uid1 quid2 Sent
 
-  -- Test that no connections to anonymous users can be created,
-  -- as well as that anonymous users cannot create connections.
+  -- Test that anonymous users cannot create connections with remote users
   uid3 <- userId <$> createAnonUser "foo3" brig
   postConnectionQualified brig uid3 quid2 !!! const 403 === statusCode
 
