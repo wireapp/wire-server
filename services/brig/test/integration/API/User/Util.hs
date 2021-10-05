@@ -357,9 +357,10 @@ sendConnectionAction ::
 sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
   let mockConnectionResponse = FedBrig.NewConnectionResponseOk reaction
       mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
-  _ <- liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $ do
-    postConnectionQualified brig uid1 quid2 !!! do
-      const 201 === statusCode
+  (res, _) <-
+    liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
+      postConnectionQualified brig uid1 quid2
+  liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
   assertConnectionQualified brig uid1 quid2 expectedRel
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()

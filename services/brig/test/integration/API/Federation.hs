@@ -66,7 +66,9 @@ tests m opts brig fedBrigClient =
         test m "POST /federation/send-connection-action : Connect OK" (testConnectOK brig fedBrigClient),
         test m "POST /federation/send-connection-action : Connect with Anon" (testConnectWithAnon brig fedBrigClient),
         test m "POST /federation/send-connection-action : Mutual Connect" (testConnectMutual opts brig fedBrigClient),
-        test m "POST /federation/send-connection-action : Connect twice" (testConnectFromPending brig fedBrigClient)
+        test m "POST /federation/send-connection-action : Connect twice" (testConnectFromPending brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Ignore then accept" (testConnectFromIgnored opts brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Ignore, remote cancels, then accept" (testSentFromIgnored opts brig fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -248,3 +250,33 @@ testConnectFromPending brig fedBrigClient = do
   receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteRescind Nothing Cancelled
+
+testConnectFromIgnored :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testConnectFromIgnored opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Ignored' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Ignored !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Ignored
+
+  -- if the remote side sends a new connection request, we go back to 'Pending'
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
+
+  -- if we accept, and the remote side still wants to connect, we transition to 'Accepted'
+  sendConnectionAction brig opts uid1 quid2 (Just FedBrig.RemoteConnect) Accepted
+
+testSentFromIgnored :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testSentFromIgnored opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Ignored' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Ignored !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Ignored
+
+  -- if the remote side rescinds, we stay in 'Ignored'
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteRescind Nothing Ignored
+
+  -- if we accept, and the remote does not want to connect anymore, we transition to 'Sent'
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
