@@ -71,7 +71,8 @@ tests m opts brig fedBrigClient =
         test m "POST /federation/send-connection-action : Ignore then accept" (testConnectFromIgnored opts brig fedBrigClient),
         test m "POST /federation/send-connection-action : Ignore, remote cancels, then accept" (testSentFromIgnored opts brig fedBrigClient),
         test m "POST /federation/send-connection-action : Block then accept" (testConnectFromBlocked opts brig fedBrigClient),
-        test m "POST /federation/send-connection-action : Block, remote cancels, then accept" (testSentFromBlocked opts brig fedBrigClient)
+        test m "POST /federation/send-connection-action : Block, remote cancels, then accept" (testSentFromBlocked opts brig fedBrigClient),
+        test m "POST /federation/send-connection-action : Send then cancel" (testCancel opts brig)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -320,3 +321,10 @@ testSentFromBlocked opts brig fedBrigClient = do
 
   -- if we accept, and the remote does not want to connect anymore, we transition to 'Sent'
   sendConnectionAction brig opts uid1 quid2 Nothing Sent
+
+testCancel :: Opt.Opts -> Brig -> Http ()
+testCancel opts brig = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
+  sendConnectionUpdateAction brig opts uid1 quid2 Nothing Cancelled

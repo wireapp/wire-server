@@ -363,6 +363,22 @@ sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
   liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
   assertConnectionQualified brig uid1 quid2 expectedRel
 
+sendConnectionUpdateAction ::
+  Brig ->
+  Opts ->
+  UserId ->
+  Qualified UserId ->
+  Maybe FedBrig.RemoteConnectionAction ->
+  Relation ->
+  Http ()
+sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
+  let mockConnectionResponse = FedBrig.NewConnectionResponseOk reaction
+      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+  void $
+    liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
+      putConnectionQualified brig uid1 quid2 expectedRel !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 expectedRel
+
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
   get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
