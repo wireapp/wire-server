@@ -330,6 +330,7 @@ assertConnectionQualified brig u1 qu2 rel =
     const (Right rel) === fmap ucStatus . responseJsonEither
 
 receiveConnectionAction ::
+  HasCallStack =>
   Brig ->
   FedBrigClient ->
   UserId ->
@@ -347,6 +348,7 @@ receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction ex
   assertConnectionQualified brig uid1 quid2 expectedRel
 
 sendConnectionAction ::
+  HasCallStack =>
   Brig ->
   Opts ->
   UserId ->
@@ -364,6 +366,7 @@ sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
   assertConnectionQualified brig uid1 quid2 expectedRel
 
 sendConnectionUpdateAction ::
+  HasCallStack =>
   Brig ->
   Opts ->
   UserId ->

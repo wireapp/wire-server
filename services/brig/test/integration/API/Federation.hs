@@ -29,11 +29,13 @@ import Data.Domain
 import Data.Handle (Handle (..))
 import Data.Id
 import qualified Data.Map as Map
-import Data.Qualified (qUnqualified)
+import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.UUID.V4 as UUIDv4
-import Federation.Util (generateClientPrekeys)
+import Federation.Util (generateClientPrekeys, withTempMockFederator)
 import Imports
+import qualified Network.Wai.Utilities as Error
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
 import Test.Tasty
@@ -41,6 +43,7 @@ import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Federation.GRPC.Types (OutwardResponse (OutwardResponseBody))
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
 import Wire.API.UserMap (UserMap (UserMap))
@@ -72,7 +75,8 @@ tests m opts brig fedBrigClient =
         test m "POST /federation/send-connection-action : Ignore, remote cancels, then accept" (testSentFromIgnored opts brig fedBrigClient),
         test m "POST /federation/send-connection-action : Block then accept" (testConnectFromBlocked opts brig fedBrigClient),
         test m "POST /federation/send-connection-action : Block, remote cancels, then accept" (testSentFromBlocked opts brig fedBrigClient),
-        test m "POST /federation/send-connection-action : Send then cancel" (testCancel opts brig)
+        test m "POST /federation/send-connection-action : Send then cancel" (testCancel opts brig),
+        test m "POST /federation/send-connection-action : Limits" (testConnectionLimits opts brig fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -328,3 +332,56 @@ testCancel opts brig = do
 
   sendConnectionAction brig opts uid1 quid2 Nothing Sent
   sendConnectionUpdateAction brig opts uid1 quid2 Nothing Cancelled
+
+testConnectionLimits :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testConnectionLimits opts brig fedBrigClient = do
+  let connectionLimit = Opt.setUserMaxConnections (Opt.optSettings opts)
+  (uid1, quid2) <- localAndRemoteUser brig
+  [quid3, quid4, quid5] <- replicateM 3 fakeRemoteUser
+
+  -- set up N-1 connections from uid1 to remote users
+  replicateM_ (fromIntegral connectionLimit - 1) (newConn uid1)
+
+  -- accepting another one should be allowed
+  receiveConnectionAction brig fedBrigClient uid1 quid2 FedBrig.RemoteConnect Nothing Pending
+  sendConnectionAction brig opts uid1 quid2 (Just FedBrig.RemoteConnect) Accepted
+
+  -- get an incoming connection requests beyond the limit
+  -- (TODO: is this sane? you get lots of connection requests popping up on your screen but can not accept them?)
+  -- On the other hand, limiting already at RPC level would make it easy to create a denial of service attack on a single user.
+  receiveConnectionAction brig fedBrigClient uid1 quid3 FedBrig.RemoteConnect Nothing Pending
+
+  -- accepting the second one hits the limit (and relation stays Pending):
+  sendConnectionActionExpectLimit uid1 quid3 (Just FedBrig.RemoteConnect)
+  assertConnectionQualified brig uid1 quid3 Pending
+
+  -- attempting to send an own new connection request also hits the limit
+  sendConnectionActionExpectLimit uid1 quid4 (Just FedBrig.RemoteConnect)
+  getConnectionQualified brig uid1 quid4 !!! const 404 === statusCode
+
+  -- (re-)sending an already accepted connection does not affect the limit
+  sendConnectionAction brig opts uid1 quid2 (Just FedBrig.RemoteConnect) Accepted
+
+  -- blocked connections do not count towards the limit
+  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Blocked
+  receiveConnectionAction brig fedBrigClient uid1 quid5 FedBrig.RemoteConnect Nothing Pending
+  sendConnectionAction brig opts uid1 quid5 (Just FedBrig.RemoteConnect) Accepted
+  where
+    newConn :: UserId -> Http ()
+    newConn from = do
+      to <- fakeRemoteUser
+      sendConnectionAction brig opts from to Nothing Sent
+
+    sendConnectionActionExpectLimit :: HasCallStack => UserId -> Qualified UserId -> Maybe FedBrig.RemoteConnectionAction -> Http ()
+    sendConnectionActionExpectLimit uid1 quid2 reaction = do
+      let mockConnectionResponse = FedBrig.NewConnectionResponseOk reaction
+          mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+      void $
+        liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
+          postConnectionQualified brig uid1 quid2 !!! assertLimited
+
+    assertLimited :: Assertions ()
+    assertLimited = do
+      const 403 === statusCode
+      const (Just "connection-limit") === fmap Error.label . responseJsonMaybe

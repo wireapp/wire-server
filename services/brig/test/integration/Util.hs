@@ -137,8 +137,11 @@ localAndRemoteUser ::
   m (UserId, Qualified UserId)
 localAndRemoteUser brig = do
   uid1 <- userId <$> randomUser brig
-  quid2 <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  quid2 <- fakeRemoteUser
   pure (uid1, quid2)
+
+fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
+fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
