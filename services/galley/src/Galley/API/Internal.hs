@@ -43,6 +43,7 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.Error (throwErrorDescriptionType)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import qualified Galley.API.One2One as One2One
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -57,6 +58,7 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
+import Galley.Types.Conversations.Remote (UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
@@ -189,7 +191,16 @@ data InternalApi routes = InternalApi
         :> "conversations"
         :> "connect"
         :> ReqBody '[Servant.JSON] Connect
-        :> ConversationVerb
+        :> ConversationVerb,
+    iUpsertOne2OneConversation ::
+      routes
+        :- Summary "Create or Update a connect or one2one conversation."
+        :> "i"
+        :> "conversations"
+        :> "one2one"
+        :> "upsert"
+        :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
+        :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
   }
   deriving (Generic)
 
@@ -265,7 +276,8 @@ servantSitemap =
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
         iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         iDeleteUser = rmUser,
-        iConnect = Create.createConnectConversation
+        iConnect = Create.createConnectConversation,
+        iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
       }
 
 iGetTeamFeature ::

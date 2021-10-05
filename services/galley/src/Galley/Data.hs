@@ -68,6 +68,8 @@ module Galley.Data
     conversationMeta,
     conversationsRemote,
     createConnectConversation,
+    createOne2OneConversationRemote,
+    updateOne2OneConversationRemoteMembers,
     createConversation,
     createLegacyOne2OneConversation,
     createOne2OneConversation,
@@ -144,6 +146,7 @@ import qualified Data.Monoid
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.These (These (..))
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
@@ -688,6 +691,23 @@ createConnectConversation loc a b name = do
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers lconv (UserList [a'] [])
   pure $ newConv conv ConnectConv a' lmems rmems [PrivateAccess] privateRole name Nothing Nothing Nothing
+
+createOne2OneConversationRemote ::
+  MonadClient m =>
+  Local ConvId ->
+  Local UserId ->
+  These (Local UserId) (Remote UserId) ->
+  m (Local ConvId)
+createOne2OneConversationRemote _lconvId _creator _members =
+  error "Create conversation. If 'These' members a One2One conversation, otherwise a ConnectConversation"
+
+updateOne2OneConversationRemoteMembers ::
+  MonadClient m =>
+  Local ConvId ->
+  These (Local UserId) (Remote UserId) ->
+  m (Local ConvId)
+updateOne2OneConversationRemoteMembers =
+  error "Update members and conversation type."
 
 createLegacyOne2OneConversation ::
   MonadClient m =>

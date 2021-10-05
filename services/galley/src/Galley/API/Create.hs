@@ -290,6 +290,7 @@ createConnectConversation usr conn j = do
     (createConnectConversationWithRemote lusr conn)
     (cRecipient j)
 
+-- TODO: remove
 createConnectConversationWithRemote ::
   Local UserId ->
   Maybe ConnId ->

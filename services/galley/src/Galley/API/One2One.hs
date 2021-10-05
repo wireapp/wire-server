@@ -14,8 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
-module Galley.API.One2One (one2OneConvId) where
+module Galley.API.One2One
+  ( one2OneConvId,
+    iUpsertOne2OneConversation,
+  )
+where
 
 import Control.Error (atMay)
 import qualified Crypto.Hash as Crypto
@@ -26,9 +31,14 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
 import Data.Id
 import Data.Qualified
+import Data.Tagged (Tagged (unTagged))
+import Data.These (These (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Tagged as U
+import Galley.App (Galley)
+import qualified Galley.Data as Data
+import Galley.Types.Conversations.Remote (DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Imports
 
 -- | The hash function used to obtain the 1-1 conversation ID for a pair of users.
@@ -114,3 +124,39 @@ one2OneConvId a b = case compareDomains a b of
           | fromMaybe 0 (atMay (B.unpack x) 16) .&. 0x80 == 0 = qDomain a
           | otherwise = qDomain b
      in Qualified (Id result) domain
+
+iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> Galley UpsertOne2OneConversationResponse
+iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
+  let convId = fromMaybe (one2OneConvId (unTagged uooSelf) (unTagged uooOther)) uooConvId
+
+  let dolocal :: Local ConvId -> Galley (Maybe (Qualified ConvId))
+      dolocal lconvId = do
+        let mMembers = case (uooSelfDesiredMembership, uooOtherDesiredMembership) of
+              (Excluded, Excluded) -> Nothing
+              (Included, Excluded) -> Just (This uooSelf)
+              (Excluded, Included) -> Just (That uooOther)
+              (Included, Included) -> Just (These uooSelf uooOther)
+
+        mbConv <- Data.conversation (lUnqualified lconvId)
+        case mbConv of
+          Nothing -> do
+            case mMembers of
+              Nothing ->
+                pure Nothing
+              Just members ->
+                Just . unTagged <$> Data.createOne2OneConversationRemote lconvId uooSelf members
+          Just _conv ->
+            case mMembers of
+              Nothing -> pure Nothing -- TODO: delete conversation?
+              Just members -> Just . unTagged <$> Data.updateOne2OneConversationRemoteMembers lconvId members
+
+      doremote :: Remote ConvId -> Galley (Maybe (Qualified ConvId))
+      doremote rconvId = do
+        case uooSelfDesiredMembership of
+          Excluded ->
+            Data.removeLocalMembersFromRemoteConv (unTagged rconvId) [lUnqualified uooSelf]
+          Included ->
+            Data.addLocalMembersToRemoteConv (unTagged rconvId) [lUnqualified uooSelf]
+        pure (Just . unTagged $ rconvId)
+
+  UpsertOne2OneConversationResponse <$> foldQualified uooSelf dolocal doremote convId
