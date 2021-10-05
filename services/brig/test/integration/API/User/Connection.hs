@@ -157,8 +157,8 @@ testCreateRemoteConnectionsQualified opts brig = do
     F.domain req @?= domainText remoteDomain
     fmap F.component (F.request req) @?= Just F.Brig
     fmap F.path (F.request req) @?= Just "/federation/send-connection-action"
-    ncr <- pure $ fmap (Aeson.eitherDecode . cs . F.body) (F.request req)
-    ncr @?= Just (Right (NewConnectionRequest uid1 (qUnqualified quid2) RemoteConnect))
+    Aeson.eitherDecode . cs . F.body <$> F.request req
+      @?= Just (Right (NewConnectionRequest uid1 (qUnqualified quid2) RemoteConnect))
 
   assertConnectionQualified brig uid1 quid2 Sent
 
