@@ -40,8 +40,8 @@ import Test.Tasty hiding (Timeout)
 import Util
 import Util.Options.Common
 
-tests :: Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> IO TestTree
-tests conf p b c ch g n aws = do
+tests :: Opt.Opts -> FedBrigClient -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> IO TestTree
+tests conf fbc p b c ch g n aws = do
   let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
   let at = Opt.setActivationTimeout (Opt.optSettings conf)
   z <- mkZAuthEnv (Just conf)
@@ -51,7 +51,7 @@ tests conf p b c ch g n aws = do
       [ API.User.Client.tests cl at conf p b c g,
         API.User.Account.tests cl at conf p b c ch g aws,
         API.User.Auth.tests conf p z b g n,
-        API.User.Connection.tests cl at conf p b c g,
+        API.User.Connection.tests cl at conf p b c g fbc,
         API.User.Handles.tests cl at conf p b c g,
         API.User.PasswordReset.tests cl at conf p b c g,
         API.User.Property.tests cl at conf p b c g,

@@ -45,19 +45,21 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
+import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.GRPC.Types hiding (path)
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Routes.MultiTablePaging
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests cl _at opts p b _c g =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> TestTree
+tests cl _at opts p b _c g fedBrigClient =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
       test p "post /connections/:domain/:uid" $ testCreateManualConnectionsQualified b,
-      test p "post /connections/:domain/:uid with remote" $ testCreateRemoteConnectionsQualified opts b,
+      test p "post /connections/:domain/:uid with remote" $ testCreateManualConnectionsWithRemote opts b,
       test p "post /connections mutual" $ testCreateMutualConnections b g,
       test p "post /connections/:domain/:uid mutual" $ testCreateMutualConnectionsQualified b g,
+      test p "post /connections/:domain/:uid mutual with remote" $ testCreateMutualConnectionsWithRemote opts b g fedBrigClient,
       test p "post /connections (bad user)" $ testCreateConnectionInvalidUser b,
       test p "post /connections/:domain/:uid (bad user)" $ testCreateConnectionInvalidUserQualified b,
       test p "put /connections/:id accept" $ testAcceptConnection b,
@@ -141,8 +143,8 @@ testCreateManualConnectionsQualified brig = do
   postConnectionQualified brig uid1 quid3 !!! const 400 === statusCode
   postConnectionQualified brig uid3 quid1 !!! const 403 === statusCode
 
-testCreateRemoteConnectionsQualified :: Opt.Opts -> Brig -> Http ()
-testCreateRemoteConnectionsQualified opts brig = do
+testCreateManualConnectionsWithRemote :: Opt.Opts -> Brig -> Http ()
+testCreateManualConnectionsWithRemote opts brig = do
   uid1 <- userId <$> randomUser brig
   let remoteDomain = Domain "far-away.example.com"
   quid2 <- Qualified <$> randomId <*> pure remoteDomain
@@ -207,6 +209,30 @@ testCreateMutualConnectionsQualified brig galley = do
       getConversationQualified galley uid2 cnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+
+testCreateMutualConnectionsWithRemote :: Opt.Opts -> Brig -> Galley -> FedBrigClient -> Http ()
+testCreateMutualConnectionsWithRemote opts brig _galley fedBrigClient = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  let remoteDomain = Domain "far-away.example.com"
+  quid2 <- Qualified <$> randomId <*> pure remoteDomain
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+
+  let mockConnectionResponse = NewConnectionResponseOk Nothing
+      mockResponse = OutwardResponseBody (cs $ Aeson.encode mockConnectionResponse)
+  void . liftIO . withTempMockFederator opts (Domain "far-away.example.com") mockResponse $ do
+    postConnectionQualified brig uid1 quid2 <!! const 201 === statusCode
+
+  assertConnectionQualified brig uid1 quid2 Sent
+
+  void $
+    F.sendConnectionAction fedBrigClient remoteDomain $
+      NewConnectionRequest uid2 uid1 RemoteConnect
+
+  assertConnectionQualified brig uid1 quid2 Accepted
+
+  -- TODO: assert on 1-1 conversation
+  pure ()
 
 testAcceptConnection :: Brig -> Http ()
 testAcceptConnection brig = do
