@@ -37,7 +37,6 @@ module Wire.API.Conversation
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
-    ListConversationsV2 (..),
     GetPaginatedConversationIds,
     pattern GetPaginatedConversationIds,
     ConvIdsPage,
@@ -359,10 +358,9 @@ type GetPaginatedConversationIds = GetMultiTablePageRequest ConversationPagingNa
 pattern GetPaginatedConversationIds :: Maybe (MultiTablePagingState name tables) -> Range 1 max Int32 -> GetMultiTablePageRequest name tables max def
 pattern GetPaginatedConversationIds state size = GetMultiTablePageRequest size state
 
-data ListConversations = ListConversations
-  { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
-    lStartId :: Maybe (Qualified ConvId),
-    lSize :: Maybe (Range 1 500 Int32)
+-- | Used on the POST /conversations/list/v2 endpoint
+newtype ListConversations = ListConversations
+  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversations
@@ -371,25 +369,8 @@ instance ToSchema ListConversations where
   schema =
     objectWithDocModifier
       "ListConversations"
-      (description ?~ "A request to list some or all of a user's conversations, including remote ones")
-      $ ListConversations
-        <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
-        <*> lStartId .= optField "start_id" Nothing schema
-        <*> lSize .= optField "size" Nothing schema
-
--- | Used on the POST /conversations/list/v2 endpoint
-newtype ListConversationsV2 = ListConversationsV2
-  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversationsV2
-
-instance ToSchema ListConversationsV2 where
-  schema =
-    objectWithDocModifier
-      "ListConversations"
       (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
-      $ ListConversationsV2
+      $ ListConversations
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
 
 data ConversationsResponse = ConversationsResponse
