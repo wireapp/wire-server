@@ -20,6 +20,30 @@ let
         cp ${binPath} $out/bin
       '';
     };
+
+    staticBinary = { pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
+      pkgs.stdenv.mkDerivation {
+        inherit pname version;
+
+        src =
+          if pkgs.stdenv.isDarwin
+          then pkgs.fetchurl {
+            url = darwinAmd64Url;
+            sha256 = darwinAmd64Sha256;
+          }
+          else pkgs.fetchurl {
+            url = linuxAmd64Url;
+            sha256 = linuxAmd64Sha256;
+          };
+        phases = ["installPhase" "patchPhase"];
+
+        installPhase = ''
+          mkdir -p $out/bin
+          cp $src $out/bin/${binPath}
+          chmod +x $out/bin/${binPath}
+        '';
+      };
+
   pinned = {
     stack = staticBinaryInTarball {
       pname = "stack";
@@ -41,6 +65,17 @@ let
 
       linuxAmd64Url = "https://get.helm.sh/helm-v3.1.1-linux-amd64.tar.gz";
       linuxAmd64Sha256 = "cdd7ad304e2615c583dde0ffb0cb38fc1336cd7ce8ff3b5f237434dcadb28c98";
+    };
+
+    helmfile = staticBinary {
+      pname = "helmfile";
+      version = "0.141.0";
+
+      darwinAmd64Url = "https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_darwin_amd64";
+      darwinAmd64Sha256 = "0szfd3vy6fzd5657079hz5vii86f9xkg3bdzp3g4knkcw5x1kpxy";
+
+      linuxAmd64Url = "https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_linux_amd64";
+      linuxAmd64Sha256 = "0f5d9w3qjvwip4qn79hsigwp8nbjpj58p289hww503j43wjyxx8r";
     };
 
     kubectl = staticBinaryInTarball {
@@ -76,6 +111,7 @@ in pkgs.mkShell {
 
     pinned.stack
     pinned.helm
+    pinned.helmfile
     pinned.kubectl
   ];
 }
