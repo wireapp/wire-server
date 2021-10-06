@@ -32,6 +32,7 @@ module Brig.IO.Intra
     blockConv,
     unblockConv,
     getConv,
+    upsertOne2OneConversation,
 
     -- * Clients
     Brig.IO.Intra.newClient,
@@ -93,6 +94,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import qualified Galley.Types.Teams.Intra as Team
@@ -656,6 +658,18 @@ getConv usr cnv = do
       paths ["conversations", toByteString' cnv]
         . zUser usr
         . expect [status200, status404]
+
+upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> AppIO UpsertOne2OneConversationResponse
+upsertOne2OneConversation urequest = do
+  response <- galleyRequest POST req
+  case Bilge.statusCode response of
+    200 -> decodeBody "galley" response
+    _ -> throwM internalServerError
+  where
+    req =
+      paths ["i", "conversations", "one2one", "upsert"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
