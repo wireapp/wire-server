@@ -182,13 +182,13 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
 getRemoteClients :: [RemoteMember] -> Galley (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers = do
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
-    . pooledMapConcurrentlyN 8 (uncurry getRemoteClientsFromDomain)
-    . partitionRemote
+    . pooledMapConcurrentlyN 8 getRemoteClientsFromDomain
+    . indexRemote
     . map rmId
     $ remoteMembers
   where
-    getRemoteClientsFromDomain :: Domain -> [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
-    getRemoteClientsFromDomain domain uids = do
+    getRemoteClientsFromDomain :: Remote [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
+    getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) = do
       let rpc = FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
 

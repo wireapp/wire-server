@@ -591,11 +591,10 @@ qualifyLocal a = fmap (toLocalUnsafe . Qualified a) viewFederationDomain
 checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
 checkRemoteUsersExist =
   -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
-  traverse_ (uncurry checkRemotesFor)
-    . partitionRemote
+  traverse_ checkRemotesFor . indexRemote
 
-checkRemotesFor :: Domain -> [UserId] -> Galley ()
-checkRemotesFor domain uids = do
+checkRemotesFor :: Remote [UserId] -> Galley ()
+checkRemotesFor (qUntagged -> Qualified uids domain) = do
   let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
   users <- runFederatedBrig domain rpc
   let uids' =

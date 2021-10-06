@@ -608,11 +608,11 @@ remoteConversationStatus ::
   m (Map (Remote ConvId) MemberStatus)
 remoteConversationStatus uid =
   fmap mconcat
-    . pooledMapConcurrentlyN 8 (uncurry (remoteConversationStatusOnDomain uid))
-    . partitionRemote
+    . pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomain uid)
+    . indexRemote
 
-remoteConversationStatusOnDomain :: MonadClient m => UserId -> Domain -> [ConvId] -> m (Map (Remote ConvId) MemberStatus)
-remoteConversationStatusOnDomain uid domain convs =
+remoteConversationStatusOnDomain :: MonadClient m => UserId -> Remote [ConvId] -> m (Map (Remote ConvId) MemberStatus)
+remoteConversationStatusOnDomain uid (qUntagged -> Qualified convs domain) =
   Map.fromList . map toPair
     <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, domain, convs))
   where

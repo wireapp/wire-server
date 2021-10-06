@@ -36,8 +36,8 @@ module Data.Qualified
     renderQualifiedId,
     partitionQualified,
     indexQualified,
+    indexRemote,
     deprecatedSchema,
-    partitionRemote,
   )
 where
 
@@ -68,7 +68,7 @@ data QTag = QLocal | QRemote
 
 -- | A type to differentiate between generally 'Qualified' values, and "tagged" values,
 -- for which it is known whether they are coming from a remote or local backend.
--- Use 'foldQualified' or 'partitionRemoteOrLocalIds\'' to get tagged values and use
+-- Use 'foldQualified', 'partitionQualified' or 'qualifyLocal' to get tagged values and use
 -- 'qUntagged' to convert from a tagged value back to a plain 'Qualified' one.
 newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {qUntagged :: Qualified a}
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
@@ -136,8 +136,12 @@ indexQualified = foldr add mempty
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
-partitionRemote :: (Functor f, Foldable f) => f (Remote a) -> [(Domain, [a])]
-partitionRemote remotes = Map.assocs $ indexQualified (qUntagged <$> remotes)
+indexRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
+indexRemote =
+  map (toRemoteUnsafe . uncurry (flip Qualified))
+    . Map.assocs
+    . indexQualified
+    . fmap qUntagged
 
 ----------------------------------------------------------------------
 
