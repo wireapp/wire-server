@@ -82,7 +82,6 @@ library:
   - swagger >=0.1
   - swagger2
   - text >=0.11
-  - these
   - time >=1.4
   - tinylog >=0.10
   - tls >=1.3.10
