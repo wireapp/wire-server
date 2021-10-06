@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -22,7 +21,36 @@
 
 -- for UUID instances
 
-module Data.Id where
+module Data.Id
+  ( -- * Tagged IDs
+    Id (..),
+    IdTag,
+    KnownIdTag (..),
+    idTagName,
+    randomId,
+    AssetId,
+    InvitationId,
+    ConvId,
+    UserId,
+    ProviderId,
+    ServiceId,
+    TeamId,
+    ScimTokenId,
+    parseIdFromText,
+    idToText,
+    IdObject (..),
+
+    -- * Client IDs
+    ClientId (..),
+    newClientId,
+
+    -- * Other IDs
+    ConnId (..),
+    RequestId (..),
+    BotId (..),
+    NoId,
+  )
+where
 
 import Cassandra hiding (S)
 import Control.Lens ((?~))
@@ -56,39 +84,54 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
-data A
+data IdTag = A | C | I | U | P | S | T | STo
 
-data C
+idTagName :: IdTag -> Text
+idTagName A = "Asset"
+idTagName C = "Conv"
+idTagName I = "Invitation"
+idTagName U = "User"
+idTagName P = "Provider"
+idTagName S = "Service"
+idTagName T = "Team"
+idTagName STo = "ScimToken"
 
-data I
+class KnownIdTag (t :: IdTag) where
+  idTagValue :: IdTag
 
-data U
+instance KnownIdTag 'A where idTagValue = A
 
-data P
+instance KnownIdTag 'C where idTagValue = C
 
-data S
+instance KnownIdTag 'I where idTagValue = I
 
-data T
+instance KnownIdTag 'U where idTagValue = U
 
-data STo
+instance KnownIdTag 'P where idTagValue = P
 
-type AssetId = Id A
+instance KnownIdTag 'S where idTagValue = S
 
-type InvitationId = Id I
+instance KnownIdTag 'T where idTagValue = T
+
+instance KnownIdTag 'STo where idTagValue = STo
+
+type AssetId = Id 'A
+
+type InvitationId = Id 'I
 
 -- | A local conversation ID
-type ConvId = Id C
+type ConvId = Id 'C
 
 -- | A local user ID
-type UserId = Id U
+type UserId = Id 'U
 
-type ProviderId = Id P
+type ProviderId = Id 'P
 
-type ServiceId = Id S
+type ServiceId = Id 'S
 
-type TeamId = Id T
+type TeamId = Id 'T
 
-type ScimTokenId = Id STo
+type ScimTokenId = Id 'STo
 
 -- Id -------------------------------------------------------------------------
 

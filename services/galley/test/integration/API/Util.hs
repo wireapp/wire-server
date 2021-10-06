@@ -1848,7 +1848,7 @@ randomEmail = do
   uid <- liftIO nextRandom
   return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
-selfConv :: UserId -> Id C
+selfConv :: UserId -> ConvId
 selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
