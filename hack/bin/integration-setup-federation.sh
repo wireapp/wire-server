@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
@@ -20,8 +22,6 @@ charts=(fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-
 for chart in "${charts[@]}"; do
     "$DIR/update.sh" "$CHARTS_DIR/$chart"
 done
-
-set -e
 
 # FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
 echo "Generating self-signed certificates..."
