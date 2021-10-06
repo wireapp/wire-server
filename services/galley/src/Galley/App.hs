@@ -191,7 +191,7 @@ validateOptions l o = do
     $ do
       let message =
             ( "Legalhold cannot be activated together with Federation. \
-              \To resolve this problem either set the feature \"legalhold\" to \"disabled-by-default\" \
+              \To resolve this problem either set the feature \"legalhold\" to \"disabled-permanently\" \
               \or remove the \"federator\" endpoint configuration." ::
                 String
             )
