@@ -17,6 +17,7 @@
 -- TODO: Rename to Galley.Types.Conversations.Intra
 module Galley.Types.Conversations.Remote
   ( DesiredMembership (..),
+    Actor (..),
     UpsertOne2OneConversationRequest (..),
     UpsertOne2OneConversationResponse (..),
   )
@@ -37,11 +38,19 @@ instance ToJSON DesiredMembership
 -- TODO: write cusom instances with roundtrip tests
 instance FromJSON DesiredMembership
 
+data Actor = LocalActor | RemoteActor deriving (Show, Eq, Generic)
+
+-- TODO: write cusom instances with roundtrip tests
+instance ToJSON Actor
+
+-- TODO: write cusom instances with roundtrip tests
+instance FromJSON Actor
+
 data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
-  { uooSelf :: Local UserId,
-    uooSelfDesiredMembership :: DesiredMembership,
-    uooOther :: Remote UserId,
-    uooOtherDesiredMembership :: DesiredMembership,
+  { uooLocalUser :: Local UserId,
+    uooRemoteUser :: Remote UserId,
+    uooActor :: Actor,
+    uooActorDesiredMembership :: DesiredMembership,
     uooConvId :: Maybe (Qualified ConvId)
   }
   deriving (Show, Generic)
@@ -53,7 +62,10 @@ instance ToJSON UpsertOne2OneConversationRequest
 instance FromJSON UpsertOne2OneConversationRequest
 
 data UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
-  { uuorConvId :: Maybe (Qualified ConvId)
+  { -- | The Nothing value here indicated that there an impossible request was
+    -- received, e.g., requesting to remove a remote user when the actor is a
+    -- local user.
+    uuorConvId :: Maybe (Qualified ConvId)
   }
   deriving (Show, Generic)
 

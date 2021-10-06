@@ -32,13 +32,13 @@ import qualified Data.ByteString.Lazy as L
 import Data.Id
 import Data.Qualified
 import Data.Tagged (Tagged (unTagged))
-import Data.These (These (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Tagged as U
 import Galley.App (Galley)
 import qualified Galley.Data as Data
-import Galley.Types.Conversations.Remote (DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
+import Galley.Types.Conversations.Remote (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
+import Galley.Types.UserList (UserList (..))
 import Imports
 
 -- | The hash function used to obtain the 1-1 conversation ID for a pair of users.
@@ -127,36 +127,46 @@ one2OneConvId a b = case compareDomains a b of
 
 iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> Galley UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
-  let convId = fromMaybe (one2OneConvId (unTagged uooSelf) (unTagged uooOther)) uooConvId
+  let convId = fromMaybe (one2OneConvId (unTagged uooLocalUser) (unTagged uooRemoteUser)) uooConvId
 
   let dolocal :: Local ConvId -> Galley (Maybe (Qualified ConvId))
       dolocal lconvId = do
-        let mMembers = case (uooSelfDesiredMembership, uooOtherDesiredMembership) of
-              (Excluded, Excluded) -> Nothing
-              (Included, Excluded) -> Just (This uooSelf)
-              (Excluded, Included) -> Just (That uooOther)
-              (Included, Included) -> Just (These uooSelf uooOther)
-
         mbConv <- Data.conversation (lUnqualified lconvId)
         case mbConv of
           Nothing -> do
-            case mMembers of
-              Nothing ->
-                pure Nothing
-              Just members ->
-                Just . unTagged <$> Data.createOne2OneConversationRemote lconvId uooSelf members
-          Just _conv ->
-            case mMembers of
-              Nothing -> pure Nothing -- TODO: delete conversation?
-              Just members -> Just . unTagged <$> Data.updateOne2OneConversationRemoteMembers lconvId members
-
+            let members =
+                  case (uooActor, uooActorDesiredMembership) of
+                    (LocalActor, Included) -> UserList [lUnqualified uooLocalUser] []
+                    (LocalActor, Excluded) -> UserList [] []
+                    (RemoteActor, Included) -> UserList [] [uooRemoteUser]
+                    (RemoteActor, Excluded) -> UserList [] []
+            case members of
+              UserList [] [] -> pure Nothing
+              _ -> do
+                Data.createConnectConversationWithRemote lconvId uooLocalUser members
+                pure . Just $ convId
+          Just conv -> do
+            case (uooActor, uooActorDesiredMembership) of
+              (LocalActor, Included) -> do
+                void $ Data.addMember lconvId uooLocalUser
+                unless (null (Data.convRemoteMembers conv)) $
+                  Data.acceptConnect (lUnqualified lconvId)
+              (LocalActor, Excluded) -> Data.removeMember (lUnqualified uooLocalUser) (lUnqualified lconvId)
+              (RemoteActor, Included) -> do
+                void $ Data.addMembers lconvId (UserList [] [uooRemoteUser])
+                unless (null (Data.convLocalMembers conv)) $
+                  Data.acceptConnect (lUnqualified lconvId)
+              (RemoteActor, Excluded) -> Data.removeRemoteMembersFromLocalConv (lUnqualified lconvId) (pure uooRemoteUser)
+            pure . Just . unTagged $ lconvId
       doremote :: Remote ConvId -> Galley (Maybe (Qualified ConvId))
-      doremote rconvId = do
-        case uooSelfDesiredMembership of
-          Excluded ->
-            Data.removeLocalMembersFromRemoteConv (unTagged rconvId) [lUnqualified uooSelf]
-          Included ->
-            Data.addLocalMembersToRemoteConv (unTagged rconvId) [lUnqualified uooSelf]
-        pure (Just . unTagged $ rconvId)
+      doremote rconvId =
+        case (uooActor, uooActorDesiredMembership) of
+          (LocalActor, Included) -> do
+            Data.addLocalMembersToRemoteConv (unTagged rconvId) [lUnqualified uooLocalUser]
+            pure . Just . unTagged $ rconvId
+          (LocalActor, Excluded) -> do
+            Data.removeLocalMembersFromRemoteConv (unTagged rconvId) [lUnqualified uooLocalUser]
+            pure . Just . unTagged $ rconvId
+          (RemoteActor, _) -> pure Nothing
 
-  UpsertOne2OneConversationResponse <$> foldQualified uooSelf dolocal doremote convId
+  UpsertOne2OneConversationResponse <$> foldQualified uooLocalUser dolocal doremote convId
