@@ -1492,7 +1492,7 @@ connectUsers u us = void $ connectUsersWith expect2xx u us
 connectLocalQualifiedUsers :: UserId -> List1 (Qualified UserId) -> TestM ()
 connectLocalQualifiedUsers u us = do
   localDomain <- viewFederationDomain
-  let partitionMap = partitionQualified . toList . toNonEmpty $ us
+  let partitionMap = indexQualified . toList . toNonEmpty $ us
   -- FUTUREWORK: connect all users, not just those on the same domain as 'u'
   case LMap.lookup localDomain partitionMap of
     Nothing -> err

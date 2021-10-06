@@ -726,7 +726,7 @@ registerRemoteConversationMemberships now localDomain c = do
   -- FUTUREWORK: parallelise federated requests
   traverse_ (registerRemoteConversations rc)
     . Map.keys
-    . partitionQualified
+    . indexQualified
     . nubOrd
     . map (qUntagged . rmId)
     . Data.convRemoteMembers

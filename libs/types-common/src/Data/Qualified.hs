@@ -36,7 +36,7 @@ module Data.Qualified
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
-    partitionQualified,
+    indexQualified,
     deprecatedSchema,
     partitionRemote,
   )
@@ -131,15 +131,15 @@ partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
 partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
 partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemoteUnsafe) $ partitionRemoteOrLocalIds localDomain xs
 
--- | Index a list of qualified values by domain
-partitionQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
-partitionQualified = foldr add mempty
+-- | Index a list of qualified values by domain.
+indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
+indexQualified = foldr add mempty
   where
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
 partitionRemote :: (Functor f, Foldable f) => f (Remote a) -> [(Domain, [a])]
-partitionRemote remotes = Map.assocs $ partitionQualified (qUntagged <$> remotes)
+partitionRemote remotes = Map.assocs $ indexQualified (qUntagged <$> remotes)
 
 ----------------------------------------------------------------------
 

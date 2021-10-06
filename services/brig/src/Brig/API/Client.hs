@@ -69,7 +69,7 @@ import Data.List.Split (chunksOf)
 import Data.Map.Strict (traverseWithKey)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), partitionQualified, partitionRemoteOrLocalIds)
+import Data.Qualified (Qualified (..), indexQualified, partitionRemoteOrLocalIds)
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports
@@ -111,7 +111,7 @@ lookupPubClientsBulk qualifiedUids = do
   remoteUserClientMap <-
     traverseWithKey
       (\domain' uids -> getUserClients domain' (GetUserClients uids))
-      (partitionQualified remoteUsers)
+      (indexQualified remoteUsers)
       !>> ClientFederationError
   localUserClientMap <- Map.singleton domain <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)

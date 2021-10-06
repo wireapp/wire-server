@@ -144,7 +144,7 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified, partitionQualified)
+import Data.Qualified (Qualified, indexQualified)
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -1140,7 +1140,7 @@ lookupProfiles ::
   ExceptT FederationError AppIO [UserProfile]
 lookupProfiles self others = do
   localDomain <- viewFederationDomain
-  let userMap = partitionQualified others
+  let userMap = indexQualified others
   -- FUTUREWORK(federation): parallelise federator requests here
   fold <$> traverse (uncurry (getProfiles localDomain)) (Map.assocs userMap)
   where
