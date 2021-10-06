@@ -24,6 +24,7 @@ module Data.Qualified
     Qualified (..),
     QualifiedWithTag,
     tUnqualified,
+    tUnqualifiedL,
     tDomain,
     qUntagged,
     qTagUnsafe,
@@ -43,7 +44,7 @@ module Data.Qualified
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens (Lens, lens, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
@@ -84,6 +85,9 @@ tUnqualified = qUnqualified . qUntagged
 
 tDomain :: QualifiedWithTag t a -> Domain
 tDomain = qDomain . qUntagged
+
+tUnqualifiedL :: Lens (QualifiedWithTag t a) (QualifiedWithTag t b) a b
+tUnqualifiedL = lens tUnqualified qualifyAs
 
 -- | A type representing a 'Qualified' value where the domain is guaranteed to
 -- be remote.

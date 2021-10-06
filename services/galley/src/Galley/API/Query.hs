@@ -34,6 +34,7 @@ module Galley.API.Query
 where
 
 import qualified Cassandra as C
+import Control.Lens (sequenceAOf)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import qualified Data.ByteString.Lazy as LBS
@@ -138,9 +139,9 @@ fgcError :: FailedGetConversation -> Wai.Error
 fgcError (FailedGetConversation _ r) = fgcrError r
 
 failedGetConversationRemotely ::
-  [Qualified ConvId] -> FederationError -> FailedGetConversation
+  [Remote ConvId] -> FederationError -> FailedGetConversation
 failedGetConversationRemotely qconvs =
-  FailedGetConversation qconvs . FailedGetConversationRemotely
+  FailedGetConversation (map qUntagged qconvs) . FailedGetConversationRemotely
 
 failedGetConversationLocally ::
   [Qualified ConvId] -> FailedGetConversation
@@ -163,7 +164,8 @@ getRemoteConversationsWithFailures zusr convs = do
 
   -- get self member statuses from the database
   statusMap <- Data.remoteConversationStatus zusr convs
-  let remoteView rconv =
+  let remoteView :: Remote FederatedGalley.RemoteConversation -> Maybe Conversation
+      remoteView rconv =
         Mapping.remoteConversationView
           zusr
           ( Map.findWithDefault
@@ -180,19 +182,19 @@ getRemoteConversationsWithFailures zusr convs = do
   -- request conversations from remote backends
   fmap (bimap (localFailures <>) concat . partitionEithers)
     . pooledForConcurrentlyN 8 (indexRemote locallyFound)
-    $ \(qUntagged -> Qualified someConvs domain) -> do
-      let req = FederatedGalley.GetConversationsRequest zusr someConvs
+    $ \someConvs -> do
+      let req = FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
           rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
-      handleFailures (map (flip Qualified domain) someConvs) $ do
-        rconvs <- gcresConvs <$> executeFederated domain rpc
-        pure $ mapMaybe (remoteView . toRemoteUnsafe domain) rconvs
+      handleFailures (sequenceAOf tUnqualifiedL someConvs) $ do
+        rconvs <- gcresConvs <$> executeFederated (tDomain someConvs) rpc
+        pure $ mapMaybe (remoteView . qualifyAs someConvs) rconvs
   where
     handleFailures ::
-      [Qualified ConvId] ->
+      [Remote ConvId] ->
       ExceptT FederationError Galley a ->
       Galley (Either FailedGetConversation a)
-    handleFailures qconvs action = runExceptT
-      . withExceptT (failedGetConversationRemotely qconvs)
+    handleFailures rconvs action = runExceptT
+      . withExceptT (failedGetConversationRemotely rconvs)
       . catchE action
       $ \e -> do
         lift . Logger.warn $
