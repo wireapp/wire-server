@@ -146,7 +146,7 @@ galley:
       federationDomain: integration.example.com
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
-        legalhold: disabled-by-default
+        legalhold: disabled-permanently
         teamSearchVisibility: disabled-by-default
         classifiedDomains:
           status: enabled
