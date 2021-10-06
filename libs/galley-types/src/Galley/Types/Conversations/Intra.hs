@@ -77,8 +77,7 @@ instance ToSchema UpsertOne2OneConversationRequest where
 
 newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
   { -- | The Nothing value here indicated that there an impossible request was
-    -- received, e.g., requesting to remove a remote user when the actor is a
-    -- local user.
+    -- received, e.g., a remote actor for a remotely owned connect conversation
     uuorConvId :: Maybe (Qualified ConvId)
   }
   deriving (Show, Generic)
