@@ -38,7 +38,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
@@ -51,8 +51,9 @@ import Federation.Util (withTempMockFederator)
 import Imports
 import Test.Tasty.HUnit
 import Util
-import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.GRPC.Types hiding (body, path)
+import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
 newtype ConnectionLimit = ConnectionLimit Int64
@@ -335,16 +336,16 @@ receiveConnectionAction ::
   FedBrigClient ->
   UserId ->
   Qualified UserId ->
-  FedBrig.RemoteConnectionAction ->
-  Maybe FedBrig.RemoteConnectionAction ->
+  F.RemoteConnectionAction ->
+  Maybe F.RemoteConnectionAction ->
   Relation ->
   Http ()
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
-    FedBrig.sendConnectionAction fedBrigClient (qDomain quid2) $
-      FedBrig.NewConnectionRequest (qUnqualified quid2) uid1 action
+    F.sendConnectionAction fedBrigClient (qDomain quid2) $
+      F.NewConnectionRequest (qUnqualified quid2) uid1 action
   liftIO $ do
-    res @?= FedBrig.NewConnectionResponseOk expectedReaction
+    res @?= F.NewConnectionResponseOk expectedReaction
   assertConnectionQualified brig uid1 quid2 expectedRel
 
 sendConnectionAction ::
@@ -353,15 +354,24 @@ sendConnectionAction ::
   Opts ->
   UserId ->
   Qualified UserId ->
-  Maybe FedBrig.RemoteConnectionAction ->
+  Maybe F.RemoteConnectionAction ->
   Relation ->
   Http ()
 sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
-  let mockConnectionResponse = FedBrig.NewConnectionResponseOk reaction
+  let mockConnectionResponse = F.NewConnectionResponseOk reaction
       mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
-  (res, _) <-
+  (res, reqs) <-
     liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
       postConnectionQualified brig uid1 quid2
+
+  liftIO $ do
+    req <- assertOne reqs
+    F.domain req @?= domainText (qDomain quid2)
+    fmap F.component (F.request req) @?= Just F.Brig
+    fmap F.path (F.request req) @?= Just "/federation/send-connection-action"
+    eitherDecode . cs . F.body <$> F.request req
+      @?= Just (Right (F.NewConnectionRequest uid1 (qUnqualified quid2) F.RemoteConnect))
+
   liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
   assertConnectionQualified brig uid1 quid2 expectedRel
 
@@ -371,11 +381,11 @@ sendConnectionUpdateAction ::
   Opts ->
   UserId ->
   Qualified UserId ->
-  Maybe FedBrig.RemoteConnectionAction ->
+  Maybe F.RemoteConnectionAction ->
   Relation ->
   Http ()
 sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
-  let mockConnectionResponse = FedBrig.NewConnectionResponseOk reaction
+  let mockConnectionResponse = F.NewConnectionResponseOk reaction
       mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
   void $
     liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
