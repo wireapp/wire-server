@@ -99,10 +99,12 @@ getUnqualifiedConversation zusr cnv = do
 
 getConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
 getConversation zusr cnv = do
-  localDomain <- viewFederationDomain
-  if qDomain cnv == localDomain
-    then getUnqualifiedConversation zusr (qUnqualified cnv)
-    else getRemoteConversation (toRemoteUnsafe cnv)
+  lusr <- qualifyLocal zusr
+  foldQualified
+    lusr
+    (getUnqualifiedConversation zusr . lUnqualified)
+    getRemoteConversation
+    cnv
   where
     getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
     getRemoteConversation remoteConvId = do

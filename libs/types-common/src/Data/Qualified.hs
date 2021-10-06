@@ -23,6 +23,8 @@ module Data.Qualified
   ( -- * Qualified
     Qualified (..),
     QualifiedWithTag,
+    tUnqualified,
+    tDomain,
     qUntagged,
     qTagUnsafe,
     Remote,
@@ -76,6 +78,12 @@ newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {qUntagged :: Qualifie
 
 qTagUnsafe :: forall t a. Qualified a -> QualifiedWithTag t a
 qTagUnsafe = QualifiedWithTag
+
+tUnqualified :: QualifiedWithTag t a -> a
+tUnqualified = qUnqualified . qUntagged
+
+tDomain :: QualifiedWithTag t a -> Domain
+tDomain = qDomain . qUntagged
 
 -- | A type representing a 'Qualified' value where the domain is guaranteed to
 -- be remote.

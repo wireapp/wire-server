@@ -612,12 +612,12 @@ remoteConversationStatus uid =
     . indexRemote
 
 remoteConversationStatusOnDomain :: MonadClient m => UserId -> Remote [ConvId] -> m (Map (Remote ConvId) MemberStatus)
-remoteConversationStatusOnDomain uid (qUntagged -> Qualified convs domain) =
+remoteConversationStatusOnDomain uid rconvs =
   Map.fromList . map toPair
-    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, domain, convs))
+    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, tDomain rconvs, tUnqualified rconvs))
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
-      ( toRemoteUnsafe (Qualified conv domain),
+      ( qualifyAs rconvs conv,
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
