@@ -458,7 +458,7 @@ rmUser user conn = do
       leaveRemoteConversations lusr remoteConvs
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
-            usr = lUnqualified lusr
+            usr = tUnqualified lusr
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom usr nextQuery
         goConvPages lusr range newCids

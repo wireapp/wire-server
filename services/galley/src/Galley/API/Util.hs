@@ -308,7 +308,7 @@ instance IsConvMemberId UserId LocalMember where
   getConvMember _ conv u = find ((u ==) . lmId) (Data.convLocalMembers conv)
 
 instance IsConvMemberId (Local UserId) LocalMember where
-  getConvMember loc conv = getConvMember loc conv . lUnqualified
+  getConvMember loc conv = getConvMember loc conv . tUnqualified
 
 instance IsConvMemberId (Remote UserId) RemoteMember where
   getConvMember _ conv u = find ((u ==) . rmId) (Data.convRemoteMembers conv)
@@ -369,7 +369,7 @@ instance Monoid NotificationTargets where
 
 instance IsNotificationTarget (Local UserId) where
   ntAdd _ luid nt =
-    nt {ntLocals = Set.insert (lUnqualified luid) (ntLocals nt)}
+    nt {ntLocals = Set.insert (tUnqualified luid) (ntLocals nt)}
 
 instance IsNotificationTarget (Remote UserId) where
   ntAdd _ ruid nt = nt {ntRemotes = Set.insert ruid (ntRemotes nt)}
@@ -446,7 +446,7 @@ ensureOtherMember ::
   Galley (Either LocalMember RemoteMember)
 ensureOtherMember loc quid conv =
   maybe (throwErrorDescriptionType @ConvMemberNotFound) pure $
-    (Left <$> find ((== quid) . (`Qualified` lDomain loc) . lmId) (Data.convLocalMembers conv))
+    (Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv))
       <|> (Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv))
 
 getSelfMemberFromRemotes ::
@@ -489,7 +489,7 @@ getQualifiedMember ::
 getQualifiedMember loc e qusr conv =
   foldQualified
     loc
-    (\lusr -> Left <$> getLocalMember e (lUnqualified lusr) (Data.convLocalMembers conv))
+    (\lusr -> Left <$> getLocalMember e (tUnqualified lusr) (Data.convLocalMembers conv))
     (\rusr -> Right <$> getRemoteMember e rusr (Data.convRemoteMembers conv))
     qusr
 

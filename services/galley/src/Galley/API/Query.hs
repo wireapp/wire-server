@@ -103,7 +103,7 @@ getConversation zusr cnv = do
   lusr <- qualifyLocal zusr
   foldQualified
     lusr
-    (getUnqualifiedConversation zusr . lUnqualified)
+    (getUnqualifiedConversation zusr . tUnqualified)
     getRemoteConversation
     cnv
   where

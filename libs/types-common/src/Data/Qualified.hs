@@ -32,8 +32,6 @@ module Data.Qualified
     toRemoteUnsafe,
     Local,
     toLocalUnsafe,
-    lUnqualified,
-    lDomain,
     qualifyAs,
     foldQualified,
     renderQualifiedId,
@@ -107,12 +105,6 @@ type Local = QualifiedWithTag 'QLocal
 toLocalUnsafe :: Domain -> a -> Local a
 toLocalUnsafe d a = qTagUnsafe $ Qualified a d
 
-lUnqualified :: Local a -> a
-lUnqualified = qUnqualified . qUntagged
-
-lDomain :: Local a -> Domain
-lDomain = qDomain . qUntagged
-
 -- | Convert an unqualified value to a qualified one, with the same tag as the
 -- given tagged qualified value.
 qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
@@ -120,7 +112,7 @@ qualifyAs = ($>)
 
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
 foldQualified loc f g q
-  | lDomain loc == qDomain q =
+  | tDomain loc == qDomain q =
     f (qTagUnsafe q)
   | otherwise =
     g (qTagUnsafe q)
@@ -139,7 +131,7 @@ renderQualified renderLocal (Qualified localPart domain) =
 partitionQualified :: Foldable f => Local x -> f (Qualified a) -> ([a], [Remote a])
 partitionQualified loc =
   foldMap $
-    foldQualified loc (\l -> ([lUnqualified l], mempty)) (\r -> (mempty, [r]))
+    foldQualified loc (\l -> ([tUnqualified l], mempty)) (\r -> (mempty, [r]))
 
 -- | Index a list of qualified values by domain.
 indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]

@@ -113,7 +113,7 @@ lookupPubClientsBulk qualifiedUids = do
       (\domain' uids -> getUserClients domain' (GetUserClients uids))
       (indexQualified (fmap qUntagged remoteUsers))
       !>> ClientFederationError
-  localUserClientMap <- Map.singleton (lDomain loc) <$> lookupLocalPubClientsBulk localUsers
+  localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError AppIO (UserMap (Set PubClient))

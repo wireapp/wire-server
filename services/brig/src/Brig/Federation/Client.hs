@@ -91,6 +91,6 @@ sendConnectionAction ::
   RemoteConnectionAction ->
   FederationAppIO NewConnectionResponse
 sendConnectionAction self (qUntagged -> other) action = do
-  let req = NewConnectionRequest (lUnqualified self) (qUnqualified other) action
+  let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
   Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
-  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes (lDomain self) req
+  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes (tDomain self) req

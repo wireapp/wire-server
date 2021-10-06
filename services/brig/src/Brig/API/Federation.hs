@@ -69,7 +69,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
   if active
     then do
       self <- qualifyLocal ncrTo
-      let other = toRemoteUnsafe $ Qualified ncrFrom originDomain
+      let other = toRemoteUnsafe originDomain ncrFrom
       mconnection <- lift $ Data.lookupConnection self (qUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
       pure $ NewConnectionResponseOk maction

@@ -237,7 +237,7 @@ performAccessUpdateAction qusr conv target = do
         && CodeAccess `notElem` cupAccess target
     )
     $ lift $ do
-      key <- mkKey (lUnqualified lcnv)
+      key <- mkKey (tUnqualified lcnv)
       Data.deleteCode key ReusableCode
   -- Depending on a variety of things, some bots and users have to be
   -- removed from the conversation. We keep track of them using 'State'.
@@ -265,15 +265,15 @@ performAccessUpdateAction qusr conv target = do
         botsL .= []
       _ -> return ()
   -- Update Cassandra
-  lift $ Data.updateConversationAccess (lUnqualified lcnv) target
+  lift $ Data.updateConversationAccess (tUnqualified lcnv) target
   -- Remove users and bots
   lift . void . forkIO $ do
     let removedUsers = map lmId users \\ map lmId newUsers
         removedBots = map botMemId bots \\ map botMemId newBots
-    mapM_ (deleteBot (lUnqualified lcnv)) removedBots
+    mapM_ (deleteBot (tUnqualified lcnv)) removedBots
     for_ (nonEmpty removedUsers) $ \victims -> do
       -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
-      Data.removeLocalMembersFromLocalConv (lUnqualified lcnv) victims
+      Data.removeLocalMembersFromLocalConv (tUnqualified lcnv) victims
       now <- liftIO getCurrentTime
       let qvictims = QualifiedUserIdList . map (qUntagged . qualifyAs lcnv) . toList $ victims
       let e = Event MemberLeave (qUntagged lcnv) qusr now (EdMembersLeave qvictims)
@@ -384,7 +384,7 @@ updateLocalConversation lcnv qusr con action = do
       getConversationAndMemberWithError
         (errorDescriptionTypeToWai @ConvNotFound)
         qusr
-        (lUnqualified lcnv)
+        (tUnqualified lcnv)
 
   -- perform checks
   lift $ ensureConversationActionAllowed action conv self
@@ -606,7 +606,7 @@ performAddMemberAction qusr conv invited role = do
       tms <- Data.teamMembersLimited tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
-      tcv <- Data.teamConversation tid (lUnqualified lcnv)
+      tcv <- Data.teamConversation tid (tUnqualified lcnv)
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
       ensureConnectedOrSameTeam qusr newUsers
@@ -675,11 +675,11 @@ updateSelfMember zusr zcon qcnv update = do
   pushConversationEvent (Just zcon) e [zusr] []
   where
     checkLocalMembership lcnv lusr =
-      isMember (lUnqualified lusr)
-        <$> Data.members (lUnqualified lcnv)
+      isMember (tUnqualified lusr)
+        <$> Data.members (tUnqualified lcnv)
     checkRemoteMembership rcnv lusr =
       isJust . Map.lookup rcnv
-        <$> Data.remoteConversationStatus (lUnqualified lusr) [rcnv]
+        <$> Data.remoteConversationStatus (tUnqualified lusr) [rcnv]
     updateData luid =
       MemberUpdateData
         { misTarget = qUntagged luid,
@@ -789,7 +789,7 @@ performRemoveMemberAction ::
 performRemoveMemberAction conv victim = do
   loc <- qualifyLocal ()
   guard $ isConvMember loc conv victim
-  let removeLocal u c = Data.removeLocalMembersFromLocalConv c (pure (lUnqualified u))
+  let removeLocal u c = Data.removeLocalMembersFromLocalConv c (pure (tUnqualified u))
       removeRemote u c = Data.removeRemoteMembersFromLocalConv c (pure u)
   lift $ foldQualified loc removeLocal removeRemote victim (Data.convId conv)
 
@@ -988,10 +988,10 @@ updateLocalConversationName ::
   Public.ConversationRename ->
   Galley (Maybe Public.Event)
 updateLocalConversationName lusr zcon lcnv convRename = do
-  alive <- Data.isConvAlive (lUnqualified lcnv)
+  alive <- Data.isConvAlive (tUnqualified lcnv)
   if alive
     then updateLiveLocalConversationName lusr zcon lcnv convRename
-    else Nothing <$ Data.deleteConversation (lUnqualified lcnv)
+    else Nothing <$ Data.deleteConversation (tUnqualified lcnv)
 
 updateLiveLocalConversationName ::
   Local UserId ->

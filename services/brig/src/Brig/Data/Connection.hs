@@ -73,16 +73,16 @@ insertConnection ::
   AppIO UserConnection
 insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  let local (lUnqualified -> ltarget) =
+  let local (tUnqualified -> ltarget) =
         write connectionInsert $
-          params Quorum (lUnqualified self, ltarget, rel, now, cnv)
+          params Quorum (tUnqualified self, ltarget, rel, now, cnv)
   let remote (qUntagged -> Qualified rtarget domain) =
         write remoteConnectionInsert $
-          params Quorum (lUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
+          params Quorum (tUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
   retry x5 $ foldQualified self local remote target
   pure $
     UserConnection
-      { ucFrom = lUnqualified self,
+      { ucFrom = tUnqualified self,
         ucTo = target,
         ucStatus = relationDropHistory rel,
         ucLastUpdate = now,
@@ -102,32 +102,32 @@ updateConnection c status = do
 updateConnectionStatus :: Local UserId -> Qualified UserId -> RelationWithHistory -> AppIO UTCTimeMillis
 updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  let local (lUnqualified -> ltarget) =
+  let local (tUnqualified -> ltarget) =
         write connectionUpdate $
-          params Quorum (status, now, lUnqualified self, ltarget)
+          params Quorum (status, now, tUnqualified self, ltarget)
   let remote (qUntagged -> Qualified rtarget domain) =
         write remoteConnectionUpdate $
-          params Quorum (status, now, lUnqualified self, domain, rtarget)
+          params Quorum (status, now, tUnqualified self, domain, rtarget)
   retry x5 $ foldQualified self local remote target
   pure now
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
 lookupConnection :: Local UserId -> Qualified UserId -> AppIO (Maybe UserConnection)
 lookupConnection self target = runMaybeT $ do
-  let local (lUnqualified -> ltarget) = do
+  let local (tUnqualified -> ltarget) = do
         (_, _, rel, time, mcnv) <-
           MaybeT . query1 connectionSelect $
-            params Quorum (lUnqualified self, ltarget)
+            params Quorum (tUnqualified self, ltarget)
         pure (rel, time, fmap (qUntagged . qualifyAs self) mcnv)
   let remote (qUntagged -> Qualified rtarget domain) = do
         (rel, time, cdomain, cnv) <-
           MaybeT . query1 remoteConnectionSelectFrom $
-            params Quorum (lUnqualified self, domain, rtarget)
+            params Quorum (tUnqualified self, domain, rtarget)
         pure (rel, time, Just (Qualified cnv cdomain))
   (rel, time, mqcnv) <- hoist (retry x1) $ foldQualified self local remote target
   pure $
     UserConnection
-      { ucFrom = lUnqualified self,
+      { ucFrom = tUnqualified self,
         ucTo = target,
         ucStatus = relationDropHistory rel,
         ucLastUpdate = time,
@@ -142,10 +142,10 @@ lookupRelationWithHistory ::
   Qualified UserId ->
   AppIO (Maybe RelationWithHistory)
 lookupRelationWithHistory self target = do
-  let local (lUnqualified -> ltarget) =
-        query1 relationSelect (params Quorum (lUnqualified self, ltarget))
+  let local (tUnqualified -> ltarget) =
+        query1 relationSelect (params Quorum (tUnqualified self, ltarget))
   let remote (qUntagged -> Qualified rtarget domain) =
-        query1 remoteRelationSelect (params Quorum (lUnqualified self, domain, rtarget))
+        query1 remoteRelationSelect (params Quorum (tUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
 
 lookupRelation :: Local UserId -> Qualified UserId -> AppIO Relation
@@ -160,10 +160,10 @@ lookupLocalConnections lfrom start (fromRange -> size) =
   toResult <$> case start of
     Just u ->
       retry x1 $
-        paginate connectionsSelectFrom (paramsP Quorum (lUnqualified lfrom, u) (size + 1))
+        paginate connectionsSelectFrom (paramsP Quorum (tUnqualified lfrom, u) (size + 1))
     Nothing ->
       retry x1 $
-        paginate connectionsSelect (paramsP Quorum (Identity (lUnqualified lfrom)) (size + 1))
+        paginate connectionsSelect (paramsP Quorum (Identity (tUnqualified lfrom)) (size + 1))
   where
     toResult = cassandraResultPage . fmap (toLocalUserConnection lfrom) . trim
     trim p = p {result = take (fromIntegral size) (result p)}
@@ -177,7 +177,7 @@ lookupLocalConnectionsPage ::
   Range 1 1000 Int32 ->
   m (PageWithState UserConnection)
 lookupLocalConnectionsPage self pagingState (fromRange -> size) =
-  fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState Quorum (Identity (lUnqualified self)) size pagingState)
+  fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState Quorum (Identity (tUnqualified self)) size pagingState)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to remote users.
 lookupRemoteConnectionsPage ::
@@ -190,7 +190,7 @@ lookupRemoteConnectionsPage self pagingState size =
   fmap (toRemoteUserConnection self)
     <$> paginateWithState
       remoteConnectionSelect
-      (paramsPagingState Quorum (Identity (lUnqualified self)) size pagingState)
+      (paramsPagingState Quorum (Identity (tUnqualified self)) size pagingState)
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]
@@ -220,8 +220,8 @@ lookupContactListWithRelation u =
 -- Note: The count is eventually consistent.
 countConnections :: Local UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
-  rels <- retry x1 . query selectStatus $ params One (Identity (lUnqualified u))
-  relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (lUnqualified u))
+  rels <- retry x1 . query selectStatus $ params One (Identity (tUnqualified u))
+  relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (tUnqualified u))
 
   return $ foldl' count 0 rels + foldl' count 0 relsRemote
   where
@@ -315,7 +315,7 @@ toRemoteUserConnection ::
   (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ->
   UserConnection
 toRemoteUserConnection l (rDomain, r, relationDropHistory -> rel, time, cDomain, cid) =
-  UserConnection (lUnqualified l) (Qualified r rDomain) rel time (Just $ Qualified cid cDomain)
+  UserConnection (tUnqualified l) (Qualified r rDomain) rel time (Just $ Qualified cid cDomain)
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel
