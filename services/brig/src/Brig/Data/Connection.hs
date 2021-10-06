@@ -60,7 +60,6 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import Data.Tagged
 import Data.Time (getCurrentTime)
 import Imports hiding (local)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -77,7 +76,7 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   let local (lUnqualified -> ltarget) =
         write connectionInsert $
           params Quorum (lUnqualified self, ltarget, rel, now, cnv)
-  let remote (unTagged -> Qualified rtarget domain) =
+  let remote (qUntagged -> Qualified rtarget domain) =
         write remoteConnectionInsert $
           params Quorum (lUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
   retry x5 $ foldQualified self local remote target
@@ -106,7 +105,7 @@ updateConnectionStatus self target status = do
   let local (lUnqualified -> ltarget) =
         write connectionUpdate $
           params Quorum (status, now, lUnqualified self, ltarget)
-  let remote (unTagged -> Qualified rtarget domain) =
+  let remote (qUntagged -> Qualified rtarget domain) =
         write remoteConnectionUpdate $
           params Quorum (status, now, lUnqualified self, domain, rtarget)
   retry x5 $ foldQualified self local remote target
@@ -119,8 +118,8 @@ lookupConnection self target = runMaybeT $ do
         (_, _, rel, time, mcnv) <-
           MaybeT . query1 connectionSelect $
             params Quorum (lUnqualified self, ltarget)
-        pure (rel, time, fmap (unTagged . qualifyAs self) mcnv)
-  let remote (unTagged -> Qualified rtarget domain) = do
+        pure (rel, time, fmap (qUntagged . qualifyAs self) mcnv)
+  let remote (qUntagged -> Qualified rtarget domain) = do
         (rel, time, cdomain, cnv) <-
           MaybeT . query1 remoteConnectionSelectFrom $
             params Quorum (lUnqualified self, domain, rtarget)
@@ -145,7 +144,7 @@ lookupRelationWithHistory ::
 lookupRelationWithHistory self target = do
   let local (lUnqualified -> ltarget) =
         query1 relationSelect (params Quorum (lUnqualified self, ltarget))
-  let remote (unTagged -> Qualified rtarget domain) =
+  let remote (qUntagged -> Qualified rtarget domain) =
         query1 remoteRelationSelect (params Quorum (lUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
 
@@ -309,7 +308,7 @@ toLocalUserConnection ::
   (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) ->
   UserConnection
 toLocalUserConnection loc (l, r, relationDropHistory -> rel, time, cid) =
-  UserConnection l (unTagged (qualifyAs loc r)) rel time (fmap (unTagged . qualifyAs loc) cid)
+  UserConnection l (qUntagged (qualifyAs loc r)) rel time (fmap (qUntagged . qualifyAs loc) cid)
 
 toRemoteUserConnection ::
   Local UserId ->

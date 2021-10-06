@@ -92,7 +92,6 @@ import Data.List1 (List1, list1, singleton)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import Galley.Types (Connect (..), Conversation)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
@@ -543,7 +542,7 @@ createLocalConnectConv ::
   AppIO ConvId
 createLocalConnectConv from to cname conn = do
   debug $
-    logConnection (lUnqualified from) (unTagged to)
+    logConnection (lUnqualified from) (qUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
   r <- galleyRequest POST req
@@ -568,7 +567,7 @@ createConnectConv ::
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
-  unTagged . qualifyAs lfrom
+  qUntagged . qualifyAs lfrom
     <$> createLocalConnectConv lfrom lto cname conn
   where
     ensureLocal :: Qualified a -> AppIO (Local a)

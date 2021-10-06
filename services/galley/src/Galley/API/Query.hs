@@ -43,10 +43,9 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import qualified Data.Map as Map
 import Data.Proxy
-import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged (unTagged)
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
@@ -103,7 +102,7 @@ getConversation zusr cnv = do
   localDomain <- viewFederationDomain
   if qDomain cnv == localDomain
     then getUnqualifiedConversation zusr (qUnqualified cnv)
-    else getRemoteConversation (toRemote cnv)
+    else getRemoteConversation (toRemoteUnsafe cnv)
   where
     getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
     getRemoteConversation remoteConvId = do
@@ -167,14 +166,14 @@ getRemoteConversationsWithFailures zusr convs = do
           zusr
           ( Map.findWithDefault
               defMemberStatus
-              (toRemote (cnvmQualifiedId (FederatedGalley.rcnvMetadata rconv)))
+              (toRemoteUnsafe (cnvmQualifiedId (FederatedGalley.rcnvMetadata rconv)))
               statusMap
           )
           rconv
       (locallyFound, locallyNotFound) = partition (flip Map.member statusMap) convs
       localFailures
         | null locallyNotFound = []
-        | otherwise = [failedGetConversationLocally (map unTagged locallyNotFound)]
+        | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
   fmap (bimap (localFailures <>) concat . partitionEithers)
@@ -304,7 +303,7 @@ listConversations user (Public.ListConversations ids) = do
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
-      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map unTagged remoteIds
+      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map qUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this

@@ -122,7 +122,7 @@ module Galley.Data
 where
 
 import Brig.Types.Code
-import Cassandra hiding (Tagged)
+import Cassandra
 import Cassandra.Util
 import Control.Arrow (second)
 import Control.Exception (ErrorCall (ErrorCall))
@@ -143,7 +143,6 @@ import qualified Data.Monoid
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
@@ -618,13 +617,13 @@ remoteConversationStatusOnDomain uid domain convs =
     <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, domain, convs))
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
-      ( toRemote (Qualified conv domain),
+      ( toRemoteUnsafe (Qualified conv domain),
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
-  (\(d, c) -> toRemote $ Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
+  (\(d, c) -> toRemoteUnsafe $ Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
 
 createConversation ::
   MonadClient m =>
@@ -845,7 +844,7 @@ remoteMemberLists convs = do
     mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
 
 toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
-toRemoteMember u d = RemoteMember (toRemote (Qualified u d))
+toRemoteMember u d = RemoteMember (toRemoteUnsafe (Qualified u d))
 
 memberLists ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
@@ -920,7 +919,7 @@ addMembers (lUnqualified -> conv) (fmap toUserRole -> UserList lusers rusers) = 
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
-      for_ chunk $ \(unTagged -> Qualified (uid, role) domain) -> do
+      for_ chunk $ \(qUntagged -> Qualified (uid, role) domain) -> do
         -- User is remote, so we only add it to the member_remote_user
         -- table, but the reverse mapping has to be done on the remote
         -- backend; so we assume an additional call to their backend has
@@ -983,7 +982,7 @@ updateSelfMemberRemoteConv ::
   Local UserId ->
   MemberUpdate ->
   m ()
-updateSelfMemberRemoteConv (Tagged (Qualified cid domain)) luid mup = do
+updateSelfMemberRemoteConv (qUntagged -> Qualified cid domain) luid mup = do
   retry x5 . batch $ do
     setType BatchUnLogged
     setConsistency Quorum
@@ -1077,7 +1076,7 @@ removeRemoteMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ victims $ \(unTagged -> Qualified uid domain) ->
+    for_ victims $ \(qUntagged -> Qualified uid domain) ->
       addPrepQuery Cql.removeRemoteMember (cnv, domain, uid)
 
 removeLocalMembersFromRemoteConv ::
@@ -1114,7 +1113,7 @@ newMemberWithRole (u, r) =
     }
 
 newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
-newRemoteMemberWithRole ur@(unTagged -> (Qualified (u, r) _)) =
+newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
   RemoteMember
     { rmId = qualifyAs ur u,
       rmConvRoleName = r

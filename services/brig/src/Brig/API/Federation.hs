@@ -33,7 +33,6 @@ import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
 import Data.Qualified
-import Data.Tagged (Tagged (unTagged))
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
@@ -70,8 +69,8 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
   if active
     then do
       self <- qualifyLocal ncrTo
-      let other = toRemote $ Qualified ncrFrom originDomain
-      mconnection <- lift $ Data.lookupConnection self (unTagged other)
+      let other = toRemoteUnsafe $ Qualified ncrFrom originDomain
+      mconnection <- lift $ Data.lookupConnection self (qUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated

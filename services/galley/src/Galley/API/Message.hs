@@ -17,10 +17,9 @@ import Data.Json.Util
 import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..), partitionRemote)
+import Data.Qualified
 import qualified Data.Set as Set
 import Data.Set.Lens
-import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
@@ -231,7 +230,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
       members :: Set (Qualified UserId)
       members =
         Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
-          <> Set.fromList (map (unTagged . rmId) remoteMembers)
+          <> Set.fromList (map (qUntagged . rmId) remoteMembers)
   isInternal <- view $ options . optSettings . setIntraListing
 
   -- check if the sender is part of the conversation

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
@@ -21,10 +22,13 @@
 module Data.Qualified
   ( -- * Qualified
     Qualified (..),
+    QualifiedWithTag,
+    qUntagged,
+    qTagUnsafe,
     Remote,
-    toRemote,
+    toRemoteUnsafe,
     Local,
-    toLocal,
+    toLocalUnsafe,
     lUnqualified,
     lDomain,
     qualifyAs,
@@ -48,7 +52,6 @@ import qualified Data.Map as Map
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import Data.Tagged
 import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
@@ -62,40 +65,55 @@ data Qualified a = Qualified
   }
   deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
--- | A type to differentiate between generally Qualified values, and values
--- where it is known if they are coming from a Remote backend or not.
--- Use 'toRemote' or 'partitionRemoteOrLocalIds\'' to get Remote values and use
--- 'unTagged' to convert from a Remote value back to a plain Qualified one.
-type Remote a = Tagged "remote" (Qualified a)
+data QTag = QLocal | QRemote
+  deriving (Eq, Show)
 
--- | Convert a Qualified something to a Remote something.
-toRemote :: Qualified a -> Remote a
-toRemote = Tagged
+-- | A type to differentiate between generally 'Qualified' values, and "tagged" values,
+-- for which it is known whether they are coming from a remote or local backend.
+-- Use 'foldQualified' or 'partitionRemoteOrLocalIds\'' to get tagged values and use
+-- 'qUntagged' to convert from a tagged value back to a plain 'Qualified' one.
+newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {qUntagged :: Qualified a}
+  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+  deriving newtype (Arbitrary)
 
--- | A type representing a Qualified value where the domain is guaranteed to be
--- the local one.
-type Local a = Tagged "local" (Qualified a)
+qTagUnsafe :: forall t a. Qualified a -> QualifiedWithTag t a
+qTagUnsafe = QualifiedWithTag
 
-toLocal :: Qualified a -> Local a
-toLocal = Tagged
+-- | A type representing a 'Qualified' value where the domain is guaranteed to
+-- be remote.
+type Remote = QualifiedWithTag 'QRemote
+
+-- | Convert a 'Qualified' value to a 'Remote' value. This is only safe if we
+-- already know that the domain of the value is remote.
+toRemoteUnsafe :: Qualified a -> Remote a
+toRemoteUnsafe = qTagUnsafe
+
+-- | A type representing a 'Qualified' value where the domain is guaranteed to
+-- be local.
+type Local = QualifiedWithTag 'QLocal
+
+-- | Convert a 'Qualified' value to a 'Local' value. This is only safe if we
+-- already know that the domain of the value is local.
+toLocalUnsafe :: Qualified a -> Local a
+toLocalUnsafe = qTagUnsafe
 
 lUnqualified :: Local a -> a
-lUnqualified = qUnqualified . unTagged
+lUnqualified = qUnqualified . qUntagged
 
 lDomain :: Local a -> Domain
-lDomain = qDomain . unTagged
+lDomain = qDomain . qUntagged
 
 -- | Convert an unqualified value to a qualified one, with the same tag as the
 -- given tagged qualified value.
-qualifyAs :: Tagged t (Qualified x) -> a -> Tagged t (Qualified a)
-qualifyAs (Tagged q) x = Tagged (q $> x)
+qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
+qualifyAs = ($>)
 
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
 foldQualified loc f g q
   | lDomain loc == qDomain q =
-    f (toLocal q)
+    f (toLocalUnsafe q)
   | otherwise =
-    g (toRemote q)
+    g (toRemoteUnsafe q)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
@@ -111,7 +129,7 @@ partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
     else ([qualifiedId], mempty)
 
 partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
-partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
+partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemoteUnsafe) $ partitionRemoteOrLocalIds localDomain xs
 
 -- | Index a list of qualified values by domain
 partitionQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
@@ -121,7 +139,7 @@ partitionQualified = foldr add mempty
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
 partitionRemote :: (Functor f, Foldable f) => f (Remote a) -> [(Domain, [a])]
-partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
+partitionRemote remotes = Map.assocs $ partitionQualified (qUntagged <$> remotes)
 
 ----------------------------------------------------------------------
 

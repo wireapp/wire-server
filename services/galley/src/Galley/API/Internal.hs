@@ -32,7 +32,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
-import Data.Qualified (Local, Qualified (..), Remote, lUnqualified, partitionRemoteOrLocalIds')
+import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
 import Data.Time
@@ -500,7 +500,7 @@ rmUser user conn = do
     leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
     leaveRemoteConversations lusr cids =
       for_ cids $ \cid ->
-        Update.removeMemberFromRemoteConv cid lusr Nothing (unTagged lusr)
+        Update.removeMemberFromRemoteConv cid lusr Nothing (qUntagged lusr)
 
 deleteLoop :: Galley ()
 deleteLoop = do

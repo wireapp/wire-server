@@ -46,8 +46,8 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
+import Data.Qualified (qUntagged)
 import Data.Range (toRange)
-import Data.Tagged
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
@@ -510,8 +510,8 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
               lusr <- qualifyLocal (lmId memberNoConsent)
-              removeMemberFromLocalConv lcnv lusr Nothing (unTagged lusr)
+              removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
               lusr <- qualifyLocal (lmId legalholder)
-              removeMemberFromLocalConv lcnv lusr Nothing (unTagged lusr)
+              removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)

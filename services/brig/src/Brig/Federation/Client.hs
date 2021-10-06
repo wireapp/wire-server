@@ -31,7 +31,6 @@ import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
-import Data.Tagged
 import qualified Data.Text as T
 import Imports
 import qualified System.Logger.Class as Log
@@ -91,7 +90,7 @@ sendConnectionAction ::
   Remote UserId ->
   RemoteConnectionAction ->
   FederationAppIO NewConnectionResponse
-sendConnectionAction self (unTagged -> other) action = do
+sendConnectionAction self (qUntagged -> other) action = do
   let req = NewConnectionRequest (lUnqualified self) (qUnqualified other) action
   Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
   executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes (lDomain self) req

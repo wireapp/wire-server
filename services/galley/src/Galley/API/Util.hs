@@ -36,7 +36,6 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
-import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
@@ -255,7 +254,7 @@ acceptOne2One usr conv conn = do
           throwM badConvState
         now <- liftIO getCurrentTime
         mm <- Data.addMember lcid lusr
-        let e = memberJoinEvent lusr (unTagged lcid) now mm []
+        let e = memberJoinEvent lusr (qUntagged lcid) now mm []
         conv' <- if isJust (find ((usr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
@@ -281,11 +280,11 @@ memberJoinEvent ::
   [RemoteMember] ->
   Event
 memberJoinEvent lorig qconv t lmems rmems =
-  Event MemberJoin qconv (unTagged lorig) t $
+  Event MemberJoin qconv (qUntagged lorig) t $
     EdMembersJoin (SimpleMembers (map localToSimple lmems <> map remoteToSimple rmems))
   where
-    localToSimple u = SimpleMember (unTagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
-    remoteToSimple u = SimpleMember (unTagged (rmId u)) (rmConvRoleName u)
+    localToSimple u = SimpleMember (qUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
+    remoteToSimple u = SimpleMember (qUntagged (rmId u)) (rmConvRoleName u)
 
 isBot :: LocalMember -> Bool
 isBot = isJust . lmService
@@ -327,11 +326,11 @@ class IsConvMember mem where
 
 instance IsConvMember LocalMember where
   convMemberRole = lmConvRoleName
-  convMemberId loc mem = unTagged (qualifyAs loc (lmId mem))
+  convMemberId loc mem = qUntagged (qualifyAs loc (lmId mem))
 
 instance IsConvMember RemoteMember where
   convMemberRole = rmConvRoleName
-  convMemberId _ = unTagged . rmId
+  convMemberId _ = qUntagged . rmId
 
 instance IsConvMember (Either LocalMember RemoteMember) where
   convMemberRole = either convMemberRole convMemberRole
@@ -448,23 +447,7 @@ ensureOtherMember ::
 ensureOtherMember loc quid conv =
   maybe (throwErrorDescriptionType @ConvMemberNotFound) pure $
     (Left <$> find ((== quid) . (`Qualified` lDomain loc) . lmId) (Data.convLocalMembers conv))
-      <|> (Right <$> find ((== quid) . unTagged . rmId) (Data.convRemoteMembers conv))
-
--- | Note that we use 2 nearly identical functions but slightly different
--- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of
--- the conversation, we don't want to disclose that such a conversation with
--- that id exists.
-getSelfMemberQualified ::
-  (Foldable t, Monad m) =>
-  Domain ->
-  Qualified UserId ->
-  t LocalMember ->
-  t RemoteMember ->
-  ExceptT ConvNotFound m (Either LocalMember RemoteMember)
-getSelfMemberQualified localDomain qusr@(Qualified usr userDomain) lmems rmems = do
-  if localDomain == userDomain
-    then Left <$> getSelfMemberFromLocals usr lmems
-    else Right <$> getSelfMemberFromRemotes (toRemote qusr) rmems
+      <|> (Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv))
 
 getSelfMemberFromRemotes ::
   (Foldable t, Monad m) =>
@@ -603,7 +586,7 @@ viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
 
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
-qualifyLocal a = fmap (toLocal . Qualified a) viewFederationDomain
+qualifyLocal a = fmap (toLocalUnsafe . Qualified a) viewFederationDomain
 
 checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
 checkRemoteUsersExist =
@@ -745,7 +728,7 @@ registerRemoteConversationMemberships now localDomain c = do
     . Map.keys
     . partitionQualified
     . nubOrd
-    . map (unTagged . rmId)
+    . map (qUntagged . rmId)
     . Data.convRemoteMembers
     $ c
   where

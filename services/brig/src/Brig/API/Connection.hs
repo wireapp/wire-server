@@ -51,7 +51,6 @@ import qualified Data.LegalHold as LH
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
-import Data.Tagged
 import Galley.Types (ConvType (..), cnvType)
 import Imports
 import qualified System.Logger.Class as Log
@@ -79,7 +78,7 @@ createConnection ::
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnection self con target = do
   -- basic checks: no need to distinguish between local and remote at this point
-  when (unTagged self == target) $
+  when (qUntagged self == target) $
     throwE (InvalidUser target)
   noteT ConnectNoIdentity $
     ensureIsActivated self
@@ -97,12 +96,12 @@ createConnectionToLocalUser ::
   Local UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToLocalUser self conn target = do
-  noteT (InvalidUser (unTagged target)) $
+  noteT (InvalidUser (qUntagged target)) $
     ensureIsActivated target
   checkLegalholdPolicyConflict (lUnqualified self) (lUnqualified target)
   ensureNotSameTeam self target
-  s2o <- lift $ Data.lookupConnection self (unTagged target)
-  o2s <- lift $ Data.lookupConnection target (unTagged self)
+  s2o <- lift $ Data.lookupConnection self (qUntagged target)
+  o2s <- lift $ Data.lookupConnection target (qUntagged self)
 
   case update <$> s2o <*> o2s of
     Just rs -> rs
@@ -113,11 +112,11 @@ createConnectionToLocalUser self conn target = do
     insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError AppIO UserConnection
     insert s2o o2s = lift $ do
       Log.info $
-        logConnection (lUnqualified self) (unTagged target)
+        logConnection (lUnqualified self) (qUntagged target)
           . msg (val "Creating connection")
-      qcnv <- Intra.createConnectConv (unTagged self) (unTagged target) Nothing (Just conn)
-      s2o' <- Data.insertConnection self (unTagged target) SentWithHistory qcnv
-      o2s' <- Data.insertConnection target (unTagged self) PendingWithHistory qcnv
+      qcnv <- Intra.createConnectConv (qUntagged self) (qUntagged target) Nothing (Just conn)
+      s2o' <- Data.insertConnection self (qUntagged target) SentWithHistory qcnv
+      o2s' <- Data.insertConnection target (qUntagged self) PendingWithHistory qcnv
       e2o <-
         ConnectionUpdated o2s' (ucStatus <$> o2s)
           <$> Data.lookupName (lUnqualified self)
@@ -353,8 +352,8 @@ localConnection ::
   Local UserId ->
   ExceptT ConnectionError AppIO UserConnection
 localConnection la lb = do
-  lift (Data.lookupConnection la (unTagged lb))
-    >>= tryJust (NotConnected (lUnqualified la) (unTagged lb))
+  lift (Data.lookupConnection la (qUntagged lb))
+    >>= tryJust (NotConnected (lUnqualified la) (qUntagged lb))
 
 mkRelationWithHistory :: HasCallStack => Relation -> Relation -> RelationWithHistory
 mkRelationWithHistory oldRel = \case
@@ -388,7 +387,7 @@ updateConnectionInternal = \case
     blockForMissingLegalholdConsent self others = do
       for_ others $ \(qualifyAs self -> other) -> do
         Log.info $
-          logConnection (lUnqualified self) (unTagged other)
+          logConnection (lUnqualified self) (qUntagged other)
             . msg (val "Blocking connection (legalhold device present, but missing consent)")
 
         s2o <- localConnection self other

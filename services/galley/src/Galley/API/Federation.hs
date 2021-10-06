@@ -27,7 +27,7 @@ import Data.Json.Util (Base64ByteString (..))
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..), toRemote)
+import Data.Qualified (Qualified (..), toRemoteUnsafe)
 import qualified Data.Set as Set
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
@@ -100,7 +100,7 @@ onConversationCreated domain rc = do
 
 getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
-  let ruid = toRemote $ Qualified uid domain
+  let ruid = toRemoteUnsafe $ Qualified uid domain
   localDomain <- viewFederationDomain
   GetConversationsResponse
     . catMaybes
