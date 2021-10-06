@@ -45,7 +45,7 @@ import Control.Lens (Lens, lens, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
-import Data.Id (Id)
+import Data.Id
 import qualified Data.Map as Map
 import Data.Schema
 import qualified Data.Swagger as S
@@ -154,19 +154,19 @@ qualifiedSchema name fieldName sch =
       <$> qUnqualified .= field fieldName sch
       <*> qDomain .= field "domain" schema
 
-instance ToSchema (Qualified (Id a)) where
-  schema = qualifiedSchema "UserId" "id" schema
+instance KnownIdTag t => ToSchema (Qualified (Id t)) where
+  schema = qualifiedSchema (idTagName (idTagValue @t) <> "Id") "id" schema
 
 instance ToSchema (Qualified Handle) where
   schema = qualifiedSchema "Handle" "handle" schema
 
-instance ToJSON (Qualified (Id a)) where
+instance KnownIdTag t => ToJSON (Qualified (Id t)) where
   toJSON = schemaToJSON
 
-instance FromJSON (Qualified (Id a)) where
+instance KnownIdTag t => FromJSON (Qualified (Id t)) where
   parseJSON = schemaParseJSON
 
-instance S.ToSchema (Qualified (Id a)) where
+instance KnownIdTag t => S.ToSchema (Qualified (Id t)) where
   declareNamedSchema = schemaToSwagger
 
 instance ToJSON (Qualified Handle) where
