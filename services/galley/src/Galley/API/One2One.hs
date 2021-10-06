@@ -37,7 +37,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Tagged as U
 import Galley.App (Galley)
 import qualified Galley.Data as Data
-import Galley.Types.Conversations.Remote (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
+import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.UserList (UserList (..))
 import Imports
 
