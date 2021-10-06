@@ -936,8 +936,8 @@ listUsersByIdsOrHandles self q = do
     Public.ListUsersByIds us ->
       byIds us
     Public.ListUsersByHandles hs -> do
-      domain <- viewFederationDomain
-      let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
+      loc <- qualifyLocal ()
+      let (localHandles, _) = partitionQualified loc (fromRange hs)
       us <- getIds localHandles
       Handle.filterHandleResults self =<< byIds us
   case foundUsers of

@@ -288,9 +288,9 @@ getConversationsInternal user mids mstart msize = do
 
 listConversations :: UserId -> Public.ListConversations -> Galley Public.ConversationsResponse
 listConversations user (Public.ListConversations ids) = do
-  localDomain <- viewFederationDomain
+  luser <- qualifyLocal user
 
-  let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
+  let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <- foundsAndNotFounds (Data.localConversationIdsOf user) localIds
 
   localInternalConversations <-
@@ -319,7 +319,7 @@ listConversations user (Public.ListConversations ids) = do
         crNotFound =
           failedConvsLocally
             <> remoteNotFoundRemoteIds
-            <> map (`Qualified` localDomain) notFoundLocalIds,
+            <> map (qUntagged . qualifyAs luser) notFoundLocalIds,
         crFailed = failedConvsRemotely
       }
   where

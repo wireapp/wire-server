@@ -34,8 +34,7 @@ module Data.Qualified
     qualifyAs,
     foldQualified,
     renderQualifiedId,
-    partitionRemoteOrLocalIds,
-    partitionRemoteOrLocalIds',
+    partitionQualified,
     indexQualified,
     deprecatedSchema,
     partitionRemote,
@@ -44,7 +43,6 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Bifunctor (first)
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
@@ -121,15 +119,15 @@ renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
   renderLocal localPart <> "@" <> domainText domain
 
--- FUTUREWORK: we probably want to use the primed function everywhere. Refactor these two functions to only have one.
-partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
-partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
-  if qDomain qualifiedId == localDomain
-    then (mempty, [qUnqualified qualifiedId])
-    else ([qualifiedId], mempty)
-
-partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
-partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemoteUnsafe) $ partitionRemoteOrLocalIds localDomain xs
+-- Partition a collection of qualified values into locals and remotes.
+--
+-- Note that the local values are returned as unqualified values, as a (probably
+-- insignificant) optimisation. Use 'partitionQualifiedAndTag' to get them as
+-- 'Local' values.
+partitionQualified :: Foldable f => Local x -> f (Qualified a) -> ([a], [Remote a])
+partitionQualified loc =
+  foldMap $
+    foldQualified loc (\l -> ([lUnqualified l], mempty)) (\r -> (mempty, [r]))
 
 -- | Index a list of qualified values by domain.
 indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]

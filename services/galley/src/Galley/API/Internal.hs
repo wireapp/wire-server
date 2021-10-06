@@ -453,8 +453,7 @@ rmUser user conn = do
   where
     goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
     goConvPages lusr range page = do
-      localDomain <- viewFederationDomain
-      let (remoteConvs, localConvs) = partitionRemoteOrLocalIds' localDomain . mtpResults $ page
+      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
       leaveRemoteConversations lusr remoteConvs
       when (mtpHasMore page) $ do

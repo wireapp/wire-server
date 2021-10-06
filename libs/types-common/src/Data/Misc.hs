@@ -350,5 +350,5 @@ instance Arbitrary PlainTextPassword where
 --
 -- Example:
 -- >>> let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteUsers, localUsers)
--- >>>      = partitionRemoteOrLocalIds domain qualifiedUids
+-- >>>      = partitionQualified domain qualifiedUids
 newtype FutureWork label payload = FutureWork payload

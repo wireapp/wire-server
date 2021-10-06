@@ -34,7 +34,7 @@ data UserList a = UserList
   deriving (Functor, Foldable, Traversable)
 
 toUserList :: Foldable f => Local x -> f (Qualified a) -> UserList a
-toUserList loc = uncurry (flip UserList) . partitionRemoteOrLocalIds' (lDomain loc)
+toUserList loc = uncurry UserList . partitionQualified loc
 
 ulAddLocal :: a -> UserList a -> UserList a
 ulAddLocal x ul = ul {ulLocals = x : ulLocals ul}
