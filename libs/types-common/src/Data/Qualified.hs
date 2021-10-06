@@ -34,7 +34,6 @@ module Data.Qualified
     toLocalUnsafe,
     qualifyAs,
     foldQualified,
-    renderQualifiedId,
     partitionQualified,
     indexQualified,
     indexRemote,
@@ -44,14 +43,12 @@ where
 
 import Control.Lens (Lens, lens, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID))
+import Data.Id (Id)
 import qualified Data.Map as Map
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
@@ -117,12 +114,6 @@ foldQualified loc f g q
   | otherwise =
     g (qTagUnsafe q)
 
--- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
--- implemented errors
-renderQualified :: (a -> Text) -> Qualified a -> Text
-renderQualified renderLocal (Qualified localPart domain) =
-  renderLocal localPart <> "@" <> domainText domain
-
 -- Partition a collection of qualified values into locals and remotes.
 --
 -- Note that the local values are returned as unqualified values, as a (probably
@@ -148,9 +139,6 @@ indexRemote =
     . fmap qUntagged
 
 ----------------------------------------------------------------------
-
-renderQualifiedId :: Qualified (Id a) -> Text
-renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
 deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
 deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
