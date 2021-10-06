@@ -61,14 +61,14 @@ data ConnectionAction
 --
 -- In the following, A is a local user, and B is a remote user.
 --
--- LC (local connect): A communicates that they now want to connect. This
---   transitions P → A, and every other state (but including S) to S.
--- LB (local block): A communicates that they do not want to connect. This
---   transitions every state except B to B.
--- LI (local ignore): A ignores the connection. P → I.
--- LR (local rescind): A withdraws their intention to connect. S → C, A → P.
--- RC (remote connect): B communicates that they now want to connect. S → A, C → P, A → A.
--- RR (remote rescind): B withdraws their intention to connect. P → C, A → S.
+-- LocalConnect: A communicates that they now want to connect. This
+--   transitions Pending → Accepted, and every other state (but including Sent) to Sent.
+-- LocalBlock: A communicates that they do not want to connect. This
+--   transitions every state except Blocked to Blocked.
+-- LocalIgnore: A ignores the connection. Pending → Ignored.
+-- LocalRescind: A withdraws their intention to connect. Sent → Cancelled, Accepted → Pending.
+-- RemoteConnect: B communicates that they now want to connect. Sent → Accepted, Cancelled → Pending, Accepted → Accepted.
+-- RemoteRescind: B withdraws their intention to connect. Pending → Cancelled, Accepted → Sent.
 --
 -- Returns 'Nothing' if no transition is possible from the current state for
 -- the given action. This results in an 'InvalidTransition' error if the
