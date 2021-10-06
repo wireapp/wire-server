@@ -57,41 +57,22 @@ data ConnectionAction
   = LCA LocalConnectionAction
   | RCA RemoteConnectionAction
 
--- Inventory of states on both backends.
+-- | Connection state transition logic.
 --
--- good: the two backends agree on the state of the connection
--- bad: no user action can result in the (A,A) state being reached
--- inconsistent: the two backends disagree on the state of the connection, but
---   it is not a bad state
+-- In the following, A is a local user, and B is a remote user.
 --
--- A A good
--- A B good
--- A C inconsistent
--- A I inconsistent
--- A P inconsistent
--- A S bad
--- B B good
--- B C good
--- B I good
--- B P good
--- B S good
--- C C good
--- C I inconsistent
--- C P inconsistent
--- C S inconsistent
--- I I good
--- I P inconsistent
--- I S good
--- P P inconsistent
--- P S good
--- S S bad
-
--- LC (local connect): A communicates that they now want to connect. This transitions P → A, and every other state (but including S) to S.
--- LB (local block): A communicates that they do not want to connect. This transitions every state except B to B.
+-- LC (local connect): A communicates that they now want to connect. This
+--   transitions P → A, and every other state (but including S) to S.
+-- LB (local block): A communicates that they do not want to connect. This
+--   transitions every state except B to B.
 -- LI (local ignore): A ignores the connection. P → I.
 -- LR (local rescind): A withdraws their intention to connect. S → C, A → P.
 -- RC (remote connect): B communicates that they now want to connect. S → A, C → P, A → A.
 -- RR (remote rescind): B withdraws their intention to connect. P → C, A → S.
+--
+-- Returns 'Nothing' if no transition is possible from the current state for
+-- the given action. This results in an 'InvalidTransition' error if the
+-- connection does not exist.
 transition :: ConnectionAction -> Relation -> Maybe Relation
 -- MissingLegalholdConsent is treated exactly like blocked
 transition action MissingLegalholdConsent = transition action Blocked
@@ -220,19 +201,21 @@ performLocalAction self mzcon other mconnection action = do
 -- inconsistent states, for example:
 --
 -- Without any reaction
---
+-- @
 --              A         B
 -- A connects:  Sent      Pending
 -- B ignores:   Sent      Ignore
 -- B connects:  Accepted  Sent
---
+-- @
 --
 -- Using the reaction returned by A
 --
+-- @
 --                         A         B
 -- A connects:             Sent      Pending
 -- B ignores:              Sent      Ignore
 -- B connects & A reacts:  Accepted  Accepted
+-- @
 performRemoteAction ::
   Local UserId ->
   Remote UserId ->
