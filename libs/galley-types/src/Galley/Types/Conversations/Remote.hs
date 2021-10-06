@@ -23,28 +23,37 @@ module Galley.Types.Conversations.Remote
   )
 where
 
-import Data.Aeson (FromJSON)
-import Data.Aeson.Types (ToJSON)
+import qualified Data.Aeson as A
+import Data.Aeson.Types (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
-import Data.Qualified (Local, Qualified, Remote)
+import Data.Qualified (Local, Qualified, Remote, toLocal, toRemote)
+import Data.Schema
+import Data.Tagged (Tagged (unTagged))
 import Imports
 
 data DesiredMembership = Included | Excluded
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON) via Schema DesiredMembership
 
--- TODO: write cusom instances with roundtrip tests
-instance ToJSON DesiredMembership
+instance ToSchema DesiredMembership where
+  schema =
+    enum @Text "DesiredMembership" $
+      mconcat
+        [ element "included" Included,
+          element "excluded" Excluded
+        ]
 
--- TODO: write cusom instances with roundtrip tests
-instance FromJSON DesiredMembership
+data Actor = LocalActor | RemoteActor
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON) via Schema Actor
 
-data Actor = LocalActor | RemoteActor deriving (Show, Eq, Generic)
-
--- TODO: write cusom instances with roundtrip tests
-instance ToJSON Actor
-
--- TODO: write cusom instances with roundtrip tests
-instance FromJSON Actor
+instance ToSchema Actor where
+  schema =
+    enum @Text "Actor" $
+      mconcat
+        [ element "local_actor" LocalActor,
+          element "remote_actor" RemoteActor
+        ]
 
 data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
   { uooLocalUser :: Local UserId,
@@ -54,23 +63,29 @@ data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
     uooConvId :: Maybe (Qualified ConvId)
   }
   deriving (Show, Generic)
+  deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationRequest
 
--- TODO: write cusom instances with roundtrip tests
-instance ToJSON UpsertOne2OneConversationRequest
+instance ToSchema UpsertOne2OneConversationRequest where
+  schema =
+    object "UpsertOne2OneConversationRequest" $
+      UpsertOne2OneConversationRequest
+        <$> (unTagged . uooLocalUser) .= field "local_user" (toLocal <$> schema)
+        <*> (unTagged . uooRemoteUser) .= field "remote_user" (toRemote <$> schema)
+        <*> uooActor .= field "actor" schema
+        <*> uooActorDesiredMembership .= field "actor_desired_membership" schema
+        <*> uooConvId .= field "conversation_id" (optWithDefault A.Null schema)
 
--- TODO: write cusom instances with roundtrip tests
-instance FromJSON UpsertOne2OneConversationRequest
-
-data UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
+newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
   { -- | The Nothing value here indicated that there an impossible request was
     -- received, e.g., requesting to remove a remote user when the actor is a
     -- local user.
     uuorConvId :: Maybe (Qualified ConvId)
   }
   deriving (Show, Generic)
+  deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationResponse
 
--- TODO: write cusom instances with roundtrip tests
-instance ToJSON UpsertOne2OneConversationResponse
-
--- TODO: write cusom instances with roundtrip tests
-instance FromJSON UpsertOne2OneConversationResponse
+instance ToSchema UpsertOne2OneConversationResponse where
+  schema =
+    object "UpsertOne2OneConversationResponse" $
+      UpsertOne2OneConversationResponse
+        <$> uuorConvId .= field "conversation_id" (optWithDefault A.Null schema)
