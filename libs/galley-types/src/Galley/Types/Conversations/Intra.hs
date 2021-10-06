@@ -26,9 +26,8 @@ where
 import qualified Data.Aeson as A
 import Data.Aeson.Types (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
-import Data.Qualified (Local, Qualified, Remote, toLocal, toRemote)
+import Data.Qualified
 import Data.Schema
-import Data.Tagged (Tagged (unTagged))
 import Imports
 
 data DesiredMembership = Included | Excluded
@@ -69,8 +68,8 @@ instance ToSchema UpsertOne2OneConversationRequest where
   schema =
     object "UpsertOne2OneConversationRequest" $
       UpsertOne2OneConversationRequest
-        <$> (unTagged . uooLocalUser) .= field "local_user" (toLocal <$> schema)
-        <*> (unTagged . uooRemoteUser) .= field "remote_user" (toRemote <$> schema)
+        <$> (qUntagged . uooLocalUser) .= field "local_user" (qTagUnsafe <$> schema)
+        <*> (qUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)
         <*> uooActor .= field "actor" schema
         <*> uooActorDesiredMembership .= field "actor_desired_membership" schema
         <*> uooConvId .= field "conversation_id" (optWithDefault A.Null schema)

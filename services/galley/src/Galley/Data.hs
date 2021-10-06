@@ -114,7 +114,7 @@ module Galley.Data
     updateClient,
 
     -- * Utilities
-    one2OneConvId,
+    localOne2OneConvId,
     newMember,
 
     -- * Defaults
@@ -680,7 +680,7 @@ createConnectConversation ::
   Maybe (Range 1 256 Text) ->
   m Conversation
 createConnectConversation loc a b name = do
-  let conv = one2OneConvId a b
+  let conv = localOne2OneConvId a b
       lconv = qualifyAs loc conv
       a' = Id . U.unpack $ a
   retry x5 $
@@ -698,7 +698,7 @@ createConnectConversationWithRemote ::
   m ()
 createConnectConversationWithRemote lconvId creator m = do
   retry x5 $
-    write Cql.insertConv (params Quorum (lUnqualified lconvId, ConnectConv, lUnqualified creator, privateOnly, privateRole, Nothing, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params Quorum (tUnqualified lconvId, ConnectConv, tUnqualified creator, privateOnly, privateRole, Nothing, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   void $ addMembers lconvId m
@@ -712,7 +712,7 @@ createLegacyOne2OneConversation ::
   Maybe TeamId ->
   m Conversation
 createLegacyOne2OneConversation loc a b name ti = do
-  let conv = one2OneConvId a b
+  let conv = localOne2OneConvId a b
       lconv = qualifyAs loc conv
       a' = Id (U.unpack a)
       b' = Id (U.unpack b)
@@ -773,8 +773,8 @@ acceptConnect cid = retry x5 $ write Cql.updateConvType (params Quorum (One2OneC
 -- together pairwise, and then setting the version bits (v4) and variant bits
 -- (variant 2). This means that we always know what the UUID is for a
 -- one-to-one conversation which hopefully makes them unique.
-one2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
-one2OneConvId a b = Id . U.unpack $ U.addv4 a b
+localOne2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
+localOne2OneConvId a b = Id . U.unpack $ U.addv4 a b
 
 newConv ::
   ConvId ->

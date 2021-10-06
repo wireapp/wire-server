@@ -307,7 +307,7 @@ createLegacyConnectConversation ::
 createLegacyConnectConversation lusr conn lrecipient j = do
   (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
-  conv <- Data.conversation (Data.one2OneConvId x y)
+  conv <- Data.conversation (Data.localOne2OneConvId x y)
   maybe (create x y n) (update n) conv
   where
     create x y n = do
@@ -408,7 +408,7 @@ notifyCreatedConversation dtime usr conn c = do
 localOne2OneConvId :: Local UserId -> Local UserId -> Galley (Local ConvId)
 localOne2OneConvId self other = do
   (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
-  pure . qualifyAs self $ Data.one2OneConvId x y
+  pure . qualifyAs self $ Data.localOne2OneConvId x y
 
 toUUIDs :: UserId -> UserId -> Galley (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do
