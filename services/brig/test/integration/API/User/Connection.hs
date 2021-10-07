@@ -798,7 +798,7 @@ testConnectionLimits opts brig fedBrigClient = do
   [quid3, quid4, quid5] <- replicateM 3 fakeRemoteUser
 
   -- set up N-1 connections from uid1 to remote users
-  replicateM_ (fromIntegral connectionLimit - 1) (newConn uid1)
+  (quid6Sent:_) <- replicateM (fromIntegral connectionLimit - 1) (newConn uid1)
 
   -- accepting another one should be allowed
   receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
@@ -813,6 +813,11 @@ testConnectionLimits opts brig fedBrigClient = do
   sendConnectionActionExpectLimit uid1 quid3 (Just F.RemoteConnect)
   assertConnectionQualified brig uid1 quid3 Pending
 
+  -- When a remote accepts, it is allowed, this does not break the limit as a
+  -- Sent becomes an Accepted.
+  assertConnectionQualified brig uid1 quid6Sent Sent
+  receiveConnectionAction brig fedBrigClient uid1 quid6Sent F.RemoteConnect (Just F.RemoteConnect) Accepted
+
   -- attempting to send an own new connection request also hits the limit
   sendConnectionActionExpectLimit uid1 quid4 (Just F.RemoteConnect)
   getConnectionQualified brig uid1 quid4 !!! const 404 === statusCode
@@ -826,10 +831,11 @@ testConnectionLimits opts brig fedBrigClient = do
   receiveConnectionAction brig fedBrigClient uid1 quid5 F.RemoteConnect Nothing Pending
   sendConnectionAction brig opts uid1 quid5 (Just F.RemoteConnect) Accepted
   where
-    newConn :: UserId -> Http ()
+    newConn :: UserId -> Http (Qualified UserId)
     newConn from = do
       to <- fakeRemoteUser
       sendConnectionAction brig opts from to Nothing Sent
+      pure to
 
     sendConnectionActionExpectLimit :: HasCallStack => UserId -> Qualified UserId -> Maybe F.RemoteConnectionAction -> Http ()
     sendConnectionActionExpectLimit uid1 quid2 _reaction = do
