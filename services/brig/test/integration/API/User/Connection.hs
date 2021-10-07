@@ -866,6 +866,8 @@ testConnectionLimits opts brig fedBrigClient = do
   -- blocked connections do not count towards the limit
   putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
   assertConnectionQualified brig uid1 quid2 Blocked
+
+  -- after blocking quid2, we can now accept another connection request
   receiveConnectionAction brig fedBrigClient uid1 quid5 F.RemoteConnect Nothing Pending
   sendConnectionAction brig opts uid1 quid5 (Just F.RemoteConnect) Accepted
   where
