@@ -540,8 +540,8 @@ readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Te
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m (Domain)
+viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (settings . Opt.federationDomain)
 
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
-qualifyLocal a = fmap (toLocalUnsafe . Qualified a) viewFederationDomain
+qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a

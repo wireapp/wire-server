@@ -1913,15 +1913,15 @@ someLastPrekeys =
   ]
 
 mkConv ::
-  Qualified ConvId ->
+  ConvId ->
   UserId ->
   RoleName ->
   [OtherMember] ->
   FederatedGalley.RemoteConversation
 mkConv cnvId creator selfRole otherMembers =
   FederatedGalley.RemoteConversation
+    cnvId
     ( ConversationMetadata
-        cnvId
         RegularConv
         creator
         []

@@ -29,10 +29,10 @@ testObject_ConversationsResponse_1 =
 conv1 :: Conversation
 conv1 =
   Conversation
-    { cnvMetadata =
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+      cnvMetadata =
         ConversationMetadata
-          { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
-            cnvmType = One2OneConv,
+          { cnvmType = One2OneConv,
             cnvmCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
             cnvmAccess = [],
             cnvmAccessRole = PrivateAccessRole,
@@ -62,10 +62,10 @@ conv1 =
 conv2 :: Conversation
 conv2 =
   Conversation
-    { cnvMetadata =
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain "golden.example.com"),
+      cnvMetadata =
         ConversationMetadata
-          { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain "golden.example.com"),
-            cnvmType = SelfConv,
+          { cnvmType = SelfConv,
             cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
             cnvmAccess =
               [ InviteAccess,

@@ -27,9 +27,8 @@ import Data.Json.Util (Base64ByteString (..))
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..), toRemoteUnsafe)
+import Data.Qualified (Qualified (..), qUntagged, toRemoteUnsafe)
 import qualified Data.Set as Set
-import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
@@ -100,11 +99,10 @@ onConversationCreated domain rc = do
 
 getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
-  let ruid = toRemoteUnsafe $ Qualified uid domain
+  let ruid = toRemoteUnsafe domain uid
   localDomain <- viewFederationDomain
   GetConversationsResponse
-    . catMaybes
-    . map (Mapping.conversationToRemote localDomain ruid)
+    . mapMaybe (Mapping.conversationToRemote localDomain ruid)
     <$> Data.localConversations cids
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
@@ -184,8 +182,8 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: error handling for missing / mismatched clients
 onMessageSent :: Domain -> RemoteMessage ConvId -> Galley ()
 onMessageSent domain rmUnqualified = do
-  let rm = fmap (Tagged . (`Qualified` domain)) rmUnqualified
-  let convId = unTagged $ rmConversation rm
+  let rm = fmap (toRemoteUnsafe domain) rmUnqualified
+      convId = qUntagged $ rmConversation rm
       msgMetadata =
         MessageMetadata
           { mmNativePush = rmPush rm,

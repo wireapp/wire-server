@@ -110,7 +110,7 @@ getConversationsAllFound = do
           (map (qUnqualified . cnvQualifiedId) [cnv2])
       )
 
-  let c2 = find ((== cnvQualifiedId cnv2) . cnvmQualifiedId . rcnvMetadata) cs
+  let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . rcnvId) cs
 
   liftIO $ do
     assertEqual

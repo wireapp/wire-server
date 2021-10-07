@@ -89,19 +89,19 @@ tDomain = qDomain . qUntagged
 -- be remote.
 type Remote = QualifiedWithTag 'QRemote
 
--- | Convert a 'Qualified' value to a 'Remote' value. This is only safe if we
--- already know that the domain of the value is remote.
-toRemoteUnsafe :: Qualified a -> Remote a
-toRemoteUnsafe = qTagUnsafe
+-- | Convert a 'Domain' and an @a@ to a 'Remote' value. This is only safe if we
+-- already know that the domain is remote.
+toRemoteUnsafe :: Domain -> a -> Remote a
+toRemoteUnsafe d a = qTagUnsafe $ Qualified a d
 
 -- | A type representing a 'Qualified' value where the domain is guaranteed to
 -- be local.
 type Local = QualifiedWithTag 'QLocal
 
--- | Convert a 'Qualified' value to a 'Local' value. This is only safe if we
--- already know that the domain of the value is local.
-toLocalUnsafe :: Qualified a -> Local a
-toLocalUnsafe = qTagUnsafe
+-- | Convert a 'Domain' and an @a@ to a 'Local' value. This is only safe if we
+-- already know that the domain is local.
+toLocalUnsafe :: Domain -> a -> Local a
+toLocalUnsafe d a = qTagUnsafe $ Qualified a d
 
 lUnqualified :: Local a -> a
 lUnqualified = qUnqualified . qUntagged
@@ -117,9 +117,9 @@ qualifyAs = ($>)
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
 foldQualified loc f g q
   | lDomain loc == qDomain q =
-    f (toLocalUnsafe q)
+    f (qTagUnsafe q)
   | otherwise =
-    g (toRemoteUnsafe q)
+    g (qTagUnsafe q)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
@@ -146,7 +146,7 @@ indexQualified = foldr add mempty
 
 indexRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
 indexRemote =
-  map (toRemoteUnsafe . uncurry (flip Qualified))
+  map (uncurry toRemoteUnsafe)
     . Map.assocs
     . indexQualified
     . fmap qUntagged

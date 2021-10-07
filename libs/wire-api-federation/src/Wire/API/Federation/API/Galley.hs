@@ -127,7 +127,10 @@ data RemoteConvMembers = RemoteConvMembers
 -- fields (muted/archived/hidden) are omitted, since they are not known by the
 -- remote backend.
 data RemoteConversation = RemoteConversation
-  { rcnvMetadata :: ConversationMetadata,
+  { -- | Id of the conversation, implicitly qualified with the domain of the
+    -- backend that created this value.
+    rcnvId :: ConvId,
+    rcnvMetadata :: ConversationMetadata,
     rcnvMembers :: RemoteConvMembers
   }
   deriving stock (Eq, Show, Generic)

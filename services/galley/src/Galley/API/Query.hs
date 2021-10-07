@@ -168,7 +168,7 @@ getRemoteConversationsWithFailures zusr convs = do
           zusr
           ( Map.findWithDefault
               defMemberStatus
-              (toRemoteUnsafe (cnvmQualifiedId (FederatedGalley.rcnvMetadata rconv)))
+              (fmap FederatedGalley.rcnvId rconv)
               statusMap
           )
           rconv
@@ -185,7 +185,7 @@ getRemoteConversationsWithFailures zusr convs = do
           rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
       handleFailures (map (flip Qualified domain) someConvs) $ do
         rconvs <- gcresConvs <$> executeFederated domain rpc
-        pure $ catMaybes (map remoteView rconvs)
+        pure $ mapMaybe (remoteView . toRemoteUnsafe domain) rconvs
   where
     handleFailures ::
       [Qualified ConvId] ->

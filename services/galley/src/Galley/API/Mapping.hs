@@ -74,7 +74,8 @@ conversationViewMaybe localDomain uid conv = do
           <> map remoteMemberToOther rothers
   pure $
     Conversation
-      (Data.convMetadata localDomain conv)
+      (Qualified (convId conv) localDomain)
+      (Data.convMetadata conv)
       (ConvMembers self others)
 
 -- | View for a local user of a remote conversation.
@@ -85,9 +86,9 @@ conversationViewMaybe localDomain uid conv = do
 remoteConversationView ::
   UserId ->
   MemberStatus ->
-  RemoteConversation ->
+  Remote RemoteConversation ->
   Maybe Conversation
-remoteConversationView uid status rconv = do
+remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
   let mems = rcnvMembers rconv
       others = rcmOthers mems
       self =
@@ -98,7 +99,7 @@ remoteConversationView uid status rconv = do
               lmStatus = status,
               lmConvRoleName = rcmSelfRole mems
             }
-  pure $ Conversation (rcnvMetadata rconv) (ConvMembers self others)
+  pure $ Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
 
 -- | Convert a local conversation to a structure to be returned to a remote
 -- backend.
@@ -118,7 +119,8 @@ conversationToRemote localDomain ruid conv = do
           <> map remoteMemberToOther rothers
   pure $
     RemoteConversation
-      { rcnvMetadata = Data.convMetadata localDomain conv,
+      { rcnvId = Data.convId conv,
+        rcnvMetadata = Data.convMetadata conv,
         rcnvMembers =
           RemoteConvMembers
             { rcmSelfRole = selfRole,

@@ -50,7 +50,7 @@ tests =
       testProperty "conversation view metadata is correct" $
         \(ConvWithLocalUser c uid) dom ->
           fmap cnvMetadata (conversationViewMaybe dom uid c)
-            == Just (Data.convMetadata dom c),
+            == Just (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
         \(ConvWithLocalUser c uid) dom -> case conversationViewMaybe dom uid c of
           Nothing -> False
@@ -80,7 +80,7 @@ tests =
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (qUntagged ruid) /= dom
             ==> fmap (rcnvMetadata) (conversationToRemote dom ruid c)
-              == Just (Data.convMetadata dom c),
+              == Just (Data.convMetadata c),
       testProperty "remote conversation view does not contain self" $
         \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
           Nothing -> False

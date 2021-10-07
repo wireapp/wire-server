@@ -586,7 +586,7 @@ viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
 
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
-qualifyLocal a = fmap (toLocalUnsafe . Qualified a) viewFederationDomain
+qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
 checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
 checkRemoteUsersExist =
@@ -695,9 +695,9 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
+        rcCnvId
         ConversationMetadata
-          { cnvmQualifiedId = rcCnvId,
-            cnvmType = rcCnvType,
+          { cnvmType = rcCnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain
             cnvmCreator = qUnqualified rcOrigUserId,

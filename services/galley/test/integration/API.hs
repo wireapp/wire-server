@@ -1727,7 +1727,6 @@ getConvQualifiedOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
-  localDomain <- viewFederationDomain
   g <- view tsGalley
   alice <- randomUser
   bob <- randomUser
@@ -1736,7 +1735,6 @@ accessConvMeta = do
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let meta =
         ConversationMetadata
-          (Qualified conv localDomain)
           RegularConv
           alice
           [InviteAccess]
@@ -1846,10 +1844,11 @@ testGetQualifiedRemoteConv = do
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let mockConversation = mkConv remoteConvId bobId roleNameWireAdmin [bobAsOtherMember]
+  let mockConversation = mkConv convId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
       expected =
         Conversation
+          remoteConvId
           (rcnvMetadata mockConversation)
           (ConvMembers aliceAsSelfMember (rcmOthers (rcnvMembers mockConversation)))
 
@@ -1893,7 +1892,7 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
       const 404 === statusCode
       const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
 
--- | Tests getting many conversations given their ids.
+-- | Tests getting many converations given their ids.
 --
 -- In this test, Alice is a local user, who will be asking for metadata of these
 -- conversations:
@@ -1948,8 +1947,8 @@ testBulkGetQualifiedConvs = do
 
   let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
-      mockConversationA = mkConv remoteConvIdA bobId roleNameWireAdmin [bobAsOtherMember]
-      mockConversationB = mkConv remoteConvIdB carlId roleNameWireAdmin [carlAsOtherMember]
+      mockConversationA = mkConv (qUnqualified remoteConvIdA) bobId roleNameWireAdmin [bobAsOtherMember]
+      mockConversationB = mkConv (qUnqualified remoteConvIdB) carlId roleNameWireAdmin [carlAsOtherMember]
       req =
         ListConversations . unsafeRange $
           [ localConvId,
@@ -1981,8 +1980,8 @@ testBulkGetQualifiedConvs = do
     let expectedFound =
           sortOn
             cnvQualifiedId
-            $ maybeToList (remoteConversationView alice defMemberStatus mockConversationA)
-              <> maybeToList (remoteConversationView alice defMemberStatus mockConversationB)
+            $ maybeToList (remoteConversationView alice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              <> maybeToList (remoteConversationView alice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
               <> [localConv]
         actualFound = sortOn cnvQualifiedId $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
@@ -2734,7 +2733,7 @@ putRemoteConvMemberOk update = do
   let bobAsLocal = LocalMember (qUnqualified qbob) defMemberStatus Nothing roleNameWireAdmin
   let mockConversation =
         mkConv
-          qconv
+          (qUnqualified qconv)
           (qUnqualified qbob)
           roleNameWireMember
           [localMemberToOther remoteDomain bobAsLocal]

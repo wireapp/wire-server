@@ -543,13 +543,12 @@ toConv cid mms remoteMems conv =
     f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 conversationMeta :: MonadClient m => Domain -> ConvId -> m (Maybe ConversationMetadata)
-conversationMeta localDomain conv =
+conversationMeta _localDomain conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) =
       ConversationMetadata
-        (Qualified conv localDomain)
         t
         c
         (defAccess t a)
@@ -623,7 +622,7 @@ remoteConversationStatusOnDomain uid rconvs =
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
-  (\(d, c) -> toRemoteUnsafe $ Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
+  uncurry toRemoteUnsafe <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
 
 createConversation ::
   MonadClient m =>
@@ -769,10 +768,9 @@ newConv cid ct usr mems rMems acc role name tid mtimer rMode =
       convReceiptMode = rMode
     }
 
-convMetadata :: Domain -> Conversation -> ConversationMetadata
-convMetadata localDomain c =
+convMetadata :: Conversation -> ConversationMetadata
+convMetadata c =
   ConversationMetadata
-    (Qualified (convId c) localDomain)
     (convType c)
     (convCreator c)
     (convAccess c)
@@ -844,7 +842,7 @@ remoteMemberLists convs = do
     mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
 
 toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
-toRemoteMember u d = RemoteMember (toRemoteUnsafe (Qualified u d))
+toRemoteMember u d = RemoteMember (toRemoteUnsafe d u)
 
 memberLists ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
