@@ -798,15 +798,16 @@ testConnectionLimits opts brig fedBrigClient = do
   [quid3, quid4, quid5] <- replicateM 3 fakeRemoteUser
 
   -- set up N-1 connections from uid1 to remote users
-  (quid6Sent:_) <- replicateM (fromIntegral connectionLimit - 1) (newConn uid1)
+  (quid6Sent : _) <- replicateM (fromIntegral connectionLimit - 1) (newConn uid1)
 
   -- accepting another one should be allowed
   receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
   sendConnectionAction brig opts uid1 quid2 (Just F.RemoteConnect) Accepted
 
-  -- get an incoming connection requests beyond the limit
-  -- (TODO: is this sane? you get lots of connection requests popping up on your screen but can not accept them?)
-  -- On the other hand, limiting already at RPC level would make it easy to create a denial of service attack on a single user.
+  -- get an incoming connection requests beyond the limit, This connection
+  -- cannot be accepted. This is also the behaviour without federation, if the
+  -- user wants to accept this one, they have to either sacrifice another
+  -- connection or ask the backend operator to increase the limit.
   receiveConnectionAction brig fedBrigClient uid1 quid3 F.RemoteConnect Nothing Pending
 
   -- accepting the second one hits the limit (and relation stays Pending):
