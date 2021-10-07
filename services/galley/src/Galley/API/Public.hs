@@ -54,7 +54,6 @@ import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import Servant.Server.Generic (genericServerT)
 import Servant.Swagger.Internal.Orphans ()
-import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
@@ -89,7 +88,8 @@ servantSitemap =
         GalleyAPI.createGroupConversation = Create.createGroupConversation,
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
-        GalleyAPI.addMembersToConversationV2 = Update.addMembers,
+        GalleyAPI.addMembersToConversationUnqualified = Update.addMembersUnqualified,
+        GalleyAPI.addMembersToConversation = Update.addMembers,
         GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
         GalleyAPI.removeMember = Update.removeMemberQualified,
         GalleyAPI.updateOtherMemberUnqualified = Update.updateOtherMemberUnqualified,
@@ -643,28 +643,6 @@ sitemap = do
     response 200 "Conversation Code" end
     errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/conversations/:cnv/members" (continue Update.addMembersH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.Invite
-  document "POST" "addMembers" $ do
-    summary "Add users to an existing conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelInvite) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    response 200 "Members added" end
-    response 204 "No change" end
-    response 412 "The user(s) cannot be added to the conversation (eg., due to legalhold policy conflict)." end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse (Error.invalidOp "Conversation type does not allow adding members")
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvAccessDenied)
 
   -- This endpoint can lead to the following events being sent:
   -- - Typing event to members

@@ -726,6 +726,18 @@ data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invite)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Invite)
+
+instance ToSchema Invite where
+  schema =
+    object "Invite" $
+      Invite
+        <$> (toNonEmpty . invUsers)
+          .= fmap List1 (field "users" (nonEmptyArray schema))
+        <*> (Just . invRoleName)
+          .= fmap
+            (fromMaybe roleNameWireAdmin)
+            (optField "conversation_role" Nothing schema)
 
 data InviteQualified = InviteQualified
   { invQUsers :: NonEmpty (Qualified UserId),
@@ -741,7 +753,10 @@ instance ToSchema InviteQualified where
     object "InviteQualified" $
       InviteQualified
         <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
-        <*> invQRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
+        <*> (Just . invQRoleName)
+          .= fmap
+            (fromMaybe roleNameWireAdmin)
+            (optField "conversation_role" Nothing schema)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -751,17 +766,6 @@ modelInvite = Doc.defineModel "Invite" $ do
   Doc.description "Add users to a conversation"
   Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "List of user IDs to add to a conversation"
-
-instance ToJSON Invite where
-  toJSON i =
-    A.object
-      [ "users" A..= invUsers i,
-        "conversation_role" A..= invRoleName i
-      ]
-
-instance FromJSON Invite where
-  parseJSON = A.withObject "invite object" $ \o ->
-    Invite <$> o A..: "users" <*> o A..:? "conversation_role" A..!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update

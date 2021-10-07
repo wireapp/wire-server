@@ -311,7 +311,7 @@ release-chart-%:
 .PHONY: guard-tag
 guard-tag:
 	@if [ "${DOCKER_TAG}" = "${USER}" ]; then \
-	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>. Try using 'make latest-brig-tag' for latest develop docker image tag";\
+	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>. Try using 'make latest-tag' for latest develop docker image tag";\
 	    exit 1; \
 	fi
 

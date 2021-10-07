@@ -233,7 +233,23 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] NewConvUnmanaged
         :> ConversationVerb,
-    addMembersToConversationV2 ::
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    addMembersToConversationUnqualified ::
+      routes
+        :- Summary "Add members to an existing conversation (deprecated)"
+        :> CanThrow ConvNotFound
+        :> CanThrow NotConnected
+        :> CanThrow ConvAccessDenied
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> ReqBody '[JSON] Invite
+        :> MultiVerb 'POST '[JSON] ConvUpdateResponses (UpdateResult Event),
+    addMembersToConversation ::
       routes
         :- Summary "Add qualified members to an existing conversation."
         :> ZUser

@@ -25,14 +25,18 @@ where
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import Brig.Data.Connection (remoteConnectionInsert)
 import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.Intra
+import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id hiding (client)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
+import Data.Time.Clock (getCurrentTime)
 import qualified Data.UUID.V4 as UUID
 import Galley.Types
 import Imports
@@ -44,8 +48,8 @@ import Wire.API.Connection
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Routes.MultiTablePaging
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> TestTree
-tests cl _at opts p b _c g fedBrigClient =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> DB.ClientState -> TestTree
+tests cl _at _conf p b _c g fedBrigClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
@@ -75,7 +79,7 @@ tests cl _at opts p b _c g fedBrigClient =
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
       test p "put /connections/:domain/:id noop" $ testUpdateConnectionNoopQualified b,
       test p "get /connections - 200 (paging)" $ testLocalConnectionsPaging b,
-      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b,
+      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b db,
       test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl,
       test p "post /connections/:domain/:id - 400 (max conns)" $ testConnectionLimitQualified b cl,
       test p "Remote connections: connect with no federation" (testConnectFederationNotAvailable b),
@@ -608,13 +612,19 @@ testLocalConnectionsPaging b = do
       liftIO $ assertEqual "has more" (Just (count' < total)) more
       return . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
 
-testAllConnectionsPaging :: Brig -> Http ()
-testAllConnectionsPaging b = do
+testAllConnectionsPaging :: Brig -> DB.ClientState -> Http ()
+testAllConnectionsPaging b db = do
   quid <- userQualifiedId <$> randomUser b
   let uid = qUnqualified quid
-  replicateM_ total $ do
+  replicateM_ totalLocal $ do
     qOther <- userQualifiedId <$> randomUser b
     postConnectionQualified b uid qOther !!! const 201 === statusCode
+
+  -- FUTUREWORK: For now, because we do not support creating remote connections
+  -- yet (as of Oct 1, 2021), we write some made-up remote connections directly
+  -- to the database such that querying works.
+  now <- toUTCTimeMillis <$> liftIO getCurrentTime
+  replicateM_ totalRemote $ createRemoteConnection uid now
 
   -- get all connections at once
   resAll :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing Nothing
@@ -631,7 +641,20 @@ testAllConnectionsPaging b = do
   liftIO $ assertEqual "next: has_more" False (mtpHasMore resNext)
   where
     size = 2
-    total = 5
+    totalLocal = 5
+    totalRemote = 3
+    total = totalLocal + totalRemote
+    remoteDomain = Domain "faraway.example.com"
+    createRemoteConnection :: UserId -> UTCTimeMillis -> Http ()
+    createRemoteConnection self now = do
+      qOther <- (`Qualified` remoteDomain) <$> randomId
+      qConv <- (`Qualified` remoteDomain) <$> randomId
+      liftIO . DB.runClient db $
+        DB.retry DB.x5 $
+          DB.write remoteConnectionInsert $
+            DB.params
+              DB.Quorum
+              (self, remoteDomain, qUnqualified qOther, SentWithHistory, now, qDomain qConv, qUnqualified qConv)
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
 testConnectionLimit brig (ConnectionLimit l) = do

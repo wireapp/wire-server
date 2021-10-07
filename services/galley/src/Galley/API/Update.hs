@@ -38,7 +38,7 @@ module Galley.API.Update
     updateConversationAccess,
 
     -- * Managing Members
-    addMembersH,
+    addMembersUnqualified,
     addMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
@@ -567,13 +567,6 @@ joinConversation zusr zcon cnv access = do
         (convTargets conv <> extraTargets)
         action
 
-addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
-addMembersH (zusr ::: zcon ::: cid ::: req) = do
-  (Invite u r) <- fromJsonBody req
-  domain <- viewFederationDomain
-  let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
-  handleUpdateResult <$> addMembers zusr zcon cid qInvite
-
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
@@ -655,6 +648,12 @@ performAddMemberAction qusr conv invited role = do
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
+
+addMembersUnqualified ::
+  UserId -> ConnId -> ConvId -> Public.Invite -> Galley (UpdateResult Event)
+addMembersUnqualified zusr zcon cnv (Public.Invite users role) = do
+  qusers <- traverse (fmap unTagged . qualifyLocal) (toNonEmpty users)
+  addMembers zusr zcon cnv (Public.InviteQualified qusers role)
 
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (UpdateResult Event)
 addMembers zusr zcon cnv (Public.InviteQualified users role) = do
