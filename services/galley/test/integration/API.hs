@@ -56,7 +56,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
-import Data.Tagged (unTagged)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
@@ -2953,12 +2952,14 @@ testAllOne2OneConversationRequests :: TestM ()
 testAllOne2OneConversationRequests = do
   for_ [LocalActor, RemoteActor] $ \actor ->
     for_ [Included, Excluded] $ \desired ->
-      testOne2OneConversationRequest True actor desired
+      for_ [True, False] $ \shouldBeLocal ->
+        testOne2OneConversationRequest shouldBeLocal actor desired
 
 testOne2OneConversationRequest :: Bool -> Actor -> DesiredMembership -> TestM ()
 testOne2OneConversationRequest shouldBeLocal actor desired = do
-  alice <- toLocal <$> randomQualifiedUser
+  alice <- qTagUnsafe <$> randomQualifiedUser
   (bob, expectedConvId) <- generateRemoteAndConvId alice
+  db <- view tsCass
 
   convId <- do
     let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
@@ -2967,31 +2968,33 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
         <!! statusCode === const 200
     uuorConvId <$> responseJsonError res
 
+  liftIO $ convId @?= expectedConvId
+
   case shouldBeLocal of
     True -> do
-      liftIO $ convId @?= expectedConvId
-
-      mems <- getConvMembers alice (qUnqualified convId)
+      mems <- runClient db $ do
+        lmems <- fmap (qUntagged . qualifyAs alice . lmId) <$> Data.members (qUnqualified convId)
+        rmems <- fmap (qUntagged . rmId) <$> Data.lookupRemoteMembers (qUnqualified convId)
+        pure (lmems <> rmems)
       let actorId = case actor of
-            LocalActor -> unTagged alice
-            RemoteActor -> unTagged bob
+            LocalActor -> qUntagged alice
+            RemoteActor -> qUntagged bob
       liftIO $ isJust (find (actorId ==) mems) @?= (desired == Included)
       liftIO $ filter (actorId /=) mems @?= []
-    False -> pure ()
+    False -> do
+      mems <- runClient db $ do
+        smap <- Data.remoteConversationStatus (tUnqualified alice) [qTagUnsafe convId]
+        case Map.lookup (qTagUnsafe convId) smap of
+          Just _ -> pure [qUntagged alice]
+          _ -> pure []
+      when (actor == LocalActor) $
+        liftIO $ isJust (find (qUntagged alice ==) mems) @?= (desired == Included)
   where
-    getConvMembers :: Local UserId -> ConvId -> TestM [Qualified UserId]
-    getConvMembers lusr convId = do
-      db <- view tsCass
-      runClient db $ do
-        lmems <- fmap (unTagged . qualifyAs lusr . lmId) <$> Data.members convId
-        rmems <- fmap (unTagged . rmId) <$> Data.lookupRemoteMembers convId
-        pure (lmems <> rmems)
-
     generateRemoteAndConvId :: Local UserId -> TestM (Remote UserId, Qualified ConvId)
     generateRemoteAndConvId lUserId = do
       other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
-      let convId = one2OneConvId (unTagged lUserId) other
-          isLocal = lDomain lUserId == qDomain convId
+      let convId = one2OneConvId (qUntagged lUserId) other
+          isLocal = tDomain lUserId == qDomain convId
       if shouldBeLocal == isLocal
-        then pure (toRemote other, convId)
+        then pure (qTagUnsafe other, convId)
         else generateRemoteAndConvId lUserId
