@@ -52,6 +52,7 @@ data LocalConnectionAction
   | LocalBlock
   | LocalIgnore
   | LocalRescind
+  deriving (Eq)
 
 data ConnectionAction
   = LCA LocalConnectionAction
@@ -113,8 +114,11 @@ updateOne2OneConv _ _ _ _ _ = do
   uid <- liftIO nextRandom
   unTagged <$> qualifyLocal (Id uid)
 
--- | Perform a state transition on a connection, handle conversation updates
--- and push events.
+-- | Perform a state transition on a connection, handle conversation updates and
+-- push events.
+--
+-- NOTE: This function does not check whether the max connection limit has been
+-- reached, the consumers must ensure of this.
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
@@ -129,10 +133,6 @@ transitionTo self _ _ Nothing Nothing =
   -- connection. This shouldn't be possible.
   throwE (InvalidTransition (lUnqualified self))
 transitionTo self mzcon other Nothing (Just rel) = do
-  -- enforce connection limit
-  when (rel `elem` [Accepted, Sent]) $
-    checkLimit self
-
   lift $ do
     -- update 1-1 connection
     qcnv <- updateOne2OneConv self mzcon other Nothing rel
@@ -150,9 +150,6 @@ transitionTo self mzcon other Nothing (Just rel) = do
     pure (Created connection, True)
 transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection, False)
 transitionTo self mzcon other (Just connection) (Just rel) = do
-  -- enforce connection limit
-  when (notElem (ucStatus connection) [Accepted, Sent] && (rel `elem` [Accepted, Sent])) $
-    checkLimit self
   lift $ do
     -- update 1-1 connection
     void $ updateOne2OneConv self Nothing other (ucConvId connection) rel
@@ -179,6 +176,7 @@ performLocalAction ::
   ConnectionM (ResponseForExistedCreated UserConnection, Bool)
 performLocalAction self mzcon other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
+  checkLimitForLocalAction self rel0 action
   mrel2 <- for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- fmap join . for (remoteAction action) $ \ra -> do
       response <- sendConnectionAction self other ra !>> ConnectFederationError
@@ -224,7 +222,7 @@ performRemoteAction ::
   AppIO (Maybe RemoteConnectionAction)
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
-      rel1 = transition (RCA action) rel0
+  let rel1 = transition (RCA action) rel0
   result <- runExceptT . void $ transitionTo self Nothing other mconnection rel1
   pure $ either (const (Just RemoteRescind)) (const (reaction rel1)) result
   where
@@ -263,3 +261,8 @@ updateConnectionToRemoteUser self other rel1 zcon = do
     actionForTransition Ignored = Just LocalIgnore
     actionForTransition Pending = Nothing
     actionForTransition MissingLegalholdConsent = Nothing
+
+checkLimitForLocalAction :: Local UserId -> Relation -> LocalConnectionAction -> ConnectionM ()
+checkLimitForLocalAction u oldRel action =
+  when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
+    checkLimit u

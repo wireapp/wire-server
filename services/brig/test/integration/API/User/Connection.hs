@@ -29,14 +29,11 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id hiding (client)
 import Data.Qualified
-import Data.String.Conversions (cs)
 import qualified Data.UUID.V4 as UUID
-import Federation.Util
 import Galley.Types
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
@@ -45,7 +42,6 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
 import qualified Wire.API.Federation.API.Brig as F
-import Wire.API.Federation.GRPC.Types hiding (path)
 import Wire.API.Routes.MultiTablePaging
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> TestTree
@@ -836,14 +832,7 @@ testConnectionLimits opts brig fedBrigClient = do
       sendConnectionAction brig opts from to Nothing Sent
 
     sendConnectionActionExpectLimit :: HasCallStack => UserId -> Qualified UserId -> Maybe F.RemoteConnectionAction -> Http ()
-    sendConnectionActionExpectLimit uid1 quid2 reaction = do
-      let mockConnectionResponse = F.NewConnectionResponseOk reaction
-          mockResponse = OutwardResponseBody (cs $ Aeson.encode mockConnectionResponse)
-      void $
-        liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
-          postConnectionQualified brig uid1 quid2 !!! assertLimited
-
-    assertLimited :: Assertions ()
-    assertLimited = do
-      const 403 === statusCode
-      const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
+    sendConnectionActionExpectLimit uid1 quid2 _reaction = do
+      postConnectionQualified brig uid1 quid2 !!! do
+        const 403 === statusCode
+        const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
