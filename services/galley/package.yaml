@@ -165,6 +165,7 @@ executables:
     - cereal
     - containers
     - cookie
+    - cql-io
     - currency-codes
     - metrics-wai
     - data-timeout

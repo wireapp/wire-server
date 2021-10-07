@@ -71,6 +71,7 @@ import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types
 import qualified Galley.Types as Conv
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
 import qualified Galley.Types.Teams as Team
@@ -2329,3 +2330,8 @@ fedRequestsForDomain domain component =
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM ResponseLBS
+iUpsertOne2OneConversation req = do
+  galley <- view tsGalley
+  post (galley . path "/i/conversations/one2one/upsert" . Bilge.json req)

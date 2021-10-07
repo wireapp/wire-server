@@ -882,7 +882,7 @@ toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
 toRemoteMember u d = RemoteMember (toRemoteUnsafe d u)
 
 memberLists ::
-  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  (MonadClient m, MonadThrow m) =>
   [ConvId] ->
   m [[LocalMember]]
 memberLists convs = do
@@ -897,7 +897,7 @@ memberLists convs = do
     mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
       (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn))
 
-members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
+members :: (MonadClient m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
 
 lookupRemoteMembers :: (MonadClient m) => ConvId -> m [RemoteMember]
