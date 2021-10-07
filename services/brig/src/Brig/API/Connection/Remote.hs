@@ -149,7 +149,7 @@ transitionTo self mzcon other Nothing (Just rel) = lift $ do
   pure (Created connection, True)
 transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection, False)
 transitionTo self mzcon other (Just connection) (Just rel) = lift $ do
-  -- update 1-1 connection
+  -- update 1-1 conversation
   void $ updateOne2OneConv self Nothing other (ucConvId connection) rel
 
   -- update connection
