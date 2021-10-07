@@ -56,7 +56,7 @@ import Brig.User.Phone
 import qualified Cassandra as C
 import qualified Cassandra as Data
 import Control.Error hiding (bool)
-import Control.Lens (view, (%~), (.~), (?~), (^.))
+import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -133,10 +133,24 @@ swaggerDocsAPI =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
       & S.security %~ nub
+      -- sanitise definitions
       & S.definitions . traverse %~ sanitise
+      -- sanitise general responses
+      & S.responses . traverse . S.schema . _Just . S._Inline %~ sanitise
+      -- sanitise all responses of all paths
+      & S.allOperations . S.responses . S.responses
+        . traverse
+        . S._Inline
+        . S.schema
+        . _Just
+        . S._Inline
+        %~ sanitise
   where
     sanitise :: S.Schema -> S.Schema
-    sanitise = (S.properties . traverse . S._Inline %~ sanitise) . (S.required %~ nubOrd)
+    sanitise =
+      (S.properties . traverse . S._Inline %~ sanitise)
+        . (S.required %~ nubOrd)
+        . (S.enum_ . _Just %~ nub)
     desc =
       Text.pack
         [QQ.i|
