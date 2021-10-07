@@ -34,14 +34,15 @@ import Bilge hiding (accept, timeout)
 import qualified Brig.AWS as AWS
 import qualified Brig.Options as Opt
 import qualified Brig.ZAuth as ZAuth
+import qualified Cassandra as DB
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Util.Options.Common
 
-tests :: Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> IO TestTree
-tests conf p b c ch g n aws = do
+tests :: Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> DB.ClientState -> IO TestTree
+tests conf p b c ch g n aws db = do
   let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
   let at = Opt.setActivationTimeout (Opt.optSettings conf)
   z <- mkZAuthEnv (Just conf)
@@ -51,7 +52,7 @@ tests conf p b c ch g n aws = do
       [ API.User.Client.tests cl at conf p b c g,
         API.User.Account.tests cl at conf p b c ch g aws,
         API.User.Auth.tests conf p z b g n,
-        API.User.Connection.tests cl at conf p b c g,
+        API.User.Connection.tests cl at conf p b c g db,
         API.User.Handles.tests cl at conf p b c g,
         API.User.PasswordReset.tests cl at conf p b c g,
         API.User.Property.tests cl at conf p b c g,

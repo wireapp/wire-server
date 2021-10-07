@@ -23,6 +23,7 @@ module Brig.Data.Connection
     updateConnection,
     lookupConnection,
     lookupLocalConnectionsPage,
+    lookupRemoteConnectionsPage,
     lookupRelationWithHistory,
     lookupLocalConnections,
     lookupConnectionStatus,
@@ -166,6 +167,19 @@ lookupLocalConnectionsPage ::
 lookupLocalConnectionsPage self pagingState (fromRange -> size) =
   fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState Quorum (Identity (lUnqualified self)) size pagingState)
 
+-- | For a given user 'A', lookup their outgoing connections (A -> X) to remote users.
+lookupRemoteConnectionsPage ::
+  (MonadClient m) =>
+  Local UserId ->
+  Maybe PagingState ->
+  Int32 ->
+  m (PageWithState UserConnection)
+lookupRemoteConnectionsPage self pagingState size =
+  fmap (toRemoteUserConnection self)
+    <$> paginateWithState
+      remoteConnectionSelect
+      (paramsPagingState Quorum (Identity (lUnqualified self)) size pagingState)
+
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]
 lookupConnectionStatus from to =
@@ -278,6 +292,13 @@ toLocalUserConnection ::
   UserConnection
 toLocalUserConnection loc (l, r, relationDropHistory -> rel, time, cid) =
   UserConnection l (unTagged (qualifyAs loc r)) rel time (fmap (unTagged . qualifyAs loc) cid)
+
+toRemoteUserConnection ::
+  Local UserId ->
+  (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ->
+  UserConnection
+toRemoteUserConnection l (rDomain, r, relationDropHistory -> rel, time, cDomain, cid) =
+  UserConnection (lUnqualified l) (Qualified r rDomain) rel time (Just $ Qualified cid cDomain)
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel
