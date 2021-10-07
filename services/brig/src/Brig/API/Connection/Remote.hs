@@ -132,34 +132,32 @@ transitionTo self _ _ Nothing Nothing =
   -- This can only happen if someone tries to ignore as a first action on a
   -- connection. This shouldn't be possible.
   throwE (InvalidTransition (lUnqualified self))
-transitionTo self mzcon other Nothing (Just rel) = do
-  lift $ do
-    -- update 1-1 connection
-    qcnv <- updateOne2OneConv self mzcon other Nothing rel
+transitionTo self mzcon other Nothing (Just rel) = lift $ do
+  -- update 1-1 connection
+  qcnv <- updateOne2OneConv self mzcon other Nothing rel
 
-    -- create connection
-    connection <-
-      Data.insertConnection
-        self
-        (unTagged other)
-        (relationWithHistory rel)
-        qcnv
+  -- create connection
+  connection <-
+    Data.insertConnection
+      self
+      (unTagged other)
+      (relationWithHistory rel)
+      qcnv
 
-    -- send event
-    pushEvent self mzcon connection
-    pure (Created connection, True)
+  -- send event
+  pushEvent self mzcon connection
+  pure (Created connection, True)
 transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection, False)
-transitionTo self mzcon other (Just connection) (Just rel) = do
-  lift $ do
-    -- update 1-1 connection
-    void $ updateOne2OneConv self Nothing other (ucConvId connection) rel
+transitionTo self mzcon other (Just connection) (Just rel) = lift $ do
+  -- update 1-1 connection
+  void $ updateOne2OneConv self Nothing other (ucConvId connection) rel
 
-    -- update connection
-    connection' <- Data.updateConnection connection (relationWithHistory rel)
+  -- update connection
+  connection' <- Data.updateConnection connection (relationWithHistory rel)
 
-    -- send event
-    pushEvent self mzcon connection'
-    pure (Existed connection', True)
+  -- send event
+  pushEvent self mzcon connection'
+  pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
 pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> AppIO ()
