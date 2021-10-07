@@ -49,7 +49,7 @@ import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Routes.MultiTablePaging
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> DB.ClientState -> TestTree
-tests cl _at _conf p b _c g fedBrigClient db =
+tests cl _at opts p b _c g fedBrigClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
