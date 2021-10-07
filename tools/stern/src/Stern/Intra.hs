@@ -171,20 +171,19 @@ getUsersConnections :: List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
   b <- view brig
+  let reqBody = ConnectionsStatusRequest (fromList uids) Nothing
   r <-
     catchRpcErrors $
       rpc'
         "brig"
         b
-        ( method GET
+        ( method POST
             . path "/i/users/connections-status"
-            . queryItem "users" users
+            . Bilge.json reqBody
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
   parseResponse (mkError status502 "bad-upstream") r
-  where
-    users = BS.intercalate "," $ map toByteString' (fromList uids)
 
 getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
 getUserProfiles uidsOrHandles = do

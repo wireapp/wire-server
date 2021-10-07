@@ -131,9 +131,7 @@ sitemap = do
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
     capture "uid"
-  get "/i/users/connections-status" (continue deprecatedGetConnectionsStatusH) $
-    query "users"
-      .&. opt (query "filter")
+
   post "/i/users/connections-status" (continue getConnectionsStatusH) $
     accept "application" "json"
       .&. jsonRequest @ConnectionsStatusRequest
@@ -598,19 +596,6 @@ getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
   return $ json $ UserIds contacts
-
--- Deprecated
-
--- Deprecated and to be removed after new versions of brig and galley are
--- deployed. Reason for deprecation: it returns N^2 things (which is not
--- needed), it doesn't scale, and it accepts everything in URL parameters,
--- which doesn't work when the list of users is long.
-deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
-deprecatedGetConnectionsStatusH (users ::: flt) = do
-  r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
-  return . json $ maybe r (filterByRelation r) flt
-  where
-    filterByRelation l rel = filter ((== rel) . csStatus) l
 
 -- Utilities
 
