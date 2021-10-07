@@ -24,7 +24,6 @@ import Data.Containers.ListUtils (nubOrdOn)
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Data.Tagged
 import Galley.API.Mapping
 import qualified Galley.Data as Data
 import Galley.Types.Conversations.Members
@@ -51,7 +50,7 @@ tests =
       testProperty "conversation view metadata is correct" $
         \(ConvWithLocalUser c uid) dom ->
           fmap cnvMetadata (conversationViewMaybe dom uid c)
-            == Just (Data.convMetadata dom c),
+            == Just (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
         \(ConvWithLocalUser c uid) dom -> case conversationViewMaybe dom uid c of
           Nothing -> False
@@ -70,24 +69,24 @@ tests =
             ==> isNothing (conversationViewMaybe dom uid c),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
-          qDomain (unTagged ruid) /= dom
+          qDomain (qUntagged ruid) /= dom
             ==> isJust (conversationToRemote dom ruid c),
       testProperty "self user role in remote conversation view is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
-          qDomain (unTagged ruid) /= dom
+          qDomain (qUntagged ruid) /= dom
             ==> fmap (rcmSelfRole . rcnvMembers) (conversationToRemote dom ruid c)
               == Just roleNameWireMember,
       testProperty "remote conversation view metadata is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
-          qDomain (unTagged ruid) /= dom
+          qDomain (qUntagged ruid) /= dom
             ==> fmap (rcnvMetadata) (conversationToRemote dom ruid c)
-              == Just (Data.convMetadata dom c),
+              == Just (Data.convMetadata c),
       testProperty "remote conversation view does not contain self" $
         \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
           Nothing -> False
           Just rcnv ->
             not
-              ( unTagged ruid
+              ( qUntagged ruid
                   `elem` (map omQualifiedId (rcmOthers (rcnvMembers rcnv)))
               )
     ]
@@ -101,7 +100,7 @@ cnvUids dom c =
 convUids :: Domain -> Data.Conversation -> [Qualified UserId]
 convUids dom c =
   map ((`Qualified` dom) . lmId) (Data.convLocalMembers c)
-    <> map (unTagged . rmId) (Data.convRemoteMembers c)
+    <> map (qUntagged . rmId) (Data.convRemoteMembers c)
 
 genLocalMember :: Gen LocalMember
 genLocalMember =

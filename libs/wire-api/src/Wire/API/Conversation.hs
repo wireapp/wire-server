@@ -25,7 +25,6 @@ module Wire.API.Conversation
     ConversationMetadata (..),
     Conversation (..),
     mkConversation,
-    cnvQualifiedId,
     cnvType,
     cnvCreator,
     cnvAccess,
@@ -116,9 +115,7 @@ import Wire.API.Routes.MultiTablePaging
 -- Conversation
 
 data ConversationMetadata = ConversationMetadata
-  { -- | A qualified conversation ID
-    cnvmQualifiedId :: Qualified ConvId,
-    cnvmType :: ConvType,
+  { cnvmType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
     cnvmCreator :: UserId,
     cnvmAccess :: [Access],
@@ -143,10 +140,7 @@ conversationMetadataObjectSchema ::
     ConversationMetadata
 conversationMetadataObjectSchema =
   ConversationMetadata
-    <$> cnvmQualifiedId .= field "qualified_id" schema
-    <* (qUnqualified . cnvmQualifiedId)
-      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-    <*> cnvmType .= field "type" schema
+    <$> cnvmType .= field "type" schema
     <*> cnvmCreator
       .= fieldWithDocModifier
         "creator"
@@ -177,7 +171,9 @@ instance ToSchema ConversationMetadata where
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
-  { cnvMetadata :: ConversationMetadata,
+  { -- | A qualified conversation ID
+    cnvQualifiedId :: Qualified ConvId,
+    cnvMetadata :: ConversationMetadata,
     cnvMembers :: ConvMembers
   }
   deriving stock (Eq, Show, Generic)
@@ -197,10 +193,7 @@ mkConversation ::
   Maybe ReceiptMode ->
   Conversation
 mkConversation qid ty uid acc role name mems tid ms rm =
-  Conversation (ConversationMetadata qid ty uid acc role name tid ms rm) mems
-
-cnvQualifiedId :: Conversation -> Qualified ConvId
-cnvQualifiedId = cnvmQualifiedId . cnvMetadata
+  Conversation qid (ConversationMetadata ty uid acc role name tid ms rm) mems
 
 cnvType :: Conversation -> ConvType
 cnvType = cnvmType . cnvMetadata
@@ -232,7 +225,10 @@ instance ToSchema Conversation where
       "Conversation"
       (description ?~ "A conversation object as returned from the server")
       $ Conversation
-        <$> cnvMetadata .= conversationMetadataObjectSchema
+        <$> cnvQualifiedId .= field "qualified_id" schema
+        <* (qUnqualified . cnvQualifiedId)
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+        <*> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
 
 modelConversation :: Doc.Model

@@ -32,10 +32,10 @@ testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvMetadata =
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+              cnvMetadata =
                 ConversationMetadata
-                  { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
-                    cnvmType = RegularConv,
+                  { cnvmType = RegularConv,
                     cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
                     cnvmAccess = [],
                     cnvmAccessRole = PrivateAccessRole,

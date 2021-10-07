@@ -215,7 +215,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe Prekey)
       mkClientMap = Map.fromList . map (prekeyClient &&& Just . prekeyData)
       qmap :: Ord a => [(Qualified a, b)] -> Map Domain (Map a b)
-      qmap = fmap Map.fromList . partitionQualified . map (sequenceAOf _1)
+      qmap = fmap Map.fromList . indexQualified . map (sequenceAOf _1)
   c1 <- generateClientPrekeys brig1 prekeys1
   c2 <- generateClientPrekeys brig2 prekeys2
   let uc =

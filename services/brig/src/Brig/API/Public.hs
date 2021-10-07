@@ -70,7 +70,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Qualified (Local, Qualified (..), partitionRemoteOrLocalIds)
+import Data.Qualified
 import Data.Range
 import Data.String.Interpolate as QQ
 import qualified Data.Swagger as S
@@ -950,8 +950,8 @@ listUsersByIdsOrHandles self q = do
     Public.ListUsersByIds us ->
       byIds us
     Public.ListUsersByHandles hs -> do
-      domain <- viewFederationDomain
-      let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
+      loc <- qualifyLocal ()
+      let (localHandles, _) = partitionQualified loc (fromRange hs)
       us <- getIds localHandles
       Handle.filterHandleResults self =<< byIds us
   case foundUsers of
@@ -1102,7 +1102,7 @@ createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> H
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
-  API.createConnection lself conn (unTagged target) !>> connError
+  API.createConnection lself conn (qUntagged target) !>> connError
 
 createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
@@ -1112,7 +1112,7 @@ createConnection self conn target = do
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   lother <- qualifyLocal other
-  updateConnection self conn (unTagged lother) update
+  updateConnection self conn (qUntagged lother) update
 
 updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateConnection self conn other update = do
@@ -1171,7 +1171,7 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = do
   lother <- qualifyLocal other
-  getConnection self (unTagged lother)
+  getConnection self (qUntagged lother)
 
 getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
 getConnection self other = do

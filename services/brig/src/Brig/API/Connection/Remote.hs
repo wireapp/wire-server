@@ -36,7 +36,6 @@ import Control.Error.Util ((??))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
-import Data.Tagged
 import Data.UUID.V4
 import Imports
 import Network.Wai.Utilities.Error
@@ -112,7 +111,7 @@ updateOne2OneConv ::
 updateOne2OneConv _ _ _ _ _ = do
   -- FUTUREWORK: use galley internal API to update 1-1 conversation and retrieve ID
   uid <- liftIO nextRandom
-  unTagged <$> qualifyLocal (Id uid)
+  qUntagged <$> qualifyLocal (Id uid)
 
 -- | Perform a state transition on a connection, handle conversation updates and
 -- push events.
@@ -131,7 +130,7 @@ transitionTo ::
 transitionTo self _ _ Nothing Nothing =
   -- This can only happen if someone tries to ignore as a first action on a
   -- connection. This shouldn't be possible.
-  throwE (InvalidTransition (lUnqualified self))
+  throwE (InvalidTransition (tUnqualified self))
 transitionTo self mzcon other Nothing (Just rel) = lift $ do
   -- update 1-1 connection
   qcnv <- updateOne2OneConv self mzcon other Nothing rel
@@ -140,7 +139,7 @@ transitionTo self mzcon other Nothing (Just rel) = lift $ do
   connection <-
     Data.insertConnection
       self
-      (unTagged other)
+      (qUntagged other)
       (relationWithHistory rel)
       qcnv
 
@@ -163,7 +162,7 @@ transitionTo self mzcon other (Just connection) (Just rel) = lift $ do
 pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> AppIO ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
-  Intra.onConnectionEvent (lUnqualified self) mzcon event
+  Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
   Local UserId ->
@@ -180,7 +179,7 @@ performLocalAction self mzcon other mconnection action = do
       response <- sendConnectionAction self other ra !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
         NewConnectionResponseOk reaction -> pure reaction
-        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (unTagged other))
+        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (qUntagged other))
     pure $
       fromMaybe rel1 $ do
         reactionAction <- (mreaction :: Maybe RemoteConnectionAction)
@@ -235,7 +234,7 @@ createConnectionToRemoteUser ::
   Remote UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
-  mconnection <- lift $ Data.lookupConnection self (unTagged other)
+  mconnection <- lift $ Data.lookupConnection self (qUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
@@ -245,10 +244,10 @@ updateConnectionToRemoteUser ::
   Maybe ConnId ->
   ConnectionM (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  mconnection <- lift $ Data.lookupConnection self (unTagged other)
+  mconnection <- lift $ Data.lookupConnection self (qUntagged other)
   action <-
     actionForTransition rel1
-      ?? InvalidTransition (lUnqualified self)
+      ?? InvalidTransition (tUnqualified self)
   (conn, wasUpdated) <- performLocalAction self zcon other mconnection action
   pure $ guard wasUpdated $> extract conn
   where

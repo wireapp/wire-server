@@ -1492,7 +1492,7 @@ connectUsers u us = void $ connectUsersWith expect2xx u us
 connectLocalQualifiedUsers :: UserId -> List1 (Qualified UserId) -> TestM ()
 connectLocalQualifiedUsers u us = do
   localDomain <- viewFederationDomain
-  let partitionMap = partitionQualified . toList . toNonEmpty $ us
+  let partitionMap = indexQualified . toList . toNonEmpty $ us
   -- FUTUREWORK: connect all users, not just those on the same domain as 'u'
   case LMap.lookup localDomain partitionMap of
     Nothing -> err
@@ -1848,7 +1848,7 @@ randomEmail = do
   uid <- liftIO nextRandom
   return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
-selfConv :: UserId -> Id C
+selfConv :: UserId -> ConvId
 selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
@@ -1913,15 +1913,15 @@ someLastPrekeys =
   ]
 
 mkConv ::
-  Qualified ConvId ->
+  ConvId ->
   UserId ->
   RoleName ->
   [OtherMember] ->
   FederatedGalley.RemoteConversation
 mkConv cnvId creator selfRole otherMembers =
   FederatedGalley.RemoteConversation
+    cnvId
     ( ConversationMetadata
-        cnvId
         RegularConv
         creator
         []

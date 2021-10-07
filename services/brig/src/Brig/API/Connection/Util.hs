@@ -29,7 +29,7 @@ import Control.Error (noteT)
 import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id (UserId)
-import Data.Qualified (Local, lUnqualified)
+import Data.Qualified (Local, tUnqualified)
 import Imports
 import Wire.API.Connection (Relation (..))
 
@@ -38,7 +38,7 @@ type ConnectionM = ExceptT ConnectionError AppIO
 -- Helpers
 
 checkLimit :: Local UserId -> ExceptT ConnectionError AppIO ()
-checkLimit u = noteT (TooManyConnections (lUnqualified u)) $ do
+checkLimit u = noteT (TooManyConnections (tUnqualified u)) $ do
   n <- lift $ Data.countConnections u [Accepted, Sent]
   l <- setUserMaxConnections <$> view settings
   guard (n < l)

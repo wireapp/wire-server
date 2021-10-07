@@ -81,7 +81,6 @@ import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import Data.Time
 import Galley.API.Error
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
@@ -211,7 +210,7 @@ updateLocalConversationAccess ::
   Galley (UpdateResult Event)
 updateLocalConversationAccess lcnv lusr con target =
   getUpdateResult
-    . updateLocalConversation lcnv (unTagged lusr) (Just con)
+    . updateLocalConversation lcnv (qUntagged lusr) (Just con)
     . ConversationActionAccessUpdate
     $ target
 
@@ -238,7 +237,7 @@ performAccessUpdateAction qusr conv target = do
         && CodeAccess `notElem` cupAccess target
     )
     $ lift $ do
-      key <- mkKey (lUnqualified lcnv)
+      key <- mkKey (tUnqualified lcnv)
       Data.deleteCode key ReusableCode
   -- Depending on a variety of things, some bots and users have to be
   -- removed from the conversation. We keep track of them using 'State'.
@@ -266,18 +265,18 @@ performAccessUpdateAction qusr conv target = do
         botsL .= []
       _ -> return ()
   -- Update Cassandra
-  lift $ Data.updateConversationAccess (lUnqualified lcnv) target
+  lift $ Data.updateConversationAccess (tUnqualified lcnv) target
   -- Remove users and bots
   lift . void . forkIO $ do
     let removedUsers = map lmId users \\ map lmId newUsers
         removedBots = map botMemId bots \\ map botMemId newBots
-    mapM_ (deleteBot (lUnqualified lcnv)) removedBots
+    mapM_ (deleteBot (tUnqualified lcnv)) removedBots
     for_ (nonEmpty removedUsers) $ \victims -> do
       -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
-      Data.removeLocalMembersFromLocalConv (lUnqualified lcnv) victims
+      Data.removeLocalMembersFromLocalConv (tUnqualified lcnv) victims
       now <- liftIO getCurrentTime
-      let qvictims = QualifiedUserIdList . map (unTagged . qualifyAs lcnv) . toList $ victims
-      let e = Event MemberLeave (unTagged lcnv) qusr now (EdMembersLeave qvictims)
+      let qvictims = QualifiedUserIdList . map (qUntagged . qualifyAs lcnv) . toList $ victims
+      let e = Event MemberLeave (qUntagged lcnv) qusr now (EdMembersLeave qvictims)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       traverse_ push1 $
@@ -323,7 +322,7 @@ updateLocalConversationReceiptMode ::
   Galley (UpdateResult Event)
 updateLocalConversationReceiptMode lcnv lusr con update =
   getUpdateResult $
-    updateLocalConversation lcnv (unTagged lusr) (Just con) $
+    updateLocalConversation lcnv (qUntagged lusr) (Just con) $
       ConversationActionReceiptModeUpdate update
 
 updateRemoteConversationReceiptMode ::
@@ -352,11 +351,13 @@ updateConversationMessageTimer ::
   Public.ConversationMessageTimerUpdate ->
   Galley (UpdateResult Event)
 updateConversationMessageTimer usr zcon qcnv update = do
-  localDomain <- viewFederationDomain
   lusr <- qualifyLocal usr
-  if qDomain qcnv == localDomain
-    then updateLocalConversationMessageTimer lusr zcon (toLocal qcnv) update
-    else throwM federationNotImplemented
+  foldQualified
+    lusr
+    (updateLocalConversationMessageTimer lusr zcon)
+    (\_ _ -> throwM federationNotImplemented)
+    qcnv
+    update
 
 updateLocalConversationMessageTimer ::
   Local UserId ->
@@ -366,7 +367,7 @@ updateLocalConversationMessageTimer ::
   Galley (UpdateResult Event)
 updateLocalConversationMessageTimer lusr con lcnv update =
   getUpdateResult $
-    updateLocalConversation lcnv (unTagged lusr) (Just con) $
+    updateLocalConversation lcnv (qUntagged lusr) (Just con) $
       ConversationActionMessageTimerUpdate update
 
 -- | Update a local conversation, and notify all local and remote members.
@@ -383,7 +384,7 @@ updateLocalConversation lcnv qusr con action = do
       getConversationAndMemberWithError
         (errorDescriptionTypeToWai @ConvNotFound)
         qusr
-        (lUnqualified lcnv)
+        (tUnqualified lcnv)
 
   -- perform checks
   lift $ ensureConversationActionAllowed action conv self
@@ -561,7 +562,7 @@ joinConversation zusr zcon cnv access = do
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     lift $
       notifyConversationMetadataUpdate
-        (unTagged lusr)
+        (qUntagged lusr)
         (Just zcon)
         lcnv
         (convTargets conv <> extraTargets)
@@ -605,7 +606,7 @@ performAddMemberAction qusr conv invited role = do
       tms <- Data.teamMembersLimited tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
-      tcv <- Data.teamConversation tid (lUnqualified lcnv)
+      tcv <- Data.teamConversation tid (tUnqualified lcnv)
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
       ensureConnectedOrSameTeam qusr newUsers
@@ -640,7 +641,7 @@ performAddMemberAction qusr conv invited role = do
           then do
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $ do
-                qvictim <- unTagged <$> qualifyLocal (lmId mem)
+                qvictim <- qUntagged <$> qualifyLocal (lmId mem)
                 void . runMaybeT $
                   updateLocalConversation lcnv qvictim Nothing $
                     ConversationActionRemoveMember qvictim
@@ -652,7 +653,7 @@ performAddMemberAction qusr conv invited role = do
 addMembersUnqualified ::
   UserId -> ConnId -> ConvId -> Public.Invite -> Galley (UpdateResult Event)
 addMembersUnqualified zusr zcon cnv (Public.Invite users role) = do
-  qusers <- traverse (fmap unTagged . qualifyLocal) (toNonEmpty users)
+  qusers <- traverse (fmap qUntagged . qualifyLocal) (toNonEmpty users)
   addMembers zusr zcon cnv (Public.InviteQualified qusers role)
 
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (UpdateResult Event)
@@ -660,7 +661,7 @@ addMembers zusr zcon cnv (Public.InviteQualified users role) = do
   lusr <- qualifyLocal zusr
   lcnv <- qualifyLocal cnv
   getUpdateResult $
-    updateLocalConversation lcnv (unTagged lusr) (Just zcon) $
+    updateLocalConversation lcnv (qUntagged lusr) (Just zcon) $
       ConversationActionAddMembers users role
 
 updateSelfMember :: UserId -> ConnId -> Qualified ConvId -> Public.MemberUpdate -> Galley ()
@@ -670,18 +671,18 @@ updateSelfMember zusr zcon qcnv update = do
   unless exists (throwErrorDescriptionType @ConvNotFound)
   Data.updateSelfMember lusr qcnv lusr update
   now <- liftIO getCurrentTime
-  let e = Event MemberStateUpdate qcnv (unTagged lusr) now (EdMemberUpdate (updateData lusr))
+  let e = Event MemberStateUpdate qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) e [zusr] []
   where
     checkLocalMembership lcnv lusr =
-      isMember (lUnqualified lusr)
-        <$> Data.members (lUnqualified lcnv)
+      isMember (tUnqualified lusr)
+        <$> Data.members (tUnqualified lcnv)
     checkRemoteMembership rcnv lusr =
       isJust . Map.lookup rcnv
-        <$> Data.remoteConversationStatus (lUnqualified lusr) [rcnv]
+        <$> Data.remoteConversationStatus (tUnqualified lusr) [rcnv]
     updateData luid =
       MemberUpdateData
-        { misTarget = unTagged luid,
+        { misTarget = qUntagged luid,
           misOtrMutedStatus = mupOtrMuteStatus update,
           misOtrMutedRef = mupOtrMuteRef update,
           misOtrArchived = mupOtrArchive update,
@@ -694,7 +695,7 @@ updateSelfMember zusr zcon qcnv update = do
 updateUnqualifiedSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
 updateUnqualifiedSelfMember zusr zcon cnv update = do
   lcnv <- qualifyLocal cnv
-  updateSelfMember zusr zcon (unTagged lcnv) update
+  updateSelfMember zusr zcon (qUntagged lcnv) update
 
 updateOtherMemberUnqualified ::
   UserId ->
@@ -707,7 +708,7 @@ updateOtherMemberUnqualified zusr zcon cnv victim update = do
   lusr <- qualifyLocal zusr
   lcnv <- qualifyLocal cnv
   lvictim <- qualifyLocal victim
-  updateOtherMemberLocalConv lcnv lusr zcon (unTagged lvictim) update
+  updateOtherMemberLocalConv lcnv lusr zcon (qUntagged lvictim) update
 
 updateOtherMember ::
   UserId ->
@@ -729,9 +730,9 @@ updateOtherMemberLocalConv ::
   Public.OtherMemberUpdate ->
   Galley ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult $ do
-  when (unTagged lusr == qvictim) $
+  when (qUntagged lusr == qvictim) $
     throwM invalidTargetUserOp
-  updateLocalConversation lcnv (unTagged lusr) (Just con) $
+  updateLocalConversation lcnv (qUntagged lusr) (Just con) $
     ConversationActionMemberUpdate qvictim update
 
 updateOtherMemberRemoteConv ::
@@ -747,7 +748,7 @@ removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley Remove
 removeMemberUnqualified zusr con cnv victim = do
   lcnv <- qualifyLocal cnv
   lvictim <- qualifyLocal victim
-  removeMemberQualified zusr con (unTagged lcnv) (unTagged lvictim)
+  removeMemberQualified zusr con (qUntagged lcnv) (qUntagged lvictim)
 
 removeMemberQualified ::
   UserId ->
@@ -765,8 +766,8 @@ removeMemberFromRemoteConv ::
   Maybe ConnId ->
   Qualified UserId ->
   Galley RemoveFromConversationResponse
-removeMemberFromRemoteConv (unTagged -> qcnv) lusr _ victim
-  | unTagged lusr == victim =
+removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
+  | qUntagged lusr == victim =
     do
       let lc = FederatedGalley.LeaveConversationRequest (qUnqualified qcnv) (qUnqualified victim)
       let rpc =
@@ -776,7 +777,7 @@ removeMemberFromRemoteConv (unTagged -> qcnv) lusr _ victim
               lc
       t <- liftIO getCurrentTime
       let successEvent =
-            Event MemberLeave qcnv (unTagged lusr) t $
+            Event MemberLeave qcnv (qUntagged lusr) t $
               EdMembersLeave (QualifiedUserIdList [victim])
       mapRight (const successEvent) . FederatedGalley.leaveResponse <$> runFederated (qDomain qcnv) rpc
   | otherwise = pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
@@ -788,7 +789,7 @@ performRemoveMemberAction ::
 performRemoveMemberAction conv victim = do
   loc <- qualifyLocal ()
   guard $ isConvMember loc conv victim
-  let removeLocal u c = Data.removeLocalMembersFromLocalConv c (pure (lUnqualified u))
+  let removeLocal u c = Data.removeLocalMembersFromLocalConv c (pure (tUnqualified u))
       removeRemote u c = Data.removeRemoteMembersFromLocalConv c (pure u)
   lift $ foldQualified loc removeLocal removeRemote victim (Data.convId conv)
 
@@ -803,7 +804,7 @@ removeMemberFromLocalConv lcnv lusr con victim =
   -- FUTUREWORK: actually return errors as part of the response instead of throwing
   fmap (maybe (Left RemoveFromConversationErrorUnchanged) Right)
     . runMaybeT
-    . updateLocalConversation lcnv (unTagged lusr) con
+    . updateLocalConversation lcnv (qUntagged lusr) con
     . ConversationActionRemoveMember
     $ victim
 
@@ -962,9 +963,12 @@ updateConversationName ::
   Galley (Maybe Public.Event)
 updateConversationName zusr zcon qcnv convRename = do
   lusr <- qualifyLocal zusr
-  if qDomain qcnv == lDomain lusr
-    then updateLocalConversationName lusr zcon (toLocal qcnv) convRename
-    else throwM federationNotImplemented
+  foldQualified
+    lusr
+    (updateLocalConversationName lusr zcon)
+    (\_ _ -> throwM federationNotImplemented)
+    qcnv
+    convRename
 
 updateUnqualifiedConversationName ::
   UserId ->
@@ -984,10 +988,10 @@ updateLocalConversationName ::
   Public.ConversationRename ->
   Galley (Maybe Public.Event)
 updateLocalConversationName lusr zcon lcnv convRename = do
-  alive <- Data.isConvAlive (lUnqualified lcnv)
+  alive <- Data.isConvAlive (tUnqualified lcnv)
   if alive
     then updateLiveLocalConversationName lusr zcon lcnv convRename
-    else Nothing <$ Data.deleteConversation (lUnqualified lcnv)
+    else Nothing <$ Data.deleteConversation (tUnqualified lcnv)
 
 updateLiveLocalConversationName ::
   Local UserId ->
@@ -997,7 +1001,7 @@ updateLiveLocalConversationName ::
   Galley (Maybe Public.Event)
 updateLiveLocalConversationName lusr con lcnv rename =
   runMaybeT $
-    updateLocalConversation lcnv (unTagged lusr) (Just con) $
+    updateLocalConversation lcnv (qUntagged lusr) (Just con) $
       ConversationActionRename rename
 
 notifyConversationMetadataUpdate ::
@@ -1007,14 +1011,14 @@ notifyConversationMetadataUpdate ::
   NotificationTargets ->
   ConversationAction ->
   Galley Event
-notifyConversationMetadataUpdate quid con (Tagged qcnv) targets action = do
+notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = do
   localDomain <- viewFederationDomain
   now <- liftIO getCurrentTime
   let e = conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
-  let rusersByDomain = partitionRemote (toList (ntRemotes targets))
-  void . pooledForConcurrentlyN 8 rusersByDomain $ \(domain, uids) -> do
+  let rusersByDomain = indexRemote (toList (ntRemotes targets))
+  void . pooledForConcurrentlyN 8 rusersByDomain $ \(qUntagged -> Qualified uids domain) -> do
     let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
         rpc =
           FederatedGalley.onConversationUpdated
@@ -1073,7 +1077,7 @@ addBot zusr zcon b = do
   (bots, users) <- regularConvChecks lusr c
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
-  (e, bm) <- Data.addBotMember (unTagged lusr) (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
+  (e, bm) <- Data.addBotMember (qUntagged lusr) (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
@@ -1087,7 +1091,7 @@ addBot zusr zcon b = do
       ensureActionAllowed AddConversationMember =<< getSelfMemberFromLocalsLegacy zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
-        ensureMemberLimit (toList $ Data.convLocalMembers c) [unTagged botId]
+        ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
       return (bots, users)
     teamConvChecks cid tid = do
       tcv <- Data.teamConversation tid cid

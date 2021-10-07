@@ -122,7 +122,7 @@ module Galley.Data
 where
 
 import Brig.Types.Code
-import Cassandra hiding (Tagged)
+import Cassandra
 import Cassandra.Util
 import Control.Arrow (second)
 import Control.Exception (ErrorCall (ErrorCall))
@@ -143,7 +143,6 @@ import qualified Data.Monoid
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
@@ -544,13 +543,12 @@ toConv cid mms remoteMems conv =
     f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 conversationMeta :: MonadClient m => Domain -> ConvId -> m (Maybe ConversationMetadata)
-conversationMeta localDomain conv =
+conversationMeta _localDomain conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) =
       ConversationMetadata
-        (Qualified conv localDomain)
         t
         c
         (defAccess t a)
@@ -609,22 +607,22 @@ remoteConversationStatus ::
   m (Map (Remote ConvId) MemberStatus)
 remoteConversationStatus uid =
   fmap mconcat
-    . pooledMapConcurrentlyN 8 (uncurry (remoteConversationStatusOnDomain uid))
-    . partitionRemote
+    . pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomain uid)
+    . indexRemote
 
-remoteConversationStatusOnDomain :: MonadClient m => UserId -> Domain -> [ConvId] -> m (Map (Remote ConvId) MemberStatus)
-remoteConversationStatusOnDomain uid domain convs =
+remoteConversationStatusOnDomain :: MonadClient m => UserId -> Remote [ConvId] -> m (Map (Remote ConvId) MemberStatus)
+remoteConversationStatusOnDomain uid rconvs =
   Map.fromList . map toPair
-    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, domain, convs))
+    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, tDomain rconvs, tUnqualified rconvs))
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
-      ( toRemote (Qualified conv domain),
+      ( qualifyAs rconvs conv,
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
-  (\(d, c) -> toRemote $ Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
+  uncurry toRemoteUnsafe <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
 
 createConversation ::
   MonadClient m =>
@@ -642,7 +640,7 @@ createConversation ::
 createConversation lusr name acc role others tinfo mtimer recpt othersConversationRole = do
   conv <- Id <$> liftIO nextRandom
   let lconv = qualifyAs lusr conv
-      usr = lUnqualified lusr
+      usr = tUnqualified lusr
   retry x5 $ case tinfo of
     Nothing ->
       write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
@@ -652,17 +650,17 @@ createConversation lusr name acc role others tinfo mtimer recpt othersConversati
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
   let newUsers = fmap (,othersConversationRole) (fromConvSize others)
-  (lmems, rmems) <- addMembers lconv (ulAddLocal (lUnqualified lusr, roleNameWireAdmin) newUsers)
+  (lmems, rmems) <- addMembers lconv (ulAddLocal (tUnqualified lusr, roleNameWireAdmin) newUsers)
   pure $ newConv conv RegularConv usr lmems rmems acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => Local UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation lusr name = do
-  let usr = lUnqualified lusr
+  let usr = tUnqualified lusr
       conv = selfConv usr
       lconv = qualifyAs lusr conv
   retry x5 $
     write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-  (lmems, rmems) <- addMembers lconv (UserList [lUnqualified lusr] [])
+  (lmems, rmems) <- addMembers lconv (UserList [tUnqualified lusr] [])
   pure $ newConv conv SelfConv usr lmems rmems [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation ::
@@ -770,10 +768,9 @@ newConv cid ct usr mems rMems acc role name tid mtimer rMode =
       convReceiptMode = rMode
     }
 
-convMetadata :: Domain -> Conversation -> ConversationMetadata
-convMetadata localDomain c =
+convMetadata :: Conversation -> ConversationMetadata
+convMetadata c =
   ConversationMetadata
-    (Qualified (convId c) localDomain)
     (convType c)
     (convCreator c)
     (convAccess c)
@@ -845,7 +842,7 @@ remoteMemberLists convs = do
     mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
 
 toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
-toRemoteMember u d = RemoteMember (toRemote (Qualified u d))
+toRemoteMember u d = RemoteMember (toRemoteUnsafe d u)
 
 memberLists ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
@@ -871,7 +868,7 @@ lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
 
 -- | Add a member to a local conversation, as an admin.
 addMember :: MonadClient m => Local ConvId -> Local UserId -> m [LocalMember]
-addMember c u = fst <$> addMembers c (UserList [lUnqualified u] [])
+addMember c u = fst <$> addMembers c (UserList [tUnqualified u] [])
 
 class ToUserRole a where
   toUserRole :: a -> (UserId, RoleName)
@@ -897,7 +894,7 @@ addMembers ::
   Local ConvId ->
   UserList a ->
   m ([LocalMember], [RemoteMember])
-addMembers (lUnqualified -> conv) (fmap toUserRole -> UserList lusers rusers) = do
+addMembers (tUnqualified -> conv) (fmap toUserRole -> UserList lusers rusers) = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
   -- sequentially. (parallelizing would not aid performance as the partition
@@ -920,7 +917,7 @@ addMembers (lUnqualified -> conv) (fmap toUserRole -> UserList lusers rusers) = 
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
-      for_ chunk $ \(unTagged -> Qualified (uid, role) domain) -> do
+      for_ chunk $ \(qUntagged -> Qualified (uid, role) domain) -> do
         -- User is remote, so we only add it to the member_remote_user
         -- table, but the reverse mapping has to be done on the remote
         -- backend; so we assume an additional call to their backend has
@@ -967,15 +964,15 @@ updateSelfMemberLocalConv lcid luid mup = do
     for_ (mupOtrMuteStatus mup) $ \ms ->
       addPrepQuery
         Cql.updateOtrMemberMutedStatus
-        (ms, mupOtrMuteRef mup, lUnqualified lcid, lUnqualified luid)
+        (ms, mupOtrMuteRef mup, tUnqualified lcid, tUnqualified luid)
     for_ (mupOtrArchive mup) $ \a ->
       addPrepQuery
         Cql.updateOtrMemberArchived
-        (a, mupOtrArchiveRef mup, lUnqualified lcid, lUnqualified luid)
+        (a, mupOtrArchiveRef mup, tUnqualified lcid, tUnqualified luid)
     for_ (mupHidden mup) $ \h ->
       addPrepQuery
         Cql.updateMemberHidden
-        (h, mupHiddenRef mup, lUnqualified lcid, lUnqualified luid)
+        (h, mupHiddenRef mup, tUnqualified lcid, tUnqualified luid)
 
 updateSelfMemberRemoteConv ::
   MonadClient m =>
@@ -983,22 +980,22 @@ updateSelfMemberRemoteConv ::
   Local UserId ->
   MemberUpdate ->
   m ()
-updateSelfMemberRemoteConv (Tagged (Qualified cid domain)) luid mup = do
+updateSelfMemberRemoteConv (qUntagged -> Qualified cid domain) luid mup = do
   retry x5 . batch $ do
     setType BatchUnLogged
     setConsistency Quorum
     for_ (mupOtrMuteStatus mup) $ \ms ->
       addPrepQuery
         Cql.updateRemoteOtrMemberMutedStatus
-        (ms, mupOtrMuteRef mup, domain, cid, lUnqualified luid)
+        (ms, mupOtrMuteRef mup, domain, cid, tUnqualified luid)
     for_ (mupOtrArchive mup) $ \a ->
       addPrepQuery
         Cql.updateRemoteOtrMemberArchived
-        (a, mupOtrArchiveRef mup, domain, cid, lUnqualified luid)
+        (a, mupOtrArchiveRef mup, domain, cid, tUnqualified luid)
     for_ (mupHidden mup) $ \h ->
       addPrepQuery
         Cql.updateRemoteMemberHidden
-        (h, mupHiddenRef mup, domain, cid, lUnqualified luid)
+        (h, mupHiddenRef mup, domain, cid, tUnqualified luid)
 
 updateOtherMember ::
   MonadClient m =>
@@ -1018,14 +1015,14 @@ updateOtherMemberLocalConv ::
 updateOtherMemberLocalConv lcid quid omu =
   do
     let addQuery r
-          | lDomain lcid == qDomain quid =
+          | tDomain lcid == qDomain quid =
             addPrepQuery
               Cql.updateMemberConvRoleName
-              (r, lUnqualified lcid, qUnqualified quid)
+              (r, tUnqualified lcid, qUnqualified quid)
           | otherwise =
             addPrepQuery
               Cql.updateRemoteMemberConvRoleName
-              (r, lUnqualified lcid, qDomain quid, qUnqualified quid)
+              (r, tUnqualified lcid, qDomain quid, qUnqualified quid)
     retry x5 . batch $ do
       setType BatchUnLogged
       setConsistency Quorum
@@ -1077,7 +1074,7 @@ removeRemoteMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ victims $ \(unTagged -> Qualified uid domain) ->
+    for_ victims $ \(qUntagged -> Qualified uid domain) ->
       addPrepQuery Cql.removeRemoteMember (cnv, domain, uid)
 
 removeLocalMembersFromRemoteConv ::
@@ -1114,7 +1111,7 @@ newMemberWithRole (u, r) =
     }
 
 newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
-newRemoteMemberWithRole ur@(unTagged -> (Qualified (u, r) _)) =
+newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
   RemoteMember
     { rmId = qualifyAs ur u,
       rmConvRoleName = r

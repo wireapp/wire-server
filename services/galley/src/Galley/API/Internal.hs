@@ -32,7 +32,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
-import Data.Qualified (Local, Qualified (..), Remote, lUnqualified, partitionRemoteOrLocalIds')
+import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
 import Data.Time
@@ -453,13 +453,12 @@ rmUser user conn = do
   where
     goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
     goConvPages lusr range page = do
-      localDomain <- viewFederationDomain
-      let (remoteConvs, localConvs) = partitionRemoteOrLocalIds' localDomain . mtpResults $ page
+      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
       leaveRemoteConversations lusr remoteConvs
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
-            usr = lUnqualified lusr
+            usr = tUnqualified lusr
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom usr nextQuery
         goConvPages lusr range newCids
@@ -500,7 +499,7 @@ rmUser user conn = do
     leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
     leaveRemoteConversations lusr cids =
       for_ cids $ \cid ->
-        Update.removeMemberFromRemoteConv cid lusr Nothing (unTagged lusr)
+        Update.removeMemberFromRemoteConv cid lusr Nothing (qUntagged lusr)
 
 deleteLoop :: Galley ()
 deleteLoop = do

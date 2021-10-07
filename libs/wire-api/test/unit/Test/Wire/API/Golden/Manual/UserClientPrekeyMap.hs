@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Manual.UserClientPrekeyMap where
 
-import Data.Id (ClientId (ClientId, client), Id (Id))
+import Data.Id
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports

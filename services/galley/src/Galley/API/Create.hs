@@ -32,7 +32,6 @@ import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
@@ -101,7 +100,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
       qualifiedUserIds = newConvQualifiedUsers body
       allUsers =
         toUserList lusr $
-          map (unTagged . qualifyAs lusr) unqualifiedUserIds <> qualifiedUserIds
+          map (qUntagged . qualifyAs lusr) unqualifiedUserIds <> qualifiedUserIds
   checkedUsers <- checkedConvSize allUsers
   ensureConnected zusr (ulLocals allUsers)
   checkRemoteUsersExist (ulRemotes allUsers)
@@ -130,7 +129,7 @@ createTeamGroupConv zusr zcon tinfo body = do
       qualifiedUserIds = newConvQualifiedUsers body
       allUsers =
         toUserList lusr $
-          map (unTagged . qualifyAs lusr) unqualifiedUserIds <> qualifiedUserIds
+          map (qUntagged . qualifyAs lusr) unqualifiedUserIds <> qualifiedUserIds
       convTeam = cnvTeamId tinfo
 
   zusrMembership <- Data.teamMember convTeam zusr
@@ -238,7 +237,7 @@ createConnectConversation usr conn j = do
       c <- Data.createConnectConversation lusr x y n
       now <- liftIO getCurrentTime
       let lcid = qualifyAs lusr (Data.convId c)
-          e = Event ConvConnect (unTagged lcid) (unTagged lusr) now (EdConnect j)
+          e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing usr conn c
       for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         push1 $
