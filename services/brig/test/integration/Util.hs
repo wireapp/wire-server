@@ -41,7 +41,6 @@ import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
-import Data.Aeson.Types (emptyObject)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
@@ -53,6 +52,7 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Text as Text
@@ -72,10 +72,10 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
 import Util.AWS
-import Wire.API.Conversation (ListConversations, NewConv (..), NewConvUnmanaged (..))
-import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
 
@@ -584,28 +584,29 @@ createConversation galley zusr usersToAdd = do
       . zConn "conn"
       . json conv
 
--- (should be) equivalent to
--- listConvs u (ListConversations [] Nothing Nothing)
-listAllConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
-listAllConvs g u = do
+listConvIdsFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listConvIdsFirstPage galley zusr = do
+  let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
   post $
-    g
-      . path "/list-conversations"
-      . zUser u
-      . zConn "conn"
-      . json emptyObject
-
-listConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ListConversations -> m ResponseLBS
-listConvs g u req = do
-  -- when using servant-client (pending #1605), this would become:
-  -- galleyClient <- view tsGalleyClient
-  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
-  post $
-    g
-      . path "/list-conversations"
-      . zUser u
+    galley
+      . path "/conversations/list-ids"
+      . zUser zusr
       . zConn "conn"
       . json req
+
+listConvs ::
+  (MonadIO m, MonadHttp m) =>
+  Galley ->
+  UserId ->
+  Range 1 1000 [Qualified ConvId] ->
+  m ResponseLBS
+listConvs galley zusr convs = do
+  post $
+    galley
+      . path "/conversations/list/v2"
+      . zUser zusr
+      . zConn "conn"
+      . json (ListConversations convs)
 
 isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do

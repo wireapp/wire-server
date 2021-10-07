@@ -37,6 +37,7 @@ import Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
 import Data.Qualified
+import Data.Range (checked)
 import qualified Data.Set as Set
 import Federation.Util (generateClientPrekeys, getConvQualified)
 import Gundeck.Types.Notification (ntfTransient)
@@ -52,6 +53,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation
 import Wire.API.Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
 import Wire.API.User.Client
 
@@ -414,10 +416,17 @@ testListConversations brig1 brig2 galley1 galley2 = do
   -- From Alice's point of view
   -- both conversations should show her as the self member and bob as Othermember.
   let expected = cnv1
-  rs <- listAllConvs galley1 (userId alice) <!! (const 200 === statusCode)
-  let cs = convList <$> responseJsonUnsafe rs
-  let c1 = cs >>= find ((== cnvQualifiedId cnv1) . cnvQualifiedId)
-  let c2 = cs >>= find ((== cnvQualifiedId cnv2) . cnvQualifiedId)
+  rs <- listConvIdsFirstPage galley1 (userId alice) <!! (const 200 === statusCode)
+  (page :: ConvIdsPage) <- responseJsonError rs
+  liftIO $ assertBool "conversations should fit in a single page" (not (mtpHasMore page))
+  cids <- liftIO $ case checked (mtpResults page) of
+    Nothing -> assertFailure "too many conversations"
+    Just r -> pure r
+  (cs :: [Conversation]) <-
+    (fmap crFound . responseJsonError)
+      =<< listConvs galley1 (userId alice) cids <!! (const 200 === statusCode)
+  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
+  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
   liftIO . forM_ [c1, c2] $ \actual -> do
     assertEqual
       "self member mismatch"
