@@ -77,7 +77,7 @@ instance ToSchema UpsertOne2OneConversationRequest where
 newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
   { -- | The Nothing value here indicated that there an impossible request was
     -- received, e.g., a remote actor for a remotely owned connect conversation
-    uuorConvId :: Maybe (Qualified ConvId)
+    uuorConvId :: Qualified ConvId
   }
   deriving (Show, Generic)
   deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationResponse
@@ -86,4 +86,4 @@ instance ToSchema UpsertOne2OneConversationResponse where
   schema =
     object "UpsertOne2OneConversationResponse" $
       UpsertOne2OneConversationResponse
-        <$> uuorConvId .= field "conversation_id" (optWithDefault A.Null schema)
+        <$> uuorConvId .= field "conversation_id" schema
