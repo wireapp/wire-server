@@ -1852,8 +1852,6 @@ leaveConnectConversation = do
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   deleteMemberUnqualified alice alice c !!! const 403 === statusCode
 
--- FUTUREWORK: Add more tests for scenarios of federation.
--- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
   qalice <- randomQualifiedUser
