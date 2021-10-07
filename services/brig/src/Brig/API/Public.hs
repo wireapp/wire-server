@@ -98,7 +98,6 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
@@ -1098,19 +1097,15 @@ createConnection self conn target = do
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
+  lother <- qualifyLocal other
+  updateConnection self conn (unTagged lother) update
+
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn other update = do
   let newStatus = Public.cuStatus update
   lself <- qualifyLocal self
-  lother <- qualifyLocal other
-  mc <- API.updateConnection lself lother newStatus (Just conn) !>> connError
+  mc <- API.updateConnection lself other newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
-
--- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
-updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
-updateConnection self conn (Qualified otherUid otherDomain) update = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then updateLocalConnection self conn otherUid update
-    else throwM federationNotImplemented
 
 listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
 listLocalConnections uid start msize = do
@@ -1161,16 +1156,13 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = do
-  lself <- qualifyLocal self
   lother <- qualifyLocal other
-  lift $ Data.lookupConnection lself (unTagged lother)
+  getConnection self (unTagged lother)
 
 getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
-getConnection self (Qualified otherUser otherDomain) = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then getLocalConnection self otherUser
-    else throwM federationNotImplemented
+getConnection self other = do
+  lself <- qualifyLocal self
+  lift $ Data.lookupConnection lself other
 
 deleteUser ::
   UserId ->

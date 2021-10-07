@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 -- TODO: Move to Brig.User.Connection (& split out Brig.User.Invitation?)
 
 -- | > docs/reference/user/connection.md {#RefConnection}
@@ -33,6 +32,8 @@ module Brig.API.Connection
   )
 where
 
+import Brig.API.Connection.Remote
+import Brig.API.Connection.Util
 import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
@@ -41,11 +42,9 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
-import Brig.Options (setUserMaxConnections)
 import Brig.Types
 import Brig.Types.User.Event
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import qualified Data.LegalHold as LH
@@ -59,21 +58,38 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
-type ConnectionM = ExceptT ConnectionError AppIO
+ensureIsActivated :: Local UserId -> MaybeT AppIO ()
+ensureIsActivated lusr = do
+  active <- lift $ Data.isActivated (lUnqualified lusr)
+  guard active
+
+ensureNotSameTeam :: Local UserId -> Local UserId -> ConnectionM ()
+ensureNotSameTeam self target = do
+  selfTeam <- lift $ Intra.getTeamId (lUnqualified self)
+  targetTeam <- lift $ Intra.getTeamId (lUnqualified target)
+  when (isJust selfTeam && selfTeam == targetTeam) $
+    throwE ConnectSameBindingTeamUsers
 
 createConnection ::
   Local UserId ->
   ConnId ->
   Qualified UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
-createConnection lusr con =
+createConnection self con target = do
+  -- basic checks: no need to distinguish between local and remote at this point
+  when (unTagged self == target) $
+    throwE (InvalidUser target)
+  noteT ConnectNoIdentity $
+    ensureIsActivated self
+
+  -- branch according to whether we are connecting to a local or remote user
   foldQualified
-    lusr
-    (createConnectionToLocalUser lusr con)
-    (createConnectionToRemoteUser lusr con)
+    self
+    (createConnectionToLocalUser self con)
+    (createConnectionToRemoteUser self con)
+    target
 
 createConnectionToLocalUser ::
   Local UserId ->
@@ -81,20 +97,10 @@ createConnectionToLocalUser ::
   Local UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToLocalUser self conn target = do
-  when (self == target) $
-    throwE (InvalidUser (unTagged target))
-  selfActive <- lift $ Data.isActivated (lUnqualified self)
-  unless selfActive $
-    throwE ConnectNoIdentity
-  otherActive <- lift $ Data.isActivated (lUnqualified target)
-  unless otherActive $
-    throwE (InvalidUser (unTagged target))
+  noteT (InvalidUser (unTagged target)) $
+    ensureIsActivated target
   checkLegalholdPolicyConflict (lUnqualified self) (lUnqualified target)
-  -- Users belonging to the same team are always treated as connected, so creating a
-  -- connection between them is useless. {#RefConnectionTeam}
-  sameTeam <- lift belongSameTeam
-  when sameTeam $
-    throwE ConnectSameBindingTeamUsers
+  ensureNotSameTeam self target
   s2o <- lift $ Data.lookupConnection self (unTagged target)
   o2s <- lift $ Data.lookupConnection target (unTagged self)
 
@@ -109,7 +115,7 @@ createConnectionToLocalUser self conn target = do
       Log.info $
         logConnection (lUnqualified self) (unTagged target)
           . msg (val "Creating connection")
-      qcnv <- Intra.createConnectConv self (unTagged target) Nothing (Just conn)
+      qcnv <- Intra.createConnectConv (unTagged self) (unTagged target) Nothing (Just conn)
       s2o' <- Data.insertConnection self (unTagged target) SentWithHistory qcnv
       o2s' <- Data.insertConnection target (unTagged self) PendingWithHistory qcnv
       e2o <-
@@ -121,12 +127,12 @@ createConnectionToLocalUser self conn target = do
 
     update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
-      (MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self) Sent
-      (_, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self) Sent
+      (MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self)
+      (_, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self)
       (Accepted, Accepted) -> return $ Existed s2o
       (Accepted, Blocked) -> return $ Existed s2o
       (Sent, Blocked) -> return $ Existed s2o
-      (Blocked, _) -> throwE $ InvalidTransition (lUnqualified self) Sent
+      (Blocked, _) -> throwE $ InvalidTransition (lUnqualified self)
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
       (_, Accepted) -> accept s2o o2s
@@ -169,19 +175,6 @@ createConnectionToLocalUser self conn target = do
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (Data.updateConnection c s)
 
-    belongSameTeam :: AppIO Bool
-    belongSameTeam = do
-      selfTeam <- Intra.getTeamId (lUnqualified self)
-      crTeam <- Intra.getTeamId (lUnqualified target)
-      pure $ isJust selfTeam && selfTeam == crTeam
-
-createConnectionToRemoteUser ::
-  Local UserId ->
-  ConnId ->
-  Remote UserId ->
-  ConnectionM (ResponseForExistedCreated UserConnection)
-createConnectionToRemoteUser _ _ _ = throwM federationNotImplemented
-
 -- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
@@ -208,12 +201,26 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status1 status2
   oneway status2 status1
 
+updateConnection ::
+  Local UserId ->
+  Qualified UserId ->
+  Relation ->
+  Maybe ConnId ->
+  ConnectionM (Maybe UserConnection)
+updateConnection self other newStatus conn =
+  let doUpdate =
+        foldQualified
+          self
+          (updateConnectionToLocalUser self)
+          (updateConnectionToRemoteUser self)
+   in doUpdate other newStatus conn
+
 -- | Change the status of a connection from one user to another.
 --
 -- Note: 'updateConnection' doesn't explicitly check that users don't belong to the same team,
 -- because a connection between two team members can not exist in the first place.
 -- {#RefConnectionTeam}
-updateConnection ::
+updateConnectionToLocalUser ::
   -- | From
   Local UserId ->
   -- | To
@@ -222,15 +229,15 @@ updateConnection ::
   Relation ->
   -- | Acting device connection ID
   Maybe ConnId ->
-  ExceptT ConnectionError AppIO (Maybe UserConnection)
-updateConnection self other newStatus conn = do
+  ConnectionM (Maybe UserConnection)
+updateConnectionToLocalUser self other newStatus conn = do
   s2o <- localConnection self other
   o2s <- localConnection other self
   s2o' <- case (ucStatus s2o, ucStatus o2s, newStatus) of
     -- missing legalhold consent: call 'updateConectionInternal' instead.
-    (MissingLegalholdConsent, _, _) -> throwE $ InvalidTransition (lUnqualified self) newStatus
-    (_, MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self) newStatus
-    (_, _, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self) newStatus
+    (MissingLegalholdConsent, _, _) -> throwE $ InvalidTransition (lUnqualified self)
+    (_, MissingLegalholdConsent, _) -> throwE $ InvalidTransition (lUnqualified self)
+    (_, _, MissingLegalholdConsent) -> throwE $ InvalidTransition (lUnqualified self)
     -- Pending -> {Blocked, Ignored, Accepted}
     (Pending, _, Blocked) -> block s2o
     (Pending, _, Ignored) -> change s2o Ignored
@@ -266,7 +273,7 @@ updateConnection self other newStatus conn = do
     -- no change
     (old, _, new) | old == new -> return Nothing
     -- invalid
-    _ -> throwE $ InvalidTransition (lUnqualified self) newStatus
+    _ -> throwE $ InvalidTransition (lUnqualified self)
   let s2oUserConn = s2o'
   lift . for_ s2oUserConn $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
@@ -464,13 +471,3 @@ lookupConnections from start size = do
   lusr <- qualifyLocal from
   rs <- Data.lookupLocalConnections lusr start size
   return $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)
-
--- Helpers
-
-checkLimit :: Local UserId -> ExceptT ConnectionError AppIO ()
-checkLimit u = do
-  n <- lift $ Data.countConnections u [Accepted, Sent]
-  l <- setUserMaxConnections <$> view settings
-  unless (n < l) $
-    throwE $
-      TooManyConnections (lUnqualified u)

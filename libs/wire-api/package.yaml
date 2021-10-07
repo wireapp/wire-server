@@ -28,6 +28,7 @@ library:
   - cassandra-util
   - cassava >= 0.5
   - cereal
+  - comonad
   - cookie
   - cryptonite
   - currency-codes >=2.0

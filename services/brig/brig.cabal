@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 74882d161b7ecee96907491a40139775942d4f15987cbe1aa30d13b30fc79e0e
+-- hash: 33acd5be229059e16903857f1923a9afcf55f285461298721a15d8d8c5b88a12
 
 name:           brig
 version:        1.35.0
@@ -22,6 +22,8 @@ library
       Brig.API
       Brig.API.Client
       Brig.API.Connection
+      Brig.API.Connection.Remote
+      Brig.API.Connection.Util
       Brig.API.Error
       Brig.API.Federation
       Brig.API.Handler
@@ -137,6 +139,7 @@ library
     , bytestring >=0.10
     , bytestring-conversion >=0.2
     , cassandra-util >=0.16.2
+    , comonad
     , conduit >=1.2.8
     , containers >=0.5
     , cookie >=0.4

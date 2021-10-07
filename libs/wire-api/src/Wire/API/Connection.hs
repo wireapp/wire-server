@@ -31,6 +31,7 @@ module Wire.API.Connection
     Relation (..),
     RelationWithHistory (..),
     relationDropHistory,
+    relationWithHistory,
 
     -- * Requests
     ConnectionRequest (..),
@@ -191,6 +192,17 @@ data RelationWithHistory
   | MissingLegalholdConsentFromCancelled
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RelationWithHistory)
+
+-- | Convert a 'Relation' to 'RelationWithHistory'. This is to be used only if
+-- the MissingLegalholdConsent case does not need to be supported.
+relationWithHistory :: Relation -> RelationWithHistory
+relationWithHistory Accepted = AcceptedWithHistory
+relationWithHistory Blocked = BlockedWithHistory
+relationWithHistory Pending = PendingWithHistory
+relationWithHistory Ignored = IgnoredWithHistory
+relationWithHistory Sent = SentWithHistory
+relationWithHistory Cancelled = CancelledWithHistory
+relationWithHistory MissingLegalholdConsent = MissingLegalholdConsentFromCancelled
 
 relationDropHistory :: RelationWithHistory -> Relation
 relationDropHistory = \case

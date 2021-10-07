@@ -116,6 +116,7 @@ connError (ConnectInvalidEmail _ _) = StdError invalidEmail
 connError ConnectInvalidPhone {} = StdError invalidPhone
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
 connError ConnectMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
+connError (ConnectFederationError e) = fedError e
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError userKeyExists

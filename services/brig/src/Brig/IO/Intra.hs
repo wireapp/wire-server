@@ -288,7 +288,7 @@ rawPush (toList -> events) usrs orig route conn = do
           g
           ( method POST
               . path "/i/push/v2"
-              . zUser orig
+              . zUser orig -- FUTUREWORK: Remove, because gundeck handler ignores this.
               . json (map (mkPush rcps . snd) events)
               . expect2xx
           )
@@ -559,16 +559,22 @@ createLocalConnectConv from to cname conn = do
         . lbytes (encode $ Connect (lUnqualified to) Nothing cname Nothing)
         . expect2xx
 
-createConnectConv :: Local UserId -> Qualified UserId -> Maybe Text -> Maybe ConnId -> AppIO (Qualified ConvId)
-createConnectConv from to cname conn =
-  foldQualified
-    from
-    ( \lto ->
-        unTagged . qualifyAs from
-          <$> createLocalConnectConv from lto cname conn
-    )
-    (\_ -> throwM federationNotImplemented)
-    to
+createConnectConv ::
+  Qualified UserId ->
+  Qualified UserId ->
+  Maybe Text ->
+  Maybe ConnId ->
+  AppIO (Qualified ConvId)
+createConnectConv from to cname conn = do
+  lfrom <- ensureLocal from
+  lto <- ensureLocal to
+  unTagged . qualifyAs lfrom
+    <$> createLocalConnectConv lfrom lto cname conn
+  where
+    ensureLocal :: Qualified a -> AppIO (Local a)
+    ensureLocal x = do
+      loc <- qualifyLocal ()
+      foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
 acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation

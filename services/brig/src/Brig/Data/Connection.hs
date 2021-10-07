@@ -21,7 +21,9 @@ module Brig.Data.Connection
   ( -- * DB Operations
     insertConnection,
     updateConnection,
+    updateConnectionStatus,
     lookupConnection,
+    lookupRelation,
     lookupLocalConnectionsPage,
     lookupRemoteConnectionsPage,
     lookupRelationWithHistory,
@@ -91,6 +93,15 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
 updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
 updateConnection c status = do
   self <- qualifyLocal (ucFrom c)
+  now <- updateConnectionStatus self (ucTo c) status
+  pure $
+    c
+      { ucStatus = relationDropHistory status,
+        ucLastUpdate = now
+      }
+
+updateConnectionStatus :: Local UserId -> Qualified UserId -> RelationWithHistory -> AppIO UTCTimeMillis
+updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (lUnqualified -> ltarget) =
         write connectionUpdate $
@@ -98,12 +109,8 @@ updateConnection c status = do
   let remote (unTagged -> Qualified rtarget domain) =
         write remoteConnectionUpdate $
           params Quorum (status, now, lUnqualified self, domain, rtarget)
-  retry x5 $ foldQualified self local remote (ucTo c)
-  pure $
-    c
-      { ucStatus = relationDropHistory status,
-        ucLastUpdate = now
-      }
+  retry x5 $ foldQualified self local remote target
+  pure now
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
 lookupConnection :: Local UserId -> Qualified UserId -> AppIO (Maybe UserConnection)
@@ -141,6 +148,12 @@ lookupRelationWithHistory self target = do
   let remote (unTagged -> Qualified rtarget domain) =
         query1 remoteRelationSelect (params Quorum (lUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
+
+lookupRelation :: Local UserId -> Qualified UserId -> AppIO Relation
+lookupRelation self target =
+  lookupRelationWithHistory self target <&> \case
+    Nothing -> Cancelled
+    Just relh -> (relationDropHistory relh)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
@@ -209,10 +222,15 @@ lookupContactListWithRelation u =
 countConnections :: Local UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
   rels <- retry x1 . query selectStatus $ params One (Identity (lUnqualified u))
-  return $ foldl' count 0 rels
+  relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (lUnqualified u))
+
+  return $ foldl' count 0 rels + foldl' count 0 relsRemote
   where
     selectStatus :: QueryString R (Identity UserId) (Identity RelationWithHistory)
     selectStatus = "SELECT status FROM connection WHERE left = ?"
+
+    selectStatusRemote :: QueryString R (Identity UserId) (Identity RelationWithHistory)
+    selectStatusRemote = "SELECT status FROM connection_remote WHERE left = ?"
 
     count n (Identity s) | (relationDropHistory s) `elem` r = n + 1
     count n _ = n
@@ -270,13 +288,13 @@ remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, Relatio
 remoteConnectionSelect = "SELECT right_domain, right_user, status, last_update, conv_domain, conv_id FROM connection_remote where left = ?"
 
 remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, UTCTimeMillis, Domain, ConvId)
-remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) ()
 remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ?"
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
-remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"

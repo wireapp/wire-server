@@ -115,7 +115,7 @@ data ConnectionError
     -- when attempting to create or accept a connection.
     TooManyConnections UserId
   | -- | An invalid connection status change.
-    InvalidTransition UserId Relation
+    InvalidTransition UserId
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
     InvalidUser (Qualified UserId)
   | -- | An attempt at updating a non-existent connection.
@@ -133,6 +133,8 @@ data ConnectionError
     ConnectSameBindingTeamUsers
   | -- | Something doesn't work because somebody has a LH device and somebody else has not granted consent.
     ConnectMissingLegalholdConsent
+  | -- | Remote connection creation or update failed because of a federation error
+    ConnectFederationError FederationError
 
 data PasswordResetError
   = PasswordResetInProgress (Maybe Timeout)
