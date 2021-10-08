@@ -1750,6 +1750,8 @@ svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotMessage e) -> do
+      -- FUTUREWORK: Sometimes the assertion on the event type fails, but not
+      -- always. See https://wearezeta.atlassian.net/browse/BE-522.
       assertEqual "event type" ConvAccessUpdate (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
