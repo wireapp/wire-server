@@ -42,11 +42,10 @@ import Data.Id
 import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
-import Data.Misc (HttpsUrl, PlainTextPassword (..))
+import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -66,6 +65,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
 import qualified Proto.TeamEvents_Fields as E
+import qualified SAML2.WebSSO.Types as SAML
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -277,7 +277,7 @@ testListTeamMembersCsv numMembers = do
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId issuer _) -> maybe (error "shouldn't happen") Just . fromByteString' . cs $ issuer
+      Just (U.UserSSOId (SAML.UserRef (SAML.Issuer issuer) _)) -> either (const $ error "shouldn't happen") Just $ mkHttpsUrl issuer
       Just _ -> Nothing
       Nothing -> Nothing
 

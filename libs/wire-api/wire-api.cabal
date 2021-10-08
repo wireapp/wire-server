@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3acb28729470b6c8562eb847a9eb27f8ba8f9999ecce268b3a5a404e5f4794b6
+-- hash: dc678cb833d61e72b8a80c127fde2bae63c9fbf6073319eea421e3df1d8c016e
 
 name:           wire-api
 version:        0.1.0
@@ -454,6 +454,7 @@ test-suite wire-api-tests
     , pem
     , pretty
     , proto-lens
+    , saml2-web-sso
     , servant-swagger-ui
     , string-conversions
     , swagger2

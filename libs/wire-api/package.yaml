@@ -16,6 +16,7 @@ dependencies:
 - servant-swagger-ui
 - case-insensitive
 - hscim
+- saml2-web-sso
 library:
   source-dirs: src
   dependencies:
@@ -60,7 +61,6 @@ library:
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
   - resourcet
-  - saml2-web-sso
   - servant
   - servant-client
   - servant-client-core

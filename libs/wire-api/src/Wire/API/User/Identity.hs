@@ -40,19 +40,24 @@ module Wire.API.User.Identity
 
     -- * UserSSOId
     UserSSOId (..),
-
-    -- * Swagger
+    emailFromSAML,
+    emailToSAML,
+    emailToSAMLNameID,
+    emailFromSAMLNameID,
+    mkSampleUref,
+    mkSimpleSampleUref,
   )
 where
 
 import Control.Applicative (optional)
-import Control.Lens ((.~), (?~))
+import Control.Lens ((.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.Text
 import Data.Bifunctor (first, second)
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (..))
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -63,11 +68,14 @@ import Data.Time.Clock
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import qualified SAML2.WebSSO.Types as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import qualified SAML2.WebSSO.XML as SAML
 import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
 import qualified URI.ByteString as URI
+import URI.ByteString.QQ (uri)
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.User.Profile (fromName, mkName)
 
 --------------------------------------------------------------------------------
 -- UserIdentity
@@ -292,8 +300,6 @@ data UserSSOId
 -- Maybe this becomes possible with swagger 3?
 instance S.ToSchema UserSSOId where
   declareNamedSchema _ = do
-    () <- error "TODO: do we *always* xml-encode subject and tenant?"
-    () <- error "TODO: in case that hasn't always been true: make sure we allow subject and tenant to be either stripped content or the full xml thing!"
     tenantSchema <- S.declareSchemaRef (Proxy @Text)
     subjectSchema <- S.declareSchemaRef (Proxy @Text)
     scimSchema <- S.declareSchemaRef (Proxy @Text)
@@ -354,19 +360,60 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
   either (const $ fail err) pure $ asxml <|> asurl
 
 lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
-lenientlyParseSAMLNameID mbtxt = forM mbtxt $ \txt -> do
+lenientlyParseSAMLNameID Nothing = pure Nothing
+lenientlyParseSAMLNameID (Just txt) = do
   let asxml :: Either String SAML.NameID
       asxml = SAML.decodeElem txt
 
       asemail :: Either String SAML.NameID
       asemail =
-        -- (parseEmail >=> validateEmail) (cs txt)
-        error "TODO: check spar for more helpber functions.  i feel like i've done this a million times."
+        maybe
+          (Left "not an email")
+          (fmap emailToSAMLNameID . validateEmail)
+          (parseEmail (cs txt))
 
-      astxt :: SAML.NameID
-      astxt = error "TODO: are we sure we don't have any constraints on this?  if so, drop 'err' below."
+      astxt :: Either String SAML.NameID
+      astxt = do
+        nm <- mkName (cs txt)
+        SAML.mkNameID (SAML.mkUNameIDUnspecified (fromName nm)) Nothing Nothing Nothing
 
       err :: String
-      err = "lenientlyParseSAMLNameID: " <> show (asxml, asemail, astxt, mbtxt)
+      err = "lenientlyParseSAMLNameID: " <> show (asxml, asemail, astxt, txt)
 
-  either (const $ fail err) pure $ asxml <|> asemail <|> Right astxt
+  either
+    (const $ fail err)
+    (pure . Just)
+    (asxml <|> asemail <|> astxt)
+
+emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
+emailFromSAML = fromJust . parseEmail . SAMLEmail.render
+
+emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
+emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
+
+-- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
+-- function total without all that praying and hoping.
+emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
+emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
+
+emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
+emailFromSAMLNameID nid = case nid ^. SAML.nameID of
+  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
+  _ -> Nothing
+
+-- | For testing.  Create a sample 'SAML.UserRef' value with random seeds to make 'Issuer' and
+-- 'NameID' unique.  FUTUREWORK: move to saml2-web-sso.
+mkSampleUref :: Text -> Text -> SAML.UserRef
+mkSampleUref iseed nseed = SAML.UserRef issuer nameid
+  where
+    issuer :: SAML.Issuer
+    issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs iseed)
+
+    nameid :: SAML.NameID
+    nameid = fromRight (error "impossible") $ do
+      unqualified <- SAML.mkUNameIDEmail $ "me" <> nseed <> "@example.com"
+      SAML.mkNameID unqualified Nothing Nothing Nothing
+
+-- | @mkSampleUref "" ""@
+mkSimpleSampleUref :: SAML.UserRef
+mkSimpleSampleUref = mkSampleUref "" ""

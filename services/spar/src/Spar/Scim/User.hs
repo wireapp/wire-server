@@ -255,6 +255,7 @@ validateHandle txt = case parseHandle txt of
 validateScimUser' ::
   forall m.
   (MonadError Scim.ScimError m) =>
+  -- | Error location (call site, for debugging)
   Text ->
   -- | IdP that the resulting user will be assigned to
   Maybe IdP ->

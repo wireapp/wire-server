@@ -21,6 +21,7 @@ dependencies:
 - wire-api-federation
 - tagged
 - servant-client
+- saml2-web-sso >=0.18
 
 library:
   source-dirs: src
@@ -69,7 +70,6 @@ library:
   - resourcet >=1.1
   - retry >=0.5
   - safe-exceptions >=0.1
-  - saml2-web-sso >=0.18
   - servant
   - servant-server
   - servant-swagger

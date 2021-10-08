@@ -56,6 +56,7 @@ import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcu
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
+import Wire.API.User.Identity (mkSimpleSampleUref)
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
@@ -757,7 +758,7 @@ testConnectionSameTeam brig = do
 testCreateUserInternalSSO :: Brig -> Galley -> Http ()
 testCreateUserInternalSSO brig galley = do
   teamid <- snd <$> createUserWithTeam brig
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
   -- creating users requires both sso_id and team_id
   postUser' True False "dummy" True False (Just ssoid) Nothing brig
     !!! const 400 === statusCode
@@ -788,7 +789,7 @@ testCreateUserInternalSSO brig galley = do
 testDeleteUserSSO :: Brig -> Galley -> Http ()
 testDeleteUserSSO brig galley = do
   (creator, tid) <- createUserWithTeam brig
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
       mkuser :: Bool -> Http (Maybe User)
       mkuser withemail =
         responseJsonMaybe

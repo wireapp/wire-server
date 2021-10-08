@@ -259,7 +259,7 @@ createUser new = do
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident@(SSOIdentity (UserSSOId _ _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
+      (Just ident@(SSOIdentity (UserSSOId _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
