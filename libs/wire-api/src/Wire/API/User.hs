@@ -414,8 +414,8 @@ userSCIMExternalId usr = userSSOId >=> ssoIdExtId $ usr
     ssoIdExtId (UserSSOId (SAML.UserRef _ nameIdXML)) = case userManagedBy usr of
       ManagedByWire -> Nothing
       ManagedByScim ->
-        -- FUTUREWORK: keep the CI value, store the original in the database, but always use
-        -- the CI value for processing.
+        -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
+        -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
         Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
     ssoIdExtId (UserScimExternalId extId) = pure extId
 
