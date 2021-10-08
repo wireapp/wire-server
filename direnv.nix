@@ -114,6 +114,7 @@ in pkgs.buildEnv {
     pkgs.wget
     pkgs.cfssl
     pkgs.yq
+    pkgs.rsync
 
     # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
     pkgs.buildah
@@ -123,6 +124,35 @@ in pkgs.buildEnv {
     pinned.helmfile
     pinned.kubectl
     pinned.kind
+
+    # For cabal-migration
+    pkgs.haskell.compiler.ghc884
+
+    pkgs.cabal-install
+    pkgs.haskellPackages.cabal-plan
+    pkgs.pkgconfig
+    pkgs.protobuf
+
+    pkgs.cryptobox
+    pkgs.geoip
+    pkgs.icu.dev
+    pkgs.icu.out
+    pkgs.libsodium.dev
+    pkgs.libsodium.out
+    pkgs.libxml2.dev
+    pkgs.libxml2.out
+    pkgs.ncurses.dev
+    pkgs.ncurses.out
+    pkgs.openssl.dev
+    pkgs.openssl.out
+    pkgs.pcre.dev
+    pkgs.pcre.out
+    pkgs.snappy.dev
+    pkgs.snappy.out
+    pkgs.zlib.dev
+    pkgs.zlib.out
+    pkgs.lzma.dev
+    pkgs.lzma.out
   ];
 }
 

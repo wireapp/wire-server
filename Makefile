@@ -39,12 +39,34 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	cabal build all
+	cabal test all
+	cabal install --install-method=copy --installdir=dist all
+else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+endif
 
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	make install
+else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+endif
+
+.PHONY: c
+c:
+	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
+ifeq ($(test), 1)
+	./hack/bin/cabal-run-tests.sh $(package)
+endif
+	./hack/bin/cabal-install-artifacts.sh $(package)
+
+.PHONY: ci
+ci: c
+	make -C services/$(package) i-$(pattern)
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
@@ -232,14 +254,15 @@ libzauth:
 #
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
-hie.yaml: stack-dev.yaml
-	stack build implicit-hie
-	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
-
-.PHONY: stack-dev.yaml
-stack-dev.yaml:
+hie.yaml:
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	echo -e 'cradle:\n  cabal: {}' > hie.yaml
+else
 	cp stack.yaml stack-dev.yaml
 	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
+	stack build implicit-hie
+	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
+endif
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
