@@ -21,6 +21,7 @@ library:
   - exceptions >=0.10.0
   - lens >=4.12
   - QuickCheck
+  - schema-profunctor
   - string-conversions
   - tagged
   - text >=0.11

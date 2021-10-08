@@ -33,6 +33,13 @@ data UserList a = UserList
   }
   deriving (Functor, Foldable, Traversable)
 
+instance Semigroup (UserList a) where
+  UserList locals1 remotes1 <> UserList locals2 remotes2 =
+    UserList (locals1 <> locals2) (remotes1 <> remotes2)
+
+instance Monoid (UserList a) where
+  mempty = UserList mempty mempty
+
 toUserList :: Foldable f => Local x -> f (Qualified a) -> UserList a
 toUserList loc = uncurry UserList . partitionQualified loc
 

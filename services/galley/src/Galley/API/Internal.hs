@@ -43,6 +43,7 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.Error (throwErrorDescriptionType)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import qualified Galley.API.One2One as One2One
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -57,6 +58,7 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
@@ -79,6 +81,7 @@ import Wire.API.ErrorDescription (MissingLegalholdConsent)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
+import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
@@ -175,7 +178,29 @@ data InternalApi routes = InternalApi
         :> ZOptConn
         :> "i"
         :> "user"
-        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
+        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] (),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to self, if conversation did not exist before
+    -- - ConvConnect event to self, if other didn't join the connect conversation before
+    iConnect ::
+      routes
+        :- Summary "Create a connect conversation (deprecated)"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "conversations"
+        :> "connect"
+        :> ReqBody '[Servant.JSON] Connect
+        :> ConversationVerb,
+    iUpsertOne2OneConversation ::
+      routes
+        :- Summary "Create or Update a connect or one2one conversation."
+        :> "i"
+        :> "conversations"
+        :> "one2one"
+        :> "upsert"
+        :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
+        :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
   }
   deriving (Generic)
 
@@ -250,7 +275,9 @@ servantSitemap =
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
         iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
-        iDeleteUser = rmUser
+        iDeleteUser = rmUser,
+        iConnect = Create.createConnectConversation,
+        iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
       }
 
 iGetTeamFeature ::
@@ -289,14 +316,6 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to self, if conversation did not exist before
-  -- - ConvConnect event to self, if other didn't join the connect conversation before
-  post "/i/conversations/connect" (continue Create.createConnectConversationH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @Connect
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before

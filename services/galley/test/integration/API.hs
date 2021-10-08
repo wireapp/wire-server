@@ -59,9 +59,13 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Database.CQL.IO
 import Galley.API.Mapping
+import Galley.API.One2One (one2OneConvId)
+import qualified Galley.Data as Data
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (LocalMember (..))
+import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
@@ -215,7 +219,8 @@ tests s =
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "cannot join private conversation" postJoinConvFail,
-          test s "remove user" removeUser
+          test s "remove user" removeUser,
+          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests
         ]
 
 emptyFederatedBrig :: FederatedBrig.Api (AsServerT Handler)
@@ -1573,11 +1578,11 @@ postConnectConvOk2 :: TestM ()
 postConnectConvOk2 = do
   alice <- randomUser
   bob <- randomUser
-  m <- decodeConvId <$> request alice bob
-  n <- decodeConvId <$> request alice bob
+  m <- decodeConvId <$> req alice bob
+  n <- decodeConvId <$> req alice bob
   liftIO $ m @=? n
   where
-    request alice bob =
+    req alice bob =
       postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
 
 putConvAcceptOk :: TestM ()
@@ -2942,3 +2947,54 @@ removeUser = do
           omService = Nothing,
           omConvRoleName = roleNameWireAdmin
         }
+
+testAllOne2OneConversationRequests :: TestM ()
+testAllOne2OneConversationRequests = do
+  for_ [LocalActor, RemoteActor] $ \actor ->
+    for_ [Included, Excluded] $ \desired ->
+      for_ [True, False] $ \shouldBeLocal ->
+        testOne2OneConversationRequest shouldBeLocal actor desired
+
+testOne2OneConversationRequest :: Bool -> Actor -> DesiredMembership -> TestM ()
+testOne2OneConversationRequest shouldBeLocal actor desired = do
+  alice <- qTagUnsafe <$> randomQualifiedUser
+  (bob, expectedConvId) <- generateRemoteAndConvId alice
+  db <- view tsCass
+
+  convId <- do
+    let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
+    res <-
+      iUpsertOne2OneConversation req
+        <!! statusCode === const 200
+    uuorConvId <$> responseJsonError res
+
+  liftIO $ convId @?= expectedConvId
+
+  case shouldBeLocal of
+    True -> do
+      mems <- runClient db $ do
+        lmems <- fmap (qUntagged . qualifyAs alice . lmId) <$> Data.members (qUnqualified convId)
+        rmems <- fmap (qUntagged . rmId) <$> Data.lookupRemoteMembers (qUnqualified convId)
+        pure (lmems <> rmems)
+      let actorId = case actor of
+            LocalActor -> qUntagged alice
+            RemoteActor -> qUntagged bob
+      liftIO $ isJust (find (actorId ==) mems) @?= (desired == Included)
+      liftIO $ filter (actorId /=) mems @?= []
+    False -> do
+      mems <- runClient db $ do
+        smap <- Data.remoteConversationStatus (tUnqualified alice) [qTagUnsafe convId]
+        case Map.lookup (qTagUnsafe convId) smap of
+          Just _ -> pure [qUntagged alice]
+          _ -> pure []
+      when (actor == LocalActor) $
+        liftIO $ isJust (find (qUntagged alice ==) mems) @?= (desired == Included)
+  where
+    generateRemoteAndConvId :: Local UserId -> TestM (Remote UserId, Qualified ConvId)
+    generateRemoteAndConvId lUserId = do
+      other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+      let convId = one2OneConvId (qUntagged lUserId) other
+          isLocal = tDomain lUserId == qDomain convId
+      if shouldBeLocal == isLocal
+        then pure (qTagUnsafe other, convId)
+        else generateRemoteAndConvId lUserId

@@ -32,6 +32,7 @@ module Brig.IO.Intra
     blockConv,
     unblockConv,
     getConv,
+    upsertOne2OneConversation,
 
     -- * Clients
     Brig.IO.Intra.newClient,
@@ -93,6 +94,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import qualified Galley.Types.Teams.Intra as Team
@@ -533,7 +535,7 @@ createSelfConv u = do
         . zUser u
         . expect2xx
 
--- | Calls 'Galley.API.createConnectConversationH'.
+-- | Calls 'Galley.API.Create.createConnectConversation'.
 createLocalConnectConv ::
   Local UserId ->
   Local UserId ->
@@ -545,18 +547,17 @@ createLocalConnectConv from to cname conn = do
     logConnection (tUnqualified from) (qUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
+  let req =
+        path "/i/conversations/connect"
+          . zUser (tUnqualified from)
+          . maybe id (header "Z-Connection" . fromConnId) conn
+          . contentJson
+          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") return $
     fromByteString $
       getHeader' "Location" r
-  where
-    req =
-      path "/i/conversations/connect"
-        . zUser (tUnqualified from)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . contentJson
-        . lbytes (encode $ Connect (tUnqualified to) Nothing cname Nothing)
-        . expect2xx
 
 createConnectConv ::
   Qualified UserId ->
@@ -657,6 +658,18 @@ getConv usr cnv = do
       paths ["conversations", toByteString' cnv]
         . zUser usr
         . expect [status200, status404]
+
+upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> AppIO UpsertOne2OneConversationResponse
+upsertOne2OneConversation urequest = do
+  response <- galleyRequest POST req
+  case Bilge.statusCode response of
+    200 -> decodeBody "galley" response
+    _ -> throwM internalServerError
+  where
+    req =
+      paths ["i", "conversations", "one2one", "upsert"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
