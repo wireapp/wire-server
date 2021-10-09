@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc678cb833d61e72b8a80c127fde2bae63c9fbf6073319eea421e3df1d8c016e
+-- hash: d2c9713a3cbd002394d82471bd12407b388620823e1087fb4dd300cbecde7c25
 
 name:           wire-api
 version:        0.1.0
@@ -124,6 +124,7 @@ library
     , errors
     , extended
     , extra
+    , filepath
     , generic-random >=1.2
     , generics-sop
     , ghc-prim
@@ -445,6 +446,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , filepath
     , hscim
     , imports
     , iso3166-country-codes

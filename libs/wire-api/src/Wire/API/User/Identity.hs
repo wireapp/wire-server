@@ -70,6 +70,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import qualified SAML2.WebSSO.Types as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import qualified SAML2.WebSSO.XML as SAML
+import System.FilePath ((</>))
 import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
 import qualified URI.ByteString as URI
@@ -407,7 +408,7 @@ mkSampleUref :: Text -> Text -> SAML.UserRef
 mkSampleUref iseed nseed = SAML.UserRef issuer nameid
   where
     issuer :: SAML.Issuer
-    issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs iseed)
+    issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs ("/" </> cs iseed))
 
     nameid :: SAML.NameID
     nameid = fromRight (error "impossible") $ do

@@ -17,6 +17,7 @@ dependencies:
 - case-insensitive
 - hscim
 - saml2-web-sso
+- filepath
 library:
   source-dirs: src
   dependencies:
