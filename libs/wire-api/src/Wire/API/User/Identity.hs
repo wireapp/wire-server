@@ -300,8 +300,8 @@ data UserSSOId
 -- Maybe this becomes possible with swagger 3?
 instance S.ToSchema UserSSOId where
   declareNamedSchema _ = do
-    tenantSchema <- S.declareSchemaRef (Proxy @Text)
-    subjectSchema <- S.declareSchemaRef (Proxy @Text)
+    tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
+    subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
     scimSchema <- S.declareSchemaRef (Proxy @Text)
     return $
       S.NamedSchema (Just "UserSSOId") $
