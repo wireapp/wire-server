@@ -35,7 +35,7 @@ module Spar.Intra.BrigApp
     parseResponse,
     giveDefaultHandle,
 
-    -- * re-exports, mostly for hitsorical reasons and lazyness
+    -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
