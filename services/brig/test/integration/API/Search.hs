@@ -258,6 +258,9 @@ testReindex brig = do
 -- This test is currently disabled, because it fails sporadically, probably due
 -- to imprecisions in ES exact match scoring.
 -- FUTUREWORK: Find the reason for the failures and fix ES behaviour.
+-- See also the "cassandra writetime hypothesis":
+--   https://wearezeta.atlassian.net/browse/BE-523
+--   https://github.com/wireapp/wire-server/pull/1798#issuecomment-933174913
 _testOrderName :: TestConstraints m => Brig -> m ()
 _testOrderName brig = do
   searcher <- userId <$> randomUser brig
