@@ -50,16 +50,21 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
+import Servant.API.Generic (GenericServant, ToServant, ToServantApi)
+import Servant.Client (HasClient)
 import qualified Servant.Client as Servant
+import Servant.Client.Generic (AsClientT)
 import qualified Servant.Client.Generic as Servant
 import System.Environment (withArgs)
 import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util (FedBrigClient)
+import Util (FedBrigClient, FedGalleyClient)
 import Util.Options
 import Util.Test
+import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Galley as FedGalley
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
@@ -120,9 +125,10 @@ runTests iConf brigOpts otherArgs = do
   db <- defInitCassandra casKey casHost casPort lg
   mg <- newManager tlsManagerSettings
   let fedBrigClient = mkFedBrigClient mg (brig iConf)
+  let fedGalleyClient = mkFedGalleyClient mg (galley iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
-  userApi <- User.tests brigOpts fedBrigClient mg b c ch g n awsEnv db
+  userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db
   providerApi <- Provider.tests localDomain (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
@@ -214,12 +220,26 @@ parseConfigPaths = do
             )
 
 mkFedBrigClient :: Manager -> Endpoint -> FedBrigClient
-mkFedBrigClient mgr brigEndpoint = Servant.genericClientHoist servantClienMToHttp
+mkFedBrigClient = mkFedBrigClientGen @FedBrig.Api
+
+mkFedGalleyClient :: Manager -> Endpoint -> FedGalleyClient
+mkFedGalleyClient = mkFedBrigClientGen @FedGalley.Api
+
+mkFedBrigClientGen ::
+  forall routes.
+  ( HasClient Servant.ClientM (ToServantApi routes),
+    GenericServant routes (AsClientT (HttpT IO)),
+    Servant.Client (HttpT IO) (ToServantApi routes) ~ ToServant routes (AsClientT (HttpT IO))
+  ) =>
+  Manager ->
+  Endpoint ->
+  routes (AsClientT (HttpT IO))
+mkFedBrigClientGen mgr endpoint = Servant.genericClientHoist servantClienMToHttp
   where
     servantClienMToHttp :: Servant.ClientM a -> Http a
     servantClienMToHttp action = liftIO $ do
-      let brigHost = Text.unpack $ brigEndpoint ^. epHost
-          brigPort = fromInteger . toInteger $ brigEndpoint ^. epPort
+      let brigHost = Text.unpack $ endpoint ^. epHost
+          brigPort = fromInteger . toInteger $ endpoint ^. epPort
           baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort ""
           clientEnv = Servant.ClientEnv mgr baseUrl Nothing Servant.defaultMakeClientRequest
       eitherRes <- Servant.runClientM action clientEnv

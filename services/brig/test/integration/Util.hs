@@ -76,6 +76,7 @@ import Util.AWS
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
@@ -93,6 +94,8 @@ type Nginz = Request -> Request
 type Spar = Request -> Request
 
 type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
+
+type FedGalleyClient = FedGalley.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
