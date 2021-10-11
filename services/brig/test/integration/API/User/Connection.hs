@@ -718,6 +718,7 @@ testConnectOK brig galley fedBrigClient = do
   (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
   receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
 
+  -- The conversation exists uid1 is not a participant however
   getConversationQualified galley uid1 convId
     !!! statusCode === const 403
 
