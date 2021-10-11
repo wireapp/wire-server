@@ -622,4 +622,6 @@ userShouldMatch u1 u2 = liftIO $ do
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
 whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit
+whatSparReturnsFor idp richInfoSizeLimit =
+  either (Left . show) (Right . synthesizeScimUser)
+    . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit

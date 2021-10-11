@@ -73,6 +73,7 @@ import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 import Wire.API.User (ListUsersQuery (..))
+import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
@@ -389,7 +390,7 @@ testCreateUserBlacklist _ brig aws =
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
   teamid <- Id <$> liftIO UUID.nextRandom
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
       p withsso withteam =
         RequestBodyLBS . encode . object $
           ["name" .= ("foo" :: Text)]
@@ -1203,7 +1204,7 @@ testUpdateSSOId brig galley = do
   put
     ( brig
         . paths ["i", "users", toByteString' noSuchUserId, "sso-id"]
-        . Bilge.json (UserSSOId "1" "1")
+        . Bilge.json (UserSSOId (mkSampleUref "1" "1"))
     )
     !!! const 404 === statusCode
   let go :: HasCallStack => User -> UserSSOId -> Http ()
@@ -1230,8 +1231,8 @@ testUpdateSSOId brig galley = do
         when (not hasEmail) $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
-  let ssoids1 = [UserSSOId "1" "1", UserSSOId "1" "2"]
-      ssoids2 = [UserSSOId "2" "1", UserSSOId "2" "2"]
+  let ssoids1 = [UserSSOId (mkSampleUref "1" "1"), UserSSOId (mkSampleUref "1" "2")]
+      ssoids2 = [UserSSOId (mkSampleUref "2" "1"), UserSSOId (mkSampleUref "2" "2")]
   users <-
     sequence
       [ mkMember True False,
@@ -1325,7 +1326,7 @@ testRestrictedUserCreation opts brig = do
 
     -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
     teamid <- Id <$> liftIO UUID.nextRandom
-    let ssoid = UserSSOId "nil" "nil"
+    let ssoid = UserSSOId mkSimpleSampleUref
     let Object ssoUser =
           object
             [ "name" .= Name "Alice",

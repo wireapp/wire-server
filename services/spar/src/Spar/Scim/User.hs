@@ -176,7 +176,7 @@ instance
     ScimTokenInfo ->
     Scim.User ST.SparTag ->
     Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
-  postUser tokinfo user = createValidScimUser tokinfo =<< validateScimUser tokinfo user
+  postUser tokinfo user = createValidScimUser tokinfo =<< validateScimUser "post" tokinfo user
 
   putUser ::
     ScimTokenInfo ->
@@ -184,7 +184,7 @@ instance
     Scim.User ST.SparTag ->
     Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
   putUser tokinfo uid newScimUser =
-    updateValidScimUser tokinfo uid =<< validateScimUser tokinfo newScimUser
+    updateValidScimUser tokinfo uid =<< validateScimUser "put" tokinfo newScimUser
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler (Sem r) ()
   deleteUser tokeninfo uid =
@@ -204,14 +204,15 @@ validateScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Sem r)) =>
   Members '[Input Opts, IdPEffect.IdP] r =>
+  Text ->
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
   Scim.User ST.SparTag ->
   m ST.ValidScimUser
-validateScimUser tokinfo user = do
+validateScimUser errloc tokinfo user = do
   mIdpConfig <- tokenInfoToIdP tokinfo
   richInfoLimit <- lift $ inputs richInfoLimit
-  validateScimUser' mIdpConfig richInfoLimit user
+  validateScimUser' errloc mIdpConfig richInfoLimit user
 
 tokenInfoToIdP :: Member IdPEffect.IdP r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} = do
@@ -254,24 +255,26 @@ validateHandle txt = case parseHandle txt of
 validateScimUser' ::
   forall m.
   (MonadError Scim.ScimError m) =>
+  -- | Error location (call site, for debugging)
+  Text ->
   -- | IdP that the resulting user will be assigned to
   Maybe IdP ->
   -- | Rich info limit
   Int ->
   Scim.User ST.SparTag ->
   m ST.ValidScimUser
-validateScimUser' midp richInfoLimit user = do
+validateScimUser' errloc midp richInfoLimit user = do
   unless (isNothing $ Scim.password user) $
     throwError $
       Scim.badRequest
         Scim.InvalidValue
-        (Just "Setting user passwords is not supported for security reasons.")
+        (Just $ "Setting user passwords is not supported for security reasons. (" <> errloc <> ")")
   veid <- mkValidExternalId midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
   uname <- do
-    let err = throwError . Scim.badRequest Scim.InvalidValue . Just . cs
+    let err msg = throwError . Scim.badRequest Scim.InvalidValue . Just $ cs msg <> " (" <> errloc <> ")"
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
@@ -291,6 +294,9 @@ validateScimUser' midp richInfoLimit user = do
                     <> show richInfoLimit
                     <> " characters, but got "
                     <> show sze
+                    <> " ("
+                    <> cs errloc
+                    <> ")"
               )
           )
             { Scim.status = Scim.Status 413
@@ -311,7 +317,7 @@ mkValidExternalId _ Nothing = do
   throwError $
     Scim.badRequest
       Scim.InvalidValue
-      (Just "externalId is required for SAML users")
+      (Just "externalId is required")
 mkValidExternalId Nothing (Just extid) = do
   let err =
         Scim.badRequest
@@ -519,7 +525,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
       oldScimStoredUser :: Scim.StoredUser ST.SparTag <-
         Scim.getUser tokinfo uid
       oldValidScimUser :: ST.ValidScimUser <-
-        validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
+        validateScimUser "recover-old-value" tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
 
       -- assertions about new valid scim user that cannot be checked in 'validateScimUser' because
       -- they differ from the ones in 'createValidScimUser'.

@@ -71,12 +71,11 @@ import qualified Data.LegalHold as LH
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
-import Data.Misc (HttpsUrl)
+import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.Qualified
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -429,7 +428,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     defaultEncodeOptions :: EncodeOptions
     defaultEncodeOptions =
       EncodeOptions
-        { encDelimiter = 44, -- comma
+        { encDelimiter = fromIntegral (ord ','),
           encUseCrLf = True, -- to be compatible with Mac and Windows
           encIncludeHeader = False, -- (so we can flush when the header is on the wire)
           encQuoting = QuoteAll
@@ -476,7 +475,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 
     userToIdPIssuer :: U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId issuer _) -> fromByteString' $ cs issuer
+      Just (U.UserSSOId (SAML.UserRef issuer _)) -> either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
       Just _ -> Nothing
       Nothing -> Nothing
 
@@ -489,7 +488,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     samlNamedId :: User -> Maybe Text
     samlNamedId =
       userSSOId >=> \case
-        (UserSSOId _idp nameId) -> CI.original . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
+        (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
         (UserScimExternalId _) -> Nothing
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response

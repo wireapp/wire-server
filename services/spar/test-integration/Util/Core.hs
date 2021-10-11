@@ -190,7 +190,7 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import Text.XML.DSig (SignPrivCreds)
 import qualified Text.XML.DSig as SAML
-import URI.ByteString
+import URI.ByteString as URI
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
@@ -201,6 +201,7 @@ import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
+import Wire.API.User.Identity (mkSampleUref)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
@@ -463,7 +464,8 @@ createTeamMember ::
   m UserId
 createTeamMember brigreq galleyreq teamid perms = do
   let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
-      randomssoid = Brig.UserSSOId <$> randomtxt <*> randomtxt
+      randomssoid = liftIO $ Brig.UserSSOId <$> (mkSampleUref <$> rnd <*> rnd)
+      rnd = cs . show <$> randomRIO (0 :: Integer, 10000000)
   name <- randomtxt
   ssoid <- randomssoid
   resp :: ResponseLBS <-

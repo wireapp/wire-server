@@ -61,7 +61,7 @@ import Wire.API.User
   )
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
-import Wire.API.User.Identity (Phone (..), UserSSOId (UserSSOId))
+import Wire.API.User.Identity (Phone (..), UserSSOId (UserSSOId), mkSimpleSampleUref)
 
 testObject_NewUser_user_1 :: NewUser
 testObject_NewUser_user_1 =
@@ -140,7 +140,7 @@ testObject_NewUser_user_6 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO tid)),
-      newUserIdentity = Just (SSOIdentity (UserSSOId "some" "thing") Nothing Nothing)
+      newUserIdentity = Just (SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing Nothing)
     }
   where
     tid = Id (fromJust (UUID.fromString "00007b0e-0000-3489-0000-075c00005be7"))

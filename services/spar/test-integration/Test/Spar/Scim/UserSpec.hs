@@ -43,7 +43,6 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
-import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
@@ -68,7 +67,6 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified Text.XML.DSig as SAML
-import qualified URI.ByteString as URI
 import Util
 import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
 import qualified Web.Scim.Class.User as Scim.UserC
@@ -234,8 +232,9 @@ testCsvData ::
   UserId ->
   Maybe Text {- externalId -} ->
   Maybe UserSSOId ->
+  Bool ->
   TestSpar ()
-testCsvData tid owner uid mbeid mbsaml = do
+testCsvData tid owner uid mbeid mbsaml hasissuer = do
   usersInCsv <- do
     g <- view teGalley
     resp <-
@@ -254,17 +253,15 @@ testCsvData tid owner uid mbeid mbsaml = do
 
       let haveIssuer :: Maybe HttpsUrl
           haveIssuer = case mbsaml of
-            Just (UserSSOId issuer _) ->
-              either (const Nothing) Just
-                . (mkHttpsUrl <=< Bifunctor.first show . (URI.parseURI URI.laxURIParserOptions))
-                $ cs issuer
+            Just (UserSSOId (SAML.UserRef (SAML.Issuer issuer) _)) -> either (const Nothing) Just $ mkHttpsUrl issuer
             Just (UserScimExternalId _) -> Nothing
             Nothing -> Nothing
+      ('h', haveIssuer) `shouldSatisfy` bool isNothing isJust hasissuer . snd
       ('i', CsvExport.tExportIdpIssuer export) `shouldBe` ('i', haveIssuer)
 
       let haveSubject :: Text
           haveSubject = case mbsaml of
-            Just (UserSSOId _ subject) -> either (error . show) (CI.original . SAML.unsafeShowNameID) $ SAML.decodeElem (cs subject)
+            Just (UserSSOId (SAML.UserRef _ subject)) -> CI.original $ SAML.unsafeShowNameID subject
             Just (UserScimExternalId _) -> ""
             Nothing -> ""
       ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
@@ -362,7 +359,7 @@ testCreateUserNoIdP = do
   -- csv download should work
   let eid = Scim.User.externalId scimUser
       sml = Nothing
-   in testCsvData tid owner userid eid sml
+   in testCsvData tid owner userid eid sml False
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
@@ -438,7 +435,7 @@ testCreateUserWithSamlIdP = do
       eid = Scim.User.externalId user
       sml :: HasCallStack => UserSSOId
       sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
-   in testCsvData tid owner uid eid (Just sml)
+   in testCsvData tid owner uid eid (Just sml) True
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
@@ -1341,9 +1338,7 @@ testBrigSideIsUpdated = do
   user' <- randomScimUser
   let userid = scimUserId storedUser
   _ <- updateUser tok userid user'
-  validScimUser <-
-    either (error . show) pure $
-      validateScimUser' (Just idp) 999999 user'
+  validScimUser <- either (error . show) pure $ validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
   brigUser `userShouldMatch` validScimUser
 

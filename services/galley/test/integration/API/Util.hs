@@ -121,6 +121,7 @@ import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
+import Wire.API.User.Identity (mkSimpleSampleUref)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -396,7 +397,7 @@ addUserToTeamWithRole' role inviter tid = do
 
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
   user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   let uid = Brig.Types.userId user
   getTeamMember uid tid uid
