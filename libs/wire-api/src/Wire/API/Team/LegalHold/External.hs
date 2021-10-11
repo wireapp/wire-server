@@ -32,10 +32,10 @@ module Wire.API.Team.LegalHold.External
   )
 where
 
-import Data.Aeson hiding (fieldLabelModifier)
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
-import Data.Json.Util ((#))
-import Data.Swagger
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Client.Prekey
@@ -50,30 +50,14 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
   }
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RequestNewLegalHoldClient
 
 instance ToSchema RequestNewLegalHoldClient where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts =
-        defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "userId" -> "user_id"
-              "teamId" -> "team_id"
-              _ -> ""
-          }
-
-instance ToJSON RequestNewLegalHoldClient where
-  toJSON (RequestNewLegalHoldClient userId teamId) =
-    object $
-      "user_id" .= userId
-        # "team_id" .= teamId
-        # []
-
-instance FromJSON RequestNewLegalHoldClient where
-  parseJSON = withObject "RequestNewLegalHoldClient" $ \o ->
-    RequestNewLegalHoldClient
-      <$> o .: "user_id"
-      <*> o .: "team_id"
+  schema =
+    object "RequestNewLegalHoldClient" $
+      RequestNewLegalHoldClient
+        <$> userId .= field "user_id" schema
+        <*> teamId .= field "team_id" schema
 
 -- | Response payload that the LH service returns upon calling @/initiate@
 data NewLegalHoldClient = NewLegalHoldClient
@@ -82,30 +66,14 @@ data NewLegalHoldClient = NewLegalHoldClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewLegalHoldClient)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema NewLegalHoldClient
 
 instance ToSchema NewLegalHoldClient where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts =
-        defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "newLegalHoldClientPrekeys" -> "prekeys"
-              "newLegalHoldClientLastKey" -> "last_prekey"
-              _ -> ""
-          }
-
-instance ToJSON NewLegalHoldClient where
-  toJSON c =
-    object $
-      "prekeys" .= newLegalHoldClientPrekeys c
-        # "last_prekey" .= newLegalHoldClientLastKey c
-        # []
-
-instance FromJSON NewLegalHoldClient where
-  parseJSON = withObject "NewLegalHoldClient" $ \o ->
-    NewLegalHoldClient
-      <$> o .: "prekeys"
-      <*> o .: "last_prekey"
+  schema =
+    object "NewLegalHoldClient" $
+      NewLegalHoldClient
+        <$> newLegalHoldClientPrekeys .= field "prekeys" (array schema)
+        <*> newLegalHoldClientLastKey .= field "last_prekey" schema
 
 --------------------------------------------------------------------------------
 -- confirm
@@ -120,23 +88,16 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirm)
+  deriving (FromJSON, ToJSON) via Schema LegalHoldServiceConfirm
 
-instance ToJSON LegalHoldServiceConfirm where
-  toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) =
-    object $
-      "client_id" .= clientId
-        # "user_id" .= userId
-        # "team_id" .= teamId
-        # "refresh_token" .= refreshToken
-        # []
-
-instance FromJSON LegalHoldServiceConfirm where
-  parseJSON = withObject "LegalHoldServiceConfirm" $ \o ->
-    LegalHoldServiceConfirm
-      <$> o .: "client_id"
-      <*> o .: "user_id"
-      <*> o .: "team_id"
-      <*> o .: "refresh_token"
+instance ToSchema LegalHoldServiceConfirm where
+  schema =
+    object "LegalHoldServiceConfirm" $
+      LegalHoldServiceConfirm
+        <$> lhcClientId .= field "client_id" schema
+        <*> lhcUserId .= field "user_id" schema
+        <*> lhcTeamId .= field "team_id" schema
+        <*> lhcRefreshToken .= field "refresh_token" schema
 
 --------------------------------------------------------------------------------
 -- remove
@@ -148,16 +109,11 @@ data LegalHoldServiceRemove = LegalHoldServiceRemove
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemove)
+  deriving (FromJSON, ToJSON) via Schema LegalHoldServiceRemove
 
-instance ToJSON LegalHoldServiceRemove where
-  toJSON (LegalHoldServiceRemove userId teamId) =
-    object $
-      "user_id" .= userId
-        # "team_id" .= teamId
-        # []
-
-instance FromJSON LegalHoldServiceRemove where
-  parseJSON = withObject "LegalHoldServiceRemove" $ \o ->
-    LegalHoldServiceRemove
-      <$> o .: "user_id"
-      <*> o .: "team_id"
+instance ToSchema LegalHoldServiceRemove where
+  schema =
+    object "LegalHoldServiceRemove" $
+      LegalHoldServiceRemove
+        <$> lhrUserId .= field "user_id" schema
+        <*> lhrTeamId .= field "team_id" schema
