@@ -47,5 +47,6 @@ one2OneConvIdNonCollision = do
   let len = 10_000
   -- A generator of lists of length 'len' of qualified user ID pairs
   let gen = vectorOf len arbitrary
-  quids <- head <$> sample' gen
-  anySame (fmap (uncurry one2OneConvId) quids) @?= False
+  quids <- nubOrd <$> generate gen
+  let hashes = nubOrd (fmap (uncurry one2OneConvId) quids)
+  length hashes @?= length quids
