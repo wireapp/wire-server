@@ -36,7 +36,7 @@ import Control.Error.Util ((??))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
-import Data.UUID.V4
+import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection (relationWithHistory)
@@ -107,11 +107,32 @@ updateOne2OneConv ::
   Remote UserId ->
   Maybe (Qualified ConvId) ->
   Relation ->
+  Actor ->
   AppIO (Qualified ConvId)
-updateOne2OneConv _ _ _ _ _ = do
-  -- FUTUREWORK: use galley internal API to update 1-1 conversation and retrieve ID
-  uid <- liftIO nextRandom
-  qUntagged <$> qualifyLocal (Id uid)
+updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
+  let request =
+        UpsertOne2OneConversationRequest
+          { uooLocalUser = lUsr,
+            uooRemoteUser = remoteUser,
+            uooActor = actor,
+            uooActorDesiredMembership = desiredMembership actor rel,
+            uooConvId = mbConvId
+          }
+  uuorConvId <$> Intra.upsertOne2OneConversation request
+  where
+    desiredMembership :: Actor -> Relation -> DesiredMembership
+    desiredMembership a r =
+      let isIncluded =
+            a
+              `elem` case r of
+                Accepted -> [LocalActor, RemoteActor]
+                Blocked -> []
+                Pending -> [RemoteActor]
+                Ignored -> [RemoteActor]
+                Sent -> [LocalActor]
+                Cancelled -> []
+                MissingLegalholdConsent -> []
+       in if isIncluded then Included else Excluded
 
 -- | Perform a state transition on a connection, handle conversation updates and
 -- push events.
@@ -126,14 +147,15 @@ transitionTo ::
   Remote UserId ->
   Maybe UserConnection ->
   Maybe Relation ->
+  Actor ->
   ConnectionM (ResponseForExistedCreated UserConnection, Bool)
-transitionTo self _ _ Nothing Nothing =
+transitionTo self _ _ Nothing Nothing _ =
   -- This can only happen if someone tries to ignore as a first action on a
   -- connection. This shouldn't be possible.
   throwE (InvalidTransition (tUnqualified self))
-transitionTo self mzcon other Nothing (Just rel) = lift $ do
+transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
   -- update 1-1 connection
-  qcnv <- updateOne2OneConv self mzcon other Nothing rel
+  qcnv <- updateOne2OneConv self mzcon other Nothing rel actor
 
   -- create connection
   connection <-
@@ -146,10 +168,10 @@ transitionTo self mzcon other Nothing (Just rel) = lift $ do
   -- send event
   pushEvent self mzcon connection
   pure (Created connection, True)
-transitionTo _self _zcon _other (Just connection) Nothing = pure (Existed connection, False)
-transitionTo self mzcon other (Just connection) (Just rel) = lift $ do
+transitionTo _self _zcon _other (Just connection) Nothing _actor = pure (Existed connection, False)
+transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   -- update 1-1 conversation
-  void $ updateOne2OneConv self Nothing other (ucConvId connection) rel
+  void $ updateOne2OneConv self Nothing other (ucConvId connection) rel actor
 
   -- update connection
   connection' <- Data.updateConnection connection (relationWithHistory rel)
@@ -184,7 +206,7 @@ performLocalAction self mzcon other mconnection action = do
       fromMaybe rel1 $ do
         reactionAction <- (mreaction :: Maybe RemoteConnectionAction)
         transition (RCA reactionAction) rel1
-  transitionTo self mzcon other mconnection mrel2
+  transitionTo self mzcon other mconnection mrel2 LocalActor
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
     remoteAction LocalConnect = Just RemoteConnect
@@ -220,7 +242,7 @@ performRemoteAction ::
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
   let rel1 = transition (RCA action) rel0
-  result <- runExceptT . void $ transitionTo self Nothing other mconnection rel1
+  result <- runExceptT . void $ transitionTo self Nothing other mconnection rel1 RemoteActor
   pure $ either (const (Just RemoteRescind)) (const (reaction rel1)) result
   where
     reaction :: Maybe Relation -> Maybe RemoteConnectionAction
