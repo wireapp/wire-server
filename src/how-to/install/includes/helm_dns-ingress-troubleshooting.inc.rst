@@ -71,7 +71,7 @@ You should now have the following directory structure:
   ├── nginx-ingress-services
   │   ├── secrets.yaml
   │   └── values.yaml
-  └── my-wire-server
+  └── wire-server
       ├── secrets.yaml
       └── values.yaml
 
