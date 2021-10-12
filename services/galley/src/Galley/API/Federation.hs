@@ -16,6 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
+import Brig.Types.Connection (Relation (Accepted))
 import Control.Lens (itraversed, (<.>))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Maybe (runMaybeT)
@@ -37,6 +38,7 @@ import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App (Galley)
 import qualified Galley.Data as Data
+import Galley.Intra.User (getConnections)
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Imports
 import Servant (ServerT)
@@ -60,6 +62,7 @@ import Wire.API.Federation.API.Galley
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
 import Wire.API.ServantProto (FromProto (..))
 import Wire.API.User.Client (userClientMap)
@@ -80,15 +83,35 @@ onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
 onConversationCreated domain rc = do
   let qrc = fmap (`Qualified` domain) rc
   localDomain <- viewFederationDomain
-  let localUsers =
-        foldMap (\om -> guard (qDomain (omQualifiedId om) == localDomain) $> omQualifiedId om)
+  let (localMembers, remoteMembers) =
+        Set.partition (\om -> qDomain (omQualifiedId om) == localDomain)
           . rcMembers
           $ rc
-      localUserIds = fmap qUnqualified localUsers
-  -- TODO: check that all users being added are connected to the adder
-  unless (null localUsers) $ do
-    Data.addLocalMembersToRemoteConv (rcCnvId qrc) localUserIds
-  forM_ (fromNewRemoteConversation localDomain qrc) $ \(mem, c) -> do
+      localUserIds = qUnqualified . omQualifiedId <$> Set.toList localMembers
+
+  -- Get a list of local users in the conversation the adder is connected to
+  connStatus <- getConnections localUserIds (Just . pure . rcOrigUserId $ rc) (Just Accepted)
+  let localUserIdsSet = Set.fromList localUserIds
+      connected = Set.fromList $ fmap csv2From connStatus
+      unconnected = Set.difference localUserIdsSet connected
+
+  -- Update the local view of the remote conversation by adding only those local
+  -- users that are connected to the adder
+  Data.addLocalMembersToRemoteConv (rcCnvId qrc) (Set.toList connected)
+
+  -- FUTUREWORK: Consider handling the discrepancy between the views of the
+  -- conversation-owning backend and the local backend
+  unless (Set.null unconnected) $
+    Log.warn $
+      Log.msg ("A remote user creating a conversation has no connection to local users" :: Text)
+        . Log.field "remote_user" (show (rcOrigUserId rc))
+        . Log.field "local_unconnected_users" (show unconnected)
+
+  let connectedLocalMembers = Set.filter (\m -> (qUnqualified . omQualifiedId) m `Set.member` connected) localMembers
+  -- Make sure to notify only about local users connected to the adder
+  let qrcConnected = qrc {rcMembers = Set.union remoteMembers connectedLocalMembers}
+
+  forM_ (fromNewRemoteConversation localDomain qrcConnected) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate

@@ -41,6 +41,7 @@ import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Qualified
 import Galley.App
 import Galley.Intra.Util
 import Imports
@@ -51,7 +52,6 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.User.RichInfo (RichInfo)
-import Data.Qualified
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
@@ -80,6 +80,7 @@ getConnectionsUnqualified uFrom uTo rlt = do
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatus'.
 getConnections :: [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley [ConnectionStatusV2]
+getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
