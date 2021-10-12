@@ -87,7 +87,7 @@ getConversationsAllFound = do
   carlQ <- randomQualifiedUser
 
   connectUsers bob (singleton (qUnqualified carlQ))
-  -- connectWithRemoteUser bob aliceQ
+  connectWithRemoteUser bob aliceQ
 
   cnv2 <-
     responseJsonError
@@ -445,7 +445,7 @@ addRemoteUser = do
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qbob,
             FedGalley.cuConvId = qUnqualified qconv,
-            FedGalley.cuAlreadyPresentUsers = (map qUnqualified [qalice, qcharlie]),
+            FedGalley.cuAlreadyPresentUsers = map qUnqualified [qalice, qcharlie],
             FedGalley.cuAction =
               ConversationActionAddMembers (qdee :| [qeve, qflo]) roleNameWireMember
           }
@@ -468,6 +468,9 @@ leaveConversationSuccess = do
   qDee <- (`Qualified` remoteDomain1) <$> randomId
   qEve <- (`Qualified` remoteDomain2) <$> randomId
   connectUsers alice (singleton bob)
+  connectWithRemoteUser alice qChad
+  connectWithRemoteUser alice qDee
+  connectWithRemoteUser alice qEve
 
   opts <- view tsGConf
   let mockedResponse fedReq = do
@@ -621,6 +624,8 @@ sendMessage = do
   let chad = Qualified chadId remoteDomain
       chadProfile = mkProfile chad (Name "Chad")
 
+  connectWithRemoteUser aliceId bob
+  connectWithRemoteUser aliceId chad
   -- conversation
   opts <- view tsGConf
   let responses1 req
