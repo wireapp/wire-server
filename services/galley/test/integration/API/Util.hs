@@ -549,7 +549,7 @@ defNewConv :: NewConv
 defNewConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
 postConvQualified ::
-  (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
+  (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
   UserId ->
   NewConv ->
   m ResponseLBS
@@ -1570,10 +1570,10 @@ connectUsersWith fn u = mapM connectTo
       return (r1, r2)
 
 connectWithRemoteUser ::
-  (MonadReader TestSetup m, MonadIO m, MonadHttp m) =>
+  (MonadReader TestSetup m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
   UserId ->
   Qualified UserId ->
-  m ResponseLBS
+  m ()
 connectWithRemoteUser self other = do
   let req = CreateConnectionForTest self other
   b <- view tsBrig
@@ -1585,6 +1585,8 @@ connectWithRemoteUser self other = do
         . paths ["i", "connections", "connection-update"]
         . json req
     )
+    !!! const 200
+    === statusCode
 
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS

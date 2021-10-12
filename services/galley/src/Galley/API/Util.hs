@@ -108,8 +108,8 @@ ensureConnectedOrSameTeam (Qualified u domain) uids = do
 -- that they are connected).
 ensureConnected :: Local UserId -> UserList UserId -> Galley ()
 ensureConnected self others = do
-  -- FUTUREWORK(federation, #1262): check remote connections
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
+  ensureConnectedToRemotes self (ulRemotes others)
 
 ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
