@@ -49,7 +49,6 @@ import Brig.App (AppIO, qualifyLocal)
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
-import Brig.Types.Intra
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
@@ -64,6 +63,7 @@ import Data.Time (getCurrentTime)
 import Imports hiding (local)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Connection
+import Wire.API.Routes.Internal.Brig.Connection
 
 insertConnection ::
   Local UserId ->

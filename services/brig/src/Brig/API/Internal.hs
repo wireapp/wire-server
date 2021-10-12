@@ -70,6 +70,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
+import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
@@ -84,6 +85,7 @@ servantSitemap =
     :<|> getAccountFeatureConfig
     :<|> putAccountFeatureConfig
     :<|> deleteAccountFeatureConfig
+    :<|> getConnectionsStatus
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
@@ -131,11 +133,6 @@ sitemap = do
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
     capture "uid"
-
-  post "/i/users/connections-status" (continue getConnectionsStatusH) $
-    accept "application" "json"
-      .&. jsonRequest @ConnectionsStatusRequest
-      .&. opt (query "filter")
 
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
     accept "application" "json"
@@ -448,15 +445,8 @@ getAccountStatusH (_ ::: usr) = do
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
-getConnectionsStatusH ::
-  JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->
-  Handler Response
-getConnectionsStatusH (_ ::: req ::: flt) = do
-  body <- parseJsonBody req
-  json <$> lift (getConnectionsStatus body flt)
-
-getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> AppIO [ConnectionStatus]
-getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
+getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> Handler [ConnectionStatus]
+getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
   r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where

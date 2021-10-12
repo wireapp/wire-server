@@ -25,7 +25,6 @@
 module Brig.Types.Connection
   ( module C,
     UserIds (..),
-    ConnectionsStatusRequest (..),
     UpdateConnectionsInternal (..),
 
     -- * re-exports
@@ -49,13 +48,6 @@ import Wire.API.Connection
 -- 'Accepted' state.
 data UserIds = UserIds
   {cUsers :: [UserId]}
-  deriving (Eq, Show, Generic)
-
--- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
-data ConnectionsStatusRequest = ConnectionsStatusRequest
-  { csrFrom :: ![UserId],
-    csrTo :: !(Maybe [UserId])
-  }
   deriving (Eq, Show, Generic)
 
 -- FUTUREWORK: This needs to get Qualified IDs when implementing
@@ -86,16 +78,3 @@ instance ToJSON UserIds where
   toJSON (UserIds us) =
     object
       ["ids" .= us]
-
-instance FromJSON ConnectionsStatusRequest where
-  parseJSON = withObject "ConnectionsStatusRequest" $ \o -> do
-    csrFrom <- o .: "from"
-    csrTo <- o .: "to"
-    pure ConnectionsStatusRequest {..}
-
-instance ToJSON ConnectionsStatusRequest where
-  toJSON ConnectionsStatusRequest {csrFrom, csrTo} =
-    object
-      [ "from" .= csrFrom,
-        "to" .= csrTo
-      ]

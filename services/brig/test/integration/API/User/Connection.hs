@@ -28,7 +28,6 @@ import Bilge.Assert
 import Brig.Data.Connection (remoteConnectionInsert)
 import qualified Brig.Options as Opt
 import Brig.Types
-import Brig.Types.Intra
 import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
@@ -48,6 +47,7 @@ import Wire.API.Connection
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (gcresConvs), RemoteConvMembers (rcmOthers), RemoteConversation (rcnvMembers))
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> FedGalleyClient -> DB.ClientState -> TestTree

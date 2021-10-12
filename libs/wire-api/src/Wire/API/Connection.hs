@@ -49,16 +49,22 @@ import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (takeByteString)
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
+import Data.Either.Extra (mapLeft)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import qualified Data.Schema as P
+import Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Schema as S
 import Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Lazy (toStrict)
+import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
+import Servant.API
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.Routes.MultiTablePaging
 
@@ -173,6 +179,9 @@ data Relation
   deriving (Arbitrary) via (GenericUniform Relation)
   deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema Relation)
 
+instance S.ToParamSchema Relation where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
 -- | 'updateConnectionInternal', requires knowledge of the previous state (before
 -- 'MissingLegalholdConsent'), but the clients don't need that information.  To avoid having
 -- to change the API, we introduce an internal variant of 'Relation' with surjective mapping
@@ -267,7 +276,13 @@ instance ToByteString Relation where
     Cancelled -> "cancelled"
     MissingLegalholdConsent -> "missing-legalhold-consent"
 
---------------------------------------------------------------------------------
+instance FromHttpApiData Relation where
+  parseQueryParam = mapLeft Text.pack . runParser parser . encodeUtf8
+
+instance ToHttpApiData Relation where
+  toQueryParam = toStrict . decodeUtf8 . toLazyByteString . builder
+
+----------------
 -- Requests
 
 -- | Payload type for a connection request from one user to another.
