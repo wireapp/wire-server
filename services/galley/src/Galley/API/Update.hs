@@ -420,8 +420,8 @@ performAction ::
 performAction qusr conv action = case action of
   ConversationActionAddMembers members role ->
     performAddMemberAction qusr conv members role
-  ConversationActionRemoveMember member -> do
-    performRemoveMemberAction conv member
+  ConversationActionRemoveMembers members -> do
+    performRemoveMemberAction conv (toList members)
     pure (mempty, action)
   ConversationActionRename rename -> lift $ do
     cn <- rangeChecked (cupName rename)
@@ -650,7 +650,7 @@ performAddMemberAction qusr conv invited role = do
                 qvictim <- qUntagged <$> qualifyLocal (lmId mem)
                 void . runMaybeT $
                   updateLocalConversation lcnv qvictim Nothing $
-                    ConversationActionRemoveMember qvictim
+                    ConversationActionRemoveMembers (pure qvictim)
           else throwErrorDescriptionType @MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
@@ -790,14 +790,16 @@ removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
 
 performRemoveMemberAction ::
   Data.Conversation ->
-  Qualified UserId ->
+  [Qualified UserId] ->
   MaybeT Galley ()
-performRemoveMemberAction conv victim = do
+performRemoveMemberAction conv victims = do
   loc <- qualifyLocal ()
-  guard $ isConvMember loc conv victim
-  let removeLocal u c = Data.removeLocalMembersFromLocalConv c (pure (tUnqualified u))
-      removeRemote u c = Data.removeRemoteMembersFromLocalConv c (pure u)
-  lift $ foldQualified loc removeLocal removeRemote victim (Data.convId conv)
+  let presentVictims = filter (isConvMember loc conv) victims
+  guard . not . null $ presentVictims
+
+  let (lvictims, rvictims) = partitionQualified loc presentVictims
+  traverse_ (lift . Data.removeLocalMembersFromLocalConv (Data.convId conv)) (nonEmpty lvictims)
+  traverse_ (lift . Data.removeRemoteMembersFromLocalConv (Data.convId conv)) (nonEmpty rvictims)
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
@@ -811,7 +813,8 @@ removeMemberFromLocalConv lcnv lusr con victim =
   fmap (maybe (Left RemoveFromConversationErrorUnchanged) Right)
     . runMaybeT
     . updateLocalConversation lcnv (qUntagged lusr) con
-    . ConversationActionRemoveMember
+    . ConversationActionRemoveMembers
+    . pure
     $ victim
 
 -- OTR
