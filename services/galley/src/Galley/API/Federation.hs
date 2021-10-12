@@ -85,6 +85,7 @@ onConversationCreated domain rc = do
           . rcMembers
           $ rc
       localUserIds = fmap qUnqualified localUsers
+  -- TODO: check that all users being added are connected to the adder
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv (rcCnvId qrc) localUserIds
   forM_ (fromNewRemoteConversation localDomain qrc) $ \(mem, c) -> do
@@ -130,6 +131,7 @@ onConversationUpdated requestingDomain cu = do
   -- way to make sure that they are actually supposed to receive that notification.
   extraTargets <- case cuAction cu of
     ConversationActionAddMembers toAdd _ -> do
+      -- TODO: check that all users being added are connected to the adder
       let localUsers = getLocalUsers localDomain toAdd
       Data.addLocalMembersToRemoteConv qconvId localUsers
       pure localUsers
