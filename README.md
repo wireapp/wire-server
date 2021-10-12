@@ -50,37 +50,13 @@ Sub-paragraph 1
 
 If another level is needed, please add the chosen symbol here.
 
-## Generate output using docker
-
-You need `docker` available on your system.
-
-### html
-
-Generate docs (using docker, so you don't need to install python dependencies yourself)
-
-```
-make docs
-```
-
-See build/html/index.html
-
-### pdf
-
-```
-make docs-pdf
-```
-
-Then see build/pdf/
-
-## Generate output without docker
+## Building the docs
 
 *Note: when switching from a docker-based building to a local building, you might encounter permission issues due to the build directory being owned by root. These can be solved by cleaning the build directory: `sudo rm -rf ./build/`*
 
 ### Dependencies
 
-Install the dependencies locally, you have two options A or B:
-
-#### A - nix & direnv
+Install the dependencies locally:
 
 1. Install [Nix](https://nixos.org/download.html)
    * MacOS users with a recent Mac might need to follow [these
@@ -99,18 +75,6 @@ Install the dependencies locally, you have two options A or B:
 
 Now, whenever you cd to wire-docs, you will have the relevant binaries (make, sphinx, rst2pdf, ...) in your PATH.
 
-#### B - Using python poetry
-
-If you don't like to use nix and direnv:
-
-You need `python3` and to install [poetry](https://github.com/python-poetry/poetry#installation) then run `poetry install`. If that fails you may not have a required system dependency, have a look at the [Dockerfile](./Dockerfile) for hints of packages you may need.
-
-### Local development environment for file watching
-
-Enter a *development mode* by running `make dev-run` to start a local server and file watcher.
-
-Look at results by opening build/html/index.html which will auto-update whenever files under ./src change.
-
 ### Generating html output
 
 ```
@@ -123,7 +87,36 @@ NOTE: support is experimental and resulting pdf may not have great formatting. S
 
 Run `make pdf` and look at files in `./build/pdf/`.
 
-If you have nix & direnv, you can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. (requires a PDF viewer installed globally)
+You can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. (requires a PDF viewer installed globally)
+
+### Local development environment for file watching
+
+Enter a *development mode* by running `make dev-run` to start a local server and file watcher.
+
+Look at results by opening build/html/index.html which will auto-update whenever files under ./src change.
+
+## Building the docs with docker
+
+You need `docker` available on your system.
+The docker image that is used is defined in the `Makefile`. To build the docker image locally (e.g. after updating dependencies) run `make docker`.
+
+### html
+
+Generate docs using docker (so you don't need to install python dependencies yourself)
+
+```
+make docs
+```
+
+See build/html/index.html
+
+### pdf
+
+```
+make docs-pdf
+```
+
+Then see build/pdf/
 
 ## For maintainers (Wire employees)
 
