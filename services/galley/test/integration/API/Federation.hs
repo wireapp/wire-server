@@ -85,7 +85,9 @@ getConversationsAllFound = do
   -- create & get group conv
   aliceQ <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
   carlQ <- randomQualifiedUser
+
   connectUsers bob (singleton (qUnqualified carlQ))
+  -- connectWithRemoteUser bob aliceQ
 
   cnv2 <-
     responseJsonError
@@ -163,6 +165,9 @@ addLocalUser = do
   charlie <- randomUser
   conv <- randomId
   let qconv = Qualified conv remoteDomain
+
+  -- connectWithRemoteUser alice qbob
+
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cu =

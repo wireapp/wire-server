@@ -97,7 +97,8 @@ onConversationCreated domain rc = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  Data.addLocalMembersToRemoteConv (rcCnvId qrc) (Set.toList connected)
+  Data.addLocalMembersToRemoteConv (rcCnvId qrc) localUserIds
+  -- Data.addLocalMembersToRemoteConv (rcCnvId qrc) (Set.toList connected)
 
   -- FUTUREWORK: Consider handling the discrepancy between the views of the
   -- conversation-owning backend and the local backend
@@ -107,7 +108,8 @@ onConversationCreated domain rc = do
         . Log.field "remote_user" (show (rcOrigUserId rc))
         . Log.field "local_unconnected_users" (show unconnected)
 
-  let connectedLocalMembers = Set.filter (\m -> (qUnqualified . omQualifiedId) m `Set.member` connected) localMembers
+  -- let connectedLocalMembers = Set.filter (\m -> (qUnqualified . omQualifiedId) m `Set.member` connected) localMembers
+  let connectedLocalMembers = localMembers
   -- Make sure to notify only about local users connected to the adder
   let qrcConnected = qrc {rcMembers = Set.union remoteMembers connectedLocalMembers}
 

@@ -1938,6 +1938,7 @@ testGetQualifiedRemoteConv = do
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
       aliceAsSelfMember = localMemberToSelf aliceAsLocal
 
+  connectWithRemoteUser aliceId bobQ
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
   let mockConversation = mkConv convId bobId roleNameWireAdmin [bobAsOtherMember]
