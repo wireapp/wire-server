@@ -4,6 +4,7 @@ module Wire.API.Routes.Internal.Brig.Connection where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
+import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
@@ -23,6 +24,22 @@ instance ToSchema ConnectionsStatusRequest where
         <$> csrFrom .= field "from" (array schema)
         <*> csrTo .= optField "to" Nothing (array schema)
 
+data ConnectionsStatusRequestV2 = ConnectionsStatusRequestV2
+  { csrv2From :: ![UserId],
+    csrv2To :: !(Maybe [Qualified UserId]),
+    csrv2Relation :: !(Maybe Relation)
+  }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ConnectionsStatusRequestV2)
+
+instance ToSchema ConnectionsStatusRequestV2 where
+  schema =
+    object "ConnectionsStatusRequestV2" $
+      ConnectionsStatusRequestV2
+        <$> csrv2From .= field "from" (array schema)
+        <*> csrv2To .= optField "to" Nothing (array schema)
+        <*> csrv2Relation .= optField "relation" Nothing schema
+
 data ConnectionStatus = ConnectionStatus
   { csFrom :: !UserId,
     csTo :: !UserId,
@@ -38,3 +55,19 @@ instance ToSchema ConnectionStatus where
         <$> csFrom .= field "from" schema
         <*> csTo .= field "to" schema
         <*> csStatus .= field "status" schema
+
+data ConnectionStatusV2 = ConnectionStatusV2
+  { csv2From :: !UserId,
+    csv2To :: !(Qualified UserId),
+    csv2Status :: !Relation
+  }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ConnectionStatusV2)
+
+instance ToSchema ConnectionStatusV2 where
+  schema =
+    object "ConnectionStatusV2" $
+      ConnectionStatusV2
+        <$> csv2From .= field "from" schema
+        <*> csv2To .= field "qualified_to" schema
+        <*> csv2Status .= field "status" schema

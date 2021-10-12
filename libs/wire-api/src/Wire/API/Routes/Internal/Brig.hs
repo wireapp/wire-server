@@ -101,6 +101,14 @@ type GetAllConnectionsUnqualified =
          Relation
     :> Post '[Servant.JSON] [ConnectionStatus]
 
+type GetAllConnections =
+  Summary "Get all connections of a given user"
+    :> "users"
+    :> "connections-status"
+    :> "v2"
+    :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
+    :> Post '[Servant.JSON] [ConnectionStatusV2]
+
 type API =
   "i"
     :> ( EJPDRequest
@@ -108,6 +116,7 @@ type API =
            :<|> PutAccountFeatureConfig
            :<|> DeleteAccountFeatureConfig
            :<|> GetAllConnectionsUnqualified
+           :<|> GetAllConnections
        )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"

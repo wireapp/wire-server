@@ -33,6 +33,7 @@ import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
 import Brig.App
 import qualified Brig.Data.Client as Data
+import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -55,6 +56,7 @@ import Data.Handle (Handle)
 import Data.Id as Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Qualified
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports hiding (head)
@@ -85,6 +87,7 @@ servantSitemap =
     :<|> getAccountFeatureConfig
     :<|> putAccountFeatureConfig
     :<|> deleteAccountFeatureConfig
+    :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
@@ -445,12 +448,24 @@ getAccountStatusH (_ ::: usr) = do
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
-getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> Handler [ConnectionStatus]
-getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
+getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> Handler [ConnectionStatus]
+getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
   r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
+
+getConnectionsStatus :: ConnectionsStatusRequestV2 -> Handler [ConnectionStatusV2]
+getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
+  loc <- qualifyLocal ()
+  conns <- lift $ case mtos of
+    Nothing -> Data.lookupAllStatuses =<< qualifyLocal froms
+    Just tos -> do
+      let getStatusesForOneDomain = foldQualified loc (Data.lookupLocalConnectionStatuses froms) (Data.lookupRemoteConnectionStatuses froms)
+      concat <$> mapM getStatusesForOneDomain (bucketQualified tos)
+  pure $ maybe conns (filterByRelation conns) mrel
+  where
+    filterByRelation l rel = filter ((== rel) . csv2Status) l
 
 revokeIdentityH :: Either Email Phone -> Handler Response
 revokeIdentityH emailOrPhone = do

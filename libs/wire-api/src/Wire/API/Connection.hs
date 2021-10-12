@@ -48,10 +48,6 @@ where
 import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson as Aeson
-import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString.Builder (toLazyByteString)
-import Data.ByteString.Conversion
-import Data.Either.Extra (mapLeft)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
@@ -60,9 +56,6 @@ import qualified Data.Schema as P
 import Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
-import Data.Text.Lazy (toStrict)
-import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
 import Servant.API
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
@@ -254,20 +247,19 @@ instance P.ToSchema Relation where
           P.element "missing-legalhold-consent" MissingLegalholdConsent
         ]
 
-instance FromByteString Relation where
-  parser =
-    takeByteString >>= \case
-      "accepted" -> return Accepted
-      "blocked" -> return Blocked
-      "pending" -> return Pending
-      "ignored" -> return Ignored
-      "sent" -> return Sent
-      "cancelled" -> return Cancelled
-      "missing-legalhold-consent" -> return MissingLegalholdConsent
-      x -> fail $ "Invalid relation-type " <> show x
+instance FromHttpApiData Relation where
+  parseQueryParam = \case
+    "accepted" -> return Accepted
+    "blocked" -> return Blocked
+    "pending" -> return Pending
+    "ignored" -> return Ignored
+    "sent" -> return Sent
+    "cancelled" -> return Cancelled
+    "missing-legalhold-consent" -> return MissingLegalholdConsent
+    x -> Left $ "Invalid relation-type " <> x
 
-instance ToByteString Relation where
-  builder = \case
+instance ToHttpApiData Relation where
+  toQueryParam = \case
     Accepted -> "accepted"
     Blocked -> "blocked"
     Pending -> "pending"
@@ -275,12 +267,6 @@ instance ToByteString Relation where
     Sent -> "sent"
     Cancelled -> "cancelled"
     MissingLegalholdConsent -> "missing-legalhold-consent"
-
-instance FromHttpApiData Relation where
-  parseQueryParam = mapLeft Text.pack . runParser parser . encodeUtf8
-
-instance ToHttpApiData Relation where
-  toQueryParam = toStrict . decodeUtf8 . toLazyByteString . builder
 
 ----------------
 -- Requests
