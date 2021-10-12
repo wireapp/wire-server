@@ -39,6 +39,7 @@ where
 import Brig.Types.Common as C
 import Data.Aeson
 import Data.Id (UserId)
+import Data.Qualified
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.Connection
@@ -59,6 +60,8 @@ data UserIds = UserIds
 data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
   | RemoveLHBlocksInvolving UserId
+  | -- | This must only be used by tests
+    CreateConnectionForTest UserId (Qualified UserId)
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
 
