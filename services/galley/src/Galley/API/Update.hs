@@ -398,7 +398,7 @@ updateLocalConversation lcnv qusr con action = do
       qusr
       con
       lcnv
-      (convTargets conv <> extraTargets)
+      (convBotsAndMembers conv <> extraTargets)
       action'
 
 getUpdateResult :: Functor m => MaybeT m a -> m (UpdateResult a)
@@ -410,7 +410,7 @@ performAction ::
   Qualified UserId ->
   Data.Conversation ->
   ConversationAction ->
-  MaybeT Galley (NotificationTargets, ConversationAction)
+  MaybeT Galley (BotsAndMembers, ConversationAction)
 performAction qusr conv action = case action of
   ConversationActionAddMembers members role ->
     performAddMemberAction qusr conv members role
@@ -565,7 +565,7 @@ joinConversation zusr zcon cnv access = do
         (qUntagged lusr)
         (Just zcon)
         lcnv
-        (convTargets conv <> extraTargets)
+        (convBotsAndMembers conv <> extraTargets)
         action
 
 -- | Add users to a conversation without performing any checks. Return extra
@@ -574,19 +574,19 @@ addMembersToLocalConversation ::
   Local ConvId ->
   UserList UserId ->
   RoleName ->
-  MaybeT Galley (NotificationTargets, ConversationAction)
+  MaybeT Galley (BotsAndMembers, ConversationAction)
 addMembersToLocalConversation lcnv users role = do
   (lmems, rmems) <- lift $ Data.addMembers lcnv (fmap (,role) users)
   neUsers <- maybe mzero pure . nonEmpty . ulAll lcnv $ users
   let action = ConversationActionAddMembers neUsers role
-  pure (ntFromMembers lmems rmems, action)
+  pure (bmFromMembers lmems rmems, action)
 
 performAddMemberAction ::
   Qualified UserId ->
   Data.Conversation ->
   NonEmpty (Qualified UserId) ->
   RoleName ->
-  MaybeT Galley (NotificationTargets, ConversationAction)
+  MaybeT Galley (BotsAndMembers, ConversationAction)
 performAddMemberAction qusr conv invited role = do
   lcnv <- lift $ qualifyLocal (Data.convId conv)
   let newMembers = ulNewMembers lcnv conv . toUserList lcnv $ invited
@@ -1008,7 +1008,7 @@ notifyConversationMetadataUpdate ::
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvId ->
-  NotificationTargets ->
+  BotsAndMembers ->
   ConversationAction ->
   Galley Event
 notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = do
@@ -1017,7 +1017,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   let e = conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
-  let rusersByDomain = indexRemote (toList (ntRemotes targets))
+  let rusersByDomain = indexRemote (toList (bmRemotes targets))
   void . pooledForConcurrentlyN 8 rusersByDomain $ \(qUntagged -> Qualified uids domain) -> do
     let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
         rpc =
@@ -1028,7 +1028,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
     runFederatedGalley domain rpc
 
   -- notify local participants and bots
-  pushConversationEvent con e (ntLocals targets) (ntBots targets) $> e
+  pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do

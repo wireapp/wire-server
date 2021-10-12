@@ -346,47 +346,47 @@ ulNewMembers loc conv (UserList locals remotes) =
 -- of the user id. Local user IDs get added to the local targets, remote user IDs
 -- to remote targets, and qualified user IDs get added to the appropriate list
 -- according to whether they are local or remote, by making a runtime check.
-class IsNotificationTarget uid where
-  ntAdd :: Local x -> uid -> NotificationTargets -> NotificationTargets
+class IsBotOrMember uid where
+  bmAdd :: Local x -> uid -> BotsAndMembers -> BotsAndMembers
 
-data NotificationTargets = NotificationTargets
-  { ntLocals :: Set UserId,
-    ntRemotes :: Set (Remote UserId),
-    ntBots :: Set BotMember
+data BotsAndMembers = BotsAndMembers
+  { bmLocals :: Set UserId,
+    bmRemotes :: Set (Remote UserId),
+    bmBots :: Set BotMember
   }
 
-instance Semigroup NotificationTargets where
-  NotificationTargets locals1 remotes1 bots1
-    <> NotificationTargets locals2 remotes2 bots2 =
-      NotificationTargets
+instance Semigroup BotsAndMembers where
+  BotsAndMembers locals1 remotes1 bots1
+    <> BotsAndMembers locals2 remotes2 bots2 =
+      BotsAndMembers
         (locals1 <> locals2)
         (remotes1 <> remotes2)
         (bots1 <> bots2)
 
-instance Monoid NotificationTargets where
-  mempty = NotificationTargets mempty mempty mempty
+instance Monoid BotsAndMembers where
+  mempty = BotsAndMembers mempty mempty mempty
 
-instance IsNotificationTarget (Local UserId) where
-  ntAdd _ luid nt =
-    nt {ntLocals = Set.insert (tUnqualified luid) (ntLocals nt)}
+instance IsBotOrMember (Local UserId) where
+  bmAdd _ luid bm =
+    bm {bmLocals = Set.insert (tUnqualified luid) (bmLocals bm)}
 
-instance IsNotificationTarget (Remote UserId) where
-  ntAdd _ ruid nt = nt {ntRemotes = Set.insert ruid (ntRemotes nt)}
+instance IsBotOrMember (Remote UserId) where
+  bmAdd _ ruid bm = bm {bmRemotes = Set.insert ruid (bmRemotes bm)}
 
-instance IsNotificationTarget (Qualified UserId) where
-  ntAdd loc = foldQualified loc (ntAdd loc) (ntAdd loc)
+instance IsBotOrMember (Qualified UserId) where
+  bmAdd loc = foldQualified loc (bmAdd loc) (bmAdd loc)
 
-ntFromMembers :: [LocalMember] -> [RemoteMember] -> NotificationTargets
-ntFromMembers lmems rusers = case localBotsAndUsers lmems of
+bmFromMembers :: [LocalMember] -> [RemoteMember] -> BotsAndMembers
+bmFromMembers lmems rusers = case localBotsAndUsers lmems of
   (bots, lusers) ->
-    NotificationTargets
-      { ntLocals = Set.fromList (map lmId lusers),
-        ntRemotes = Set.fromList (map rmId rusers),
-        ntBots = Set.fromList bots
+    BotsAndMembers
+      { bmLocals = Set.fromList (map lmId lusers),
+        bmRemotes = Set.fromList (map rmId rusers),
+        bmBots = Set.fromList bots
       }
 
-convTargets :: Data.Conversation -> NotificationTargets
-convTargets conv = ntFromMembers (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
+convBotsAndMembers :: Data.Conversation -> BotsAndMembers
+convBotsAndMembers conv = bmFromMembers (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
 
 localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
 localBotsAndUsers = foldMap botOrUser
