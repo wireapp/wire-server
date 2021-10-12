@@ -376,6 +376,14 @@ instance IsBotOrMember (Remote UserId) where
 instance IsBotOrMember (Qualified UserId) where
   bmAdd loc = foldQualified loc (bmAdd loc) (bmAdd loc)
 
+bmDiff :: BotsAndMembers -> BotsAndMembers -> BotsAndMembers
+bmDiff bm1 bm2 =
+  BotsAndMembers
+    { bmLocals = Set.difference (bmLocals bm1) (bmLocals bm2),
+      bmRemotes = Set.difference (bmRemotes bm1) (bmRemotes bm2),
+      bmBots = Set.difference (bmBots bm1) (bmBots bm2)
+    }
+
 bmFromMembers :: [LocalMember] -> [RemoteMember] -> BotsAndMembers
 bmFromMembers lmems rusers = case localBotsAndUsers lmems of
   (bots, lusers) ->

@@ -230,7 +230,6 @@ performAccessUpdateAction ::
 performAccessUpdateAction qusr conv target = do
   lcnv <- qualifyLocal (Data.convId conv)
   guard $ Data.convAccessData conv /= target
-  let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
   -- Remove conversation codes if CodeAccess is revoked
   when
     ( CodeAccess `elem` Data.convAccess conv
@@ -239,39 +238,19 @@ performAccessUpdateAction qusr conv target = do
     $ lift $ do
       key <- mkKey (tUnqualified lcnv)
       Data.deleteCode key ReusableCode
-  -- Depending on a variety of things, some bots and users have to be
-  -- removed from the conversation. We keep track of them using 'State'.
-  (newUsers, newBots) <- lift . flip execStateT (users, bots) $ do
-    -- We might have to remove non-activated members
-    -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
-    -- to make assumption about the order of roles and implement policy
-    -- based on those assumptions.
-    when
-      ( Data.convAccessRole conv > ActivatedAccessRole
-          && cupAccessRole target <= ActivatedAccessRole
-      )
-      $ do
-        mIds <- map lmId <$> use usersL
-        activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
-        let isActivated user = lmId user `elem` activated
-        usersL %= filter isActivated
-    -- In a team-only conversation we also want to remove bots and guests
-    case (cupAccessRole target, Data.convTeam conv) of
-      (TeamAccessRole, Just tid) -> do
-        currentUsers <- use usersL
-        onlyTeamUsers <- flip filterM currentUsers $ \user ->
-          lift $ isJust <$> Data.teamMember tid (lmId user)
-        assign usersL onlyTeamUsers
-        botsL .= []
-      _ -> return ()
+
+  -- Determine bots and members to be removed
+  let bm0 = convBotsAndMembers conv
+  toRemove <-
+    lift . fmap (bmDiff bm0) $
+      filterTeammates =<< filterActivated bm0
+
   -- Update Cassandra
   lift $ Data.updateConversationAccess (tUnqualified lcnv) target
   -- Remove users and bots
   lift . void . forkIO $ do
-    let removedUsers = map lmId users \\ map lmId newUsers
-        removedBots = map botMemId bots \\ map botMemId newBots
-    mapM_ (deleteBot (tUnqualified lcnv)) removedBots
-    for_ (nonEmpty removedUsers) $ \victims -> do
+    traverse_ (deleteBot (tUnqualified lcnv)) (map botMemId (toList (bmBots toRemove)))
+    for_ (nonEmpty (toList (bmLocals toRemove))) $ \victims -> do
       -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
       Data.removeLocalMembersFromLocalConv (tUnqualified lcnv) victims
       now <- liftIO getCurrentTime
@@ -280,13 +259,40 @@ performAccessUpdateAction qusr conv target = do
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       traverse_ push1 $
-        newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> users)
-      void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
+        newPushLocal
+          ListComplete
+          (qUnqualified qusr)
+          (ConvEvent e)
+          (userRecipient <$> toList (bmLocals bm0))
+      void . forkIO $ void $ External.deliver (toList (bmBots bm0) `zip` repeat e)
   where
-    usersL :: Lens' ([LocalMember], [BotMember]) [LocalMember]
-    usersL = _1
-    botsL :: Lens' ([LocalMember], [BotMember]) [BotMember]
-    botsL = _2
+    filterActivated :: BotsAndMembers -> Galley BotsAndMembers
+    filterActivated bm
+      -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
+      -- to make assumption about the order of roles and implement policy
+      -- based on those assumptions.
+      | ( Data.convAccessRole conv > ActivatedAccessRole
+            && cupAccessRole target <= ActivatedAccessRole
+        ) = do
+        activated <- map User.userId <$> lookupActivatedUsers (toList (bmLocals bm))
+        -- FUTUREWORK: should we also remove non-activated remote users?
+        pure $ bm {bmLocals = Set.fromList activated}
+      | otherwise = pure bm
+
+    filterTeammates :: BotsAndMembers -> Galley BotsAndMembers
+    filterTeammates bm = do
+      -- In a team-only conversation we also want to remove bots and guests
+      case (cupAccessRole target, Data.convTeam conv) of
+        (TeamAccessRole, Just tid) -> do
+          onlyTeamUsers <- flip filterM (toList (bmLocals bm)) $ \user ->
+            isJust <$> Data.teamMember tid user
+          pure $
+            BotsAndMembers
+              { bmLocals = Set.fromList onlyTeamUsers,
+                bmBots = mempty,
+                bmRemotes = mempty
+              }
+        _ -> pure bm
 
 updateConversationReceiptMode ::
   UserId ->
