@@ -73,7 +73,7 @@ import Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import Galley.Types.Teams hiding (Event, EventType (..))
+import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
@@ -1569,6 +1569,23 @@ connectUsersWith fn u = mapM connectTo
           )
       return (r1, r2)
 
+connectWithRemoteUser ::
+  (MonadReader TestSetup m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  Qualified UserId ->
+  m ResponseLBS
+connectWithRemoteUser self other = do
+  let req = CreateConnectionForTest self other
+  b <- view tsBrig
+  put
+    ( b
+        . zUser self
+        . contentJson
+        . zConn "conn"
+        . paths ["i", "connections", "connection-update"]
+        . json req
+    )
+
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
 postConnection from to = do
@@ -1584,6 +1601,16 @@ postConnection from to = do
     payload =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
+
+postConnectionQualified :: UserId -> Qualified UserId -> TestM ResponseLBS
+postConnectionQualified from (Qualified toUser toDomain) = do
+  brig <- view tsBrig
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
 
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS

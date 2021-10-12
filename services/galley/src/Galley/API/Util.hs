@@ -115,9 +115,16 @@ ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnections [u] (Just uids) (Just Accepted)
-      `concurrently` getConnections uids (Just [u]) (Just Accepted)
+    getConnectionsUnqualified [u] (Just uids) (Just Accepted)
+      `concurrently` getConnectionsUnqualified uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
+    throwErrorDescriptionType @NotConnected
+
+ensureConnectedToRemotes :: Local UserId -> [Remote UserId] -> Galley ()
+ensureConnectedToRemotes _ [] = pure ()
+ensureConnectedToRemotes u remotes = do
+  acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
+  when (length acceptedConns /= length remotes) $
     throwErrorDescriptionType @NotConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()

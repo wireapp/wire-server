@@ -17,6 +17,7 @@
 
 module Galley.Intra.User
   ( getConnections,
+    getConnectionsUnqualified,
     putConnectionInternal,
     deleteBot,
     reAuthUser,
@@ -50,15 +51,16 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.User.RichInfo (RichInfo)
+import Data.Qualified
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
 -- several users to one).
 --
 -- When a connection does not exist, it is skipped.
--- Calls 'Brig.API.getConnectionsStatusH'.
-getConnections :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
-getConnections uFrom uTo rlt = do
+-- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
+getConnectionsUnqualified :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnectionsUnqualified uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
     call "brig" $
@@ -70,6 +72,23 @@ getConnections uFrom uTo rlt = do
   parseResponse (mkError status502 "server-error") r
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
+
+-- | Get statuses of all connections between two groups of users (the usual
+-- pattern is to check all connections from one user to several, or from
+-- several users to one).
+--
+-- When a connection does not exist, it is skipped.
+-- Calls 'Brig.API.Internal.getConnectionsStatus'.
+getConnections :: [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley [ConnectionStatusV2]
+getConnections uFrom uTo rlt = do
+  (h, p) <- brigReq
+  r <-
+    call "brig" $
+      method POST . host h . port p
+        . path "/i/users/connections-status/v2"
+        . json (ConnectionsStatusRequestV2 uFrom uTo rlt)
+        . expect2xx
+  parseResponse (mkError status502 "server-error") r
 
 putConnectionInternal :: UpdateConnectionsInternal -> Galley Status
 putConnectionInternal updateConn = do
