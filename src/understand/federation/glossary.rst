@@ -23,6 +23,7 @@ Backend Domain
 
    The domain of a backend, which is used to qualify the names and identifiers of
    resources (users, clients, groups, etc) that are local to a given backend.
+   See also the :ref:`Consequences of choosing a backend domain <consequences-backend-domain>`
 
 .. _glossary_infra_domain:
 

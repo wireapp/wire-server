@@ -1,6 +1,8 @@
 Architecture and Network
 =========================
 
+.. _federation-architecture:
+
 Architecture
 -------------
 

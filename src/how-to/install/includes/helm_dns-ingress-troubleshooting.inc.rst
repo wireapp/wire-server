@@ -50,29 +50,6 @@ You may be happy with skipping the DNS setup and just make sure that the ``/etc/
 
    1.2.3.4 nginz-https.<domain> nginz-ssl.<domain> assets.<domain> webapp.<domain> teams.<domain> account.<domain> sftd.<domain> restund01.<domain> restund02.<domain> federator.<domain>
 
-DNS setup for federation
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-One prerequisite to enable federation is an SRV record that needs to be set up to allow the wire-server
-to be discovered by other Wire backends. See the documentation on
-:ref:`discovery in federation<discovery>` for more information on the role of
-discovery in federation.
-
-The fields of the SRV record need to be populated as follows
-* `service`:  `wire-server-federator`
-* `proto`: `tcp`
-* `name`: federator.<domain>
-* `target`: <backend-domain>
-
-Where <backend-domain> is the domain which will be used to :ref:`qualify names
-and identifiers <qualified-identifiers-and-names>` in the context of federation.
-
-To give an example, for `<domain> = wire.company-a.com` and `<backend-domain> = company-a.com`, the SRV record would look as follows:
-
-.. code-block:: bash
-
-   _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
-
 
 How to direct traffic to your cluster
 ------------------------------------------
@@ -148,6 +125,8 @@ Next, we want to redirect port 443 to the port the nginx https ingress nodeport 
   * ``iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 31772``
 
 * Option 2: Use ansible to do that, run the `iptables playbook <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/iptables.yml>`__
+
+.. include:: ./includes/dns-federation.rst
 
 Trying things out
 -----------------
