@@ -134,7 +134,7 @@ indexQualified = foldr add mempty
 
 -- | Bucket a list of qualified values by domain.
 bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
-bucketQualified = map (\(d,a) -> Qualified a d) .  Map.assocs . indexQualified
+bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
 
 -- TODO: Rename this to 'bucketRemote'
 indexRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]

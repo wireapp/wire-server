@@ -64,6 +64,7 @@ tests s =
     "federation"
     [ test s "POST /federation/get-conversations : All Found" getConversationsAllFound,
       test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
+      test s "POST /federation/on-conversation-created : Add local user to remote conversation" onConvCreated,
       test s "POST /federation/on-conversation-updated : Add local user to remote conversation" addLocalUser,
       test s "POST /federation/on-conversation-updated : Notify local user about other members joining" addRemoteUser,
       test s "POST /federation/on-conversation-updated : Remove a local user from a remote conversation" removeLocalUser,
@@ -152,6 +153,37 @@ getConversationsNotPartOf = do
       localDomain
       (GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1])
   liftIO $ assertEqual "conversation list not empty" [] cs
+
+onConvCreated :: TestM ()
+onConvCreated = do
+  c <- view tsCannon
+  (alice, qAlice) <- randomUserTuple
+  let remoteDomain = Domain "bobland.example.com"
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+
+  (charlie, qCharlie) <- randomUserTuple
+  conv <- randomId
+  let qconv = Qualified conv remoteDomain
+
+  connectWithRemoteUser alice qbob
+  -- Remote Bob creates a conversation with local Alice and Charlie;
+  -- however Bob is not connected to Charlie but only to Alice.
+  let requestMembers = Set.fromList (map asOtherMember [qAlice, qCharlie])
+
+  WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
+    registerRemoteConv qconv qbob (Just "gossip") requestMembers
+    liftIO $ do
+      let expectedSelf = alice
+          expectedOthers = [qbob]
+          expectedFrom = qbob
+      -- since Charlie is not connected to Bob; expect a conversation with Alice&Bob only
+      WS.assertMatch_ (5 # Second) wsA $
+        -- TODO: OtherMembers should not include Charlie; but should include Bob.
+        -- Why does this fail? Changing expectedOthers to be [] succeeds the test but seems wrong.
+        wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers roleNameWireMember
+      WS.assertNoEvent (1 # Second) [wsC]
+  convs <- listRemoteConvs remoteDomain alice
+  liftIO $ convs @?= [Qualified conv remoteDomain]
 
 addLocalUser :: TestM ()
 addLocalUser = do
@@ -436,7 +468,6 @@ addRemoteUser = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
 
-  let asOtherMember quid = OtherMember quid Nothing roleNameWireMember
   registerRemoteConv qconv qbob (Just "gossip") (Set.fromList (map asOtherMember [qalice, qdee, qeve]))
 
   -- The conversation owning

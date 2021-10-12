@@ -108,7 +108,7 @@ import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Event.Conversation (_EdMembersJoin, _EdMembersLeave)
+import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -1236,6 +1236,9 @@ getTeamQueue' zusr msince msize onlyLast = do
           ]
     )
 
+asOtherMember :: Qualified UserId -> OtherMember
+asOtherMember quid = OtherMember quid Nothing roleNameWireMember
+
 registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
@@ -1664,6 +1667,11 @@ assertConnections u cstat = do
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
+
+randomUserTuple :: HasCallStack => TestM (UserId, Qualified UserId)
+randomUserTuple = do
+  qUid <- randomQualifiedUser
+  pure (qUnqualified qUid, qUid)
 
 randomUser :: HasCallStack => TestM UserId
 randomUser = qUnqualified <$> randomUser' False True True
@@ -2323,6 +2331,18 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   case evtData e of
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
+
+wsAssertConvCreateWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
+wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers role n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.ConvCreate
+  evtFrom e @?= eventFrom
+  fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just (selfMember)
+  fmap (sort . cmOthers . cnvMembers) (evtData e ^? _EdConversation) @?= Just (sort (toOtherMember <$> otherMembers))
+  where
+    toOtherMember quid = OtherMember quid Nothing role
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do

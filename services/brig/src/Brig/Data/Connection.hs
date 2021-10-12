@@ -239,7 +239,7 @@ lookupAllStatuses lfroms = do
         <$> retry x1 (query relationsSelectAll (params Quorum (Identity from)))
     lookupRemoteStatuses :: UserId -> AppIO [ConnectionStatusV2]
     lookupRemoteStatuses from =
-      map (\(d,u,r) -> toConnectionStatusV2 from d u r)
+      map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params Quorum (Identity from)))
 
 -- | See 'lookupContactListWithRelation'.

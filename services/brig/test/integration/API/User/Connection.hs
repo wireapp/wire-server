@@ -958,7 +958,7 @@ testInternalGetConnStatusesAll brig opts fedBrigClient = do
     receiveConnectionAction brig fedBrigClient uid remoteDomain2User1 F.RemoteConnect (Just F.RemoteConnect) Accepted
 
   allStatuses :: [ConnectionStatusV2] <-
-    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing  Nothing)
+    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing Nothing)
       <!! const 200 === statusCode
 
   liftIO $ do

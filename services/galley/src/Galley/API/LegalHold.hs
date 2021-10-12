@@ -58,7 +58,7 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
-import Galley.Intra.User (putConnectionInternal, getConnectionsUnqualified)
+import Galley.Intra.User (getConnectionsUnqualified, putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
