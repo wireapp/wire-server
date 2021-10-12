@@ -60,6 +60,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
@@ -75,6 +76,7 @@ import Util.AWS
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
@@ -92,6 +94,8 @@ type Nginz = Request -> Request
 type Spar = Request -> Request
 
 type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
+
+type FedGalleyClient = FedGalley.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -139,6 +143,22 @@ localAndRemoteUser brig = do
   uid1 <- userId <$> randomUser brig
   quid2 <- fakeRemoteUser
   pure (uid1, quid2)
+
+localAndRemoteUserWithConvId ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Bool ->
+  m (UserId, Qualified UserId, Qualified ConvId)
+localAndRemoteUserWithConvId brig shouldBeLocal = do
+  quid <- userQualifiedId <$> randomUser brig
+  let go = do
+        other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+        let convId = one2OneConvId quid other
+            isLocal = qDomain quid == qDomain convId
+        if shouldBeLocal == isLocal
+          then pure (qUnqualified quid, other, convId)
+          else go
+  go
 
 fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
 fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
