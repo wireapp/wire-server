@@ -645,6 +645,13 @@ runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (indexRemote xs) $ \r ->
     qualifyAs r <$> runFederated (tDomain r) (rpc r)
 
+runFederatedConcurrently_ ::
+  (Foldable f, Functor f) =>
+  f (Remote a) ->
+  (Remote [a] -> FederatedGalleyRPC c ()) ->
+  Galley ()
+runFederatedConcurrently_ xs = void . runFederatedConcurrently xs
+
 -- | Convert an internal conversation representation 'Data.Conversation' to
 -- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
@@ -750,23 +757,10 @@ registerRemoteConversationMemberships ::
   Data.Conversation ->
   Galley ()
 registerRemoteConversationMemberships now localDomain c = do
-  let rc = toNewRemoteConversation now localDomain c
-  -- FUTUREWORK: parallelise federated requests
-  traverse_ (registerRemoteConversations rc)
-    . Map.keys
-    . indexQualified
-    . nubOrd
-    . map (qUntagged . rmId)
-    . Data.convRemoteMembers
-    $ c
-  where
-    registerRemoteConversations ::
-      NewRemoteConversation ConvId ->
-      Domain ->
-      Galley ()
-    registerRemoteConversations rc domain = do
-      let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
-      runFederated domain rpc
+  let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
+      rc = toNewRemoteConversation now localDomain c
+  runFederatedConcurrently_ allRemoteMembers $ \_ ->
+    FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
 
 --------------------------------------------------------------------------------
 -- Legalhold
