@@ -149,6 +149,7 @@ messageTimerChangeWithRemotes = do
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
+  connectWithRemoteUser bob qalice
 
   resp <-
     postConvWithRemoteUsers

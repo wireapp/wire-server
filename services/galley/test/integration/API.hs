@@ -1371,6 +1371,7 @@ paginateConvListIds = do
   remoteChad <- randomId
   let chadDomain = Domain "chad.example.com"
       qChad = Qualified remoteChad chadDomain
+  connectWithRemoteUser alice qChad
   replicateM_ 25 $ do
     conv <- randomId
     let cu =
@@ -1386,6 +1387,7 @@ paginateConvListIds = do
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
       qDee = Qualified remoteDee deeDomain
+  connectWithRemoteUser alice qDee
   replicateM_ 31 $ do
     conv <- randomId
     let cu =
@@ -1428,6 +1430,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   remoteChad <- randomId
   let chadDomain = Domain "chad.example.com"
       qChad = Qualified remoteChad chadDomain
+  connectWithRemoteUser alice qChad
+
   -- The 3rd page will end with this domain
   replicateM_ 16 $ do
     conv <- randomId
@@ -1444,6 +1448,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
       qDee = Qualified remoteDee deeDomain
+  connectWithRemoteUser alice qDee
+
   -- The 4th and last page will end with this domain
   replicateM_ 16 $ do
     conv <- randomId
@@ -2022,6 +2028,9 @@ testBulkGetQualifiedConvs = do
       remoteDomainC = Domain "c.far-away.example.com"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
+
+  connectWithRemoteUser alice bobQ
+  connectWithRemoteUser alice carlQ
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = cnvQualifiedId localConv
@@ -2790,6 +2799,8 @@ putRemoteConvMemberOk update = do
   let remoteDomain = Domain "bobland.example.com"
   qbob <- Qualified <$> randomId <*> pure remoteDomain
   qconv <- Qualified <$> randomId <*> pure remoteDomain
+  connectWithRemoteUser alice qbob
+
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cu =
@@ -2990,7 +3001,11 @@ removeUser = do
   [alice, bob, carl] <- replicateM 3 randomQualifiedUser
   dee <- (`Qualified` remoteDomain) <$> randomId
   let [alice', bob', carl'] = qUnqualified <$> [alice, bob, carl]
+
   connectUsers alice' (list1 bob' [carl'])
+  connectWithRemoteUser alice' dee
+  connectWithRemoteUser bob' dee
+
   conv1 <- decodeConvId <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
   conv2 <- decodeConvId <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing
   conv3 <- decodeConvId <$> postConv alice' [carl'] (Just "gossip3") [] Nothing Nothing

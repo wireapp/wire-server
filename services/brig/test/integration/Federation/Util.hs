@@ -122,3 +122,10 @@ getConvQualified g u (Qualified cnvId domain) =
       . zUser u
       . zConn "conn"
       . header "Z-Type" "access"
+
+connectUsersEnd2End :: Brig -> Brig -> Qualified UserId -> Qualified UserId -> Http ()
+connectUsersEnd2End brig1 brig2 quid1 quid2 = do
+  postConnectionQualified brig1 (qUnqualified quid1) quid2
+    !!! const 201 === statusCode
+  putConnectionQualified brig2 (qUnqualified quid2) quid1 Accepted
+    !!! const 200 === statusCode

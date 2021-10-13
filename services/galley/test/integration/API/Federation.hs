@@ -631,6 +631,7 @@ onMessageSent = do
   fedGalleyClient <- view tsFedGalleyClient
 
   -- only add alice to the remote conversation
+  connectWithRemoteUser alice qbob
   let cu =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
