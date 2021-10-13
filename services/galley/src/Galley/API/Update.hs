@@ -240,10 +240,10 @@ performAccessUpdateAction qusr conv target = do
       Data.deleteCode key ReusableCode
 
   -- Determine bots and members to be removed
-  let bm0 = convBotsAndMembers conv
-  toRemove <-
-    lift . fmap (bmDiff bm0) $
-      filterTeammates =<< filterActivated bm0
+  let filterBotsAndMembers = filterActivated >=> filterTeammates
+  let bm0 = convBotsAndMembers conv -- initial bots and members
+  bm1 <- lift $ filterBotsAndMembers bm0 -- desired bots and members
+  let toRemove = bmDiff bm0 bm1 -- bots and members to be removed
 
   -- Update Cassandra
   lift $ Data.updateConversationAccess (tUnqualified lcnv) target
@@ -264,7 +264,8 @@ performAccessUpdateAction qusr conv target = do
           (qUnqualified qusr)
           (ConvEvent e)
           (userRecipient <$> toList (bmLocals bm0))
-      void . forkIO $ void $ External.deliver (toList (bmBots bm0) `zip` repeat e)
+      -- push event to remaining bots
+      void . forkIO $ void $ External.deliver (toList (bmBots bm1) `zip` repeat e)
   where
     filterActivated :: BotsAndMembers -> Galley BotsAndMembers
     filterActivated bm
