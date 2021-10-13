@@ -168,7 +168,7 @@ onConversationUpdated requestingDomain cu = do
 
   -- Send notifications
   case mActualAction of
-    Nothing -> pure () -- TODO: Test this case
+    Nothing -> pure ()
     Just action -> do
       let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId action
           targets = nubOrd $ presentUsers <> extraTargets

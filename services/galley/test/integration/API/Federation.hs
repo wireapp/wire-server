@@ -66,6 +66,7 @@ tests s =
       test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
       test s "POST /federation/on-conversation-created : Add local user to remote conversation" onConvCreated,
       test s "POST /federation/on-conversation-updated : Add local user to remote conversation" addLocalUser,
+      test s "POST /federation/on-conversation-updated : Add only unconnected local users to remote conversation" addUnconnectedUsersOnly,
       test s "POST /federation/on-conversation-updated : Notify local user about other members joining" addRemoteUser,
       test s "POST /federation/on-conversation-updated : Remove a local user from a remote conversation" removeLocalUser,
       test s "POST /federation/on-conversation-updated : Remove a remote user from a remote conversation" removeRemoteUser,
@@ -226,6 +227,49 @@ addLocalUser = do
   liftIO $ aliceConvs @?= [Qualified conv remoteDomain]
   deeConvs <- listRemoteConvs remoteDomain dee
   liftIO $ deeConvs @?= []
+
+addUnconnectedUsersOnly :: TestM ()
+addUnconnectedUsersOnly = do
+  c <- view tsCannon
+  (alice, qAlice) <- randomUserTuple
+  (_charlie, qCharlie) <- randomUserTuple
+
+  let remoteDomain = Domain "bobland.example.com"
+  qBob <- Qualified <$> randomId <*> pure remoteDomain
+  conv <- randomId
+  let qconv = Qualified conv remoteDomain
+
+  -- Bob is connected to Alice
+  -- Bob is not connected to Charlie
+  connectWithRemoteUser alice qBob
+  let requestMembers = Set.fromList (map asOtherMember [qAlice])
+
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  WS.bracketR c alice $ \wsA -> do
+    -- Remote Bob creates a conversation with local Alice
+    registerRemoteConv qconv qBob (Just "gossip") requestMembers
+    liftIO $ do
+      let expectedSelf = alice
+          expectedOthers = [(qBob, roleNameWireAdmin)]
+          expectedFrom = qBob
+      WS.assertMatch_ (5 # Second) wsA $
+        wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers
+
+    -- Bob attempts to add unconnected Charlie (possible abuse)
+    let cu =
+          FedGalley.ConversationUpdate
+            { FedGalley.cuTime = now,
+              FedGalley.cuOrigUserId = qBob,
+              FedGalley.cuConvId = conv,
+              FedGalley.cuAlreadyPresentUsers = [alice],
+              FedGalley.cuAction =
+                ConversationActionAddMembers (qCharlie :| []) roleNameWireMember
+            }
+    -- Alice receives no notifications from this
+    FedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
+    WS.assertNoEvent (5 # Second) [wsA]
 
 -- | This test invokes the federation endpoint:
 --
