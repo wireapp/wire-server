@@ -563,6 +563,7 @@ postConvQualified u n = do
       . json (NewConvUnmanaged n)
 
 postConvWithRemoteUsers ::
+  HasCallStack =>
   Domain ->
   [UserProfile] ->
   UserId ->

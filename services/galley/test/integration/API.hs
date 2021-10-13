@@ -1590,21 +1590,12 @@ postConvQualifiedNonExistentUser = do
   let remoteDomain = Domain "far-away.example.com"
       bob = Qualified bobId remoteDomain
       charlie = Qualified charlieId remoteDomain
-  _g <- view tsGalley
-  resp <-
-    postConvWithRemoteUsers
-      remoteDomain
-      [mkProfile charlie (Name "charlie")]
-      alice
-      defNewConv
-        { newConvQualifiedUsers = [bob, charlie],
-          newConvName = Just "remote gossip"
-        }
-
-  liftIO $ do
-    statusCode resp @?= 400
-    let err = responseJsonUnsafe resp :: Object
-    (err ^. at "label") @?= Just "unknown-remote-user"
+  opts <- view tsGConf
+  void . withTempMockFederator opts remoteDomain (const [mkProfile charlie (Name "charlie")]) $
+    postConvQualified alice defNewConv {newConvQualifiedUsers = [bob, charlie]}
+      !!! do
+        const 400 === statusCode
+        const (Right "unknown-remote-user") === fmap label . responseJsonEither
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
