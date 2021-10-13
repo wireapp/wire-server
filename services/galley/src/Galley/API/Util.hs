@@ -355,6 +355,11 @@ data BotsAndMembers = BotsAndMembers
     bmBots :: Set BotMember
   }
 
+bmQualifiedMembers :: Local x -> BotsAndMembers -> [Qualified UserId]
+bmQualifiedMembers loc bm =
+  map (qUntagged . qualifyAs loc) (toList (bmLocals bm))
+    <> map qUntagged (toList (bmRemotes bm))
+
 instance Semigroup BotsAndMembers where
   BotsAndMembers locals1 remotes1 bots1
     <> BotsAndMembers locals2 remotes2 bots2 =

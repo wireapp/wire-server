@@ -241,31 +241,24 @@ performAccessUpdateAction qusr conv target = do
 
   -- Determine bots and members to be removed
   let filterBotsAndMembers = filterActivated >=> filterTeammates
-  let bm0 = convBotsAndMembers conv -- initial bots and members
-  bm1 <- lift $ filterBotsAndMembers bm0 -- desired bots and members
-  let toRemove = bmDiff bm0 bm1 -- bots and members to be removed
+  let current = convBotsAndMembers conv -- initial bots and members
+  desired <- lift $ filterBotsAndMembers current -- desired bots and members
+  let toRemove = bmDiff current desired -- bots and members to be removed
 
   -- Update Cassandra
   lift $ Data.updateConversationAccess (tUnqualified lcnv) target
-  -- Remove users and bots
   lift . void . forkIO $ do
+    -- Remove bots
     traverse_ (deleteBot (tUnqualified lcnv)) (map botMemId (toList (bmBots toRemove)))
-    for_ (nonEmpty (toList (bmLocals toRemove))) $ \victims -> do
-      -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
-      Data.removeLocalMembersFromLocalConv (tUnqualified lcnv) victims
-      now <- liftIO getCurrentTime
-      let qvictims = QualifiedUserIdList . map (qUntagged . qualifyAs lcnv) . toList $ victims
-      let e = Event MemberLeave (qUntagged lcnv) qusr now (EdMembersLeave qvictims)
-      -- push event to all clients, including zconn
-      -- since updateConversationAccess generates a second (member removal) event here
-      traverse_ push1 $
-        newPushLocal
-          ListComplete
-          (qUnqualified qusr)
-          (ConvEvent e)
-          (userRecipient <$> toList (bmLocals bm0))
-      -- push event to remaining bots
-      void . forkIO $ void $ External.deliver (toList (bmBots bm1) `zip` repeat e)
+
+    -- Update current bots and members
+    let current' = current {bmBots = bmBots desired}
+
+    -- Remove users and notify everyone
+    void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
+      let action = ConversationActionRemoveMembers usersToRemove
+      void . runMaybeT $ performAction qusr conv action
+      notifyConversationMetadataUpdate qusr Nothing lcnv current' action
   where
     filterActivated :: BotsAndMembers -> Galley BotsAndMembers
     filterActivated bm
