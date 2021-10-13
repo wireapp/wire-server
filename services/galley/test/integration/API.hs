@@ -218,8 +218,7 @@ tests s =
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
-          test s "guests and services get removed when access changes" testAccessUpdateGuestRemoved,
-          test s "non-activated users get removed when access changes" testAccessUpdateNonActivatedRemoved,
+          test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
           test s "cannot join private conversation" postJoinConvFail,
           test s "remove user" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests
@@ -1203,19 +1202,32 @@ testAccessUpdateGuestRemoved = do
       <!! const 201 === statusCode
 
   c <- view tsCannon
-  WS.bracketRN c (map qUnqualified [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
+  WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
     -- conversation access role changes to team only
     opts <- view tsGConf
-    void . withTempMockFederator opts remoteDomain (const ()) $
+    (_, reqs) <- withTempMockFederator opts remoteDomain (const ()) $ do
       putQualifiedAccessUpdate
         (qUnqualified alice)
         (cnvQualifiedId conv)
         (ConversationAccessData mempty TeamAccessRole)
         !!! const 200 === statusCode
 
-    -- charlie and dee are kicked out
-    WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC, wsD] $
-      wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
+      -- charlie and dee are kicked out
+      --
+      -- note that removing users happens asynchronously, so this check should
+      -- happen while the mock federator is still available
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
+
+    -- dee's remote receives a notification
+    liftIO . assertBool "remote users are not notified" . isJust . flip find reqs $ \freq ->
+      let req = F.request freq
+       in and
+            [ fmap F.component req == Just F.Galley,
+              fmap F.path req == Just "/federation/on-conversation-updated",
+              fmap (fmap FederatedGalley.cuAction . eitherDecode . LBS.fromStrict . F.body) req
+                == Just (Right (ConversationActionRemoveMembers (charlie :| [dee])))
+            ]
 
   -- only alice and bob remain
   conv2 <-
@@ -1223,47 +1235,6 @@ testAccessUpdateGuestRemoved = do
       =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
         <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
-
-testAccessUpdateNonActivatedRemoved :: TestM ()
-testAccessUpdateNonActivatedRemoved = do
-  -- alice, bob are in a team
-  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
-
-  -- charlie is a local non-activated user
-  charlie <- randomQualifiedUser
-
-  -- dee is a remote guest
-  let remoteDomain = Domain "far-away.example.com"
-  dee <- Qualified <$> randomUser <*> pure remoteDomain
-  let deeProfile = mkProfile dee (Name "dee")
-
-  -- they are all in a local conversation
-  conv <-
-    responseJsonError
-      =<< postConvWithRemoteUsers
-        remoteDomain
-        [deeProfile]
-        (qUnqualified alice)
-        defNewConv
-          { newConvQualifiedUsers = [bob, dee],
-            newConvTeam = Just (ConvTeamInfo tid False),
-            newConvAccessRole = Just NonActivatedAccessRole
-          }
-      <!! const 201 === statusCode
-
-  c <- view tsCannon
-  WS.bracketRN c (map qUnqualified [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
-    -- conversation access role changes to activated users only
-    opts <- view tsGConf
-    void . withTempMockFederator opts remoteDomain (const ()) $
-      putQualifiedAccessUpdate
-        (qUnqualified alice)
-        (cnvQualifiedId conv)
-        (ConversationAccessData mempty ActivatedAccessRole)
-
-    -- charlie is kicked out
-    WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC, wsD] $
-      wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
 
 postJoinConvFail :: TestM ()
 postJoinConvFail = do
