@@ -310,6 +310,7 @@ removeRemoteUser = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
 
+  mapM_ (`connectWithRemoteUser` qBob) [alice, dee]
   registerRemoteConv qconv qBob (Just "gossip") (Set.fromList [aliceAsOtherMember, deeAsOtherMember, eveAsOtherMember])
 
   let cuRemove user =
@@ -357,6 +358,7 @@ notifyUpdate extras action etype edata = do
       mkMember quid = OtherMember quid Nothing roleNameWireMember
   fedGalleyClient <- view tsFedGalleyClient
 
+  mapM_ (`connectWithRemoteUser` qbob) [alice]
   registerRemoteConv
     qconv
     qbob
@@ -467,6 +469,8 @@ addRemoteUser = do
   qconv <- randomQualifiedId bdom
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
+
+  mapM_ (flip connectWithRemoteUser qbob . qUnqualified) [qalice, qdee]
 
   registerRemoteConv qconv qbob (Just "gossip") (Set.fromList (map asOtherMember [qalice, qdee, qeve]))
 
