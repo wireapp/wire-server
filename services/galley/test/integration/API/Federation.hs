@@ -159,26 +159,27 @@ onConvCreated = do
   c <- view tsCannon
   (alice, qAlice) <- randomUserTuple
   let remoteDomain = Domain "bobland.example.com"
-  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  qBob <- Qualified <$> randomId <*> pure remoteDomain
+  qDee <- Qualified <$> randomId <*> pure remoteDomain
 
   (charlie, qCharlie) <- randomUserTuple
   conv <- randomId
   let qconv = Qualified conv remoteDomain
 
-  connectWithRemoteUser alice qbob
+  connectWithRemoteUser alice qBob
   -- Remote Bob creates a conversation with local Alice and Charlie;
   -- however Bob is not connected to Charlie but only to Alice.
-  let requestMembers = Set.fromList (map asOtherMember [qAlice, qCharlie])
+  let requestMembers = Set.fromList (map asOtherMember [qAlice, qCharlie, qDee])
 
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
-    registerRemoteConv qconv qbob (Just "gossip") requestMembers
+    registerRemoteConv qconv qBob (Just "gossip") requestMembers
     liftIO $ do
       let expectedSelf = alice
-          expectedOthers = [qbob]
-          expectedFrom = qbob
+          expectedOthers = [(qBob, roleNameWireAdmin), (qDee, roleNameWireMember)]
+          expectedFrom = qBob
       -- since Charlie is not connected to Bob; expect a conversation with Alice&Bob only
       WS.assertMatch_ (5 # Second) wsA $
-        wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers roleNameWireAdmin
+        wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers
       WS.assertNoEvent (1 # Second) [wsC]
   convs <- listRemoteConvs remoteDomain alice
   liftIO $ convs @?= [Qualified conv remoteDomain]

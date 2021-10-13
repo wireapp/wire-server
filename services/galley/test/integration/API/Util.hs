@@ -2332,17 +2332,17 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
-wsAssertConvCreateWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
-wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers role n = do
+wsAssertConvCreateWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> UserId -> [(Qualified UserId, RoleName)] -> Notification -> IO ()
+wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.ConvCreate
   evtFrom e @?= eventFrom
-  fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just (selfMember)
+  fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just selfMember
   fmap (sort . cmOthers . cnvMembers) (evtData e ^? _EdConversation) @?= Just (sort (toOtherMember <$> otherMembers))
   where
-    toOtherMember quid = OtherMember quid Nothing role
+    toOtherMember (quid, role) = OtherMember quid Nothing role
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
