@@ -178,9 +178,7 @@ onConvCreated = do
           expectedFrom = qbob
       -- since Charlie is not connected to Bob; expect a conversation with Alice&Bob only
       WS.assertMatch_ (5 # Second) wsA $
-        -- TODO: OtherMembers should not include Charlie; but should include Bob.
-        -- Why does this fail? Changing expectedOthers to be [] succeeds the test but seems wrong.
-        wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers roleNameWireMember
+        wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers roleNameWireAdmin
       WS.assertNoEvent (1 # Second) [wsC]
   convs <- listRemoteConvs remoteDomain alice
   liftIO $ convs @?= [Qualified conv remoteDomain]

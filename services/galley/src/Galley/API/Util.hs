@@ -686,9 +686,10 @@ fromNewRemoteConversation ::
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation d NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
+      creatorOther = OtherMember rcOrigUserId Nothing roleNameWireAdmin
    in foldMap
         ( \(me, others) ->
-            guard (inDomain me) $> let mem = toMember me in (mem, conv mem others)
+            guard (inDomain me) $> let mem = toMember me in (mem, conv mem (creatorOther : others))
         )
         membersView
   where
