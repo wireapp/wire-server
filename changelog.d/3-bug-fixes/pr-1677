@@ -1,0 +1,1 @@
+Fix an issue related to installing the SFT helm chart as a sub chart to the wire-server chart.
