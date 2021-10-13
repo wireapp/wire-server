@@ -682,7 +682,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
 -- conversation.
 fromNewRemoteConversation ::
   Domain ->
-  NewRemoteConversation (Qualified ConvId) ->
+  NewRemoteConversation (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation d NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
@@ -715,7 +715,7 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        rcCnvId
+        (qUntagged rcCnvId)
         ConversationMetadata
           { cnvmType = rcCnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation

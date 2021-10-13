@@ -194,10 +194,12 @@ addLocalUser = do
   bob <- randomId
   let qbob = Qualified bob remoteDomain
   charlie <- randomUser
+  dee <- randomUser
+  let qdee = Qualified dee localDomain
   conv <- randomId
   let qconv = Qualified conv remoteDomain
 
-  -- connectWithRemoteUser alice qbob
+  connectWithRemoteUser alice qbob
 
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
@@ -208,16 +210,22 @@ addLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [charlie],
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure qalice) roleNameWireMember
+              ConversationActionAddMembers (qalice :| [qdee]) roleNameWireMember
           }
-  WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
+  WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
     FedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $
         wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
+      -- Since charlie is not really present in the conv, they don't get any
+      -- notifications
       WS.assertNoEvent (1 # Second) [wsC]
-  convs <- listRemoteConvs remoteDomain alice
-  liftIO $ convs @?= [Qualified conv remoteDomain]
+      -- Since dee is not connected to bob, they don't get any notifications
+      WS.assertNoEvent (1 # Second) [wsD]
+  aliceConvs <- listRemoteConvs remoteDomain alice
+  liftIO $ aliceConvs @?= [Qualified conv remoteDomain]
+  deeConvs <- listRemoteConvs remoteDomain dee
+  liftIO $ deeConvs @?= []
 
 -- | This test invokes the federation endpoint:
 --
@@ -259,6 +267,7 @@ removeLocalUser = do
               ConversationActionRemoveMembers (pure qAlice)
           }
 
+  connectWithRemoteUser alice qBob
   WS.bracketR c alice $ \ws -> do
     FedGalley.onConversationUpdated fedGalleyClient remoteDomain cuAdd
     afterAddition <- listRemoteConvs remoteDomain alice
@@ -486,9 +495,10 @@ addRemoteUser = do
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     FedGalley.onConversationUpdated fedGalleyClient bdom cu
     void . liftIO $ do
-      WS.assertMatchN_ (5 # Second) [wsA, wsD, wsF] $
-        wsAssertMemberJoinWithRole qconv qbob [qeve, qdee, qflo] roleNameWireMember
+      WS.assertMatchN_ (5 # Second) [wsA, wsD] $
+        wsAssertMemberJoinWithRole qconv qbob [qeve, qdee] roleNameWireMember
       WS.assertNoEvent (1 # Second) [wsC]
+      WS.assertNoEvent (1 # Second) [wsF]
 
 leaveConversationSuccess :: TestM ()
 leaveConversationSuccess = do
