@@ -163,6 +163,12 @@ createBindingTeamWithMembers numUsers = do
 
   return (tid, owner, members)
 
+createBindingTeamWithQualifiedMembers :: HasCallStack => Int -> TestM (TeamId, Qualified UserId, [Qualified UserId])
+createBindingTeamWithQualifiedMembers num = do
+  localDomain <- viewFederationDomain
+  (tid, owner, users) <- createBindingTeamWithMembers num
+  pure (tid, Qualified owner localDomain, map (`Qualified` localDomain) users)
+
 getTeams :: UserId -> TestM TeamList
 getTeams u = do
   g <- view tsGalley
@@ -826,13 +832,14 @@ listRemoteConvs remoteDomain uid = do
   allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
-postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
+postQualifiedMembers ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  ConvId ->
+  m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
-  g <- view tsGalley
-  postQualifiedMembers' g zusr invitees conv
-
-postQualifiedMembers' :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
-postQualifiedMembers' g zusr invitees conv = do
+  g <- viewGalley
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g

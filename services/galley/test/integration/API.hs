@@ -218,6 +218,8 @@ tests s =
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
+          test s "guests and services get removed when access changes" testAccessUpdateGuestRemoved,
+          test s "non-activated users get removed when access changes" testAccessUpdateNonActivatedRemoved,
           test s "cannot join private conversation" postJoinConvFail,
           test s "remove user" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests
@@ -1148,6 +1150,93 @@ postConvertTeamConv = do
     -- team members (dave) can still join
     postJoinCodeConv dave j !!! const 200 === statusCode
 
+testAccessUpdateGuestRemoved :: TestM ()
+testAccessUpdateGuestRemoved = do
+  -- alice, bob are in a team
+  (_tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+
+  -- dee is a remote guest
+  let remoteDomain = Domain "far-away.example.com"
+  dee <- Qualified <$> randomUser <*> pure remoteDomain
+  let deeProfile = mkProfile dee (Name "dee")
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUser remoteDomain deeProfile (qUnqualified alice) [bob, charlie, dee]
+      <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
+    -- conversation access role changes to team only
+    opts <- view tsGConf
+    void . withTempMockFederator opts remoteDomain (const ()) $
+      putQualifiedAccessUpdate
+        (qUnqualified alice)
+        (cnvQualifiedId conv)
+        (ConversationAccessData mempty TeamAccessRole)
+        !!! const 200 === statusCode
+
+    -- charlie and dee are kicked out
+    WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC, wsD] $
+      wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
+
+  -- only alice and bob remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
+
+testAccessUpdateNonActivatedRemoved :: TestM ()
+testAccessUpdateNonActivatedRemoved = do
+  -- alice, bob are in a team
+  (_tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local non-activated user
+  charlie <- randomQualifiedUser
+
+  -- dee is a remote guest
+  let remoteDomain = Domain "far-away.example.com"
+  dee <- Qualified <$> randomUser <*> pure remoteDomain
+  let deeProfile = mkProfile dee (Name "dee")
+
+  -- alice, bob and dee are in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUser remoteDomain deeProfile (qUnqualified alice) [bob, dee]
+      <!! const 201 === statusCode
+  opts <- view tsGConf
+
+  -- non-activated access is enabled, and charlie joins
+  void . withTempMockFederator opts remoteDomain (const ()) $ do
+    putQualifiedAccessUpdate
+      (qUnqualified alice)
+      (cnvQualifiedId conv)
+      (ConversationAccessData mempty NonActivatedAccessRole)
+      !!! const 200 === statusCode
+    postQualifiedMembers
+      (qUnqualified alice)
+      (pure charlie)
+      (qUnqualified (cnvQualifiedId conv))
+      !!! const 200 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
+    -- conversation access role changes back to activated users only
+    void . withTempMockFederator opts remoteDomain (const ()) $
+      putQualifiedAccessUpdate
+        (qUnqualified alice)
+        (cnvQualifiedId conv)
+        (ConversationAccessData mempty ActivatedAccessRole)
+
+    -- charlie is kicked out
+    WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC, wsD] $
+      wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
+
 postJoinConvFail :: TestM ()
 postJoinConvFail = do
   alice <- randomUser
@@ -1773,13 +1862,12 @@ testAddRemoteMember = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
   opts <- view tsGConf
-  g <- view tsGalley
   (resp, reqs) <-
     withTempMockFederator
       opts
       remoteDomain
       (respond remoteBob)
-      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+      (postQualifiedMembers alice (remoteBob :| []) convId)
   liftIO $ do
     map F.domain reqs @?= replicate 2 (domainText remoteDomain)
     map (fmap F.path . F.request) reqs
@@ -2014,13 +2102,12 @@ testAddRemoteMemberFailure = do
       remoteCharlie = Qualified charlieId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   opts <- view tsGConf
-  g <- view tsGalley
   (resp, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const [mkProfile remoteCharlie (Name "charlie")])
-      (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
+      (postQualifiedMembers alice (remoteBob :| [remoteCharlie]) convId)
   liftIO $ statusCode resp @?= 400
   let err = responseJsonUnsafe resp :: Object
   liftIO $ (err ^. at "label") @?= Just "unknown-remote-user"
@@ -2033,13 +2120,12 @@ testAddDeletedRemoteUser = do
       remoteBob = Qualified bobId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   opts <- view tsGConf
-  g <- view tsGalley
   (resp, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}])
-      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+      (postQualifiedMembers alice (remoteBob :| []) convId)
   liftIO $ statusCode resp @?= 400
   let err = responseJsonUnsafe resp :: Object
   liftIO $ (err ^. at "label") @?= Just "unknown-remote-user"
@@ -2062,7 +2148,6 @@ testAddRemoteMemberInvalidDomain = do
 -- on environments where federation isn't configured (such as our production as of May 2021)
 testAddRemoteMemberFederationDisabled :: TestM ()
 testAddRemoteMemberFederationDisabled = do
-  g <- view tsGalley
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
@@ -2071,7 +2156,7 @@ testAddRemoteMemberFederationDisabled = do
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $
-    postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
+    postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
   -- federator endpoint being configured in brig and/or galley, but not being
@@ -2080,7 +2165,7 @@ testAddRemoteMemberFederationDisabled = do
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable :: Opts = opts & optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $
-    postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
+    postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
       const (Just "federation-not-available") === fmap label . responseJsonUnsafe
 
