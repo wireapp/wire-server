@@ -83,12 +83,7 @@ onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
-  -- TODO: use foldQualified here
-  let (localMembers, remoteMembers) =
-        Set.partition (\om -> qDomain (omQualifiedId om) == tDomain loc)
-          . rcMembers
-          $ rc
-      localUserIds = qUnqualified . omQualifiedId <$> Set.toList localMembers
+  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (rcMembers rc)))
 
   addedUserIds <-
     addLocalUsersToRemoteConv
@@ -96,9 +91,17 @@ onConversationCreated domain rc = do
       (qUntagged (FederationAPIGalley.rcRemoteOrigUserId qrc))
       localUserIds
 
-  let connectedLocalMembers = Set.filter (\m -> (qUnqualified . omQualifiedId) m `Set.member` addedUserIds) localMembers
+  let connectedMembers =
+        Set.filter
+          ( foldQualified
+              loc
+              (flip Set.member addedUserIds . tUnqualified)
+              (const True)
+              . omQualifiedId
+          )
+          (rcMembers rc)
   -- Make sure to notify only about local users connected to the adder
-  let qrcConnected = qrc {rcMembers = Set.union remoteMembers connectedLocalMembers}
+  let qrcConnected = qrc {rcMembers = connectedMembers}
 
   forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
     let event =
