@@ -99,7 +99,7 @@ import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
-import Galley.Types (UserIdList (UserIdList))
+import Galley.Types (LocalMember (lmId), UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
@@ -771,10 +771,8 @@ deleteTeamConversation zusr zcon tid cid = do
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
-  let recps = fmap recipient cmems
-  let convPush = newPushLocal ListComplete zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
-  pushSome $ maybeToList convPush
-  void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
+
+  pushConversationEvent (Just zcon) ce (map lmId cmems) bots
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
