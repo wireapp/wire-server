@@ -152,8 +152,8 @@ data NewRemoteConversation conv = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
     -- | The user that created the conversation. This is implicitly qualified
-    -- by the requesting domain, since it is impossible to create a conversation
-    -- on a remote backend.
+    -- by the requesting domain, since it is impossible to create a regular/group
+    -- conversation on a remote backend.
     rcOrigUserId :: UserId,
     -- | The conversation ID, local to the backend invoking the RPC
     rcCnvId :: conv,
