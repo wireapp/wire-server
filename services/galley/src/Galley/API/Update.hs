@@ -262,9 +262,6 @@ performAccessUpdateAction qusr conv target = do
   where
     filterActivated :: BotsAndMembers -> Galley BotsAndMembers
     filterActivated bm
-      -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
-      -- to make assumption about the order of roles and implement policy
-      -- based on those assumptions.
       | ( Data.convAccessRole conv > ActivatedAccessRole
             && cupAccessRole target <= ActivatedAccessRole
         ) = do
