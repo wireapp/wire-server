@@ -1185,7 +1185,7 @@ testAccessUpdateGuestRemoved = do
 
   -- dee is a remote guest
   let remoteDomain = Domain "far-away.example.com"
-  dee <- Qualified <$> randomUser <*> pure remoteDomain
+  dee <- Qualified <$> randomId <*> pure remoteDomain
   let deeProfile = mkProfile dee (Name "dee")
 
   -- they are all in a local conversation
