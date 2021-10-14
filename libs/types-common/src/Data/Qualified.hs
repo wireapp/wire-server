@@ -136,7 +136,7 @@ indexQualified = foldr add mempty
 bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
 bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
 
--- TODO: Rename this to 'bucketRemote'
+-- FUTUREWORK: Rename this to 'bucketRemote'
 indexRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
 indexRemote =
   map (uncurry toRemoteUnsafe)

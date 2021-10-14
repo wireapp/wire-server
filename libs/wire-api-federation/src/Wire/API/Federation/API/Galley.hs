@@ -153,7 +153,7 @@ data NewRemoteConversation conv = NewRemoteConversation
     rcTime :: UTCTime,
     -- | The user that created the conversation.
     --
-    -- TODO: Make this unqualified and assume that this user has the same domain
+    -- FUTUREWORK: Make this unqualified and assume that this user has the same domain
     -- as the backend invoking this RPC. Otehrwise a third party can figure out
     -- connections.
     rcOrigUserId :: Qualified UserId,
