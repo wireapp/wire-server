@@ -78,6 +78,13 @@ data Api routes = Api
         :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationUpdate
         :> Post '[JSON] (),
+    onConversationDeleted ::
+      routes
+        :- "federation"
+        :> "on-conversation-deleted"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] ConversationDelete
+        :> Post '[JSON] (),
     leaveConversation ::
       routes
         :- "federation"
@@ -191,6 +198,18 @@ data ConversationUpdate = ConversationUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdate)
+
+data ConversationDelete = ConversationDelete
+  { cdTime :: UTCTime,
+    cdOriginUserId :: Qualified UserId,
+    -- | The unqualified converation which is owned by the requesting domain.
+    cdConvId :: ConvId,
+    -- | Local members of the conversation.
+    cdMembers :: [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationDelete)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationDelete)
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which

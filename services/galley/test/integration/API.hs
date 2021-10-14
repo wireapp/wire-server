@@ -247,6 +247,7 @@ emptyFederatedGalley =
         { FederatedGalley.onConversationCreated = \_ _ -> e "onConversationCreated",
           FederatedGalley.getConversations = \_ _ -> e "getConversations",
           FederatedGalley.onConversationUpdated = \_ _ -> e "onConversationUpdated",
+          FederatedGalley.onConversationDeleted = \_ _ -> e "onConversationDeleted",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"

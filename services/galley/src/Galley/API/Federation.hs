@@ -50,8 +50,10 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
+import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Federation.API.Galley
-  ( ConversationUpdate (..),
+  ( ConversationDelete (..),
+    ConversationUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
     LeaveConversationRequest (..),
@@ -74,6 +76,7 @@ federationSitemap =
       { FederationAPIGalley.onConversationCreated = onConversationCreated,
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.onConversationUpdated = onConversationUpdated,
+        FederationAPIGalley.onConversationDeleted = onConversationDeleted,
         FederationAPIGalley.leaveConversation = leaveConversation,
         FederationAPIGalley.onMessageSent = onMessageSent,
         FederationAPIGalley.sendMessage = sendMessage
@@ -194,6 +197,14 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   -- users that are connected to the adder
   Data.addLocalMembersToRemoteConv (qUntagged remoteConvId) connectedList
   pure connected
+
+onConversationDeleted :: Domain -> ConversationDelete -> Galley ()
+onConversationDeleted requestingDomain convDelete = do
+  let qconvId = Qualified (cdConvId convDelete) requestingDomain
+  let event = Conv.Event Conv.ConvDelete qconvId (cdOriginUserId convDelete) (cdTime convDelete) Conv.EdConvDelete
+  let bots = []
+  pushConversationEvent Nothing event (cdMembers convDelete) bots
+  Data.removeLocalMembersFromRemoteConv qconvId (cdMembers convDelete)
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
