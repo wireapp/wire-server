@@ -110,6 +110,18 @@ testValidatesCertificateWrongHostname =
           case eitherClient of
             Left (RemoteErrorTLSException _ _) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
+            Right _ -> assertFailure "Expected connection with the server to fail",
+      testCase "when the server's certificate does not have the server key usage flag" $
+        bracket (startMockServer certWithoutServerKeyUsage) (Async.cancel . fst) $ \(_, port) -> do
+          tlsSettings <- mkTLSSettingsOrThrow settings
+          eitherClient <-
+            Polysemy.runM
+              . Polysemy.runError
+              . Polysemy.runInputConst tlsSettings
+              $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
+          case eitherClient of
+            Left (RemoteErrorTLSException _ _) -> pure ()
+            Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
 
@@ -121,6 +133,12 @@ certForLocalhostDot = WarpTLS.tlsSettings "test/resources/unit/localhost-dot.pem
 
 certForWrongDomain :: WarpTLS.TLSSettings
 certForWrongDomain = WarpTLS.tlsSettings "test/resources/unit/localhost.example.com.pem" "test/resources/unit/localhost.example.com-key.pem"
+
+certWithoutServerKeyUsage :: WarpTLS.TLSSettings
+certWithoutServerKeyUsage =
+  WarpTLS.tlsSettings
+    "test/resources/unit/localhost.client-only.pem"
+    "test/resources/unit/localhost.client-only-key.pem"
 
 startMockServer :: MonadIO m => WarpTLS.TLSSettings -> m (Async.Async (), Warp.Port)
 startMockServer tlsSettings = liftIO $ do

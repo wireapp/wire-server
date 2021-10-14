@@ -143,8 +143,8 @@ mkGrpcClient target@(SrvTarget host port) = do
                 { TLS.onServerCertificate =
                     X509.validate
                       X509.HashSHA256
-                      (X509.defaultHooks {X509.hookValidateName = validateDomainName})
-                      X509.defaultChecks,
+                      X509.defaultHooks {X509.hookValidateName = validateDomainName}
+                      X509.defaultChecks {X509.checkLeafKeyPurpose = [X509.KeyUsagePurpose_ServerAuth]},
                   TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds))
                 },
             TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
