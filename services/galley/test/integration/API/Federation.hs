@@ -89,7 +89,11 @@ getConversationsAllFound = do
 
   cnv2 <-
     responseJsonError
-      =<< postConvWithRemoteUser (qDomain aliceQ) (mkProfile aliceQ (Name "alice")) bob [aliceQ, carlQ]
+      =<< postConvWithRemoteUsers
+        (qDomain aliceQ)
+        [mkProfile aliceQ (Name "alice")]
+        bob
+        defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
   getConvs bob (Just $ Left [qUnqualified (cnvQualifiedId cnv2)]) Nothing !!! do
     const 200 === statusCode
@@ -216,7 +220,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              ConversationActionRemoveMember qAlice
+              ConversationActionRemoveMembers (pure qAlice)
           }
 
   WS.bracketR c alice $ \ws -> do
@@ -278,7 +282,7 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              ConversationActionRemoveMember user
+              ConversationActionRemoveMembers (pure user)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -476,7 +480,12 @@ leaveConversationSuccess = do
 
   (convId, _) <-
     withTempMockFederator' opts remoteDomain1 mockedResponse $
-      decodeConvId <$> postConvQualified alice [qBob, qChad, qDee, qEve] Nothing [] Nothing Nothing
+      decodeConvId
+        <$> postConvQualified
+          alice
+          defNewConv
+            { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
+            }
   let qconvId = Qualified convId localDomain
 
   (_, federatedRequests) <-
@@ -616,7 +625,11 @@ sendMessage = do
   (convId, requests1) <-
     withTempMockFederator opts remoteDomain responses1 $
       fmap decodeConvId $
-        postConvQualified aliceId [bob, chad] Nothing [] Nothing Nothing
+        postConvQualified
+          aliceId
+          defNewConv
+            { newConvQualifiedUsers = [bob, chad]
+            }
           <!! const 201 === statusCode
 
   liftIO $ do

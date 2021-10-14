@@ -150,7 +150,12 @@ messageTimerChangeWithRemotes = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
 
-  resp <- postConvWithRemoteUser remoteDomain (mkProfile qalice (Name "Alice")) bob [qalice]
+  resp <-
+    postConvWithRemoteUsers
+      remoteDomain
+      [mkProfile qalice (Name "Alice")]
+      bob
+      defNewConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
 
   opts <- view tsGConf

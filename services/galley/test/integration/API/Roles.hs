@@ -172,7 +172,7 @@ roleUpdateRemoteMember = do
       remoteDomain
       [mkProfile qalice (Name "Alice"), mkProfile qcharlie (Name "Charlie")]
       bob
-      [qalice, qcharlie]
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
   opts <- view tsGConf
@@ -239,11 +239,11 @@ roleUpdateWithRemotes = do
 
   connectUsers bob (singleton charlie)
   resp <-
-    postConvWithRemoteUser
+    postConvWithRemoteUsers
       remoteDomain
-      (mkProfile qalice (Name "Alice"))
+      [mkProfile qalice (Name "Alice")]
       bob
-      [qalice, qcharlie]
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
   opts <- view tsGConf
@@ -299,11 +299,11 @@ accessUpdateWithRemotes = do
 
   connectUsers bob (singleton charlie)
   resp <-
-    postConvWithRemoteUser
+    postConvWithRemoteUsers
       remoteDomain
-      (mkProfile qalice (Name "Alice"))
+      [mkProfile qalice (Name "Alice")]
       bob
-      [qalice, qcharlie]
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
   opts <- view tsGConf

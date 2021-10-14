@@ -133,8 +133,8 @@ onConversationUpdated requestingDomain cu = do
       let localUsers = getLocalUsers localDomain toAdd
       Data.addLocalMembersToRemoteConv qconvId localUsers
       pure localUsers
-    ConversationActionRemoveMember toRemove -> do
-      let localUsers = getLocalUsers localDomain (pure toRemove)
+    ConversationActionRemoveMembers toRemove -> do
+      let localUsers = getLocalUsers localDomain toRemove
       Data.removeLocalMembersFromRemoteConv qconvId localUsers
       pure []
     ConversationActionRename _ -> pure []
@@ -175,7 +175,8 @@ leaveConversation requestingDomain lc = do
     . runMaybeT
     . void
     . API.updateLocalConversation lcnv leaver Nothing
-    . ConversationActionRemoveMember
+    . ConversationActionRemoveMembers
+    . pure
     $ leaver
 
 -- FUTUREWORK: report errors to the originating backend

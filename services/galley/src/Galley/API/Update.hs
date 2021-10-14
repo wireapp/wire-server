@@ -230,7 +230,6 @@ performAccessUpdateAction ::
 performAccessUpdateAction qusr conv target = do
   lcnv <- qualifyLocal (Data.convId conv)
   guard $ Data.convAccessData conv /= target
-  let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
   -- Remove conversation codes if CodeAccess is revoked
   when
     ( CodeAccess `elem` Data.convAccess conv
@@ -239,54 +238,52 @@ performAccessUpdateAction qusr conv target = do
     $ lift $ do
       key <- mkKey (tUnqualified lcnv)
       Data.deleteCode key ReusableCode
-  -- Depending on a variety of things, some bots and users have to be
-  -- removed from the conversation. We keep track of them using 'State'.
-  (newUsers, newBots) <- lift . flip execStateT (users, bots) $ do
-    -- We might have to remove non-activated members
-    -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
-    -- to make assumption about the order of roles and implement policy
-    -- based on those assumptions.
-    when
-      ( Data.convAccessRole conv > ActivatedAccessRole
-          && cupAccessRole target <= ActivatedAccessRole
-      )
-      $ do
-        mIds <- map lmId <$> use usersL
-        activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
-        let isActivated user = lmId user `elem` activated
-        usersL %= filter isActivated
-    -- In a team-only conversation we also want to remove bots and guests
-    case (cupAccessRole target, Data.convTeam conv) of
-      (TeamAccessRole, Just tid) -> do
-        currentUsers <- use usersL
-        onlyTeamUsers <- flip filterM currentUsers $ \user ->
-          lift $ isJust <$> Data.teamMember tid (lmId user)
-        assign usersL onlyTeamUsers
-        botsL .= []
-      _ -> return ()
+
+  -- Determine bots and members to be removed
+  let filterBotsAndMembers = filterActivated >=> filterTeammates
+  let current = convBotsAndMembers conv -- initial bots and members
+  desired <- lift $ filterBotsAndMembers current -- desired bots and members
+  let toRemove = bmDiff current desired -- bots and members to be removed
+
   -- Update Cassandra
   lift $ Data.updateConversationAccess (tUnqualified lcnv) target
-  -- Remove users and bots
   lift . void . forkIO $ do
-    let removedUsers = map lmId users \\ map lmId newUsers
-        removedBots = map botMemId bots \\ map botMemId newBots
-    mapM_ (deleteBot (tUnqualified lcnv)) removedBots
-    for_ (nonEmpty removedUsers) $ \victims -> do
-      -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
-      Data.removeLocalMembersFromLocalConv (tUnqualified lcnv) victims
-      now <- liftIO getCurrentTime
-      let qvictims = QualifiedUserIdList . map (qUntagged . qualifyAs lcnv) . toList $ victims
-      let e = Event MemberLeave (qUntagged lcnv) qusr now (EdMembersLeave qvictims)
-      -- push event to all clients, including zconn
-      -- since updateConversationAccess generates a second (member removal) event here
-      traverse_ push1 $
-        newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> users)
-      void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
+    -- Remove bots
+    traverse_ (deleteBot (tUnqualified lcnv)) (map botMemId (toList (bmBots toRemove)))
+
+    -- Update current bots and members
+    let current' = current {bmBots = bmBots desired}
+
+    -- Remove users and notify everyone
+    void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
+      let action = ConversationActionRemoveMembers usersToRemove
+      void . runMaybeT $ performAction qusr conv action
+      notifyConversationMetadataUpdate qusr Nothing lcnv current' action
   where
-    usersL :: Lens' ([LocalMember], [BotMember]) [LocalMember]
-    usersL = _1
-    botsL :: Lens' ([LocalMember], [BotMember]) [BotMember]
-    botsL = _2
+    filterActivated :: BotsAndMembers -> Galley BotsAndMembers
+    filterActivated bm
+      | ( Data.convAccessRole conv > ActivatedAccessRole
+            && cupAccessRole target <= ActivatedAccessRole
+        ) = do
+        activated <- map User.userId <$> lookupActivatedUsers (toList (bmLocals bm))
+        -- FUTUREWORK: should we also remove non-activated remote users?
+        pure $ bm {bmLocals = Set.fromList activated}
+      | otherwise = pure bm
+
+    filterTeammates :: BotsAndMembers -> Galley BotsAndMembers
+    filterTeammates bm = do
+      -- In a team-only conversation we also want to remove bots and guests
+      case (cupAccessRole target, Data.convTeam conv) of
+        (TeamAccessRole, Just tid) -> do
+          onlyTeamUsers <- flip filterM (toList (bmLocals bm)) $ \user ->
+            isJust <$> Data.teamMember tid user
+          pure $
+            BotsAndMembers
+              { bmLocals = Set.fromList onlyTeamUsers,
+                bmBots = mempty,
+                bmRemotes = mempty
+              }
+        _ -> pure bm
 
 updateConversationReceiptMode ::
   UserId ->
@@ -398,7 +395,7 @@ updateLocalConversation lcnv qusr con action = do
       qusr
       con
       lcnv
-      (convTargets conv <> extraTargets)
+      (convBotsAndMembers conv <> extraTargets)
       action'
 
 getUpdateResult :: Functor m => MaybeT m a -> m (UpdateResult a)
@@ -410,12 +407,12 @@ performAction ::
   Qualified UserId ->
   Data.Conversation ->
   ConversationAction ->
-  MaybeT Galley (NotificationTargets, ConversationAction)
+  MaybeT Galley (BotsAndMembers, ConversationAction)
 performAction qusr conv action = case action of
   ConversationActionAddMembers members role ->
     performAddMemberAction qusr conv members role
-  ConversationActionRemoveMember member -> do
-    performRemoveMemberAction conv member
+  ConversationActionRemoveMembers members -> do
+    performRemoveMemberAction conv (toList members)
     pure (mempty, action)
   ConversationActionRename rename -> lift $ do
     cn <- rangeChecked (cupName rename)
@@ -565,7 +562,7 @@ joinConversation zusr zcon cnv access = do
         (qUntagged lusr)
         (Just zcon)
         lcnv
-        (convTargets conv <> extraTargets)
+        (convBotsAndMembers conv <> extraTargets)
         action
 
 -- | Add users to a conversation without performing any checks. Return extra
@@ -574,19 +571,19 @@ addMembersToLocalConversation ::
   Local ConvId ->
   UserList UserId ->
   RoleName ->
-  MaybeT Galley (NotificationTargets, ConversationAction)
+  MaybeT Galley (BotsAndMembers, ConversationAction)
 addMembersToLocalConversation lcnv users role = do
   (lmems, rmems) <- lift $ Data.addMembers lcnv (fmap (,role) users)
   neUsers <- maybe mzero pure . nonEmpty . ulAll lcnv $ users
   let action = ConversationActionAddMembers neUsers role
-  pure (ntFromMembers lmems rmems, action)
+  pure (bmFromMembers lmems rmems, action)
 
 performAddMemberAction ::
   Qualified UserId ->
   Data.Conversation ->
   NonEmpty (Qualified UserId) ->
   RoleName ->
-  MaybeT Galley (NotificationTargets, ConversationAction)
+  MaybeT Galley (BotsAndMembers, ConversationAction)
 performAddMemberAction qusr conv invited role = do
   lcnv <- lift $ qualifyLocal (Data.convId conv)
   let newMembers = ulNewMembers lcnv conv . toUserList lcnv $ invited
@@ -644,7 +641,7 @@ performAddMemberAction qusr conv invited role = do
                 qvictim <- qUntagged <$> qualifyLocal (lmId mem)
                 void . runMaybeT $
                   updateLocalConversation lcnv qvictim Nothing $
-                    ConversationActionRemoveMember qvictim
+                    ConversationActionRemoveMembers (pure qvictim)
           else throwErrorDescriptionType @MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
@@ -784,14 +781,16 @@ removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
 
 performRemoveMemberAction ::
   Data.Conversation ->
-  Qualified UserId ->
+  [Qualified UserId] ->
   MaybeT Galley ()
-performRemoveMemberAction conv victim = do
+performRemoveMemberAction conv victims = do
   loc <- qualifyLocal ()
-  guard $ isConvMember loc conv victim
-  let removeLocal u c = Data.removeLocalMembersFromLocalConv c (pure (tUnqualified u))
-      removeRemote u c = Data.removeRemoteMembersFromLocalConv c (pure u)
-  lift $ foldQualified loc removeLocal removeRemote victim (Data.convId conv)
+  let presentVictims = filter (isConvMember loc conv) victims
+  guard . not . null $ presentVictims
+
+  let (lvictims, rvictims) = partitionQualified loc presentVictims
+  traverse_ (lift . Data.removeLocalMembersFromLocalConv (Data.convId conv)) (nonEmpty lvictims)
+  traverse_ (lift . Data.removeRemoteMembersFromLocalConv (Data.convId conv)) (nonEmpty rvictims)
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
@@ -805,7 +804,8 @@ removeMemberFromLocalConv lcnv lusr con victim =
   fmap (maybe (Left RemoveFromConversationErrorUnchanged) Right)
     . runMaybeT
     . updateLocalConversation lcnv (qUntagged lusr) con
-    . ConversationActionRemoveMember
+    . ConversationActionRemoveMembers
+    . pure
     $ victim
 
 -- OTR
@@ -1008,7 +1008,7 @@ notifyConversationMetadataUpdate ::
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvId ->
-  NotificationTargets ->
+  BotsAndMembers ->
   ConversationAction ->
   Galley Event
 notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = do
@@ -1017,7 +1017,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   let e = conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
-  let rusersByDomain = indexRemote (toList (ntRemotes targets))
+  let rusersByDomain = indexRemote (toList (bmRemotes targets))
   void . pooledForConcurrentlyN 8 rusersByDomain $ \(qUntagged -> Qualified uids domain) -> do
     let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
         rpc =
@@ -1028,7 +1028,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
     runFederatedGalley domain rpc
 
   -- notify local participants and bots
-  pushConversationEvent con e (ntLocals targets) (ntBots targets) $> e
+  pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do

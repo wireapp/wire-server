@@ -163,6 +163,12 @@ createBindingTeamWithMembers numUsers = do
 
   return (tid, owner, members)
 
+createBindingTeamWithQualifiedMembers :: HasCallStack => Int -> TestM (TeamId, Qualified UserId, [Qualified UserId])
+createBindingTeamWithQualifiedMembers num = do
+  localDomain <- viewFederationDomain
+  (tid, owner, users) <- createBindingTeamWithMembers num
+  pure (tid, Qualified owner localDomain, map (`Qualified` localDomain) users)
+
 getTeams :: UserId -> TestM TeamList
 getTeams u = do
   g <- view tsGalley
@@ -538,29 +544,47 @@ createOne2OneTeamConv u1 u2 n tid = do
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
-postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> m ResponseLBS
-postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
+defNewConv :: NewConv
+defNewConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
-postConvWithRemoteUser :: Domain -> UserProfile -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
-postConvWithRemoteUser remoteDomain user creatorUnqualified members =
-  postConvWithRemoteUsers remoteDomain [user] creatorUnqualified members
+postConvQualified ::
+  (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
+  UserId ->
+  NewConv ->
+  m ResponseLBS
+postConvQualified u n = do
+  g <- viewGalley
+  post $
+    g
+      . path "/conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json (NewConvUnmanaged n)
 
-postConvWithRemoteUsers :: Domain -> [UserProfile] -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers remoteDomain users creatorUnqualified members = do
+postConvWithRemoteUsers ::
+  HasCallStack =>
+  Domain ->
+  [UserProfile] ->
+  UserId ->
+  NewConv ->
+  TestM (Response (Maybe LByteString))
+postConvWithRemoteUsers remoteDomain profiles u n = do
   opts <- view tsGConf
   fmap fst $
-    withTempMockFederator
-      opts
-      remoteDomain
-      respond
-      $ postConvQualified creatorUnqualified members (Just "federated gossip") [] Nothing Nothing
+    withTempMockFederator opts remoteDomain respond $
+      postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201 === statusCode
   where
     respond :: F.FederatedRequest -> Value
     respond req
       | fmap F.component (F.request req) == Just F.Brig =
-        toJSON users
+        toJSON profiles
       | otherwise = toJSON ()
+
+    setName :: Maybe Text -> Maybe Text
+    setName Nothing = Just "federated gossip"
+    setName x = x
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
@@ -569,13 +593,17 @@ postTeamConv tid u us name a r mtimer = do
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
-postConvWithRole = postConvWithRoleQualified []
-
-postConvWithRoleQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => [Qualified UserId] -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> m ResponseLBS
-postConvWithRoleQualified qualifiedUsers u unqualifiedUsers name a r mtimer role = do
-  g <- viewGalley
-  let conv = NewConvUnmanaged $ NewConv unqualifiedUsers qualifiedUsers name (Set.fromList a) r Nothing mtimer Nothing role
-  post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
+postConvWithRole u members name access arole timer role =
+  postConvQualified
+    u
+    defNewConv
+      { newConvUsers = members,
+        newConvName = name,
+        newConvAccess = Set.fromList access,
+        newConvAccessRole = arole,
+        newConvMessageTimer = timer,
+        newConvUsersRole = role
+      }
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
@@ -826,13 +854,14 @@ listRemoteConvs remoteDomain uid = do
   allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
-postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
+postQualifiedMembers ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  ConvId ->
+  m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
-  g <- view tsGalley
-  postQualifiedMembers' g zusr invitees conv
-
-postQualifiedMembers' :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
-postQualifiedMembers' g zusr invitees conv = do
+  g <- viewGalley
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g
@@ -1423,7 +1452,7 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   FederatedGalley.cuOrigUserId cu @?= remover
   FederatedGalley.cuConvId cu @?= qUnqualified qconvId
   sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  FederatedGalley.cuAction cu @?= ConversationActionRemoveMember victim
+  FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
