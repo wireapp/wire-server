@@ -99,7 +99,7 @@ import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
-import Galley.Types (LocalMember (lmId), UserIdList (UserIdList))
+import Galley.Types (LocalMember (lmId), RemoteMember (rmId), UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
@@ -115,6 +115,8 @@ import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (ConvNotFound, NotATeamMember, operationDenied)
+import Wire.API.Federation.API.Galley (ConversationDelete (..))
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
@@ -769,12 +771,34 @@ deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- localBotsAndUsers <$> Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMemberFromLocalsLegacy zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
-  now <- liftIO getCurrentTime
-  let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
 
-  pushConversationEvent (Just zcon) ce (map lmId cmems) bots
+  now <- liftIO getCurrentTime
+  do
+    let event = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
+    pushConversationEvent (Just zcon) event (map lmId cmems) bots
+
+  do
+    remoteMembers <- Data.lookupRemoteMembers cid
+    for_ (bucketQualified (qUntagged . rmId <$> remoteMembers)) $
+      \(Qualified remoteMembersDomain domain) -> do
+        let convDelete =
+              ConversationDelete
+                { cdTime = now,
+                  cdOriginUserId = qusr,
+                  cdConvId = cid,
+                  cdMembers = remoteMembersDomain
+                }
+        let rpc =
+              FederatedGalley.onConversationDeleted
+                FederatedGalley.clientRoutes
+                localDomain
+                convDelete
+        runFederatedGalley domain rpc
+
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
+
+  -- TODO: also delete remote members
   Data.removeTeamConv tid cid
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response

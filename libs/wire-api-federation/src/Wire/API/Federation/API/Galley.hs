@@ -199,12 +199,15 @@ data ConversationUpdate = ConversationUpdate
   deriving (Arbitrary) via (GenericUniform ConversationUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdate)
 
+-- | Notifies the target domain that a conversation owned by the origin domain
+-- has been deleted.
 data ConversationDelete = ConversationDelete
   { cdTime :: UTCTime,
+    -- | User that deleted the conversation.
     cdOriginUserId :: Qualified UserId,
-    -- | The unqualified converation which is owned by the requesting domain.
+    -- | Conversation that is being deleted. It is owned by the origin domain.
     cdConvId :: ConvId,
-    -- | Local members of the conversation.
+    -- | All members of the conversation that are owned by target domain.
     cdMembers :: [UserId]
   }
   deriving stock (Eq, Show, Generic)

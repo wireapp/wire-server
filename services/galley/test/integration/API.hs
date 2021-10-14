@@ -87,12 +87,15 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley
-  ( GetConversationsResponse (..),
+  ( Api (onConversationDeleted, onConversationUpdated),
+    ConversationDelete (..),
+    GetConversationsResponse (..),
     RemoteConvMembers (..),
     RemoteConversation (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
+import qualified Wire.API.Federation.GRPC.Types as GRPC
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client
@@ -163,6 +166,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
+          test s "delete conversation with remote members" testDeleteConversationWithRemoteMembers,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
           test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
@@ -1903,6 +1907,53 @@ testAddRemoteMember = do
       | fmap F.component (F.request req) == Just F.Brig =
         toJSON [mkProfile bob (Name "bob")]
       | otherwise = toJSON ()
+
+testDeleteConversationWithRemoteMembers :: TestM ()
+testDeleteConversationWithRemoteMembers = do
+  (alice, tid) <- createBindingTeam
+  localDomain <- viewFederationDomain
+  let qalice = Qualified alice localDomain
+
+  bobId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteBob = Qualified bobId remoteDomain
+
+  convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
+  let _qconvId = Qualified convId localDomain
+
+  connectWithRemoteUser alice remoteBob
+
+  let brigApi = emptyFederatedBrig
+      galleyApi =
+        emptyFederatedGalley
+          { onConversationUpdated = \_domain _update -> pure (),
+            onConversationDeleted = \_ _ -> pure ()
+          }
+
+  opts <- view tsGConf
+  (_, received) <- withTempServantMockFederator opts brigApi galleyApi localDomain remoteDomain $ do
+    postQualifiedMembers alice (remoteBob :| []) convId
+      !!! const 200 === statusCode
+
+    deleteTeamConv tid convId alice
+      !!! const 200 === statusCode
+
+  liftIO $ do
+    let convDeletes = mapMaybe parseFedRequest received
+    convDelete <- case convDeletes of
+      [] -> assertFailure "No ConversationDelete requests received"
+      [convDelete] -> pure convDelete
+      _ -> assertFailure "Multiple ConversationDelete requests received"
+    cdMembers convDelete @?= [bobId]
+    cdConvId convDelete @?= convId
+    cdOriginUserId convDelete @?= qalice
+  where
+    parseFedRequest :: FromJSON a => GRPC.FederatedRequest -> Maybe a
+    parseFedRequest fr =
+      case GRPC.request fr of
+        Just r ->
+          (decode . cs) (GRPC.body r)
+        Nothing -> Nothing
 
 testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do

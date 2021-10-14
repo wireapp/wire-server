@@ -593,6 +593,16 @@ postTeamConv tid u us name a r mtimer = do
   let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid False)) mtimer Nothing roleNameWireAdmin
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
+deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
+deleteTeamConv tid convId zusr = do
+  g <- viewGalley
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "conversations", toByteString' convId]
+        . zUser zusr
+        . zConn "conn"
+    )
+
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole u members name access arole timer role =
   postConvQualified
