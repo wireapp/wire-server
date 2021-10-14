@@ -1945,7 +1945,7 @@ testGetQualifiedRemoteConv = do
       aliceAsSelfMember = localMemberToSelf aliceAsLocal
 
   connectWithRemoteUser aliceId bobQ
-  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   let mockConversation = mkConv convId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
@@ -1983,11 +1983,10 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
-      bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
       aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
 
-  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   opts <- view tsGConf
   void . withTempMockFederator opts remoteDomain (const (GetConversationsResponse [])) $ do
@@ -2046,10 +2045,10 @@ testBulkGetQualifiedConvs = do
   localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-  registerRemoteConv remoteConvIdA bobQ Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdB carlQ Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdA bobId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdB carlId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdBNotFoundOnRemote carlId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdCFailure carlId Nothing (Set.fromList [aliceAsOtherMember])
 
   let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
@@ -3018,7 +3017,7 @@ removeUser = do
   let nc =
         FederatedGalley.NewRemoteConversation
           { FederatedGalley.rcTime = now,
-            FederatedGalley.rcOrigUserId = dee,
+            FederatedGalley.rcOrigUserId = qUnqualified dee,
             FederatedGalley.rcCnvId = conv4,
             FederatedGalley.rcCnvType = RegularConv,
             FederatedGalley.rcCnvAccess = [],

@@ -64,9 +64,9 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
       doremote rconvId =
         case (uooActor, uooActorDesiredMembership) of
           (LocalActor, Included) -> do
-            Data.addLocalMembersToRemoteConv (qUntagged rconvId) [tUnqualified uooLocalUser]
+            Data.addLocalMembersToRemoteConv rconvId [tUnqualified uooLocalUser]
           (LocalActor, Excluded) -> do
-            Data.removeLocalMembersFromRemoteConv (qUntagged rconvId) [tUnqualified uooLocalUser]
+            Data.removeLocalMembersFromRemoteConv rconvId [tUnqualified uooLocalUser]
           (RemoteActor, _) -> pure ()
 
   foldQualified uooLocalUser dolocal doremote convId

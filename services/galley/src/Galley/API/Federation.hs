@@ -28,7 +28,7 @@ import Data.Json.Util (Base64ByteString (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..), Remote, partitionQualified, qUntagged, qualifyAs, toRemoteUnsafe)
+import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Galley.API.Error (invalidPayload)
@@ -82,26 +82,31 @@ federationSitemap =
 onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
-  localDomain <- viewFederationDomain
+  loc <- qualifyLocal ()
+  -- TODO: use foldQualified here
   let (localMembers, remoteMembers) =
-        Set.partition (\om -> qDomain (omQualifiedId om) == localDomain)
+        Set.partition (\om -> qDomain (omQualifiedId om) == tDomain loc)
           . rcMembers
           $ rc
       localUserIds = qUnqualified . omQualifiedId <$> Set.toList localMembers
 
-  addedUserIds <- addLocalUsersToRemoteConv (rcCnvId qrc) (rcOrigUserId rc) localUserIds
+  addedUserIds <-
+    addLocalUsersToRemoteConv
+      (rcCnvId qrc)
+      (qUntagged (FederationAPIGalley.rcRemoteOrigUserId qrc))
+      localUserIds
 
   let connectedLocalMembers = Set.filter (\m -> (qUnqualified . omQualifiedId) m `Set.member` addedUserIds) localMembers
   -- Make sure to notify only about local users connected to the adder
   let qrcConnected = qrc {rcMembers = Set.union remoteMembers connectedLocalMembers}
 
-  forM_ (fromNewRemoteConversation localDomain qrcConnected) $ \(mem, c) -> do
+  forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
-            (qUntagged (rcCnvId qrc))
-            (rcOrigUserId rc)
-            (rcTime rc)
+            (qUntagged (rcCnvId qrcConnected))
+            (qUntagged (FederationAPIGalley.rcRemoteOrigUserId qrcConnected))
+            (rcTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event [Public.memId mem] []
 
@@ -148,7 +153,7 @@ onConversationUpdated requestingDomain cu = do
         (u : us) -> pure (Just $ ConversationActionAddMembers (u :| us) role, addedLocalUsers)
     ConversationActionRemoveMembers toRemove -> do
       let localUsers = getLocalUsers localDomain toRemove
-      Data.removeLocalMembersFromRemoteConv qconvId localUsers
+      Data.removeLocalMembersFromRemoteConv rconvId localUsers
       pure (Just $ cuAction cu, [])
     ConversationActionRename _ -> pure (Just $ cuAction cu, [])
     ConversationActionMessageTimerUpdate _ -> pure (Just $ cuAction cu, [])
@@ -192,7 +197,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  Data.addLocalMembersToRemoteConv (qUntagged remoteConvId) connectedList
+  Data.addLocalMembersToRemoteConv remoteConvId connectedList
   pure connected
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing

@@ -22,7 +22,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
 import Data.Misc (Milliseconds)
-import Data.Qualified (Qualified)
+import Data.Qualified
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, Summary, (:>))
@@ -151,12 +151,10 @@ newtype GetConversationsResponse = GetConversationsResponse
 data NewRemoteConversation conv = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
-    -- | The user that created the conversation.
-    --
-    -- FUTUREWORK: Make this unqualified and assume that this user has the same domain
-    -- as the backend invoking this RPC. Otehrwise a third party can figure out
-    -- connections.
-    rcOrigUserId :: Qualified UserId,
+    -- | The user that created the conversation. This is implicitly qualified
+    -- by the requesting domain, since it is impossible to create a conversation
+    -- on a remote backend.
+    rcOrigUserId :: UserId,
     -- | The conversation ID, local to the backend invoking the RPC
     rcCnvId :: conv,
     -- | The conversation type
@@ -172,6 +170,9 @@ data NewRemoteConversation conv = NewRemoteConversation
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
+
+rcRemoteOrigUserId :: NewRemoteConversation (Remote ConvId) -> Remote UserId
+rcRemoteOrigUserId rc = qualifyAs (rcCnvId rc) (rcOrigUserId rc)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,

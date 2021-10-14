@@ -966,9 +966,9 @@ addMembers (tUnqualified -> conv) (fmap toUserRole -> UserList lusers rusers) = 
 -- | Set local users as belonging to a remote conversation. This is invoked by a
 -- remote galley when users from the current backend are added to conversations
 -- on the remote end.
-addLocalMembersToRemoteConv :: MonadClient m => Qualified ConvId -> [UserId] -> m ()
+addLocalMembersToRemoteConv :: MonadClient m => Remote ConvId -> [UserId] -> m ()
 addLocalMembersToRemoteConv _ [] = pure ()
-addLocalMembersToRemoteConv qconv users = do
+addLocalMembersToRemoteConv rconv users = do
   -- FUTUREWORK: consider using pooledMapConcurrentlyN
   for_ (List.chunksOf 32 users) $ \chunk ->
     retry x5 . batch $ do
@@ -977,7 +977,7 @@ addLocalMembersToRemoteConv qconv users = do
       for_ chunk $ \u ->
         addPrepQuery
           Cql.insertUserRemoteConv
-          (u, qDomain qconv, qUnqualified qconv)
+          (u, tDomain rconv, tUnqualified rconv)
 
 updateSelfMember ::
   MonadClient m =>
@@ -1117,12 +1117,12 @@ removeRemoteMembersFromLocalConv cnv victims = do
 removeLocalMembersFromRemoteConv ::
   MonadClient m =>
   -- | The conversation to remove members from
-  Qualified ConvId ->
+  Remote ConvId ->
   -- | Members to remove local to this backend
   [UserId] ->
   m ()
 removeLocalMembersFromRemoteConv _ [] = pure ()
-removeLocalMembersFromRemoteConv (Qualified conv convDomain) victims =
+removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victims =
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
