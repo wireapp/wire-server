@@ -30,7 +30,7 @@ import Data.Json.Util (ToJSONObject (..))
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureStatusNoConfig, TeamFeatureStatusWithConfig)
+import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureStatusNoConfig, TeamFeatureStatusWithConfig, TeamFeatureSelfDeletingMessagesConfig)
 
 data Event = Event
   { _eventType :: EventType,
@@ -53,6 +53,7 @@ data EventData
   = EdFeatureWithoutConfigChanged TeamFeatureStatusNoConfig
   | EdFeatureApplockChanged (TeamFeatureStatusWithConfig TeamFeatureAppLockConfig)
   | EdFeatureClassifiedDomainsChanged (TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig)
+  | EdFeatureSelfDeletingMessagesChanged (TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig)
   deriving (Eq, Show, Generic)
 
 makePrisms ''EventData
@@ -73,6 +74,7 @@ taggedEventDataSchema =
       TeamFeatureFileSharing -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
       TeamFeatureClassifiedDomains -> tag _EdFeatureClassifiedDomainsChanged (unnamed schema)
       TeamFeatureConferenceCalling -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
+      TeamFeatureSelfDeletingMessages -> tag _EdFeatureSelfDeletingMessagesChanged (unnamed schema)
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =

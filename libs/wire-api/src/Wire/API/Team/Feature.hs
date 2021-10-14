@@ -22,6 +22,7 @@ module Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus,
     TeamFeatureAppLockConfig (..),
+    TeamFeatureSelfDeletingMessagesConfig (..),
     TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
     FeatureHasNoConfig,
@@ -33,6 +34,7 @@ module Wire.API.Team.Feature
     AllFeatureConfigs (..),
     defaultAppLockStatus,
     defaultClassifiedDomains,
+    defaultSelfDeletingMessagesStatus,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -41,6 +43,8 @@ module Wire.API.Team.Feature
     modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
     modelTeamFeatureClassifiedDomainsConfig,
+    modelTeamFeatureSelfDeletingMessagesConfig,
+
     modelForTeamFeature,
   )
 where
@@ -90,10 +94,13 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- * services/galley/test/integration/API/Teams/Feature.hs
 --   * add an integration test for the feature
 --   * extend testAllFeatures
+-- * consider personal-account configurability (like for `conferenceCalling`, see
+--     eg. https://github.com/wireapp/wire-server/pull/1811,
+--     https://github.com/wireapp/wire-server/pull/1818)
 --
---
--- An overview of places to change (including compiler errors and failing tests) can be found
--- in eg. https://github.com/wireapp/wire-server/pull/1652.
+-- An example of all the places to change (including compiler errors and failing tests) can be found
+-- in eg. https://github.com/wireapp/wire-server/pull/1652.  (applock and conference calling also
+-- add interesting aspects, though.)
 --
 -- Using something like '[minBound..]' on those expressions would require dependent types.  We
 -- could generate exhaustive lists of those calls using TH, along the lines of:
@@ -119,6 +126,7 @@ data TeamFeatureName
   | TeamFeatureFileSharing
   | TeamFeatureClassifiedDomains
   | TeamFeatureConferenceCalling
+  | TeamFeatureSelfDeletingMessages
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -162,6 +170,10 @@ instance KnownTeamFeatureName 'TeamFeatureConferenceCalling where
   type KnownTeamFeatureNameSymbol 'TeamFeatureConferenceCalling = "conferenceCalling"
   knownTeamFeatureName = TeamFeatureConferenceCalling
 
+instance KnownTeamFeatureName 'TeamFeatureSelfDeletingMessages where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
+  knownTeamFeatureName = TeamFeatureSelfDeletingMessages
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -179,6 +191,7 @@ instance FromByteString TeamFeatureName where
         Right "fileSharing" -> pure TeamFeatureFileSharing
         Right "classifiedDomains" -> pure TeamFeatureClassifiedDomains
         Right "conferenceCalling" -> pure TeamFeatureConferenceCalling
+        Right "selfDeletingMessages" -> pure TeamFeatureSelfDeletingMessages
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 -- TODO: how do we make this consistent with 'KnownTeamFeatureNameSymbol'?  add a test for
@@ -193,6 +206,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureFileSharing = "fileSharing"
   builder TeamFeatureClassifiedDomains = "classifiedDomains"
   builder TeamFeatureConferenceCalling = "conferenceCalling"
+  builder TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
 
 instance ToSchema TeamFeatureName where
   schema =
@@ -280,6 +294,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
   TeamFeatureStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
@@ -294,6 +309,7 @@ modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig n
 modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
 modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfig
+modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -408,6 +424,33 @@ defaultAppLockStatus =
   TeamFeatureStatusWithConfig
     TeamFeatureEnabled
     (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
+
+----------------------------------------------------------------------
+-- TeamFeatureSelfDeletingMessagesConfig
+
+data TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
+  { sdmEnforcedTimeoutSeconds :: Int32
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema TeamFeatureSelfDeletingMessagesConfig)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureSelfDeletingMessagesConfig)
+
+instance ToSchema TeamFeatureSelfDeletingMessagesConfig where
+  schema =
+    object "TeamFeatureSelfDeletingMessagesConfig" $
+      TeamFeatureSelfDeletingMessagesConfig
+        <$> sdmEnforcedTimeoutSeconds .= field "enforcedTimeoutSeconds" schema
+
+modelTeamFeatureSelfDeletingMessagesConfig :: Doc.Model
+modelTeamFeatureSelfDeletingMessagesConfig =
+  Doc.defineModel "TeamFeatureSelfDeletingMessagesConfig" $ do
+    Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
+
+defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
+defaultSelfDeletingMessagesStatus =
+  TeamFeatureStatusWithConfig
+    TeamFeatureEnabled
+    (TeamFeatureSelfDeletingMessagesConfig 0)
 
 ----------------------------------------------------------------------
 -- internal

@@ -31,6 +31,7 @@ module Galley.Types.Teams
     flagAppLockDefaults,
     flagClassifiedDomains,
     flagConferenceCalling,
+    flagSelfDeletingMessages,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -214,7 +215,8 @@ data FeatureFlags = FeatureFlags
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
     _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
     _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing)),
-    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling))
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling)),
+    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages))
   }
   deriving (Eq, Show, Generic)
 
@@ -260,9 +262,10 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
+      <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling selfDeletingMessages) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
@@ -270,7 +273,8 @@ instance ToJSON FeatureFlags where
         "appLock" .= appLock,
         "classifiedDomains" .= classifiedDomains,
         "fileSharing" .= fileSharing,
-        "conferenceCalling" .= conferenceCalling
+        "conferenceCalling" .= conferenceCalling,
+        "selfDeletingMessages" .= selfDeletingMessages
       ]
 
 instance FromJSON FeatureSSO where
@@ -362,6 +366,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureAppLock,
             ChangeTeamFeature TeamFeatureFileSharing,
             ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
+            ChangeTeamFeature TeamFeatureSelfDeletingMessages,
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
@@ -381,6 +386,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureFileSharing,
           ViewTeamFeature TeamFeatureClassifiedDomains,
           ViewTeamFeature TeamFeatureConferenceCalling,
+          ViewTeamFeature TeamFeatureSelfDeletingMessages,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]
