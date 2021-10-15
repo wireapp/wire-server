@@ -37,7 +37,7 @@ module Data.Qualified
     partitionQualified,
     indexQualified,
     bucketQualified,
-    indexRemote,
+    bucketRemote,
     deprecatedSchema,
   )
 where
@@ -136,9 +136,8 @@ indexQualified = foldr add mempty
 bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
 bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
 
--- FUTUREWORK: Rename this to 'bucketRemote'
-indexRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
-indexRemote =
+bucketRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
+bucketRemote =
   map (uncurry toRemoteUnsafe)
     . Map.assocs
     . indexQualified

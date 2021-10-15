@@ -181,7 +181,7 @@ getRemoteConversationsWithFailures zusr convs = do
 
   -- request conversations from remote backends
   fmap (bimap (localFailures <>) concat . partitionEithers)
-    . pooledForConcurrentlyN 8 (indexRemote locallyFound)
+    . pooledForConcurrentlyN 8 (bucketRemote locallyFound)
     $ \someConvs -> do
       let req = FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
           rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req

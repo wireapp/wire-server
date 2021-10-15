@@ -617,7 +617,7 @@ remoteConversationStatus ::
 remoteConversationStatus uid =
   fmap mconcat
     . pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomain uid)
-    . indexRemote
+    . bucketRemote
 
 remoteConversationStatusOnDomain :: MonadClient m => UserId -> Remote [ConvId] -> m (Map (Remote ConvId) MemberStatus)
 remoteConversationStatusOnDomain uid rconvs =

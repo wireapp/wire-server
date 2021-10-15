@@ -183,7 +183,7 @@ getRemoteClients :: [RemoteMember] -> Galley (Map (Domain, UserId) (Set ClientId
 getRemoteClients remoteMembers = do
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
     . pooledMapConcurrentlyN 8 getRemoteClientsFromDomain
-    . indexRemote
+    . bucketRemote
     . map rmId
     $ remoteMembers
   where

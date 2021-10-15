@@ -610,7 +610,7 @@ qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
 checkRemoteUsersExist =
   -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
-  traverse_ checkRemotesFor . indexRemote
+  traverse_ checkRemotesFor . bucketRemote
 
 checkRemotesFor :: Remote [UserId] -> Galley ()
 checkRemotesFor (qUntagged -> Qualified uids domain) = do
@@ -642,7 +642,7 @@ runFederatedConcurrently ::
   (Remote [a] -> FederatedGalleyRPC c b) ->
   Galley [Remote b]
 runFederatedConcurrently xs rpc =
-  pooledForConcurrentlyN 8 (indexRemote xs) $ \r ->
+  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     qualifyAs r <$> runFederated (tDomain r) (rpc r)
 
 runFederatedConcurrently_ ::
