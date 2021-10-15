@@ -167,14 +167,12 @@ onConversationUpdated requestingDomain cu = do
           )
 
   -- Send notifications
-  case mActualAction of
-    Nothing -> pure ()
-    Just action -> do
-      let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId action
-          targets = nubOrd $ presentUsers <> extraTargets
+  for_ mActualAction $ \action -> do
+    let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId action
+        targets = nubOrd $ presentUsers <> extraTargets
 
-      -- FUTUREWORK: support bots?
-      pushConversationEvent Nothing event targets []
+    -- FUTUREWORK: support bots?
+    pushConversationEvent Nothing event targets []
 
 addLocalUsersToRemoteConv :: Remote ConvId -> Qualified UserId -> [UserId] -> Galley (Set UserId)
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
