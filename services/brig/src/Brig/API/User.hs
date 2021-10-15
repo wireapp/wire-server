@@ -91,7 +91,7 @@ where
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
-import Brig.API.Util (fetchUserIdentity, validateHandle)
+import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..))
@@ -150,7 +150,6 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
-import UnliftIO.Exception (throwIO)
 import Wire.API.Federation.Client (FederationError (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
@@ -1143,19 +1142,9 @@ lookupProfiles ::
   ExceptT FederationError AppIO [UserProfile]
 lookupProfiles self others =
   fmap concat $
-    traverseWithErrors
+    traverseConcurrentlyWithErrors
       (lookupProfilesFromDomain self)
       (bucketQualified others)
-  where
-    -- fail on first error
-    traverseWithErrors ::
-      (Traversable t, Exception e) =>
-      (a -> ExceptT e AppIO b) ->
-      t a ->
-      ExceptT e AppIO (t b)
-    traverseWithErrors f =
-      ExceptT . try . (traverse (either throwIO pure) =<<)
-        . pooledMapConcurrentlyN 8 (runExceptT . f)
 
 lookupProfilesFromDomain ::
   Local UserId -> Qualified [UserId] -> ExceptT FederationError AppIO [UserProfile]
