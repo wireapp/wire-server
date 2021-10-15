@@ -133,7 +133,6 @@ import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
-import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Json.Util
@@ -142,7 +141,7 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified, indexQualified)
+import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -1123,8 +1122,12 @@ userGC u = case (userExpire u) of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: UserId -> Qualified UserId -> ExceptT FederationError AppIO (Maybe UserProfile)
-lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
+lookupProfile :: Local UserId -> Qualified UserId -> ExceptT FederationError AppIO (Maybe UserProfile)
+lookupProfile self other =
+  listToMaybe
+    <$> lookupProfilesFromDomain
+      self
+      (fmap pure other)
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
@@ -1133,7 +1136,7 @@ lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
   -- | User 'self' on whose behalf the profiles are requested.
-  UserId ->
+  Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   ExceptT FederationError AppIO [UserProfile]
@@ -1144,11 +1147,20 @@ lookupProfiles self others = do
   fold <$> traverse (uncurry (getProfiles localDomain)) (Map.assocs userMap)
   where
     getProfiles localDomain domain uids
-      | localDomain == domain = lift (lookupLocalProfiles (Just self) uids)
-      | otherwise = lookupRemoteProfiles domain uids
+      | localDomain == domain = lift (lookupLocalProfiles (Just (tUnqualified self)) uids)
+      | otherwise = lookupRemoteProfiles (toRemoteUnsafe domain uids)
 
-lookupRemoteProfiles :: Domain -> [UserId] -> ExceptT FederationError AppIO [UserProfile]
-lookupRemoteProfiles = Federation.getUsersByIds
+lookupProfilesFromDomain ::
+  Local UserId -> Qualified [UserId] -> ExceptT FederationError AppIO [UserProfile]
+lookupProfilesFromDomain self =
+  foldQualified
+    self
+    (lift . lookupLocalProfiles (Just (tUnqualified self)) . tUnqualified)
+    lookupRemoteProfiles
+
+lookupRemoteProfiles :: Remote [UserId] -> ExceptT FederationError AppIO [UserProfile]
+lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
+  Federation.getUsersByIds domain uids
 
 -- FUTUREWORK: This function encodes a few business rules about exposing email
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a
