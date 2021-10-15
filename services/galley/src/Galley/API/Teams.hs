@@ -798,7 +798,6 @@ deleteTeamConversation zusr zcon tid cid = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
 
-  -- TODO: also delete remote members
   Data.removeTeamConv tid cid
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
