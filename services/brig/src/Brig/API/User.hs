@@ -127,7 +127,6 @@ import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
@@ -150,6 +149,8 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import UnliftIO.Async
+import UnliftIO.Exception (throwIO)
 import Wire.API.Federation.Client (FederationError (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
@@ -1140,15 +1141,21 @@ lookupProfiles ::
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   ExceptT FederationError AppIO [UserProfile]
-lookupProfiles self others = do
-  localDomain <- viewFederationDomain
-  let userMap = indexQualified others
-  -- FUTUREWORK(federation): parallelise federator requests here
-  fold <$> traverse (uncurry (getProfiles localDomain)) (Map.assocs userMap)
+lookupProfiles self others =
+  fmap concat $
+    traverseWithErrors
+      (lookupProfilesFromDomain self)
+      (bucketQualified others)
   where
-    getProfiles localDomain domain uids
-      | localDomain == domain = lift (lookupLocalProfiles (Just (tUnqualified self)) uids)
-      | otherwise = lookupRemoteProfiles (toRemoteUnsafe domain uids)
+    -- fail on first error
+    traverseWithErrors ::
+      (Traversable t, Exception e) =>
+      (a -> ExceptT e AppIO b) ->
+      t a ->
+      ExceptT e AppIO (t b)
+    traverseWithErrors f =
+      ExceptT . try . (traverse (either throwIO pure) =<<)
+        . pooledMapConcurrentlyN 8 (runExceptT . f)
 
 lookupProfilesFromDomain ::
   Local UserId -> Qualified [UserId] -> ExceptT FederationError AppIO [UserProfile]
