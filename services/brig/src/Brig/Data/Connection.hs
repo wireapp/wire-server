@@ -32,6 +32,9 @@ module Brig.Data.Connection
     lookupConnectionStatus',
     lookupContactList,
     lookupContactListWithRelation,
+    lookupLocalConnectionStatuses,
+    lookupRemoteConnectionStatuses,
+    lookupAllStatuses,
     countConnections,
     deleteConnections,
     remoteConnectionInsert,
@@ -49,7 +52,6 @@ import Brig.App (AppIO, qualifyLocal)
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
-import Brig.Types.Intra
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
@@ -62,8 +64,9 @@ import Data.Qualified
 import Data.Range
 import Data.Time (getCurrentTime)
 import Imports hiding (local)
-import UnliftIO.Async (pooledMapConcurrentlyN_)
+import UnliftIO.Async (pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Connection
+import Wire.API.Routes.Internal.Brig.Connection
 
 insertConnection ::
   Local UserId ->
@@ -204,6 +207,41 @@ lookupConnectionStatus' from =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect' (params Quorum (Identity from)))
 
+lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> AppIO [ConnectionStatusV2]
+lookupLocalConnectionStatuses froms tos = do
+  concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
+  where
+    lookupStatuses :: UserId -> AppIO [ConnectionStatusV2]
+    lookupStatuses from =
+      map (uncurry $ toConnectionStatusV2 from (tDomain tos))
+        <$> retry x1 (query relationsSelect (params Quorum (from, tUnqualified tos)))
+
+lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> AppIO [ConnectionStatusV2]
+lookupRemoteConnectionStatuses froms tos = do
+  concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
+  where
+    lookupStatuses :: UserId -> AppIO [ConnectionStatusV2]
+    lookupStatuses from =
+      map (uncurry $ toConnectionStatusV2 from (tDomain tos))
+        <$> retry x1 (query remoteRelationsSelect (params Quorum (from, tDomain tos, tUnqualified tos)))
+
+lookupAllStatuses :: Local [UserId] -> AppIO [ConnectionStatusV2]
+lookupAllStatuses lfroms = do
+  let froms = tUnqualified lfroms
+  concat <$> pooledMapConcurrentlyN 16 lookupAndCombine froms
+  where
+    lookupAndCombine :: UserId -> AppIO [ConnectionStatusV2]
+    lookupAndCombine u = (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
+
+    lookupLocalStatuses :: UserId -> AppIO [ConnectionStatusV2]
+    lookupLocalStatuses from =
+      map (uncurry $ toConnectionStatusV2 from (tDomain lfroms))
+        <$> retry x1 (query relationsSelectAll (params Quorum (Identity from)))
+    lookupRemoteStatuses :: UserId -> AppIO [ConnectionStatusV2]
+    lookupRemoteStatuses from =
+      map (\(d, u, r) -> toConnectionStatusV2 from d u r)
+        <$> retry x1 (query remoteRelationsSelectAll (params Quorum (Identity from)))
+
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
@@ -257,9 +295,19 @@ connectionSelect = "SELECT left, right, status, last_update, conv FROM connectio
 relationSelect :: PrepQuery R (UserId, UserId) (Identity RelationWithHistory)
 relationSelect = "SELECT status FROM connection WHERE left = ? AND right = ?"
 
+relationsSelect :: PrepQuery R (UserId, [UserId]) (UserId, RelationWithHistory)
+relationsSelect = "SELECT right, status FROM connection where left = ? AND right IN ?"
+
+relationsSelectAll :: PrepQuery R (Identity UserId) (UserId, RelationWithHistory)
+relationsSelectAll = "SELECT right, status FROM connection where left = ?"
+
+-- FUTUREWORK: Delete this query, we shouldn't use `IN` with the primary key of
+-- the table.
 connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, RelationWithHistory)
 connectionStatusSelect = "SELECT left, right, status FROM connection WHERE left IN ? AND right IN ?"
 
+-- FUTUREWORK: Delete this query, we shouldn't use `IN` with the primary key of
+-- the table.
 connectionStatusSelect' :: PrepQuery R (Identity [UserId]) (UserId, UserId, RelationWithHistory)
 connectionStatusSelect' = "SELECT left, right, status FROM connection WHERE left IN ?"
 
@@ -301,6 +349,12 @@ remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
 remoteRelationSelect :: PrepQuery R (UserId, Domain, UserId) (Identity RelationWithHistory)
 remoteRelationSelect = "SELECT status FROM connection_remote WHERE left = ? AND right_domain = ? AND right_user = ?"
 
+remoteRelationsSelect :: PrepQuery R (UserId, Domain, [UserId]) (UserId, RelationWithHistory)
+remoteRelationsSelect = "SELECT right_user, status FROM connection_remote WHERE left = ? AND right_domain = ? AND right_user IN ?"
+
+remoteRelationsSelectAll :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
+remoteRelationsSelectAll = "SELECT right_domain, right_user, status FROM connection_remote WHERE left = ?"
+
 -- Conversions
 
 toLocalUserConnection ::
@@ -319,3 +373,7 @@ toRemoteUserConnection l (rDomain, r, relationDropHistory -> rel, time, cDomain,
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel
+
+toConnectionStatusV2 :: UserId -> Domain -> UserId -> RelationWithHistory -> ConnectionStatusV2
+toConnectionStatusV2 from toDomain toUser relWithHistory =
+  ConnectionStatusV2 from (Qualified toUser toDomain) (relationDropHistory relWithHistory)

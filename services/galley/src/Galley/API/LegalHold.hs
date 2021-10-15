@@ -34,7 +34,6 @@ where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
-import Brig.Types.Intra (ConnectionStatus (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Control.Exception (assert)
@@ -59,7 +58,7 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
-import Galley.Intra.User (getConnections, putConnectionInternal)
+import Galley.Intra.User (getConnectionsUnqualified, putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
@@ -73,6 +72,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import qualified Wire.API.Team.LegalHold as Public
@@ -415,7 +415,7 @@ changeLegalholdStatus tid uid old new = do
 -- FUTUREWORK: make this async?
 blockNonConsentingConnections :: UserId -> Galley ()
 blockNonConsentingConnections uid = do
-  conns <- getConnections [uid] Nothing Nothing
+  conns <- getConnectionsUnqualified [uid] Nothing Nothing
   errmsgs <- do
     conflicts <- mconcat <$> findConflicts conns
     blockConflicts uid conflicts

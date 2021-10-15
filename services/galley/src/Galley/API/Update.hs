@@ -125,7 +125,8 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Client (HasFederatorConfig (..))
+import Wire.API.Federation.Error (federationNotConfigured, federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -591,7 +592,7 @@ performAddMemberAction qusr conv invited role = do
     ensureMemberLimit (toList (Data.convLocalMembers conv)) newMembers
     ensureAccess conv InviteAccess
     checkLocals lcnv (Data.convTeam conv) (ulLocals newMembers)
-    checkRemoteUsersExist (ulRemotes newMembers)
+    checkRemotes (ulRemotes newMembers)
     checkLHPolicyConflictsLocal lcnv (ulLocals newMembers)
     checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   addMembersToLocalConversation lcnv newMembers role
@@ -610,6 +611,23 @@ performAddMemberAction qusr conv invited role = do
     checkLocals _ Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
       ensureConnectedOrSameTeam qusr newUsers
+
+    checkRemotes :: [Remote UserId] -> Galley ()
+    checkRemotes remotes = do
+      -- if federator is not configured, we fail early, so we avoid adding
+      -- remote members to the database
+      unless (null remotes) $ do
+        endpoint <- federatorEndpoint
+        when (isNothing endpoint) $
+          throwM federationNotConfigured
+
+      loc <- qualifyLocal ()
+      foldQualified
+        loc
+        ensureConnectedToRemotes
+        (\_ _ -> throwM federationNotImplemented)
+        qusr
+        remotes
 
     checkLHPolicyConflictsLocal :: Local ConvId -> [UserId] -> Galley ()
     checkLHPolicyConflictsLocal lcnv newUsers = do

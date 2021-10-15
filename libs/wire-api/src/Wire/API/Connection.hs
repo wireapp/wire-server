@@ -48,17 +48,16 @@ where
 import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson as Aeson
-import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import qualified Data.Schema as P
+import Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Schema as S
 import Data.Text as Text
 import Imports
+import Servant.API
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.Routes.MultiTablePaging
 
@@ -173,6 +172,9 @@ data Relation
   deriving (Arbitrary) via (GenericUniform Relation)
   deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema Relation)
 
+instance S.ToParamSchema Relation where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
 -- | 'updateConnectionInternal', requires knowledge of the previous state (before
 -- 'MissingLegalholdConsent'), but the clients don't need that information.  To avoid having
 -- to change the API, we introduce an internal variant of 'Relation' with surjective mapping
@@ -245,20 +247,19 @@ instance P.ToSchema Relation where
           P.element "missing-legalhold-consent" MissingLegalholdConsent
         ]
 
-instance FromByteString Relation where
-  parser =
-    takeByteString >>= \case
-      "accepted" -> return Accepted
-      "blocked" -> return Blocked
-      "pending" -> return Pending
-      "ignored" -> return Ignored
-      "sent" -> return Sent
-      "cancelled" -> return Cancelled
-      "missing-legalhold-consent" -> return MissingLegalholdConsent
-      x -> fail $ "Invalid relation-type " <> show x
+instance FromHttpApiData Relation where
+  parseQueryParam = \case
+    "accepted" -> return Accepted
+    "blocked" -> return Blocked
+    "pending" -> return Pending
+    "ignored" -> return Ignored
+    "sent" -> return Sent
+    "cancelled" -> return Cancelled
+    "missing-legalhold-consent" -> return MissingLegalholdConsent
+    x -> Left $ "Invalid relation-type " <> x
 
-instance ToByteString Relation where
-  builder = \case
+instance ToHttpApiData Relation where
+  toQueryParam = \case
     Accepted -> "accepted"
     Blocked -> "blocked"
     Pending -> "pending"
@@ -267,7 +268,7 @@ instance ToByteString Relation where
     Cancelled -> "cancelled"
     MissingLegalholdConsent -> "missing-legalhold-consent"
 
---------------------------------------------------------------------------------
+----------------
 -- Requests
 
 -- | Payload type for a connection request from one user to another.

@@ -108,16 +108,23 @@ ensureConnectedOrSameTeam (Qualified u domain) uids = do
 -- that they are connected).
 ensureConnected :: Local UserId -> UserList UserId -> Galley ()
 ensureConnected self others = do
-  -- FUTUREWORK(federation, #1262): check remote connections
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
+  ensureConnectedToRemotes self (ulRemotes others)
 
 ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnections [u] (Just uids) (Just Accepted)
-      `concurrently` getConnections uids (Just [u]) (Just Accepted)
+    getConnectionsUnqualified [u] (Just uids) (Just Accepted)
+      `concurrently` getConnectionsUnqualified uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
+    throwErrorDescriptionType @NotConnected
+
+ensureConnectedToRemotes :: Local UserId -> [Remote UserId] -> Galley ()
+ensureConnectedToRemotes _ [] = pure ()
+ensureConnectedToRemotes u remotes = do
+  acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
+  when (length acceptedConns /= length remotes) $
     throwErrorDescriptionType @NotConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
@@ -675,13 +682,14 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
 -- conversation.
 fromNewRemoteConversation ::
   Domain ->
-  NewRemoteConversation (Qualified ConvId) ->
+  NewRemoteConversation (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation d NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
+      creatorOther = OtherMember rcOrigUserId Nothing roleNameWireAdmin
    in foldMap
         ( \(me, others) ->
-            guard (inDomain me) $> let mem = toMember me in (mem, conv mem others)
+            guard (inDomain me) $> let mem = toMember me in (mem, conv mem (creatorOther : others))
         )
         membersView
   where
@@ -707,7 +715,7 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        rcCnvId
+        (qUntagged rcCnvId)
         ConversationMetadata
           { cnvmType = rcCnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation

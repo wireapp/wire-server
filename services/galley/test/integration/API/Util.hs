@@ -25,7 +25,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet (..))
+import Brig.Types.Intra (UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
@@ -73,7 +73,7 @@ import Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import Galley.Types.Teams hiding (Event, EventType (..))
+import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
@@ -108,7 +108,7 @@ import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Event.Conversation (_EdMembersJoin, _EdMembersLeave)
+import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -118,6 +118,7 @@ import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
@@ -548,7 +549,7 @@ defNewConv :: NewConv
 defNewConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
 postConvQualified ::
-  (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
+  (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
   UserId ->
   NewConv ->
   m ResponseLBS
@@ -1235,6 +1236,9 @@ getTeamQueue' zusr msince msize onlyLast = do
           ]
     )
 
+asOtherMember :: Qualified UserId -> OtherMember
+asOtherMember quid = OtherMember quid Nothing roleNameWireMember
+
 registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
@@ -1568,6 +1572,25 @@ connectUsersWith fn u = mapM connectTo
           )
       return (r1, r2)
 
+connectWithRemoteUser ::
+  (MonadReader TestSetup m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
+  UserId ->
+  Qualified UserId ->
+  m ()
+connectWithRemoteUser self other = do
+  let req = CreateConnectionForTest self other
+  b <- view tsBrig
+  put
+    ( b
+        . zUser self
+        . contentJson
+        . zConn "conn"
+        . paths ["i", "connections", "connection-update"]
+        . json req
+    )
+    !!! const 200
+    === statusCode
+
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
 postConnection from to = do
@@ -1583,6 +1606,16 @@ postConnection from to = do
     payload =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
+
+postConnectionQualified :: UserId -> Qualified UserId -> TestM ResponseLBS
+postConnectionQualified from (Qualified toUser toDomain) = do
+  brig <- view tsBrig
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
 
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
@@ -1634,6 +1667,11 @@ assertConnections u cstat = do
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
+
+randomUserTuple :: HasCallStack => TestM (UserId, Qualified UserId)
+randomUserTuple = do
+  qUid <- randomQualifiedUser
+  pure (qUnqualified qUid, qUid)
 
 randomUser :: HasCallStack => TestM UserId
 randomUser = qUnqualified <$> randomUser' False True True
@@ -2293,6 +2331,18 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   case evtData e of
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
+
+wsAssertConvCreateWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> UserId -> [(Qualified UserId, RoleName)] -> Notification -> IO ()
+wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.ConvCreate
+  evtFrom e @?= eventFrom
+  fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just selfMember
+  fmap (sort . cmOthers . cnvMembers) (evtData e ^? _EdConversation) @?= Just (sort (toOtherMember <$> otherMembers))
+  where
+    toOtherMember (quid, role) = OtherMember quid Nothing role
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do

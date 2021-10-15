@@ -167,6 +167,7 @@ roleUpdateRemoteMember = do
   qcharlie <- Qualified <$> randomId <*> pure remoteDomain
   let bob = qUnqualified qbob
 
+  traverse_ (connectWithRemoteUser bob) [qalice, qcharlie]
   resp <-
     postConvWithRemoteUsers
       remoteDomain
@@ -238,6 +239,7 @@ roleUpdateWithRemotes = do
       charlie = qUnqualified qcharlie
 
   connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
   resp <-
     postConvWithRemoteUsers
       remoteDomain
@@ -298,6 +300,7 @@ accessUpdateWithRemotes = do
       charlie = qUnqualified qcharlie
 
   connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
   resp <-
     postConvWithRemoteUsers
       remoteDomain

@@ -28,7 +28,6 @@ import Bilge.Assert
 import Brig.Data.Connection (remoteConnectionInsert)
 import qualified Brig.Options as Opt
 import Brig.Types
-import Brig.Types.Intra
 import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
@@ -48,6 +47,7 @@ import Wire.API.Connection
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (gcresConvs), RemoteConvMembers (rcmOthers), RemoteConversation (rcnvMembers))
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> FedGalleyClient -> DB.ClientState -> TestTree
@@ -96,7 +96,8 @@ tests cl _at opts p b _c g fedBrigClient fedGalleyClient db =
       test p "Remote connections: block then accept" (testConnectFromBlocked opts b g fedBrigClient),
       test p "Remote connections: block, remote cancels, then accept" (testSentFromBlocked opts b fedBrigClient),
       test p "Remote connections: send then cancel" (testCancel opts b),
-      test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient)
+      test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient),
+      test p "post /users/connections-status/v2 : All connections" (testInternalGetConnStatusesAll b opts fedBrigClient)
     ]
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
@@ -929,3 +930,55 @@ testConnectionLimits opts brig fedBrigClient = do
       postConnectionQualified brig uid1 quid2 !!! do
         const 403 === statusCode
         const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
+
+testInternalGetConnStatusesAll :: Brig -> Opt.Opts -> FedBrigClient -> Http ()
+testInternalGetConnStatusesAll brig opts fedBrigClient = do
+  quids <- replicateM 2 $ userQualifiedId <$> randomUser brig
+  let uids = qUnqualified <$> quids
+
+  localUsers@(localUser1 : _) <- replicateM 5 $ userQualifiedId <$> randomUser brig
+  let remoteDomain1 = Domain "remote1.example.com"
+  remoteDomain1Users@(remoteDomain1User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain1) <$> randomId
+  let remoteDomain2 = Domain "remote2.example.com"
+  remoteDomain2Users@(remoteDomain2User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain2) <$> randomId
+
+  for_ uids $ \uid -> do
+    -- Create 5 local connections, accept 1
+    for_ localUsers $ \qOther -> do
+      postConnectionQualified brig uid qOther <!! const 201 === statusCode
+    putConnection brig (qUnqualified localUser1) uid Accepted
+      !!! const 200 === statusCode
+
+    -- Create 5 remote connections with remote1, accept 1
+    for_ remoteDomain1Users $ \qOther -> sendConnectionAction brig opts uid qOther Nothing Sent
+    receiveConnectionAction brig fedBrigClient uid remoteDomain1User1 F.RemoteConnect (Just F.RemoteConnect) Accepted
+
+    -- Create 5 remote connections with remote2, accept 1
+    for_ remoteDomain2Users $ \qOther -> sendConnectionAction brig opts uid qOther Nothing Sent
+    receiveConnectionAction brig fedBrigClient uid remoteDomain2User1 F.RemoteConnect (Just F.RemoteConnect) Accepted
+
+  allStatuses :: [ConnectionStatusV2] <-
+    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing Nothing)
+      <!! const 200 === statusCode
+
+  liftIO $ do
+    sort (nub (map csv2From allStatuses)) @?= sort uids
+    let allUsers = localUsers <> remoteDomain1Users <> remoteDomain2Users
+    sort (map csv2To allStatuses) @?= sort (allUsers <> allUsers)
+    length (filter ((== Sent) . csv2Status) allStatuses) @?= 24
+    length (filter ((== Accepted) . csv2Status) allStatuses) @?= 6
+
+  acceptedRemoteDomain1Only :: [ConnectionStatusV2] <-
+    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids (Just remoteDomain1Users) (Just Accepted))
+      <!! const 200 === statusCode
+
+  liftIO $ do
+    let ordFn = (\x -> (csv2From x, csv2To x))
+    sortOn ordFn acceptedRemoteDomain1Only @?= sortOn ordFn (map (\u -> ConnectionStatusV2 u remoteDomain1User1 Accepted) uids)
+
+getConnStatusInternal :: (MonadIO m, MonadHttp m) => (Request -> Request) -> ConnectionsStatusRequestV2 -> m (Response (Maybe LByteString))
+getConnStatusInternal brig req =
+  post $
+    brig
+      . path "/i/users/connections-status/v2"
+      . json req

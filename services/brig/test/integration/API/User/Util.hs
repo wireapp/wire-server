@@ -24,7 +24,6 @@ import Bilge.Assert
 import Brig.Data.PasswordReset
 import Brig.Options (Opts)
 import Brig.Types
-import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
@@ -54,6 +53,7 @@ import Util
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.GRPC.Types hiding (body, path)
 import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
 newtype ConnectionLimit = ConnectionLimit Int64

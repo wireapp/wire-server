@@ -151,7 +151,11 @@ newtype GetConversationsResponse = GetConversationsResponse
 data NewRemoteConversation conv = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
-    -- | The user that created the conversation
+    -- | The user that created the conversation.
+    --
+    -- FUTUREWORK: Make this unqualified and assume that this user has the same domain
+    -- as the backend invoking this RPC. Otehrwise a third party can figure out
+    -- connections.
     rcOrigUserId :: Qualified UserId,
     -- | The conversation ID, local to the backend invoking the RPC
     rcCnvId :: conv,

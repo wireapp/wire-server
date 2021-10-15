@@ -51,6 +51,7 @@ import qualified Data.LegalHold as LH
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
+import qualified Data.UUID.V4 as UUID
 import Galley.Types (ConvType (..), cnvType)
 import Imports
 import qualified System.Logger.Class as Log
@@ -381,6 +382,14 @@ updateConnectionInternal = \case
     self <- qualifyLocal uid
     blockForMissingLegalholdConsent self others
   RemoveLHBlocksInvolving uid -> removeLHBlocksInvolving =<< qualifyLocal uid
+  CreateConnectionForTest usr other -> do
+    lusr <- qualifyLocal usr
+    lift $
+      foldQualified
+        lusr
+        (createLocalConnectionUnchecked lusr)
+        (createRemoteConnectionUnchecked lusr)
+        other
   where
     -- inspired by @block@ in 'updateConnection'.
     blockForMissingLegalholdConsent :: Local UserId -> [UserId] -> ExceptT ConnectionError AppIO ()
@@ -464,6 +473,17 @@ updateConnectionInternal = \case
       IgnoredWithHistory -> IgnoredWithHistory
       SentWithHistory -> SentWithHistory
       CancelledWithHistory -> CancelledWithHistory
+
+createLocalConnectionUnchecked :: Local UserId -> Local UserId -> AppIO ()
+createLocalConnectionUnchecked self other = do
+  qcnv <- liftIO $ qUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
+  void $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
+  void $ Data.insertConnection other (qUntagged self) AcceptedWithHistory qcnv
+
+createRemoteConnectionUnchecked :: Local UserId -> Remote UserId -> AppIO ()
+createRemoteConnectionUnchecked self other = do
+  qcnv <- liftIO $ qUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
+  void $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
 
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO UserConnectionList
 lookupConnections from start size = do
