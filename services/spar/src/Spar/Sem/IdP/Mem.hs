@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.IdP.Mem (idPToMem) where
+module Spar.Sem.IdP.Mem (idPToMem, IS) where
 
 import Control.Exception (assert)
 import Control.Lens ((%~), (.~), (^.), _1, _2)
@@ -22,11 +22,11 @@ type RawState = Map SAML.IdPId Text
 idPToMem ::
   forall r a.
   Sem (Eff.IdP ': r) a ->
-  Sem r a
+  Sem r (IS, a)
 idPToMem = evState . evEff
   where
-    evState :: Sem (State IS : r) a -> Sem r a
-    evState = evalState mempty
+    evState :: Sem (State IS : r) a -> Sem r (IS, a)
+    evState = runState mempty
 
     evEff :: Sem (Eff.IdP ': r) a -> Sem (State IS ': r) a
     evEff = reinterpret @_ @(State IS) $ \case
