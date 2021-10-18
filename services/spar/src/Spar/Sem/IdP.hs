@@ -41,5 +41,7 @@ data IdP m a where
   GetRawMetadata :: SAML.IdPId -> IdP m (Maybe Text)
   DeleteRawMetadata :: SAML.IdPId -> IdP m ()
 
+deriving stock instance Show (IdP m a)
+
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdP

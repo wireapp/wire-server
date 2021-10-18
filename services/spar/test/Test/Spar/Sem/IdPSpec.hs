@@ -19,8 +19,6 @@ import Control.Lens
 
 
 deriveGenericK ''E.IdP
-deriving stock instance Show (E.IdP r a)
-
 
 prop_storeGet
     :: Member E.IdP r
