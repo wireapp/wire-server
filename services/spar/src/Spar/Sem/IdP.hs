@@ -18,11 +18,13 @@ data GetIdPResult a
   | -- | An IdP was found, but it lives in another team than the one you were looking for.
     --   This should be handled similarly to NotFound in most cases.
     GetIdPWrongTeam SAML.IdPId
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 newtype Replaced = Replaced SAML.IdPId
+  deriving (Eq, Ord, Show)
 
 newtype Replacing = Replacing SAML.IdPId
+  deriving (Eq, Ord, Show)
 
 data IdP m a where
   StoreConfig :: IP.IdP -> IdP m ()
