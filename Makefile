@@ -403,6 +403,7 @@ kind-reset: kind-delete kind-cluster
 .local/kind-kubeconfig:
 	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
+	chmod 0600 $(CURDIR)/.local/kind-kubeconfig
 
 # This guard is a fail-early way to save needing to debug nginz container not
 # starting up in the second namespace of the kind cluster in some cases. Error
