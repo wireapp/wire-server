@@ -61,6 +61,26 @@ prop_storeGetRaw x =
     )
     x
 
+prop_storeStoreRaw
+    :: Member E.IdP r
+    => (forall a. Sem r a -> IO (IS, a))
+    -> Property
+prop_storeStoreRaw x =
+  prepropLaw @'[E.IdP]
+    ( do
+      idpid <- arbitrary
+      t1 <- arbitrary
+      t2 <- arbitrary
+      pure
+        ( do
+            E.storeRawMetadata idpid t1
+            E.storeRawMetadata idpid t2
+        , do
+            E.storeRawMetadata idpid t2
+        )
+    )
+    x
+
 prop_storeDeleteRaw
     :: Member E.IdP r
     => (forall a. Sem r a -> IO (IS, a))
@@ -131,12 +151,13 @@ propsForInterpreter lower = do
     prop "storeConfig/getIdByIssuerWithoutTeam" $ prop_storeGetByIssuer lower
 
   describe "Raw Metadata Actions" $ do
+    prop "storeRawMetadata/storeRawMetadata" $ prop_storeStoreRaw lower
     prop "storeRawMetadata/getRawMetadata" $ prop_storeGetRaw lower
     prop "storeRawMetadata/deleteRawMetadata" $ prop_storeDeleteRaw lower
     prop "deleteRawMetadata/getRawMetadata" $ prop_deleteGetRaw lower
 
 
 spec :: Spec
-spec = modifyMaxSuccess (const 10000) $ do
+spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter testInterpreter
 
