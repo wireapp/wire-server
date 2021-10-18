@@ -22,6 +22,7 @@
 module Data.Qualified
   ( -- * Qualified
     Qualified (..),
+    qToPair,
     QualifiedWithTag,
     tUnqualified,
     tUnqualifiedL,
@@ -35,15 +36,17 @@ module Data.Qualified
     qualifyAs,
     foldQualified,
     partitionQualified,
+    partitionQualifiedAndTag,
     indexQualified,
     bucketQualified,
-    indexRemote,
+    bucketRemote,
     deprecatedSchema,
   )
 where
 
 import Control.Lens (Lens, lens, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Bifunctor (first)
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
 import Data.Id
@@ -61,6 +64,9 @@ data Qualified a = Qualified
     qDomain :: Domain
   }
   deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+qToPair :: Qualified a -> (Domain, a)
+qToPair (Qualified x dom) = (dom, x)
 
 data QTag = QLocal | QRemote
   deriving (Eq, Show)
@@ -125,6 +131,11 @@ partitionQualified loc =
   foldMap $
     foldQualified loc (\l -> ([tUnqualified l], mempty)) (\r -> (mempty, [r]))
 
+partitionQualifiedAndTag :: Foldable f => Local x -> f (Qualified a) -> ([Local a], [Remote a])
+partitionQualifiedAndTag loc =
+  first (map (qualifyAs loc))
+    . partitionQualified loc
+
 -- | Index a list of qualified values by domain.
 indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
 indexQualified = foldr add mempty
@@ -136,9 +147,8 @@ indexQualified = foldr add mempty
 bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
 bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
 
--- FUTUREWORK: Rename this to 'bucketRemote'
-indexRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
-indexRemote =
+bucketRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
+bucketRemote =
   map (uncurry toRemoteUnsafe)
     . Map.assocs
     . indexQualified

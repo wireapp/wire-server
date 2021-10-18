@@ -1035,7 +1035,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   let e = conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
-  let rusersByDomain = indexRemote (toList (bmRemotes targets))
+  let rusersByDomain = bucketRemote (toList (bmRemotes targets))
   void . pooledForConcurrentlyN 8 rusersByDomain $ \(qUntagged -> Qualified uids domain) -> do
     let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
         rpc =
