@@ -1239,7 +1239,7 @@ getTeamQueue' zusr msince msize onlyLast = do
 asOtherMember :: Qualified UserId -> OtherMember
 asOtherMember quid = OtherMember quid Nothing roleNameWireMember
 
-registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
+registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMember -> TestM ()
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime

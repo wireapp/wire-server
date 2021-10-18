@@ -173,7 +173,7 @@ onConvCreated = do
   let requestMembers = Set.fromList (map asOtherMember [qAlice, qCharlie, qDee])
 
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
-    registerRemoteConv qconv qBob (Just "gossip") requestMembers
+    registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") requestMembers
     liftIO $ do
       let expectedSelf = alice
           expectedOthers = [(qBob, roleNameWireAdmin), (qDee, roleNameWireMember)]
@@ -249,7 +249,7 @@ addUnconnectedUsersOnly = do
 
   WS.bracketR c alice $ \wsA -> do
     -- Remote Bob creates a conversation with local Alice
-    registerRemoteConv qconv qBob (Just "gossip") requestMembers
+    registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") requestMembers
     liftIO $ do
       let expectedSelf = alice
           expectedOthers = [(qBob, roleNameWireAdmin)]
@@ -363,7 +363,7 @@ removeRemoteUser = do
   now <- liftIO getCurrentTime
 
   mapM_ (`connectWithRemoteUser` qBob) [alice, dee]
-  registerRemoteConv qconv qBob (Just "gossip") (Set.fromList [aliceAsOtherMember, deeAsOtherMember, eveAsOtherMember])
+  registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") (Set.fromList [aliceAsOtherMember, deeAsOtherMember, eveAsOtherMember])
 
   let cuRemove user =
         FedGalley.ConversationUpdate
@@ -413,7 +413,7 @@ notifyUpdate extras action etype edata = do
   mapM_ (`connectWithRemoteUser` qbob) [alice]
   registerRemoteConv
     qconv
-    qbob
+    bob
     (Just "gossip")
     (Set.fromList (map mkMember (qalice : extras)))
 
@@ -524,7 +524,7 @@ addRemoteUser = do
 
   mapM_ (flip connectWithRemoteUser qbob . qUnqualified) [qalice, qdee]
 
-  registerRemoteConv qconv qbob (Just "gossip") (Set.fromList (map asOtherMember [qalice, qdee, qeve]))
+  registerRemoteConv qconv (qUnqualified qbob) (Just "gossip") (Set.fromList (map asOtherMember [qalice, qdee, qeve]))
 
   -- The conversation owning
   let cu =
