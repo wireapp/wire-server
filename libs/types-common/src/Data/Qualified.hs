@@ -22,6 +22,7 @@
 module Data.Qualified
   ( -- * Qualified
     Qualified (..),
+    qToPair,
     QualifiedWithTag,
     tUnqualified,
     tUnqualifiedL,
@@ -35,6 +36,7 @@ module Data.Qualified
     qualifyAs,
     foldQualified,
     partitionQualified,
+    partitionQualifiedAndTag,
     indexQualified,
     bucketQualified,
     bucketRemote,
@@ -44,6 +46,7 @@ where
 
 import Control.Lens (Lens, lens, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Bifunctor (first)
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
 import Data.Id
@@ -61,6 +64,9 @@ data Qualified a = Qualified
     qDomain :: Domain
   }
   deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+qToPair :: Qualified a -> (Domain, a)
+qToPair (Qualified x dom) = (dom, x)
 
 data QTag = QLocal | QRemote
   deriving (Eq, Show)
@@ -124,6 +130,11 @@ partitionQualified :: Foldable f => Local x -> f (Qualified a) -> ([a], [Remote 
 partitionQualified loc =
   foldMap $
     foldQualified loc (\l -> ([tUnqualified l], mempty)) (\r -> (mempty, [r]))
+
+partitionQualifiedAndTag :: Foldable f => Local x -> f (Qualified a) -> ([Local a], [Remote a])
+partitionQualifiedAndTag loc =
+  first (map (qualifyAs loc))
+    . partitionQualified loc
 
 -- | Index a list of qualified values by domain.
 indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
