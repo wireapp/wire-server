@@ -9,6 +9,7 @@ helmDefaults:
   wait: true
   timeout: 600
   devel: true
+  createNamespace: true
 
 environments:
   default:
@@ -17,6 +18,14 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+      - imagePullPolicy: Always
+  kind:
+    values:
+      - namespace: {{ requiredEnv "NAMESPACE_1" }}
+      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
+      - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
+      - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+      - imagePullPolicy: Never
 
 repositories:
   - name: stable
