@@ -87,7 +87,7 @@ stopMockFederator ref =
 flushState :: IORef MockState -> IO ()
 flushState = flip modifyIORef $ \s -> s {receivedRequests = [], effectfulResponse = error "No mock response provided"}
 
-initState :: Domain -> Domain -> MockState
+initState :: Domain -> MockState
 initState = MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet")
 
 -- | Run an action with access to a mock federator.
@@ -113,15 +113,16 @@ withMockFederator ref resp action = do
 
 withMockFederatorClient ::
   (MonadIO m, MonadMask m) =>
+  Domain ->
   IORef MockState ->
   (FederatedRequest -> ServerErrorIO OutwardResponse) ->
   FederatorClient component (ExceptT e m) a ->
   ExceptT String m (Either e a, ReceivedRequests)
-withMockFederatorClient ref resp action = withMockFederator ref resp $ \st -> do
+withMockFederatorClient target ref resp action = withMockFederator ref resp $ \st -> do
   let cfg = grpcClientConfigSimple "127.0.0.1" (fromInteger (serverPort st)) False
   client <- fmapLT (Text.unpack . reason) (ExceptT (createGrpcClient cfg))
   lift . runExceptT $
-    runFederatorClientWith client (stateTarget st) (stateOrigin st) action
+    runFederatorClientWith client target (stateOrigin st) action
 
 -- | Like 'withMockFederator', but spawn a new instance of the mock federator
 -- just for this action.
@@ -157,7 +158,6 @@ data MockState = MockState
     effectfulResponse :: FederatedRequest -> ServerErrorIO OutwardResponse,
     serverThread :: Async.Async (),
     serverPort :: Integer,
-    stateTarget :: Domain,
     stateOrigin :: Domain
   }
 

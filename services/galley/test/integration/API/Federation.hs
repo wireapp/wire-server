@@ -94,7 +94,6 @@ getConversationsAllFound = do
   cnv2 <-
     responseJsonError
       =<< postConvWithRemoteUsers
-        (qDomain aliceQ)
         [mkProfile aliceQ (Name "alice")]
         bob
         defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
@@ -575,7 +574,7 @@ leaveConversationSuccess = do
           _ -> success ()
 
   (convId, _) <-
-    withTempMockFederator' opts remoteDomain1 mockedResponse $
+    withTempMockFederator' opts mockedResponse $
       decodeConvId
         <$> postConvQualified
           alice
@@ -586,7 +585,7 @@ leaveConversationSuccess = do
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' opts remoteDomain1 mockedResponse $ do
+      withTempMockFederator' opts mockedResponse $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
         respBS <-
@@ -722,7 +721,7 @@ sendMessage = do
           toJSON [bobProfile, chadProfile]
         | otherwise = toJSON ()
   (convId, requests1) <-
-    withTempMockFederator opts remoteDomain responses1 $
+    withTempMockFederator opts responses1 $
       fmap decodeConvId $
         postConvQualified
           aliceId
@@ -766,7 +765,7 @@ sendMessage = do
                 ]
             )
         | otherwise = toJSON ()
-  (_, requests2) <- withTempMockFederator opts remoteDomain responses2 $ do
+  (_, requests2) <- withTempMockFederator opts responses2 $ do
     WS.bracketR cannon aliceId $ \ws -> do
       g <- viewGalley
       msresp <-

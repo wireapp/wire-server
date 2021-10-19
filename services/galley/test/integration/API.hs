@@ -542,7 +542,6 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
@@ -616,7 +615,6 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
@@ -688,7 +686,6 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
@@ -781,7 +778,6 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
@@ -908,7 +904,6 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
@@ -1196,7 +1191,6 @@ testAccessUpdateGuestRemoved = do
   conv <-
     responseJsonError
       =<< postConvWithRemoteUsers
-        remoteDomain
         [deeProfile]
         (qUnqualified alice)
         defNewConv
@@ -1209,7 +1203,7 @@ testAccessUpdateGuestRemoved = do
   WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
     -- conversation access role changes to team only
     opts <- view tsGConf
-    (_, reqs) <- withTempMockFederator opts remoteDomain (const ()) $ do
+    (_, reqs) <- withTempMockFederator opts (const ()) $ do
       putQualifiedAccessUpdate
         (qUnqualified alice)
         (cnvQualifiedId conv)
@@ -1875,7 +1869,7 @@ testAddRemoteMember = do
 
   opts <- view tsGConf
   (resp, reqs) <-
-    withTempMockFederator opts remoteDomain (respond remoteBob) $
+    withTempMockFederator opts (respond remoteBob) $
       postQualifiedMembers alice (remoteBob :| []) convId
         <!! const 200 === statusCode
   liftIO $ do
@@ -1958,7 +1952,6 @@ testGetQualifiedRemoteConv = do
   (respAll, _) <-
     withTempMockFederator
       opts
-      remoteDomain
       (const remoteConversationResponse)
       (getConvQualified aliceId remoteConvId)
 
@@ -1988,7 +1981,7 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
   registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   opts <- view tsGConf
-  void . withTempMockFederator opts remoteDomain (const (GetConversationsResponse [])) $ do
+  void . withTempMockFederator opts (const (GetConversationsResponse [])) $ do
     getConvQualified aliceId remoteConvId !!! do
       const 404 === statusCode
       const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
@@ -2071,7 +2064,6 @@ testBulkGetQualifiedConvs = do
   (respAll, receivedRequests) <-
     withTempMockFederator'
       opts
-      remoteDomainA
       ( \fedReq -> do
           let success = pure . F.OutwardResponseBody . LBS.toStrict . encode
           case F.domain fedReq of
@@ -2319,7 +2311,6 @@ deleteLocalMemberConvLocalQualifiedOk = do
   convId <-
     decodeConvId
       <$> postConvWithRemoteUsers
-        remoteDomain
         [mkProfile qEve (Name "Eve")]
         alice
         defNewConv {newConvQualifiedUsers = [qBob, qEve]}
@@ -2328,7 +2319,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
   opts <- view tsGConf
   let mockReturnEve = onlyMockedFederatedBrigResponse [(qEve, "Eve")]
   (respDel, fedRequests) <-
-    withTempMockFederator opts remoteDomain mockReturnEve $
+    withTempMockFederator opts mockReturnEve $
       deleteMemberQualified alice qBob qconvId
   let [galleyFederatedRequest] = fedRequestsForDomain remoteDomain F.Galley fedRequests
   assertRemoveUpdate galleyFederatedRequest qconvId qAlice [qUnqualified qEve] qBob
@@ -2378,7 +2369,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
           _ -> success ()
 
   (convId, _) <-
-    withTempMockFederator' opts remoteDomain1 mockedResponse $
+    withTempMockFederator' opts mockedResponse $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -2387,7 +2378,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' opts remoteDomain1 mockedResponse $
+    withTempMockFederator' opts mockedResponse $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
@@ -2431,7 +2422,7 @@ leaveRemoteConvQualifiedOk = do
   opts <- view tsGConf
 
   (resp, fedRequests) <-
-    withTempMockFederator opts remoteDomain mockResponses $
+    withTempMockFederator opts mockResponses $
       deleteMemberQualified alice qAlice qconv
   let leaveRequest =
         fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
@@ -2532,7 +2523,6 @@ putQualifiedConvRenameWithRemotesOk = do
 
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
@@ -2542,7 +2532,7 @@ putQualifiedConvRenameWithRemotesOk = do
   opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator opts (const ()) $
         putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
 
     req <- assertOne requests
@@ -2860,7 +2850,6 @@ putRemoteConvMemberOk update = do
   (rs, _) <-
     withTempMockFederator
       opts
-      remoteDomain
       (const remoteConversationResponse)
       $ getConvQualified alice qconv
         <!! const 200 === statusCode
@@ -2936,7 +2925,6 @@ putReceiptModeWithRemotesOk = do
 
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
@@ -2945,7 +2933,7 @@ putReceiptModeWithRemotesOk = do
   opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator opts (const ()) $
         putQualifiedReceiptMode bob qconv (ReceiptMode 43) !!! const 200 === statusCode
 
     req <- assertOne requests
@@ -3034,7 +3022,7 @@ removeUser = do
   WS.bracketR3 c alice' bob' carl' $ \(wsA, wsB, wsC) -> do
     opts <- view tsGConf
     (_, fedRequests) <-
-      withTempMockFederator opts remoteDomain (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
+      withTempMockFederator opts (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
         deleteUser bob' !!! const 200 === statusCode
 
     req <- assertOne fedRequests

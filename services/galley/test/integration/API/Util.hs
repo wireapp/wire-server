@@ -565,15 +565,14 @@ postConvQualified u n = do
 
 postConvWithRemoteUsers ::
   HasCallStack =>
-  Domain ->
   [UserProfile] ->
   UserId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers remoteDomain profiles u n = do
+postConvWithRemoteUsers profiles u n = do
   opts <- view tsGConf
   fmap fst $
-    withTempMockFederator opts remoteDomain respond $
+    withTempMockFederator opts respond $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201 === statusCode
   where
@@ -686,7 +685,7 @@ postProteusMessageQualifiedWithMockFederator ::
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
   opts <- view tsGConf
-  withTempServantMockFederator opts brigApi galleyApi localDomain (Domain "far-away.example.com") $
+  withTempServantMockFederator opts brigApi galleyApi localDomain $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -2175,30 +2174,29 @@ mkProfile quid name =
 withTempMockFederator ::
   (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
   Opts.Opts ->
-  Domain ->
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp = withTempMockFederator' opts targetDomain (pure . oresp)
+withTempMockFederator opts resp = withTempMockFederator' opts (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
 withTempMockFederator' ::
   (MonadIO m, HasGalley m, MonadMask m) =>
   Opts.Opts ->
-  Domain ->
   (FederatedRequest -> IO F.OutwardResponse) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator' opts targetDomain resp action = assertRightT
-  . Mock.withTempMockFederator st0 (lift . resp)
-  $ \st -> lift $ do
-    let opts' =
-          opts & Opts.optFederator
-            ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
-    withSettingsOverrides opts' action
+withTempMockFederator' opts resp action =
+  assertRightT
+    . Mock.withTempMockFederator st0 (lift . resp)
+    $ \st -> lift $ do
+      let opts' =
+            opts & Opts.optFederator
+              ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
+      withSettingsOverrides opts' action
   where
-    st0 = Mock.initState targetDomain (Domain "example.com")
+    st0 = Mock.initState (Domain "example.com")
 
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
@@ -2206,11 +2204,10 @@ withTempServantMockFederator ::
   FederatedBrig.Api (AsServerT Handler) ->
   FederatedGalley.Api (AsServerT Handler) ->
   Domain ->
-  Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempServantMockFederator opts brigApi galleyApi originDomain targetDomain =
-  withTempMockFederator' opts targetDomain mock
+withTempServantMockFederator opts brigApi galleyApi originDomain =
+  withTempMockFederator' opts mock
   where
     server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
     server = genericServerT brigApi :<|> genericServerT galleyApi

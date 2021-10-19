@@ -153,7 +153,6 @@ messageTimerChangeWithRemotes = do
 
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
       [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
@@ -162,7 +161,7 @@ messageTimerChangeWithRemotes = do
   opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator opts (const ()) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 
