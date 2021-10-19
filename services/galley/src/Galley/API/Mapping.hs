@@ -48,8 +48,8 @@ import Wire.API.Federation.API.Galley
 -- Throws "bad-state" when the user is not part of the conversation.
 conversationView :: UserId -> Data.Conversation -> Galley Conversation
 conversationView uid conv = do
-  loc <- qualifyLocal ()
-  let mbConv = conversationViewMaybe loc uid conv
+  luid <- qualifyLocal uid
+  let mbConv = conversationViewMaybe luid conv
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
@@ -64,17 +64,17 @@ conversationView uid conv = do
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local x -> UserId -> Data.Conversation -> Maybe Conversation
-conversationViewMaybe loc uid conv = do
-  let (selfs, lothers) = partition ((uid ==) . lmId) (Data.convLocalMembers conv)
+conversationViewMaybe :: Local UserId -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe luid conv = do
+  let (selfs, lothers) = partition ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
       rothers = Data.convRemoteMembers conv
-  self <- localMemberToSelf loc <$> listToMaybe selfs
+  self <- localMemberToSelf luid <$> listToMaybe selfs
   let others =
-        map (localMemberToOther (tDomain loc)) lothers
+        map (localMemberToOther (tDomain luid)) lothers
           <> map remoteMemberToOther rothers
   pure $
     Conversation
-      (Qualified (convId conv) (tDomain loc))
+      (Qualified (convId conv) (tDomain luid))
       (Data.convMetadata conv)
       (ConvMembers self others)
 

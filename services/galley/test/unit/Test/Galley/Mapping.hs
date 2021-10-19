@@ -42,31 +42,31 @@ tests =
   testGroup
     "ConversationMapping"
     [ testProperty "conversation view for a valid user is non-empty" $
-        \(ConvWithLocalUser c uid) (loc :: Local ()) -> isJust (conversationViewMaybe loc uid c),
+        \(ConvWithLocalUser c luid) -> isJust (conversationViewMaybe luid c),
       testProperty "self user in conversation view is correct" $
-        \(ConvWithLocalUser c uid) (loc :: Local ()) ->
-          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe loc uid c)
-            == Just (Qualified uid (tDomain loc)),
+        \(ConvWithLocalUser c luid) ->
+          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe luid c)
+            == Just (qUntagged luid),
       testProperty "conversation view metadata is correct" $
-        \(ConvWithLocalUser c uid) (loc :: Local ()) ->
-          fmap cnvMetadata (conversationViewMaybe loc uid c)
+        \(ConvWithLocalUser c luid) ->
+          fmap cnvMetadata (conversationViewMaybe luid c)
             == Just (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
-        \(ConvWithLocalUser c uid) (loc :: Local ()) -> case conversationViewMaybe loc uid c of
+        \(ConvWithLocalUser c luid) -> case conversationViewMaybe luid c of
           Nothing -> False
           Just cnv ->
             not
-              ( Qualified uid (tDomain loc)
+              ( qUntagged luid
                   `elem` (map omQualifiedId (cmOthers (cnvMembers cnv)))
               ),
       testProperty "conversation view contains all users" $
-        \(ConvWithLocalUser c uid) (loc :: Local ()) ->
-          fmap (sort . cnvUids) (conversationViewMaybe loc uid c)
-            == Just (sort (convUids (tDomain loc) c)),
+        \(ConvWithLocalUser c luid) ->
+          fmap (sort . cnvUids) (conversationViewMaybe luid c)
+            == Just (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
-        \(RandomConversation c) (loc :: Local ()) uid ->
-          not (elem uid (map lmId (Data.convLocalMembers c)))
-            ==> isNothing (conversationViewMaybe loc uid c),
+        \(RandomConversation c) luid ->
+          not (elem (tUnqualified luid) (map lmId (Data.convLocalMembers c)))
+            ==> isNothing (conversationViewMaybe luid c),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (qUntagged ruid) /= dom
@@ -136,14 +136,16 @@ newtype RandomConversation = RandomConversation
 instance Arbitrary RandomConversation where
   arbitrary = RandomConversation <$> genConversation
 
-data ConvWithLocalUser = ConvWithLocalUser Data.Conversation UserId
+data ConvWithLocalUser = ConvWithLocalUser Data.Conversation (Local UserId)
   deriving (Show)
 
 instance Arbitrary ConvWithLocalUser where
   arbitrary = do
     member <- genLocalMember
-    ConvWithLocalUser <$> genConv member <*> pure (lmId member)
+    ConvWithLocalUser <$> genConv member <*> genLocal (lmId member)
     where
+      genLocal :: x -> Gen (Local x)
+      genLocal v = flip toLocalUnsafe v <$> arbitrary
       genConv m = uniqueMembers m . unRandomConversation <$> arbitrary
       uniqueMembers :: LocalMember -> Data.Conversation -> Data.Conversation
       uniqueMembers m c =
