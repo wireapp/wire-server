@@ -89,7 +89,6 @@ modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
 --------------------------------------------------------------------------------
 -- Members
 
--- FUTUREWORK: Add a qualified Id here.
 data Member = Member
   { memId :: Qualified UserId,
     memService :: Maybe ServiceRef,
