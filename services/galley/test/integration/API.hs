@@ -141,8 +141,8 @@ tests s =
           test s "fail to create conversation when blocked" postConvFailBlocked,
           test s "fail to create conversation when blocked by qualified member" postConvQualifiedFailBlocked,
           test s "fail to create conversation with remote users when remote user is not connected" postConvQualifiedNoConnection,
+          test s "fail to create team conversation with remote users when remote user is not connected" postTeamConvQualifiedNoConnection,
           test s "fail to create conversation with remote users when remote user's domain doesn't exist" postConvQualifiedNonExistentDomain,
-          -- test s "fail to create conversation with remote users when remote user doesn't exist" postConvQualifiedNonExistentUser,
           test s "fail to create conversation with remote users when federation not configured" postConvQualifiedFederationNotEnabled,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
@@ -1576,6 +1576,26 @@ postConvQualifiedNoConnection = do
   alice <- randomUser
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
   postConvQualified alice defNewConv {newConvQualifiedUsers = [bob]}
+    !!! const 403 === statusCode
+
+postTeamConvQualifiedNoConnection :: TestM ()
+postTeamConvQualifiedNoConnection = do
+  (tid, alice, _) <- createBindingTeamWithQualifiedMembers 1
+  bob <- randomQualifiedId (Domain "bob.example.com")
+  charlie <- randomQualifiedUser
+  postConvQualified
+    (qUnqualified alice)
+    defNewConv
+      { newConvQualifiedUsers = [bob],
+        newConvTeam = Just (ConvTeamInfo tid False)
+      }
+    !!! const 403 === statusCode
+  postConvQualified
+    (qUnqualified alice)
+    defNewConv
+      { newConvQualifiedUsers = [charlie],
+        newConvTeam = Just (ConvTeamInfo tid False)
+      }
     !!! const 403 === statusCode
 
 postConvQualifiedNonExistentDomain :: TestM ()

@@ -693,7 +693,7 @@ onMessageSent = do
 -- alice local, bob and chad remote in a local conversation
 -- bob sends a message (using the RPC), we test that alice receives it and that
 -- a call is made to the onMessageSent RPC to inform chad
-sendMessage :: HasCallStack => TestM ()
+sendMessage :: TestM ()
 sendMessage = do
   cannon <- view tsCannon
   let remoteDomain = Domain "far-away.example.com"
@@ -730,11 +730,9 @@ sendMessage = do
           <!! const 201 === statusCode
 
   liftIO $ do
-    [brigReq, galleyReq] <- case requests1 of
-      xs@[_, _] -> pure xs
+    [galleyReq] <- case requests1 of
+      xs@[_] -> pure xs
       _ -> assertFailure "unexpected number of requests"
-    fmap F.component (F.request brigReq) @?= Just F.Brig
-    fmap F.path (F.request brigReq) @?= Just "/federation/get-users-by-ids"
     fmap F.component (F.request galleyReq) @?= Just F.Galley
     fmap F.path (F.request galleyReq) @?= Just "/federation/on-conversation-created"
   let conv = Qualified convId localDomain

@@ -145,7 +145,7 @@ createTeamGroupConv zusr zcon tinfo body = do
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
   ensureConnectedToLocals zusr (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
-  checkRemoteUsersExist (ulRemotes allUsers)
+  ensureConnectedToRemotes lusr (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
     Data.createConversation
