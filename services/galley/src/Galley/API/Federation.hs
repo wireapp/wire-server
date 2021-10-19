@@ -50,6 +50,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
   ( ConversationUpdate (..),
     GetConversationsRequest (..),
@@ -60,6 +61,7 @@ import Wire.API.Federation.API.Galley
     MessageSendResponse (..),
     NewRemoteConversation (..),
     RemoteMessage (..),
+    UserDeletedNotification,
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 import Wire.API.Routes.Internal.Brig.Connection
@@ -76,7 +78,8 @@ federationSitemap =
         FederationAPIGalley.onConversationUpdated = onConversationUpdated,
         FederationAPIGalley.leaveConversation = leaveConversation,
         FederationAPIGalley.onMessageSent = onMessageSent,
-        FederationAPIGalley.sendMessage = sendMessage
+        FederationAPIGalley.sendMessage = sendMessage,
+        FederationAPIGalley.onUserDeleted = onUserDeleted
       }
 
 onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
@@ -271,3 +274,7 @@ sendMessage originDomain msr = do
   MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
   where
     err = throwM . invalidPayload . LT.pack
+
+-- TODO: Implement this
+onUserDeleted :: Domain -> UserDeletedNotification -> Galley EmptyResponse
+onUserDeleted _ _ = pure EmptyResponse

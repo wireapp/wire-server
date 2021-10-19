@@ -41,6 +41,7 @@ import Servant.Server.Generic (genericServerT)
 import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as Federated
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import Wire.API.Federation.API.Common
 import Wire.API.Message (UserClients)
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
@@ -60,7 +61,8 @@ federationSitemap =
         Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
         Federated.searchUsers = searchUsers,
         Federated.getUserClients = getUserClients,
-        Federated.sendConnectionAction = sendConnectionAction
+        Federated.sendConnectionAction = sendConnectionAction,
+        Federated.onUserDeleted = onUserDeleted
       }
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
@@ -112,3 +114,7 @@ searchUsers (SearchRequest searchTerm) = do
 
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+
+-- TODO: Implement this
+onUserDeleted :: Domain -> UserDeletedNotification -> Handler EmptyResponse
+onUserDeleted _ _ = pure EmptyResponse
