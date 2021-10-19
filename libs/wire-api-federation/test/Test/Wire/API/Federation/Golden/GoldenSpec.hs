@@ -19,7 +19,6 @@ module Test.Wire.API.Federation.Golden.GoldenSpec where
 
 import Imports
 import Test.Hspec
-import qualified Test.Wire.API.Federation.Golden.ConversationDelete as ConversationDelete
 import qualified Test.Wire.API.Federation.Golden.ConversationUpdate as ConversationUpdate
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationRequest as LeaveConversationRequest
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as LeaveConversationResponse
@@ -63,4 +62,3 @@ spec =
         (NewConnectionResponse.testObject_NewConnectionResponse3, "testObject_NewConnectionResponse3.json"),
         (NewConnectionResponse.testObject_NewConnectionResponse4, "testObject_NewConnectionResponse4.json")
       ]
-    testObjects [(ConversationDelete.testObject_ConversationDelete1, "testObject_ConversationDelete1")]

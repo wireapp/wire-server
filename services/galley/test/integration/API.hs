@@ -87,8 +87,8 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley
-  ( Api (onConversationDeleted, onConversationUpdated),
-    ConversationDelete (..),
+  ( Api (onConversationUpdated),
+    ConversationUpdate (cuAction, cuAlreadyPresentUsers, cuOrigUserId),
     GetConversationsResponse (..),
     RemoteConvMembers (..),
     RemoteConversation (..),
@@ -166,7 +166,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
-          test s "delete conversation with remote members" testDeleteConversationWithRemoteMembers,
+          test s "delete conversation with remote members" testDeleteTeamConversationWithRemoteMembers,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
           test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
@@ -251,7 +251,6 @@ emptyFederatedGalley =
         { FederatedGalley.onConversationCreated = \_ _ -> e "onConversationCreated",
           FederatedGalley.getConversations = \_ _ -> e "getConversations",
           FederatedGalley.onConversationUpdated = \_ _ -> e "onConversationUpdated",
-          FederatedGalley.onConversationDeleted = \_ _ -> e "onConversationDeleted",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
@@ -1908,8 +1907,8 @@ testAddRemoteMember = do
         toJSON [mkProfile bob (Name "bob")]
       | otherwise = toJSON ()
 
-testDeleteConversationWithRemoteMembers :: TestM ()
-testDeleteConversationWithRemoteMembers = do
+testDeleteTeamConversationWithRemoteMembers :: TestM ()
+testDeleteTeamConversationWithRemoteMembers = do
   (alice, tid) <- createBindingTeam
   localDomain <- viewFederationDomain
   let qalice = Qualified alice localDomain
@@ -1926,8 +1925,7 @@ testDeleteConversationWithRemoteMembers = do
   let brigApi = emptyFederatedBrig
       galleyApi =
         emptyFederatedGalley
-          { onConversationUpdated = \_domain _update -> pure (),
-            onConversationDeleted = \_ _ -> pure ()
+          { onConversationUpdated = \_domain _update -> pure ()
           }
 
   opts <- view tsGConf
@@ -1939,14 +1937,13 @@ testDeleteConversationWithRemoteMembers = do
       !!! const 200 === statusCode
 
   liftIO $ do
-    let convDeletes = mapMaybe parseFedRequest received
-    convDelete <- case convDeletes of
-      [] -> assertFailure "No ConversationDelete requests received"
+    let convUpdates = mapMaybe parseFedRequest received
+    convUpdate <- case (filter ((== ConversationActionDelete) . cuAction) convUpdates) of
+      [] -> assertFailure "No ConversationUpdate requests received"
       [convDelete] -> pure convDelete
-      _ -> assertFailure "Multiple ConversationDelete requests received"
-    cdMembers convDelete @?= [bobId]
-    cdConvId convDelete @?= convId
-    cdOriginUserId convDelete @?= qalice
+      _ -> assertFailure "Multiple ConversationUpdate requests received"
+    cuAlreadyPresentUsers convUpdate @?= [bobId]
+    cuOrigUserId convUpdate @?= qalice
   where
     parseFedRequest :: FromJSON a => GRPC.FederatedRequest -> Maybe a
     parseFedRequest fr =

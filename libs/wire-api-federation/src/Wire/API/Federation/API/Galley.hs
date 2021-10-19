@@ -78,13 +78,6 @@ data Api routes = Api
         :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationUpdate
         :> Post '[JSON] (),
-    onConversationDeleted ::
-      routes
-        :- "federation"
-        :> "on-conversation-deleted"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] ConversationDelete
-        :> Post '[JSON] (),
     leaveConversation ::
       routes
         :- "federation"
@@ -198,21 +191,6 @@ data ConversationUpdate = ConversationUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdate)
-
--- | Notifies the target domain that a conversation owned by the origin domain
--- has been deleted.
-data ConversationDelete = ConversationDelete
-  { cdTime :: UTCTime,
-    -- | User that deleted the conversation.
-    cdOriginUserId :: Qualified UserId,
-    -- | Conversation that is being deleted. It is owned by the origin domain.
-    cdConvId :: ConvId,
-    -- | All members of the conversation that are owned by target domain.
-    cdMembers :: [UserId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationDelete)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationDelete)
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which

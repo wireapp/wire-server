@@ -51,7 +51,7 @@ import TestSetup
 import Wire.API.Conversation.Action (ConversationAction (..))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role
-import Wire.API.Federation.API.Galley (ConversationDelete (..), GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
@@ -75,7 +75,7 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about member update" notifyMemberUpdate,
       test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update" notifyReceiptMode,
       test s "POST /federation/on-conversation-updated : Notify local user about access update" notifyAccess,
-      test s "POST /federation/on-conversation-deleted : Notify local users about a deleted conversation" notifyDeletedConversation,
+      test s "POST /federation/on-conversation-updated : Notify local users about a deleted conversation" notifyDeletedConversation,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -520,14 +520,15 @@ notifyDeletedConversation = do
 
   WS.bracketR c alice $ \wsAlice -> do
     now <- liftIO getCurrentTime
-    let convDelete =
-          ConversationDelete
-            { cdTime = now,
-              cdOriginUserId = qbob,
-              cdConvId = conv,
-              cdMembers = [alice]
+    let cu =
+          FedGalley.ConversationUpdate
+            { FedGalley.cuTime = now,
+              FedGalley.cuOrigUserId = qbob,
+              FedGalley.cuConvId = qUnqualified qconv,
+              FedGalley.cuAlreadyPresentUsers = [alice],
+              FedGalley.cuAction = ConversationActionDelete
             }
-    FedGalley.onConversationDeleted fedGalleyClient bobDomain convDelete
+    FedGalley.onConversationUpdated fedGalleyClient bobDomain cu
 
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do

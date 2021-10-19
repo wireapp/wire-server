@@ -36,6 +36,7 @@ module Galley.API.Update
     updateLocalConversation,
     updateConversationAccessUnqualified,
     updateConversationAccess,
+    deleteLocalConversation,
 
     -- * Managing Members
     addMembersUnqualified,
@@ -368,6 +369,15 @@ updateLocalConversationMessageTimer lusr con lcnv update =
     updateLocalConversation lcnv (qUntagged lusr) (Just con) $
       ConversationActionMessageTimerUpdate update
 
+deleteLocalConversation ::
+  Local UserId ->
+  ConnId ->
+  Local ConvId ->
+  Galley (UpdateResult Event)
+deleteLocalConversation lusr con lcnv =
+  getUpdateResult $
+    updateLocalConversation lcnv (qUntagged lusr) (Just con) ConversationActionDelete
+
 -- | Update a local conversation, and notify all local and remote members.
 updateLocalConversation ::
   Local ConvId ->
@@ -434,6 +444,13 @@ performAction qusr conv action = case action of
     pure (mempty, action)
   ConversationActionAccessUpdate update -> do
     performAccessUpdateAction qusr conv update
+    pure (mempty, action)
+  ConversationActionDelete -> lift $ do
+    let cid = Data.convId conv
+    (`Data.deleteCode` ReusableCode) =<< mkKey cid
+    case Data.convTeam conv of
+      Nothing -> Data.deleteConversation cid
+      Just tid -> Data.removeTeamConv tid cid
     pure (mempty, action)
 
 addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response

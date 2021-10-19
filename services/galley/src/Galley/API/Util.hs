@@ -65,7 +65,7 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
-import Wire.API.Federation.Error (federationErrorToWai)
+import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
 import Wire.API.Federation.GRPC.Types (Component (..))
 import qualified Wire.API.User as User
 
@@ -162,6 +162,19 @@ ensureConversationActionAllowed action conv self = do
   -- extra action-specific checks
   case action of
     ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
+    ConversationActionDelete -> do
+      case Data.convTeam conv of
+        Just tid -> do
+          foldQualified
+            loc
+            ( \lusr -> do
+                void $
+                  Data.teamMember tid (tUnqualified lusr)
+                    >>= ifNothing (errorDescriptionTypeToWai @NotATeamMember)
+            )
+            (\_ -> throwM federationNotImplemented)
+            (convMemberId loc self)
+        Nothing -> pure ()
     ConversationActionAccessUpdate target -> do
       -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
       -- so on; users are not supposed to be able to make other conversations
