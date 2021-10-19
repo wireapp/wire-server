@@ -101,7 +101,6 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let allUsers = newConvMembers lusr body
   checkedUsers <- checkedConvSize allUsers
   ensureConnected lusr allUsers
-  checkRemoteUsersExist (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   c <-
     Data.createConversation

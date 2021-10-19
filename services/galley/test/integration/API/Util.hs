@@ -565,23 +565,16 @@ postConvQualified u n = do
 
 postConvWithRemoteUsers ::
   HasCallStack =>
-  [UserProfile] ->
   UserId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers profiles u n = do
+postConvWithRemoteUsers u n = do
   opts <- view tsGConf
   fmap fst $
-    withTempMockFederator opts respond $
+    withTempMockFederator opts (const ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201 === statusCode
   where
-    respond :: F.FederatedRequest -> Value
-    respond req
-      | fmap F.component (F.request req) == Just F.Brig =
-        toJSON profiles
-      | otherwise = toJSON ()
-
     setName :: Maybe Text -> Maybe Text
     setName Nothing = Just "federated gossip"
     setName x = x

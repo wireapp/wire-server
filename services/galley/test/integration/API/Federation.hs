@@ -94,7 +94,6 @@ getConversationsAllFound = do
   cnv2 <-
     responseJsonError
       =<< postConvWithRemoteUsers
-        [mkProfile aliceQ (Name "alice")]
         bob
         defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 

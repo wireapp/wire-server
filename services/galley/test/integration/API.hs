@@ -542,7 +542,6 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
@@ -615,7 +614,6 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
@@ -686,7 +684,6 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
@@ -778,7 +775,6 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
@@ -904,7 +900,6 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
-      [mkProfile deeRemote (Name "Dee")]
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
@@ -1185,13 +1180,13 @@ testAccessUpdateGuestRemoved = do
   -- dee is a remote guest
   let remoteDomain = Domain "far-away.example.com"
   dee <- Qualified <$> randomId <*> pure remoteDomain
-  let deeProfile = mkProfile dee (Name "dee")
+
+  connectWithRemoteUser (qUnqualified alice) dee
 
   -- they are all in a local conversation
   conv <-
     responseJsonError
       =<< postConvWithRemoteUsers
-        [deeProfile]
         (qUnqualified alice)
         defNewConv
           { newConvQualifiedUsers = [bob, charlie, dee],
@@ -2311,7 +2306,6 @@ deleteLocalMemberConvLocalQualifiedOk = do
   convId <-
     decodeConvId
       <$> postConvWithRemoteUsers
-        [mkProfile qEve (Name "Eve")]
         alice
         defNewConv {newConvQualifiedUsers = [qBob, qEve]}
   let qconvId = Qualified convId localDomain
@@ -2523,7 +2517,6 @@ putQualifiedConvRenameWithRemotesOk = do
 
   resp <-
     postConvWithRemoteUsers
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
       <!! const 201 === statusCode
@@ -2925,7 +2918,6 @@ putReceiptModeWithRemotesOk = do
 
   resp <-
     postConvWithRemoteUsers
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp

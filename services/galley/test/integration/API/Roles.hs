@@ -44,7 +44,6 @@ import TestSetup
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Federation.GRPC.Types as F
-import Wire.API.User
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -170,7 +169,6 @@ roleUpdateRemoteMember = do
   traverse_ (connectWithRemoteUser bob) [qalice, qcharlie]
   resp <-
     postConvWithRemoteUsers
-      [mkProfile qalice (Name "Alice"), mkProfile qcharlie (Name "Charlie")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
@@ -241,7 +239,6 @@ roleUpdateWithRemotes = do
   connectWithRemoteUser bob qalice
   resp <-
     postConvWithRemoteUsers
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
@@ -301,7 +298,6 @@ accessUpdateWithRemotes = do
   connectWithRemoteUser bob qalice
   resp <-
     postConvWithRemoteUsers
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp

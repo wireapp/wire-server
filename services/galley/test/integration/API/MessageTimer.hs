@@ -49,7 +49,6 @@ import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Team.Member as Member
-import Wire.API.User.Profile (Name (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -153,7 +152,6 @@ messageTimerChangeWithRemotes = do
 
   resp <-
     postConvWithRemoteUsers
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
