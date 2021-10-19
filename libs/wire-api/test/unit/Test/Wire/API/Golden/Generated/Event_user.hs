@@ -159,7 +159,7 @@ testObject_Event_user_8 =
                 ConvMembers
                   { cmSelf =
                       Member
-                        { memId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
+                        { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
                           memService =
                             Just
                               ( ServiceRef

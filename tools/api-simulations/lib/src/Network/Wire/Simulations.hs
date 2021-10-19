@@ -49,7 +49,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
 import qualified Data.Map.Strict as Map
-import Data.Qualified (qUnqualified)
+import Data.Qualified (qUnqualified, toLocalUnsafe)
 import Data.Range
 import Data.Serialize
 import qualified Data.Set as Set
@@ -81,7 +81,8 @@ prepareConv (a : bs) = do
   mapM_ (connectIfNeeded a) bs
   let bIds = map botId bs
   conv <- qUnqualified . cnvQualifiedId <$> runBotSession a (createConv bIds Nothing)
-  assertConvCreated conv a bs
+  loc <- flip toLocalUnsafe () <$> viewFederationDomain
+  assertConvCreated loc conv a bs
   return conv
 
 -- | Make sure that there is a connection between two bots.

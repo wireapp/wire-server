@@ -510,8 +510,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   WS.bracketR cannon uid1 $ \ws -> do
     deleteService brig pid sid defProviderPassword
       !!! const 202 === statusCode
-    _ <- waitFor (5 # Second) not (isMember galley buid1 cid)
-    _ <- waitFor (5 # Second) not (isMember galley buid2 cid)
+    _ <- waitFor (5 # Second) not (isMember galley qbuid1 cid)
+    _ <- waitFor (5 # Second) not (isMember galley qbuid2 cid)
     getBotConv galley bid1 cid !!! const 404 === statusCode
     getBotConv galley bid2 cid !!! const 404 === statusCode
     wsAssertMemberLeave ws qcid qbuid1 [qbuid1]
@@ -616,7 +616,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
     setAccessRole uid1 cid TeamAccessRole
-    _ <- waitFor (5 # Second) not (isMember galley buid cid)
+    _ <- waitFor (5 # Second) not (isMember galley qbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
     svcAssertConvAccessUpdate
@@ -895,7 +895,7 @@ testWhitelistKickout localDomain config db brig galley cannon = do
     -- De-whitelist the service; both bots should be kicked out
     WS.bracketR cannon owner $ \ws -> do
       dewhitelistService brig owner tid pid sid
-      _ <- waitFor (2 # Second) not (isMember galley buid cid)
+      _ <- waitFor (2 # Second) not (isMember galley qbuid cid)
       getBotConv galley bid cid
         !!! const 404 === statusCode
       wsAssertMemberLeave ws qcid qowner [qbuid]
@@ -1981,7 +1981,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   WS.bracketR cannon uid $ \ws -> do
     deleteService brig pid sid defProviderPassword
       !!! const 202 === statusCode
-    _ <- waitFor (5 # Second) not (isMember galley buid cid)
+    _ <- waitFor (5 # Second) not (isMember galley qbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
     wsAssertMemberLeave ws qcid qbuid [qbuid]

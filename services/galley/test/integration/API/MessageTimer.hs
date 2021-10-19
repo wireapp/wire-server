@@ -75,11 +75,12 @@ messageTimerInit ::
 messageTimerInit mtimer = do
   -- Create a conversation with a timer
   [alice, bob, jane] <- randomUsers 3
+  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing mtimer
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing mtimer
+  cid <- assertConv rsp RegularConv alice qAlice [bob, jane] Nothing mtimer
   -- Check that the timer is indeed what it should be
   getConv jane cid
     !!! const mtimer === (cnvMessageTimer <=< responseJsonUnsafe)
@@ -88,11 +89,12 @@ messageTimerChange :: TestM ()
 messageTimerChange = do
   -- Create a conversation without a timer
   [alice, bob, jane] <- randomUsers 3
+  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing Nothing
+  cid <- assertConv rsp RegularConv alice qAlice [bob, jane] Nothing Nothing
   -- Set timer to null and observe 204
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate Nothing)
     !!! const 204 === statusCode
@@ -117,11 +119,12 @@ messageTimerChangeQualified = do
   localDomain <- viewFederationDomain
   -- Create a conversation without a timer
   [alice, bob, jane] <- randomUsers 3
+  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing Nothing
+  cid <- assertConv rsp RegularConv alice qAlice [bob, jane] Nothing Nothing
   let qcid = Qualified cid localDomain
   -- Set timer to null and observe 204
   putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate Nothing)
@@ -213,11 +216,12 @@ messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
   -- Create a 1:1 conversation
   [alice, bob] <- randomUsers 2
+  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
   connectUsers alice (singleton bob)
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
-  cid <- assertConv rsp One2OneConv alice alice [bob] Nothing Nothing
+  cid <- assertConv rsp One2OneConv alice qAlice [bob] Nothing Nothing
   -- Try to change the timer and observe failure
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 403 === statusCode
@@ -231,11 +235,12 @@ messageTimerEvent = do
   ca <- view tsCannon
   -- Create a conversation
   [alice, bob] <- randomUsers 2
+  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
   connectUsers alice (singleton bob)
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice alice [bob] Nothing Nothing
+  cid <- assertConv rsp RegularConv alice qAlice [bob] Nothing Nothing
   -- Set timer to 1 second and check that all participants got the event
   WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do
     let update = ConversationMessageTimerUpdate timer1sec

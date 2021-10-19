@@ -42,31 +42,31 @@ tests =
   testGroup
     "ConversationMapping"
     [ testProperty "conversation view for a valid user is non-empty" $
-        \(ConvWithLocalUser c uid) dom -> isJust (conversationViewMaybe dom uid c),
+        \(ConvWithLocalUser c uid) (loc :: Local ()) -> isJust (conversationViewMaybe loc uid c),
       testProperty "self user in conversation view is correct" $
-        \(ConvWithLocalUser c uid) dom ->
-          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe dom uid c)
-            == Just uid,
+        \(ConvWithLocalUser c uid) (loc :: Local ()) ->
+          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe loc uid c)
+            == Just (Qualified uid (tDomain loc)),
       testProperty "conversation view metadata is correct" $
-        \(ConvWithLocalUser c uid) dom ->
-          fmap cnvMetadata (conversationViewMaybe dom uid c)
+        \(ConvWithLocalUser c uid) (loc :: Local ()) ->
+          fmap cnvMetadata (conversationViewMaybe loc uid c)
             == Just (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
-        \(ConvWithLocalUser c uid) dom -> case conversationViewMaybe dom uid c of
+        \(ConvWithLocalUser c uid) (loc :: Local ()) -> case conversationViewMaybe loc uid c of
           Nothing -> False
           Just cnv ->
             not
-              ( Qualified uid dom
+              ( Qualified uid (tDomain loc)
                   `elem` (map omQualifiedId (cmOthers (cnvMembers cnv)))
               ),
       testProperty "conversation view contains all users" $
-        \(ConvWithLocalUser c uid) dom ->
-          fmap (sort . cnvUids dom) (conversationViewMaybe dom uid c)
-            == Just (sort (convUids dom c)),
+        \(ConvWithLocalUser c uid) (loc :: Local ()) ->
+          fmap (sort . cnvUids) (conversationViewMaybe loc uid c)
+            == Just (sort (convUids (tDomain loc) c)),
       testProperty "conversation view for an invalid user is empty" $
-        \(RandomConversation c) dom uid ->
+        \(RandomConversation c) (loc :: Local ()) uid ->
           not (elem uid (map lmId (Data.convLocalMembers c)))
-            ==> isNothing (conversationViewMaybe dom uid c),
+            ==> isNothing (conversationViewMaybe loc uid c),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (qUntagged ruid) /= dom
@@ -91,10 +91,10 @@ tests =
               )
     ]
 
-cnvUids :: Domain -> Conversation -> [Qualified UserId]
-cnvUids dom c =
+cnvUids :: Conversation -> [Qualified UserId]
+cnvUids c =
   let mems = cnvMembers c
-   in Qualified (memId (cmSelf mems)) dom :
+   in memId (cmSelf mems) :
       map omQualifiedId (cmOthers mems)
 
 convUids :: Domain -> Data.Conversation -> [Qualified UserId]

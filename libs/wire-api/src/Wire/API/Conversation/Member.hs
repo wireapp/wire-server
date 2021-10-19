@@ -91,7 +91,7 @@ modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
 
 -- FUTUREWORK: Add a qualified Id here.
 data Member = Member
-  { memId :: UserId,
+  { memId :: Qualified UserId,
     memService :: Maybe ServiceRef,
     memOtrMutedStatus :: Maybe MutedStatus,
     memOtrMutedRef :: Maybe Text,
@@ -109,7 +109,9 @@ instance ToSchema Member where
   schema =
     object "Member" $
       Member
-        <$> memId .= field "id" schema
+        <$> memId .= field "qualified_id" schema
+        <* (qUnqualified . memId)
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> memService .= lax (field "service" (optWithDefault A.Null schema))
         --  Remove ...
         <* const () .= optional (field "status" (c (0 :: Int)))

@@ -161,13 +161,14 @@ getRemoteConversationsWithFailures ::
   Galley ([FailedGetConversation], [Public.Conversation])
 getRemoteConversationsWithFailures zusr convs = do
   localDomain <- viewFederationDomain
+  lusr <- qualifyLocal zusr
 
   -- get self member statuses from the database
   statusMap <- Data.remoteConversationStatus zusr convs
   let remoteView :: Remote FederatedGalley.RemoteConversation -> Maybe Conversation
       remoteView rconv =
         Mapping.remoteConversationView
-          zusr
+          lusr
           ( Map.findWithDefault
               defMemberStatus
               (fmap FederatedGalley.rcnvId rconv)
@@ -358,9 +359,10 @@ internalGetMemberH (cnv ::: usr) = do
 
 getLocalSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
 getLocalSelf usr cnv = do
+  lusr <- qualifyLocal usr
   alive <- Data.isConvAlive cnv
   if alive
-    then Mapping.localMemberToSelf <$$> Data.member cnv usr
+    then Mapping.localMemberToSelf lusr <$$> Data.member cnv usr
     else Nothing <$ Data.deleteConversation cnv
 
 getConversationMetaH :: ConvId -> Galley Response

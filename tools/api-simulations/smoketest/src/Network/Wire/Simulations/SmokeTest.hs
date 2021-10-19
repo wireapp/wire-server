@@ -28,7 +28,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id (ConvId)
 import Data.List1
-import Data.Qualified (Qualified (..), qUnqualified)
+import Data.Qualified (Qualified (..), qUnqualified, toLocalUnsafe)
 import Data.Range
 import Imports
 import Network.Wire.Bot
@@ -86,13 +86,13 @@ mainBotNet n = do
   mapM_ allyAccept (bill : carl : goons)
   mapM_ awaitAssertions (ally : bill : carl : goons)
   info $ msg "Creating a group conversation ('Meetup') with everyone"
+  localDomain <- viewFederationDomain
   meetup <- runBotSession ally $ do
     let others = bill : carl : goons
     conv <- qUnqualified . cnvQualifiedId <$> createConv (map botId others) (Just "Meetup")
-    assertConvCreated conv ally others
+    assertConvCreated (toLocalUnsafe localDomain ()) conv ally others
     return conv
   info $ msg "Bill updates his member state"
-  localDomain <- viewFederationDomain
   runBotSession bill $ do
     let update =
           MemberUpdateData

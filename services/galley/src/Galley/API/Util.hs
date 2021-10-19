@@ -722,7 +722,7 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
     toMember :: OtherMember -> Public.Member
     toMember m =
       Public.Member
-        { memId = qUnqualified . omQualifiedId $ m,
+        { memId = omQualifiedId m,
           memService = omService m,
           memOtrMutedStatus = Nothing,
           memOtrMutedRef = Nothing,
