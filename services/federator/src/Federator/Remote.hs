@@ -48,6 +48,7 @@ import Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Input as Polysemy
 import qualified Polysemy.Reader as Polysemy
+import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
@@ -72,7 +73,8 @@ interpretRemote ::
        DiscoverFederator,
        TinyLog,
        Polysemy.Reader RunSettings,
-       Polysemy.Input TLSSettings
+       Polysemy.Input TLSSettings,
+       Polysemy.Resource
      ]
     r =>
   Sem (Remote ': r) a ->
