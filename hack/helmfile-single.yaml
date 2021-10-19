@@ -56,7 +56,7 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/wire-server'
     values:
-      - './helm_vars/wire-server/values.yaml'
+      - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/certificates-namespace1.yaml'
     set:
       - name: brig.config.optSettings.setFederationDomain

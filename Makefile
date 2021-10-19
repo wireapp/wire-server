@@ -403,6 +403,7 @@ kind-reset: kind-delete kind-cluster
 .local/kind-kubeconfig:
 	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
+	chmod 0600 $(CURDIR)/.local/kind-kubeconfig
 
 # This guard is a fail-early way to save needing to debug nginz container not
 # starting up in the second namespace of the kind cluster in some cases. Error
@@ -429,11 +430,11 @@ guard-inotify:
 
 .PHONY: kind-integration-setup
 kind-integration-setup: guard-inotify .local/kind-kubeconfig
-	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
+	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
 kind-integration-test: .local/kind-kubeconfig
-	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
+	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
 
 kind-integration-e2e: .local/kind-kubeconfig
 	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)

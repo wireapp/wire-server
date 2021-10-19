@@ -58,13 +58,13 @@ let
 
     helm = staticBinaryInTarball {
       pname = "helm";
-      version = "3.1.1";
+      version = "3.6.3";
 
-      darwinAmd64Url = "https://get.helm.sh/helm-v3.1.1-darwin-amd64.tar.gz";
-      darwinAmd64Sha256 = "2ce00e6c44ba18fbcbec21c493476e919128710d480789bb35bd228ae695cd66";
+      darwinAmd64Url = "https://get.helm.sh/helm-v3.6.3-darwin-amd64.tar.gz";
+      darwinAmd64Sha256 = "0djjvgla8cw27h8s4y6jby19f74j58byb2vfv590cd03vlbzz8c4";
 
-      linuxAmd64Url = "https://get.helm.sh/helm-v3.1.1-linux-amd64.tar.gz";
-      linuxAmd64Sha256 = "cdd7ad304e2615c583dde0ffb0cb38fc1336cd7ce8ff3b5f237434dcadb28c98";
+      linuxAmd64Url = "https://get.helm.sh/helm-v3.6.3-linux-amd64.tar.gz";
+      linuxAmd64Sha256 = "0qp28fq137b07haz4vsdbc5biagh60dcs29jj70ksqi5k6201h87";
     };
 
     helmfile = staticBinary {
