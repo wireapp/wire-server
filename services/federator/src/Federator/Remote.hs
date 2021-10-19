@@ -28,6 +28,7 @@ module Federator.Remote
 where
 
 import Control.Lens ((^.))
+import Control.Monad.Except
 import Data.Default (def)
 import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
@@ -42,12 +43,14 @@ import Mu.GRpc.Client.Optics (GRpcReply)
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
 import Mu.GRpc.Client.TyApps (gRpcCall)
 import Network.GRPC.Client.Helpers
+import Network.HTTP2.Client.Exceptions
 import Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Input as Polysemy
 import qualified Polysemy.Reader as Polysemy
+import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
@@ -72,7 +75,8 @@ interpretRemote ::
        DiscoverFederator,
        TinyLog,
        Polysemy.Reader RunSettings,
-       Polysemy.Input TLSSettings
+       Polysemy.Input TLSSettings,
+       Polysemy.Resource
      ]
     r =>
   Sem (Remote ': r) a ->
@@ -82,8 +86,8 @@ interpretRemote = interpret $ \case
     target <-
       Polysemy.mapError (RemoteErrorDiscoveryFailure vDomain) $
         discoverFederatorWithError vDomain
-    client <- mkGrpcClient target
-    callInward client vRequest
+    Polysemy.bracket (mkGrpcClient target) (closeGrpcClient target) $ \client ->
+      callInward client vRequest
 
 callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
@@ -153,6 +157,20 @@ mkGrpcClient target@(SrvTarget host port) = do
   Polysemy.mapError (RemoteErrorClientFailure target)
     . Polysemy.fromEither
     =<< Polysemy.fromExceptionVia (RemoteErrorTLSException target) (createGrpcClient cfg')
+
+closeGrpcClient ::
+  Members '[Embed IO, Polysemy.Error RemoteError] r =>
+  SrvTarget ->
+  GrpcClient ->
+  Sem r ()
+closeGrpcClient target =
+  Polysemy.mapError handle
+    . Polysemy.fromEitherM
+    . runExceptT
+    . close
+  where
+    handle :: ClientError -> RemoteError
+    handle = RemoteErrorClientFailure target . grpcClientError Nothing
 
 logRemoteErrors ::
   Members '[Polysemy.Error RemoteError, TinyLog] r =>

@@ -123,14 +123,16 @@ data FederationError
   | FederationNotImplemented
   | FederationNotConfigured
   | FederationCallFailure FederationClientFailure
-  deriving (Show, Eq)
+  deriving (Show, Eq, Typeable)
+
+instance Exception FederationError
 
 data FederationClientFailure = FederationClientFailure
   { fedFailDomain :: Domain,
     fedFailPath :: ByteString,
     fedFailError :: FederationClientError
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Typeable)
 
 data FederationClientError
   = FederationClientInvalidMethod HTTP.Method
@@ -139,7 +141,7 @@ data FederationClientError
   | FederationClientOutwardError Proto.OutwardError
   | FederationClientInwardError Proto.InwardError
   | FederationClientServantError Servant.ClientError
-  deriving (Show, Eq)
+  deriving (Show, Eq, Typeable)
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)

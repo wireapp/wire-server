@@ -46,8 +46,8 @@ type FederationAppIO = ExceptT FederationError AppIO
 -- FUTUREWORK: Maybe find a way to tranform 'clientRoutes' into a client which
 -- only uses 'FederationAppIO' monad, then boilerplate in this module can all be
 -- deleted.
-getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
-getUserHandleInfo (Qualified handle domain) = do
+getUserHandleInfo :: Remote Handle -> FederationAppIO (Maybe UserProfile)
+getUserHandleInfo (qUntagged -> Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   executeFederated domain $ getUserByHandle clientRoutes handle
 

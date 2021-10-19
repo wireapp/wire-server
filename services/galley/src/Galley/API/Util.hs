@@ -58,7 +58,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import UnliftIO (concurrently)
+import UnliftIO.Async
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
@@ -623,7 +623,7 @@ qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
 checkRemoteUsersExist =
   -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
-  traverse_ checkRemotesFor . indexRemote
+  traverse_ checkRemotesFor . bucketRemote
 
 checkRemotesFor :: Remote [UserId] -> Galley ()
 checkRemotesFor (qUntagged -> Qualified uids domain) = do
@@ -649,10 +649,26 @@ runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
     >>= either (throwM . federationErrorToWai) pure
 
+runFederatedConcurrently ::
+  (Foldable f, Functor f) =>
+  f (Remote a) ->
+  (Remote [a] -> FederatedGalleyRPC c b) ->
+  Galley [Remote b]
+runFederatedConcurrently xs rpc =
+  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    qualifyAs r <$> runFederated (tDomain r) (rpc r)
+
+runFederatedConcurrently_ ::
+  (Foldable f, Functor f) =>
+  f (Remote a) ->
+  (Remote [a] -> FederatedGalleyRPC c ()) ->
+  Galley ()
+runFederatedConcurrently_ xs = void . runFederatedConcurrently xs
+
 -- | Convert an internal conversation representation 'Data.Conversation' to
 -- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
--- 'Wire.API.Conversation.Convevrsation' values, one per user from that remote
+-- 'Wire.API.Conversation.Conversation' values, one per user from that remote
 -- backend.
 --
 -- FUTUREWORK: Include the team ID as well once it becomes qualified.
@@ -668,7 +684,7 @@ toNewRemoteConversation ::
 toNewRemoteConversation now localDomain Data.Conversation {..} =
   NewRemoteConversation
     { rcTime = now,
-      rcOrigUserId = Qualified convCreator localDomain,
+      rcOrigUserId = convCreator,
       rcCnvId = convId,
       rcCnvType = convType,
       rcCnvAccess = convAccess,
@@ -694,12 +710,16 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
 -- be sent out to users informing them that they were added to a new
 -- conversation.
 fromNewRemoteConversation ::
-  Domain ->
+  Local x ->
   NewRemoteConversation (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
-fromNewRemoteConversation d NewRemoteConversation {..} =
+fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
-      creatorOther = OtherMember rcOrigUserId Nothing roleNameWireAdmin
+      creatorOther =
+        OtherMember
+          (qUntagged (rcRemoteOrigUserId rc))
+          Nothing
+          roleNameWireAdmin
    in foldMap
         ( \(me, others) ->
             guard (inDomain me) $> let mem = toMember me in (mem, conv mem (creatorOther : others))
@@ -707,7 +727,7 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
         membersView
   where
     inDomain :: OtherMember -> Bool
-    inDomain = (== d) . qDomain . omQualifiedId
+    inDomain = (== tDomain loc) . qDomain . omQualifiedId
     setHoles :: Ord a => Set a -> [(a, Set a)]
     setHoles s = foldMap (\x -> [(x, Set.delete x s)]) s
     -- Currently this function creates a Member with default conversation attributes
@@ -733,7 +753,7 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
           { cnvmType = rcCnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain
-            cnvmCreator = qUnqualified rcOrigUserId,
+            cnvmCreator = rcOrigUserId,
             cnvmAccess = rcCnvAccess,
             cnvmAccessRole = rcCnvAccessRole,
             cnvmName = rcCnvName,
@@ -754,23 +774,10 @@ registerRemoteConversationMemberships ::
   Data.Conversation ->
   Galley ()
 registerRemoteConversationMemberships now localDomain c = do
-  let rc = toNewRemoteConversation now localDomain c
-  -- FUTUREWORK: parallelise federated requests
-  traverse_ (registerRemoteConversations rc)
-    . Map.keys
-    . indexQualified
-    . nubOrd
-    . map (qUntagged . rmId)
-    . Data.convRemoteMembers
-    $ c
-  where
-    registerRemoteConversations ::
-      NewRemoteConversation ConvId ->
-      Domain ->
-      Galley ()
-    registerRemoteConversations rc domain = do
-      let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
-      runFederated domain rpc
+  let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
+      rc = toNewRemoteConversation now localDomain c
+  runFederatedConcurrently_ allRemoteMembers $ \_ ->
+    FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
 
 --------------------------------------------------------------------------------
 -- Legalhold

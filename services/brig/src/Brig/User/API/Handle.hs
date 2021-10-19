@@ -26,14 +26,14 @@ where
 import Brig.API.Error (fedError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import Brig.App (settings, viewFederationDomain)
+import Brig.App
 import qualified Brig.Data.User as Data
 import qualified Brig.Federation.Client as Federation
 import Brig.Options (searchSameTeamOnly)
 import Control.Lens (view)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
-import Data.Qualified (Qualified (..))
+import Data.Qualified
 import Imports
 import Network.Wai.Utilities ((!>>))
 import qualified System.Logger.Class as Log
@@ -42,19 +42,23 @@ import qualified Wire.API.User as Public
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
 
--- FUTUREWORK: use 'runMaybeT' to simplify this.
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
 getHandleInfo self handle = do
-  domain <- viewFederationDomain
-  if qDomain handle == domain
-    then getLocalHandleInfo self (qUnqualified handle)
-    else getRemoteHandleInfo
-  where
-    getRemoteHandleInfo = do
-      Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
-      Federation.getUserHandleInfo handle !>> fedError
+  lself <- qualifyLocal self
+  foldQualified
+    lself
+    (getLocalHandleInfo lself . tUnqualified)
+    getRemoteHandleInfo
+    handle
 
-getLocalHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserProfile)
+getRemoteHandleInfo :: Remote Handle -> Handler (Maybe Public.UserProfile)
+getRemoteHandleInfo handle = do
+  Log.info $
+    Log.msg (Log.val "getHandleInfo - remote lookup")
+      . Log.field "domain" (show (tDomain handle))
+  Federation.getUserHandleInfo handle !>> fedError
+
+getLocalHandleInfo :: Local UserId -> Handle -> Handler (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
   Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
   maybeOwnerId <- lift $ API.lookupHandle handle
@@ -67,12 +71,12 @@ getLocalHandleInfo self handle = do
       return $ listToMaybe owner
 
 -- | Checks search permissions and filters accordingly
-filterHandleResults :: UserId -> [Public.UserProfile] -> Handler [Public.UserProfile]
+filterHandleResults :: Local UserId -> [Public.UserProfile] -> Handler [Public.UserProfile]
 filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
-      fromTeam <- lift $ Data.lookupUserTeam searchingUser
+      fromTeam <- lift $ Data.lookupUserTeam (tUnqualified searchingUser)
       return $ case fromTeam of
         Just team -> filter (\x -> Public.profileTeam x == Just team) us
         Nothing -> us

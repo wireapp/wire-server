@@ -918,7 +918,9 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
-getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
+getUser self qualifiedUserId = do
+  lself <- qualifyLocal self
+  API.lookupProfile lself qualifiedUserId !>> fedError
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -946,14 +948,14 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 
 listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> Handler [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
+  lself <- qualifyLocal self
   foundUsers <- case q of
     Public.ListUsersByIds us ->
-      byIds us
+      byIds lself us
     Public.ListUsersByHandles hs -> do
-      loc <- qualifyLocal ()
-      let (localHandles, _) = partitionQualified loc (fromRange hs)
+      let (localHandles, _) = partitionQualified lself (fromRange hs)
       us <- getIds localHandles
-      Handle.filterHandleResults self =<< byIds us
+      Handle.filterHandleResults lself =<< byIds lself us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
@@ -963,8 +965,8 @@ listUsersByIdsOrHandles self q = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
-    byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
-    byIds uids = API.lookupProfiles self uids !>> fedError
+    byIds :: Local UserId -> [Qualified UserId] -> Handler [Public.UserProfile]
+    byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

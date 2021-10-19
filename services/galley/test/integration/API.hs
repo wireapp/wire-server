@@ -291,7 +291,6 @@ postConvOk = do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
         <!! const 201 === statusCode
-    print rsp
     cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
@@ -1994,7 +1993,7 @@ testGetQualifiedRemoteConv = do
       aliceAsSelfMember = localMemberToSelf aliceAsLocal
 
   connectWithRemoteUser aliceId bobQ
-  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   let mockConversation = mkConv convId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
@@ -2032,11 +2031,10 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
-      bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
       aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
 
-  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   opts <- view tsGConf
   void . withTempMockFederator opts remoteDomain (const (GetConversationsResponse [])) $ do
@@ -2060,7 +2058,7 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
 -- - A remote conv on b.far-away.example.com, it is found in the local DB but
 --   the remote does not return it
 --
--- - A remote conv on c.far-away.example.com, for which the federated call fails
+-- - A remote conv on c.far-away.example.com (with Dee), for which the federated call fails
 --
 -- - A local conversation which doesn't exist
 --
@@ -2072,14 +2070,17 @@ testBulkGetQualifiedConvs = do
   let alice = qUnqualified aliceQ
   bobId <- randomId
   carlId <- randomId
+  deeId <- randomId
   let remoteDomainA = Domain "a.far-away.example.com"
       remoteDomainB = Domain "b.far-away.example.com"
       remoteDomainC = Domain "c.far-away.example.com"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
+      deeQ = Qualified deeId remoteDomainC
 
   connectWithRemoteUser alice bobQ
   connectWithRemoteUser alice carlQ
+  connectWithRemoteUser alice deeQ
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = cnvQualifiedId localConv
@@ -2095,10 +2096,10 @@ testBulkGetQualifiedConvs = do
   localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-  registerRemoteConv remoteConvIdA bobQ Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdB carlQ Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdA bobId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdB carlId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdBNotFoundOnRemote carlId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdCFailure deeId Nothing (Set.fromList [aliceAsOtherMember])
 
   let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
@@ -3067,7 +3068,7 @@ removeUser = do
   let nc =
         FederatedGalley.NewRemoteConversation
           { FederatedGalley.rcTime = now,
-            FederatedGalley.rcOrigUserId = dee,
+            FederatedGalley.rcOrigUserId = qUnqualified dee,
             FederatedGalley.rcCnvId = conv4,
             FederatedGalley.rcCnvType = RegularConv,
             FederatedGalley.rcCnvAccess = [],
