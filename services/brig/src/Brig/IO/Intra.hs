@@ -442,11 +442,12 @@ toPushFormat (UserEvent (UserResumed i)) =
       [ "type" .= ("user.resume" :: Text),
         "id" .= i
       ]
-toPushFormat (UserEvent (UserDeleted i)) =
+toPushFormat (UserEvent (UserDeleted qid)) =
   Just $
     M.fromList
       [ "type" .= ("user.delete" :: Text),
-        "id" .= i
+        "id" .= qUnqualified qid,
+        "qualified_id" .= qid
       ]
 toPushFormat (UserEvent (UserLegalHoldDisabled i)) =
   Just $

@@ -1353,12 +1353,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Delete the user
   WS.bracketRN cannon (uid : others) $ \wss -> do
     execDelete uid
-    void . liftIO . WS.assertMatchN (5 # Second) wss $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
-      let etype = j ^? key "type" . _String
-      let euser = j ^? key "id" . _String
-      etype @?= Just "user.delete"
-      euser @?= Just (UUID.toText (toUUID uid))
+    void . liftIO . WS.assertMatchN (5 # Second) wss $ matchDeleteUserNotification quid
     liftIO $ Util.assertUserJournalQueue "user deletion, setHandleAndDeleteUser: " aws (userDeleteJournaled uid)
   -- Cookies are gone
   n2 <- countCookies brig uid defCookieLabel
