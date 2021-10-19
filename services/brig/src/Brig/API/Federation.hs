@@ -27,12 +27,18 @@ import qualified Brig.API.User as API
 import Brig.App (qualifyLocal)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
-import Brig.Types (PrekeyBundle)
+import Brig.IO.Intra (notify)
+import Brig.Types (PrekeyBundle, Relation (Accepted))
+import Brig.Types.User.Event
 import Brig.User.API.Handle
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
+import Data.List.NonEmpty (nonEmpty)
+import Data.List1
 import Data.Qualified
+import Data.Range
+import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
@@ -43,6 +49,7 @@ import qualified Wire.API.Federation.API.Brig as Federated
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.Federation.API.Common
 import Wire.API.Message (UserClients)
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -115,6 +122,16 @@ searchUsers (SearchRequest searchTerm) = do
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
--- TODO: Implement this
 onUserDeleted :: Domain -> UserDeletedNotification -> Handler EmptyResponse
-onUserDeleted _ _ = pure EmptyResponse
+onUserDeleted origDomain udn = lift $ do
+  let deletedUser = toRemoteUnsafe origDomain (udnUser udn)
+      connections = udnConnections udn
+      event = pure . UserEvent $ UserDeleted (qUntagged deletedUser)
+  acceptedLocals <-
+    map csv2From
+      . filter (\x -> csv2Status x == Accepted)
+      <$> Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser)
+  for_ (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
+    notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
+  Data.deleteRemoteConnections deletedUser connections
+  pure EmptyResponse

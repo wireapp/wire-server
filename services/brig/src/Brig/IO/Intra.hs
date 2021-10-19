@@ -60,6 +60,9 @@ module Brig.IO.Intra
 
     -- * Legalhold
     guardLegalhold,
+
+    -- * Low Level API for Notifications
+    notify,
   )
 where
 
@@ -312,7 +315,7 @@ rawPush (toList -> events) usrs orig route conn = do
 -- | (Asynchronously) notifies other users of events.
 notify ::
   List1 Event ->
-  -- | Origin user.
+  -- | Origin user, TODO: Delete
   UserId ->
   -- | Push routing strategy.
   Push.Route ->

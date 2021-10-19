@@ -37,6 +37,7 @@ module Brig.Data.Connection
     lookupAllStatuses,
     countConnections,
     deleteConnections,
+    deleteRemoteConnections,
     remoteConnectionInsert,
     remoteConnectionSelect,
     remoteConnectionSelectFrom,
@@ -64,7 +65,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time (getCurrentTime)
 import Imports hiding (local)
-import UnliftIO.Async (pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
+import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection
 
@@ -280,6 +281,11 @@ deleteConnections u = do
   retry x1 . write connectionClear $ params Quorum (Identity u)
   where
     delete (other, _status) = write connectionDelete $ params Quorum (other, u)
+
+deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO ()
+deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
+  pooledForConcurrentlyN_ 16 locals $ \u ->
+    write remoteConnectionDelete $ params Quorum (u, remoteDomain, remoteUser)
 
 -- Queries
 
