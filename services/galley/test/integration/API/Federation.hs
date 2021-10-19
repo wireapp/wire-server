@@ -508,7 +508,7 @@ notifyDeletedConversation = do
   mapM_ (`connectWithRemoteUser` qbob) [alice]
   registerRemoteConv
     qconv
-    qbob
+    bob
     (Just "gossip")
     (Set.fromList (map mkMember [qalice]))
 
