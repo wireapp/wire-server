@@ -466,6 +466,8 @@ testExternalIdIsRequired = do
   createUser_ (Just tok) user' (env ^. teSpar)
     !!! const 400 === statusCode
 
+-- The next line contains a mapping from this test to the following test standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
 -- | Test that user creation fails if handle is invalid
 testCreateRejectsInvalidHandle :: TestSpar ()
 testCreateRejectsInvalidHandle = do
