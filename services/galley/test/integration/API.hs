@@ -240,7 +240,8 @@ emptyFederatedBrig =
           FederatedBrig.claimMultiPrekeyBundle = \_ -> e "claimMultiPrekeyBundle",
           FederatedBrig.searchUsers = \_ -> e "searchUsers",
           FederatedBrig.getUserClients = \_ -> e "getUserClients",
-          FederatedBrig.sendConnectionAction = \_ _ -> e "sendConnectionAction"
+          FederatedBrig.sendConnectionAction = \_ _ -> e "sendConnectionAction",
+          FederatedBrig.onUserDeleted = \_ _ -> e "onUserDeleted"
         }
 
 emptyFederatedGalley :: FederatedGalley.Api (AsServerT Handler)
@@ -253,7 +254,8 @@ emptyFederatedGalley =
           FederatedGalley.onConversationUpdated = \_ _ -> e "onConversationUpdated",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
-          FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
+          FederatedGalley.sendMessage = \_ _ -> e "sendMessage",
+          FederatedGalley.onUserDeleted = \_ _ -> e "onUserDeleted"
         }
 
 -------------------------------------------------------------------------------
