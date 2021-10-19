@@ -74,7 +74,7 @@ conversationViewMaybe luid conv = do
           <> map remoteMemberToOther rothers
   pure $
     Conversation
-      (Qualified (convId conv) (tDomain luid))
+      (qUntagged . qualifyAs luid . convId $ conv)
       (Data.convMetadata conv)
       (ConvMembers self others)
 
