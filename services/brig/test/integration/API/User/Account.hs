@@ -1110,7 +1110,7 @@ testDeleteUserByPassword brig cannon aws = do
     !!! const 200 === statusCode
   n1 <- countCookies brig uid1 defCookieLabel
   liftIO $ Just 1 @=? n1
-  setHandleAndDeleteUser brig cannon u [] aws $
+  setHandleAndDeleteUser brig cannon u [uid2, uid3] aws $
     \uid -> deleteUser uid (Just defPassword) brig !!! const 200 === statusCode
   -- Activating the new email address now should not work
   act <- getActivationCode brig (Left eml)
