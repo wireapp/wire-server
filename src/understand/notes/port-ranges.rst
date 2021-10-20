@@ -1,3 +1,5 @@
+:orphan:
+
 Note on port ranges
 ===================
 
@@ -18,7 +20,7 @@ You read this range for your system by running the following command:
 Or by finding the following line in your ``/etc/sysctl.conf`` file, if it exists:
 
 .. code-block:: bash
-    
+
     # Allowed local port range
     net.ipv4.ip_local_port_range = 32768 61000
 
