@@ -156,10 +156,9 @@ messageTimerChangeWithRemotes = do
       defNewConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts (const ()) $
+      withTempMockFederator (const ()) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 

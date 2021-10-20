@@ -130,12 +130,15 @@ import Wire.API.User.Identity (mkSimpleSampleUref)
 -- | A class for monads with access to a Galley instance
 class HasGalley m where
   viewGalley :: m GalleyR
+  viewGalleyOpts :: m Opts.Opts
 
 instance HasGalley TestM where
   viewGalley = view tsGalley
+  viewGalleyOpts = view tsGConf
 
 instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
   viewGalley = lift viewGalley
+  viewGalleyOpts = lift viewGalleyOpts
 
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
@@ -569,9 +572,8 @@ postConvWithRemoteUsers ::
   NewConv ->
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u n = do
-  opts <- view tsGConf
   fmap fst $
-    withTempMockFederator opts (const ()) $
+    withTempMockFederator (const ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201 === statusCode
   where
@@ -677,8 +679,7 @@ postProteusMessageQualifiedWithMockFederator ::
   TestM (ResponseLBS, Mock.ReceivedRequests)
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
-  opts <- view tsGConf
-  withTempServantMockFederator opts brigApi galleyApi localDomain $
+  withTempServantMockFederator brigApi galleyApi localDomain $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -2166,21 +2167,20 @@ mkProfile quid name =
 -- expected request.
 withTempMockFederator ::
   (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
-  Opts.Opts ->
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts resp = withTempMockFederator' opts (pure . oresp)
+withTempMockFederator resp = withTempMockFederator' (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
 withTempMockFederator' ::
   (MonadIO m, HasGalley m, MonadMask m) =>
-  Opts.Opts ->
   (FederatedRequest -> IO F.OutwardResponse) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator' opts resp action =
+withTempMockFederator' resp action = do
+  opts <- viewGalleyOpts
   assertRightT
     . Mock.withTempMockFederator st0 (lift . resp)
     $ \st -> lift $ do
@@ -2193,14 +2193,13 @@ withTempMockFederator' opts resp action =
 
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  Opts.Opts ->
   FederatedBrig.Api (AsServerT Handler) ->
   FederatedGalley.Api (AsServerT Handler) ->
   Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempServantMockFederator opts brigApi galleyApi originDomain =
-  withTempMockFederator' opts mock
+withTempServantMockFederator brigApi galleyApi originDomain =
+  withTempMockFederator' mock
   where
     server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
     server = genericServerT brigApi :<|> genericServerT galleyApi

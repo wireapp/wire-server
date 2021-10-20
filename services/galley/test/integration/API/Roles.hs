@@ -173,10 +173,9 @@ roleUpdateRemoteMember = do
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts (const ()) $
+      withTempMockFederator (const ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -243,10 +242,9 @@ roleUpdateWithRemotes = do
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator opts (const ()) $
+      withTempMockFederator (const ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -302,11 +300,10 @@ accessUpdateWithRemotes = do
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator opts (const ()) $
+      withTempMockFederator (const ()) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 

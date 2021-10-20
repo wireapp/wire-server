@@ -558,7 +558,6 @@ leaveConversationSuccess = do
   connectWithRemoteUser alice qDee
   connectWithRemoteUser alice qEve
 
-  opts <- view tsGConf
   let mockedResponse fedReq = do
         let success :: ToJSON a => a -> IO F.OutwardResponse
             success = pure . F.OutwardResponseBody . LBS.toStrict . A.encode
@@ -573,7 +572,7 @@ leaveConversationSuccess = do
           _ -> success ()
 
   (convId, _) <-
-    withTempMockFederator' opts mockedResponse $
+    withTempMockFederator' mockedResponse $
       decodeConvId
         <$> postConvQualified
           alice
@@ -584,7 +583,7 @@ leaveConversationSuccess = do
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' opts mockedResponse $ do
+      withTempMockFederator' mockedResponse $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
         respBS <-
@@ -714,13 +713,12 @@ sendMessage = do
   connectWithRemoteUser aliceId bob
   connectWithRemoteUser aliceId chad
   -- conversation
-  opts <- view tsGConf
   let responses1 req
         | fmap F.component (F.request req) == Just F.Brig =
           toJSON [bobProfile, chadProfile]
         | otherwise = toJSON ()
   (convId, requests1) <-
-    withTempMockFederator opts responses1 $
+    withTempMockFederator responses1 $
       fmap decodeConvId $
         postConvQualified
           aliceId
@@ -762,7 +760,7 @@ sendMessage = do
                 ]
             )
         | otherwise = toJSON ()
-  (_, requests2) <- withTempMockFederator opts responses2 $ do
+  (_, requests2) <- withTempMockFederator responses2 $ do
     WS.bracketR cannon aliceId $ \ws -> do
       g <- viewGalley
       msresp <-
