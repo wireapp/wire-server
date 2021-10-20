@@ -50,6 +50,9 @@ module Galley.API.Update
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
 
+    -- * Notifications
+    notifyConversationMetadataUpdate,
+
     -- * Talking
     postProteusMessage,
     postOtrMessageUnqualified,

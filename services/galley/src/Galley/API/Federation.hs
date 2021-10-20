@@ -29,11 +29,13 @@ import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
+import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
+import Galley.API.Update (notifyConversationMetadataUpdate)
 import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App (Galley)
@@ -275,6 +277,28 @@ sendMessage originDomain msr = do
   where
     err = throwM . invalidPayload . LT.pack
 
--- TODO: Implement this
 onUserDeleted :: Domain -> UserDeletedNotification -> Galley EmptyResponse
-onUserDeleted _ _ = pure EmptyResponse
+onUserDeleted origDomain udn = do
+  let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udnUser udn)
+      untaggedDeletedUser = qUntagged deletedUser
+      convIds = FederationAPIGalley.udnConversations udn
+  for_ (fromRange convIds) $ \c -> do
+    lc <- qualifyLocal c
+    mconv <- Data.conversation c
+    Data.removeRemoteMembersFromLocalConv c (pure deletedUser)
+    for_ mconv $ \conv -> do
+      when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $
+        case Data.convType conv of
+          -- No need for a notification on One2One conv as the user is being
+          -- deleted and that notification should suffice.
+          Public.One2OneConv -> pure ()
+          -- No need for a notification on Connect Conv as there should be no
+          -- other user in the conv.
+          Public.ConnectConv -> pure ()
+          -- The self conv cannot be on a remote backend.
+          Public.SelfConv -> pure ()
+          Public.RegularConv -> do
+            let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
+                botsAndMembers = convBotsAndMembers conv
+            void $ notifyConversationMetadataUpdate untaggedDeletedUser Nothing lc botsAndMembers action
+  pure EmptyResponse

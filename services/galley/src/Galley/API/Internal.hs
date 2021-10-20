@@ -487,6 +487,7 @@ rmUser user conn = do
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
 
+    -- TODO: Ensure that remote members of local convs get notified of this activity
     leaveLocalConversations :: [ConvId] -> Galley ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain

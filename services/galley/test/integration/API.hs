@@ -61,7 +61,6 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Database.CQL.IO
 import Galley.API.Mapping
-import Galley.API.One2One (one2OneConvId)
 import qualified Galley.Data as Data
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (LocalMember (..))
@@ -3191,7 +3190,7 @@ testAllOne2OneConversationRequests = do
 testOne2OneConversationRequest :: Bool -> Actor -> DesiredMembership -> TestM ()
 testOne2OneConversationRequest shouldBeLocal actor desired = do
   alice <- qTagUnsafe <$> randomQualifiedUser
-  (bob, expectedConvId) <- generateRemoteAndConvId alice
+  (bob, expectedConvId) <- generateRemoteAndConvId shouldBeLocal alice
   db <- view tsCass
 
   convId <- do
@@ -3222,12 +3221,3 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
           _ -> pure []
       when (actor == LocalActor) $
         liftIO $ isJust (find (qUntagged alice ==) mems) @?= (desired == Included)
-  where
-    generateRemoteAndConvId :: Local UserId -> TestM (Remote UserId, Qualified ConvId)
-    generateRemoteAndConvId lUserId = do
-      other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
-      let convId = one2OneConvId (qUntagged lUserId) other
-          isLocal = tDomain lUserId == qDomain convId
-      if shouldBeLocal == isLocal
-        then pure (qTagUnsafe other, convId)
-        else generateRemoteAndConvId lUserId
