@@ -361,7 +361,7 @@ sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
   let mockConnectionResponse = F.NewConnectionResponseOk reaction
       mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
   (res, reqs) <-
-    liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
+    liftIO . withTempMockFederator opts mockResponse $
       postConnectionQualified brig uid1 quid2
 
   liftIO $ do
@@ -388,7 +388,7 @@ sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
   let mockConnectionResponse = F.NewConnectionResponseOk reaction
       mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
   void $
-    liftIO . withTempMockFederator opts (qDomain quid2) mockResponse $
+    liftIO . withTempMockFederator opts mockResponse $
       putConnectionQualified brig uid1 quid2 expectedRel !!! const 200 === statusCode
   assertConnectionQualified brig uid1 quid2 expectedRel
 
