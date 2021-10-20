@@ -1933,8 +1933,7 @@ testDeleteTeamConversationWithRemoteMembers = do
           { onConversationUpdated = \_domain _update -> pure ()
           }
 
-  opts <- view tsGConf
-  (_, received) <- withTempServantMockFederator opts brigApi galleyApi localDomain remoteDomain $ do
+  (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId
       !!! const 200 === statusCode
 
