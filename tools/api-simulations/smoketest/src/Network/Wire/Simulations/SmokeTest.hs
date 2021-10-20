@@ -92,8 +92,8 @@ mainBotNet n = do
     lconv <- qualifyLocal conv
     assertConvCreated lconv ally others
     return conv
-  localDomain <- viewFederationDomain
   info $ msg "Bill updates his member state"
+  localDomain <- viewFederationDomain
   runBotSession bill $ do
     let update =
           MemberUpdateData
