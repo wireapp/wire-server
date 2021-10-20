@@ -31,25 +31,24 @@ import Network.Wire.Client.API.User
 
 assertConvCreated ::
   (HasCallStack, MonadBotNet m) =>
-  Local x ->
-  ConvId ->
+  Local ConvId ->
   -- | The creator of the conversation.
   Bot ->
   -- | The other users in the conversation.
   [Bot] ->
   m ()
-assertConvCreated loc c b bs = do
+assertConvCreated c b bs = do
   let everyone = b : bs
   forM_ bs $ \u ->
     let others = Set.fromList . filter (/= botId u) . map botId $ everyone
-     in assertEvent u TConvCreate (convCreate (qUntagged (qualifyAs loc (botId u))) others)
+     in assertEvent u TConvCreate (convCreate (qUntagged . qualifyAs c . botId $ u) others)
   where
     convCreate self others = \case
       EConvCreate e ->
         let cnv = convEvtData e
             mems = cnvMembers cnv
             omems = Set.fromList (map (qUnqualified . omQualifiedId) (cmOthers mems))
-         in (qUnqualified . cnvQualifiedId $ cnv) == c
+         in cnvQualifiedId cnv == qUntagged c
               && convEvtFrom e == botId b
               && cnvType cnv == RegularConv
               && memId (cmSelf mems) == self

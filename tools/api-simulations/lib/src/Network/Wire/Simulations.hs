@@ -81,8 +81,8 @@ prepareConv (a : bs) = do
   mapM_ (connectIfNeeded a) bs
   let bIds = map botId bs
   conv <- qUnqualified . cnvQualifiedId <$> runBotSession a (createConv bIds Nothing)
-  loc <- flip toLocalUnsafe () <$> viewFederationDomain
-  assertConvCreated loc conv a bs
+  lconv <- qualifyLocal conv
+  assertConvCreated lconv a bs
   return conv
 
 -- | Make sure that there is a connection between two bots.
