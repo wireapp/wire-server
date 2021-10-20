@@ -468,6 +468,7 @@ testExternalIdIsRequired = do
 
 -- The next line contains a mapping from this test to the following test standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
+
 -- | Test that user creation fails if handle is invalid
 testCreateRejectsInvalidHandle :: TestSpar ()
 testCreateRejectsInvalidHandle = do

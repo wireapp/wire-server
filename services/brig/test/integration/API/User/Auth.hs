@@ -361,7 +361,6 @@ testSendLoginCode brig = do
   let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
-
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
 
@@ -909,7 +908,6 @@ testRemoveCookiesByLabelAndId b = do
   -- Check the remaining cookie
   let lbl = cookieLabel c4
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
-
 
 -- The testTooManyCookies test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI

@@ -1,4 +1,3 @@
-
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -416,7 +415,6 @@ testMultiUserGetPrekeysQualified brig opts = do
     !!! do
       const 200 === statusCode
       const (Right $ expectedUserClientMap) === responseJsonEither
-
 
 -- The testTooManyClients test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
