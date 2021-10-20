@@ -134,7 +134,7 @@ tests _ at opts p b c ch g aws =
         ]
     ]
 
--- The testCreateUserConflict test conforms to the following testing standards:
+-- The testCreateUserWithInvalidVerificationCode test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
 --
 -- Registering with an invalid verification code and valid account details should fail.
@@ -149,7 +149,7 @@ testCreateUserWithInvalidVerificationCode brig = do
             "phone" .= fromPhone p,
             "phone_code" .= code
           ]
-  postUserRegister' regPhone brig !!! const 403 === statusCode
+  postUserRegister' regPhone brig !!! const 404 === statusCode
   e <- randomEmail
   let Object regEmail =
         object
@@ -157,7 +157,7 @@ testCreateUserWithInvalidVerificationCode brig = do
             "email" .= fromEmail e,
             "email_code" .= code
           ]
-  postUserRegister' regEmail brig !!! const 403 === statusCode
+  postUserRegister' regEmail brig !!! const 404 === statusCode
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserWithPreverified opts brig aws = do
@@ -229,7 +229,7 @@ testCreateUser brig galley = do
       b <- responseBody r
       b ^? key "conversations" . nth 0 . key "type" >>= maybeFromJSON
 
--- The testCreateUserConflict test conforms to the following testing standards:
+-- The testCreateUserEmptyName test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
 --
 -- An empty name is not allowed on registration
@@ -242,7 +242,7 @@ testCreateUserEmptyName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
--- The testCreateUserConflict test conforms to the following testing standards:
+-- The testCreateUserLongName test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
 --
 -- a name with > 128 characters is not allowed.
