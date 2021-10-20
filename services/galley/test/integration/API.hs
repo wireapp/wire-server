@@ -95,7 +95,6 @@ import Wire.API.Federation.API.Galley
   )
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
-import qualified Wire.API.Federation.GRPC.Types as GRPC
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client
@@ -1944,11 +1943,11 @@ testDeleteTeamConversationWithRemoteMembers = do
     cuAlreadyPresentUsers convUpdate @?= [bobId]
     cuOrigUserId convUpdate @?= qalice
   where
-    parseFedRequest :: FromJSON a => GRPC.FederatedRequest -> Maybe a
+    parseFedRequest :: FromJSON a => F.FederatedRequest -> Maybe a
     parseFedRequest fr =
-      case GRPC.request fr of
+      case F.request fr of
         Just r ->
-          (decode . cs) (GRPC.body r)
+          (decode . cs) (F.body r)
         Nothing -> Nothing
 
 testGetQualifiedLocalConv :: TestM ()
