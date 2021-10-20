@@ -52,6 +52,7 @@ import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time (UTCTime, getCurrentTime)
@@ -82,6 +83,8 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /register - 201" $ testCreateUser b g,
       test' aws p "post /register - 201 + no email" $ testCreateUserNoEmailNoPassword b,
       test' aws p "post /register - 201 anonymous" $ testCreateUserAnon b g,
+      test' aws p "post /register - 400 empty name" $ testCreateUserEmptyName b,
+      test' aws p "post /register - 400 name too long" $ testCreateUserLongName b,
       test' aws p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
       test' aws p "post /register - 201 pending" $ testCreateUserPending opts b,
       test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey opts b,
@@ -200,6 +203,33 @@ testCreateUser brig galley = do
       b <- responseBody r
       b ^? key "conversations" . nth 0 . key "type" >>= maybeFromJSON
 
+-- The testCreateUserConflict test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+--
+-- email address must not be taken on @/register@.
+testCreateUserEmptyName :: Brig -> Http ()
+testCreateUserEmptyName brig = do
+  let p =
+        RequestBodyLBS . encode $
+          object
+            ["name" .= ("" :: Text)]
+  post (brig . path "/register" . contentJson . body p)
+    !!! const 400 === statusCode
+
+-- The testCreateUserConflict test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+--
+-- a name with > 128 characters is not allowed.
+testCreateUserLongName :: Brig -> Http ()
+testCreateUserLongName brig = do
+  let nameTooLong = cs $ concat $ replicate 129 "a"
+  let p =
+        RequestBodyLBS . encode $
+          object
+            ["name" .= (nameTooLong :: Text)]
+  post (brig . path "/register" . contentJson . body p)
+    !!! const 400 === statusCode
+
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
   let p =
@@ -287,8 +317,8 @@ testCreateUserNoEmailNoPassword brig = do
 
 -- The testCreateUserConflict test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
-
--- | email address must not be taken on @/register@.
+--
+-- email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
 testCreateUserConflict (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserConflict _ brig = do
@@ -320,8 +350,8 @@ testCreateUserConflict _ brig = do
 
 -- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
-
--- | Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
+--
+-- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
 testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
 testCreateUserInvalidEmailOrPhone (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserInvalidEmailOrPhone _ brig = do
