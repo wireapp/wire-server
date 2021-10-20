@@ -495,8 +495,7 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
-  let cid = qUnqualified . cnvQualifiedId $ cnv
-      qcid = Qualified cid localDomain
+  let (cid, qcid) = (qUnqualified &&& id) (cnvQualifiedId cnv)
   -- Add two bots there
   bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   bid2 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
