@@ -22,7 +22,6 @@ module Brig.Phone
     PhoneException (..),
     sendCall,
     sendSms,
-    isTestPhone,
 
     -- * Validation
     validatePhone,
