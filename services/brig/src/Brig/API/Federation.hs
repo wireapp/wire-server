@@ -44,6 +44,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as Federated
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
@@ -131,7 +132,7 @@ onUserDeleted origDomain udn = lift $ do
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
       <$> Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser)
-  for_ (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
+  pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
     notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse

@@ -47,6 +47,7 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified System.Logger.Class as Log
+import UnliftIO.Async (pooledForConcurrentlyN_)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
@@ -282,7 +283,7 @@ onUserDeleted origDomain udn = do
   let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udnUser udn)
       untaggedDeletedUser = qUntagged deletedUser
       convIds = FederationAPIGalley.udnConversations udn
-  for_ (fromRange convIds) $ \c -> do
+  pooledForConcurrentlyN_ 16 (fromRange convIds) $ \c -> do
     lc <- qualifyLocal c
     mconv <- Data.conversation c
     Data.removeRemoteMembersFromLocalConv c (pure deletedUser)
