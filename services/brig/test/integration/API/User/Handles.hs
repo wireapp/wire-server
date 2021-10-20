@@ -66,6 +66,10 @@ tests _cl _at conf p b c g =
       test p "GET /users/by-handle/<domain>/<handle> : no federation" $ testGetUserByQualifiedHandleNoFederation conf b
     ]
 
+-- The next line contains a mapping from the testHandleUpdate test to the following test standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+
+-- | Test changes to the user's handle.
 testHandleUpdate :: Brig -> Cannon -> Http ()
 testHandleUpdate brig cannon = do
   user <- randomUser brig

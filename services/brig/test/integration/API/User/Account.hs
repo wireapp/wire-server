@@ -285,6 +285,9 @@ testCreateUserNoEmailNoPassword brig = do
     getPhoneLoginCode brig p
   initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
 
+-- The testCreateUserConflict test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+
 -- | email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
 testCreateUserConflict (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -315,6 +318,10 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
+-- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+
+-- | Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
 testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
 testCreateUserInvalidEmailOrPhone (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserInvalidEmailOrPhone _ brig = do

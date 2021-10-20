@@ -1,3 +1,4 @@
+
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -416,6 +417,10 @@ testMultiUserGetPrekeysQualified brig opts = do
       const 200 === statusCode
       const (Right $ expectedUserClientMap) === responseJsonEither
 
+
+-- The testTooManyClients test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
@@ -435,6 +440,9 @@ testTooManyClients opts brig = do
       const 403 === statusCode
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
       const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
+
+-- The testRemoveClient test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
@@ -474,6 +482,9 @@ testRemoveClient hasPwd brig cannon = do
         { newClientLabel = Just "Nexus 5x",
           newClientCookie = Just defCookieLabel
         }
+
+-- The testRemoveClientShortPwd test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
 
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
@@ -660,6 +671,9 @@ testMissingClient brig = do
     const Nothing === responseBody
     const ["text/plain;charset=utf-8"]
       === map snd . filter ((== "Content-Type") . fst) . responseHeaders
+
+-- The testAddMultipleTemporary test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
