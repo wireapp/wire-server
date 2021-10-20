@@ -140,7 +140,7 @@ tests _ at opts p b c ch g aws =
 -- Registering with an invalid verification code and valid account details should fail.
 testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
 testCreateUserWithInvalidVerificationCode brig = do
-  -- Register (pre verified) user with phone
+  -- Attempt to register (pre verified) user with phone
   p <- randomPhone
   code <- randomActivationCode -- incorrect but syntactically valid activation code
   let Object regPhone =
@@ -150,6 +150,7 @@ testCreateUserWithInvalidVerificationCode brig = do
             "phone_code" .= code
           ]
   postUserRegister' regPhone brig !!! const 404 === statusCode
+  -- Attempt to register (pre verified) user with email
   e <- randomEmail
   let Object regEmail =
         object
