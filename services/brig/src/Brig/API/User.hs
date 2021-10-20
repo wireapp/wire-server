@@ -112,6 +112,7 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
+import Brig.Phone (isTestPhone)
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
 import Brig.Types
@@ -624,9 +625,11 @@ changePhone u phone = do
   when blacklisted $
     throwE (BlacklistedNewPhone canonical)
   -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
-  when prefixExcluded $
-    throwE (BlacklistedNewPhone canonical)
+  -- (but don't do this check during tests with test phone numbers prefixed with +0)
+  unless (isTestPhone (fromPhone canonical)) $ do
+    prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+    when prefixExcluded $
+      throwE (BlacklistedNewPhone canonical)
   act <- lift $ Data.newActivation pk timeout (Just u)
   return (act, canonical)
 
