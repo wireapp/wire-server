@@ -25,6 +25,7 @@ module Galley.Intra.Federator.Types
 where
 
 import Control.Lens
+import Control.Monad.Catch
 import Control.Monad.Except
 import Galley.Env
 import Galley.Options
@@ -43,7 +44,10 @@ newtype FederationM a = FederationM
       Monad,
       MonadIO,
       MonadReader Env,
-      MonadUnliftIO
+      MonadUnliftIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask
     )
 
 runFederationM :: Env -> FederationM a -> IO a

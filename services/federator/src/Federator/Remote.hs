@@ -43,7 +43,6 @@ import Mu.GRpc.Client.Optics (GRpcReply)
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
 import Mu.GRpc.Client.TyApps (gRpcCall)
 import Network.GRPC.Client.Helpers
-import Network.HTTP2.Client.Exceptions
 import Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
@@ -86,7 +85,7 @@ interpretRemote = interpret $ \case
     target <-
       Polysemy.mapError (RemoteErrorDiscoveryFailure vDomain) $
         discoverFederatorWithError vDomain
-    Polysemy.bracket (mkGrpcClient target) (closeGrpcClient target) $ \client ->
+    Polysemy.bracket (mkGrpcClient target) (embed @IO . closeGrpcClient) $ \client ->
       callInward client vRequest
 
 callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
@@ -157,20 +156,6 @@ mkGrpcClient target@(SrvTarget host port) = do
   Polysemy.mapError (RemoteErrorClientFailure target)
     . Polysemy.fromEither
     =<< Polysemy.fromExceptionVia (RemoteErrorTLSException target) (createGrpcClient cfg')
-
-closeGrpcClient ::
-  Members '[Embed IO, Polysemy.Error RemoteError] r =>
-  SrvTarget ->
-  GrpcClient ->
-  Sem r ()
-closeGrpcClient target =
-  Polysemy.mapError handle
-    . Polysemy.fromEitherM
-    . runExceptT
-    . close
-  where
-    handle :: ClientError -> RemoteError
-    handle = RemoteErrorClientFailure target . grpcClientError Nothing
 
 logRemoteErrors ::
   Members '[Polysemy.Error RemoteError, TinyLog] r =>

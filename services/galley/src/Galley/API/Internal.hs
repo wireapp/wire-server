@@ -27,7 +27,6 @@ where
 
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Except (runExceptT)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
@@ -57,6 +56,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.Paging
@@ -90,7 +90,6 @@ import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
 import Wire.API.Federation.API.Galley (UserDeletedConversationsNotification (UserDeletedConversationsNotification))
 import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.Federation.Client (executeFederated)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
@@ -564,7 +563,7 @@ rmUser user conn = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete
-        res <- runExceptT (executeFederated (tDomain remoteConvs) rpc)
+        res <- liftSem $ runFederatedEither remoteConvs rpc
         case res of
           -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
           -- See https://wearezeta.atlassian.net/browse/SQCORE-1091

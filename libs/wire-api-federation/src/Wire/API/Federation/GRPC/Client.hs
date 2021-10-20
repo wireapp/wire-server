@@ -18,11 +18,13 @@
 module Wire.API.Federation.GRPC.Client
   ( GrpcClientErr (..),
     createGrpcClient,
+    closeGrpcClient,
     grpcClientError,
   )
 where
 
 import Control.Exception
+import Control.Monad.Except
 import qualified Data.Text as T
 import Imports
 import Mu.GRpc.Client.Record (setupGrpcClient')
@@ -40,6 +42,11 @@ createGrpcClient cfg = do
     Left err -> Left (grpcClientError (Just cfg) err)
     Right (Left err) -> Left (grpcClientError (Just cfg) err)
     Right (Right client) -> Right client
+
+-- | Close federator client and ignore errors, since the only possible error
+-- here is EarlyEndOfStream, which should not concern us at this point.
+closeGrpcClient :: MonadIO m => GrpcClient -> m ()
+closeGrpcClient = void . liftIO . runExceptT . close
 
 grpcClientError :: Exception e => Maybe GrpcClientConfig -> e -> GrpcClientErr
 grpcClientError mcfg err =
