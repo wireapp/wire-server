@@ -87,7 +87,9 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley
-  ( GetConversationsResponse (..),
+  ( Api (onConversationUpdated),
+    ConversationUpdate (cuAction, cuAlreadyPresentUsers, cuOrigUserId),
+    GetConversationsResponse (..),
     RemoteConvMembers (..),
     RemoteConversation (..),
   )
@@ -163,6 +165,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
+          test s "delete conversation with remote members" testDeleteTeamConversationWithRemoteMembers,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
           test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
@@ -1908,6 +1911,50 @@ testAddRemoteMember = do
       | fmap F.component (F.request req) == Just F.Brig =
         toJSON [mkProfile bob (Name "bob")]
       | otherwise = toJSON ()
+
+testDeleteTeamConversationWithRemoteMembers :: TestM ()
+testDeleteTeamConversationWithRemoteMembers = do
+  (alice, tid) <- createBindingTeam
+  localDomain <- viewFederationDomain
+  let qalice = Qualified alice localDomain
+
+  bobId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteBob = Qualified bobId remoteDomain
+
+  convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
+  let _qconvId = Qualified convId localDomain
+
+  connectWithRemoteUser alice remoteBob
+
+  let brigApi = emptyFederatedBrig
+      galleyApi =
+        emptyFederatedGalley
+          { onConversationUpdated = \_domain _update -> pure ()
+          }
+
+  (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
+    postQualifiedMembers alice (remoteBob :| []) convId
+      !!! const 200 === statusCode
+
+    deleteTeamConv tid convId alice
+      !!! const 200 === statusCode
+
+  liftIO $ do
+    let convUpdates = mapMaybe parseFedRequest received
+    convUpdate <- case (filter ((== ConversationActionDelete) . cuAction) convUpdates) of
+      [] -> assertFailure "No ConversationUpdate requests received"
+      [convDelete] -> pure convDelete
+      _ -> assertFailure "Multiple ConversationUpdate requests received"
+    cuAlreadyPresentUsers convUpdate @?= [bobId]
+    cuOrigUserId convUpdate @?= qalice
+  where
+    parseFedRequest :: FromJSON a => F.FederatedRequest -> Maybe a
+    parseFedRequest fr =
+      case F.request fr of
+        Just r ->
+          (decode . cs) (F.body r)
+        Nothing -> Nothing
 
 testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do

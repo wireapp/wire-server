@@ -75,6 +75,7 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about member update" notifyMemberUpdate,
       test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update" notifyReceiptMode,
       test s "POST /federation/on-conversation-updated : Notify local user about access update" notifyAccess,
+      test s "POST /federation/on-conversation-updated : Notify local users about a deleted conversation" notifyDeletedConversation,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -487,6 +488,54 @@ notifyMemberUpdate = do
     (ConversationActionMemberUpdate qdee (OtherMemberUpdate (Just roleNameWireAdmin)))
     MemberStateUpdate
     (EdMemberUpdate d)
+
+notifyDeletedConversation :: TestM ()
+notifyDeletedConversation = do
+  c <- view tsCannon
+
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+
+  bob <- randomId
+  conv <- randomId
+  let bobDomain = Domain "bob.example.com"
+      qbob = Qualified bob bobDomain
+      qconv = Qualified conv bobDomain
+      mkMember quid = OtherMember quid Nothing roleNameWireMember
+
+  mapM_ (`connectWithRemoteUser` qbob) [alice]
+  registerRemoteConv
+    qconv
+    bob
+    (Just "gossip")
+    (Set.fromList (map mkMember [qalice]))
+
+  fedGalleyClient <- view tsFedGalleyClient
+
+  do
+    aliceConvs <- listRemoteConvs bobDomain alice
+    liftIO $ aliceConvs @?= [qconv]
+
+  WS.bracketR c alice $ \wsAlice -> do
+    now <- liftIO getCurrentTime
+    let cu =
+          FedGalley.ConversationUpdate
+            { FedGalley.cuTime = now,
+              FedGalley.cuOrigUserId = qbob,
+              FedGalley.cuConvId = qUnqualified qconv,
+              FedGalley.cuAlreadyPresentUsers = [alice],
+              FedGalley.cuAction = ConversationActionDelete
+            }
+    FedGalley.onConversationUpdated fedGalleyClient bobDomain cu
+
+    liftIO $ do
+      WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ConvDelete @=? evtType e
+
+  do
+    aliceConvs <- listRemoteConvs bobDomain alice
+    liftIO $ aliceConvs @?= []
 
 -- TODO: test adding non-existing users
 -- TODO: test adding resulting in an empty notification

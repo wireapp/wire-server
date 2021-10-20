@@ -44,6 +44,7 @@ data ConversationAction
   | ConversationActionReceiptModeUpdate ConversationReceiptModeUpdate
   | ConversationActionMemberUpdate (Qualified UserId) OtherMemberUpdate
   | ConversationActionAccessUpdate ConversationAccessData
+  | ConversationActionDelete
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)
@@ -71,6 +72,8 @@ conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (
    in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
 conversationActionToEvent now quid qcnv (ConversationActionAccessUpdate update) =
   Event ConvAccessUpdate qcnv quid now (EdConvAccessUpdate update)
+conversationActionToEvent now quid qcnv ConversationActionDelete =
+  Event ConvDelete qcnv quid now EdConvDelete
 
 conversationActionTag :: Qualified UserId -> ConversationAction -> Action
 conversationActionTag _ (ConversationActionAddMembers _ _) = AddConversationMember
@@ -82,3 +85,4 @@ conversationActionTag _ (ConversationActionMessageTimerUpdate _) = ModifyConvers
 conversationActionTag _ (ConversationActionReceiptModeUpdate _) = ModifyConversationReceiptMode
 conversationActionTag _ (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember
 conversationActionTag _ (ConversationActionAccessUpdate _) = ModifyConversationAccess
+conversationActionTag _ ConversationActionDelete = DeleteConversation

@@ -1161,7 +1161,6 @@ testDeleteBindingTeam ownerHasPassword = do
 testDeleteTeamConv :: TestM ()
 testDeleteTeamConv = do
   localDomain <- viewFederationDomain
-  g <- view tsGalley
   c <- view tsCannon
   owner <- Util.randomUser
   let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
@@ -1179,14 +1178,9 @@ testDeleteTeamConv = do
   for_ [owner, member ^. userId, extern] $ \u -> Util.assertConvMember u cid1
   for_ [owner, member ^. userId] $ \u -> Util.assertConvMember u cid2
   WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
-    delete
-      ( g
-          . paths ["teams", toByteString' tid, "conversations", toByteString' cid2]
-          . zUser (member ^. userId)
-          . zConn "conn"
-      )
-      !!! const 200
-      === statusCode
+    deleteTeamConv tid cid2 (member ^. userId)
+      !!! const 200 === statusCode
+
     -- We no longer send duplicate conv deletion events
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
@@ -1195,14 +1189,9 @@ testDeleteTeamConv = do
     checkConvDeleteEvent qcid2 wsOwner
     checkConvDeleteEvent qcid2 wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
-    delete
-      ( g
-          . paths ["teams", toByteString' tid, "conversations", toByteString' cid1]
-          . zUser (member ^. userId)
-          . zConn "conn"
-      )
-      !!! const 200
-      === statusCode
+
+    deleteTeamConv tid cid1 (member ^. userId)
+      !!! const 200 === statusCode
     -- We no longer send duplicate conv deletion events
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"

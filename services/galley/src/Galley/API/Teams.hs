@@ -82,6 +82,7 @@ import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
+import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -89,7 +90,6 @@ import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
-import qualified Galley.Data.Types as Data
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -762,22 +762,10 @@ getTeamConversation zusr tid cid = do
   Data.teamConversation tid cid >>= maybe (throwErrorDescriptionType @ConvNotFound) pure
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
-deleteTeamConversation zusr zcon tid cid = do
-  localDomain <- viewFederationDomain
-  let qconvId = Qualified cid localDomain
-      qusr = Qualified zusr localDomain
-  (bots, cmems) <- localBotsAndUsers <$> Data.members cid
-  ensureActionAllowed Roles.DeleteConversation =<< getSelfMemberFromLocalsLegacy zusr cmems
-  flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
-  now <- liftIO getCurrentTime
-  let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
-  let recps = fmap recipient cmems
-  let convPush = newPushLocal ListComplete zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
-  pushSome $ maybeToList convPush
-  void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
-  -- TODO: we don't delete bots here, but we should do that, since every
-  -- bot user can only be in a single conversation
-  Data.removeTeamConv tid cid
+deleteTeamConversation zusr zcon _tid cid = do
+  lusr <- qualifyLocal zusr
+  lconv <- qualifyLocal cid
+  void $ API.deleteLocalConversation lusr zcon lconv
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do

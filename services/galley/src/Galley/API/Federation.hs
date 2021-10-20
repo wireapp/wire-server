@@ -163,6 +163,9 @@ onConversationUpdated requestingDomain cu = do
     ConversationActionMemberUpdate _ _ -> pure (Just $ cuAction cu, [])
     ConversationActionReceiptModeUpdate _ -> pure (Just $ cuAction cu, [])
     ConversationActionAccessUpdate _ -> pure (Just $ cuAction cu, [])
+    ConversationActionDelete -> do
+      Data.removeLocalMembersFromRemoteConv rconvId presentUsers
+      pure (Just $ cuAction cu, [])
 
   unless allUsersArePresent $
     Log.warn $
