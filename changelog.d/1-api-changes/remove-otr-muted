@@ -1,1 +1,0 @@
-The `otr_muted` field in `Member` and `MemberUpdate` has been removed.

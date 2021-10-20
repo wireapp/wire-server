@@ -16,15 +16,23 @@ library:
   dependencies:
   - aeson >=0.6
   - base >=4 && <5
+  - bytestring
+  - bytestring-conversion
   - containers >=0.5
+  - cryptonite
   - currency-codes >=2.0
+  - errors
   - exceptions >=0.10.0
   - lens >=4.12
+  - memory
   - QuickCheck
+  - schema-profunctor
   - string-conversions
+  - tagged
   - text >=0.11
   - time >=1.4
   - types-common >=0.16
+  - uuid
 tests:
   galley-types-tests:
     main: Main.hs

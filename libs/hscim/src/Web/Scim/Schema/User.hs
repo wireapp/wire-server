@@ -74,9 +74,10 @@ where
 
 import Control.Monad.Except
 import Data.Aeson
+import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
 import Data.List ((\\))
-import Data.Text (Text, pack, toLower)
+import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import Lens.Micro
@@ -180,7 +181,7 @@ empty schemas userName extra =
 instance FromJSON (UserExtra tag) => FromJSON (User tag) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
-    let o = HM.fromList . map (over _1 toLower) . HM.toList $ obj
+    let o = HM.fromList . map (over _1 CI.foldCase) . HM.toList $ obj
     schemas <-
       o .:? "schemas" <&> \case
         Nothing -> [User20]

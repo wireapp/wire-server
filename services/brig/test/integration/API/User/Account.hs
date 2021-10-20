@@ -74,6 +74,7 @@ import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 import Wire.API.User (ListUsersQuery (..))
+import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
@@ -109,6 +110,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
       test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
+      test' aws p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
@@ -452,7 +454,7 @@ testCreateUserBlacklist _ brig aws =
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
   teamid <- Id <$> liftIO UUID.nextRandom
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
       p withsso withteam =
         RequestBodyLBS . encode . object $
           ["name" .= ("foo" :: Text)]
@@ -825,6 +827,22 @@ testPhoneUpdate brig = do
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just phn) === (userPhone <=< responseJsonMaybe)
+
+testPhoneUpdateBlacklisted :: Brig -> Http ()
+testPhoneUpdateBlacklisted brig = do
+  uid <- userId <$> randomUser brig
+  phn <- randomPhone
+  let prefix = mkPrefix $ T.take 5 (fromPhone phn)
+
+  insertPrefix brig prefix
+  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
+    !!! (const 403 === statusCode)
+
+  -- check that phone is not updated
+  get (brig . path "/self" . zUser uid) !!! do
+    const 200 === statusCode
+    const (Right Nothing) === fmap userPhone . responseJsonEither
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -1250,7 +1268,7 @@ testUpdateSSOId brig galley = do
   put
     ( brig
         . paths ["i", "users", toByteString' noSuchUserId, "sso-id"]
-        . Bilge.json (UserSSOId "1" "1")
+        . Bilge.json (UserSSOId (mkSampleUref "1" "1"))
     )
     !!! const 404 === statusCode
   let go :: HasCallStack => User -> UserSSOId -> Http ()
@@ -1277,8 +1295,8 @@ testUpdateSSOId brig galley = do
         when (not hasEmail) $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
-  let ssoids1 = [UserSSOId "1" "1", UserSSOId "1" "2"]
-      ssoids2 = [UserSSOId "2" "1", UserSSOId "2" "2"]
+  let ssoids1 = [UserSSOId (mkSampleUref "1" "1"), UserSSOId (mkSampleUref "1" "2")]
+      ssoids2 = [UserSSOId (mkSampleUref "2" "1"), UserSSOId (mkSampleUref "2" "2")]
   users <-
     sequence
       [ mkMember True False,
@@ -1372,7 +1390,7 @@ testRestrictedUserCreation opts brig = do
 
     -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
     teamid <- Id <$> liftIO UUID.nextRandom
-    let ssoid = UserSSOId "nil" "nil"
+    let ssoid = UserSSOId mkSimpleSampleUref
     let Object ssoUser =
           object
             [ "name" .= Name "Alice",

@@ -105,7 +105,7 @@ data RecipientBy user = Recipient
 makeLenses ''RecipientBy
 
 recipient :: LocalMember -> Recipient
-recipient = userRecipient . memId
+recipient = userRecipient . lmId
 
 userRecipient :: user -> RecipientBy user
 userRecipient u = Recipient u RecipientClientsAll

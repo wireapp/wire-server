@@ -70,7 +70,7 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: f56b5ffc10ec5ceab9a508cbb9f8fbaa017bbf2c  # https://github.com/wireapp/saml2-web-sso/pull/74  (Apr 30, 2021)
+  commit: 60398f375987b74d6b855b5d225e45dc3a96ac06  # https://github.com/wireapp/saml2-web-sso/pull/75  (Sep 10, 2021)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
@@ -175,6 +175,7 @@ extra-deps:
 - servant-swagger-ui-0.3.4.3.36.1
 - tls-1.5.5
 - cryptonite-0.28
+- polysemy-1.6.0.0 # needed for Polysemy.Input combinators
 
 # For changes from #128 and #135, not released to hackage yet
 - git: https://github.com/haskell-servant/servant-swagger
@@ -220,16 +221,21 @@ extra-deps:
 - mu-grpc-common-0.4.0.0
 - compendium-client-0.2.1.1
 # dependencies of mu
-- http2-client-0.10.0.0
 - http2-grpc-types-0.5.0.0
 - http2-grpc-proto3-wire-0.1.0.0
 - warp-grpc-0.4.0.1
 - proto3-wire-1.2.0
 - parameterized-0.5.0.0
 
-# Fix in PR: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
-- git: https://github.com/akshaymankar/http2-grpc-haskell
-  commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+# Unreleased master.
+# Needed for https://github.com/lucasdicioccio/http2-client/pull/75
+- git: https://github.com/lucasdicioccio/http2-client
+  commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+
+# Fix in PRs: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
+# and https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/46
+- git: https://github.com/wireapp/http2-grpc-haskell
+  commit: eea98418672626eafbace3181ca34bf44bee91c0
   subdirs:
     - http2-client-grpc
 
@@ -244,8 +250,8 @@ extra-deps:
   commit: b0e5c08af48911caecffa4fa6a3e74872018b258 # master (Sep 03, 2021)
 
 # Error handling fix: https://github.com/vincenthz/hs-certificate/pull/125
-- git: https://github.com/wireapp/hs-certificate
-  commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1 # master (Aug 31, 2021)
+- git: https://github.com/vincenthz/hs-certificate
+  commit: a899bda3d7666d25143be7be8f3105fc076703d9 # master (Sep 29, 2021)
   subdirs:
     - x509-store
 

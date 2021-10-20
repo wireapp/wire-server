@@ -26,7 +26,6 @@ import qualified Wire.API.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset.V3 as Asset.V3
 import qualified Wire.API.Asset.V3.Resumable as Asset.V3.Resumable
 import qualified Wire.API.Call.Config as Call.Config
-import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Properties as Properties
@@ -40,6 +39,7 @@ import qualified Wire.API.User as User
 import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Identity as User.Identity
+import qualified Wire.API.User.IdentityProvider as User.IdentityProvider
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.Search as User.Search
@@ -57,7 +57,6 @@ tests =
       testRoundTrip @Call.Config.Transport,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.TurnURI,
-      testRoundTrip @Connection.Relation,
       testRoundTrip @Conversation.Code.Key,
       testRoundTrip @Conversation.Code.Value,
       testRoundTrip @Conversation.Role.RoleName,
@@ -84,7 +83,8 @@ tests =
       testRoundTrip @Team.Role.Role,
       testRoundTrip @User.Search.TeamUserSearchSortBy,
       testRoundTrip @User.Search.TeamUserSearchSortOrder,
-      testRoundTrip @User.Search.RoleFilter
+      testRoundTrip @User.Search.RoleFilter,
+      testRoundTrip @User.IdentityProvider.WireIdPAPIVersion
       -- FUTUREWORK:
       -- testCase "Call.Config.TurnUsername (doesn't have FromByteString)" ...
       -- testCase "User.Activation.ActivationTarget (doesn't have FromByteString)" ...

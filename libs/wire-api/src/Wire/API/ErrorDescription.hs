@@ -203,33 +203,21 @@ mkErrorDescription = ErrorDescription $ Text.pack (symbolVal (Proxy @desc))
 
 type ConvNotFound = ErrorDescription 404 "no-conversation" "Conversation not found"
 
-convNotFound :: ConvNotFound
-convNotFound = mkErrorDescription
+type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Conversation member not found"
 
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
-unknownClient :: UnknownClient
-unknownClient = ErrorDescription "Sending client not known"
-
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
-
-clientNotFound :: ClientNotFound
-clientNotFound = mkErrorDescription
 
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
-notConnected :: NotConnected
-notConnected = mkErrorDescription
-
 type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."
-
-connectionLimitReached :: ConnectionLimitReached
-connectionLimitReached = mkErrorDescription
 
 type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 
-invalidUser :: InvalidUser
-invalidUser = mkErrorDescription
+type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification code"
+
+type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
 
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
@@ -245,9 +233,6 @@ operationDenied p =
 
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
-notATeamMember :: NotATeamMember
-notATeamMember = mkErrorDescription
-
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
 actionDenied :: Show a => a -> ActionDenied
@@ -257,33 +242,17 @@ actionDenied a =
 
 type ConvMemberRemovalDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
-convMemberRemovalDenied :: ConvMemberRemovalDenied
-convMemberRemovalDenied = ErrorDescription "Insufficient authorization, cannot remove member from conversation"
-
 type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation code not found"
-
-codeNotFound :: CodeNotFound
-codeNotFound = mkErrorDescription
 
 type ConvAccessDenied = ErrorDescription 403 "access-denied" "Conversation access denied"
 
-convAccessDenied :: ConvAccessDenied
-convAccessDenied = mkErrorDescription
-
 type UserNotFound = ErrorDescription 404 "not-found" "User not found"
 
-userNotFound :: UserNotFound
-userNotFound = mkErrorDescription
+type ConnectionNotFound = ErrorDescription 404 "not-found" "Connection not found"
 
 type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
-handleNotFound :: HandleNotFound
-handleNotFound = mkErrorDescription
-
 type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
-
-tooManyClients :: TooManyClients
-tooManyClients = mkErrorDescription
 
 type MissingAuth =
   ErrorDescription
@@ -291,13 +260,25 @@ type MissingAuth =
     "missing-auth"
     "Re-authentication via password required"
 
-missingAuthError :: MissingAuth
-missingAuthError = mkErrorDescription
+type BadCredentials =
+  ErrorDescription
+    403
+    "invalid-credentials"
+    "Authentication failed."
+
+type DeleteCodePending =
+  ErrorDescription
+    403
+    "pending-delete"
+    "A verification code for account deletion is still pending."
+
+type OwnerDeletingSelf =
+  ErrorDescription
+    403
+    "no-self-delete-for-team-owner"
+    "Team owners are not allowed to delete themselves.  Ask a fellow owner."
 
 type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys uploaded"
-
-malformedPrekeys :: MalformedPrekeys
-malformedPrekeys = mkErrorDescription
 
 type MissingLegalholdConsent =
   ErrorDescription
@@ -306,17 +287,11 @@ type MissingLegalholdConsent =
     "Failed to connect to a user or to invite a user to a group because somebody \
     \is under legalhold and somebody else has not granted consent."
 
-missingLegalholdConsent :: MissingLegalholdConsent
-missingLegalholdConsent = mkErrorDescription
-
 type CustomRolesNotSupported =
   ErrorDescription
     400
     "bad-request"
     "Custom roles not supported"
-
-customRolesNotSupported :: CustomRolesNotSupported
-customRolesNotSupported = mkErrorDescription
 
 type InvalidOp desc =
   ErrorDescription
@@ -329,15 +304,8 @@ invalidOpErrorDesc = ErrorDescription . Text.pack . symbolVal
 
 type InvalidOpSelfConv = InvalidOp "invalid operation for self conversation"
 
-invalidOpSelfConv :: InvalidOpSelfConv
-invalidOpSelfConv = mkErrorDescription
-
 type InvalidOpOne2OneConv = InvalidOp "invalid operation for 1:1 conversations"
-
-invalidOpOne2OneConv :: InvalidOpOne2OneConv
-invalidOpOne2OneConv = mkErrorDescription
 
 type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversation"
 
-invalidOpConnectConv :: InvalidOpConnectConv
-invalidOpConnectConv = mkErrorDescription
+type InvalidTargetAccess = InvalidOp "invalid target access"

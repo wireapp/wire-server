@@ -225,4 +225,4 @@ See `make buildah-docker` for an entry point here.
 
 ## Helm chart development, integration tests in kubernetes
 
-You need `kubectl`, `helm`, and a valid kubernetes context. Refer to https://docs.wire.com for details.
+You need `kubectl`, `helm`, `helmfile`, and a valid kubernetes context. Refer to https://docs.wire.com for details.

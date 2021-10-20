@@ -64,24 +64,34 @@ module Spar.Scim
   )
 where
 
-import Control.Lens
-import Control.Monad.Catch (try)
-import Control.Monad.Except
 import Data.String.Conversions (cs)
 import Imports
+import Polysemy
+import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
+import Polysemy.Input (Input)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
-import Spar.App (Env (..), Spar (..))
+import Spar.App (sparToServerErrorWithLogging, throwSparSem)
 import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
-    sparToServerErrorWithLogging,
-    throwSpar,
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
+import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.GalleyAccess (GalleyAccess)
+import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Logger (Logger)
+import Spar.Sem.Now (Now)
+import Spar.Sem.Random (Random)
+import Spar.Sem.Reporter (Reporter)
+import Spar.Sem.SAMLUserStore (SAMLUserStore)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import System.Logger (Msg)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -90,6 +100,7 @@ import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
+import Wire.API.User.Saml (Opts)
 import Wire.API.User.Scim
 
 -- | SCIM config for our server.
@@ -99,7 +110,28 @@ import Wire.API.User.Scim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: ServerT APIScim Spar
+apiScim ::
+  forall r.
+  Members
+    '[ Random,
+       Input Opts,
+       Logger (Msg -> Msg),
+       Logger String,
+       Now,
+       Error SparError,
+       GalleyAccess,
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       ScimTokenStore,
+       Reporter,
+       IdPEffect.IdP,
+       -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
+       Final IO,
+       SAMLUserStore
+     ]
+    r =>
+  ServerT APIScim (Sem r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
@@ -107,7 +139,7 @@ apiScim =
     hoistScim =
       hoistServer
         (Proxy @(ScimSiteAPI SparTag))
-        (wrapScimErrors . Scim.fromScimHandler (throwSpar . SparScimError))
+        (wrapScimErrors . Scim.fromScimHandler (throwSparSem . SparScimError))
     -- Wrap /all/ errors into the format required by SCIM, even server exceptions that have
     -- nothing to do with SCIM.
     --
@@ -115,23 +147,24 @@ apiScim =
     -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
-    wrapScimErrors :: Spar a -> Spar a
-    wrapScimErrors = over _Spar $ \act -> \env -> do
-      result :: Either SomeException (Either SparError a) <- try (act env)
+    wrapScimErrors :: Sem r a -> Sem r a
+    wrapScimErrors act = do
+      result :: Either SomeException (Either SparError a) <-
+        runError $ fromExceptionSem @SomeException $ raise $ try @SparError act
       case result of
         Left someException -> do
           -- We caught an exception that's not a Spar exception at all. It is wrapped into
           -- Scim.serverError.
-          pure . Left . SAML.CustomError . SparScimError $
+          throw . SAML.CustomError . SparScimError $
             Scim.serverError (cs (displayException someException))
-        Right err@(Left (SAML.CustomError (SparScimError _))) ->
+        Right (Left err@(SAML.CustomError (SparScimError _))) ->
           -- We caught a 'SparScimError' exception. It is left as-is.
-          pure err
+          throw err
         Right (Left sparError) -> do
           -- We caught some other Spar exception. It is rendered and wrapped into a scim error
           -- with the same status and message, and no scim error type.
-          err :: ServerError <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
-          pure . Left . SAML.CustomError . SparScimError $
+          err :: ServerError <- sparToServerErrorWithLogging sparError
+          throw . SAML.CustomError . SparScimError $
             Scim.ScimError
               { schemas = [Scim.Schema.Error20],
                 status = Scim.Status $ errHTTPCode err,
@@ -140,7 +173,7 @@ apiScim =
               }
         Right (Right x) -> do
           -- No exceptions! Good.
-          pure $ Right x
+          pure x
 
 -- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
 -- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
@@ -154,11 +187,3 @@ server conf =
     { config = toServant $ Scim.configServer conf,
       users = \authData -> toServant (Scim.userServer @tag authData)
     }
-
-----------------------------------------------------------------------------
--- Utilities
-
--- | An isomorphism that unwraps the Spar stack (@Spar . ReaderT . ExceptT@) into a
--- newtype-less form that's easier to work with.
-_Spar :: Iso' (Spar a) (Env -> IO (Either SparError a))
-_Spar = coerced

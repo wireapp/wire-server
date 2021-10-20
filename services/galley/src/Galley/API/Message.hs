@@ -17,10 +17,9 @@ import Data.Json.Util
 import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..), partitionRemote)
+import Data.Qualified
 import qualified Data.Set as Set
 import Data.Set.Lens
-import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
@@ -183,13 +182,13 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
 getRemoteClients :: [RemoteMember] -> Galley (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers = do
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
-    . pooledMapConcurrentlyN 8 (uncurry getRemoteClientsFromDomain)
-    . partitionRemote
+    . pooledMapConcurrentlyN 8 getRemoteClientsFromDomain
+    . bucketRemote
     . map rmId
     $ remoteMembers
   where
-    getRemoteClientsFromDomain :: Domain -> [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
-    getRemoteClientsFromDomain domain uids = do
+    getRemoteClientsFromDomain :: Remote [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
+    getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) = do
       let rpc = FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
 
@@ -225,13 +224,13 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   localMembers <- lift $ Data.members convId
   remoteMembers <- Data.lookupRemoteMembers convId
 
-  let localMemberIds = memId <$> localMembers
+  let localMemberIds = lmId <$> localMembers
       localMemberMap :: Map UserId LocalMember
-      localMemberMap = Map.fromList (map (\mem -> (memId mem, mem)) localMembers)
+      localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
       members :: Set (Qualified UserId)
       members =
         Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
-          <> Set.fromList (map (unTagged . rmId) remoteMembers)
+          <> Set.fromList (map (qUntagged . rmId) remoteMembers)
   isInternal <- view $ options . optSettings . setIntraListing
 
   -- check if the sender is part of the conversation
@@ -246,7 +245,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
         else Data.lookupClients localMemberIds
   let qualifiedLocalClients =
         Map.mapKeys (localDomain,)
-          . makeUserMap (Set.fromList (map memId localMembers))
+          . makeUserMap (Set.fromList (map lmId localMembers))
           . Clients.toMap
           $ localClients
 
@@ -379,7 +378,7 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = handl
   -- Semantically, the origin domain should be the converation domain. Here one
   -- backend has only one domain so we just pick it from the environment.
   originDomain <- viewFederationDomain
-  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes originDomain rm
+  let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes originDomain rm
   executeFederated domain rpc
   where
     handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
@@ -463,7 +462,7 @@ newMessagePush localDomain members mconn mm (k, client) e = fromMaybe mempty $ d
     newUserMessagePush :: LocalMember -> Maybe MessagePush
     newUserMessagePush member =
       fmap newUserPush $
-        newConversationEventPush localDomain e [memId member]
+        newConversationEventPush localDomain e [lmId member]
           <&> set pushConn mconn
             . set pushNativePriority (mmNativePriority mm)
             . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))

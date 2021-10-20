@@ -72,7 +72,6 @@ tests opts mgr galley brig = do
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
-        testWithBothIndices opts mgr "order-name (prefix match)" $ testOrderName brig,
         testWithBothIndices opts mgr "order-handle (prefix match)" $ testOrderHandle brig,
         testWithBothIndices opts mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
@@ -256,8 +255,14 @@ testReindex brig = do
     delayed = liftIO $ threadDelay 10000
     mkRegularUser = randomUserWithHandle brig
 
-testOrderName :: TestConstraints m => Brig -> m ()
-testOrderName brig = do
+-- This test is currently disabled, because it fails sporadically, probably due
+-- to imprecisions in ES exact match scoring.
+-- FUTUREWORK: Find the reason for the failures and fix ES behaviour.
+-- See also the "cassandra writetime hypothesis":
+--   https://wearezeta.atlassian.net/browse/BE-523
+--   https://github.com/wireapp/wire-server/pull/1798#issuecomment-933174913
+_testOrderName :: TestConstraints m => Brig -> m ()
+_testOrderName brig = do
   searcher <- userId <$> randomUser brig
   Name searchedWord <- randomNameWithMaxLen 122
   nameMatch <- userQualifiedId <$> createUser' True searchedWord brig
@@ -285,10 +290,9 @@ testOrderHandle brig = do
   results <- searchResults <$> executeSearch brig searcher searchedWord
   let resultUIds = map contactQualifiedId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
-  let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
   liftIO $
     assertEqual
-      ("Expected order: handle match, handle prefix match.\n\nSince this test fails sporadically for unknown reasons here here is some debug info:\n" <> dbg)
+      "Expected order: handle match, handle prefix match."
       expectedOrder
       resultUIds
 
@@ -444,12 +448,19 @@ testSearchOtherDomain opts brig = do
   user <- randomUser brig
   -- We cannot assert on a real federated request here, so we make a request to
   -- a mocked federator started and stopped during this test
-  otherSearchResult :: SearchResult Contact <- liftIO $ generate arbitrary
+  otherSearchResult :: [Contact] <- liftIO $ generate arbitrary
   let mockResponse = OutwardResponseBody (cs $ Aeson.encode otherSearchResult)
-  (results, _) <- liftIO . withTempMockFederator opts (Domain "non-existent.example.com") mockResponse $ do
+  (results, _) <- liftIO . withTempMockFederator opts mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
+  let expectedResult =
+        SearchResult
+          { searchResults = otherSearchResult,
+            searchFound = length otherSearchResult,
+            searchReturned = length otherSearchResult,
+            searchTook = 0
+          }
   liftIO $ do
-    assertEqual "The search request should get its result from federator" otherSearchResult results
+    assertEqual "The search request should get its result from federator" expectedResult results
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices

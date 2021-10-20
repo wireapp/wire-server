@@ -20,13 +20,20 @@
 module Galley.Types
   ( foldrOtrRecipients,
     Accept (..),
-    ConversationMeta (..),
 
     -- * re-exports
+    ConversationMetadata (..),
     Conversation (..),
-    LocalMember,
-    RemoteMember,
-    InternalMember (..),
+    cnvType,
+    cnvCreator,
+    cnvAccess,
+    cnvAccessRole,
+    cnvName,
+    cnvTeam,
+    cnvMessageTimer,
+    cnvReceiptMode,
+    RemoteMember (..),
+    LocalMember (..),
     ConvMembers (..),
     OtherMember (..),
     Connect (..),
@@ -51,7 +58,7 @@ module Galley.Types
     AccessRole (..),
     ConversationList (..),
     ConversationRename (..),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
     ConvType (..),
@@ -74,11 +81,9 @@ module Galley.Types
 where
 
 import Data.Aeson
-import Data.Id (ClientId, ConvId, TeamId, UserId)
-import Data.Json.Util ((#))
+import Data.Id (ClientId, UserId)
 import qualified Data.Map.Strict as Map
-import Data.Misc (Milliseconds)
-import Galley.Types.Conversations.Members (InternalMember (..), LocalMember, RemoteMember)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..))
 import Imports
 import Wire.API.Conversation hiding (Member (..))
 import Wire.API.Conversation.Code
@@ -88,48 +93,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.User (UserIdList (..))
 import Wire.API.User.Client
-
---------------------------------------------------------------------------------
--- ConversationMeta
-
-data ConversationMeta = ConversationMeta
-  { cmId :: !ConvId,
-    cmType :: !ConvType,
-    cmCreator :: !UserId,
-    cmAccess :: ![Access],
-    cmAccessRole :: !AccessRole,
-    cmName :: !(Maybe Text),
-    cmTeam :: !(Maybe TeamId),
-    cmMessageTimer :: !(Maybe Milliseconds),
-    cmReceiptMode :: !(Maybe ReceiptMode)
-  }
-  deriving (Eq, Show)
-
-instance ToJSON ConversationMeta where
-  toJSON c =
-    object $
-      "id" .= cmId c
-        # "type" .= cmType c
-        # "creator" .= cmCreator c
-        # "access" .= cmAccess c
-        # "access_role" .= cmAccessRole c
-        # "name" .= cmName c
-        # "team" .= cmTeam c
-        # "message_timer" .= cmMessageTimer c
-        # "receipt_mode" .= cmReceiptMode c
-        # []
-
-instance FromJSON ConversationMeta where
-  parseJSON = withObject "conversation-meta" $ \o ->
-    ConversationMeta <$> o .: "id"
-      <*> o .: "type"
-      <*> o .: "creator"
-      <*> o .: "access"
-      <*> o .: "access_role"
-      <*> o .: "name"
-      <*> o .:? "team"
-      <*> o .:? "message_timer"
-      <*> o .:? "receipt_mode"
 
 --------------------------------------------------------------------------------
 -- Accept

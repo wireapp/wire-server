@@ -17,31 +17,39 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Mapping where
+module Galley.API.Mapping
+  ( conversationView,
+    conversationViewMaybe,
+    remoteConversationView,
+    conversationToRemote,
+    localMemberToSelf,
+  )
+where
 
 import Control.Monad.Catch
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
-import qualified Data.List as List
-import Data.Qualified (Qualified (..))
-import Data.Tagged (unTagged)
+import Data.Qualified
 import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Types (convId)
-import qualified Galley.Types.Conversations.Members as Internal
+import Galley.Types.Conversations.Members
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (+++))
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation
+import Wire.API.Federation.API.Galley
 
 -- | View for a given user of a stored conversation.
+--
 -- Throws "bad-state" when the user is not part of the conversation.
-conversationView :: UserId -> Data.Conversation -> Galley Public.Conversation
+conversationView :: UserId -> Data.Conversation -> Galley Conversation
 conversationView uid conv = do
-  mbConv <- conversationViewMaybe uid conv
+  localDomain <- viewFederationDomain
+  let mbConv = conversationViewMaybe localDomain uid conv
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
@@ -53,73 +61,87 @@ conversationView uid conv = do
       throwM badState
     badState = mkError status500 "bad-state" "Bad internal member state."
 
-conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
-conversationViewMaybe u conv = do
-  localDomain <- viewFederationDomain
-  pure $ conversationViewMaybeQualified localDomain (Qualified u localDomain) conv
-
 -- | View for a given user of a stored conversation.
--- Returns 'Nothing' when the user is not part of the conversation.
-conversationViewMaybeQualified :: Domain -> Qualified UserId -> Data.Conversation -> Maybe Public.Conversation
-conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
-  let localMembers = localToOther localDomain <$> convLocalMembers
-  let remoteMembers = remoteToOther <$> convRemoteMembers
-  let me = List.find ((qUid ==) . Public.omQualifiedId) (localMembers <> remoteMembers)
-  let otherMembers = filter ((qUid /=) . Public.omQualifiedId) (localMembers <> remoteMembers)
-  let userAndConvOnSameBackend = find ((qUnqualified qUid ==) . Internal.memId) convLocalMembers
-  let selfMember =
-        -- if the user and the conversation are on the same backend, we can create a real self member
-        -- otherwise, we need to fall back to a default self member (see futurework)
-        -- (Note: the extra domain check is done to catch the edge case where two users in a conversation have the same unqualified UUID)
-        if isJust userAndConvOnSameBackend && localDomain == qDomain qUid
-          then toMember <$> userAndConvOnSameBackend
-          else incompleteSelfMember <$> me
-  selfMember <&> \m -> do
-    let mems = Public.ConvMembers m otherMembers
-    Public.Conversation
-      (Qualified convId localDomain)
-      convType
-      convCreator
-      convAccess
-      convAccessRole
-      convName
-      mems
-      convTeam
-      convMessageTimer
-      convReceiptMode
+--
+-- Returns 'Nothing' if the user is not part of the conversation.
+conversationViewMaybe :: Domain -> UserId -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe localDomain uid conv = do
+  let (selfs, lothers) = partition ((uid ==) . lmId) (Data.convLocalMembers conv)
+      rothers = Data.convRemoteMembers conv
+  self <- localMemberToSelf <$> listToMaybe selfs
+  let others =
+        map (localMemberToOther localDomain) lothers
+          <> map remoteMemberToOther rothers
+  pure $
+    Conversation
+      (Qualified (convId conv) localDomain)
+      (Data.convMetadata conv)
+      (ConvMembers self others)
+
+-- | View for a local user of a remote conversation.
+--
+-- If the local user is not actually present in the conversation, simply
+-- discard the conversation altogether. This should only happen if the remote
+-- backend is misbehaving.
+remoteConversationView ::
+  UserId ->
+  MemberStatus ->
+  Remote RemoteConversation ->
+  Maybe Conversation
+remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
+  let mems = rcnvMembers rconv
+      others = rcmOthers mems
+      self =
+        localMemberToSelf
+          LocalMember
+            { lmId = uid,
+              lmService = Nothing,
+              lmStatus = status,
+              lmConvRoleName = rcmSelfRole mems
+            }
+  pure $ Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
+
+-- | Convert a local conversation to a structure to be returned to a remote
+-- backend.
+--
+-- This returns 'Nothing' if the given remote user is not part of the conversation.
+conversationToRemote ::
+  Domain ->
+  Remote UserId ->
+  Data.Conversation ->
+  Maybe RemoteConversation
+conversationToRemote localDomain ruid conv = do
+  let (selfs, rothers) = partition ((== ruid) . rmId) (Data.convRemoteMembers conv)
+      lothers = Data.convLocalMembers conv
+  selfRole <- rmConvRoleName <$> listToMaybe selfs
+  let others =
+        map (localMemberToOther localDomain) lothers
+          <> map remoteMemberToOther rothers
+  pure $
+    RemoteConversation
+      { rcnvId = Data.convId conv,
+        rcnvMetadata = Data.convMetadata conv,
+        rcnvMembers =
+          RemoteConvMembers
+            { rcmSelfRole = selfRole,
+              rcmOthers = others
+            }
+      }
+
+-- | Convert a local conversation member (as stored in the DB) to a publicly
+-- facing 'Member' structure.
+localMemberToSelf :: LocalMember -> Member
+localMemberToSelf lm =
+  Member
+    { memId = lmId lm,
+      memService = lmService lm,
+      memOtrMutedStatus = msOtrMutedStatus st,
+      memOtrMutedRef = msOtrMutedRef st,
+      memOtrArchived = msOtrArchived st,
+      memOtrArchivedRef = msOtrArchivedRef st,
+      memHidden = msHidden st,
+      memHiddenRef = msHiddenRef st,
+      memConvRoleName = lmConvRoleName lm
+    }
   where
-    localToOther :: Domain -> Internal.LocalMember -> Public.OtherMember
-    localToOther domain x =
-      Public.OtherMember
-        { Public.omQualifiedId = Qualified (Internal.memId x) domain,
-          Public.omService = Internal.memService x,
-          Public.omConvRoleName = Internal.memConvRoleName x
-        }
-
-    remoteToOther :: Internal.RemoteMember -> Public.OtherMember
-    remoteToOther x =
-      Public.OtherMember
-        { Public.omQualifiedId = unTagged (Internal.rmId x),
-          Public.omService = Nothing,
-          Public.omConvRoleName = Internal.rmConvRoleName x
-        }
-
-    -- FUTUREWORK(federation): we currently don't store muted, archived etc status for users who are on a different backend than a conversation
-    -- but we should. Once this information is available, the code should be changed to use the stored information, rather than these defaults.
-    incompleteSelfMember :: Public.OtherMember -> Public.Member
-    incompleteSelfMember m =
-      Public.Member
-        { memId = qUnqualified (Public.omQualifiedId m),
-          memService = Nothing,
-          memOtrMutedStatus = Nothing,
-          memOtrMutedRef = Nothing,
-          memOtrArchived = False,
-          memOtrArchivedRef = Nothing,
-          memHidden = False,
-          memHiddenRef = Nothing,
-          memConvRoleName = Public.omConvRoleName m
-        }
-
-toMember :: Internal.LocalMember -> Public.Member
-toMember x@Internal.InternalMember {..} =
-  Public.Member {memId = Internal.memId x, ..}
+    st = lmStatus lm

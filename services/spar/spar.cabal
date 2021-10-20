@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2afa3a03f475aac5d63ab87ded5843f404fee3d8506ac70390ee37dde18f22d4
+-- hash: e1e1abfd9d2fd00bd96a693a9466a13e0b7aef15677f0506941f662094a340a1
 
 name:           spar
 version:        0.1
@@ -22,10 +22,12 @@ library
   exposed-modules:
       Spar.API
       Spar.App
+      Spar.CanonicalInterpreter
       Spar.Data
       Spar.Data.Instances
       Spar.Error
       Spar.Intra.Brig
+      Spar.Intra.BrigApp
       Spar.Intra.Galley
       Spar.Options
       Spar.Orphans
@@ -34,6 +36,41 @@ library
       Spar.Scim.Auth
       Spar.Scim.Types
       Spar.Scim.User
+      Spar.Sem.AReqIDStore
+      Spar.Sem.AReqIDStore.Cassandra
+      Spar.Sem.AssIDStore
+      Spar.Sem.AssIDStore.Cassandra
+      Spar.Sem.BindCookieStore
+      Spar.Sem.BindCookieStore.Cassandra
+      Spar.Sem.BrigAccess
+      Spar.Sem.BrigAccess.Http
+      Spar.Sem.DefaultSsoCode
+      Spar.Sem.DefaultSsoCode.Cassandra
+      Spar.Sem.GalleyAccess
+      Spar.Sem.GalleyAccess.Http
+      Spar.Sem.IdP
+      Spar.Sem.IdP.Cassandra
+      Spar.Sem.IdP.Mem
+      Spar.Sem.Logger
+      Spar.Sem.Logger.TinyLog
+      Spar.Sem.Now
+      Spar.Sem.Now.IO
+      Spar.Sem.Random
+      Spar.Sem.Random.IO
+      Spar.Sem.Reporter
+      Spar.Sem.Reporter.Wai
+      Spar.Sem.SAML2
+      Spar.Sem.SAML2.Library
+      Spar.Sem.SamlProtocolSettings
+      Spar.Sem.SamlProtocolSettings.Servant
+      Spar.Sem.SAMLUserStore
+      Spar.Sem.SAMLUserStore.Cassandra
+      Spar.Sem.ScimExternalIdStore
+      Spar.Sem.ScimExternalIdStore.Cassandra
+      Spar.Sem.ScimTokenStore
+      Spar.Sem.ScimTokenStore.Cassandra
+      Spar.Sem.ScimUserTimesStore
+      Spar.Sem.ScimUserTimesStore.Cassandra
   other-modules:
       Paths_spar
   hs-source-dirs:
@@ -76,6 +113,8 @@ library
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -147,6 +186,8 @@ executable spar
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -241,6 +282,8 @@ executable spar-integration
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , random
     , raw-strings-qq
     , retry
@@ -326,6 +369,8 @@ executable spar-migrate-data
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -364,6 +409,7 @@ executable spar-schema
       V12
       V13
       V14
+      V15
       V2
       V3
       V4
@@ -413,6 +459,8 @@ executable spar-schema
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -498,6 +546,8 @@ test-suite spec
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18

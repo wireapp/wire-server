@@ -120,7 +120,6 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
-import qualified Data.Text.Lazy as TL
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
@@ -412,12 +411,12 @@ userSCIMExternalId :: User -> Maybe Text
 userSCIMExternalId usr = userSSOId >=> ssoIdExtId $ usr
   where
     ssoIdExtId :: UserSSOId -> Maybe Text
-    ssoIdExtId (UserSSOId _ nameIdXML) = case userManagedBy usr of
+    ssoIdExtId (UserSSOId (SAML.UserRef _ nameIdXML)) = case userManagedBy usr of
       ManagedByWire -> Nothing
       ManagedByScim ->
-        -- FUTUREWORK: keep the CI value, store the original in the database, but always use
-        -- the CI value for processing.
-        CI.original . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (TL.fromStrict nameIdXML))
+        -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
+        -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
+        Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
     ssoIdExtId (UserScimExternalId extId) = pure extId
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
@@ -978,6 +977,13 @@ newtype DeleteUser = DeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeleteUser)
+
+instance ToSchema DeleteUser where
+  schema =
+    object "DeleteUser" $
+      DeleteUser
+        <$> deleteUserPassword .= opt (field "password" schema)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -1036,6 +1042,13 @@ newtype DeletionCodeTimeout = DeletionCodeTimeout
   {fromDeletionCodeTimeout :: Code.Timeout}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeletionCodeTimeout)
+
+instance ToSchema DeletionCodeTimeout where
+  schema =
+    object "DeletionCodeTimeout" $
+      DeletionCodeTimeout
+        <$> fromDeletionCodeTimeout .= field "expires_in" schema
 
 instance ToJSON DeletionCodeTimeout where
   toJSON (DeletionCodeTimeout t) = A.object ["expires_in" A..= t]

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
@@ -21,29 +22,37 @@
 module Data.Qualified
   ( -- * Qualified
     Qualified (..),
+    qToPair,
+    QualifiedWithTag,
+    tUnqualified,
+    tUnqualifiedL,
+    tDomain,
+    qUntagged,
+    qTagUnsafe,
     Remote,
-    toRemote,
-    renderQualifiedId,
-    partitionRemoteOrLocalIds,
-    partitionRemoteOrLocalIds',
+    toRemoteUnsafe,
+    Local,
+    toLocalUnsafe,
+    qualifyAs,
+    foldQualified,
     partitionQualified,
+    partitionQualifiedAndTag,
+    indexQualified,
+    bucketQualified,
+    bucketRemote,
     deprecatedSchema,
-    partitionRemote,
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens (Lens, lens, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bifunctor (first)
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID))
+import Data.Id
 import qualified Data.Map as Map
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import Data.Tagged
-import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
@@ -54,48 +63,98 @@ data Qualified a = Qualified
   { qUnqualified :: a,
     qDomain :: Domain
   }
-  deriving stock (Eq, Ord, Show, Generic, Functor)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
--- | A type to differentiate between generally Qualified values, and values
--- where it is known if they are coming from a Remote backend or not.
--- Use 'toRemote' or 'partitionRemoteOrLocalIds\'' to get Remote values and use
--- 'unTagged' to convert from a Remote value back to a plain Qualified one.
-type Remote a = Tagged "remote" (Qualified a)
+qToPair :: Qualified a -> (Domain, a)
+qToPair (Qualified x dom) = (dom, x)
 
--- | Convert a Qualified something to a Remote something.
-toRemote :: Qualified a -> Remote a
-toRemote = Tagged
+data QTag = QLocal | QRemote
+  deriving (Eq, Show)
 
--- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
--- implemented errors
-renderQualified :: (a -> Text) -> Qualified a -> Text
-renderQualified renderLocal (Qualified localPart domain) =
-  renderLocal localPart <> "@" <> domainText domain
+-- | A type to differentiate between generally 'Qualified' values, and "tagged" values,
+-- for which it is known whether they are coming from a remote or local backend.
+-- Use 'foldQualified', 'partitionQualified' or 'qualifyLocal' to get tagged values and use
+-- 'qUntagged' to convert from a tagged value back to a plain 'Qualified' one.
+newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {qUntagged :: Qualified a}
+  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+  deriving newtype (Arbitrary)
 
--- FUTUREWORK: we probably want to use the primed function everywhere. Refactor these two functions to only have one.
-partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
-partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
-  if qDomain qualifiedId == localDomain
-    then (mempty, [qUnqualified qualifiedId])
-    else ([qualifiedId], mempty)
+qTagUnsafe :: forall t a. Qualified a -> QualifiedWithTag t a
+qTagUnsafe = QualifiedWithTag
 
-partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
-partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
+tUnqualified :: QualifiedWithTag t a -> a
+tUnqualified = qUnqualified . qUntagged
 
--- | Index a list of qualified values by domain
-partitionQualified :: [Qualified a] -> Map Domain [a]
-partitionQualified = foldr add mempty
+tDomain :: QualifiedWithTag t a -> Domain
+tDomain = qDomain . qUntagged
+
+tUnqualifiedL :: Lens (QualifiedWithTag t a) (QualifiedWithTag t b) a b
+tUnqualifiedL = lens tUnqualified qualifyAs
+
+-- | A type representing a 'Qualified' value where the domain is guaranteed to
+-- be remote.
+type Remote = QualifiedWithTag 'QRemote
+
+-- | Convert a 'Domain' and an @a@ to a 'Remote' value. This is only safe if we
+-- already know that the domain is remote.
+toRemoteUnsafe :: Domain -> a -> Remote a
+toRemoteUnsafe d a = qTagUnsafe $ Qualified a d
+
+-- | A type representing a 'Qualified' value where the domain is guaranteed to
+-- be local.
+type Local = QualifiedWithTag 'QLocal
+
+-- | Convert a 'Domain' and an @a@ to a 'Local' value. This is only safe if we
+-- already know that the domain is local.
+toLocalUnsafe :: Domain -> a -> Local a
+toLocalUnsafe d a = qTagUnsafe $ Qualified a d
+
+-- | Convert an unqualified value to a qualified one, with the same tag as the
+-- given tagged qualified value.
+qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
+qualifyAs = ($>)
+
+foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
+foldQualified loc f g q
+  | tDomain loc == qDomain q =
+    f (qTagUnsafe q)
+  | otherwise =
+    g (qTagUnsafe q)
+
+-- Partition a collection of qualified values into locals and remotes.
+--
+-- Note that the local values are returned as unqualified values, as a (probably
+-- insignificant) optimisation. Use 'partitionQualifiedAndTag' to get them as
+-- 'Local' values.
+partitionQualified :: Foldable f => Local x -> f (Qualified a) -> ([a], [Remote a])
+partitionQualified loc =
+  foldMap $
+    foldQualified loc (\l -> ([tUnqualified l], mempty)) (\r -> (mempty, [r]))
+
+partitionQualifiedAndTag :: Foldable f => Local x -> f (Qualified a) -> ([Local a], [Remote a])
+partitionQualifiedAndTag loc =
+  first (map (qualifyAs loc))
+    . partitionQualified loc
+
+-- | Index a list of qualified values by domain.
+indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
+indexQualified = foldr add mempty
   where
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
-partitionRemote :: [Remote a] -> [(Domain, [a])]
-partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
+-- | Bucket a list of qualified values by domain.
+bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
+bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
+
+bucketRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
+bucketRemote =
+  map (uncurry toRemoteUnsafe)
+    . Map.assocs
+    . indexQualified
+    . fmap qUntagged
 
 ----------------------------------------------------------------------
-
-renderQualifiedId :: Qualified (Id a) -> Text
-renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
 deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
 deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
@@ -111,19 +170,19 @@ qualifiedSchema name fieldName sch =
       <$> qUnqualified .= field fieldName sch
       <*> qDomain .= field "domain" schema
 
-instance ToSchema (Qualified (Id a)) where
-  schema = qualifiedSchema "UserId" "id" schema
+instance KnownIdTag t => ToSchema (Qualified (Id t)) where
+  schema = qualifiedSchema (idTagName (idTagValue @t) <> "Id") "id" schema
 
 instance ToSchema (Qualified Handle) where
   schema = qualifiedSchema "Handle" "handle" schema
 
-instance ToJSON (Qualified (Id a)) where
+instance KnownIdTag t => ToJSON (Qualified (Id t)) where
   toJSON = schemaToJSON
 
-instance FromJSON (Qualified (Id a)) where
+instance KnownIdTag t => FromJSON (Qualified (Id t)) where
   parseJSON = schemaParseJSON
 
-instance S.ToSchema (Qualified (Id a)) where
+instance KnownIdTag t => S.ToSchema (Qualified (Id t)) where
   declareNamedSchema = schemaToSwagger
 
 instance ToJSON (Qualified Handle) where

@@ -29,25 +29,28 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
+import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
+import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (throwErrorDescription)
+import Galley.API.Error (throwErrorDescriptionType)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import qualified Galley.API.One2One as One2One
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember, viewFederationDomain)
+import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -55,7 +58,8 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
-import Galley.Types.Teams
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
+import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
@@ -72,7 +76,12 @@ import Servant.API.Generic
 import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
-import Wire.API.ErrorDescription (missingLegalholdConsent)
+import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
+import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
+import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
+import Wire.API.Routes.Public (ZOptConn, ZUser)
+import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
@@ -158,7 +167,40 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusConferenceCallingGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling
+        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members for all conversations the user was in
+    iDeleteUser ::
+      routes
+        :- Summary
+             "Remove a user from their teams and conversations and erase their clients"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "user"
+        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] (),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to self, if conversation did not exist before
+    -- - ConvConnect event to self, if other didn't join the connect conversation before
+    iConnect ::
+      routes
+        :- Summary "Create a connect conversation (deprecated)"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "conversations"
+        :> "connect"
+        :> ReqBody '[Servant.JSON] Connect
+        :> ConversationVerb,
+    iUpsertOne2OneConversation ::
+      routes
+        :- Summary "Create or Update a connect or one2one conversation."
+        :> "i"
+        :> "conversations"
+        :> "one2one"
+        :> "upsert"
+        :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
+        :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
   }
   deriving (Generic)
 
@@ -232,13 +274,16 @@ servantSitemap =
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
-        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        iDeleteUser = rmUser,
+        iConnect = Create.createConnectConversation,
+        iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
       }
 
 iGetTeamFeature ::
   forall a.
   Public.KnownTeamFeatureName a =>
-  (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  (Features.GetFeatureInternalParam -> Galley (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
 iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
@@ -271,14 +316,6 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to self, if conversation did not exist before
-  -- - ConvConnect event to self, if other didn't join the connect conversation before
-  post "/i/conversations/connect" (continue Create.createConnectConversationH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @Connect
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -372,11 +409,6 @@ sitemap = do
     zauthUserId
       .&. capture "client"
 
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members for all conversations the user was in
-  delete "/i/user" (continue rmUserH) $
-    zauthUserId .&. opt zauthConnId
-
   post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service
 
@@ -427,35 +459,53 @@ sitemap = do
   get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
     capture "tid"
 
-rmUserH :: UserId ::: Maybe ConnId -> Galley Response
-rmUserH (user ::: conn) = do
-  empty <$ rmUser user conn
-
 rmUser :: UserId -> Maybe ConnId -> Galley ()
 rmUser user conn = do
-  let n = unsafeRange 100 :: Range 1 100 Int32
-  tids <- Data.teamIdsForPagination user Nothing (rcast n)
+  let n = toRange (Proxy @100) :: Range 1 100 Int32
+      nRange1000 = rcast n :: Range 1 1000 Int32
+  tids <- Data.teamIdsForPagination user Nothing n
   leaveTeams tids
-  cids <- Data.conversationIdRowsForPagination user Nothing (rcast n)
-  leaveConversations user cids
+  allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
+  lusr <- qualifyLocal user
+  goConvPages lusr nRange1000 allConvIds
   Data.eraseClients user
   where
+    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
+    goConvPages lusr range page = do
+      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
+      leaveLocalConversations localConvs
+      leaveRemoteConversations lusr remoteConvs
+      when (mtpHasMore page) $ do
+        let nextState = mtpPagingState page
+            usr = tUnqualified lusr
+            nextQuery = GetPaginatedConversationIds (Just nextState) range
+        newCids <- Query.conversationIdsPageFrom usr nextQuery
+        goConvPages lusr range newCids
+
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveConversations :: UserId -> Cql.Page ConvId -> Galley ()
-    leaveConversations u ids = do
+
+    leaveLocalConversations :: [ConvId] -> Galley ()
+    leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
-      cc <- Data.conversations (Cql.result ids)
+      cc <- Data.localConversations ids
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
-            -- FUTUREWORK: deal with remote members, too, see removeMembers
-            e <- Data.removeLocalMembersFromLocalConv localDomain c (Qualified user localDomain) (pure u)
+            Data.removeLocalMembersFromLocalConv (Data.convId c) (pure user)
+            now <- liftIO getCurrentTime
+            let e =
+                  Event
+                    MemberLeave
+                    (Qualified (Data.convId c) localDomain)
+                    (Qualified user localDomain)
+                    now
+                    (EdMembersLeave (QualifiedUserIdList [Qualified user localDomain]))
             return $
               Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
@@ -464,8 +514,11 @@ rmUser user conn = do
       for_
         (maybeList1 (catMaybes pp))
         Intra.push
-      unless (null $ Cql.result ids) $
-        leaveConversations u =<< Cql.liftClient (Cql.nextPage ids)
+
+    leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
+    leaveRemoteConversations lusr cids =
+      for_ cids $ \cid ->
+        Update.removeMemberFromRemoteConv cid lusr Nothing (qUntagged lusr)
 
 deleteLoop :: Galley ()
 deleteLoop = do
@@ -492,5 +545,5 @@ guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts :::
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
+    >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

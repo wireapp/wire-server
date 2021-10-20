@@ -85,5 +85,5 @@ parseIdentityTests =
     hphone = Phone "+493012345678"
     phone = ("phone", "+493012345678")
     badphone = ("phone", "__@@")
-    hssoid = UserSSOId "nil" "nil"
+    hssoid = UserSSOId mkSimpleSampleUref
     ssoid = ("sso_id", toJSON hssoid)

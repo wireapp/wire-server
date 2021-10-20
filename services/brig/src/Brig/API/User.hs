@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -93,7 +91,7 @@ where
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
-import Brig.API.Util (fetchUserIdentity, validateHandle)
+import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..))
@@ -129,13 +127,11 @@ import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
-import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Json.Util
@@ -144,7 +140,7 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified, partitionQualified)
+import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -153,7 +149,9 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import UnliftIO.Async
 import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
 
 data AllowSCIMUpdates
@@ -259,7 +257,7 @@ createUser new = do
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident@(SSOIdentity (UserSSOId _ _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
+      (Just ident@(SSOIdentity (UserSSOId _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
@@ -270,6 +268,8 @@ createUser new = do
       else handleEmailActivation email uid newTeam
 
   pdata <- handlePhoneActivation phone uid
+
+  lift $ initAccountFeatureConfig uid
 
   return $! CreateUserResult account edata pdata createUserTeam
   where
@@ -401,6 +401,11 @@ createUser new = do
           void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
           return Nothing
       pure pdata
+
+initAccountFeatureConfig :: UserId -> AppIO ()
+initAccountFeatureConfig uid = do
+  mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
+  forM_ mbCciDefNew $ Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
@@ -604,19 +609,26 @@ changeEmail u email allowScim = do
 
 changePhone :: UserId -> Phone -> ExceptT ChangePhoneError AppIO (Activation, Phone)
 changePhone u phone = do
-  ph <-
+  canonical <-
     maybe
       (throwE $ InvalidNewPhone phone)
       return
       =<< lift (validatePhone phone)
-  let pk = userPhoneKey ph
+  let pk = userPhoneKey canonical
   available <- lift $ Data.keyAvailable pk (Just u)
   unless available $
     throwE $
       PhoneExists phone
   timeout <- setActivationTimeout <$> view settings
+  blacklisted <- lift $ Blacklist.exists pk
+  when blacklisted $
+    throwE (BlacklistedNewPhone canonical)
+  -- check if any prefixes of this phone number are blocked
+  prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+  when prefixExcluded $
+    throwE (BlacklistedNewPhone canonical)
   act <- lift $ Data.newActivation pk timeout (Just u)
-  return (act, ph)
+  return (act, canonical)
 
 -------------------------------------------------------------------------------
 -- Remove Email
@@ -1110,8 +1122,12 @@ userGC u = case (userExpire u) of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: UserId -> Qualified UserId -> ExceptT FederationError AppIO (Maybe UserProfile)
-lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
+lookupProfile :: Local UserId -> Qualified UserId -> ExceptT FederationError AppIO (Maybe UserProfile)
+lookupProfile self other =
+  listToMaybe
+    <$> lookupProfilesFromDomain
+      self
+      (fmap pure other)
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
@@ -1120,22 +1136,27 @@ lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
   -- | User 'self' on whose behalf the profiles are requested.
-  UserId ->
+  Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   ExceptT FederationError AppIO [UserProfile]
-lookupProfiles self others = do
-  localDomain <- viewFederationDomain
-  let userMap = partitionQualified others
-  -- FUTUREWORK(federation): parallelise federator requests here
-  fold <$> traverse (uncurry (getProfiles localDomain)) (Map.assocs userMap)
-  where
-    getProfiles localDomain domain uids
-      | localDomain == domain = lift (lookupLocalProfiles (Just self) uids)
-      | otherwise = lookupRemoteProfiles domain uids
+lookupProfiles self others =
+  fmap concat $
+    traverseConcurrentlyWithErrors
+      (lookupProfilesFromDomain self)
+      (bucketQualified others)
 
-lookupRemoteProfiles :: Domain -> [UserId] -> ExceptT FederationError AppIO [UserProfile]
-lookupRemoteProfiles = Federation.getUsersByIds
+lookupProfilesFromDomain ::
+  Local UserId -> Qualified [UserId] -> ExceptT FederationError AppIO [UserProfile]
+lookupProfilesFromDomain self =
+  foldQualified
+    self
+    (lift . lookupLocalProfiles (Just (tUnqualified self)) . tUnqualified)
+    lookupRemoteProfiles
+
+lookupRemoteProfiles :: Remote [UserId] -> ExceptT FederationError AppIO [UserProfile]
+lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
+  Federation.getUsersByIds domain uids
 
 -- FUTUREWORK: This function encodes a few business rules about exposing email
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a

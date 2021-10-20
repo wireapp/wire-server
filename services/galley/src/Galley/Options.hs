@@ -100,6 +100,7 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
+    -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags
   }
   deriving (Show, Generic)

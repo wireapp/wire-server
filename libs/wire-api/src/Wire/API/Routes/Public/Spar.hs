@@ -53,8 +53,10 @@ type API =
 
 type APISSO =
   "metadata" :> SAML.APIMeta
+    :<|> "metadata" :> Capture "team" TeamId :> SAML.APIMeta
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
+    :<|> APIAuthRespLegacy
     :<|> APIAuthResp
     :<|> "settings" :> SsoSettingsGet
 
@@ -131,8 +133,16 @@ data DoInitiate = DoInitiateLogin | DoInitiateBind
 
 type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" SetBindCookie]
 
+type APIAuthRespLegacy =
+  "finalize-login"
+    :> Header "Cookie" ST
+    -- (SAML.APIAuthResp from here on, except for response)
+    :> MultipartForm Mem SAML.AuthnResponseBody
+    :> Post '[PlainText] Void
+
 type APIAuthResp =
   "finalize-login"
+    :> Capture "team" TeamId
     :> Header "Cookie" ST
     -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
@@ -156,6 +166,7 @@ type IdpGetAll = Get '[JSON] IdPList
 type IdpCreate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion
     :> PostCreated '[JSON] IdP
 
 type IdpUpdate =
@@ -176,11 +187,17 @@ type APIINTERNAL =
     :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
     :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
 
-sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer
-sparSPIssuer = SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
+sparSPIssuer :: SAML.HasConfig m => Maybe TeamId -> m SAML.Issuer
+sparSPIssuer Nothing =
+  SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
+sparSPIssuer (Just tid) =
+  SAML.Issuer <$> SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
 
-sparResponseURI :: SAML.HasConfig m => m URI.URI
-sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
+sparResponseURI :: SAML.HasConfig m => Maybe TeamId -> m URI.URI
+sparResponseURI Nothing =
+  SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
+sparResponseURI (Just tid) =
+  SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
 
 -- SCIM
 

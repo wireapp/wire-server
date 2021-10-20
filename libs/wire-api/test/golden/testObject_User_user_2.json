@@ -14,20 +14,6 @@
             "key": "",
             "size": "complete",
             "type": "image"
-        },
-        {
-            "key": "",
-            "size": "preview",
-            "type": "image"
-        },
-        {
-            "key": "",
-            "type": "image"
-        },
-        {
-            "key": "",
-            "size": "preview",
-            "type": "image"
         }
     ],
     "deleted": true,

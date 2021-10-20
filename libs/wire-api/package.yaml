@@ -13,6 +13,11 @@ dependencies:
 - containers >=0.5
 - imports
 - types-common >=0.16
+- servant-swagger-ui
+- case-insensitive
+- hscim
+- saml2-web-sso
+- filepath
 library:
   source-dirs: src
   dependencies:
@@ -22,10 +27,10 @@ library:
   - binary
   - bytestring >=0.9
   - bytestring-conversion >=0.2
-  - case-insensitive
   - cassandra-util
   - cassava >= 0.5
   - cereal
+  - comonad
   - cookie
   - cryptonite
   - currency-codes >=2.0
@@ -40,7 +45,6 @@ library:
   - ghc-prim
   - hashable
   - hostname-validate
-  - hscim
   - http-api-data
   - http-media
   - http-types
@@ -58,7 +62,6 @@ library:
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
   - resourcet
-  - saml2-web-sso
   - servant
   - servant-client
   - servant-client-core

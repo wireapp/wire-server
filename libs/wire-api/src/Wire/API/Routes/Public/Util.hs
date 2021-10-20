@@ -20,7 +20,9 @@
 
 module Wire.API.Routes.Public.Util where
 
+import Control.Comonad
 import Data.SOP (I (..), NS (..))
+import Servant
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Routes.MultiVerb
 
@@ -41,8 +43,36 @@ instance
 data ResponseForExistedCreated a
   = Existed !a
   | Created !a
+  deriving (Functor)
+
+instance Comonad ResponseForExistedCreated where
+  extract (Existed x) = x
+  extract (Created x) = x
+
+  duplicate r@(Existed _) = Existed r
+  duplicate r@(Created _) = Created r
 
 type ResponsesForExistedCreated eDesc cDesc a =
   '[ Respond 200 eDesc a,
      Respond 201 cDesc a
    ]
+
+data UpdateResult a
+  = Unchanged
+  | Updated !a
+
+type UpdateResponses unchangedDesc updatedDesc a =
+  '[ RespondEmpty 204 unchangedDesc,
+     Respond 200 updatedDesc a
+   ]
+
+instance
+  (ResponseType r1 ~ (), ResponseType r2 ~ a) =>
+  AsUnion '[r1, r2] (UpdateResult a)
+  where
+  toUnion Unchanged = inject (I ())
+  toUnion (Updated a) = inject (I a)
+
+  fromUnion (Z (I ())) = Unchanged
+  fromUnion (S (Z (I a))) = Updated a
+  fromUnion (S (S x)) = case x of

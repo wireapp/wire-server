@@ -1,0 +1,1 @@
+Include remote connections in the response to `POST /list-connections`

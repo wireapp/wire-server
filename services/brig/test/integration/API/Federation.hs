@@ -24,9 +24,9 @@ import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
 import Data.Handle (Handle (..))
-import Data.Id (Id (..), UserId)
+import Data.Id
 import qualified Data.Map as Map
-import Data.Qualified (qUnqualified)
+import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.UUID.V4 as UUIDv4
 import Federation.Util (generateClientPrekeys)
@@ -42,21 +42,22 @@ import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
 import Wire.API.UserMap (UserMap (UserMap))
 
+-- Note: POST /federation/send-connection-action is implicitly tested in API.User.Connection
 tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
 tests m brig fedBrigClient =
   return $
     testGroup
       "federation"
-      [ test m "GET /federation/search-users : Found" (testSearchSuccess brig fedBrigClient),
-        test m "GET /federation/search-users : NotFound" (testSearchNotFound fedBrigClient),
-        test m "GET /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
-        test m "GET /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
-        test m "GET /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound fedBrigClient),
-        test m "GET /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
-        test m "GET /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
-        test m "GET /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
-        test m "GET /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
-        test m "GET /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
+      [ test m "POST /federation/search-users : Found" (testSearchSuccess brig fedBrigClient),
+        test m "POST /federation/search-users : NotFound" (testSearchNotFound fedBrigClient),
+        test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
+        test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
+        test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
+        test m "POST /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
+        test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
@@ -80,22 +81,18 @@ testSearchSuccess brig fedBrigClient = do
 
   searchResult <- FedBrig.searchUsers fedBrigClient (SearchRequest (fromHandle handle))
   liftIO $ do
-    let contacts = contactQualifiedId <$> searchResults searchResult
+    let contacts = contactQualifiedId <$> searchResult
     assertEqual "should return only the first user id but not the identityThief" [quid] contacts
 
 testSearchNotFound :: FedBrigClient -> Http ()
 testSearchNotFound fedBrigClient = do
   searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest "this-handle-should-not-exist"
-  liftIO $ do
-    let contacts = searchResults searchResult
-    assertEqual "should return empty array of users" [] contacts
+  liftIO $ assertEqual "should return empty array of users" [] searchResult
 
 testSearchNotFoundEmpty :: FedBrigClient -> Http ()
 testSearchNotFoundEmpty fedBrigClient = do
   searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest ""
-  liftIO $ do
-    let contacts = searchResults searchResult
-    assertEqual "should return empty array of users" [] contacts
+  liftIO $ assertEqual "should return empty array of users" [] searchResult
 
 testGetUserByHandleSuccess :: Brig -> FedBrigClient -> Http ()
 testGetUserByHandleSuccess brig fedBrigClient = do
@@ -207,7 +204,7 @@ testGetUserClients brig fedBrigClient = do
 
 testGetUserClientsNotFound :: FedBrigClient -> Http ()
 testGetUserClientsNotFound fedBrigClient = do
-  absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
+  absentUserId <- randomId
   UserMap userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [absentUserId])
   liftIO $
     assertEqual

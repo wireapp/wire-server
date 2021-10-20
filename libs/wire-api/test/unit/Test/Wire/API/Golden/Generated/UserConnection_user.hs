@@ -16,10 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.UserConnection_user where
 
+import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
+import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Connection
   ( Relation (..),
     UserConnection (..),
@@ -29,7 +31,7 @@ testObject_UserConnection_user_1 :: UserConnection
 testObject_UserConnection_user_1 =
   UserConnection
     { ucFrom = Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000100000001")),
-      ucTo = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000300000002")),
+      ucTo = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000300000002"))) (Domain "farway.golden.example.com"),
       ucStatus = Pending,
       ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-07T21:52:21.955Z"),
       ucConvId = Nothing
@@ -39,8 +41,8 @@ testObject_UserConnection_user_2 :: UserConnection
 testObject_UserConnection_user_2 =
   UserConnection
     { ucFrom = Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000000000004")),
-      ucTo = Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000100000000")),
+      ucTo = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000100000000"))) (Domain "faraway.golden.example.com"),
       ucStatus = Cancelled,
       ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-11T10:43:38.227Z"),
-      ucConvId = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004")))
+      ucConvId = Just $ Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004"))) (Domain "nice-and-close-to-home.golden.example.com")
     }

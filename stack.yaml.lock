@@ -23,11 +23,11 @@ packages:
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
       size: 4887
-      sha256: 12be9a699749b9ebe63fb2e04113c2f2160a63494e8a2ba005792a02d0571f47
-    commit: f56b5ffc10ec5ceab9a508cbb9f8fbaa017bbf2c
+      sha256: 29e0138ca6bc33500b87cd6c06bbd899fe4ddaadcfd5117b211e7769f9f80161
+    commit: 60398f375987b74d6b855b5d225e45dc3a96ac06
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: f56b5ffc10ec5ceab9a508cbb9f8fbaa017bbf2c
+    commit: 60398f375987b74d6b855b5d225e45dc3a96ac06
 - completed:
     name: collectd
     version: 0.0.0.2
@@ -527,6 +527,13 @@ packages:
   original:
     hackage: cryptonite-0.28
 - completed:
+    hackage: polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
+    pantry-tree:
+      size: 4577
+      sha256: c4ca508b4a6786fc27e0f484344ce8dba119ea2f7fe47fb7379a51313a94cd10
+  original:
+    hackage: polysemy-1.6.0.0
+- completed:
     name: servant-swagger
     version: 1.1.11
     git: https://github.com/haskell-servant/servant-swagger
@@ -720,13 +727,6 @@ packages:
   original:
     hackage: compendium-client-0.2.1.1
 - completed:
-    hackage: http2-client-0.10.0.0@sha256:85b8771e9e8d4fd0b4327373ebb4a7bc7f9a293e5d7a7dc581ca4153a841da67,2604
-    pantry-tree:
-      size: 853
-      sha256: 4731a8ea6bc88cd762a99370f71c4754bcb57806844ee57a45d59e114ab1b5cb
-  original:
-    hackage: http2-client-0.10.0.0
-- completed:
     hackage: http2-grpc-types-0.5.0.0@sha256:4d34edc06a48496130f19245817a7cd7ea15c78ac8815570c3795ffc4503cf27,1445
     pantry-tree:
       size: 405
@@ -762,18 +762,29 @@ packages:
   original:
     hackage: parameterized-0.5.0.0
 - completed:
+    name: http2-client
+    version: 0.10.0.1
+    git: https://github.com/lucasdicioccio/http2-client
+    pantry-tree:
+      size: 1545
+      sha256: d0b3ab62eee8ee4c0ddec7a90fea78090815a54884646ddcdc451ff51d7e262a
+    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+  original:
+    git: https://github.com/lucasdicioccio/http2-client
+    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+- completed:
     subdir: http2-client-grpc
     name: http2-client-grpc
     version: 0.8.0.0
-    git: https://github.com/akshaymankar/http2-grpc-haskell
+    git: https://github.com/wireapp/http2-grpc-haskell
     pantry-tree:
       size: 455
-      sha256: b5ab96f6ef5bbe3dfef31e08316d54c4793cad71dbd02d5439fddaeea170e103
-    commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+      sha256: 5599a7b9b801d669e2063ffd4ab767bb8bbf12d20069de0cbd8862bca78d7e42
+    commit: eea98418672626eafbace3181ca34bf44bee91c0
   original:
     subdir: http2-client-grpc
-    git: https://github.com/akshaymankar/http2-grpc-haskell
-    commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+    git: https://github.com/wireapp/http2-grpc-haskell
+    commit: eea98418672626eafbace3181ca34bf44bee91c0
 - completed:
     name: http2
     version: 2.0.6
@@ -800,15 +811,15 @@ packages:
     subdir: x509-store
     name: x509-store
     version: 1.6.7
-    git: https://github.com/wireapp/hs-certificate
+    git: https://github.com/vincenthz/hs-certificate
     pantry-tree:
       size: 398
-      sha256: 96deca9a5358118057cd145f198b5be06d88019eae46b263bee86c76b2fc574d
-    commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1
+      sha256: bf71c28417dcf76a8aef361fbc74abe78962c80e7e996a2515996fd44b2f6ba6
+    commit: a899bda3d7666d25143be7be8f3105fc076703d9
   original:
     subdir: x509-store
-    git: https://github.com/wireapp/hs-certificate
-    commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1
+    git: https://github.com/vincenthz/hs-certificate
+    commit: a899bda3d7666d25143be7be8f3105fc076703d9
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

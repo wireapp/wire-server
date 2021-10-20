@@ -24,6 +24,22 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
 
+    -- * Event lenses
+    _EdMembersJoin,
+    _EdMembersLeave,
+    _EdConnect,
+    _EdConvReceiptModeUpdate,
+    _EdConvRename,
+    _EdConvDelete,
+    _EdConvAccessUpdate,
+    _EdConvMessageTimerUpdate,
+    _EdConvCodeUpdate,
+    _EdConvCodeDelete,
+    _EdMemberUpdate,
+    _EdConversation,
+    _EdTyping,
+    _EdOtrMessage,
+
     -- * Event data helpers
     SimpleMember (..),
     smId,
@@ -35,7 +51,7 @@ module Wire.API.Event.Conversation
     -- * re-exports
     ConversationReceiptModeUpdate (..),
     ConversationRename (..),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
     ConversationMessageTimerUpdate (..),
     ConversationCode (..),
     Conversation (..),
@@ -203,7 +219,7 @@ data EventData
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
   | EdConvDelete
-  | EdConvAccessUpdate ConversationAccessUpdate
+  | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
   | EdConvCodeUpdate ConversationCode
   | EdConvCodeDelete
@@ -236,7 +252,7 @@ modelConversationNameUpdateEvent = Doc.defineModel "ConversationNameUpdateEvent"
 modelConversationAccessUpdateEvent :: Doc.Model
 modelConversationAccessUpdateEvent = Doc.defineModel "ConversationAccessUpdateEvent" $ do
   Doc.description "conversation access update event"
-  Doc.property "data" (Doc.ref modelConversationAccessUpdate) $ Doc.description "conversation access data"
+  Doc.property "data" (Doc.ref modelConversationAccessData) $ Doc.description "conversation access data"
 
 modelConversationMessageTimerUpdateEvent :: Doc.Model
 modelConversationMessageTimerUpdateEvent = Doc.defineModel "ConversationMessageTimerUpdateEvent" $ do
@@ -297,7 +313,7 @@ newtype SimpleMembers = SimpleMembers
 
 instance ToSchema SimpleMembers where
   schema =
-    object "Members" $
+    object "SimpleMembers" $
       SimpleMembers
         <$> mMembers .= field "users" (array schema)
         <* (fmap smId . mMembers)
@@ -319,7 +335,7 @@ data SimpleMember = SimpleMember
   { smQualifiedId :: Qualified UserId,
     smConvRoleName :: RoleName
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
   deriving (FromJSON, ToJSON) via Schema SimpleMember
 
@@ -336,7 +352,7 @@ instance ToSchema SimpleMember where
           .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
 
 data Connect = Connect
-  { cRecipient :: UserId,
+  { cRecipient :: Qualified UserId,
     -- FUTUREWORK: As a follow-up from
     -- https://github.com/wireapp/wire-server/pull/1726, the message field can
     -- be removed from this event.
@@ -354,7 +370,8 @@ instance ToSchema Connect where
 connectObjectSchema :: ObjectSchema SwaggerDoc Connect
 connectObjectSchema =
   Connect
-    <$> cRecipient .= field "recipient" schema
+    <$> cRecipient .= field "qualified_recipient" schema
+    <* (Just . qUnqualified . cRecipient) .= optField "recipient" Nothing schema
     <*> cMessage .= lax (field "message" (optWithDefault A.Null schema))
     <*> cName .= lax (field "name" (optWithDefault A.Null schema))
     <*> cEmail .= lax (field "email" (optWithDefault A.Null schema))
@@ -378,12 +395,8 @@ modelConnect = Doc.defineModel "Connect" $ do
 -- Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-  { -- | Target user of this action, should not be optional anymore.
-    --
-    -- FUTUREWORK: make it mandatory to guarantee that no events
-    -- out there do not contain an ID.
-    -- <https://github.com/zinfra/backend-issues/issues/1309>
-    misTarget :: Maybe UserId,
+  { -- | Target user of this action
+    misTarget :: Qualified UserId,
     misOtrMutedStatus :: Maybe MutedStatus,
     misOtrMutedRef :: Maybe Text,
     misOtrArchived :: Maybe Bool,
@@ -402,7 +415,8 @@ instance ToSchema MemberUpdateData where
 memberUpdateDataObjectSchema :: ObjectSchema SwaggerDoc MemberUpdateData
 memberUpdateDataObjectSchema =
   MemberUpdateData
-    <$> misTarget .= opt (field "target" schema)
+    <$> misTarget .= field "qualified_target" schema
+    <* (Just . qUnqualified . misTarget) .= optField "target" Nothing schema
     <*> misOtrMutedStatus .= opt (field "otr_muted_status" schema)
     <*> misOtrMutedRef .= opt (field "otr_muted_ref" schema)
     <*> misOtrArchived .= opt (field "otr_archived" schema)

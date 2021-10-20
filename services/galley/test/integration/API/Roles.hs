@@ -21,19 +21,29 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
+import Data.Aeson (eitherDecode)
 import Data.ByteString.Conversion (toByteString')
+import qualified Data.ByteString.Lazy as LBS
+import Data.Domain
 import Data.Id
 import Data.List1
+import qualified Data.List1 as List1
 import Data.Qualified
+import qualified Data.Set as Set
 import Galley.Types
 import Galley.Types.Conversations.Roles
+import Gundeck.Types.Notification (Notification (..))
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation.Action
+import qualified Wire.API.Federation.API.Galley as F
+import qualified Wire.API.Federation.GRPC.Types as F
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -41,6 +51,9 @@ tests s =
     "Conversation roles"
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
       test s "conversation roles member (and upgrade)" handleConversationRoleMember,
+      test s "conversation role update with remote users present" roleUpdateWithRemotes,
+      test s "conversation access update with remote users present" accessUpdateWithRemotes,
+      test s "conversation role update of remote member" roleUpdateRemoteMember,
       test s "get all conversation roles" testAllConversationRoles
     ]
 
@@ -144,6 +157,174 @@ handleConversationRoleMember = do
       wsAssertMemberUpdateWithRole qcid qalice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
 
+roleUpdateRemoteMember :: TestM ()
+roleUpdateRemoteMember = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- Qualified <$> randomId <*> pure remoteDomain
+  let bob = qUnqualified qbob
+
+  traverse_ (connectWithRemoteUser bob) [qalice, qcharlie]
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
+  let qconv = decodeQualifiedConvId resp
+
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator (const ()) $
+        putOtherMemberQualified
+          bob
+          qcharlie
+          (OtherMemberUpdate (Just roleNameWireMember))
+          qconv
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    let mu =
+          MemberUpdateData
+            { misTarget = qcharlie,
+              misOtrMutedStatus = Nothing,
+              misOtrMutedRef = Nothing,
+              misOtrArchived = Nothing,
+              misOtrArchivedRef = Nothing,
+              misHidden = Nothing,
+              misHiddenRef = Nothing,
+              misConvRoleName = Just roleNameWireMember
+            }
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember))
+      sort (F.cuAlreadyPresentUsers cu) @?= sort [qUnqualified qalice, qUnqualified qcharlie]
+
+    liftIO . WS.assertMatch_ (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate mu
+
+  conv <- responseJsonError =<< getConvQualified bob qconv <!! const 200 === statusCode
+  let charlieAsMember = find (\m -> omQualifiedId m == qcharlie) (cmOthers (cnvMembers conv))
+  liftIO $
+    charlieAsMember
+      @=? Just
+        OtherMember
+          { omQualifiedId = qcharlie,
+            omService = Nothing,
+            omConvRoleName = roleNameWireMember
+          }
+
+roleUpdateWithRemotes :: TestM ()
+roleUpdateWithRemotes = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      charlie = qUnqualified qcharlie
+
+  connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
+  let qconv = decodeQualifiedConvId resp
+
+  WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
+    (_, requests) <-
+      withTempMockFederator (const ()) $
+        putOtherMemberQualified
+          bob
+          qcharlie
+          (OtherMemberUpdate (Just roleNameWireAdmin))
+          qconv
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    let mu =
+          MemberUpdateData
+            { misTarget = qcharlie,
+              misOtrMutedStatus = Nothing,
+              misOtrMutedRef = Nothing,
+              misOtrArchived = Nothing,
+              misOtrArchivedRef = Nothing,
+              misHidden = Nothing,
+              misHiddenRef = Nothing,
+              misConvRoleName = Just roleNameWireAdmin
+            }
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin))
+      F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
+
+    liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate mu
+
+accessUpdateWithRemotes :: TestM ()
+accessUpdateWithRemotes = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      charlie = qUnqualified qcharlie
+
+  connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
+  let qconv = decodeQualifiedConvId resp
+
+  let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
+  WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
+    (_, requests) <-
+      withTempMockFederator (const ()) $
+        putQualifiedAccessUpdate bob qconv access
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu @?= ConversationActionAccessUpdate access
+      F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
+
+    liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvAccessUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdConvAccessUpdate access
+
 -- | Given an admin, another admin and a member run all
 --   the necessary checks targeting the admin
 wireAdminChecks ::
@@ -154,6 +335,7 @@ wireAdminChecks ::
   TestM ()
 wireAdminChecks cid admin otherAdmin mem = do
   let role = roleNameWireAdmin
+  qcid <- Qualified cid <$> viewFederationDomain
   other <- randomUser
   connectUsers admin (singleton other)
   -- Admins can perform all operations on the conversation; creator is not relevant
@@ -177,13 +359,13 @@ wireAdminChecks cid admin otherAdmin mem = do
   putMessageTimerUpdate admin cid (ConversationMessageTimerUpdate $ Just 2000) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 0) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 1) !!! assertActionSucceeded
-  let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   putAccessUpdate admin cid nonActivatedAccess !!! assertActionSucceeded
-  let activatedAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+  let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
-  putMember admin memUpdate cid !!! assertActionSucceeded
+  putMember admin memUpdate qcid !!! assertActionSucceeded
   -- You can also leave a conversation
   deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
   -- Readding the user
@@ -199,6 +381,7 @@ wireMemberChecks ::
   TestM ()
 wireMemberChecks cid mem admin otherMem = do
   let role = roleNameWireMember
+  qcid <- Qualified cid <$> viewFederationDomain
   other <- randomUser
   connectUsers mem (singleton other)
   -- Members cannot perform pretty much any action on the conversation
@@ -221,13 +404,13 @@ wireMemberChecks cid mem admin otherMem = do
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
-  let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   putAccessUpdate mem cid nonActivatedAccess !!! assertActionDenied
   -- Finally, you can still do the following actions:
 
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
-  putMember mem memUpdate cid !!! assertActionSucceeded
+  putMember mem memUpdate qcid !!! assertActionSucceeded
   -- Last option is to leave a conversation
   deleteMemberUnqualified mem mem cid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier

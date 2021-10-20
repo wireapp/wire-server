@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9964cbee009e206492e2a4bb74873592f1963ac4c13deb477b04491ee4471a2a
+-- hash: 33acd5be229059e16903857f1923a9afcf55f285461298721a15d8d8c5b88a12
 
 name:           brig
 version:        1.35.0
@@ -22,6 +22,8 @@ library
       Brig.API
       Brig.API.Client
       Brig.API.Connection
+      Brig.API.Connection.Remote
+      Brig.API.Connection.Util
       Brig.API.Error
       Brig.API.Federation
       Brig.API.Handler
@@ -137,6 +139,7 @@ library
     , bytestring >=0.10
     , bytestring-conversion >=0.2
     , cassandra-util >=0.16.2
+    , comonad
     , conduit >=1.2.8
     , containers >=0.5
     , cookie >=0.4
@@ -173,6 +176,7 @@ library
     , metrics-wai >=0.3
     , mime
     , mime-mail >=0.4
+    , mmorph
     , mtl >=2.1
     , mu-grpc-client
     , multihash >=0.1.3
@@ -207,6 +211,7 @@ library
     , string-conversions
     , swagger >=0.1
     , swagger2
+    , tagged
     , template >=0.2
     , text >=0.11
     , text-icu-translit >=0.1
@@ -268,6 +273,7 @@ executable brig-integration
       API.Calling
       API.Federation
       API.Internal
+      API.Internal.Util
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -318,6 +324,7 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , cql-io
     , data-timeout
     , email-validate
     , exceptions
@@ -435,6 +442,8 @@ executable brig-schema
       V62_RemoveFederationIdMapping
       V63_AddUsersPendingActivation
       V64_ClientCapabilities
+      V65_FederatedConnections
+      V66_PersonalFeatureConfCallInit
       V9
       Paths_brig
   hs-source-dirs:
@@ -460,6 +469,7 @@ test-suite brig-tests
       Test.Brig.API.Error
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:
@@ -483,6 +493,7 @@ test-suite brig-tests
     , servant-client-core
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , time
     , tinylog
     , types-common

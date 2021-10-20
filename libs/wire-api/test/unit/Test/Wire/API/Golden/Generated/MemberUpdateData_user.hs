@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.MemberUpdateData_user where
 
+import Data.Domain
 import Data.Id (Id (Id))
+import Data.Qualified
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation (MutedStatus (MutedStatus, fromMutedStatus))
@@ -26,13 +28,32 @@ import Wire.API.Event.Conversation (MemberUpdateData (..))
 testObject_MemberUpdateData_user_1 :: MemberUpdateData
 testObject_MemberUpdateData_user_1 =
   MemberUpdateData
-    { misTarget = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
+    { misTarget =
+        Qualified
+          (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001")))
+          (Domain "target.example.com"),
       misOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -1}),
       misOtrMutedRef = Just "#M\95696",
       misOtrArchived = Just False,
       misOtrArchivedRef = Just "a",
       misHidden = Just True,
       misHiddenRef = Just "1",
+      misConvRoleName = Nothing
+    }
+
+testObject_MemberUpdateData_user_2 :: MemberUpdateData
+testObject_MemberUpdateData_user_2 =
+  MemberUpdateData
+    { misTarget =
+        Qualified
+          (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001")))
+          (Domain "target.example.com"),
+      misOtrMutedStatus = Nothing,
+      misOtrMutedRef = Nothing,
+      misOtrArchived = Nothing,
+      misOtrArchivedRef = Nothing,
+      misHidden = Nothing,
+      misHiddenRef = Nothing,
       misConvRoleName =
         Just
           ( fromJust
@@ -40,17 +61,4 @@ testObject_MemberUpdateData_user_1 =
                   "3fwjaofhryb7nd1hp3nwukjiyxxhgimw8ddzx5s_8ek5nnctkzkic6w51hqugeh6l50hg87dez8pw974dbuywd83njuytv0euf9619s"
               )
           )
-    }
-
-testObject_MemberUpdateData_user_2 :: MemberUpdateData
-testObject_MemberUpdateData_user_2 =
-  MemberUpdateData
-    { misTarget = Nothing,
-      misOtrMutedStatus = Nothing,
-      misOtrMutedRef = Nothing,
-      misOtrArchived = Nothing,
-      misOtrArchivedRef = Nothing,
-      misHidden = Nothing,
-      misHiddenRef = Nothing,
-      misConvRoleName = Nothing
     }

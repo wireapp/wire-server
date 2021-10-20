@@ -25,7 +25,6 @@
 module Brig.Types.Connection
   ( module C,
     UserIds (..),
-    ConnectionsStatusRequest (..),
     UpdateConnectionsInternal (..),
 
     -- * re-exports
@@ -40,6 +39,7 @@ where
 import Brig.Types.Common as C
 import Data.Aeson
 import Data.Id (UserId)
+import Data.Qualified
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.Connection
@@ -51,16 +51,17 @@ data UserIds = UserIds
   {cUsers :: [UserId]}
   deriving (Eq, Show, Generic)
 
--- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
-data ConnectionsStatusRequest = ConnectionsStatusRequest
-  { csrFrom :: ![UserId],
-    csrTo :: !(Maybe [UserId])
-  }
-  deriving (Eq, Show, Generic)
-
+-- FUTUREWORK: This needs to get Qualified IDs when implementing
+-- Legalhold + Federation, as it's used in the internal
+-- putConnectionInternal / galley->Brig "/i/users/connections-status"
+-- endpoint.
+-- Internal RPCs need to be updated accordingly.
+-- See https://wearezeta.atlassian.net/browse/SQCORE-973
 data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
   | RemoveLHBlocksInvolving UserId
+  | -- | This must only be used by tests
+    CreateConnectionForTest UserId (Qualified UserId)
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
 
@@ -80,16 +81,3 @@ instance ToJSON UserIds where
   toJSON (UserIds us) =
     object
       ["ids" .= us]
-
-instance FromJSON ConnectionsStatusRequest where
-  parseJSON = withObject "ConnectionsStatusRequest" $ \o -> do
-    csrFrom <- o .: "from"
-    csrTo <- o .: "to"
-    pure ConnectionsStatusRequest {..}
-
-instance ToJSON ConnectionsStatusRequest where
-  toJSON ConnectionsStatusRequest {csrFrom, csrTo} =
-    object
-      [ "from" .= csrFrom,
-        "to" .= csrTo
-      ]

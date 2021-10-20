@@ -20,7 +20,7 @@ module Wire.API.Federation.API.Brig where
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Handle (Handle)
-import Data.Id (ClientId, UserId)
+import Data.Id
 import Imports
 import Servant.API
 import Servant.API.Generic
@@ -28,6 +28,7 @@ import Servant.Client.Generic (AsClientT, genericClient)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
+import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
@@ -45,6 +46,8 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
+-- | For conventions see /docs/developer/federation-api-conventions.md
+--
 -- Maybe this module should be called Brig
 data Api routes = Api
   { getUserByHandle ::
@@ -84,13 +87,20 @@ data Api routes = Api
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
         :> ReqBody '[JSON] SearchRequest
-        :> Post '[JSON] (SearchResult Contact),
+        :> Post '[JSON] [Contact],
     getUserClients ::
       routes
         :- "federation"
         :> "get-user-clients"
         :> ReqBody '[JSON] GetUserClients
-        :> Post '[JSON] (UserMap (Set PubClient))
+        :> Post '[JSON] (UserMap (Set PubClient)),
+    sendConnectionAction ::
+      routes
+        :- "federation"
+        :> "send-connection-action"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] NewConnectionRequest
+        :> Post '[JSON] NewConnectionResponse
   }
   deriving (Generic)
 
@@ -99,6 +109,47 @@ newtype GetUserClients = GetUserClients
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
+
+-- NOTE: ConversationId for remote connections
+--
+-- The plan is to model the connect/one2one conversationId as deterministically derived from
+-- the combination of both userIds and both domains. It may be in the domain
+-- of the sending OR the receiving backend (with a 50/50 probability).
+-- However at the level of the federation API, we are only concerned about
+-- the question of which backend has the authority over the conversationId.
+--
+-- (Backend A should not prescribe backend B to use a certain UUID for its
+-- conversation; as that could lead to a potential malicious override of an
+-- existing conversation)
+--
+-- The deterministic conversation Id should be seen as a 'best effort'
+-- attempt only. (we cannot guarantee a backend won't change the code in the
+-- future)
+
+data NewConnectionRequest = NewConnectionRequest
+  { -- | The 'from' userId is understood to always have the domain of the backend making the connection request
+    ncrFrom :: UserId,
+    -- | The 'to' userId is understood to always have the domain of the receiving backend.
+    ncrTo :: UserId,
+    ncrAction :: RemoteConnectionAction
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionRequest)
+
+data RemoteConnectionAction
+  = RemoteConnect
+  | RemoteRescind
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConnectionAction)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConnectionAction)
+
+data NewConnectionResponse
+  = NewConnectionResponseUserNotActivated
+  | NewConnectionResponseOk (Maybe RemoteConnectionAction)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
+  deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
 clientRoutes = genericClient

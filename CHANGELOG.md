@@ -1,5 +1,137 @@
+<!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
-<!-- if you're not the release manager, do your edits to changelog in CHANGELOG-draft.md -->
+# [2021-10-01]
+
+## Release notes
+
+* Deploy brig before galley (#1811, #1818)
+* The conference call initiation feature can now be configured for personal accounts in `brig.yaml`.  `enabled` is the default and the previous behavior.  If you want to change that, read [/docs/reference/config-options.md#conference-calling-1](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#conference-calling-1) (#1811, #1818)
+* Only if you are an early adopter of multi-team IdP issuers on release [2021-09-14](https://github.com/wireapp/wire-server/releases/tag/v2021-09-14): note that the [query parameter for IdP creation has changed](https://github.com/wireapp/wire-server/pull/1763/files#diff-bd66bf2f3a2445e08650535a431fc33cc1f6a9e0763c7afd9c9d3f2d67fac196).  This only affects future calls to this one end-point. (#1763)
+* For wire.com cloud operators: reminder to also deploy nginz. (No special action needed for on-premise operators) (#1773)
+
+## API changes
+
+* Add endpoint `POST /connections/:domain/:userId` to create a connection (#1773)
+* Deprecate `PUT /conversations/:cnv/access` endpoint (#1807)
+* Deprecate `PUT /conversations/:cnv/message-timer` endpoint (#1780)
+* Deprecate `PUT /conversations/:cnv/members/:usr` endpoint (#1784)
+* Deprecate `PUT /conversations/:cnv/receipt-mode` endpoint (#1797)
+* Add endpoint `GET /connections/:domain/:userId` to get a single connection (#1773)
+* Add `POST /list-connections` endpoint to get connections (#1773)
+* Add qualified endpoint for updating conversation access (#1807)
+* Add qualified endpoint for updating message timer (#1780)
+* Add qualified endpoint for updating conversation members (#1784)
+* Add qualified endpoint for updating receipt mode (#1797)
+* Add endpoint `PUT /connections/:domain/:userId` to update a connection (#1773)
+
+## Features
+
+* Helm charts to deploy [ldap-scim-bridge](https://github.com/wireapp/ldap-scim-bridge) (#1709)
+* Per-account configuration of conference call initiation (details: /docs/reference/config-options.md#conference-calling-1) (#1811, #1818)
+
+## Bug fixes and other updates
+
+* An attempt to create a 3rd IdP with the same issuer was triggering an exception. (#1763)
+* When a user was auto-provisioned into two teams under the same pair of `Issuer` and `NameID`, they where directed into the wrong team, and not rejected. (#1763)
+
+## Documentation
+
+* Expand documentation of `conversations/list-ids` endpoint (#1779)
+* Add documentation of the multi-table paging abstraction (#1803)
+* Document how to use IdP issuers for multiple teams (#1763)
+* All named Swagger schemas are now displayed in the Swagger UI (#1802)
+
+## Internal changes
+
+* Abstract out multi-table-pagination used in list conversation-ids endpoint (#1788)
+* Testing: rewrite monadic to applicative style generators (#1782)
+* Add a test checking that creating conversations of exactly the size limit is allowed (#1820)
+* Rewrite the DELETE /self endpoint to Servant (#1771)
+* Fix conversation generator in mapping test (#1778)
+* Polysemize spar (#1806, #1787, #1793, #1814, #1792, #1781, #1786, #1810, #1816, #1815)
+* Refactored a few functions dealing with conversation updates, in an attempt to
+  make the conversation update code paths more uniform, and also reduce special
+  cases for local and remote objects. (#1801)
+* Merged http2-client fixes as mentioned in the comments of #1703 (#1809)
+* Some executables now have a runtime dependency on ncurses (#1791)
+* Minor changes around SAML and multi-team Issuers.
+  - Change query param to not contain `-`, but `_`.  (This is considered an internal change because the feature has been release in the last release, but only been documented in this one.)
+  - Haddocks.
+  - Simplify code.
+  - Remove unnecessary calls to cassandra. (#1763)
+* Clean up JSON Golden Tests (Part 6) (#1769)
+* Remove explicit instantiations of ErrorDescription (#1794)
+* Remove one flaky integration test about ordering of search results (#1798)
+* Report all failures in JSON golden tests in a group at once (#1746)
+* Convert the `PUT /conversations/:cnv/access` endpoint to Servant (#1807)
+* Move /connections/* endpoints to Servant (#1770)
+* Servantify Galley's DELETE /i/user endpoint (#1772)
+* Convert the `PUT /conversations/:cnv/message-timer` endpoint to Servant (#1780)
+* Convert the `PUT /conversations/:cnv/members/:usr` endpoint to Servant (#1796)
+* Convert the `PUT /conversations/:cnv/receipt-mode` endpoint to Servant (#1797)
+* Expose wire.com internal EJDP process to backoffice/stern. (#1831)
+* Update configurable boolean team feature list in backoffice/stern. (#1829)
+* Handle upper/lower case more consistently in scim and rich-info data. (#1754)
+
+## Federation changes
+
+* Add value for verification depth of client certificates in federator ingress (#1812)
+* Document federation API conventions and align already existing APIs (#1765)
+* Notify remote users when a conversation access settings are updated (#1808)
+* Notify remote users when a conversation member role is updated (#1785)
+* Notify remote users when a conversation message timer is updated (#1783)
+* Notify remote users when a conversation is renamed (#1767)
+* Make sure that only users that are actually part of a conversation get notified about updates in the conversation metadata (#1767)
+* Notify remote users when a conversation receipt mode is updated (#1801)
+* Implement updates to remote members (#1785)
+* Make conversation ID of the on-conversation-created RPC unqualified (#1766)
+* 4 endpoints for create/update/get/list connections designed for remote users in mind. So far, the implementation only works for local users (actual implementation will come as a follow-up) (#1773)
+* The returned `connection` object now has a `qualified_to` field with the domain of the (potentially remote) user. (#1773)
+* Add migration for remote connection table (#1789)
+* Remove a user from remote conversations upon deleting their account (#1790)
+* Remove elasticsearch specific details from the search endpoint (#1768)
+* Added support for updating self member status of remote conversations (#1753)
+
+
+# [2021-09-14]
+
+## API changes
+
+* Remove the long-deprecated `message` field in `POST /connections` (#1726)
+* Add `PUT /conversations/:domain/:cnv/name` (#1737)
+* Deprecate `PUT /conversations/:cnv/name` (#1737)
+* Add `GET & PUT /conversations/:domain/:cnv/self` (#1740)
+* Deprecate `GET & PUT /conversations/:cnv/self` (#1740)
+* Remove endpoint `GET /conversations/:domain/:cnv/self` (#1752)
+* The `otr_muted` field in `Member` and `MemberUpdate` has been removed. (#1751)
+* Removed the ability to update one's own role (#1752)
+
+## Features
+
+* Disallow changing phone number to a black listed phone number (#1758)
+* Support using a single IDP with a single EntityID (aka issuer ID) to set up two teams. Sets up a migration, and makes teamID + EntityID unique, rather than relying on EntityID to be unique. Required to support multiple teams in environments where the IDP software cannot present anything but one EntityID (E.G.: DualShield). (#1755)
+
+## Documentation
+
+* Added documentation of federation errors (#1674)
+* Better swagger schema for the Range type (#1748)
+* Add better example for Domain in swagger (#1748)
+
+## Internal changes
+
+* Introduce new process for writing changelogs (#1749)
+* Clean up JSON golden tests (Part 4, Part 5) (#1756, #1762)
+* Increased timeout on certificate update tests to 10s (#1750)
+* Fix for flaky test in spar (#1760)
+* Rewrite the `POST /connections` endpoint to Servant (#1726)
+* Various improvements and fixes around SAML/SCIM (#1735)
+
+## Federation changes
+
+* Avoid remote calls to get conversation when it is not found locally (#1749)
+* Federator CA store and client credentials are now automatically reloaded (#1730)
+* Ensure clients only receive messages meant for them in remote convs (#1739)
+
 
 # [2021-09-08]
 

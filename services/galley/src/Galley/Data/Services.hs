@@ -52,14 +52,20 @@ import Imports
 -- FUTUREWORK(federation): allow remote bots
 newtype BotMember = BotMember {fromBotMember :: LocalMember}
 
+instance Eq BotMember where
+  (==) = (==) `on` botMemId
+
+instance Ord BotMember where
+  compare = compare `on` botMemId
+
 newBotMember :: LocalMember -> Maybe BotMember
-newBotMember m = const (BotMember m) <$> memService m
+newBotMember m = const (BotMember m) <$> lmService m
 
 botMemId :: BotMember -> BotId
-botMemId = BotId . memId . fromBotMember
+botMemId = BotId . lmId . fromBotMember
 
 botMemService :: BotMember -> ServiceRef
-botMemService = fromJust . memService . fromBotMember
+botMemService = fromJust . lmService . fromBotMember
 
 addBotMember :: Qualified UserId -> ServiceRef -> BotId -> ConvId -> UTCTime -> Galley (Event, BotMember)
 addBotMember qorig s bot cnv now = do
@@ -77,7 +83,7 @@ addBotMember qorig s bot cnv now = do
     localDomain = qDomain qorig
     -- FUTUREWORK: support remote bots
     e = Event MemberJoin qcnv qorig now (EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
-    mem = (newMember (botUserId bot)) {memService = Just s}
+    mem = (newMember (botUserId bot)) {lmService = Just s}
 
     toSimpleMember :: UserId -> SimpleMember
     toSimpleMember u = SimpleMember (Qualified u localDomain) roleNameWireAdmin

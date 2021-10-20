@@ -29,6 +29,7 @@ module Stern.Intra
     getUsersConnections,
     getUserProfiles,
     getUserProfilesByIdentity,
+    getEjpdInfo,
     getUserProperties,
     getInvoiceUrl,
     revokeIdentity,
@@ -77,6 +78,7 @@ import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Qualified (qUnqualified)
+import Data.String.Conversions (cs)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
@@ -94,6 +96,8 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import qualified Wire.API.Team.Feature as Public
 
 -------------------------------------------------------------------------------
@@ -139,11 +143,12 @@ getUserConnections uid = do
   info $ msg "Getting user connections"
   fetchAll [] Nothing
   where
+    fetchAll :: [UserConnection] -> Maybe UserId -> Handler [UserConnection]
     fetchAll xs start = do
       userConnectionList <- fetchBatch start
       let batch = clConnections userConnectionList
-      if (not . null) batch && (clHasMore userConnectionList)
-        then fetchAll (batch ++ xs) (Just . ucTo $ last batch)
+      if (not . null) batch && clHasMore userConnectionList
+        then fetchAll (batch ++ xs) (Just . qUnqualified . ucTo $ last batch)
         else return (batch ++ xs)
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
@@ -167,20 +172,19 @@ getUsersConnections :: List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
   b <- view brig
+  let reqBody = ConnectionsStatusRequest (fromList uids) Nothing
   r <-
     catchRpcErrors $
       rpc'
         "brig"
         b
-        ( method GET
+        ( method POST
             . path "/i/users/connections-status"
-            . queryItem "users" users
+            . Bilge.json reqBody
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
   parseResponse (mkError status502 "bad-upstream") r
-  where
-    users = BS.intercalate "," $ map toByteString' (fromList uids)
 
 getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
 getUserProfiles uidsOrHandles = do
@@ -221,6 +225,25 @@ getUserProfilesByIdentity emailOrPhone = do
         ( method GET
             . path "/i/users"
             . userKeyToParam emailOrPhone
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
+
+getEjpdInfo :: [Handle] -> Bool -> Handler EJPD.EJPDResponseBody
+getEjpdInfo handles includeContacts = do
+  info $ msg "Getting ejpd info on users by handle"
+  b <- view brig
+  let bdy :: Value
+      bdy = object ["ejpd_request" .= ((cs @_ @Text . toByteString') <$> handles)]
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method POST
+            . path "/i/ejpd-request"
+            . Bilge.json bdy
+            . (if includeContacts then queryItem "include_contacts" "true" else id)
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r

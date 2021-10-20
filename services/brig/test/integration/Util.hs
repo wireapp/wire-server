@@ -41,19 +41,19 @@ import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
-import Data.Aeson.Types (emptyObject)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain (Domain, domainText, mkDomain)
+import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Proxy
+import Data.Qualified
 import Data.Range
 import qualified Data.Text as T
 import qualified Data.Text as Text
@@ -61,6 +61,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
@@ -75,10 +76,11 @@ import Test.Tasty.HUnit
 import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.AWS
-import Wire.API.Conversation (ListConversations, NewConv (..), NewConvUnmanaged (..))
-import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
 
@@ -95,6 +97,8 @@ type Nginz = Request -> Request
 type Spar = Request -> Request
 
 type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
+
+type FedGalleyClient = FedGalley.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -125,6 +129,42 @@ test m n h = testCase n (void $ runHttpT m h)
 
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
+
+twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
+twoRandomUsers brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+  pure (quid1, uid1, quid2, uid2)
+
+localAndRemoteUser ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m (UserId, Qualified UserId)
+localAndRemoteUser brig = do
+  uid1 <- userId <$> randomUser brig
+  quid2 <- fakeRemoteUser
+  pure (uid1, quid2)
+
+localAndRemoteUserWithConvId ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Bool ->
+  m (UserId, Qualified UserId, Qualified ConvId)
+localAndRemoteUserWithConvId brig shouldBeLocal = do
+  quid <- userQualifiedId <$> randomUser brig
+  let go = do
+        other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+        let convId = one2OneConvId quid other
+            isLocal = qDomain quid == qDomain convId
+        if shouldBeLocal == isLocal
+          then pure (qUnqualified quid, other, convId)
+          else go
+  go
+
+fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
+fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -412,11 +452,32 @@ postConnection brig from to =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
 
+postConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+postConnectionQualified brig from (Qualified toUser toDomain) =
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
+
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
     brig
       . paths ["/connections", toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object ["status" .= r]
+
+putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnectionQualified brig from (Qualified to toDomain) r =
+  put $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' to]
       . contentJson
       . body payload
       . zUser from
@@ -558,28 +619,29 @@ createConversation galley zusr usersToAdd = do
       . zConn "conn"
       . json conv
 
--- (should be) equivalent to
--- listConvs u (ListConversations [] Nothing Nothing)
-listAllConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
-listAllConvs g u = do
+listConvIdsFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listConvIdsFirstPage galley zusr = do
+  let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
   post $
-    g
-      . path "/list-conversations"
-      . zUser u
-      . zConn "conn"
-      . json emptyObject
-
-listConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ListConversations -> m ResponseLBS
-listConvs g u req = do
-  -- when using servant-client (pending #1605), this would become:
-  -- galleyClient <- view tsGalleyClient
-  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
-  post $
-    g
-      . path "/list-conversations"
-      . zUser u
+    galley
+      . path "/conversations/list-ids"
+      . zUser zusr
       . zConn "conn"
       . json req
+
+listConvs ::
+  (MonadIO m, MonadHttp m) =>
+  Galley ->
+  UserId ->
+  Range 1 1000 [Qualified ConvId] ->
+  m ResponseLBS
+listConvs galley zusr convs = do
+  post $
+    galley
+      . path "/conversations/list/v2"
+      . zUser zusr
+      . zConn "conn"
+      . json (ListConversations convs)
 
 isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
@@ -848,3 +910,24 @@ withDomainsBlockedForRegistration opts domains sess = do
       blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+aFewTimes ::
+  (HasCallStack, MonadIO m) =>
+  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
+  Int ->
+  m a ->
+  (a -> Bool) ->
+  m a
+aFewTimes
+  retries
+  action
+  good = do
+    retrying
+      (exponentialBackoff 1000 <> limitRetries retries)
+      (\_ -> pure . not . good)
+      (\_ -> action)
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs

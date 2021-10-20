@@ -45,6 +45,7 @@ module Wire.API.Team.Feature
   )
 where
 
+import qualified Cassandra.CQL as Cass
 import Control.Lens.Combinators (dimap)
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Parser
@@ -253,6 +254,18 @@ instance FromByteString TeamFeatureStatusValue where
         Right "disabled" -> pure TeamFeatureDisabled
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
+
+instance Cass.Cql TeamFeatureStatusValue where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  fromCql (Cass.CqlInt n) = case n of
+    0 -> pure $ TeamFeatureDisabled
+    1 -> pure $ TeamFeatureEnabled
+    _ -> Left "fromCql: Invalid TeamFeatureStatusValue"
+  fromCql _ = Left "fromCql: TeamFeatureStatusValue: CqlInt expected"
+
+  toCql TeamFeatureDisabled = Cass.CqlInt 0
+  toCql TeamFeatureEnabled = Cass.CqlInt 1
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatus

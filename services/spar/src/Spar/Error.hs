@@ -29,7 +29,6 @@ module Spar.Error
     SparCustomError (..),
     throwSpar,
     sparToServerErrorWithLogging,
-    renderSparErrorWithLogging,
     rethrow,
     parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
@@ -68,7 +67,7 @@ throwSpar :: MonadError SparError m => SparCustomError -> m a
 throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
-  = SparIdPNotFound
+  = SparIdPNotFound LT
   | SparSamlCredentialsNotFound
   | SparMissingZUsr
   | SparNotInTeam
@@ -84,6 +83,7 @@ data SparCustomError
   | SparBindFromWrongOrNoTeam LT
   | SparBindFromBadAccountStatus LT
   | SparBindUserRefTaken
+  | SparUserRefInNoOrMultipleTeams LT
   | SparBadUserName LT
   | SparCannotCreateUsersOnReplacedIdP LT
   | SparCouldNotParseRfcResponse LT LT
@@ -93,12 +93,18 @@ data SparCustomError
   | SparCassandraTTLError TTLError
   | SparNewIdPBadMetadata LT
   | SparNewIdPPubkeyMismatch
-  | SparNewIdPAlreadyInUse
+  | SparNewIdPAlreadyInUse LT
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
   | SparIdPIssuerInUse
   | SparProvisioningMoreThanOneIdP LT
   | SparProvisioningTokenLimitReached
+  | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
+    -- "Spar.Sem.SAML2.Library"), for an error that immediately gets caught.
+    -- Instead, we could just use an IO exception, and catch it with
+    -- 'catchErrors' (see "Spar.Run"). Maybe we want to remove this case
+    -- altogether? Not sure.
+    SparInternalError LT
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
   deriving (Eq, Show)
@@ -125,12 +131,6 @@ waiToServant waierr@(Wai.Error status label _ _) =
       errHeaders = []
     }
 
-renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServerError Wai.Error)
-renderSparErrorWithLogging logger err = do
-  let errPossiblyWai = renderSparError err
-  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
-  pure errPossiblyWai
-
 renderSparError :: SparError -> Either ServerError Wai.Error
 renderSparError (SAML.CustomError SparNoSuchRequest) = Right $ Wai.mkError status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."
 renderSparError (SAML.CustomError (SparNoRequestRefInResponse msg)) = Right $ Wai.mkError status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
@@ -140,6 +140,7 @@ renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Rig
 renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: wrong user team " <> msg)
 renderSparError (SAML.CustomError (SparBindFromBadAccountStatus msg)) = Right $ Wai.mkError status403 "bad-account-status" ("Forbidden: user has account status " <> msg <> "; only Active, PendingInvitation are supported")
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.mkError status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
+renderSparError (SAML.CustomError (SparUserRefInNoOrMultipleTeams msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: multiple teams or no team for same UserRef " <> msg)
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.mkError status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.mkError status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
 -- RFC-specific errors
@@ -158,7 +159,8 @@ renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.mkError status40
 renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: no assertions in AuthnResponse")
 renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: assertion without ID")
 renderSparError (SAML.BadSamlResponseInvalidSignature msg) = Right $ Wai.mkError status400 "bad-response-signature" (cs msg)
-renderSparError (SAML.CustomError SparIdPNotFound) = Right $ Wai.mkError status404 "not-found" "Could not find IdP."
+renderSparError (SAML.CustomError (SparIdPNotFound "")) = Right $ Wai.mkError status404 "not-found" "Could not find IdP."
+renderSparError (SAML.CustomError (SparIdPNotFound msg)) = Right $ Wai.mkError status404 "not-found" ("Could not find IdP: " <> msg)
 renderSparError (SAML.CustomError SparSamlCredentialsNotFound) = Right $ Wai.mkError status404 "not-found" "Could not find SAML credentials, and auto-provisioning is disabled."
 renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.mkError status400 "client-error" "[header] 'Z-User' required"
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.mkError status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
@@ -172,7 +174,7 @@ renderSparError (SAML.InvalidCert msg) = Right $ Wai.mkError status500 "invalid-
 -- Errors related to IdP creation
 renderSparError (SAML.CustomError (SparNewIdPBadMetadata msg)) = Right $ Wai.mkError status400 "invalid-metadata" msg
 renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch) = Right $ Wai.mkError status400 "key-mismatch" "public keys in body, metadata do not match"
-renderSparError (SAML.CustomError SparNewIdPAlreadyInUse) = Right $ Wai.mkError status400 "idp-already-in-use" "an idp issuer can only be used within one team"
+renderSparError (SAML.CustomError (SparNewIdPAlreadyInUse msg)) = Right $ Wai.mkError status400 "idp-already-in-use" msg
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.mkError status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.mkError status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
 renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.mkError status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
@@ -181,6 +183,7 @@ renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right 
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err
+renderSparError (SAML.CustomError (SparInternalError err)) = Right $ Wai.mkError status500 "server-error" ("Internal error: " <> err)
 -- Other
 renderSparError (SAML.CustomServant err) = Left err
 

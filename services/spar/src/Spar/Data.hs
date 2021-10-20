@@ -56,12 +56,12 @@ module Spar.Data
     Replacing (..),
     setReplacedBy,
     clearReplacedBy,
+    GetIdPResult (..),
     getIdPConfig,
-    getIdPConfigByIssuer,
-    getIdPIdByIssuer,
+    getIdPIdByIssuerWithoutTeam,
+    getIdPIdByIssuerWithTeam,
     getIdPConfigsByTeam,
     deleteIdPConfig,
-    deleteTeam,
     storeIdPRawMetadata,
     getIdPRawMetadata,
     deleteIdPRawMetadata,
@@ -107,6 +107,7 @@ import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
@@ -120,7 +121,7 @@ import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 14
+schemaVersion = 15
 
 ----------------------------------------------------------------------
 -- helpers
@@ -322,6 +323,11 @@ getSAMLSomeUsersByIssuer issuer =
     sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
     sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
 
+-- | Lookup a brig 'UserId' by IdP issuer and NameID.
+--
+-- NB: It is not allowed for two distinct wire users from two different teams to have the same
+-- 'UserRef'.  RATIONALE: this allows us to implement 'getSAMLUser' without adding 'TeamId' to
+-- 'UserRef' (which in turn would break the (admittedly leaky) abstarctions of saml2-web-sso).
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser uref = do
   mbUid <- getSAMLUserNew uref
@@ -409,7 +415,7 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer], Maybe SAML.IdPId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId)
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
 -- FUTUREWORK: enforce that wiReplacedby is Nothing, or throw an error.  there is no
@@ -431,13 +437,15 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
       idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpExtraInfo . wiApiVersion,
       idp ^. SAML.idpExtraInfo . wiOldIssuers,
       idp ^. SAML.idpExtraInfo . wiReplacedBy
     )
   addPrepQuery
     byIssuer
-    ( idp ^. SAML.idpId,
-      idp ^. SAML.idpMetadata . SAML.edIssuer
+    ( idp ^. SAML.idpMetadata . SAML.edIssuer,
+      idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpId
     )
   addPrepQuery
     byTeam
@@ -446,15 +454,14 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
-    byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+    -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
+    byIssuer :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()
+    byIssuer = "INSERT INTO issuer_idp_v2 (issuer, team, idp) VALUES (?, ?, ?)"
+
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-newtype Replaced = Replaced SAML.IdPId
-
-newtype Replacing = Replacing SAML.IdPId
 
 -- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
 setReplacedBy ::
@@ -497,36 +504,50 @@ getIdPConfig idpid =
         certsTail,
         -- extras
         teamId,
+        apiVersion,
         oldIssuers,
         replacedBy
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
-            _idpExtraInfo = WireIdP teamId oldIssuers replacedBy
+            _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
-getIdPConfigByIssuer ::
+-- | Find 'IdPId' without team.  Search both `issuer_idp_v2` and `issuer_idp`; in the former,
+-- make sure the result is unique (no two IdPs for two different teams).
+getIdPIdByIssuerWithoutTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
-  m (Maybe IdP)
-getIdPConfigByIssuer issuer = do
-  getIdPIdByIssuer issuer >>= \case
-    Nothing -> pure Nothing
-    Just idpid -> getIdPConfig idpid
-
-getIdPIdByIssuer ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  m (Maybe SAML.IdPId)
-getIdPIdByIssuer issuer = do
-  retry x1 (query1 sel $ params Quorum (Identity issuer)) <&> \case
-    Nothing -> Nothing
-    Just (Identity idpid) -> Just idpid
+  m (GetIdPResult SAML.IdPId)
+getIdPIdByIssuerWithoutTeam issuer = do
+  (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+    [] ->
+      (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+        Just idpid -> pure $ GetIdPFound idpid
+        Nothing -> pure GetIdPNotFound
+    [idpid] ->
+      pure $ GetIdPFound idpid
+    idpids@(_ : _ : _) ->
+      pure $ GetIdPNonUnique idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
+
+    selv2 :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
+    selv2 = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ?"
+
+getIdPIdByIssuerWithTeam ::
+  (HasCallStack, MonadClient m) =>
+  SAML.Issuer ->
+  TeamId ->
+  m (Maybe SAML.IdPId)
+getIdPIdByIssuerWithTeam issuer tid = do
+  runIdentity <$$> retry x1 (query1 sel $ params Quorum (issuer, tid))
+  where
+    sel :: PrepQuery R (SAML.Issuer, TeamId) (Identity SAML.IdPId)
+    sel = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ? and team = ?"
 
 getIdPConfigsByTeam ::
   (HasCallStack, MonadClient m) =>
@@ -551,32 +572,23 @@ deleteIdPConfig idp issuer team = retry x5 . batch $ do
   addPrepQuery delDefaultIdp (Identity idp)
   addPrepQuery delIdp (Identity idp)
   addPrepQuery delIssuerIdp (Identity issuer)
+  addPrepQuery delIssuerIdpV2 (Identity issuer)
   addPrepQuery delTeamIdp (team, idp)
   where
     delDefaultIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delDefaultIdp = "DELETE FROM default_idp WHERE partition_key_always_default = 'default' AND idp = ?"
+
     delIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delIdp = "DELETE FROM idp WHERE idp = ?"
+
     delIssuerIdp :: PrepQuery W (Identity SAML.Issuer) ()
     delIssuerIdp = "DELETE FROM issuer_idp WHERE issuer = ?"
+
+    delIssuerIdpV2 :: PrepQuery W (Identity SAML.Issuer) ()
+    delIssuerIdpV2 = "DELETE FROM issuer_idp_v2 WHERE issuer = ?"
+
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
-
--- | Delete all tokens belonging to a team.
-deleteTeam ::
-  (HasCallStack, MonadClient m) =>
-  TeamId ->
-  m ()
-deleteTeam team = do
-  deleteTeamScimTokens team
-  -- Since IdPs are not shared between teams, we can look at the set of IdPs
-  -- used by the team, and remove everything related to those IdPs, too.
-  idps <- getIdPConfigsByTeam team
-  for_ idps $ \idp -> do
-    let idpid = idp ^. SAML.idpId
-        issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    deleteSAMLUsersByIssuer issuer
-    deleteIdPConfig idpid issuer team
 
 storeIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>

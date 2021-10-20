@@ -5,7 +5,8 @@
 # These certificates are only meant for integration tests.
 # (The CA certificates are assumed to be re-used across the domains A and B for end2end integration tests.)
 
-set -ex
+set -e
+SUFFIX=${1:?"need suffix argument"}
 TEMP=${TEMP:-/tmp}
 CSR="$TEMP/csr.json"
 OUTPUTNAME_CA="integration-ca"
@@ -13,8 +14,8 @@ OUTPUTNAME_LEAF_CERT="integration-leaf"
 OUTPUTNAME_CLIENT_CERT="integration-client"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
-OUTPUT_CONFIG_FEDERATOR="$TOP_LEVEL/hack/helm_vars/wire-server/certificates.yaml"
-OUTPUT_CONFIG_INGRESS="$TOP_LEVEL/hack/helm_vars/nginx-ingress-services/certificates.yaml"
+OUTPUT_CONFIG_FEDERATOR="$TOP_LEVEL/hack/helm_vars/wire-server/certificates-$SUFFIX.yaml"
+OUTPUT_CONFIG_INGRESS="$TOP_LEVEL/hack/helm_vars/nginx-ingress-services/certificates-$SUFFIX.yaml"
 
 command -v cfssl >/dev/null 2>&1 || {
     echo >&2 "cfssl is not installed, aborting. See https://github.com/cloudflare/cfssl"
@@ -70,7 +71,7 @@ cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostnam
     sed -e 's/^/    /' $OUTPUTNAME_LEAF_CERT-key.pem
     echo "  tlsClientCA: |"
     sed -e 's/^/    /' $OUTPUTNAME_CA.pem
-} | tee "$OUTPUT_CONFIG_INGRESS"
+} >"$OUTPUT_CONFIG_INGRESS"
 
 # the following yaml override file is needed as an override to
 # the wire-server (federator) helm chart
@@ -85,7 +86,7 @@ cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostnam
     sed -e 's/^/    /' $OUTPUTNAME_CLIENT_CERT.pem
     echo "  clientPrivateKeyContents: |"
     sed -e 's/^/    /' $OUTPUTNAME_CLIENT_CERT-key.pem
-} | tee "$OUTPUT_CONFIG_FEDERATOR"
+} >"$OUTPUT_CONFIG_FEDERATOR"
 
 # cleanup unneeded files
 rm "$OUTPUTNAME_LEAF_CERT.csr"

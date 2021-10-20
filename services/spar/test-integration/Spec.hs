@@ -29,7 +29,7 @@
 -- the solution: https://github.com/hspec/hspec/pull/397.
 module Main where
 
-import Control.Lens ((^.))
+import Control.Lens ((.~), (^.))
 import Data.String.Conversions
 import Data.Text (pack)
 import Imports
@@ -53,10 +53,14 @@ import Wire.API.User.Scim
 main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
-  env <- withArgs wireArgs mkEnvFromOptions
+  let env = withArgs wireArgs mkEnvFromOptions
   withArgs hspecArgs . hspec $ do
-    beforeAll (pure env) . afterAll destroyEnv $ mkspec
-    mkspec' env
+    for_ [minBound ..] $ \idpApiVersion -> do
+      describe (show idpApiVersion) . beforeAll (env <&> teWireIdPAPIVersion .~ idpApiVersion) . afterAll destroyEnv $ do
+        mkspecMisc
+        mkspecSaml
+        mkspecScim
+    mkspecHscimAcceptance env destroyEnv
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
@@ -66,23 +70,30 @@ partitionArgs = go [] []
     go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
     go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 
-mkspec :: SpecWith TestEnv
-mkspec = do
+mkspecMisc :: SpecWith TestEnv
+mkspecMisc = do
   describe "Logging" Test.LoggingSpec.spec
   describe "Metrics" Test.MetricsSpec.spec
+
+mkspecSaml :: SpecWith TestEnv
+mkspecSaml = do
   describe "Spar.API" Test.Spar.APISpec.spec
   describe "Spar.App" Test.Spar.AppSpec.spec
   describe "Spar.Data" Test.Spar.DataSpec.spec
   describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
+
+mkspecScim :: SpecWith TestEnv
+mkspecScim = do
   describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
   describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec
 
-mkspec' :: TestEnv -> Spec
-mkspec' env = do
+mkspecHscimAcceptance :: IO TestEnv -> (TestEnv -> IO ()) -> Spec
+mkspecHscimAcceptance mkenv _destroyenv = do
   describe "hscim acceptance tests" $
     microsoftAzure @SparTag AcceptanceConfig {..}
   where
     scimAppAndConfig = do
+      env <- mkenv
       (app, _) <- mkApp (env ^. teOpts)
       scimAuthToken <- toHeader . fst <$> registerIdPAndScimToken `runReaderT` env
       let queryConfig = AcceptanceQueryConfig {..}

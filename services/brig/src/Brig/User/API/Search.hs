@@ -135,7 +135,15 @@ searchRemotely domain searchTerm = do
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
-  Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  contacts <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  let count = length contacts
+  pure
+    SearchResult
+      { searchResults = contacts,
+        searchFound = count,
+        searchReturned = count,
+        searchTook = 0
+      }
 
 searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
@@ -180,13 +188,14 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
     exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
     exactHandleSearch teamSearchInfo = do
+      lsearcherId <- qualifyLocal searcherId
       let searchedHandleMaybe = parseHandle searchTerm
       exactHandleResult <-
         case searchedHandleMaybe of
           Nothing -> pure Nothing
           Just searchedHandle ->
             contactFromProfile
-              <$$> HandleAPI.getLocalHandleInfo searcherId searchedHandle
+              <$$> HandleAPI.getLocalHandleInfo lsearcherId searchedHandle
       pure $ case teamSearchInfo of
         Search.TeamOnly t ->
           if Just t == (contactTeam =<< exactHandleResult)

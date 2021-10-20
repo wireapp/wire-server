@@ -84,8 +84,8 @@ withMockFederator opts ref resp action = assertRightT
             }
     withSettingsOverrides opts' action
 
-withTempMockFederator :: Opt.Opts -> Domain -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action = assertRightT
+withTempMockFederator :: Opt.Opts -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
+withTempMockFederator opts resp action = assertRightT
   . Mock.withTempMockFederator st0 (const (pure resp))
   $ \st -> lift $ do
     let opts' =
@@ -95,7 +95,7 @@ withTempMockFederator opts targetDomain resp action = assertRightT
             }
     withSettingsOverrides opts' action
   where
-    st0 = Mock.initState targetDomain (Domain "example.com")
+    st0 = Mock.initState (Domain "example.com")
 
 generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
 generateClientPrekeys brig prekeys = do
@@ -122,3 +122,10 @@ getConvQualified g u (Qualified cnvId domain) =
       . zUser u
       . zConn "conn"
       . header "Z-Type" "access"
+
+connectUsersEnd2End :: Brig -> Brig -> Qualified UserId -> Qualified UserId -> Http ()
+connectUsersEnd2End brig1 brig2 quid1 quid2 = do
+  postConnectionQualified brig1 (qUnqualified quid1) quid2
+    !!! const 201 === statusCode
+  putConnectionQualified brig2 (qUnqualified quid2) quid1 Accepted
+    !!! const 200 === statusCode

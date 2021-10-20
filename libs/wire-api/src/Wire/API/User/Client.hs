@@ -30,6 +30,7 @@ module Wire.API.User.Client
     QualifiedUserClientMap (..),
     QualifiedUserClientPrekeyMap (..),
     mkQualifiedUserClientPrekeyMap,
+    qualifiedUserClientPrekeyMapFromList,
     UserClientsFull (..),
     userClientsFullToUserClients,
     UserClients (..),
@@ -84,6 +85,7 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
+import Data.Qualified
 import Data.Schema
 import qualified Data.Semigroup as Semigroup
 import qualified Data.Set as Set
@@ -307,6 +309,12 @@ instance ToSchema QualifiedUserClientPrekeyMap where
 
 mkQualifiedUserClientPrekeyMap :: Map Domain UserClientPrekeyMap -> QualifiedUserClientPrekeyMap
 mkQualifiedUserClientPrekeyMap = coerce
+
+qualifiedUserClientPrekeyMapFromList ::
+  [Qualified UserClientPrekeyMap] ->
+  QualifiedUserClientPrekeyMap
+qualifiedUserClientPrekeyMapFromList =
+  mkQualifiedUserClientPrekeyMap . Map.fromList . map qToPair
 
 --------------------------------------------------------------------------------
 -- UserClients

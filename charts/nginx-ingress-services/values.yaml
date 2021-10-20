@@ -29,6 +29,8 @@ tls:
   #            `helm upgrade --install -n cert-manager-ns --set 'installCRDs=true' cert-manager jetstack/cert-manager`
   #
   useCertManager: false
+  # the validation depth between a federator client certificate and tlsClientCA
+  verify_depth: 1
 
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted

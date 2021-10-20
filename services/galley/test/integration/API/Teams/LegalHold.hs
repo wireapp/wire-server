@@ -31,7 +31,7 @@ import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import qualified Bilge.TestSession as BilgeTest
 import Brig.Types.Client
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserSet (..))
+import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
@@ -58,7 +58,7 @@ import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword)
 import Data.PEM
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified (Qualified (..))
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
@@ -91,6 +91,7 @@ import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import qualified Wire.API.Message as Msg
+import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
@@ -888,7 +889,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             id
             peer
             peerClient
-            convId
+            (qUnqualified convId)
             [ (legalholder, legalholderLHDevice, "cipher")
             ]
             !!! do
@@ -921,7 +922,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             id
             peer
             peerClient
-            convId
+            (qUnqualified convId)
             [ (legalholder, legalholderLHDevice, "cipher")
             ]
             !!! do

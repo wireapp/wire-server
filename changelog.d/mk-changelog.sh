@@ -16,7 +16,7 @@ for d in "$DIR"/*; do
     echo -n "## "
     sed '$ a\' "$d/.title"
     echo ""
-    for f in "$d"/*; do
+    for f in "$d"/*[^~]; do
         pr=$(getPRNumber $f)
         sed -r '
           # create a bullet point on the first line

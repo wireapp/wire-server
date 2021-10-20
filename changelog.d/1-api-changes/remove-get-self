@@ -1,1 +1,0 @@
-Remove endpoint `GET /conversations/:domain/:cnv/self`

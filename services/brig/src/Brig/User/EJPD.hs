@@ -27,7 +27,6 @@ import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
-import Brig.Types.User.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Handle (Handle)
@@ -37,6 +36,7 @@ import Imports hiding (head)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import qualified Wire.API.Push.Token as PushTok
+import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
 

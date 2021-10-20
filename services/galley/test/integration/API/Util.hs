@@ -25,7 +25,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet (..))
+import Brig.Types.Intra (UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
@@ -34,7 +34,6 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
-import Data.Aeson.Types (emptyObject)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
@@ -70,10 +69,11 @@ import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMutedRef)
+import Galley.Types
 import qualified Galley.Types as Conv
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import Galley.Types.Teams hiding (Event, EventType (..))
+import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
@@ -107,7 +107,8 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
+import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -117,8 +118,11 @@ import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
+import Wire.API.User.Identity (mkSimpleSampleUref)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -126,12 +130,15 @@ import qualified Wire.API.User.Client as Client
 -- | A class for monads with access to a Galley instance
 class HasGalley m where
   viewGalley :: m GalleyR
+  viewGalleyOpts :: m Opts.Opts
 
 instance HasGalley TestM where
   viewGalley = view tsGalley
+  viewGalleyOpts = view tsGConf
 
 instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
   viewGalley = lift viewGalley
+  viewGalleyOpts = lift viewGalleyOpts
 
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
@@ -152,10 +159,19 @@ createBindingTeamWithMembers numUsers = do
   members <- forM [2 .. numUsers] $ \n -> do
     mem <- addUserToTeam owner tid
     SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
+    -- 'refreshIndex' needs to happen here to make tests more realistic.  one effect of
+    -- refreshing the index once at the end would be that the hard member limit wouldn't hold
+    -- any more.
     refreshIndex
     return $ view Galley.Types.Teams.userId mem
 
   return (tid, owner, members)
+
+createBindingTeamWithQualifiedMembers :: HasCallStack => Int -> TestM (TeamId, Qualified UserId, [Qualified UserId])
+createBindingTeamWithQualifiedMembers num = do
+  localDomain <- viewFederationDomain
+  (tid, owner, users) <- createBindingTeamWithMembers num
+  pure (tid, Qualified owner localDomain, map (`Qualified` localDomain) users)
 
 getTeams :: UserId -> TestM TeamList
 getTeams u = do
@@ -391,7 +407,7 @@ addUserToTeamWithRole' role inviter tid = do
 
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
   user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   let uid = Brig.Types.userId user
   getTeamMember uid tid uid
@@ -521,26 +537,6 @@ updateTeamConv zusr convid upd = do
         . json upd
     )
 
--- | See Note [managed conversations]
-createManagedConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
-createManagedConv u tid us name acc mtimer = do
-  g <- view tsGalley
-  let tinfo = ConvTeamInfo tid True
-  let conv =
-        NewConvManaged $
-          NewConv us [] name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
-  r <-
-    post
-      ( g
-          . path "i/conversations/managed"
-          . zUser u
-          . zConn "conn"
-          . zType "access"
-          . json conv
-      )
-      <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
-
 createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM ResponseLBS
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
@@ -552,25 +548,38 @@ createOne2OneTeamConv u1 u2 n tid = do
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
-postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> m ResponseLBS
-postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
+defNewConv :: NewConv
+defNewConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
-postConvWithRemoteUser :: Domain -> UserProfile -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
-postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
-  opts <- view tsGConf
+postConvQualified ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
+  UserId ->
+  NewConv ->
+  m ResponseLBS
+postConvQualified u n = do
+  g <- viewGalley
+  post $
+    g
+      . path "/conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json (NewConvUnmanaged n)
+
+postConvWithRemoteUsers ::
+  HasCallStack =>
+  UserId ->
+  NewConv ->
+  TestM (Response (Maybe LByteString))
+postConvWithRemoteUsers u n = do
   fmap fst $
-    withTempMockFederator
-      opts
-      remoteDomain
-      respond
-      $ postConvQualified creatorUnqualified members (Just "federated gossip") [] Nothing Nothing
+    withTempMockFederator (const ()) $
+      postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201 === statusCode
   where
-    respond :: F.FederatedRequest -> Value
-    respond req
-      | fmap F.component (F.request req) == Just F.Brig =
-        toJSON [user]
-      | otherwise = toJSON ()
+    setName :: Maybe Text -> Maybe Text
+    setName Nothing = Just "federated gossip"
+    setName x = x
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
@@ -578,14 +587,28 @@ postTeamConv tid u us name a r mtimer = do
   let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid False)) mtimer Nothing roleNameWireAdmin
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
-postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
-postConvWithRole = postConvWithRoleQualified []
-
-postConvWithRoleQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => [Qualified UserId] -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> m ResponseLBS
-postConvWithRoleQualified qualifiedUsers u unqualifiedUsers name a r mtimer role = do
+deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
+deleteTeamConv tid convId zusr = do
   g <- viewGalley
-  let conv = NewConvUnmanaged $ NewConv unqualifiedUsers qualifiedUsers name (Set.fromList a) r Nothing mtimer Nothing role
-  post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "conversations", toByteString' convId]
+        . zUser zusr
+        . zConn "conn"
+    )
+
+postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRole u members name access arole timer role =
+  postConvQualified
+    u
+    defNewConv
+      { newConvUsers = members,
+        newConvName = name,
+        newConvAccess = Set.fromList access,
+        newConvAccessRole = arole,
+        newConvMessageTimer = timer,
+        newConvUsersRole = role
+      }
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
@@ -606,6 +629,7 @@ postO2OConv u1 u2 n = do
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
 postConnectConv a b name msg email = do
+  qb <- Qualified <$> pure b <*> viewFederationDomain
   g <- view tsGalley
   post $
     g
@@ -613,7 +637,7 @@ postConnectConv a b name msg email = do
       . zUser a
       . zConn "conn"
       . zType "access"
-      . json (Connect b (Just msg) (Just name) email)
+      . json (Connect qb (Just msg) (Just name) email)
 
 putConvAccept :: UserId -> ConvId -> TestM ResponseLBS
 putConvAccept invited cid = do
@@ -665,8 +689,7 @@ postProteusMessageQualifiedWithMockFederator ::
   TestM (ResponseLBS, Mock.ReceivedRequests)
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
-  opts <- view tsGConf
-  withTempServantMockFederator opts brigApi galleyApi localDomain (Domain "far-away.example.com") $
+  withTempServantMockFederator brigApi galleyApi localDomain $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -777,36 +800,8 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
--- (should be) equivalent to
--- listConvs u (ListConversations [] Nothing Nothing)
--- (if the schema of ListConversations is correct)
-listAllConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> m ResponseLBS
-listAllConvs u = do
-  g <- viewGalley
-  post $
-    g
-      . path "/list-conversations"
-      . zUser u
-      . zConn "conn"
-      . zType "access"
-      . json emptyObject
-
 listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
 listConvs u req = do
-  -- when using servant-client (pending #1605), this would become:
-  -- galleyClient <- view tsGalleyClient
-  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
-  g <- viewGalley
-  post $
-    g
-      . path "/list-conversations"
-      . zUser u
-      . zConn "conn"
-      . zType "access"
-      . json req
-
-listConvsV2 :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversationsV2 -> m ResponseLBS
-listConvsV2 u req = do
   g <- viewGalley
   post $
     g
@@ -860,16 +855,17 @@ listConvIds u paginationOpts = do
 listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
 listRemoteConvs remoteDomain uid = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-  allConvs <- fmap pageConvIds . responseJsonError =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
-postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
+postQualifiedMembers ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  ConvId ->
+  m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
-  g <- view tsGalley
-  postQualifiedMembers' g zusr invitees conv
-
-postQualifiedMembers' :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
-postQualifiedMembers' g zusr invitees conv = do
+  g <- viewGalley
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g
@@ -945,13 +941,37 @@ getSelfMember u c = do
       . zConn "conn"
       . zType "access"
 
-putMember :: UserId -> MemberUpdate -> ConvId -> TestM ResponseLBS
-putMember u m c = do
+putMember :: UserId -> MemberUpdate -> Qualified ConvId -> TestM ResponseLBS
+putMember u m (Qualified c dom) = do
   g <- view tsGalley
   put $
     g
-      . paths ["conversations", toByteString' c, "self"]
+      . paths ["conversations", toByteString' dom, toByteString' c, "self"]
       . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json m
+
+putOtherMemberQualified ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  Qualified UserId ->
+  OtherMemberUpdate ->
+  Qualified ConvId ->
+  m ResponseLBS
+putOtherMemberQualified from to m c = do
+  g <- viewGalley
+  put $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "members",
+          toByteString' (qDomain to),
+          toByteString' (qUnqualified to)
+        ]
+      . zUser from
       . zConn "conn"
       . zType "access"
       . json m
@@ -967,9 +987,14 @@ putOtherMember from to m c = do
       . zType "access"
       . json m
 
-putQualifiedConversationName :: UserId -> Qualified ConvId -> Text -> TestM ResponseLBS
+putQualifiedConversationName ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadMask m) =>
+  UserId ->
+  Qualified ConvId ->
+  Text ->
+  m ResponseLBS
 putQualifiedConversationName u c n = do
-  g <- view tsGalley
+  g <- viewGalley
   let update = ConversationRename n
   put
     ( g
@@ -992,6 +1017,24 @@ putConversationName u c n = do
   put
     ( g
         . paths ["conversations", toByteString' c, "name"]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+    )
+
+putQualifiedReceiptMode ::
+  (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
+  UserId ->
+  Qualified ConvId ->
+  ReceiptMode ->
+  m ResponseLBS
+putQualifiedReceiptMode u (Qualified c dom) r = do
+  g <- viewGalley
+  let update = ConversationReceiptModeUpdate r
+  put
+    ( g
+        . paths ["conversations", toByteString' dom, toByteString' c, "receipt-mode"]
         . zUser u
         . zConn "conn"
         . zType "access"
@@ -1042,12 +1085,49 @@ postJoinCodeConv u j = do
       . zType "access"
       . json j
 
-putAccessUpdate :: UserId -> ConvId -> ConversationAccessUpdate -> TestM ResponseLBS
+putAccessUpdate :: UserId -> ConvId -> ConversationAccessData -> TestM ResponseLBS
 putAccessUpdate u c acc = do
   g <- view tsGalley
   put $
     g
       . paths ["/conversations", toByteString' c, "access"]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json acc
+
+putQualifiedAccessUpdate ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  UserId ->
+  Qualified ConvId ->
+  ConversationAccessData ->
+  m ResponseLBS
+putQualifiedAccessUpdate u (Qualified c domain) acc = do
+  g <- viewGalley
+  put $
+    g
+      . paths ["/conversations", toByteString' domain, toByteString' c, "access"]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json acc
+
+putMessageTimerUpdateQualified ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  Qualified ConvId ->
+  ConversationMessageTimerUpdate ->
+  m ResponseLBS
+putMessageTimerUpdateQualified u c acc = do
+  g <- viewGalley
+  put $
+    g
+      . paths
+        [ "/conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "message-timer"
+        ]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1112,10 +1192,10 @@ deleteClientInternal u c = do
       . zConn "conn"
       . paths ["i", "clients", toByteString' c]
 
-deleteUser :: HasCallStack => UserId -> TestM ()
+deleteUser :: (MonadIO m, MonadCatch m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> m ResponseLBS
 deleteUser u = do
-  g <- view tsGalley
-  delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
+  g <- viewGalley
+  delete (g . path "/i/user" . zUser u)
 
 getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bool) -> Bool -> TestM [(NotificationId, UserId)]
 getTeamQueue zusr msince msize onlyLast =
@@ -1159,16 +1239,20 @@ getTeamQueue' zusr msince msize onlyLast = do
           ]
     )
 
-registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
+asOtherMember :: Qualified UserId -> OtherMember
+asOtherMember quid = OtherMember quid Nothing roleNameWireMember
+
+registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMember -> TestM ()
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  FederatedGalley.registerConversation
+  FederatedGalley.onConversationCreated
     fedGalleyClient
-    ( FederatedGalley.MkRegisterConversation
+    (qDomain convId)
+    ( FederatedGalley.NewRemoteConversation
         { rcTime = now,
           rcOrigUserId = originUser,
-          rcCnvId = convId,
+          rcCnvId = qUnqualified convId,
           rcCnvType = RegularConv,
           rcCnvAccess = [],
           rcCnvAccessRole = ActivatedAccessRole,
@@ -1286,7 +1370,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
-  evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
+  fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
@@ -1315,7 +1399,7 @@ assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  evtData e @?= EdMembersLeave (QualifiedUserIdList leaving)
+  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave) @?= Just (sort leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1326,11 +1410,11 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtFrom e @?= usr
   case evtData e of
     Conv.EdMemberUpdate mis -> do
-      assertEqual "target" (Just target) (misTarget mis)
+      assertEqual "target" (Qualified target (qDomain conv)) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
-wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessData -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1369,13 +1453,13 @@ assertNoMsg ws f = do
 
 assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
-  F.path req @?= "/federation/update-conversation-memberships"
+  F.path req @?= "/federation/on-conversation-updated"
   F.originDomain req @?= (domainText . qDomain) qconvId
-  let Just cmu = decodeStrict (F.body req)
-  FederatedGalley.cmuOrigUserId cmu @?= remover
-  FederatedGalley.cmuConvId cmu @?= qUnqualified qconvId
-  sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
-  FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
+  let Just cu = decodeStrict (F.body req)
+  FederatedGalley.cuOrigUserId cu @?= remover
+  FederatedGalley.cuConvId cu @?= qUnqualified qconvId
+  sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
+  FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1417,7 +1501,7 @@ decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
 decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
-decodeQualifiedConvIdList = fmap pageConvIds . responseJsonEither
+decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -1447,7 +1531,7 @@ connectUsers u us = void $ connectUsersWith expect2xx u us
 connectLocalQualifiedUsers :: UserId -> List1 (Qualified UserId) -> TestM ()
 connectLocalQualifiedUsers u us = do
   localDomain <- viewFederationDomain
-  let partitionMap = partitionQualified . toList . toNonEmpty $ us
+  let partitionMap = indexQualified . toList . toNonEmpty $ us
   -- FUTUREWORK: connect all users, not just those on the same domain as 'u'
   case LMap.lookup localDomain partitionMap of
     Nothing -> err
@@ -1491,6 +1575,25 @@ connectUsersWith fn u = mapM connectTo
           )
       return (r1, r2)
 
+connectWithRemoteUser ::
+  (MonadReader TestSetup m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
+  UserId ->
+  Qualified UserId ->
+  m ()
+connectWithRemoteUser self other = do
+  let req = CreateConnectionForTest self other
+  b <- view tsBrig
+  put
+    ( b
+        . zUser self
+        . contentJson
+        . zConn "conn"
+        . paths ["i", "connections", "connection-update"]
+        . json req
+    )
+    !!! const 200
+    === statusCode
+
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
 postConnection from to = do
@@ -1506,6 +1609,16 @@ postConnection from to = do
     payload =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
+
+postConnectionQualified :: UserId -> Qualified UserId -> TestM ResponseLBS
+postConnectionQualified from (Qualified toUser toDomain) = do
+  brig <- view tsBrig
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
 
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
@@ -1552,11 +1665,16 @@ assertConnections u cstat = do
   unless (all (`elem` cstat') cstat) $
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
-    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
     listConnections brig usr = get $ brig . path "connections" . zUser usr
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
+
+randomUserTuple :: HasCallStack => TestM (UserId, Qualified UserId)
+randomUserTuple = do
+  qUid <- randomQualifiedUser
+  pure (qUnqualified qUid, qUid)
 
 randomUser :: HasCallStack => TestM UserId
 randomUser = qUnqualified <$> randomUser' False True True
@@ -1565,7 +1683,7 @@ randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
 randomQualifiedUser = randomUser' False True True
 
 randomQualifiedId :: MonadIO m => Domain -> m (Qualified (Id a))
-randomQualifiedId domain = flip Qualified domain <$> randomId
+randomQualifiedId domain = Qualified <$> randomId <*> pure domain
 
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
@@ -1803,7 +1921,7 @@ randomEmail = do
   uid <- liftIO nextRandom
   return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
-selfConv :: UserId -> Id C
+selfConv :: UserId -> ConvId
 selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
@@ -1867,20 +1985,26 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-mkConv :: Qualified ConvId -> UserId -> Member -> [OtherMember] -> Conversation
-mkConv cnvId creator selfMember otherMembers =
-  Conversation
-    { cnvQualifiedId = cnvId,
-      cnvType = RegularConv,
-      cnvCreator = creator,
-      cnvAccess = [],
-      cnvAccessRole = ActivatedAccessRole,
-      cnvName = Just "federated gossip",
-      cnvMembers = ConvMembers selfMember otherMembers,
-      cnvTeam = Nothing,
-      cnvMessageTimer = Nothing,
-      cnvReceiptMode = Nothing
-    }
+mkConv ::
+  ConvId ->
+  UserId ->
+  RoleName ->
+  [OtherMember] ->
+  FederatedGalley.RemoteConversation
+mkConv cnvId creator selfRole otherMembers =
+  FederatedGalley.RemoteConversation
+    cnvId
+    ( ConversationMetadata
+        RegularConv
+        creator
+        []
+        ActivatedAccessRole
+        (Just "federated gossip")
+        Nothing
+        Nothing
+        Nothing
+    )
+    (FederatedGalley.RemoteConvMembers selfRole otherMembers)
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()
@@ -2053,43 +2177,39 @@ mkProfile quid name =
 -- expected request.
 withTempMockFederator ::
   (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
-  Opts.Opts ->
-  Domain ->
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp = withTempMockFederator' opts targetDomain (pure . oresp)
+withTempMockFederator resp = withTempMockFederator' (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
 withTempMockFederator' ::
   (MonadIO m, HasGalley m, MonadMask m) =>
-  Opts.Opts ->
-  Domain ->
   (FederatedRequest -> IO F.OutwardResponse) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator' opts targetDomain resp action = assertRightT
-  . Mock.withTempMockFederator st0 (lift . resp)
-  $ \st -> lift $ do
-    let opts' =
-          opts & Opts.optFederator
-            ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
-    withSettingsOverrides opts' action
+withTempMockFederator' resp action = do
+  opts <- viewGalleyOpts
+  assertRightT
+    . Mock.withTempMockFederator st0 (lift . resp)
+    $ \st -> lift $ do
+      let opts' =
+            opts & Opts.optFederator
+              ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
+      withSettingsOverrides opts' action
   where
-    st0 = Mock.initState targetDomain (Domain "example.com")
+    st0 = Mock.initState (Domain "example.com")
 
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  Opts.Opts ->
   FederatedBrig.Api (AsServerT Handler) ->
   FederatedGalley.Api (AsServerT Handler) ->
   Domain ->
-  Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempServantMockFederator opts brigApi galleyApi originDomain targetDomain =
-  withTempMockFederator' opts targetDomain mock
+withTempServantMockFederator brigApi galleyApi originDomain =
+  withTempMockFederator' mock
   where
     server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
     server = genericServerT brigApi :<|> genericServerT galleyApi
@@ -2182,7 +2302,7 @@ checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberJoin
+  e ^. eventType @?= TE.MemberJoin
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin uid)
 
@@ -2190,7 +2310,7 @@ checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Test
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberLeave
+  e ^. eventType @?= TE.MemberLeave
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberLeave usr)
 
@@ -2198,7 +2318,7 @@ checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> Tea
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamUpdate
+  e ^. eventType @?= TE.TeamUpdate
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdTeamUpdate upd)
 
@@ -2211,11 +2331,23 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
+wsAssertConvCreateWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> UserId -> [(Qualified UserId, RoleName)] -> Notification -> IO ()
+wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.ConvCreate
+  evtFrom e @?= eventFrom
+  fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just selfMember
+  fmap (sort . cmOthers . cnvMembers) (evtData e ^? _EdConversation) @?= Just (sort (toOtherMember <$> otherMembers))
+  where
+    toOtherMember (quid, role) = OtherMember quid Nothing role
+
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamDelete
+  e ^. eventType @?= TE.TeamDelete
   e ^. eventTeam @?= tid
   e ^. eventData @?= Nothing
 
@@ -2273,3 +2405,12 @@ fedRequestsForDomain domain component =
           F.domain req == domainText domain
             && fmap F.component (F.request req) == Just component
       )
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM ResponseLBS
+iUpsertOne2OneConversation req = do
+  galley <- view tsGalley
+  post (galley . path "/i/conversations/one2one/upsert" . Bilge.json req)

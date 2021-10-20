@@ -46,8 +46,8 @@ type FederationAppIO = ExceptT FederationError AppIO
 -- FUTUREWORK: Maybe find a way to tranform 'clientRoutes' into a client which
 -- only uses 'FederationAppIO' monad, then boilerplate in this module can all be
 -- deleted.
-getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
-getUserHandleInfo (Qualified handle domain) = do
+getUserHandleInfo :: Remote Handle -> FederationAppIO (Maybe UserProfile)
+getUserHandleInfo (qUntagged -> Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   executeFederated domain $ getUserByHandle clientRoutes handle
 
@@ -75,7 +75,7 @@ claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
 
-searchUsers :: Domain -> SearchRequest -> FederationAppIO (Public.SearchResult Public.Contact)
+searchUsers :: Domain -> SearchRequest -> FederationAppIO [Public.Contact]
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm
@@ -84,3 +84,13 @@ getUserClients :: Domain -> GetUserClients -> FederationAppIO (UserMap (Set PubC
 getUserClients domain guc = do
   Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
   executeFederated domain $ FederatedBrig.getUserClients clientRoutes guc
+
+sendConnectionAction ::
+  Local UserId ->
+  Remote UserId ->
+  RemoteConnectionAction ->
+  FederationAppIO NewConnectionResponse
+sendConnectionAction self (qUntagged -> other) action = do
+  let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
+  Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
+  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes (tDomain self) req

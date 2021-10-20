@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,13 +20,19 @@
 module Brig.API.Federation (federationSitemap) where
 
 import qualified Brig.API.Client as API
+import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
+import Brig.App (qualifyLocal)
+import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.User as Data
 import Brig.Types (PrekeyBundle)
 import Brig.User.API.Handle
+import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
+import Data.Qualified
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
@@ -51,8 +59,21 @@ federationSitemap =
         Federated.claimPrekeyBundle = claimPrekeyBundle,
         Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
         Federated.searchUsers = searchUsers,
-        Federated.getUserClients = getUserClients
+        Federated.getUserClients = getUserClients,
+        Federated.sendConnectionAction = sendConnectionAction
       }
+
+sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
+sendConnectionAction originDomain NewConnectionRequest {..} = do
+  active <- lift $ Data.isActivated ncrTo
+  if active
+    then do
+      self <- qualifyLocal ncrTo
+      let other = toRemoteUnsafe originDomain ncrFrom
+      mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+      maction <- lift $ performRemoteAction self other mconnection ncrAction
+      pure $ NewConnectionResponseOk maction
+    else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do
@@ -81,22 +102,13 @@ claimMultiPrekeyBundle uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFedera
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: SearchRequest -> Handler (SearchResult Contact)
+searchUsers :: SearchRequest -> Handler [Contact]
 searchUsers (SearchRequest searchTerm) = do
   let maybeHandle = parseHandle searchTerm
   maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
-  exactLookupProfile <- case maybeOwnerId of
+  case maybeOwnerId of
     Nothing -> pure []
     Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
-
-  let exactHandleMatchCount = length exactLookupProfile
-  pure $
-    SearchResult
-      { searchResults = exactLookupProfile,
-        searchFound = exactHandleMatchCount,
-        searchReturned = exactHandleMatchCount,
-        searchTook = 0
-      }
 
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
