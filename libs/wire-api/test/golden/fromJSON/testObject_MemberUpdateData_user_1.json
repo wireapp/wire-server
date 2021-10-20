@@ -1,0 +1,12 @@
+{
+    "hidden": true,
+    "hidden_ref": "1",
+    "otr_archived": false,
+    "otr_archived_ref": "a",
+    "otr_muted_ref": "#M𗗐",
+    "otr_muted_status": -1,
+    "qualified_target": {
+        "domain": "target.example.com",
+        "id": "00000000-0000-0002-0000-000100000001"
+    }
+}

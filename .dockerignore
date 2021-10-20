@@ -2,4 +2,9 @@
 **/dist
 **/target
 **/*.aci
+**/*.tgz
+.stack-work
+.stack-work-buildah
+.stack-root-buildah
+.local
 services/nginz/src/objs

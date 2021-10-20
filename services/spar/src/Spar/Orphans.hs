@@ -25,8 +25,16 @@ module Spar.Orphans
   )
 where
 
+import Data.String.Conversions (cs)
 import Imports
+import qualified SAML2.WebSSO as SAML
 import Servant (MimeRender (..), PlainText)
+import Servant.API.Extended
+import Spar.Error
+import Wire.API.User.IdentityProvider (IdPMetadataInfo)
 
 instance MimeRender PlainText Void where
   mimeRender _ = error "instance MimeRender HTML Void: impossible"
+
+instance MakeCustomError "wai-error" IdPMetadataInfo where
+  makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs

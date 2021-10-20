@@ -35,7 +35,6 @@ import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Random
-import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
@@ -50,8 +49,6 @@ import qualified Galley.Types.Teams as Galley
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
-import Spar.Scim.Types (CreateScimToken (..), ScimUserExtra (ScimUserExtra))
-import Spar.Types hiding (Opts)
 import Test.QuickCheck (generate)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty
@@ -68,6 +65,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.RichInfo (RichInfo)
+import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimUserExtra))
 
 tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
 tests opts m db brig galley spar = do
@@ -364,20 +362,3 @@ acceptWithName name email code =
       "password" Aeson..= defPassword,
       "team_code" Aeson..= code
     ]
-
--- | Run a probe several times, until a "good" value materializes or until patience runs out
-aFewTimes ::
-  (HasCallStack, MonadIO m) =>
-  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
-  Int ->
-  m a ->
-  (a -> Bool) ->
-  m a
-aFewTimes
-  retries
-  action
-  good = do
-    retrying
-      (exponentialBackoff 1000 <> limitRetries retries)
-      (\_ -> pure . not . good)
-      (\_ -> action)

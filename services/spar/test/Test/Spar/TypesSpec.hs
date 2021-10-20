@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -22,12 +20,13 @@ module Test.Spar.TypesSpec where
 import Data.Id
 import Data.UUID
 import Imports
-import Spar.Types
 import Test.Hspec
 import Test.Spar.Roundtrip.ByteString (testRoundTrip)
 import URI.ByteString
 import URI.ByteString.QQ
 import Web.Cookie
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 
 spec :: Spec
 spec = do

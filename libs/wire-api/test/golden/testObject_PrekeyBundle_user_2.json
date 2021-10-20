@@ -1,0 +1,40 @@
+{
+    "clients": [
+        {
+            "client": "1",
+            "prekey": {
+                "id": 1,
+                "key": ""
+            }
+        },
+        {
+            "client": "0",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "1",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "0",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "0",
+            "prekey": {
+                "id": 1,
+                "key": ""
+            }
+        }
+    ],
+    "user": "00000043-0000-002b-0000-00550000002a"
+}

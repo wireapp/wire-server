@@ -47,13 +47,15 @@ module Network.Wai.Utilities.Server
 where
 
 import Control.Concurrent.Async
+import Control.Error.Util ((?:))
 import Control.Exception (throw, throwIO)
 import Control.Monad.Catch hiding (onError, onException)
-import Data.Aeson (encode)
+import Data.Aeson (decode, encode)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as LBS
+import Data.Domain (domainText)
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
@@ -145,7 +147,7 @@ runSettingsWithShutdown s app secs = do
 compile :: Monad m => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
   where
-    predicateError e = return (encode $ Wai.Error (P.status e) "client-error" (format e), [jsonContent])
+    predicateError e = return (encode $ Wai.mkError (P.status e) "client-error" (format e), [jsonContent])
     -- [label] 'source' reason: message
     format e =
       let l = labelStr $ labels e
@@ -171,7 +173,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
 route :: (MonadCatch m, MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
 route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
   where
-    noEndpoint = Wai.Error status404 "no-endpoint" "The requested endpoint does not exist"
+    noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
 {-# INLINEABLE route #-}
 
 --------------------------------------------------------------------------------
@@ -201,12 +203,12 @@ catchErrors l m app req k =
 errorHandlers :: Applicative m => [Handler m Wai.Error]
 errorHandlers =
   [ Handler $ \(x :: Wai.Error) -> pure x,
-    Handler $ \(_ :: InvalidRequest) -> pure $ Wai.Error status400 "client-error" "Invalid Request",
-    Handler $ \(_ :: TimeoutThread) -> pure $ Wai.Error status408 "client-error" "Request Timeout",
+    Handler $ \(_ :: InvalidRequest) -> pure $ Wai.mkError status400 "client-error" "Invalid Request",
+    Handler $ \(_ :: TimeoutThread) -> pure $ Wai.mkError status408 "client-error" "Request Timeout",
     Handler $ \case
-      ZlibException (-3) -> pure $ Wai.Error status400 "client-error" "Invalid request body compression"
-      ZlibException _ -> pure $ Wai.Error status500 "server-error" "Server Error",
-    Handler $ \(_ :: SomeException) -> pure $ Wai.Error status500 "server-error" "Server Error"
+      ZlibException (-3) -> pure $ Wai.mkError status400 "client-error" "Invalid request body compression"
+      ZlibException _ -> pure $ Wai.mkError status500 "server-error" "Server Error",
+    Handler $ \(_ :: SomeException) -> pure $ Wai.mkError status500 "server-error" "Server Error"
   ]
 {-# INLINE errorHandlers #-}
 
@@ -297,19 +299,28 @@ rethrow5xx logger app req k = app req k'
       if statusCode st < 500
         then k resp
         else do
-          rsbody :: LText <- liftIO $ cs <$> lazyResponseBody resp
-          throwM $ Wai.Error st "server-error" rsbody
+          rsbody <- liftIO (lazyResponseBody resp)
+          throwM $ wrapError st rsbody
+
+-- | Wrap the body of an HTTP error into a Wai.Error structure.
+--
+-- If the error is already a JSON serialisation of a Wai.Error, avoid creating
+-- an unnecessary wrapper.
+wrapError :: Status -> LByteString -> Wai.Error
+wrapError st body =
+  decode body
+    ?: Wai.mkError st "server-error" (cs body)
 
 -- | This flushes the response!  If you want to keep using the response, you need to construct
 -- a new one with a fresh body stream.
 lazyResponseBody :: Response -> IO LByteString
 lazyResponseBody rs = case responseToStream rs of
   (_, _, cont :: (StreamingBody -> IO ()) -> IO ()) -> do
-    tvar <- atomically $ newTVar mempty
-    let pushstream builder = atomically $ modifyTVar tvar (<> builder)
+    bref <- newIORef mempty
+    let pushstream builder = modifyIORef bref (<> builder)
     cont $ \streamingBody ->
       streamingBody pushstream (pure ())
-    atomically $ toLazyByteString <$> readTVar tvar
+    toLazyByteString <$> readIORef bref
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -342,13 +353,18 @@ logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
 logError g mr = logError' g (lookupRequestId =<< mr)
 
 logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
-logError' g mr (Wai.Error c l m) = liftIO $ Log.debug g logMsg
+logError' g mr (Wai.Error c l m md) = liftIO $ Log.debug g logMsg
   where
     logMsg =
       field "code" (statusCode c)
         . field "label" l
         . field "request" (fromMaybe "N/A" mr)
+        . fromMaybe id (fmap logErrorData md)
         . msg (val "\"" +++ m +++ val "\"")
+
+    logErrorData (Wai.FederationErrorData d p) =
+      field "domain" (domainText d)
+        . field "path" p
 
 logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()
 logIO lg lv r a =

@@ -5,6 +5,13 @@
 # they are not uploaded simulaneously, so this script is subject to race conditions and CI failures.
 # Use at your own risk!
 
-curl -sSL 'https://quay.io/api/v1/repository/wire/brig/tag/?limit=50&page=1&onlyActiveTags=true' \
-    | jq -r '.tags[].name' \
-    | sort | uniq | grep -v latest | grep -v 'pr\.' | tail -1
+function lookup() {
+    image=$1
+    echo "latest tag for $image:"
+    curl -sSL "https://quay.io/api/v1/repository/wire/$image/tag/?limit=50&page=1&onlyActiveTags=true" \
+        | jq -r '.tags[].name' \
+        | sort --version-sort | uniq | grep -v latest | grep -v 'pr\.' | tail -1
+}
+
+lookup brig
+lookup nginz

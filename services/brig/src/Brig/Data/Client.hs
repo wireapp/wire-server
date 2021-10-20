@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -25,9 +27,12 @@ module Brig.Data.Client
     hasClient,
     lookupClient,
     lookupClients,
+    lookupPubClientsBulk,
+    lookupClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
     Brig.Data.Client.updateClientLabel,
+    Brig.Data.Client.updateClientCapabilities,
 
     -- * Prekeys
     claimPrekey,
@@ -38,7 +43,7 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics)
+import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -46,18 +51,19 @@ import Brig.Types
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
-import Cassandra hiding (Client)
+import Cassandra as C hiding (Client)
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Random (Random (randomRIO))
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
-import qualified Data.HashMap.Strict as Map
+import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.List.Split (chunksOf)
+import qualified Data.Map as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc
 import qualified Data.Set as Set
@@ -71,7 +77,9 @@ import System.CryptoBox (Result (Success))
 import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
-import UnliftIO (mapConcurrently)
+import UnliftIO (pooledMapConcurrentlyN)
+import Wire.API.User.Client (ClientCapability, ClientCapabilityList (ClientCapabilityList))
+import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
   = TooManyClients
@@ -85,8 +93,9 @@ addClient ::
   NewClient ->
   Int ->
   Maybe Location ->
+  Maybe (Imports.Set ClientCapability) ->
   ExceptT ClientDataError AppIO (Client, [Client], Word)
-addClient u newId c maxPermClients loc = do
+addClient u newId c maxPermClients loc cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
@@ -102,11 +111,16 @@ addClient u newId c maxPermClients loc = do
   let old = maybe (filter (not . exists) typed) (const []) limit
   return (new, old, total)
   where
+    limit :: Maybe Int
     limit = case newClientType c of
       PermanentClientType -> Just maxPermClients
       TemporaryClientType -> Nothing
       LegalHoldClientType -> Nothing
+
+    exists :: Client -> Bool
     exists = (==) newId . clientId
+
+    insert :: ExceptT ClientDataError AppIO Client
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
@@ -115,14 +129,36 @@ addClient u newId c maxPermClients loc = do
       let lat = Latitude . view latitude <$> loc
           lon = Longitude . view longitude <$> loc
           mdl = newClientModel c
-          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
+          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params Quorum prm)
-      return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
+      return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl (ClientCapabilityList $ fromMaybe mempty cps)
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
+
+lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
+lookupClientsBulk uids = liftClient $ do
+  userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
+  pure $ Map.fromList userClientTuples
+  where
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
+    getClientSetWithUser u = (u,) . Set.fromList <$> executeQuery u
+
+    executeQuery :: MonadClient m => UserId -> m [Client]
+    executeQuery u = toClient <$$> retry x1 (query selectClients (params Quorum (Identity u)))
+
+lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
+lookupPubClientsBulk uids = liftClient $ do
+  userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
+  pure $ UserMap $ Map.fromList userClientTuples
+  where
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set PubClient)
+    getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
+
+    executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
+    executeQuery u = retry x1 (query selectPubClients (params Quorum (Identity u)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u =
@@ -135,10 +171,8 @@ lookupClientIds u =
     <$> retry x1 (query selectClientIds (params Quorum (Identity u)))
 
 lookupUsersClientIds :: MonadClient m => [UserId] -> m [(UserId, Set.Set ClientId)]
-lookupUsersClientIds us = liftClient $ do
-  -- Limit concurrency to 16 parallel queries
-  clts <- mapM (mapConcurrently getClientIds) (chunksOf 16 us)
-  return (concat clts)
+lookupUsersClientIds us =
+  liftClient $ pooledMapConcurrentlyN 16 getClientIds us
   where
     getClientIds u = (u,) <$> fmap Set.fromList (lookupClientIds u)
 
@@ -154,10 +188,13 @@ rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do
   retry x5 $ write removeClient (params Quorum (u, c))
   retry x5 $ write removeClientKeys (params Quorum (u, c))
-  deleteOptLock u c
+  unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
+
+updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
+updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params Quorum (C.Set . Set.toList <$> fs, u, c))
 
 updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
@@ -176,10 +213,20 @@ updatePrekeys u c pks = do
         _ -> return False
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = withOptLock u c $ do
-  prekey <- retry x1 $ query1 userPrekeys (params Quorum (u, c))
-  case prekey of
-    Just (i, k) -> do
+claimPrekey u c =
+  view randomPrekeyLocalLock >>= \case
+    -- Use random prekey selection strategy
+    Just localLock -> withLocalLock localLock $ do
+      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+      prekey <- pickRandomPrekey prekeys
+      removeAndReturnPreKey prekey
+    -- Use DynamoDB based optimistic locking strategy
+    Nothing -> withOptLock u c $ do
+      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
+      removeAndReturnPreKey prekey
+  where
+    removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
+    removeAndReturnPreKey (Just (i, k)) = do
       if i /= lastPrekeyId
         then retry x1 $ write removePrekey (params Quorum (u, c, i))
         else
@@ -188,25 +235,41 @@ claimPrekey u c = withOptLock u c $ do
               . field "client" (toByteString c)
               . msg (val "last resort prekey used")
       return $ Just (ClientPrekey c (Prekey i k))
-    Nothing -> return Nothing
+    removeAndReturnPreKey Nothing = return Nothing
+
+    pickRandomPrekey :: [(PrekeyId, Text)] -> AppIO (Maybe (PrekeyId, Text))
+    pickRandomPrekey [] = return Nothing
+    -- unless we only have one key left
+    pickRandomPrekey [pk] = return $ Just pk
+    -- pick among list of keys, except lastPrekeyId
+    pickRandomPrekey pks = do
+      let pks' = filter (\k -> fst k /= lastPrekeyId) pks
+      ind <- liftIO $ randomRIO (0, length pks' - 1)
+      return $ atMay pks' ind
 
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
-insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) ()
+insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
 
+updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
+updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
+
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
+selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
+selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
+selectPubClients = "SELECT client, class from clients where user = ?"
+
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
+selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
@@ -217,8 +280,11 @@ removeClient = "DELETE FROM clients where user = ? and client = ?"
 removeClientKeys :: PrepQuery W (UserId, ClientId) ()
 removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
 
+userPrekey :: PrepQuery R (UserId, ClientId) (PrekeyId, Text)
+userPrekey = "SELECT key, data FROM prekeys where user = ? and client = ? LIMIT 1"
+
 userPrekeys :: PrepQuery R (UserId, ClientId) (PrekeyId, Text)
-userPrekeys = "SELECT key, data FROM prekeys where user = ? and client = ? LIMIT 1"
+userPrekeys = "SELECT key, data FROM prekeys where user = ? and client = ?"
 
 selectPrekeyIds :: PrepQuery R (UserId, ClientId) (Identity PrekeyId)
 selectPrekeyIds = "SELECT key FROM prekeys where user = ? and client = ?"
@@ -232,8 +298,8 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
+toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) -> Client
+toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
   Client
     { clientId = cid,
       clientType = cty,
@@ -242,8 +308,12 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
       clientLabel = lbl,
       clientCookie = cok,
       clientLocation = location <$> lat <*> lon,
-      clientModel = mdl
+      clientModel = mdl,
+      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps
     }
+
+toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
+toPubClient = uncurry PubClient
 
 -------------------------------------------------------------------------------
 -- Best-effort optimistic locking for prekeys via DynamoDB
@@ -257,8 +327,8 @@ ddbVersion = "version"
 ddbKey :: UserId -> ClientId -> AWS.AttributeValue
 ddbKey u c = AWS.attributeValue & AWS.avS ?~ UUID.toText (toUUID u) <> "." <> client c
 
-key :: UserId -> ClientId -> Map.HashMap Text AWS.AttributeValue
-key u c = Map.singleton ddbClient (ddbKey u c)
+key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
+key u c = HashMap.singleton ddbClient (ddbKey u c)
 
 deleteOptLock :: UserId -> ClientId -> AppIO ()
 deleteOptLock u c = do
@@ -278,7 +348,7 @@ withOptLock u c ma = go (10 :: Int)
         Nothing -> reportFailureAndLogError >> return a
         Just _ -> return a
     version :: AWS.GetItemResponse -> Maybe Word32
-    version v = conv =<< Map.lookup ddbVersion (view AWS.girsItem v)
+    version v = conv =<< HashMap.lookup ddbVersion (view AWS.girsItem v)
       where
         conv :: AWS.AttributeValue -> Maybe Word32
         conv = readMaybe . Text.unpack <=< view AWS.avN
@@ -290,15 +360,15 @@ withOptLock u c ma = go (10 :: Int)
     put v t =
       AWS.putItem t & AWS.piItem .~ item v
         & AWS.piExpected .~ check v
-    check :: Maybe Word32 -> Map.HashMap Text AWS.ExpectedAttributeValue
-    check Nothing = Map.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.Null
+    check :: Maybe Word32 -> HashMap Text AWS.ExpectedAttributeValue
+    check Nothing = HashMap.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.Null
     check (Just v) =
-      Map.singleton ddbVersion $
+      HashMap.singleton ddbVersion $
         AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.EQ'
           & AWS.eavAttributeValueList .~ [toAttributeValue v]
-    item :: Maybe Word32 -> Map.HashMap Text AWS.AttributeValue
+    item :: Maybe Word32 -> HashMap Text AWS.AttributeValue
     item v =
-      Map.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+ 1) v)) $
+      HashMap.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+ 1) v)) $
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
@@ -335,3 +405,7 @@ withOptLock u c ma = go (10 :: Int)
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
               return Nothing
             handleErr _ = return Nothing
+
+withLocalLock :: MVar () -> AppIO a -> AppIO a
+withLocalLock l ma = do
+  (takeMVar l *> ma) `finally` putMVar l ()

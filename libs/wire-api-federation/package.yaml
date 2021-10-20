@@ -9,22 +9,40 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
+extra-source-files:
+- proto/router.proto
 dependencies:
+- QuickCheck >=2.13
 - aeson >=1.4
+- async
 - base >=4.6 && <5.0
-- bytestring >=0.10
-- bytestring-conversion >=0.3
-- containers >=0.5
-- errors >=2.0
-- exceptions >=0.6
+- bytestring
+- bytestring-conversion
+- bytestring
+- either
+- errors
+- exceptions
+- http-types
+- http2-client-grpc
 - imports
+- lifted-base
+- mu-rpc
+- mu-grpc-client
+- mu-grpc-server
+- mu-protobuf
+- mu-schema
+- mtl
 - servant >=0.16
+- servant-client
+- servant-client-core
+- sop-core
+- template-haskell
 - text >=0.11
 - time >=1.8
-- transformers >=0.3
 - types-common
-- QuickCheck >=2.13
-
+- warp
+- wai-utilities
+- wire-api
 library:
   source-dirs: src
 
@@ -34,8 +52,15 @@ tests:
     source-dirs:
       - test
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    build-tools:
+    - hspec-discover:hspec-discover
     dependencies:
-      - wire-api-federation
+      - HUnit
+      - aeson-pretty
+      - containers
       - hspec
-      - hspec-discover
       - metrics-wai
+      - network
+      - retry
+      - uuid
+      - wire-api-federation

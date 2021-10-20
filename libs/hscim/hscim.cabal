@@ -4,15 +4,15 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d17d3caef4224aad5ab9fe3165e19bb8a4efb7a37fb70f0d1019ecbedd77f29b
+-- hash: 8daa0bcbe43125e8d9749dd38e62f67cb01f62a1bcd57a0391e684860203e60c
 
 name:           hscim
-version:        0.3.4
-synopsis:       ...
-description:    ...
+version:        0.3.6
+synopsis:       hscim json schema and server implementation
+description:    The README file will answer all the questions you might have
 category:       Web
-homepage:       https://github.com/wireapp/hscim/README.md
-bug-reports:    https://github.com/wireapp/hscim/issues
+homepage:       https://github.com/wireapp/wire-server/libs/hscim/README.md
+bug-reports:    https://github.com/wireapp/wire-server/issues
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
@@ -21,10 +21,12 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
+    CHANGELOG
 
 source-repository head
   type: git
-  location: https://github.com/wireapp/hscim
+  location: https://github.com/wireapp/wire-server
+  subdir: hscim
 
 library
   exposed-modules:
@@ -38,6 +40,7 @@ library
       Web.Scim.Class.Auth
       Web.Scim.Class.Group
       Web.Scim.Class.User
+      Web.Scim.Client
       Web.Scim.ContentType
       Web.Scim.Filter
       Web.Scim.Handler
@@ -72,11 +75,10 @@ library
       aeson >=1.4.5 && <1.5
     , aeson-qq >=0.8.2 && <0.9
     , attoparsec >=0.13.2 && <0.14
-    , base >=4.12 && <4.14
+    , base >=4.12 && <4.15
     , bytestring >=0.10.8 && <0.11
     , case-insensitive >=1.2.1.0 && <1.3
     , email-validate >=2.3.2 && <2.4
-    , errors >=2.3.0 && <2.4
     , hashable >=1.2.7 && <1.4
     , hedgehog >=1.0.1 && <1.1
     , hspec >=2.7.1 && <2.8
@@ -94,19 +96,19 @@ library
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.19
+    , servant-client >=0.16.2 && <0.19
+    , servant-client-core >=0.16.2 && <0.19
     , servant-server >=0.16.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
-    , template-haskell >=2.14.0 && <2.16
+    , template-haskell >=2.14.0 && <2.17
     , text >=1.2.3 && <1.3
     , time >=1.8.0 && <1.10
     , unordered-containers >=0.2.10 && <0.3
     , uuid >=1.3.13 && <1.4
-    , vector >=0.12.0 && <0.13
     , wai >=3.2.2 && <3.3
     , wai-extra >=3.0.28 && <3.1
-    , wai-logger >=2.3.5 && <2.4
     , warp >=3.2.28 && <3.4
   default-language: Haskell2010
 
@@ -122,11 +124,10 @@ executable hscim-server
       aeson >=1.4.5 && <1.5
     , aeson-qq >=0.8.2 && <0.9
     , attoparsec >=0.13.2 && <0.14
-    , base >=4.12 && <4.14
+    , base >=4.12 && <4.15
     , bytestring >=0.10.8 && <0.11
     , case-insensitive >=1.2.1.0 && <1.3
     , email-validate >=2.3.2 && <2.4
-    , errors >=2.3.0 && <2.4
     , hashable >=1.2.7 && <1.4
     , hedgehog >=1.0.1 && <1.1
     , hscim
@@ -145,19 +146,19 @@ executable hscim-server
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.19
+    , servant-client >=0.16.2 && <0.19
+    , servant-client-core >=0.16.2 && <0.19
     , servant-server >=0.16.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
-    , template-haskell >=2.14.0 && <2.16
+    , template-haskell >=2.14.0 && <2.17
     , text >=1.2.3 && <1.3
     , time >=1.8.0 && <1.10
     , unordered-containers >=0.2.10 && <0.3
     , uuid >=1.3.13 && <1.4
-    , vector >=0.12.0 && <0.13
     , wai >=3.2.2 && <3.3
     , wai-extra >=3.0.28 && <3.1
-    , wai-logger >=2.3.5 && <2.4
     , warp >=3.2.28 && <3.4
   default-language: Haskell2010
 
@@ -172,8 +173,13 @@ test-suite spec
       Test.Class.UserSpec
       Test.FilterSpec
       Test.MiscSpec
+      Test.Schema.AuthenticationSchemeSpec
+      Test.Schema.GroupSpec
+      Test.Schema.MetaSchemaSpec
       Test.Schema.PatchOpSpec
+      Test.Schema.ResourceSpec
       Test.Schema.UserSpec
+      Test.Schema.Util
       Paths_hscim
   hs-source-dirs:
       test
@@ -185,11 +191,10 @@ test-suite spec
       aeson >=1.4.5 && <1.5
     , aeson-qq >=0.8.2 && <0.9
     , attoparsec >=0.13.2 && <0.14
-    , base >=4.12 && <4.14
+    , base >=4.12 && <4.15
     , bytestring >=0.10.8 && <0.11
     , case-insensitive >=1.2.1.0 && <1.3
     , email-validate >=2.3.2 && <2.4
-    , errors >=2.3.0 && <2.4
     , hashable >=1.2.7 && <1.4
     , hedgehog >=1.0.1 && <1.1
     , hscim
@@ -208,18 +213,18 @@ test-suite spec
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.19
+    , servant-client >=0.16.2 && <0.19
+    , servant-client-core >=0.16.2 && <0.19
     , servant-server >=0.16.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
-    , template-haskell >=2.14.0 && <2.16
+    , template-haskell >=2.14.0 && <2.17
     , text >=1.2.3 && <1.3
     , time >=1.8.0 && <1.10
     , unordered-containers >=0.2.10 && <0.3
     , uuid >=1.3.13 && <1.4
-    , vector >=0.12.0 && <0.13
     , wai >=3.2.2 && <3.3
     , wai-extra >=3.0.28 && <3.1
-    , wai-logger >=2.3.5 && <2.4
     , warp >=3.2.28 && <3.4
   default-language: Haskell2010

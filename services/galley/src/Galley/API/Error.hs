@@ -17,32 +17,60 @@
 
 module Galley.API.Error where
 
+import Control.Monad.Catch (MonadThrow (..))
 import Data.Domain (Domain, domainText)
-import Data.Id (Id, Remote, idToText)
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
-import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (Qualified, renderQualifiedId)
+import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
-import Galley.Types.Conversations.Roles (Action)
-import Galley.Types.Teams (IsPerm, hardTruncationLimit)
+import GHC.TypeLits
+import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import Type.Reflection (typeRep)
+import Servant.API.Status (KnownStatus (..))
+import Wire.API.ErrorDescription
+
+errorDescriptionToWai ::
+  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol lbl) =>
+  ErrorDescription code lbl desc ->
+  Error
+errorDescriptionToWai (ErrorDescription msg) =
+  mkError (statusVal (Proxy @code)) (LT.pack (symbolVal (Proxy @lbl))) (LT.fromStrict msg)
+
+errorDescriptionTypeToWai ::
+  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  ( KnownStatus code,
+    KnownSymbol lbl,
+    KnownSymbol desc,
+    e ~ ErrorDescription code lbl desc
+  ) =>
+  Error
+errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
+
+throwErrorDescription ::
+  (KnownStatus code, KnownSymbol lbl, MonadThrow m) =>
+  ErrorDescription code lbl desc ->
+  m a
+throwErrorDescription = throwM . errorDescriptionToWai
+
+throwErrorDescriptionType ::
+  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol) m a.
+  ( KnownStatus code,
+    KnownSymbol lbl,
+    KnownSymbol desc,
+    MonadThrow m,
+    e ~ ErrorDescription code lbl desc
+  ) =>
+  m a
+throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
 
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"
 
 internalErrorWithDescription :: LText -> Error
-internalErrorWithDescription = Error status500 "internal-error"
-
-convNotFound :: Error
-convNotFound = Error status404 "no-conversation" "conversation not found"
-
-convMemberNotFound :: Error
-convMemberNotFound = Error status404 "no-conversation-member" "conversation member not found"
+internalErrorWithDescription = mkError status500 "internal-error"
 
 invalidSelfOp :: Error
 invalidSelfOp = invalidOp "invalid operation for self conversation"
@@ -59,160 +87,146 @@ invalidAccessOp = invalidOp "invalid operation for conversation without 'code' a
 invalidManagedConvOp :: Error
 invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
 
-invalidTargetAccess :: Error
-invalidTargetAccess = invalidOp "invalid target access"
-
 invalidTargetUserOp :: Error
 invalidTargetUserOp = invalidOp "invalid target user for the given operation"
 
 invalidOp :: LText -> Error
-invalidOp = Error status403 "invalid-op"
+invalidOp = mkError status403 "invalid-op"
 
 invalidPayload :: LText -> Error
-invalidPayload = Error status400 "invalid-payload"
+invalidPayload = mkError status400 "invalid-payload"
 
 badRequest :: LText -> Error
-badRequest = Error status400 "bad-request"
+badRequest = mkError status400 "bad-request"
 
-notConnected :: Error
-notConnected = Error status403 "not-connected" "Users are not connected"
+unknownRemoteUser :: Error
+unknownRemoteUser = mkError status400 "unknown-remote-user" "Remote user(s) not found"
 
 tooManyMembers :: Error
-tooManyMembers = Error status403 "too-many-members" "Maximum number of members per conversation reached"
-
-convAccessDenied :: Error
-convAccessDenied = Error status403 "access-denied" "Conversation access denied"
+tooManyMembers = mkError status403 "too-many-members" "Maximum number of members per conversation reached"
 
 accessDenied :: Error
-accessDenied = Error status403 "access-denied" "You do not have permission to access this resource"
+accessDenied = mkError status403 "access-denied" "You do not have permission to access this resource"
 
 reAuthFailed :: Error
-reAuthFailed = Error status403 "access-denied" "This operation requires reauthentication"
+reAuthFailed = mkError status403 "access-denied" "This operation requires reauthentication"
 
 invalidUUID4 :: Error
-invalidUUID4 = Error status400 "client-error" "Invalid UUID v4 format"
-
-unknownClient :: Error
-unknownClient = Error status403 "unknown-client" "Sending client not known"
+invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"
 
 invalidRange :: LText -> Error
-invalidRange = Error status400 "client-error"
-
-operationDenied :: (IsPerm perm, Show perm) => perm -> Error
-operationDenied p =
-  Error
-    status403
-    "operation-denied"
-    ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
-
-actionDenied :: Action -> Error
-actionDenied a =
-  Error
-    status403
-    "action-denied"
-    ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
+invalidRange = mkError status400 "client-error"
 
 noBindingTeam :: Error
-noBindingTeam = Error status403 "no-binding-team" "Operation allowed only on binding teams."
+noBindingTeam = mkError status403 "no-binding-team" "Operation allowed only on binding teams."
 
 notAOneMemberTeam :: Error
-notAOneMemberTeam = Error status403 "not-one-member-team" "Can only delete teams with a single member."
-
-notATeamMember :: Error
-notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
+notAOneMemberTeam = mkError status403 "not-one-member-team" "Can only delete teams with a single member."
 
 bulkGetMemberLimitExceeded :: Error
 bulkGetMemberLimitExceeded =
-  Error
+  mkError
     status400
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
 broadcastLimitExceeded :: Error
 broadcastLimitExceeded =
-  Error
+  mkError
     status400
     "too-many-users-to-broadcast"
     ("Too many users to fan out the broadcast event to.")
 
 noAddToManaged :: Error
-noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
+noAddToManaged = mkError status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
 
 teamNotFound :: Error
-teamNotFound = Error status404 "no-team" "team not found"
+teamNotFound = mkError status404 "no-team" "team not found"
 
 invalidPermissions :: Error
-invalidPermissions = Error status403 "invalid-permissions" "The specified permissions are invalid."
+invalidPermissions = mkError status403 "invalid-permissions" "The specified permissions are invalid."
 
 invalidActions :: Error
-invalidActions = Error status403 "invalid-actions" "The specified actions are invalid."
+invalidActions = mkError status403 "invalid-actions" "The specified actions are invalid."
 
 tooManyTeamMembers :: Error
-tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
+tooManyTeamMembers = mkError status403 "too-many-team-members" "Maximum number of members per team reached"
 
 tooManyTeamMembersOnTeamWithLegalhold :: Error
-tooManyTeamMembersOnTeamWithLegalhold = Error status403 "too-many-members-for-legalhold" "cannot add more members to team legalhold service is enabled."
+tooManyTeamMembersOnTeamWithLegalhold = mkError status403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
 
 teamMemberNotFound :: Error
-teamMemberNotFound = Error status404 "no-team-member" "team member not found"
+teamMemberNotFound = mkError status404 "no-team-member" "team member not found"
 
 noManagedTeamConv :: Error
-noManagedTeamConv = Error status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
+noManagedTeamConv = mkError status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
 
 userBindingExists :: Error
-userBindingExists = Error status403 "binding-exists" "User already bound to a different team."
+userBindingExists = mkError status403 "binding-exists" "User already bound to a different team."
 
 noAddToBinding :: Error
-noAddToBinding = Error status403 "binding-team" "Cannot add users to binding teams, invite only."
+noAddToBinding = mkError status403 "binding-team" "Cannot add users to binding teams, invite only."
 
 deleteQueueFull :: Error
-deleteQueueFull = Error status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
+deleteQueueFull = mkError status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
 
 nonBindingTeam :: Error
-nonBindingTeam = Error status404 "non-binding-team" "not member of a binding team"
+nonBindingTeam = mkError status404 "non-binding-team" "not member of a binding team"
 
 noBindingTeamMembers :: Error
-noBindingTeamMembers = Error status403 "non-binding-team-members" "Both users must be members of the same binding team."
+noBindingTeamMembers = mkError status403 "non-binding-team-members" "Both users must be members of the same binding team."
 
 invalidTeamStatusUpdate :: Error
-invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
-
-codeNotFound :: Error
-codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
+invalidTeamStatusUpdate = mkError status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
 
 cannotEnableLegalHoldServiceLargeTeam :: Error
-cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams."
+cannotEnableLegalHoldServiceLargeTeam = mkError status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
 
 legalHoldServiceInvalidKey :: Error
-legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
+legalHoldServiceInvalidKey = mkError status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
 legalHoldServiceUnavailable :: Error
-legalHoldServiceUnavailable = Error status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
+legalHoldServiceUnavailable = mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
 
 legalHoldServiceNotRegistered :: Error
-legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
+legalHoldServiceNotRegistered = mkError status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
 
 legalHoldServiceBadResponse :: Error
-legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
+legalHoldServiceBadResponse = mkError status400 "legalhold-status-bad" "legal hold service: invalid response"
+
+legalHoldWhitelistedOnly :: Error
+legalHoldWhitelistedOnly = mkError status403 "legalhold-whitelisted-only" "legal hold is enabled for teams via server config and cannot be changed here"
 
 legalHoldFeatureFlagNotEnabled :: Error
-legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
+legalHoldFeatureFlagNotEnabled = mkError status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
 
 legalHoldNotEnabled :: Error
-legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
+legalHoldNotEnabled = mkError status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
+
+legalHoldDisableUnimplemented :: Error
+legalHoldDisableUnimplemented = mkError status403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
 
 userLegalHoldAlreadyEnabled :: Error
-userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+userLegalHoldAlreadyEnabled = mkError status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+userLegalHoldNoConsent :: Error
+userLegalHoldNoConsent = mkError status409 "legalhold-no-consent" "user has not given consent to using legal hold"
+
+userLegalHoldIllegalOperation :: Error
+userLegalHoldIllegalOperation = mkError status500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
 
 userLegalHoldNotPending :: Error
-userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
+userLegalHoldNotPending = mkError status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
 
 noLegalHoldDeviceAllocated :: Error
-noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
+noLegalHoldDeviceAllocated = mkError status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
+
+legalHoldCouldNotBlockConnections :: Error
+legalHoldCouldNotBlockConnections = mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =
-  Error
+  mkError
     status403
     "not-implemented"
     "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
@@ -227,42 +241,17 @@ disableSsoNotImplemented =
     \open an issue on https://github.com/wireapp/wire-server."
 
 teamSearchVisibilityNotEnabled :: Error
-teamSearchVisibilityNotEnabled = Error status403 "team-search-visibility-not-enabled" "custom search is not available for this team"
+teamSearchVisibilityNotEnabled = mkError status403 "team-search-visibility-not-enabled" "custom search is not available for this team"
 
 customBackendNotFound :: Domain -> Error
 customBackendNotFound domain =
-  Error
+  mkError
     status404
     "custom-backend-not-found"
     ("custom backend not found for domain: " <> cs (domainText domain))
 
 invalidTeamNotificationId :: Error
-invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
+invalidTeamNotificationId = mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 
 inactivityTimeoutTooLow :: Error
-inactivityTimeoutTooLow = Error status400 "inactivity-timeout-too-low" "applock inactivity timeout must be at least 30 seconds"
-
---------------------------------------------------------------------------------
--- Federation
-
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Error
-federationNotEnabled qualifiedIds =
-  Error
-    status403
-    "federation-not-enabled"
-    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
-
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
-federationNotImplemented qualifiedIds =
-  Error
-    status403
-    "federation-not-implemented"
-    ("Federation is not implemented, but ID mappings (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualifiedIds
-    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
-      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId
+inactivityTimeoutTooLow = mkError status400 "inactivity-timeout-too-low" "applock inactivity timeout must be at least 30 seconds"

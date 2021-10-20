@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
@@ -53,26 +54,34 @@ module Data.Misc
 
     -- * Swagger
     modelLocation,
+
+    -- * Typesafe FUTUREWORKS
+    FutureWork (..),
   )
 where
 
 import Cassandra
-import Control.Lens (makeLenses, (.~), (^.))
-import Data.Aeson
-import qualified Data.Aeson.Types as Json
+import Control.Lens (makeLenses, (.~), (?~), (^.))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
+import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
+import Data.Proxy (Proxy (Proxy))
 import Data.Range
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Test.QuickCheck (Arbitrary (arbitrary))
+import Servant (FromHttpApiData (..))
+import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
 import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
@@ -83,6 +92,12 @@ import qualified URI.ByteString.QQ as URI.QQ
 
 newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving stock (Eq, Ord, Show, Generic)
+
+instance S.ToParamSchema IpAddr where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData IpAddr where
+  parseQueryParam p = first Text.pack (runParser parser (encodeUtf8 p))
 
 instance FromByteString IpAddr where
   parser = do
@@ -113,13 +128,13 @@ newtype Port = Port
   deriving newtype (Real, Enum, Num, Integral, NFData, Arbitrary)
 
 instance Read Port where
-  readsPrec n = map (\x -> (Port (fst x), snd x)) . readsPrec n
+  readsPrec n = map (first Port) . readsPrec n
 
 instance ToJSON IpAddr where
-  toJSON (IpAddr ip) = String (Text.pack $ show ip)
+  toJSON (IpAddr ip) = A.String (Text.pack $ show ip)
 
 instance FromJSON IpAddr where
-  parseJSON = withText "IpAddr" $ \txt ->
+  parseJSON = A.withText "IpAddr" $ \txt ->
     case readMaybe (Text.unpack txt) of
       Nothing -> fail "Failed parsing IP address."
       Just ip -> return (IpAddr ip)
@@ -138,6 +153,14 @@ data Location = Location
     _longitude :: !Double
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Location
+
+instance ToSchema Location where
+  schema =
+    object "Location" $
+      Location
+        <$> _latitude .= field "lat" genericToSchema
+        <*> _longitude .= field "lon" genericToSchema
 
 instance Show Location where
   show p =
@@ -168,15 +191,6 @@ modelLocation = Doc.defineModel "Location" $ do
   Doc.property "lon" Doc.double' $
     Doc.description "Longitude"
 
-instance ToJSON Location where
-  toJSON p = object ["lat" .= (p ^. latitude), "lon" .= (p ^. longitude)]
-
-instance FromJSON Location where
-  parseJSON = withObject "Location" $ \o ->
-    location
-      <$> (Latitude <$> o .: "lat")
-      <*> (Longitude <$> o .: "lon")
-
 instance Arbitrary Location where
   arbitrary = Location <$> arbitrary <*> arbitrary
 
@@ -203,7 +217,13 @@ newtype Milliseconds = Ms
   { ms :: Word64
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Milliseconds
+  deriving newtype (Num)
+
+-- only generate values which can be represented exactly by double
+-- precision floating points
+instance Arbitrary Milliseconds where
+  arbitrary = Ms . fromIntegral <$> chooseInteger (0 :: Integer, 2 ^ (53 :: Int))
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
 msToInt64 :: Milliseconds -> Int64
@@ -213,11 +233,8 @@ msToInt64 = fromIntegral . min (fromIntegral (maxBound @Int64)) . ms
 int64ToMs :: Int64 -> Milliseconds
 int64ToMs = Ms . fromIntegral . max 0
 
-instance ToJSON Milliseconds where
-  toJSON = toJSON . msToInt64
-
-instance FromJSON Milliseconds where
-  parseJSON = fmap int64ToMs . parseJSON
+instance ToSchema Milliseconds where
+  schema = int64ToMs <$> msToInt64 .= schema
 
 instance Cql Milliseconds where
   ctype = Tagged BigIntColumn
@@ -233,6 +250,7 @@ newtype HttpsUrl = HttpsUrl
   { httpsUrl :: URIRef Absolute
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema HttpsUrl
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri =
@@ -252,13 +270,10 @@ instance ToByteString HttpsUrl where
 instance FromByteString HttpsUrl where
   parser = either fail pure . mkHttpsUrl =<< uriParser strictURIParserOptions
 
-instance FromJSON HttpsUrl where
-  parseJSON =
-    withText "HttpsUrl" $
-      either fail return . runParser parser . encodeUtf8
-
-instance ToJSON HttpsUrl where
-  toJSON = toJSON . decodeUtf8 . toByteString'
+instance ToSchema HttpsUrl where
+  schema =
+    (decodeUtf8 . toByteString')
+      .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn
@@ -282,13 +297,19 @@ newtype Fingerprint a = Fingerprint
   deriving stock (Eq, Show, Generic)
   deriving newtype (FromByteString, ToByteString, NFData)
 
+instance S.ToSchema (Fingerprint Rsa) where
+  declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
+    where
+      tweak = fmap $ S.schema . S.example ?~ fpr
+      fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
+
 instance FromJSON (Fingerprint Rsa) where
   parseJSON =
-    withText "Fingerprint" $
+    A.withText "Fingerprint" $
       either fail (pure . Fingerprint) . B64.decode . encodeUtf8
 
 instance ToJSON (Fingerprint Rsa) where
-  toJSON = String . decodeUtf8 . B64.encode . fingerprintBytes
+  toJSON = A.String . decodeUtf8 . B64.encode . fingerprintBytes
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn
@@ -309,16 +330,25 @@ instance Arbitrary (Fingerprint Rsa) where
 newtype PlainTextPassword = PlainTextPassword
   {fromPlainTextPassword :: Text}
   deriving stock (Eq, Generic)
-  deriving newtype (ToJSON)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PlainTextPassword
 
 instance Show PlainTextPassword where
   show _ = "PlainTextPassword <hidden>"
 
-instance FromJSON PlainTextPassword where
-  parseJSON x =
-    PlainTextPassword . fromRange
-      <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
+instance ToSchema PlainTextPassword where
+  schema =
+    PlainTextPassword
+      <$> fromPlainTextPassword .= untypedRangedSchema 6 1024 schema
 
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
   arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+
+-- | Usage:
+-- 1. Use this type in patterns to mark FUTUREWORKS.
+-- 2. Remove the label constructor -> all futureworks become compiler errors
+--
+-- Example:
+-- >>> let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteUsers, localUsers)
+-- >>>      = partitionQualified domain qualifiedUids
+newtype FutureWork label payload = FutureWork payload

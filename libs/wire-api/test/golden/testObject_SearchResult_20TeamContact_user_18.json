@@ -1,0 +1,19 @@
+{
+    "documents": [
+        {
+            "accent_id": null,
+            "created_at": "1864-05-09T12:35:16.437Z",
+            "email": "@",
+            "handle": "",
+            "id": "00000000-0000-0000-0000-000000000000",
+            "managed_by": null,
+            "name": "",
+            "role": "owner",
+            "saml_idp": "",
+            "team": "00000001-0000-0001-0000-000100000001"
+        }
+    ],
+    "found": 1,
+    "returned": -7,
+    "took": -7
+}

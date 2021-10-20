@@ -1,0 +1,19 @@
+# Assumes that the controller is deployed in the same namespace. Only used for
+# enabling discovery by creating SRV records while running integration tests.
+{{- if (and .Values.federator.enabled .Values.federator.integrationTestHelper) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: federation-test-helper
+  namespace: {{ .Release.namespace }}
+spec:
+  ports:
+  - name: wire-server-federator
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: nginx-ingress
+    component: controller
+  type: ClusterIP
+{{- end }}

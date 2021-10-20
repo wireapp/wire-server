@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "federator"
+  labels:
+    wireService: federator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  federator.yaml: |
+
+    # TODO: delete this
+    federator:
+      host: 0.0.0.0
+      port: {{ .Values.service.internalFederatorPort }}
+
+    federatorInternal:
+      host: 0.0.0.0
+      port: {{ .Values.service.internalFederatorPort }}
+
+    federatorExternal:
+      host: 0.0.0.0
+      port: {{ .Values.service.externalFederatorPort }}
+
+    brig:
+      host: brig
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    {{- with .Values.config }}
+
+    logNetStrings: True # log using netstrings encoding:
+                        # http://cr.yp.to/proto/netstrings.txt
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    {{- with .optSettings }}
+    optSettings:
+      # Filepath to one or more PEM-encoded server certificates to use as a trust
+      # store when making grpc requests to remote backends
+      {{- if $.Values.remoteCAContents }}
+      remoteCAStore: "/etc/wire/federator/ca/ca.crt"
+      {{- end }}
+      clientCertificate: "/etc/wire/federator/secrets/tls.crt"
+      clientPrivateKey: "/etc/wire/federator/secrets/tls.key"
+      useSystemCAStore: {{ .useSystemCAStore }}
+      federationStrategy:
+        {{- if .federationStrategy.allowAll }}
+        allowAll:
+        {{- else if .federationStrategy.allowedDomains }}
+        allowedDomains:
+        {{- range $domain := .federationStrategy.allowedDomains }}
+          - {{ $domain | quote }}
+        {{- end }}
+        {{- else }}
+        # In gotemplate there is no way to distinguish between empty list and no
+        # list, we assume empty list when there is no list
+        allowedDomains: []
+        {{- end}}
+    {{- end }}
+    {{- end }}

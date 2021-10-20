@@ -32,6 +32,12 @@ data:
       host: spar
       port: 8080
 
+    {{- if .enableFederator }}
+    federator:
+      host: federator
+      port: 8080
+    {{- end }}
+
     {{- if (.journal) }}
     journal:
       queueName: {{ .journal.queue }}
@@ -56,5 +62,7 @@ data:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
         teamSearchVisibility: {{ .settings.featureFlags.teamSearchVisibility }}
+        classifiedDomains:
+          {{- toYaml .settings.featureFlags.classifiedDomains | nindent 10 }}
       {{- end }}
   {{- end }}

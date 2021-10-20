@@ -1,58 +1,42 @@
 #!/usr/bin/env bash
 
-USAGE="Usage: $0"
+set -euo pipefail
 
-set -e
-
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
+export NAMESPACE=${NAMESPACE:-test-integration}
+HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
-NAMESPACE=${NAMESPACE:-test-integration}
+. "$DIR/helm_overrides.sh"
 
-kubectl create namespace "${NAMESPACE}" > /dev/null 2>&1 || true
-
-${DIR}/integration-cleanup.sh
-
-charts=( fake-aws databases-ephemeral wire-server )
+"${DIR}/integration-cleanup.sh"
 
 echo "updating recursive dependencies ..."
+charts=(fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services)
 for chart in "${charts[@]}"; do
-  "$DIR/update.sh" "$CHARTS_DIR/$chart"
+    "$DIR/update.sh" "$CHARTS_DIR/$chart"
 done
+
+echo "Generating self-signed certificates..."
+export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
+export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
+"$DIR/selfsigned-kubernetes.sh" namespace1
 
 echo "Installing charts..."
 
-function printLogs() {
-    kubectl -n ${NAMESPACE} get pods | grep -v Running | grep -v Pending | grep -v Completed | grep -v STATUS | grep -v ContainerCreating | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----LOGS FROM {}:\n'; kubectl -n ${NAMESPACE} logs --tail=30 {}" || true
-    kubectl -n ${NAMESPACE} get pods | grep Pending | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----DESCRIBE 'pending' {}:\n'; kubectl -n ${NAMESPACE} describe pod {}" || true
-}
-
-for chart in "${charts[@]}"; do
-    kubectl -n ${NAMESPACE} get pods
-    valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
-    if [ -f "$valuesfile" ]; then
-        option="-f $valuesfile"
-    else
-        option=""
-    fi
-    # default is 5m but may not be enough on a fresh install including cassandra migrations
-    TIMEOUT=10m
-    set -x
-    helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
-        $option \
-        --wait \
-        --timeout "$TIMEOUT" || printLogs
-    set +x
-done
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile-single.yaml" sync
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
     SNS_POD=$(kubectl -n "${NAMESPACE}" get pods | grep fake-aws-sns | grep Running | awk '{print $1}')
     kubectl -n "${NAMESPACE}" logs "$SNS_POD" -c initiate-fake-aws-sns | grep created
 }
-until resourcesReady; do echo 'waiting for SNS resources'; sleep 1; done
+until resourcesReady; do
+    echo 'waiting for SNS resources'
+    sleep 1
+done
 
-kubectl -n ${NAMESPACE} get pods
+kubectl -n "${NAMESPACE}" get pods
 
 echo "done"

@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -80,6 +79,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Team.Member (TeamMember, modelTeamMember)
 
@@ -283,7 +283,13 @@ data TeamUpdateData = TeamUpdateData
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform TeamUpdateData)
+
+instance Arbitrary TeamUpdateData where
+  arbitrary = arb `suchThat` valid
+    where
+      arb = TeamUpdateData <$> arbitrary <*> arbitrary <*> arbitrary
+      valid (TeamUpdateData Nothing Nothing Nothing) = False
+      valid _ = True
 
 modelUpdateData :: Doc.Model
 modelUpdateData = Doc.defineModel "TeamUpdateData" $ do

@@ -1,0 +1,100 @@
+{
+    "conversations": [
+        {
+            "conversation": "00000000-0000-0041-0000-007b00000060",
+            "managed": true
+        },
+        {
+            "conversation": "0000003f-0000-0059-0000-000700000073",
+            "managed": false
+        },
+        {
+            "conversation": "00000065-0000-0056-0000-007e00000066",
+            "managed": false
+        },
+        {
+            "conversation": "0000002b-0000-000b-0000-007a00000065",
+            "managed": true
+        },
+        {
+            "conversation": "00000071-0000-003a-0000-001b00000027",
+            "managed": false
+        },
+        {
+            "conversation": "00000070-0000-004f-0000-008000000008",
+            "managed": false
+        },
+        {
+            "conversation": "0000003c-0000-000d-0000-00510000005a",
+            "managed": false
+        },
+        {
+            "conversation": "00000045-0000-006e-0000-004200000072",
+            "managed": true
+        },
+        {
+            "conversation": "0000001b-0000-003b-0000-007900000004",
+            "managed": true
+        },
+        {
+            "conversation": "0000002d-0000-0077-0000-006400000054",
+            "managed": false
+        },
+        {
+            "conversation": "0000001a-0000-005e-0000-003e00000012",
+            "managed": true
+        },
+        {
+            "conversation": "00000057-0000-000c-0000-00370000003b",
+            "managed": true
+        },
+        {
+            "conversation": "00000031-0000-0010-0000-006500000077",
+            "managed": true
+        },
+        {
+            "conversation": "00000028-0000-004b-0000-00460000007b",
+            "managed": true
+        },
+        {
+            "conversation": "00000005-0000-0040-0000-006400000024",
+            "managed": true
+        },
+        {
+            "conversation": "00000042-0000-005b-0000-002d00000031",
+            "managed": true
+        },
+        {
+            "conversation": "00000065-0000-0067-0000-00610000006d",
+            "managed": false
+        },
+        {
+            "conversation": "0000007f-0000-0036-0000-00770000000d",
+            "managed": false
+        },
+        {
+            "conversation": "00000058-0000-0042-0000-003700000054",
+            "managed": true
+        },
+        {
+            "conversation": "0000002a-0000-0001-0000-000700000015",
+            "managed": true
+        },
+        {
+            "conversation": "0000002f-0000-003c-0000-003b00000000",
+            "managed": true
+        },
+        {
+            "conversation": "00000065-0000-0049-0000-00720000006c",
+            "managed": false
+        },
+        {
+            "conversation": "0000000f-0000-0021-0000-004c00000055",
+            "managed": true
+        },
+        {
+            "conversation": "0000005b-0000-002e-0000-00140000003d",
+            "managed": false
+        }
+    ]
+}

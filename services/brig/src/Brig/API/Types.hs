@@ -41,8 +41,10 @@ import Brig.Types.Code (Timeout)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
+import Data.Qualified
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
+import Wire.API.Federation.Client (FederationError)
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -62,10 +64,6 @@ data CreateUserTeam = CreateUserTeam
   { createdTeamId :: !TeamId,
     createdTeamName :: !Text
   }
-
-data ConnectionResult
-  = ConnectionCreated !UserConnection
-  | ConnectionExists !UserConnection
 
 data ActivationResult
   = -- | The key/code was valid and successfully activated.
@@ -103,6 +101,10 @@ data CreateUserError
   | -- | Some precondition on another Wire service failed. We propagate this error.
     ExternalPreconditionFailed Wai.Error
 
+data UpdateProfileError
+  = DisplayNameManagedByScim
+  | ProfileNotFound UserId
+
 data InvitationError
   = InviteeEmailExists UserId
   | InviteInvalidEmail Email
@@ -113,11 +115,11 @@ data ConnectionError
     -- when attempting to create or accept a connection.
     TooManyConnections UserId
   | -- | An invalid connection status change.
-    InvalidTransition UserId Relation
+    InvalidTransition UserId
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
-    InvalidUser OpaqueUserId
+    InvalidUser (Qualified UserId)
   | -- | An attempt at updating a non-existent connection.
-    NotConnected UserId UserId
+    NotConnected UserId (Qualified UserId)
   | -- | An attempt at creating a connection from an account with
     -- no verified user identity.
     ConnectNoIdentity
@@ -129,6 +131,10 @@ data ConnectionError
     ConnectInvalidPhone Phone
   | -- | An attempt at creating a connection with another user from the same binding team.
     ConnectSameBindingTeamUsers
+  | -- | Something doesn't work because somebody has a LH device and somebody else has not granted consent.
+    ConnectMissingLegalholdConsent
+  | -- | Remote connection creation or update failed because of a federation error
+    ConnectFederationError FederationError
 
 data PasswordResetError
   = PasswordResetInProgress (Maybe Timeout)
@@ -158,16 +164,19 @@ data ChangePasswordError
 data ChangePhoneError
   = PhoneExists !Phone
   | InvalidNewPhone !Phone
+  | BlacklistedNewPhone !Phone
 
 data ChangeEmailError
   = InvalidNewEmail !Email !String
   | EmailExists !Email
   | ChangeBlacklistedEmail !Email
+  | EmailManagedByScim
 
 data ChangeHandleError
   = ChangeHandleNoIdentity
   | ChangeHandleExists
   | ChangeHandleInvalid
+  | ChangeHandleManagedByScim
 
 data SendActivationCodeError
   = InvalidRecipient UserKey
@@ -181,9 +190,12 @@ data SendLoginCodeError
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
-  | ClientUserNotFound !OpaqueUserId
+  | ClientUserNotFound !UserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
+  | ClientFederationError FederationError
+  | ClientCapabilitiesCannotBeRemoved
+  | ClientMissingLegalholdConsent
 
 data RemoveIdentityError
   = LastIdentity

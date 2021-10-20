@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -31,22 +30,22 @@ module Wire.API.User.Client.Prekey
     ClientPrekey (..),
 
     -- * Swagger
-    modelPrekeyBundle,
-    modelClientPrekey,
     modelPrekey,
   )
 where
 
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Hashable (hash)
 import Data.Id
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToJSON, FromJSON, Arbitrary, S.ToSchema, ToSchema)
 
 --------------------------------------------------------------------------------
 -- Prekey
@@ -57,7 +56,9 @@ data Prekey = Prekey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Prekey)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Prekey
 
+-- FUTUREWORK: Remove when 'NewClient' has ToSchema
 modelPrekey :: Doc.Model
 modelPrekey = Doc.defineModel "Prekey" $ do
   Doc.description "Prekey"
@@ -66,16 +67,12 @@ modelPrekey = Doc.defineModel "Prekey" $ do
   Doc.property "key" Doc.bytes' $
     Doc.description "Prekey data"
 
-instance ToJSON Prekey where
-  toJSON k =
-    object
-      [ "id" .= prekeyId k,
-        "key" .= prekeyKey k
-      ]
-
-instance FromJSON Prekey where
-  parseJSON = withObject "Prekey" $ \o ->
-    Prekey <$> o .: "id" <*> o .: "key"
+instance ToSchema Prekey where
+  schema =
+    object "Prekey" $
+      Prekey
+        <$> prekeyId .= field "id" schema
+        <*> prekeyKey .= field "key" schema
 
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey prekey =
@@ -87,18 +84,14 @@ clientIdFromPrekey prekey =
 newtype LastPrekey = LastPrekey
   {unpackLastPrekey :: Prekey}
   deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LastPrekey
 
-instance ToJSON LastPrekey where
-  toJSON = toJSON . unpackLastPrekey
-
-instance FromJSON LastPrekey where
-  parseJSON =
-    parseJSON
-      >=> ( \k ->
-              if prekeyId k == lastPrekeyId
-                then return $ LastPrekey k
-                else fail "Invalid last prekey ID."
-          )
+instance ToSchema LastPrekey where
+  schema = LastPrekey <$> unpackLastPrekey .= schema `withParser` check
+    where
+      check x =
+        x <$ guard (prekeyId x == lastPrekeyId)
+          <|> fail "Invalid last prekey ID"
 
 instance Arbitrary LastPrekey where
   arbitrary = lastPrekey <$> arbitrary
@@ -113,30 +106,19 @@ lastPrekey = LastPrekey . Prekey lastPrekeyId
 -- PrekeyBundle
 
 data PrekeyBundle = PrekeyBundle
-  { prekeyUser :: OpaqueUserId,
+  { prekeyUser :: UserId,
     prekeyClients :: [ClientPrekey]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PrekeyBundle)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PrekeyBundle
 
-modelPrekeyBundle :: Doc.Model
-modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
-  Doc.description "Prekeys of all clients of a single user"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "clients" (Doc.array (Doc.ref modelClientPrekey)) $
-    Doc.description "Prekeys of all clients"
-
-instance ToJSON PrekeyBundle where
-  toJSON k =
-    object
-      [ "user" .= prekeyUser k,
-        "clients" .= prekeyClients k
-      ]
-
-instance FromJSON PrekeyBundle where
-  parseJSON = withObject "PrekeyBundle" $ \o ->
-    PrekeyBundle <$> o .: "user" <*> o .: "clients"
+instance ToSchema PrekeyBundle where
+  schema =
+    object "PrekeyBundle" $
+      PrekeyBundle
+        <$> prekeyUser .= field "user" schema
+        <*> prekeyClients .= field "clients" (array schema)
 
 --------------------------------------------------------------------------------
 -- ClientPrekey
@@ -147,22 +129,11 @@ data ClientPrekey = ClientPrekey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientPrekey)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientPrekey
 
-modelClientPrekey :: Doc.Model
-modelClientPrekey = Doc.defineModel "ClientPrekey" $ do
-  Doc.description "Prekey of a single client"
-  Doc.property "client" Doc.bytes' $
-    Doc.description "Client Id"
-  Doc.property "prekey" (Doc.ref modelPrekey) $
-    Doc.description "Prekey"
-
-instance ToJSON ClientPrekey where
-  toJSON k =
-    object
-      [ "client" .= prekeyClient k,
-        "prekey" .= prekeyData k
-      ]
-
-instance FromJSON ClientPrekey where
-  parseJSON = withObject "ClientPrekey" $ \o ->
-    ClientPrekey <$> o .: "client" <*> o .: "prekey"
+instance ToSchema ClientPrekey where
+  schema =
+    object "ClientPrekey" $
+      ClientPrekey
+        <$> prekeyClient .= field "client" schema
+        <*> prekeyData .= field "prekey" schema

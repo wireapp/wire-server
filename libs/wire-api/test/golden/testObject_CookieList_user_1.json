@@ -1,0 +1,84 @@
+{
+    "cookies": [
+        {
+            "created": "1864-05-09T08:11:45.247059932094Z",
+            "expires": "1864-05-09T16:19:23.612072754054Z",
+            "id": 1,
+            "label": null,
+            "successor": 0,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T12:23:41.340450966061Z",
+            "expires": "1864-05-09T16:26:21.672514665806Z",
+            "id": 0,
+            "label": "",
+            "successor": 1,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T00:30:18.630967130428Z",
+            "expires": "1864-05-09T16:27:25.033827715997Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T01:38:25.011758527197Z",
+            "expires": "1864-05-09T00:53:49.0388530702Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T08:15:25.293754839567Z",
+            "expires": "1864-05-09T03:04:32.680681666495Z",
+            "id": 0,
+            "label": "",
+            "successor": 1,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T07:13:26.879210569284Z",
+            "expires": "1864-05-09T22:44:15.24273381487Z",
+            "id": 1,
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T03:29:48.880520840213Z",
+            "expires": "1864-05-09T13:14:10.114388869333Z",
+            "id": 0,
+            "label": "",
+            "successor": 1,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T20:03:42.485268756732Z",
+            "expires": "1864-05-09T15:10:30.315157691402Z",
+            "id": 1,
+            "label": "",
+            "successor": null,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T13:32:43.602366474813Z",
+            "expires": "1864-05-09T10:38:51.062644241792Z",
+            "id": 0,
+            "label": null,
+            "successor": 0,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T01:25:21.950720939454Z",
+            "expires": "1864-05-09T15:05:12.304221339079Z",
+            "id": 1,
+            "label": "",
+            "successor": 1,
+            "type": "persistent"
+        }
+    ]
+}

@@ -1,0 +1,79 @@
+{
+    "documents": [
+        {
+            "accent_id": null,
+            "created_at": "1864-05-09T19:22:39.660Z",
+            "email": "@",
+            "handle": "",
+            "id": "00000001-0000-0000-0000-000100000001",
+            "managed_by": null,
+            "name": "",
+            "role": null,
+            "saml_idp": "",
+            "team": null
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T19:42:55.525Z",
+            "email": null,
+            "handle": "",
+            "id": "00000000-0000-0001-0000-000100000000",
+            "managed_by": "wire",
+            "name": "",
+            "role": "member",
+            "saml_idp": "",
+            "team": null
+        },
+        {
+            "accent_id": 0,
+            "created_at": null,
+            "email": "@",
+            "handle": "",
+            "id": "00000001-0000-0000-0000-000000000000",
+            "managed_by": "wire",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+            "accent_id": 0,
+            "created_at": null,
+            "email": null,
+            "handle": "",
+            "id": "00000001-0000-0001-0000-000000000001",
+            "managed_by": "wire",
+            "name": "",
+            "role": null,
+            "saml_idp": "",
+            "team": null
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T00:45:08.016Z",
+            "email": null,
+            "handle": "",
+            "id": "00000000-0000-0001-0000-000100000001",
+            "managed_by": "scim",
+            "name": "",
+            "role": "member",
+            "saml_idp": "",
+            "team": "00000000-0000-0000-0000-000100000000"
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T21:18:46.647Z",
+            "email": null,
+            "handle": "",
+            "id": "00000001-0000-0001-0000-000100000001",
+            "managed_by": "scim",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": "00000001-0000-0001-0000-000100000001"
+        }
+    ],
+    "found": 1,
+    "returned": 5,
+    "took": 5
+}

@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,13 +23,15 @@ module Test.Galley.Types where
 
 import Control.Lens
 import Data.Set hiding (drop)
+import qualified Data.Set as Set
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts)
 import Imports
 import Test.Galley.Roundtrip (testRoundTrip)
-import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests =
@@ -52,7 +54,36 @@ tests =
         -- accordingly.  Just maintain the property that adding a new feature name will break
         -- this test, and force future develpers to consider what permissions they want to set.
         assertBool "all covered" (all (roleHasPerm RoleExternalPartner) (ViewTeamFeature <$> [minBound ..])),
-      testRoundTrip @FeatureFlags
+      testRoundTrip @FeatureFlags,
+      testRoundTrip @GuardLegalholdPolicyConflicts,
+      testGroup
+        "permissionsRole, rolePermissions"
+        [ testCase "'Role' maps to expected permissions" $ do
+            assertEqual "role type changed" [minBound ..] [RoleOwner, RoleAdmin, RoleMember, RoleExternalPartner]
+            assertEqual "owner" (permissionsRole =<< newPermissions (intToPerms 8191) (intToPerms 8191)) (Just RoleOwner)
+            assertEqual "admin" (permissionsRole =<< newPermissions (intToPerms 5951) (intToPerms 5951)) (Just RoleAdmin)
+            assertEqual "member" (permissionsRole =<< newPermissions (intToPerms 1587) (intToPerms 1587)) (Just RoleMember)
+            assertEqual "external partner" (permissionsRole =<< newPermissions (intToPerms 1025) (intToPerms 1025)) (Just RoleExternalPartner),
+          testCase "Role <-> Permissions roundtrip" $ do
+            assertEqual "admin" (permissionsRole . rolePermissions <$> [minBound ..]) (Just <$> [minBound ..]),
+          testProperty "Random, incoherent 'Permission' values gracefully translate to subsets." $
+            let fakeSort (w, w') = (w `Set.union` w', w')
+             in \(fakeSort -> (w, w')) -> do
+                  let Just perms = newPermissions w w'
+                  case permissionsRole perms of
+                    Just role -> do
+                      let perms' = rolePermissions role
+                      assertEqual "eq" (perms' ^. self) (perms' ^. copy)
+                      assertBool "self" ((perms' ^. self) `Set.isSubsetOf` (perms ^. self))
+                      assertBool "copy" ((perms' ^. copy) `Set.isSubsetOf` (perms ^. copy))
+                    Nothing -> do
+                      let leastPermissions = rolePermissions maxBound
+                      assertBool "no role for perms, but strictly more perms than max role" $
+                        not
+                          ( (leastPermissions ^. self) `Set.isSubsetOf` w
+                              && (leastPermissions ^. copy) `Set.isSubsetOf` w'
+                          )
+        ]
     ]
 
 instance Arbitrary FeatureFlags where
@@ -61,4 +92,7 @@ instance Arbitrary FeatureFlags where
       <$> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
       <*> arbitrary

@@ -3,6 +3,7 @@ elasticsearch:
   #host:  # elasticsearch-client|elasticsearch-ephemeral
   port: 9200
   index: directory
+  delete_template: directory
 cassandra:
   # host:
   port: 9042

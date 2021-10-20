@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2f5a186135570c9214149d64bf331f1512c069ce0b4d100166f0a7fa6174f464
+-- hash: 53508b02f4785530bef7924e0bafe2862b003cac226877857f99805418ffcf6d
 
 name:           types-common
 version:        0.16.0
@@ -21,11 +21,11 @@ build-type:     Simple
 library
   exposed-modules:
       Data.Code
+      Data.CommaSeparatedList
       Data.Domain
       Data.ETag
       Data.Handle
       Data.Id
-      Data.IdMapping
       Data.Json.Util
       Data.LegalHold
       Data.List1
@@ -36,6 +36,7 @@ library
       Data.Text.Ascii
       Data.UUID.Tagged
       Util.Attoparsec
+      Util.Logging
       Util.Options
       Util.Options.Common
       Util.Test
@@ -44,7 +45,7 @@ library
       Paths_types_common
   hs-source-dirs:
       src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   ghc-prof-options: -fprof-auto-exported
   build-depends:
@@ -60,11 +61,8 @@ library
     , containers >=0.5
     , cryptohash-md5 >=0.11.7.2
     , cryptohash-sha1 >=0.11.7.2
+    , cryptonite >=0.26
     , data-default >=0.5
-    , deepseq >=1.4
-    , directory >=1.2
-    , errors >=2.0
-    , ghc-prim
     , hashable >=1.2
     , imports
     , iproute >=1.5
@@ -74,10 +72,8 @@ library
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
     , random >=1.1
-    , safe >=0.3
+    , schema-profunctor
     , scientific >=0.3.4
-    , semigroups >=0.12
-    , servant >=0.16
     , servant-server
     , singletons >=2.0
     , string-conversions
@@ -88,7 +84,7 @@ library
     , text >=0.11
     , time >=1.6
     , time-locale-compat >=0.1
-    , transformers >=0.3
+    , tinylog >=0.14
     , unix
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
@@ -111,7 +107,7 @@ test-suite tests
       Paths_types_common
   hs-source-dirs:
       test
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
   build-depends:
       QuickCheck
@@ -129,7 +125,6 @@ test-suite tests
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , text-format
     , time
     , types-common
     , unordered-containers

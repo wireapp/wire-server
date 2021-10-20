@@ -23,6 +23,7 @@
 
 module Data.Range
   ( Range,
+    toRange,
     LTE,
     Within,
     Bounds (..),
@@ -32,6 +33,8 @@ module Data.Range
     errorMsg,
     unsafeRange,
     fromRange,
+    rangedSchema,
+    untypedRangedSchema,
     rcast,
     rnil,
     rcons,
@@ -51,12 +54,18 @@ module Data.Range
   )
 where
 
-import Cassandra hiding (Set)
-import Data.Aeson
-import Data.Aeson.Types as Aeson
+import Cassandra (ColumnType, Cql (..), Tagged, retag)
+import Control.Lens ((%~), (?~))
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import Data.Aeson.Types as Aeson (Parser)
 import qualified Data.Attoparsec.ByteString as Atto
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteString as B
 import Data.ByteString.Conversion
+  ( FromByteString (..),
+    List (fromList),
+    ToByteString (..),
+  )
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -65,6 +74,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 import Data.List1 (List1, toNonEmpty)
 import qualified Data.Map as Map
+import Data.Schema
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
@@ -72,12 +82,15 @@ import Data.Singletons
 import Data.Singletons.Prelude.Num
 import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
+import Data.Swagger (ParamSchema, ToParamSchema (..))
+import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Lazy as TL
 import Imports
-import Numeric.Natural
+import Numeric.Natural (Natural)
+import Servant (FromHttpApiData (..))
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
 import qualified Test.QuickCheck as QC
@@ -89,9 +102,12 @@ newtype Range (n :: Nat) (m :: Nat) a = Range
   }
   deriving (Eq, Ord, Show)
 
+toRange :: (LTE n x, LTE x m, KnownNat x, Num a) => Proxy x -> Range n m a
+toRange = Range . fromIntegral . natVal
+
 instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
-  minBound = unsafeRange $ (fromKnownNat (Proxy @n) :: a)
-  maxBound = unsafeRange $ (fromKnownNat (Proxy @m) :: a)
+  minBound = unsafeRange (fromKnownNat (Proxy @n) :: a)
+  maxBound = unsafeRange (fromKnownNat (Proxy @m) :: a)
 
 instance NFData (Range n m a) where rnf (Range a) = seq a ()
 
@@ -104,6 +120,68 @@ instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
       msg :: Bounds a => SNat n -> SNat m -> Aeson.Parser (Range n m a)
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
+rangedSchema ::
+  (Within a n m, HasRangedSchemaDocModifier d b) =>
+  SNat n ->
+  SNat m ->
+  SchemaP d v w a b ->
+  SchemaP d v w a (Range n m b)
+rangedSchema sn sm sch = Range <$> untypedRangedSchema (get sn) (get sm) sch
+  where
+    get = toInteger . fromSing
+
+untypedRangedSchema ::
+  forall d v w a b.
+  (HasRangedSchemaDocModifier d b) =>
+  Integer ->
+  Integer ->
+  SchemaP d v w a b ->
+  SchemaP d v w a b
+untypedRangedSchema n m sch = (sch `withParser` check) & doc %~ rangedSchemaDocModifier (Proxy @b) n m
+  where
+    check x =
+      x <$ guard (within x n m)
+        <|> fail (errorMsg n m "")
+
+class Bounds a => HasRangedSchemaDocModifier d a where
+  rangedSchemaDocModifier :: Proxy a -> Integer -> Integer -> d -> d
+
+listRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+listRangedSchemaDocModifier n m = S.schema %~ ((S.minItems ?~ n) . (S.maxItems ?~ m))
+
+stringRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+stringRangedSchemaDocModifier n m = S.schema %~ ((S.minLength ?~ n) . (S.maxLength ?~ m))
+
+numRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+numRangedSchemaDocModifier n m = S.schema %~ ((S.minimum_ ?~ fromIntegral n) . (S.maximum_ ?~ fromIntegral m))
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d [a] where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Text where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d String where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d (AsciiText c) where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Int where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Int32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Integer where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word8 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word16 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word64 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance (Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a) => ToSchema (Range n m a) where
+  schema = fromRange .= rangedSchema sing sing schema
+
 instance (Within a n m, Cql a) => Cql (Range n m a) where
   ctype = retag (ctype :: Tagged a ColumnType)
   toCql = toCql . fromRange
@@ -111,6 +189,63 @@ instance (Within a n m, Cql a) => Cql (Range n m a) where
     where
       msg :: Bounds a => SNat n -> SNat m -> Either String (Range n m a)
       msg sn sm = Left (errorMsg (fromSing sn) (fromSing sm) "")
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Integer) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int8) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int16) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int32) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int64) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Natural) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word8) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word16) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word32) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word64) where toParamSchema = rangedNumToParamSchema
+
+instance (ToParamSchema a, KnownNat n, KnownNat m) => ToParamSchema (Range n m [a]) where
+  toParamSchema _ =
+    toParamSchema (Proxy @[a])
+      & S.minItems ?~ fromKnownNat (Proxy @n)
+      & S.maxItems ?~ fromKnownNat (Proxy @m)
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m String) where
+  toParamSchema _ =
+    toParamSchema (Proxy @String)
+      & S.maxLength ?~ fromKnownNat (Proxy @n)
+      & S.minLength ?~ fromKnownNat (Proxy @m)
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m T.Text) where
+  toParamSchema _ =
+    toParamSchema (Proxy @T.Text)
+      & S.maxLength ?~ fromKnownNat (Proxy @n)
+      & S.minLength ?~ fromKnownNat (Proxy @m)
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
+  toParamSchema _ =
+    toParamSchema (Proxy @TL.Text)
+      & S.maxLength ?~ fromKnownNat (Proxy @n)
+      & S.minLength ?~ fromKnownNat (Proxy @m)
+
+instance S.ToSchema a => S.ToSchema (Range n m a) where
+  declareNamedSchema _ =
+    S.declareNamedSchema (Proxy @a)
+
+instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
+  parseUrlPiece t = do
+    unchecked <- parseUrlPiece t
+    Bifunctor.first T.pack $ checkedEither @_ @n @m unchecked
 
 type LTE (n :: Nat) (m :: Nat) = (SingI n, SingI m, (n <= m) ~ 'True)
 
@@ -183,6 +318,12 @@ rappend (Range a) (Range b) = Range (a <> b)
 
 rsingleton :: a -> Range 1 1 [a]
 rsingleton = Range . pure
+
+rangedNumToParamSchema :: forall a n m t. (ToParamSchema a, Num a, KnownNat n, KnownNat m) => Proxy (Range n m a) -> ParamSchema t
+rangedNumToParamSchema _ =
+  toParamSchema (Proxy @a)
+    & S.minimum_ ?~ fromKnownNat (Proxy @n)
+    & S.maximum_ ?~ fromKnownNat (Proxy @m)
 
 -----------------------------------------------------------------------------
 

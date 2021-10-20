@@ -1,0 +1,55 @@
+{
+    "documents": [
+        {
+            "accent_id": null,
+            "created_at": null,
+            "email": "@",
+            "handle": null,
+            "id": "00000000-0000-0000-0000-000000000001",
+            "managed_by": "wire",
+            "name": "",
+            "role": "owner",
+            "saml_idp": null,
+            "team": "00000001-0000-0000-0000-000000000001"
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T01:29:06.597Z",
+            "email": null,
+            "handle": "",
+            "id": "00000000-0000-0001-0000-000100000001",
+            "managed_by": "scim",
+            "name": "",
+            "role": "admin",
+            "saml_idp": "",
+            "team": null
+        },
+        {
+            "accent_id": null,
+            "created_at": "1864-05-09T17:38:20.677Z",
+            "email": null,
+            "handle": null,
+            "id": "00000000-0000-0001-0000-000100000001",
+            "managed_by": "wire",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": "00000001-0000-0000-0000-000100000000"
+        },
+        {
+            "accent_id": 0,
+            "created_at": null,
+            "email": "@",
+            "handle": "",
+            "id": "00000001-0000-0000-0000-000100000000",
+            "managed_by": "scim",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": null
+        }
+    ],
+    "found": -2,
+    "returned": 4,
+    "took": 2
+}

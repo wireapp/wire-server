@@ -1,0 +1,26 @@
+{
+    "conversation": "00003c8c-0000-6394-0000-294b0000098b",
+    "data": {
+        "conversation_role": "_smrwzjjyq92t3t9u1pettcfiga699uz98rpzdt4lviu8x9iv1di4uiebz2gmrxor2_g0mfzzsfonqvc",
+        "hidden_ref": "\u0008\t\u0018",
+        "otr_archived": false,
+        "otr_archived_ref": "\u0001J",
+        "otr_muted_ref": "𗋭",
+        "qualified_target": {
+            "domain": "target.example.com",
+            "id": "afb0e5b1-c554-4ce4-98f5-3e1671f22485"
+        },
+        "target": "afb0e5b1-c554-4ce4-98f5-3e1671f22485"
+    },
+    "from": "00002a12-0000-73e1-0000-71f700002ec9",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00003c8c-0000-6394-0000-294b0000098b"
+    },
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00002a12-0000-73e1-0000-71f700002ec9"
+    },
+    "time": "1864-04-12T03:04:00.298Z",
+    "type": "conversation.member-update"
+}

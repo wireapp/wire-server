@@ -1,0 +1,12 @@
+{
+    "assets": [],
+    "name": "test name",
+    "password": "123456",
+    "phone": "+12345678",
+    "team": {
+        "currency": "XUA",
+        "icon": "Coq쳋\u000b𬟀",
+        "icon_key": "\u0006c𥁱L ,",
+        "name": "\u000ce\u0005󷀰zm"
+    }
+}

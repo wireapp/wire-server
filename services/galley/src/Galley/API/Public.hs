@@ -14,18 +14,17 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.API.Public
   ( sitemap,
     apiDocs,
-    apiDocsTeamsLegalhold,
     filterMissing, -- for tests
+    servantSitemap,
   )
 where
 
-import Data.Aeson (FromJSON, ToJSON, encode)
-import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
-import Data.Id (OpaqueUserId, TeamId, UserId)
+import Data.Aeson (encode)
+import Data.ByteString.Conversion (fromByteString, fromList)
+import Data.Id (UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -37,9 +36,8 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
-import Galley.API.Swagger (swagger)
 import qualified Galley.API.Teams as Teams
-import Galley.API.Teams.Features (DoAuth (..))
+import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatus)
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -52,18 +50,20 @@ import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Utilities.ZAuth
-import qualified Wire.API.Conversation as Public
+import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
+import Servant hiding (Handler, JSON, addHeader, contentType, respond)
+import Servant.Server.Generic (genericServerT)
+import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation.Code as Public
-import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
+import qualified Wire.API.ErrorDescription as Error
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
-import qualified Wire.API.Team.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
@@ -71,6 +71,108 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
+
+servantSitemap :: ServerT GalleyAPI.ServantAPI Galley
+servantSitemap =
+  genericServerT $
+    GalleyAPI.Api
+      { GalleyAPI.getUnqualifiedConversation = Query.getUnqualifiedConversation,
+        GalleyAPI.getConversation = Query.getConversation,
+        GalleyAPI.getConversationRoles = Query.getConversationRoles,
+        GalleyAPI.listConversationIdsUnqualified = Query.conversationIdsPageFromUnqualified,
+        GalleyAPI.listConversationIds = Query.conversationIdsPageFrom,
+        GalleyAPI.getConversations = Query.getConversations,
+        GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
+        GalleyAPI.listConversations = Query.listConversations,
+        GalleyAPI.createGroupConversation = Create.createGroupConversation,
+        GalleyAPI.createSelfConversation = Create.createSelfConversation,
+        GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
+        GalleyAPI.addMembersToConversationUnqualified = Update.addMembersUnqualified,
+        GalleyAPI.addMembersToConversation = Update.addMembers,
+        GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
+        GalleyAPI.removeMember = Update.removeMemberQualified,
+        GalleyAPI.updateOtherMemberUnqualified = Update.updateOtherMemberUnqualified,
+        GalleyAPI.updateOtherMember = Update.updateOtherMember,
+        GalleyAPI.updateConversationNameDeprecated = Update.updateUnqualifiedConversationName,
+        GalleyAPI.updateConversationNameUnqualified = Update.updateUnqualifiedConversationName,
+        GalleyAPI.updateConversationName = Update.updateConversationName,
+        GalleyAPI.updateConversationMessageTimerUnqualified =
+          Update.updateConversationMessageTimerUnqualified,
+        GalleyAPI.updateConversationMessageTimer = Update.updateConversationMessageTimer,
+        GalleyAPI.updateConversationReceiptModeUnqualified =
+          Update.updateConversationReceiptModeUnqualified,
+        GalleyAPI.updateConversationReceiptMode = Update.updateConversationReceiptMode,
+        GalleyAPI.updateConversationAccessUnqualified =
+          Update.updateConversationAccessUnqualified,
+        GalleyAPI.updateConversationAccess = Update.updateConversationAccess,
+        GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
+        GalleyAPI.updateConversationSelfUnqualified = Update.updateUnqualifiedSelfMember,
+        GalleyAPI.updateConversationSelf = Update.updateSelfMember,
+        GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
+        GalleyAPI.getTeamConversations = Teams.getTeamConversations,
+        GalleyAPI.getTeamConversation = Teams.getTeamConversation,
+        GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
+        GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
+        GalleyAPI.postProteusMessage = Update.postProteusMessage,
+        GalleyAPI.teamFeatureStatusSSOGet =
+          getFeatureStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusLegalHoldGet =
+          getFeatureStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusLegalHoldPut =
+          setFeatureStatus @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityGet =
+          getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityPut =
+          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedPut =
+          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet =
+          getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesGet =
+          getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusAppLockGet =
+          getFeatureStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusAppLockPut =
+          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusFileSharingGet =
+          getFeatureStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusFileSharingPut =
+          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
+          getFeatureStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusConferenceCallingGet =
+          getFeatureStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+            . DoAuth,
+        GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
+        GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
+        GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
+        GalleyAPI.featureConfigSearchVisibilityGet = Features.getFeatureConfig @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        GalleyAPI.featureConfigValidateSAMLEmailsGet = Features.getFeatureConfig @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        GalleyAPI.featureConfigDigitalSignaturesGet = Features.getFeatureConfig @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.TeamFeatureAppLock Features.getAppLockInternal,
+        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+      }
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -86,7 +188,7 @@ sitemap = do
     body (ref Public.modelNewNonBindingTeam) $
       description "JSON body"
     response 201 "Team ID as `Location` header value" end
-    errorResponse Error.notConnected
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
 
   put "/teams/:tid" (continue Teams.updateTeamH) $
     zauthUserId
@@ -100,8 +202,8 @@ sitemap = do
       description "Team ID"
     body (ref Public.modelUpdateData) $
       description "JSON body"
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.SetTeamData)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetTeamData))
 
   get "/teams" (continue Teams.getManyTeamsH) $
     zauthUserId
@@ -148,8 +250,8 @@ sitemap = do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team is scheduled for removal" end
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.DeleteTeam)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.DeleteTeam))
     errorResponse Error.deleteQueueFull
     errorResponse Error.reAuthFailed
     errorResponse Error.teamNotFound
@@ -170,7 +272,23 @@ sitemap = do
       description "Maximum Results to be returned"
     returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
+
+  get "/teams/:tid/members/csv" (continue Teams.getTeamMembersCSVH) $
+    -- we could discriminate based on accept header only, but having two paths makes building
+    -- nginz metrics dashboards easier.
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "text" "csv"
+  document "GET" "getTeamMembersCSV" $ do
+    summary "Get all members of the team as a CSV file"
+    notes
+      "The endpoint returns data in chunked transfer encoding.\
+      \ Internal server errors might result in a failed transfer instead of a 500 response."
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    response 200 "Team members CSV file" end
+    errorResponse Error.accessDenied
 
   post "/teams/:tid/get-members-by-ids-using-post" (continue Teams.bulkGetTeamMembersH) $
     zauthUserId
@@ -190,7 +308,7 @@ sitemap = do
       description "JSON body"
     returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
     errorResponse Error.bulkGetMemberLimitExceeded
 
   get "/teams/:tid/members/:uid" (continue Teams.getTeamMemberH) $
@@ -206,7 +324,7 @@ sitemap = do
       description "User ID"
     returns (ref Public.modelTeamMember)
     response 200 "Team member" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
     errorResponse Error.teamMemberNotFound
 
   get "/teams/notifications" (continue Teams.getTeamNotificationsH) $
@@ -261,9 +379,9 @@ sitemap = do
       description "Team ID"
     body (ref Public.modelNewTeamMember) $
       description "JSON body"
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.AddTeamMember)
-    errorResponse Error.notConnected
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.AddTeamMember))
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
     errorResponse Error.invalidPermissions
     errorResponse Error.tooManyTeamMembers
 
@@ -284,8 +402,8 @@ sitemap = do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team member scheduled for deletion" end
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.RemoveTeamMember)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.RemoveTeamMember))
     errorResponse Error.reAuthFailed
 
   put "/teams/:tid/members" (continue Teams.updateTeamMemberH) $
@@ -300,69 +418,9 @@ sitemap = do
       description "Team ID"
     body (ref Public.modelNewTeamMember) $
       description "JSON body"
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
     errorResponse Error.teamMemberNotFound
-    errorResponse (Error.operationDenied Public.SetMemberPermissions)
-
-  -- Team Conversation API ----------------------------------------------
-
-  get "/teams/:tid/conversations/roles" (continue Teams.getTeamConversationRolesH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversationsRoles" $ do
-    summary "Get existing roles available for the given team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelConversationRolesList)
-    response 200 "Team conversations roles list" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.notATeamMember
-
-  get "/teams/:tid/conversations" (continue Teams.getTeamConversationsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversations" $ do
-    summary "Get team conversations"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamConversationList)
-    response 200 "Team conversations" end
-    errorResponse Error.teamNotFound
-    errorResponse (Error.operationDenied Public.GetTeamConversations)
-
-  get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "cid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversation" $ do
-    summary "Get one team conversation"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "cid" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelTeamConversation)
-    response 200 "Team conversation" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.convNotFound
-    errorResponse (Error.operationDenied Public.GetTeamConversations)
-
-  delete "/teams/:tid/conversations/:cid" (continue Teams.deleteTeamConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. capture "cid"
-      .&. accept "application" "json"
-  document "DELETE" "deleteTeamConversation" $ do
-    summary "Remove a team conversation"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "cid" bytes' $
-      description "Conversation ID"
-    errorResponse Error.notATeamMember
-    errorResponse (Error.actionDenied Public.DeleteConversation)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetMemberPermissions))
 
   -- Team Legalhold API -------------------------------------------------
   --
@@ -394,6 +452,13 @@ sitemap = do
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
+      .&. accept "application" "json"
+
+  -- This endpoint can lead to the following events being sent:
+  -- - tbd. (currently, there are not events, but maybe there should be.)  (fisx, 2021-05-10)
+  post "/teams/:tid/legalhold/consent" (continue LegalHold.grantConsentH) $
+    zauthUserId
+      .&. capture "tid"
       .&. accept "application" "json"
 
   -- This endpoint can lead to the following events being sent:
@@ -438,7 +503,7 @@ sitemap = do
     returns (ref Public.modelTeamSearchVisibility)
     response 200 "Search visibility" end
 
-  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
+  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @Public.TeamSearchVisibilityView
@@ -461,13 +526,6 @@ sitemap = do
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "All feature statuses" end
-
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
 
   -- Custom Backend API -------------------------------------------------
 
@@ -501,136 +559,6 @@ sitemap = do
 
   -- Conversation API ---------------------------------------------------
 
-  get "/conversations/:cnv" (continue Query.getConversationH) $
-    zauthUserId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "GET" "conversation" $ do
-    summary "Get a conversation by ID"
-    returns (ref Public.modelConversation)
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    errorResponse Error.convNotFound
-    errorResponse Error.convAccessDenied
-
-  get "/conversations/:cnv/roles" (continue Query.getConversationRolesH) $
-    zauthUserId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "GET" "getConversationsRoles" $ do
-    summary "Get existing roles available for the given conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelConversationRolesList)
-    response 200 "Conversations roles list" end
-    errorResponse Error.convNotFound
-
-  get "/conversations/ids" (continue Query.getConversationIdsH) $
-    zauthUserId
-      .&. opt (query "start")
-      .&. def (unsafeRange 1000) (query "size")
-      .&. accept "application" "json"
-  document "GET" "conversationIds" $ do
-    summary "Get all conversation IDs"
-    notes "At most 1000 IDs are returned per request"
-    parameter Query "start" string' $ do
-      optional
-      description "Conversation ID to start from (exclusive)"
-    parameter Query "size" string' $ do
-      optional
-      description "Max. number of IDs to return"
-    returns (ref Public.modelConversationIds)
-
-  get "/conversations" (continue Query.getConversationsH) $
-    zauthUserId
-      .&. opt (query "ids" ||| query "start")
-      .&. def (unsafeRange 100) (query "size")
-      .&. accept "application" "json"
-  document "GET" "conversations" $ do
-    summary "Get all conversations"
-    notes "At most 500 conversations are returned per request"
-    returns (ref Public.modelConversations)
-    parameter Query "ids" (array string') $ do
-      optional
-      description "Mutually exclusive with 'start'. At most 32 IDs per request."
-    parameter Query "start" string' $ do
-      optional
-      description
-        "Conversation ID to start from (exclusive). \
-        \Mutually exclusive with 'ids'."
-    parameter Query "size" int32' $ do
-      optional
-      description "Max. number of conversations to return"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/conversations" (continue Create.createGroupConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NewConvUnmanaged
-  document "POST" "createGroupConversation" $ do
-    summary "Create a new conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    body (ref Public.modelNewConversation) $
-      description "JSON body"
-    response 201 "Conversation created" end
-    errorResponse Error.notConnected
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.CreateConversation)
-
-  post "/conversations/self" (continue Create.createSelfConversationH) $
-    zauthUserId
-  document "POST" "createSelfConversation" $ do
-    summary "Create a self-conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    response 201 "Conversation created" end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NewConvUnmanaged
-  document "POST" "createOne2OneConversation" $ do
-    summary "Create a 1:1-conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    body (ref Public.modelNewConversation) $
-      description "JSON body"
-    response 201 "Conversation created" end
-    errorResponse Error.noManagedTeamConv
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvRename event to members
-  put "/conversations/:cnv/name" (continue Update.updateConversationNameH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationRename
-  document "PUT" "updateConversationName" $ do
-    summary "Update conversation name"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelConversationUpdateName) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    errorResponse Error.convNotFound
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvRename event to members
-  put "/conversations/:cnv" (continue Update.updateConversationDeprecatedH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationRename
-  document "PUT" "updateConversationName" $ do
-    summary "DEPRECATED! Please use updateConversationName instead!"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelConversationUpdateName) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    errorResponse Error.convNotFound
-
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
   post "/conversations/:cnv/join" (continue Update.joinConversationByIdH) $
@@ -644,7 +572,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelEvent)
     response 200 "Conversation joined." end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
 
   post "/conversations/code-check" (continue Update.checkReusableCodeH) $
     jsonRequest @Public.ConversationCode
@@ -653,7 +581,7 @@ sitemap = do
     response 200 "Valid" end
     body (ref Public.modelConversationCode) $
       description "JSON body"
-    errorResponse Error.codeNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.CodeNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
@@ -667,8 +595,8 @@ sitemap = do
     response 200 "Conversation joined." end
     body (ref Public.modelConversationCode) $
       description "JSON body"
-    errorResponse Error.codeNotFound
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.CodeNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.tooManyMembers
 
   -- This endpoint can lead to the following events being sent:
@@ -685,7 +613,7 @@ sitemap = do
     returns (ref Public.modelConversationCode)
     response 201 "Conversation code created." (model Public.modelEvent)
     response 200 "Conversation code already exists." (model Public.modelConversationCode)
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
 
   -- This endpoint can lead to the following events being sent:
@@ -700,7 +628,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelEvent)
     response 200 "Conversation code deleted." end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
 
   get "/conversations/:cnv/code" (continue Update.getCodeH) $
@@ -712,142 +640,8 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelConversationCode)
     response 200 "Conversation Code" end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members, if members get removed
-  -- - ConvAccessUpdate event to members
-  put "/conversations/:cnv/access" (continue Update.updateConversationAccessH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationAccessUpdate
-  document "PUT" "updateConversationAccess" $ do
-    summary "Update access modes for a conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation access updated." end
-    response 204 "Conversation access unchanged." end
-    body (ref Public.modelConversationAccessUpdate) $
-      description "JSON body"
-    errorResponse Error.convNotFound
-    errorResponse Error.convAccessDenied
-    errorResponse Error.invalidTargetAccess
-    errorResponse Error.invalidSelfOp
-    errorResponse Error.invalidOne2OneOp
-    errorResponse Error.invalidConnectOp
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvReceiptModeUpdate event to members
-  put "/conversations/:cnv/receipt-mode" (continue Update.updateConversationReceiptModeH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationReceiptModeUpdate
-      .&. accept "application" "json"
-  document "PUT" "updateConversationReceiptMode" $ do
-    summary "Update receipts mode for a conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation receipt mode updated." end
-    response 204 "Conversation receipt mode unchanged." end
-    body (ref Public.modelConversationReceiptModeUpdate) $
-      description "JSON body"
-    errorResponse Error.convNotFound
-    errorResponse Error.convAccessDenied
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvMessageTimerUpdate event to members
-  put "/conversations/:cnv/message-timer" (continue Update.updateConversationMessageTimerH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationMessageTimerUpdate
-  document "PUT" "updateConversationMessageTimer" $ do
-    summary "Update the message timer for a conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Message timer updated." end
-    response 204 "Message timer unchanged." end
-    body (ref Public.modelConversationMessageTimerUpdate) $
-      description "JSON body"
-    errorResponse Error.convNotFound
-    errorResponse Error.convAccessDenied
-    errorResponse Error.invalidSelfOp
-    errorResponse Error.invalidOne2OneOp
-    errorResponse Error.invalidConnectOp
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/conversations/:cnv/members" (continue Update.addMembersH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.Invite
-  document "POST" "addMembers" $ do
-    summary "Add users to an existing conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelInvite) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    response 200 "Members added" end
-    response 204 "No change" end
-    errorResponse Error.convNotFound
-    errorResponse (Error.invalidOp "Conversation type does not allow adding members")
-    errorResponse Error.notConnected
-    errorResponse Error.convAccessDenied
-
-  get "/conversations/:cnv/self" (continue Query.getSelfH) $
-    zauthUserId
-      .&. capture "cnv"
-  document "GET" "getSelf" $ do
-    summary "Get self membership properties"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelMember)
-    errorResponse Error.convNotFound
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberStateUpdate event to self
-  put "/conversations/:cnv/self" (continue Update.updateSelfMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.MemberUpdate
-  document "PUT" "updateSelf" $ do
-    summary "Update self membership properties"
-    notes "Even though all fields are optional, at least one needs to be given."
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelMemberUpdate) $
-      description "JSON body"
-    errorResponse Error.convNotFound
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberStateUpdate event to members
-  put "/conversations/:cnv/members/:usr" (continue Update.updateOtherMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. capture "usr"
-      .&. jsonRequest @Public.OtherMemberUpdate
-  document "PUT" "updateOtherMember" $ do
-    summary "Update membership of the specified user"
-    notes "Even though all fields are optional, at least one needs to be given."
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Path "usr" bytes' $
-      description "Target User ID"
-    body (ref Public.modelOtherMemberUpdate) $
-      description "JSON body"
-    errorResponse Error.convNotFound
-    errorResponse Error.convMemberNotFound
-    errorResponse Error.invalidTargetUserOp
 
   -- This endpoint can lead to the following events being sent:
   -- - Typing event to members
@@ -862,101 +656,7 @@ sitemap = do
       description "Conversation ID"
     body (ref Public.modelTyping) $
       description "JSON body"
-    errorResponse Error.convNotFound
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members
-  delete "/conversations/:cnv/members/:usr" (continue Update.removeMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. capture "usr"
-  document "DELETE" "removeMember" $ do
-    summary "Remove member from conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Path "usr" bytes' $
-      description "Target User ID"
-    returns (ref Public.modelEvent)
-    response 200 "Member removed" end
-    response 204 "No change" end
-    errorResponse Error.convNotFound
-    errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. jsonRequest @Public.NewOtrMessage
-  document "POST" "postOtrMessage" $ do
-    summary "Post an encrypted message to a conversation (accepts JSON)"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Query "ignore_missing" bool' $ do
-      description
-        "Force message delivery even when clients are missing. \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is allowed to \
-        \have missing clients."
-      optional
-    parameter Query "report_missing" bool' $ do
-      description
-        "Don't allow message delivery when clients are missing \
-        \('ignore_missing' takes precedence when present). \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is forbidden from \
-        \having missing clients. \
-        \To support large lists of user IDs exceeding the allowed \
-        \URL length, you can also put this list in the body, in \
-        \the optional field 'report_missing'.  That body field takes \
-        \precedence over both query params."
-      optional
-    body (ref Public.modelNewOtrMessage) $
-      description "JSON body"
-    returns (ref Public.modelClientMismatch)
-    response 201 "Message posted" end
-    response 412 "Missing clients" end
-    errorResponse Error.convNotFound
-    errorResponse Error.unknownClient
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/conversations/:cnv/otr/messages" (continue Update.postProtoOtrMessageH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. request
-      .&. contentType "application" "x-protobuf"
-  document "POST" "postProtoOtrMessage" $ do
-    summary "Post an encrypted message to a conversation (accepts Protobuf)"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Query "ignore_missing" bool' $ do
-      description
-        "Force message delivery even when clients are missing. \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is allowed to \
-        \have missing clients."
-      optional
-    parameter Query "report_missing" bool' $ do
-      description
-        "Don't allow message delivery when clients are missing \
-        \('ignore_missing' takes precedence when present). \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is forbidden from \
-        \having missing clients."
-      optional
-    body (ref Public.modelNewOtrMessage) $
-      description "Protobuf body"
-    returns (ref Public.modelClientMismatch)
-    response 201 "Message posted" end
-    response 412 "Missing clients" end
-    errorResponse Error.convNotFound
-    errorResponse Error.unknownClient
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients
@@ -993,7 +693,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
-    errorResponse Error.unknownClient
+    errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
   -- This endpoint can lead to the following events being sent:
@@ -1028,11 +728,11 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
-    errorResponse Error.unknownClient
+    errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
 apiDocs :: Routes ApiBuilder Galley ()
-apiDocs = do
+apiDocs =
   get "/conversations/api-docs" (continue docs) $
     accept "application" "json"
       .&. query "base_url"
@@ -1044,20 +744,6 @@ docs (_ ::: url) = do
   let models = Public.Swagger.models
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
-
--- FUTUREWORK: /teams/api-docs does not get queried by zwagger-ui
-
--- |
--- I (Tiago) added servant-based swagger docs here because
--- * it was faster to write than learning our legacy approach and
--- * swagger2 is more useful for the client teams.
---
--- We can discuss at the end of the sprint whether to keep it here,
--- move it elsewhere, or abandon it entirely.
-apiDocsTeamsLegalhold :: Routes ApiBuilder Galley ()
-apiDocsTeamsLegalhold = do
-  get "/teams/api-docs" (continue . const . pure . json $ swagger) $
-    accept "application" "json"
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
@@ -1071,7 +757,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       Just True -> return Public.OtrReportAllMissing
       Just False -> return Public.OtrIgnoreAllMissing
       Nothing -> Public.OtrReportMissing <$> users "report_missing" rep
-    users :: ByteString -> ByteString -> P.Result P.Error (Set OpaqueUserId)
+    users :: ByteString -> ByteString -> P.Result P.Error (Set UserId)
     users src bs = case fromByteString bs of
       Nothing ->
         P.Fail $
@@ -1083,57 +769,3 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       -- user IDs, and then 'fromList' unwraps it; took me a while to
       -- understand this
       Just l -> P.Okay 0 (Set.fromList (fromList l))
-
-mkFeatureGetAndPutRoute ::
-  forall (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
-  Routes ApiBuilder Galley ()
-mkFeatureGetAndPutRoute getter setter = do
-  let featureName = Public.knownTeamFeatureName @a
-
-  let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
-      getHandler (uid ::: tid ::: _) =
-        json <$> Features.getFeatureStatus @a getter (DoAuth uid) tid
-
-  let mkGetRoute makeDocumentation name = do
-        get ("/teams/:tid/features/" <> name) (continue getHandler) $
-          zauthUserId
-            .&. capture "tid"
-            .&. accept "application" "json"
-        when makeDocumentation $
-          document "GET" "getTeamFeature" $ do
-            parameter Path "tid" bytes' $
-              description "Team ID"
-            returns (ref (Public.modelForTeamFeature featureName))
-            response 200 "Team feature status" end
-
-  mkGetRoute True (toByteString' featureName)
-  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
-
-  let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-      putHandler (uid ::: tid ::: req ::: _) = do
-        status <- fromJsonBody req
-        res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
-        pure $ (json res) & Network.Wai.Utilities.setStatus status200
-
-  let mkPutRoute makeDocumentation name = do
-        put ("/teams/:tid/features/" <> name) (continue putHandler) $
-          zauthUserId
-            .&. capture "tid"
-            .&. jsonRequest @(Public.TeamFeatureStatus a)
-            .&. accept "application" "json"
-        when makeDocumentation $
-          document "PUT" "putTeamFeature" $ do
-            parameter Path "tid" bytes' $
-              description "Team ID"
-            body (ref (Public.modelForTeamFeature featureName)) $
-              description "JSON body"
-            response 204 "Team feature status" end
-
-  mkPutRoute True (toByteString' featureName)
-  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName

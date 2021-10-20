@@ -1,0 +1,28 @@
+{
+    "conversations": [
+        {
+            "conversation": "00000070-0000-007d-0000-001400000009",
+            "managed": true
+        },
+        {
+            "conversation": "00000065-0000-0057-0000-00190000004a",
+            "managed": true
+        },
+        {
+            "conversation": "00000049-0000-0030-0000-006b00000005",
+            "managed": false
+        },
+        {
+            "conversation": "0000007c-0000-0065-0000-001100000066",
+            "managed": true
+        },
+        {
+            "conversation": "00000057-0000-0039-0000-000400000071",
+            "managed": true
+        },
+        {
+            "conversation": "0000003e-0000-0053-0000-007f0000003c",
+            "managed": false
+        }
+    ]
+}

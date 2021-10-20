@@ -1,0 +1,10 @@
+{
+    "client": {
+        "id": "63"
+    },
+    "last_prekey": {
+        "id": 65535,
+        "key": ""
+    },
+    "status": "enabled"
+}

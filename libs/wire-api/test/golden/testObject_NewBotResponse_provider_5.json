@@ -1,0 +1,18 @@
+{
+    "accent_id": 7,
+    "assets": [],
+    "last_prekey": {
+        "id": 65535,
+        "key": "\u000cC\u0000L\\\u0004"
+    },
+    "prekeys": [
+        {
+            "id": 1,
+            "key": "U"
+        },
+        {
+            "id": 0,
+            "key": ""
+        }
+    ]
+}

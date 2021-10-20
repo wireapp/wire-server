@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: federator
+  labels:
+    wireService: federator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      wireService: federator
+  template:
+    metadata:
+      labels:
+        wireService: federator
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.tls.shareFederatorSecret }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        fluentbit.io/parser: json
+    spec:
+      volumes:
+        - name: "federator-config"
+          configMap:
+            name: "federator"
+
+        # federator-secrets contains the client certificate and the
+        # corresponding private key to use when making requests to remote
+        # backends.
+        # NOTE: if tls.useSharedFederatorSecret is set, we use the same secret
+        # as the one for the federator ingress
+        - name: "federator-secrets"
+          secret:
+            secretName: {{ if .Values.tls.useSharedFederatorSecret -}}
+              "federator-certificate-secret"
+              {{- else if .Values.clientCertificateContents -}}
+              "federator-secret"
+              {{- else }}
+              {{ fail "must set .Values.tls.useSharedFederatorSecret to true or specify .Values.clientCertificateContents" }}
+              {{- end }}
+
+        - name: "federator-ca"
+          configMap:
+            name: "federator-ca"
+      containers:
+        - name: federator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          volumeMounts:
+            - name: "federator-config"
+              mountPath: "/etc/wire/federator/conf"
+            - name: "federator-secrets"
+              mountPath: "/etc/wire/federator/secrets"
+            - name: "federator-ca"
+              mountPath: "/etc/wire/federator/ca"
+          ports:
+            - name: internal
+              containerPort: {{ .Values.service.internalFederatorPort }}
+            - name: external
+              containerPort: {{ .Values.service.externalFederatorPort }}
+          # TODO ensure to have a status endpoint!
+          # livenessProbe:
+          #   httpGet:
+          #     scheme: HTTP
+          #     path: /i/status
+          #     port: {{ .Values.service.internalFederatorPort }}
+          # readinessProbe:
+          #   httpGet:
+          #     scheme: HTTP
+          #     path: /i/status
+          #     port: {{ .Values.service.internalFederatorPort }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

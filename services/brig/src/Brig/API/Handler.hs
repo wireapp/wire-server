@@ -43,11 +43,13 @@ import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Default (def)
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.Encoding as LText
+import Data.Proxy (Proxy (..))
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Validation as ZV
 import Imports
-import Network.HTTP.Types (Status (statusCode))
+import Network.HTTP.Media.RenderHeader (RenderHeader (..))
+import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
@@ -81,18 +83,18 @@ toServantHandler env action = do
     Right x -> pure x
   where
     mkCode = statusCode . WaiError.code
-    mkPhrase = LText.unpack . WaiError.label
+    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage
 
     handleWaiErrors logger reqId =
       \case
         StdError werr -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase werr) (LText.encodeUtf8 $ WaiError.message werr) []
+            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
         RichError werr body headers -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode body) headers
+            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode body) headers
 
 brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
 brigErrorHandlers =

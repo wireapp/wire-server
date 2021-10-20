@@ -1,0 +1,47 @@
+{
+    "clients": [
+        {
+            "client": "0",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "1",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "1",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "0",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "1",
+            "prekey": {
+                "id": 0,
+                "key": ""
+            }
+        },
+        {
+            "client": "0",
+            "prekey": {
+                "id": 1,
+                "key": ""
+            }
+        }
+    ],
+    "user": "0000004c-0000-007e-0000-004300000034"
+}

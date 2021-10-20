@@ -23,7 +23,7 @@ USAGE: $0
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":n:h:c" opt; do
+while getopts ":h:s:" opt; do
   case ${opt} in
     h ) BRIG_HOST="$OPTARG"
       ;;
@@ -182,9 +182,13 @@ REGISTER_ACCEPT=$(cat <<EOF
 EOF
 )
 
-SCIM_USER_REGISTER_TEAM=$(curl -XPOST "$BRIG_HOST/register" \
-     --header 'Content-Type: application/json' \
-     -d "$REGISTER_ACCEPT" | jq -r .team)
+# Create the user using that code
+CURL_OUT=$(curl \
+            -XPOST "$BRIG_HOST/i/users" \
+            -H'Content-type: application/json' \
+            -d'{"email":"'"$scimUserEmail"'","password":"'"$scimUserPassword"'","name":"'"$scimUserDisplayName"'","team_code":"'"$SCIM_USER_INVITATION_CODE"'"}')
+
+SCIM_USER_REGISTER_TEAM=$(echo "$CURL_OUT" | jq -r .team)
 
 if [ "$SCIM_USER_REGISTER_TEAM" != "$TEAM_UUID" ]; then
     echo "unexpected error: user got assigned to no / the wrong team?!"

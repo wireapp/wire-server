@@ -47,15 +47,15 @@ import Network.Wai.Utilities.Request (lookupRequestId)
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import Spar.API (API, app)
-import Spar.API.Swagger ()
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Orphans ()
-import Spar.Types as Types
+import Spar.Sem.Logger.TinyLog (toLevel)
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
+import Wire.API.User.Saml as Types
 
 ----------------------------------------------------------------------
 -- cassandra

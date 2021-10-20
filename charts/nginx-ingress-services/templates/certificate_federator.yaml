@@ -1,0 +1,34 @@
+{{- if and .Values.federator.enabled (not .Values.tls.enabled) }}
+{{- fail "TLS is required by federator. Either disable federation or enable tls." }}
+{{- end }}
+{{- if and .Values.tls.enabled .Values.tls.useCertManager }}
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: "federator-{{ include "nginx-ingress-services.zone" . | replace "." "-" }}-csr"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  issuerRef:
+    name: letsencrypt-http01
+    kind: Issuer
+  usages:
+    - server auth
+    - client auth
+  duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
+  renewBefore: 360h   # 15d
+  isCA: false
+  keyAlgorithm: ecdsa
+  keySize: 256        # hs-tls only supports p256
+  keyEncoding: pkcs1
+  secretName: federator-certificate-secret
+  # NOTE: disabled due to https://github.com/jetstack/cert-manager/issues/2978
+  # TODO: enable when fixed (probably when cert-manager:v0.16 released)
+  #privateKey:
+  #  rotationPolicy: Always
+  dnsNames:
+    - {{ .Values.config.dns.federator }}
+{{- end -}}

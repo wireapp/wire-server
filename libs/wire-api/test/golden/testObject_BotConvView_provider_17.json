@@ -1,0 +1,31 @@
+{
+    "id": "00000016-0000-000a-0000-000c00000004",
+    "members": [
+        {
+            "conversation_role": "qxa3cm0_p03cad6xvgfkbk7to7hxiqhvg9dfylkv6ih9nhoox94xr_1qujwkkuge61w4cu9ybwskueizi1i_8flutj9",
+            "id": "00000001-0000-0000-0000-000000000001",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000001"
+            },
+            "service": {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "provider": "00000000-0000-0000-0000-000000000001"
+            },
+            "status": 0
+        },
+        {
+            "conversation_role": "vwls3852jzjut8buz_w68y2z6ske30vctv0r9zyrp7uu_lb0ffglegoje0wd4zrl7",
+            "id": "00000001-0000-0000-0000-000100000001",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000100000001"
+            },
+            "service": {
+                "id": "00000001-0000-0001-0000-000000000000",
+                "provider": "00000001-0000-0001-0000-000100000001"
+            },
+            "status": 0
+        }
+    ]
+}

@@ -28,7 +28,6 @@ import Data.Id (TeamId, UserId)
 import Data.String.Conversions (cs)
 import Galley.Types.Teams
 import Imports
-import Network.HTTP.Types (status403)
 import Network.HTTP.Types.Method
 import Spar.Error
 import qualified System.Logger.Class as Log
@@ -52,16 +51,6 @@ getTeamMembers tid = do
   if (statusCode resp == 200)
     then (^. teamMembers) <$> parseResponse @TeamMemberList "galley" resp
     else rethrow "galley" resp
-
--- | If user is not owner, throw 'SparNotTeamOwner'.
-assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToGalley m) => TeamId -> UserId -> m ()
-assertIsTeamOwner tid uid = do
-  r <-
-    call $
-      method GET
-        . (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
-  when (responseStatus r == status403) $ do
-    throwSpar SparNotTeamOwner
 
 -- | user is member of a given team and has a given permission there.
 assertHasPermission ::

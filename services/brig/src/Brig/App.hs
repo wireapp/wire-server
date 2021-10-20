@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -32,6 +31,7 @@ module Brig.App
     cargohold,
     galley,
     gundeck,
+    federator,
     userTemplates,
     providerTemplates,
     teamTemplates,
@@ -54,6 +54,7 @@ module Brig.App
     sftEnv,
     internalEvents,
     emailSender,
+    randomPrekeyLocalLock,
 
     -- * App Monad
     AppT,
@@ -63,6 +64,7 @@ module Brig.App
     forkAppIO,
     locationOf,
     viewFederationDomain,
+    qualifyLocal,
   )
 where
 
@@ -105,6 +107,7 @@ import Data.List1 (List1, list1)
 import Data.Metrics (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Misc
+import Data.Qualified
 import Data.Text (unpack)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -129,10 +132,11 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.Federation.Client (HasFederatorConfig (..))
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
-schemaVersion = 63
+schemaVersion = 66
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -141,6 +145,7 @@ data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
     _gundeck :: RPC.Request,
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
@@ -168,7 +173,8 @@ data Env = Env
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv
+    _indexEnv :: IndexEnv,
+    _randomPrekeyLocalLock :: Maybe (MVar ())
   }
 
 makeLenses ''Env
@@ -210,11 +216,15 @@ newEnv o = do
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
+  prekeyLocalLock <- case Opt.randomPrekeys o of
+    Just True -> Just <$> newMVar ()
+    _ -> pure Nothing
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _gundeck = mkEndpoint $ Opt.gundeck o,
+        _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
@@ -242,7 +252,8 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr
+        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _randomPrekeyLocalLock = prekeyLocalLock
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
@@ -485,6 +496,10 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unAppT)
 
+instance HasFederatorConfig AppIO where
+  federatorEndpoint = view federator
+  federationDomain = viewFederationDomain
+
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
@@ -525,5 +540,8 @@ readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Te
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m (Domain)
+viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (settings . Opt.federationDomain)
+
+qualifyLocal :: MonadReader Env m => a -> m (Local a)
+qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a

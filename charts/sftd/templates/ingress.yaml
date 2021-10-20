@@ -17,7 +17,11 @@ spec:
     - host: "{{ .Values.host }}"
       http:
         paths:
-          - path: /
+          - path: /sft/
             backend:
               serviceName: "{{ include "sftd.fullname" . }}"
               servicePort: sft
+          - path: /sfts/
+            backend:
+              serviceName: "{{ include "sftd.fullname" . }}-join-call"
+              servicePort: http

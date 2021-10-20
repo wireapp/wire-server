@@ -27,12 +27,15 @@ module Galley.Types.Teams
     flagSSO,
     flagLegalHold,
     flagTeamSearchVisibility,
+    flagFileSharing,
     flagAppLockDefaults,
+    flagClassifiedDomains,
+    flagConferenceCalling,
     Defaults (..),
+    unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibility (..),
-    newTeamMemberRaw,
     notTeamMember,
     findTeamMember,
     isTeamMember,
@@ -59,7 +62,6 @@ module Galley.Types.Teams
     teamListTeams,
     teamListHasMore,
     TeamMember,
-    newTeamMember,
     userId,
     permissions,
     invitation,
@@ -127,13 +129,9 @@ module Galley.Types.Teams
   )
 where
 
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (makeLenses, view, (^.))
-import Control.Monad.Catch
 import Data.Aeson
 import Data.Id (UserId)
-import Data.Json.Util
-import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -151,13 +149,26 @@ rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p where p = rolePerms role
 
 permissionsRole :: Permissions -> Maybe Role
-permissionsRole (Permissions p p') | p /= p' = Nothing
-permissionsRole (Permissions p _) = permsRole p
+permissionsRole (Permissions p p') =
+  if p /= p'
+    then do
+      -- we never did use @p /= p'@ for anything, fingers crossed that it doesn't occur anywhere
+      -- in the wild.  but if it does, this implementation prevents privilege escalation.
+      let p'' = Set.intersection p p'
+       in permissionsRole (Permissions p'' p'')
+    else permsRole p
   where
     permsRole :: Set Perm -> Maybe Role
     permsRole perms =
       Maybe.listToMaybe
-        [role | role <- [minBound ..], rolePerms role == perms]
+        [ role
+          | role <- [minBound ..],
+            -- if a there is a role that is strictly less permissive than the perms set that
+            -- we encounter, we downgrade.  this shouldn't happen in real life, but it has
+            -- happened to very old users on a staging environment, where a user (probably)
+            -- was create before the current publicly visible permissions had been stabilized.
+            rolePerms role `Set.isSubsetOf` perms
+        ]
 
 -- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
 -- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)
@@ -200,7 +211,10 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock))
+    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
+    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing)),
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling))
   }
   deriving (Eq, Show, Generic)
 
@@ -224,6 +238,7 @@ data FeatureSSO
 data FeatureLegalHold
   = FeatureLegalHoldDisabledPermanently
   | FeatureLegalHoldDisabledByDefault
+  | FeatureLegalHoldWhitelistTeamsAndImplicitConsent
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- | Default value for all teams that have not enabled or disabled this feature explicitly.
@@ -242,14 +257,20 @@ instance FromJSON FeatureFlags where
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
+      <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
+      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
         "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock
+        "appLock" .= appLock,
+        "classifiedDomains" .= classifiedDomains,
+        "fileSharing" .= fileSharing,
+        "conferenceCalling" .= conferenceCalling
       ]
 
 instance FromJSON FeatureSSO where
@@ -264,11 +285,13 @@ instance ToJSON FeatureSSO where
 instance FromJSON FeatureLegalHold where
   parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
   parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
+  parseJSON (String "whitelist-teams-and-implicit-consent") = pure FeatureLegalHoldWhitelistTeamsAndImplicitConsent
   parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
 
 instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
+  toJSON FeatureLegalHoldWhitelistTeamsAndImplicitConsent = String "whitelist-teams-and-implicit-consent"
 
 instance FromJSON FeatureTeamSearchVisibility where
   parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityEnabledByDefault
@@ -279,33 +302,18 @@ instance ToJSON FeatureTeamSearchVisibility where
   toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
   toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
 
--- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
--- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent
--- database content.
--- FUTUREWORK: We should do a DB scan and check whether this is _ever_ the case. This logic could
--- be applied to anything that we store in Cassandra
-newTeamMemberRaw ::
-  MonadThrow m =>
-  UserId ->
-  Permissions ->
-  Maybe UserId ->
-  Maybe UTCTimeMillis ->
-  UserLegalHoldStatus ->
-  m TeamMember
-newTeamMemberRaw uid perms (Just invu) (Just invt) lhStatus =
-  pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
-newTeamMemberRaw uid perms Nothing Nothing lhStatus =
-  pure $ TeamMember uid perms Nothing lhStatus
-newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
-
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags
+makeLenses ''Defaults
 
 -- Note [hidden team roles]
 --
 -- The problem: the mapping between 'Role' and 'Permissions' is fixed by external contracts:
 -- client apps treat permission bit matrices as opaque role identifiers, so if we add new
 -- permission flags, things will break there.
+--
+-- "Hidden" in "HiddenPerm", therefore, refers to a permission hidden from
+-- clients, thereby making it internal to the backend.
 --
 -- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
 -- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
@@ -321,8 +329,13 @@ data HiddenPerm
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
+  | ReadIdp
   | CreateUpdateDeleteIdp
   | CreateReadDeleteScimToken
+  | -- | this has its own permission because we're not sure how
+    -- efficient this end-point is.  better not let all team members
+    -- play with it unless we have to.
+    DownloadTeamMembersCsv
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -346,9 +359,13 @@ roleHiddenPermissions role = HiddenPermissions p p
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
             ChangeTeamSearchVisibility,
-            ChangeTeamFeature TeamFeatureAppLock {- the other features can only be changed in stern -},
+            ChangeTeamFeature TeamFeatureAppLock,
+            ChangeTeamFeature TeamFeatureFileSharing,
+            ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
+            ReadIdp,
             CreateUpdateDeleteIdp,
-            CreateReadDeleteScimToken
+            CreateReadDeleteScimToken,
+            DownloadTeamMembersCsv
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
@@ -361,6 +378,9 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
           ViewTeamFeature TeamFeatureAppLock,
+          ViewTeamFeature TeamFeatureFileSharing,
+          ViewTeamFeature TeamFeatureClassifiedDomains,
+          ViewTeamFeature TeamFeatureConferenceCalling,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

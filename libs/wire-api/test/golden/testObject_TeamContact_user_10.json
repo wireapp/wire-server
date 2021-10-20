@@ -1,0 +1,12 @@
+{
+    "accent_id": 2,
+    "created_at": "1864-05-06T05:51:36.680Z",
+    "email": null,
+    "handle": "",
+    "id": "00000002-0000-0000-0000-000100000001",
+    "managed_by": "scim",
+    "name": "or",
+    "role": "member",
+    "saml_idp": "P-\u0019",
+    "team": null
+}

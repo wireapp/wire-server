@@ -17,53 +17,131 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Mapping where
+module Galley.API.Mapping
+  ( conversationView,
+    conversationViewMaybe,
+    remoteConversationView,
+    conversationToRemote,
+    localMemberToSelf,
+  )
+where
 
 import Control.Monad.Catch
-import Data.Id (idToText)
-import qualified Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
-import qualified Data.List as List
-import Data.Qualified (renderQualifiedId)
+import Data.Domain (Domain)
+import Data.Id (UserId, idToText)
+import Data.Qualified
+import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
-import qualified Galley.Types.Conversations.Members as Internal
+import Galley.Data.Types (convId)
+import Galley.Types.Conversations.Members
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (+++))
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation
+import Wire.API.Federation.API.Galley
 
-conversationView :: MappedOrLocalId Id.U -> Data.Conversation -> Galley Public.Conversation
-conversationView u Data.Conversation {..} = do
-  let mm = toList convMembers
-  let (me, them) = List.partition ((u ==) . Internal.memId) mm
-  m <- maybe memberNotFound return (listToMaybe me)
-  let mems = Public.ConvMembers (toMember m) (toOther <$> them)
-  return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
+-- | View for a given user of a stored conversation.
+--
+-- Throws "bad-state" when the user is not part of the conversation.
+conversationView :: UserId -> Data.Conversation -> Galley Conversation
+conversationView uid conv = do
+  localDomain <- viewFederationDomain
+  let mbConv = conversationViewMaybe localDomain uid conv
+  maybe memberNotFound pure mbConv
   where
-    toOther :: Internal.Member -> Public.OtherMember
-    toOther x =
-      Public.OtherMember
-        { Public.omId = opaqueIdFromMappedOrLocal (Internal.memId x),
-          Public.omService = Internal.memService x,
-          Public.omConvRoleName = Internal.memConvRoleName x
-        }
     memberNotFound = do
       Log.err . msg $
         val "User "
-          +++ showUserId u
+          +++ idToText uid
           +++ val " is not a member of conv "
-          +++ idToText convId
+          +++ idToText (convId conv)
       throwM badState
-    showUserId = \case
-      Local localId ->
-        idToText localId <> " (local)"
-      Mapped IdMapping {_imMappedId, _imQualifiedId} ->
-        idToText _imMappedId <> " (" <> renderQualifiedId _imQualifiedId <> ")"
-    badState = Error status500 "bad-state" "Bad internal member state."
+    badState = mkError status500 "bad-state" "Bad internal member state."
 
-toMember :: Internal.Member -> Public.Member
-toMember x@(Internal.Member {..}) =
-  Public.Member {memId = opaqueIdFromMappedOrLocal (Internal.memId x), ..}
+-- | View for a given user of a stored conversation.
+--
+-- Returns 'Nothing' if the user is not part of the conversation.
+conversationViewMaybe :: Domain -> UserId -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe localDomain uid conv = do
+  let (selfs, lothers) = partition ((uid ==) . lmId) (Data.convLocalMembers conv)
+      rothers = Data.convRemoteMembers conv
+  self <- localMemberToSelf <$> listToMaybe selfs
+  let others =
+        map (localMemberToOther localDomain) lothers
+          <> map remoteMemberToOther rothers
+  pure $
+    Conversation
+      (Qualified (convId conv) localDomain)
+      (Data.convMetadata conv)
+      (ConvMembers self others)
+
+-- | View for a local user of a remote conversation.
+--
+-- If the local user is not actually present in the conversation, simply
+-- discard the conversation altogether. This should only happen if the remote
+-- backend is misbehaving.
+remoteConversationView ::
+  UserId ->
+  MemberStatus ->
+  Remote RemoteConversation ->
+  Maybe Conversation
+remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
+  let mems = rcnvMembers rconv
+      others = rcmOthers mems
+      self =
+        localMemberToSelf
+          LocalMember
+            { lmId = uid,
+              lmService = Nothing,
+              lmStatus = status,
+              lmConvRoleName = rcmSelfRole mems
+            }
+  pure $ Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
+
+-- | Convert a local conversation to a structure to be returned to a remote
+-- backend.
+--
+-- This returns 'Nothing' if the given remote user is not part of the conversation.
+conversationToRemote ::
+  Domain ->
+  Remote UserId ->
+  Data.Conversation ->
+  Maybe RemoteConversation
+conversationToRemote localDomain ruid conv = do
+  let (selfs, rothers) = partition ((== ruid) . rmId) (Data.convRemoteMembers conv)
+      lothers = Data.convLocalMembers conv
+  selfRole <- rmConvRoleName <$> listToMaybe selfs
+  let others =
+        map (localMemberToOther localDomain) lothers
+          <> map remoteMemberToOther rothers
+  pure $
+    RemoteConversation
+      { rcnvId = Data.convId conv,
+        rcnvMetadata = Data.convMetadata conv,
+        rcnvMembers =
+          RemoteConvMembers
+            { rcmSelfRole = selfRole,
+              rcmOthers = others
+            }
+      }
+
+-- | Convert a local conversation member (as stored in the DB) to a publicly
+-- facing 'Member' structure.
+localMemberToSelf :: LocalMember -> Member
+localMemberToSelf lm =
+  Member
+    { memId = lmId lm,
+      memService = lmService lm,
+      memOtrMutedStatus = msOtrMutedStatus st,
+      memOtrMutedRef = msOtrMutedRef st,
+      memOtrArchived = msOtrArchived st,
+      memOtrArchivedRef = msOtrArchivedRef st,
+      memHidden = msHidden st,
+      memHiddenRef = msHiddenRef st,
+      memConvRoleName = lmConvRoleName lm
+    }
+  where
+    st = lmStatus lm

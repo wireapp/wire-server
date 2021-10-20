@@ -28,21 +28,27 @@ spec:
         # Does nothing if the index exists.
         - name: brig-index-create
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
             - create
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ .Values.elasticsearch.index }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --elasticsearch-shards=5
             - --elasticsearch-replicas=2
             - --elasticsearch-refresh-interval=5
+            {{- if .Values.elasticsearch.delete_template }}
+            - --delete-template
+            - "{{ .Values.elasticsearch.delete_template }}"
+            {{- end}}
       containers:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
             - update-mapping
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ .Values.elasticsearch.index }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"

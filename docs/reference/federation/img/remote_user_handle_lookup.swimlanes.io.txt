@@ -1,0 +1,21 @@
+// copy the following to use with https://swimlanes.io
+
+title: PR #1319: remote user handle lookup
+
+Wire client -> brig@A: handle=alice domain=example.com
+
+brig@A -> federator@A: Outward.call(FederatedRequest(example.com, Request(..)))
+
+note federator@A,federator@B: In the future, requests between backends here should be using some server2server authentication and also make use of an authorization strategy (open federation, allow list, ...).
+
+federator@A -> federator@B: Inward.call(Request(brig, "/handle/alice"))
+
+federator@B -> brig@B: Request(/handle/alice)
+
+brig@B -> federator@B: Response
+
+federator@B -> federator@A: Response
+
+federator@A -> brig@A: Response
+
+brig@A -> Wire client: userId=1234 domain=example.com

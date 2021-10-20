@@ -25,6 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
+import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App (currentTime, emailSender, settings)
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
@@ -40,13 +41,15 @@ import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAcc
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
-import qualified Brig.User.Search.Index as ESIndex
+import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
+import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -58,8 +61,13 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import System.Logger (Msg)
+import qualified System.Logger.Class as Log
+import Util.Logging (logFunction, logTeam)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
+import qualified Wire.API.Team.Size as Public
 import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -81,7 +89,7 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 201 "Invitation was created and sent." Doc.end
     Doc.errorResponse noEmail
-    Doc.errorResponse (noIdentity 6)
+    Doc.errorResponse (errorDescriptionToWai (noIdentity 6))
     Doc.errorResponse invalidEmail
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse tooManyTeamInvitations
@@ -156,6 +164,22 @@ routesPublic = do
     Doc.response 404 "No pending invitations exists." Doc.end
     Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
 
+  get "/teams/:tid/size" (continue teamSizePublicH) $
+    accept "application" "json"
+      .&. header "Z-User"
+      .&. capture "tid"
+
+  document "GET" "teamSize" $ do
+    Doc.summary
+      "Returns the number of team members as an integer.  \
+      \Can be out of sync by roughly the `refresh_interval` \
+      \of the ES index."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      Doc.description "Team ID"
+    Doc.returns (Doc.ref Public.modelTeamSize)
+    Doc.response 200 "Invitation successful." Doc.end
+    Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
+
 routesInternal :: Routes a Handler ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
@@ -183,11 +207,19 @@ routesInternal = do
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
 
+teamSizePublicH :: JSON ::: UserId ::: TeamId -> Handler Response
+teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
+
+teamSizePublic :: UserId -> TeamId -> Handler TeamSize
+teamSizePublic uid tid = do
+  ensurePermissions uid tid [Team.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
+  teamSize tid
+
 teamSizeH :: JSON ::: TeamId -> Handler Response
 teamSizeH (_ ::: t) = json <$> teamSize t
 
 teamSize :: TeamId -> Handler TeamSize
-teamSize t = lift $ ESIndex.teamSize t
+teamSize t = lift $ TeamSize.teamSize t
 
 getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> Handler Response
 getInvitationCodeH (_ ::: t ::: r) = do
@@ -225,12 +257,20 @@ createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
-    idt <- maybe (throwStd (noIdentity 7)) return =<< lift (fetchUserIdentity uid)
+    idt <- maybe (throwStd (errorDescriptionToWai (noIdentity 7))) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail) return (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
-  createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
+  let context =
+        logFunction "Brig.Team.API.createInvitationPublic"
+          . logTeam tid
+          . logEmail (irInviteeEmail body)
+
+  fst
+    <$> logInvitationRequest
+      context
+      (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
 createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
 createInvitationViaScimH (_ ::: req) = do
@@ -250,11 +290,32 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
             irInviteeEmail = email,
             irInviteePhone = Nothing
           }
-  inv <- createInvitation' tid inviteeRole Nothing fromEmail invreq
+
+  let context =
+        logFunction "Brig.Team.API.createInvitationViaScim"
+          . logTeam tid
+          . logEmail email
+
+  (inv, _) <-
+    logInvitationRequest context $
+      createInvitation' tid inviteeRole Nothing fromEmail invreq
   let uid = Id (toUUID (inInvitation inv))
+
   createUserInviteViaScim uid newUser
 
-createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
+logInvitationRequest :: (Msg -> Msg) -> Handler (Invitation, InvitationCode) -> Handler (Invitation, InvitationCode)
+logInvitationRequest context action =
+  flip mapExceptT action $ \action' -> do
+    eith <- action'
+    case eith of
+      Left err' -> do
+        Log.warn $ context . Log.msg @Text ("Failed to create invitation, label: " <> (cs . errorLabel) err')
+        pure (Left err')
+      Right result@(_, code) -> do
+        Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
+        pure (Right result)
+
+createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -303,7 +364,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
         inviteeName
         inviteePhone
         timeout
-    newInv <$ sendInvitationMail inviteeEmail tid fromEmail code locale
+    (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do

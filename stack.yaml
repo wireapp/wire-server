@@ -16,7 +16,9 @@ packages:
 - libs/imports
 - libs/metrics-core
 - libs/metrics-wai
+- libs/polysemy-wire-zoo
 - libs/ropes
+- libs/schema-profunctor
 - libs/sodium-crypto-sign
 - libs/ssl-util
 - libs/tasty-cannon
@@ -26,6 +28,7 @@ packages:
 - libs/wai-utilities
 - libs/wire-api
 - libs/wire-api-federation
+- libs/wire-message-proto-lens
 - libs/zauth
 - services/brig
 - services/cannon
@@ -43,6 +46,7 @@ packages:
 - tools/db/billing-team-member-backfill
 - tools/db/find-undead
 - tools/db/move-team
+- tools/db/repair-handles
 - tools/makedeb
 - tools/rex
 - tools/stern
@@ -66,7 +70,7 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: dcbadb18f8ba6ca0e6245bf804405685d3e1cfce  # master (Nov 12, 2020)
+  commit: 60398f375987b74d6b855b5d225e45dc3a96ac06  # https://github.com/wireapp/saml2-web-sso/pull/75  (Sep 10, 2021)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
@@ -122,7 +126,7 @@ extra-deps:
   commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
 
 - git: https://github.com/wireapp/hsaml2
-  commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a   # pull-upstream (Aug 20, 2020)
+  commit: b652ec6e69d1647e827cbee0fa290605ac09dc63  # https://github.com/wireapp/hsaml2/pull/9 (Feb 18, 2021)
 
 - git: https://github.com/wireapp/http-client
   commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd    # master (Jun 16, 2020)
@@ -135,13 +139,13 @@ extra-deps:
 # Dropped from upstream snapshot
 - template-0.2.0.10
 - HaskellNet-0.5.2
-- snappy-0.2.0.2
 - smtp-mail-0.2.0.0
 - stm-containers-1.1.0.4 # Latest: lts-15.16
 - redis-resp-1.0.0
 - stm-hamt-1.2.0.4 # Latest: lts-15.16
 - primitive-unlifted-0.1.2.0 # Latest: lts-15.16
 - prometheus-2.2.2 # Only in nightly so far
+- polysemy-plugin-0.2.5.2 # Latest: lts-14.27
 
 # Not on stackage
 - currency-codes-3.0.0.1
@@ -157,6 +161,9 @@ extra-deps:
 - stompl-0.5.0
 - pattern-trie-0.1.0
 - markov-chain-usage-model-0.0.0
+- wai-predicates-1.0.0
+- redis-io-1.1.0
+- polysemy-mocks-0.1.0.0
 
 # Not latest as latst one breaks wai-routing
 - wai-route-0.4.0
@@ -164,12 +171,25 @@ extra-deps:
 # Not updated on Stackage yet
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
-- servant-0.18.2
-- servant-server-0.18.2
 - servant-mock-0.8.7
 - servant-swagger-ui-0.3.4.3.36.1
-- git: https://github.com/wireapp/servant-swagger.git
-  commit: 23e9afafadaade29d21181b935286087457171e3
+- tls-1.5.5
+- cryptonite-0.28
+- polysemy-1.6.0.0 # needed for Polysemy.Input combinators
+
+# For changes from #128 and #135, not released to hackage yet
+- git: https://github.com/haskell-servant/servant-swagger
+  commit: bb0a84faa073fa9530f60337610d7da3d5b9393c
+
+# For changes from https://github.com/haskell-servant/servant/pull/1420
+# Not released to hackage yet
+- git: https://github.com/wireapp/servant.git
+  commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
+  subdirs:
+  - servant
+  - servant-server
+  - servant-client
+  - servant-client-core
 
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
 - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27
@@ -177,6 +197,7 @@ extra-deps:
 - primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963 # Latest: lts-15.16
 - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814 # Latest: lts-14.27
 - hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726 # Latest: lts-14.27
+
 
 # Not in the upstream snapshot and not using latest version on hackage due to
 # breaking change
@@ -189,18 +210,57 @@ extra-deps:
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
-# Forks with pending PRs
-- git: https://gitlab.com/axeman/wai-predicates.git
-  commit: 999d195b27104b9b39174f5ce18f5214b018a177 # ghc-8.8 (Sep 14, 2020, PR: https://gitlab.com/twittner/wai-predicates/-/merge_requests/1)
-- git: https://gitlab.com/axeman/redis-io.git
-  commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1 # ghc-8.8 (Sep 21 , 2020, https://gitlab.com/twittner/redis-io/-/merge_requests/5)
+# mu
+- mu-rpc-0.4.0.1
+- mu-optics-0.3.0.1
+- mu-avro-0.4.0.4
+- mu-protobuf-0.4.2.0
+- mu-schema-0.3.1.2
+- mu-grpc-server-0.4.0.0
+- mu-grpc-client-0.4.0.1
+- mu-grpc-common-0.4.0.0
+- compendium-client-0.2.1.1
+# dependencies of mu
+- http2-grpc-types-0.5.0.0
+- http2-grpc-proto3-wire-0.1.0.0
+- warp-grpc-0.4.0.1
+- proto3-wire-1.2.0
+- parameterized-0.5.0.0
+
+# Unreleased master.
+# Needed for https://github.com/lucasdicioccio/http2-client/pull/75
+- git: https://github.com/lucasdicioccio/http2-client
+  commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+
+# Fix in PRs: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
+# and https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/46
+- git: https://github.com/wireapp/http2-grpc-haskell
+  commit: eea98418672626eafbace3181ca34bf44bee91c0
+  subdirs:
+    - http2-client-grpc
+
+# Fix for issue #27: https://github.com/kazu-yamamoto/http2/issues/27
+# PR here: https://github.com/kazu-yamamoto/http2/pull/28
+# Note: the commit used here is based on version 2.0.6 of http2
+- git: https://github.com/wireapp/http2 # (2021-06-09) branch: header-encoding-0-size-table-backport
+  commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+
+# Fix in PR: https://github.com/bos/snappy/pull/7
+- git: https://github.com/wireapp/snappy
+  commit: b0e5c08af48911caecffa4fa6a3e74872018b258 # master (Sep 03, 2021)
+
+# Error handling fix: https://github.com/vincenthz/hs-certificate/pull/125
+- git: https://github.com/vincenthz/hs-certificate
+  commit: a899bda3d7666d25143be7be8f3105fc076703d9 # master (Sep 29, 2021)
+  subdirs:
+    - x509-store
 
 ############################################################
 # Development tools
 ############################################################
 
-- ormolu-0.1.2.0
-- ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu-0.1.2.0
+- ormolu-0.1.4.1
+- ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu
 
 - headroom-0.2.1.0
 - implicit-hie-0.1.2.5

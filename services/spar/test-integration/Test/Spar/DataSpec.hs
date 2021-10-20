@@ -30,11 +30,17 @@ import Data.Kind (Type)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
+import Polysemy
 import SAML2.WebSSO as SAML
+import Spar.App as App
 import Spar.Data as Data
-import Spar.Intra.Brig (veidFromUserSSOId)
-import Spar.Scim.Types
-import Spar.Types
+import Spar.Intra.BrigApp (veidFromUserSSOId)
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import qualified Spar.Sem.AssIDStore as AssIDStore
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
+import qualified Spar.Sem.IdP as IdPEffect
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -42,6 +48,10 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
+import Wire.API.Cookie
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv
 spec = do
@@ -62,7 +72,7 @@ spec = do
       (_, _, (^. SAML.idpId) -> idpid) <- registerTestIdP
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
-          probe = runSparCass $ isAliveAReqID (req ^. SAML.rqID)
+          probe = runSpar $ AReqIDStore.isAlive (req ^. SAML.rqID)
           maxttl :: Int -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
       liftIO $ maxttl `shouldSatisfy` (< 60 * 1000 * 1000) -- otherwise the test will be really slow.
@@ -76,149 +86,153 @@ spec = do
       liftIO $ p3 `shouldBe` False -- 1.5 lifetimes after birth
   describe "cql binding" $ do
     describe "AuthnRequest" $ do
-      testSPStoreID storeAReqID unStoreAReqID isAliveAReqID
+      testSPStoreID AReqIDStore.store AReqIDStore.unStore AReqIDStore.isAlive
     describe "Assertion" $ do
-      testSPStoreID storeAssID unStoreAssID isAliveAssID
+      testSPStoreID AssIDStore.store AssIDStore.unStore AssIDStore.isAlive
     describe "VerdictFormat" $ do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
               vid <- nextSAMLID
-              () <- runSparCass $ storeVerdictFormat 1 vid vf
-              mvf <- runSparCass $ getVerdictFormat vid
+              () <- runSpar $ AReqIDStore.storeVerdictFormat 1 vid vf
+              mvf <- runSpar $ AReqIDStore.getVerdictFormat vid
               liftIO $ mvf `shouldBe` Just vf
         check
           `mapM_` [ VerdictFormatWeb,
                     VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|]
                   ]
       context "has timed out" $ do
-        it "getVerdictFormat returns Nothing" $ do
+        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
           vid <- nextSAMLID
-          () <- runSparCass $ storeVerdictFormat 1 vid VerdictFormatWeb
+          () <- runSpar $ AReqIDStore.storeVerdictFormat 1 vid VerdictFormatWeb
           liftIO $ threadDelay 2000000
-          mvf <- runSparCass $ getVerdictFormat vid
+          mvf <- runSpar $ AReqIDStore.getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
       context "does not exist" $ do
-        it "getVerdictFormat returns Nothing" $ do
+        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
           vid <- nextSAMLID
-          mvf <- runSparCass $ getVerdictFormat vid
+          mvf <- runSpar $ AReqIDStore.getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
     describe "User" $ do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSparCass $ Data.getSAMLUser uref
+          muid <- runSpar $ SAMLUserStore.get uref
           liftIO $ muid `shouldBe` Nothing
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
-          () <- runSparCass $ Data.insertSAMLUser uref uid
-          muid <- runSparCass $ Data.getSAMLUser uref
+          () <- runSpar $ SAMLUserStore.insert uref uid
+          muid <- runSpar $ SAMLUserStore.get uref
           liftIO $ muid `shouldBe` Just uid
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
           uid' <- nextWireId
-          () <- runSparCass $ Data.insertSAMLUser uref uid
-          () <- runSparCass $ Data.insertSAMLUser uref uid'
-          muid <- runSparCass $ Data.getSAMLUser uref
+          () <- runSpar $ SAMLUserStore.insert uref uid
+          () <- runSpar $ SAMLUserStore.insert uref uid'
+          muid <- runSpar $ SAMLUserStore.get uref
           liftIO $ muid `shouldBe` Just uid'
       describe "DELETE" $ do
         it "works" $ do
           uref <- nextUserRef
           uid <- nextWireId
           do
-            () <- runSparCass $ Data.insertSAMLUser uref uid
-            muid <- runSparCass (Data.getSAMLUser uref)
+            () <- runSpar $ SAMLUserStore.insert uref uid
+            muid <- runSpar $ SAMLUserStore.get uref
             liftIO $ muid `shouldBe` Just uid
           do
-            () <- runSparCass $ Data.deleteSAMLUser uref
-            muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
+            () <- runSpar $ SAMLUserStore.delete uid uref
+            muid <- runSpar (SAMLUserStore.get uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
-          mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
+          mkcky = fmap SetBindCookie . runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
       it "insert and get are \"inverses\"" $ do
         uid <- nextWireId
         cky <- mkcky
-        () <- runSparCassWithEnv $ insertBindCookie cky uid 1
-        muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+        () <- runSpar $ BindCookieStore.insert cky uid 1
+        muid <- runSpar $ BindCookieStore.lookup (setBindCookieValue cky)
         liftIO $ muid `shouldBe` Just uid
       context "has timed out" $ do
-        it "lookupBindCookie returns Nothing" $ do
+        it "BindCookieStore.lookup returns Nothing" $ do
           uid <- nextWireId
           cky <- mkcky
-          () <- runSparCassWithEnv $ insertBindCookie cky uid 1
+          () <- runSpar $ BindCookieStore.insert cky uid 1
           liftIO $ threadDelay 2000000
-          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+          muid <- runSpar $ BindCookieStore.lookup (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
       context "does not exist" $ do
-        it "lookupBindCookie returns Nothing" $ do
+        it "BindCookieStore.lookup returns Nothing" $ do
           cky <- mkcky
-          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+          muid <- runSpar $ BindCookieStore.lookup (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
     describe "Team" $ do
       testDeleteTeam
     describe "IdPConfig" $ do
       it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
         idp <- makeTestIdP
-        () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+        () <- runSpar $ IdPEffect.storeConfig idp
+        midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPConfigByIssuer works" $ do
         idp <- makeTestIdP
-        () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
-        liftIO $ midp `shouldBe` Just idp
+        () <- runSpar $ IdPEffect.storeConfig idp
+        midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        liftIO $ midp `shouldBe` GetIdPFound idp
       it "getIdPIdByIssuer works" $ do
         idp <- makeTestIdP
-        () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
-        liftIO $ midp `shouldBe` Just (idp ^. idpId)
+        () <- runSpar $ IdPEffect.storeConfig idp
+        midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        liftIO $ midp `shouldBe` GetIdPFound (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
+        skipIdPAPIVersions [WireIdPAPIV1]
         teamid <- nextWireId
-        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid [] Nothing)
-        () <- runSparCass $ Data.storeIdPConfig idp
-        idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
+        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid Nothing [] Nothing)
+        () <- runSpar $ IdPEffect.storeConfig idp
+        idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
-        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid [] Nothing)
-        () <- runSparCass $ Data.storeIdPConfig idp
+        idpApiVersion <- asks (^. teWireIdPAPIVersion)
+        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid (Just idpApiVersion) [] Nothing)
+        () <- runSpar $ IdPEffect.storeConfig idp
         do
-          midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+          midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Just idp
-        () <- runSparCass $ Data.deleteIdPConfig (idp ^. idpId) (idp ^. idpMetadata . edIssuer) teamid
+        () <- runSpar $ IdPEffect.deleteConfig (idp ^. idpId) (idp ^. idpMetadata . edIssuer) teamid
         do
-          midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+          midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
-          liftIO $ midp `shouldBe` Nothing
+          midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
-          liftIO $ midp `shouldBe` Nothing
+          midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
+          idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
       describe "{set,clear}ReplacedBy" $ do
         it "handle non-existent idps gradefully" $ do
           pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
           idp1 <- makeTestIdP
           idp2 <- makeTestIdP
-          runSparCass (Data.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId)))
-          idp1' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          runSpar $ IdPEffect.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId))
+          idp1' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
           liftIO $ idp1' `shouldBe` Nothing
-          runSparCass (Data.clearReplacedBy (Data.Replaced (idp1 ^. idpId)))
-          idp2' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          runSpar $ IdPEffect.clearReplacedBy (Data.Replaced (idp1 ^. idpId))
+          idp2' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
           liftIO $ idp2' `shouldBe` Nothing
 
+-- TODO(sandy): This function should be more polymorphic over it's polysemy
+-- constraints than using 'RealInterpretation' in full anger.
 testSPStoreID ::
-  forall m (a :: Type).
-  (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a) =>
-  (SAML.ID a -> SAML.Time -> m ()) ->
-  (SAML.ID a -> m ()) ->
-  (SAML.ID a -> m Bool) ->
+  forall (a :: Type).
+  (Typeable a) =>
+  (SAML.ID a -> SAML.Time -> Sem CanonicalEffs ()) ->
+  (SAML.ID a -> Sem CanonicalEffs ()) ->
+  (SAML.ID a -> Sem CanonicalEffs Bool) ->
   SpecWith TestEnv
 testSPStoreID store unstore isalive = do
   describe ("SPStoreID @" <> show (typeRep @a)) $ do
@@ -226,24 +240,24 @@ testSPStoreID store unstore isalive = do
       it "isAliveID is True" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
-        isit <- runSparCassWithEnv $ isalive xid
+        () <- runSpar $ store xid eol
+        isit <- runSpar $ isalive xid
         liftIO $ isit `shouldBe` True
     context "after TTL" $ do
       it "isAliveID returns False" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 2 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
+        () <- runSpar $ store xid eol
         liftIO $ threadDelay 3000000
-        isit <- runSparCassWithEnv $ isalive xid
+        isit <- runSpar $ isalive xid
         liftIO $ isit `shouldBe` False
     context "after call to unstore" $ do
       it "isAliveID returns False" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
-        () <- runSparCassWithEnv $ unstore xid
-        isit <- runSparCassWithEnv $ isalive xid
+        () <- runSpar $ store xid eol
+        () <- runSpar $ unstore xid
+        isit <- runSpar $ isalive xid
         liftIO $ isit `shouldBe` False
 
 -- | Test that when a team is deleted, all relevant data is pruned from the
@@ -261,24 +275,24 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   ssoid1 <- getSsoidViaSelf (getUid storedUser1)
   ssoid2 <- getSsoidViaSelf (getUid storedUser2)
   -- Delete the team
-  runSparCass $ Data.deleteTeam tid
+  runSpar $ App.deleteTeam tid
   -- See that everything got cleaned up.
   --
   -- The token from 'team_provisioning_by_token':
   do
-    tokenInfo <- runSparCass $ Data.lookupScimToken tok
+    tokenInfo <- runSpar $ ScimTokenStore.lookup tok
     liftIO $ tokenInfo `shouldBe` Nothing
   -- The team from 'team_provisioning_by_team':
   do
-    tokens <- runSparCass $ Data.getScimTokens tid
+    tokens <- runSpar $ ScimTokenStore.getByTeam tid
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
     mbUser1 <- case veidFromUserSSOId ssoid1 of
       Right veid ->
-        runSparCass $
+        runSpar $
           runValidExternalId
-            Data.getSAMLUser
+            SAMLUserStore.get
             undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
             veid
       Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
@@ -286,23 +300,23 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser2 <- case veidFromUserSSOId ssoid2 of
       Right veid ->
-        runSparCass $
+        runSpar $
           runValidExternalId
-            Data.getSAMLUser
+            SAMLUserStore.get
             undefined
             veid
       Left _email -> undefined
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do
-    mbIdp <- runSparCass $ Data.getIdPConfig (idp ^. SAML.idpId)
+    mbIdp <- runSpar $ IdPEffect.getConfig (idp ^. SAML.idpId)
     liftIO $ mbIdp `shouldBe` Nothing
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer
-    liftIO $ mbIdp `shouldBe` Nothing
+    mbIdp <- runSpar $ App.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    liftIO $ mbIdp `shouldBe` GetIdPNotFound
   -- The config from 'team_idp':
   do
-    idps <- runSparCass $ Data.getIdPConfigsByTeam tid
+    idps <- runSpar $ IdPEffect.getConfigsByTeam tid
     liftIO $ idps `shouldBe` []

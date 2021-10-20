@@ -35,11 +35,13 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
+import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Notification hiding (target)
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
@@ -56,12 +58,19 @@ tests _cl _at conf p b c g =
       test p "handles/race" $ testHandleRace b,
       test p "handles/query" $ testHandleQuery conf b,
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
-      test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g
+      test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
+      test p "GET /users/handles/<handle> 200" $ testGetUserByUnqualifiedHandle b,
+      test p "GET /users/handles/<handle> 404" $ testGetUserByUnqualifiedHandleFailure b,
+      test p "GET /users/by-handle/<domain>/<handle> : 200" $ testGetUserByQualifiedHandle b,
+      test p "GET /users/by-handle/<domain>/<handle> : 404" $ testGetUserByQualifiedHandleFailure b,
+      test p "GET /users/by-handle/<domain>/<handle> : no federation" $ testGetUserByQualifiedHandleNoFederation conf b
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
 testHandleUpdate brig cannon = do
-  uid <- userId <$> randomUser brig
+  user <- randomUser brig
+  let uid = userId user
+      quid = userQualifiedId user
   -- Invalid handles are rejected
   let badHandles = ["ca$h", "w", "Capital", "wire"]
   forM_ badHandles $ \h -> do
@@ -93,7 +102,7 @@ testHandleUpdate brig cannon = do
     const (Just "handle-exists") === fmap Error.label . responseJsonMaybe
   -- The owner appears by that handle in search
   Search.refreshIndex brig
-  Search.assertCanFind brig uid2 uid hdl
+  Search.assertCanFind brig uid2 quid hdl
   -- Change the handle again, thus freeing the old handle
   hdl2 <- randomHandle
   let update2 = RequestBodyLBS . encode $ HandleUpdate hdl2
@@ -103,8 +112,8 @@ testHandleUpdate brig cannon = do
     !!! const 404 === statusCode
   -- The owner appears by the new handle in search
   Search.refreshIndex brig
-  Search.assertCan'tFind brig uid2 uid hdl
-  Search.assertCanFind brig uid2 uid hdl2
+  Search.assertCan'tFind brig uid2 quid hdl
+  Search.assertCanFind brig uid2 quid hdl2
   -- Other users can immediately claim the old handle (the claim of the old handle is
   -- removed).
   put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update) !!! do
@@ -211,6 +220,96 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   assertCanFind brig member1 owner1
   assertCanFind brig member2 owner1
   assertCanFind brig extern owner1
+
+testGetUserByUnqualifiedHandle :: Brig -> Http ()
+testGetUserByUnqualifiedHandle brig = do
+  user <- randomUser brig
+  handle <- randomHandle
+  _ <- putHandle brig (userId user) handle
+  requestingUser <- randomId
+  get
+    ( brig
+        . paths ["users", "handles", toByteString' handle]
+        . zUser requestingUser
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right (UserHandleInfo (userQualifiedId user))) === responseJsonEither
+
+testGetUserByUnqualifiedHandleFailure :: Brig -> Http ()
+testGetUserByUnqualifiedHandleFailure brig = do
+  handle <- randomHandle
+  requestingUser <- randomId
+  get
+    ( brig
+        . paths ["users", "handles", toByteString' handle]
+        . zUser requestingUser
+    )
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testGetUserByQualifiedHandle :: Brig -> Http ()
+testGetUserByQualifiedHandle brig = do
+  user <- randomUser brig
+  handle <- randomHandle
+  let domain = qDomain (userQualifiedId user)
+  _ <- putHandle brig (userId user) handle
+  unconnectedUser <- randomUser brig
+  profileForUnconnectedUser <-
+    responseJsonError
+      =<< get
+        ( brig
+            . paths ["users", "by-handle", toByteString' domain, toByteString' handle]
+            . zUser (userId unconnectedUser)
+            . expect2xx
+        )
+  liftIO $
+    assertEqual
+      "Id should match"
+      (userQualifiedId user)
+      (profileQualifiedId profileForUnconnectedUser)
+
+  -- N.B. Internally this endpoint uses same implementation as getting a user
+  -- profile by id. So, it is not necessary to test rest of the cases.
+  liftIO $
+    assertEqual
+      "Email shouldn't be shown to unconnected user"
+      Nothing
+      (profileEmail profileForUnconnectedUser)
+
+testGetUserByQualifiedHandleFailure :: Brig -> Http ()
+testGetUserByQualifiedHandleFailure brig = do
+  handle <- randomHandle
+  qself <- userQualifiedId <$> randomUser brig
+  get
+    ( brig
+        . paths
+          [ "users",
+            "by-handle",
+            toByteString' (qDomain qself),
+            toByteString' handle
+          ]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testGetUserByQualifiedHandleNoFederation :: Opt.Opts -> Brig -> Http ()
+testGetUserByQualifiedHandleNoFederation opt brig = do
+  let newOpts = opt {Opt.federatorInternal = Nothing}
+  someUser <- randomUser brig
+  withSettingsOverrides newOpts $
+    get
+      ( brig
+          . paths ["users", "by-handle", "non-existant.example.com", "oh-a-handle"]
+          . zUser (userId someUser)
+      )
+      !!! do
+        const 400 === statusCode
+        const "Bad Request" === statusMessage
+        const (Right "federation-not-enabled") === fmap Wai.label . responseJsonEither
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFind brig from target = do

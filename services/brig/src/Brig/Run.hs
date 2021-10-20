@@ -24,7 +24,9 @@ module Brig.Run
 where
 
 import Brig.API (sitemap)
+import Brig.API.Federation (federationSitemap)
 import Brig.API.Handler
+import qualified Brig.API.Internal as IAPI
 import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
 import qualified Brig.API.User as API
 import Brig.AWS (sesQueue)
@@ -43,24 +45,31 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (Random (randomRIO))
+import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
-import qualified Data.Metrics.Middleware.Prometheus as Metrics
+import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import Imports hiding (head)
+import qualified Network.HTTP.Media as HTTPMedia
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Routing (Tree)
+import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
-import Servant ((:<|>) (..))
+import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
+import Servant.API.Generic (ToServantApi, genericApi)
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import qualified Wire.API.Federation.API.Brig as FederationBrig
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -97,34 +106,64 @@ mkApp o = do
   e <- newEnv o
   return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
-    rtree = compile (sitemap o)
+    rtree :: Tree (App Handler)
+    rtree = compile sitemap
+
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.waiPrometheusMiddleware (sitemap o)
-        . catchErrors (e ^. applog) [Right $ e ^. metrics]
+      Metrics.servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
+        . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
+
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
     servantApp e =
-      Servant.serve
-        ( Proxy
-            @( SwaggerDocsAPI
-                 :<|> ServantAPI
-                 :<|> Servant.Raw
-             )
-        )
+      Servant.serveWithContext
+        (Proxy @ServantCombinedAPI)
+        (customFormatters :. Servant.EmptyContext)
         ( swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
+            :<|> Servant.hoistServer (Proxy @IAPI.API) (toServantHandler e) IAPI.servantSitemap
+            :<|> Servant.hoistServer (genericApi (Proxy @FederationBrig.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
+
+type ServantCombinedAPI =
+  ( SwaggerDocsAPI
+      :<|> ServantAPI
+      :<|> IAPI.API
+      :<|> ToServantApi FederationBrig.Api
+      :<|> Servant.Raw
+  )
 
 lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
+
+customFormatters :: Servant.ErrorFormatters
+customFormatters =
+  Servant.defaultErrorFormatters
+    { Servant.bodyParserErrorFormatter = bodyParserErrorFormatter
+    }
+
+bodyParserErrorFormatter :: Servant.ErrorFormatter
+bodyParserErrorFormatter _ _ errMsg =
+  Servant.ServerError
+    { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
+      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errBody =
+        Aeson.encode $
+          Aeson.object
+            [ "code" Aeson..= Aeson.Number 400,
+              "message" Aeson..= errMsg,
+              "label" Aeson..= ("bad-request" :: Text)
+            ],
+      Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+    }
 
 pendingActivationCleanup :: AppIO ()
 pendingActivationCleanup = do

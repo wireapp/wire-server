@@ -19,7 +19,7 @@
 
 module Web.Scim.Schema.AuthenticationScheme
   ( AuthenticationScheme (..),
-    AuthenticationSchemeEncoding,
+    AuthenticationSchemeEncoding (..),
     authHttpBasicEncoding,
   )
 where
@@ -65,7 +65,9 @@ data AuthenticationSchemeEncoding = AuthenticationSchemeEncoding
 instance ToJSON AuthenticationSchemeEncoding where
   toJSON = genericToJSON serializeOptions
 
--- NB: "typ" will be converted to "type" thanks to 'serializeOptions'
+instance FromJSON AuthenticationSchemeEncoding where
+  -- NB: "typ" will be converted to "type" thanks to 'serializeOptions'
+  parseJSON = genericParseJSON parseOptions . jsonLower
 
 ----------------------------------------------------------------------------
 -- Scheme encodings

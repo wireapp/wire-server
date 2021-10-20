@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
@@ -29,7 +28,9 @@ module Wire.API.Conversation.Typing
   )
 where
 
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -39,26 +40,31 @@ newtype TypingData = TypingData
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TypingData
+
+instance ToSchema TypingData where
+  schema =
+    object "TypingData" $
+      TypingData
+        <$> tdStatus .= field "status" schema
 
 modelTyping :: Doc.Model
 modelTyping = Doc.defineModel "Typing" $ do
   Doc.description "Data to describe typing info"
   Doc.property "status" typeTypingStatus $ Doc.description "typing status"
 
-instance ToJSON TypingStatus where
-  toJSON StartedTyping = String "started"
-  toJSON StoppedTyping = String "stopped"
-
-instance FromJSON TypingStatus where
-  parseJSON (String "started") = return StartedTyping
-  parseJSON (String "stopped") = return StoppedTyping
-  parseJSON x = fail $ "No status-type: " <> show x
-
 data TypingStatus
   = StartedTyping
   | StoppedTyping
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TypingStatus)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TypingStatus
+
+instance ToSchema TypingStatus where
+  schema =
+    enum @Text "TypingStatus" $
+      element "started" StartedTyping
+        <> element "stopped" StoppedTyping
 
 typeTypingStatus :: Doc.DataType
 typeTypingStatus =
@@ -67,10 +73,3 @@ typeTypingStatus =
       [ "started",
         "stopped"
       ]
-
-instance ToJSON TypingData where
-  toJSON t = object ["status" .= tdStatus t]
-
-instance FromJSON TypingData where
-  parseJSON = withObject "typing-data" $ \o ->
-    TypingData <$> o .: "status"

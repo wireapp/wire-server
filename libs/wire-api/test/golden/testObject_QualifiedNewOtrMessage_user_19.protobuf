@@ -1,0 +1,21 @@
+sender { client: 0 }
+recipients { domain: "54f.hc-82g.xjvk26y5v7.1.qc" }
+recipients {
+  domain: "8hhm.a-77q6"
+  entries {
+    user {
+      uuid: "\000\000\000\000\000\000\000\002\000\000\000\001\000\000\000\000"
+    }
+    clients { client { client: 0 } text: "" }
+    clients { client { client: 1 } text: "" }
+  }
+}
+native_push: true
+blob: "\355i\'"
+transient: true
+report_only {
+  user_ids {
+    id: "00000002-0000-0001-0000-000000000001"
+    domain: "u--o0nc.e5.d-31i6"
+  }
+}

@@ -43,7 +43,6 @@ where
 
 import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftListLength, defSftServiceName)
 import qualified Brig.Options as Opts
-import Brig.PolyLog
 import Brig.Types (TurnURI)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
@@ -56,6 +55,7 @@ import Imports
 import qualified Network.DNS as DNS
 import OpenSSL.EVP.Digest (Digest)
 import Polysemy
+import Polysemy.TinyLog
 import qualified System.Logger as Log
 import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
@@ -122,15 +122,15 @@ discoveryToMaybe = \case
   NotDiscoveredYet -> Nothing
   Discovered x -> Just x
 
-discoverSFTServers :: Members [DNSLookup, PolyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
+discoverSFTServers :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
 discoverSFTServers domain =
   lookupSRV domain >>= \case
     SrvAvailable es -> pure $ Just es
     SrvNotAvailable -> do
-      polyLog Log.Warn (Log.msg ("No SFT servers available" :: ByteString))
+      warn (Log.msg ("No SFT servers available" :: ByteString))
       pure Nothing
     SrvResponseError e -> do
-      polyLog Log.Error (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
+      err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
       pure Nothing
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
@@ -138,7 +138,7 @@ mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) s
 
 -- FUTUREWORK: Remove Embed IO from here and put threadDelay into another
 -- effect. This will also make tests for this faster and deterministic
-sftDiscoveryLoop :: Members [DNSLookup, PolyLog, Embed IO] r => SFTEnv -> Sem r ()
+sftDiscoveryLoop :: Members [DNSLookup, TinyLog, Embed IO] r => SFTEnv -> Sem r ()
 sftDiscoveryLoop SFTEnv {..} = forever $ do
   servers <- discoverSFTServers sftDomain
   case servers of
@@ -156,7 +156,7 @@ mkSFTEnv opts =
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =
-  runM . runPolyLog logger . runDNSLookupDefault . sftDiscoveryLoop
+  runM . runTinyLog logger . runDNSLookupDefault . sftDiscoveryLoop
 
 -- | >>> diffTimeToMicroseconds 1
 -- 1000000

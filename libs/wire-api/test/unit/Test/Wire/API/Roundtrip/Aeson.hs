@@ -20,10 +20,10 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
+import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
 import qualified Test.Tasty as T
-import Test.Tasty.ExpectedFailure (ignoreTest)
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
@@ -68,6 +68,7 @@ import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
+import qualified Wire.API.Wrapped as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
 -- (either fixing Arbitrary or serialization instance)
@@ -79,12 +80,12 @@ tests =
       testRoundTrip @Asset.AssetRetention,
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
-      currentlyFailing (testRoundTrip @Asset.Asset), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Asset.Asset,
       testRoundTrip @Asset.Resumable.ResumableSettings,
       testRoundTrip @Asset.Resumable.TotalSize,
       testRoundTrip @Asset.Resumable.ChunkSize,
       testRoundTrip @Asset.Resumable.Offset,
-      currentlyFailing (testRoundTrip @Asset.Resumable.ResumableAsset), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Asset.Resumable.ResumableAsset,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.Scheme,
       testRoundTrip @Call.Config.Transport,
@@ -95,13 +96,12 @@ tests =
       testRoundTrip @Call.Config.SFTServer,
       testRoundTrip @Connection.ConnectionRequest,
       testRoundTrip @Connection.Relation,
-      testRoundTrip @Connection.Message,
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      currentlyFailing (testRoundTrip @Conversation.Conversation), -- flaky, fails for large sizes because of rounding error in cnvMessageTimer
-      currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged),
-      currentlyFailing (testRoundTrip @Conversation.NewConvManaged),
+      testRoundTrip @Conversation.Conversation,
+      testRoundTrip @Conversation.NewConvUnmanaged,
+      testRoundTrip @Conversation.NewConvManaged,
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
@@ -109,22 +109,23 @@ tests =
       testRoundTrip @Conversation.ConvType,
       testRoundTrip @Conversation.ReceiptMode,
       testRoundTrip @Conversation.ConvTeamInfo,
+      testRoundTrip @Conversation.ConversationCoverView,
       testRoundTrip @Conversation.Invite,
       testRoundTrip @Conversation.ConversationRename,
-      testRoundTrip @Conversation.ConversationAccessUpdate,
+      testRoundTrip @Conversation.ConversationAccessData,
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
-      currentlyFailing (testRoundTrip @Conversation.ConversationMessageTimerUpdate),
+      testRoundTrip @Conversation.ConversationMessageTimerUpdate,
       testRoundTrip @Conversation.Bot.AddBot,
-      currentlyFailing (testRoundTrip @Conversation.Bot.AddBotResponse),
-      currentlyFailing (testRoundTrip @Conversation.Bot.RemoveBotResponse),
+      testRoundTrip @Conversation.Bot.AddBotResponse,
+      testRoundTrip @Conversation.Bot.RemoveBotResponse,
       testRoundTrip @Conversation.Bot.UpdateBotPrekeys,
       testRoundTrip @Conversation.Code.ConversationCode,
-      currentlyFailing (testRoundTrip @Conversation.Member.MemberUpdate),
+      testRoundTrip @Conversation.Member.MemberUpdate,
       testRoundTrip @Conversation.Member.MutedStatus,
       testRoundTrip @Conversation.Member.Member,
       testRoundTrip @Conversation.Member.OtherMember,
       testRoundTrip @Conversation.Member.ConvMembers,
-      currentlyFailing (testRoundTrip @Conversation.Member.OtherMemberUpdate),
+      testRoundTrip @Conversation.Member.OtherMemberUpdate,
       testRoundTrip @Conversation.Role.RoleName,
       testRoundTrip @Conversation.Role.Action,
       testRoundTrip @Conversation.Role.ConversationRole,
@@ -132,19 +133,19 @@ tests =
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @Conversation.Typing.TypingData,
       testRoundTrip @CustomBackend.CustomBackend,
-      currentlyFailing (testRoundTrip @Event.Conversation.Event), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.SimpleMembers,
       testRoundTrip @Event.Conversation.Connect,
       testRoundTrip @Event.Conversation.MemberUpdateData,
       testRoundTrip @Event.Conversation.OtrMessage,
-      currentlyFailing (testRoundTrip @Event.Team.Event), -- flaky, fails because of TeamUpdateData
+      testRoundTrip @Event.Team.Event,
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
-      currentlyFailing (testRoundTrip @Message.ClientMismatch), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Message.ClientMismatch,
       testRoundTrip @Notification.QueuedNotification,
       testRoundTrip @Notification.QueuedNotificationList,
       testRoundTrip @Properties.PropertyKey,
@@ -190,7 +191,7 @@ tests =
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
-      currentlyFailing (testRoundTrip @Team.TeamUpdateData), -- "no update data specified" if all fields are 'Nothing'
+      testRoundTrip @Team.TeamUpdateData,
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
@@ -200,11 +201,13 @@ tests =
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureValidateSAMLEmails),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureDigitalSignatures),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureAppLock),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureFileSharing),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureClassifiedDomains),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureConferenceCalling),
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,
-      testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldServiceInfo,
       testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldService,
@@ -216,8 +219,10 @@ tests =
       testRoundTrip @Team.LegalHold.External.NewLegalHoldClient,
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceConfirm,
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceRemove,
+      testRoundTrip @Team.LegalHold.LegalholdProtectee,
       testRoundTrip @Team.Member.TeamMember,
       testRoundTrip @Team.Member.ListType,
+      testRoundTrip @Team.Member.NewListType,
       testRoundTrip @Team.Member.TeamMemberList,
       testRoundTrip @Team.Member.NewTeamMember,
       testRoundTrip @Team.Member.TeamMemberDeleteData,
@@ -229,6 +234,7 @@ tests =
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
+      testRoundTrip @(User.LimitedQualifiedUserIdList 20),
       testRoundTrip @User.UserProfile,
       testRoundTrip @User.User,
       testRoundTrip @User.SelfProfile,
@@ -270,12 +276,15 @@ tests =
       testRoundTrip @User.Auth.AccessToken,
       testRoundTrip @(User.Client.UserClientMap Int),
       testRoundTrip @User.Client.UserClients,
+      testRoundTrip @User.Client.UserClientsFull,
       testRoundTrip @User.Client.ClientType,
       testRoundTrip @User.Client.ClientClass,
       testRoundTrip @User.Client.PubClient,
       testRoundTrip @User.Client.Client,
       testRoundTrip @User.Client.NewClient,
       testRoundTrip @User.Client.UpdateClient,
+      testRoundTripWithSwagger @User.Client.ClientCapability,
+      testRoundTripWithSwagger @User.Client.ClientCapabilityList,
       testRoundTrip @User.Client.RmClient,
       testRoundTrip @User.Client.Prekey.LastPrekey,
       testRoundTrip @User.Client.Prekey.PrekeyId,
@@ -307,10 +316,11 @@ tests =
       testRoundTrip @User.RichInfo.RichInfoMapAndList,
       testRoundTrip @User.RichInfo.RichInfo,
       testRoundTrip @(User.Search.SearchResult User.Search.Contact),
-      testRoundTrip @User.Search.Contact
+      testRoundTrip @User.Search.Contact,
+      testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
+      testRoundTrip @User.Search.TeamContact,
+      testRoundTrip @(Wrapped.Wrapped "some_int" Int)
     ]
-  where
-    currentlyFailing = ignoreTest
 
 testRoundTrip ::
   forall a.
@@ -322,3 +332,22 @@ testRoundTrip = testProperty msg trip
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
+
+testRoundTripWithSwagger ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a) =>
+  T.TestTree
+testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
+  where
+    msg = show (typeRep @a)
+
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v
+
+    scm (v :: a) =
+      counterexample
+        ( fromMaybe "Schema validation failed, but there were no errors. This looks like a bug in swagger2!" $
+            validatePrettyToJSON v
+        )
+        $ isNothing (validatePrettyToJSON v)

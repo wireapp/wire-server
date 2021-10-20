@@ -1,0 +1,1 @@
+Add internal endpoint to insert or update a 1-1 conversation. This is to be used by brig when updating the status of a connection.

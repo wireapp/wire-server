@@ -6,7 +6,9 @@ teamSettings:
 # Account pages may be useful to enable password reset or email validation done after the initial registration
 accountPages:
   enabled: false
-
+federator:
+  enabled: false
+  integrationTestHelper: false
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate
@@ -27,6 +29,8 @@ tls:
   #            `helm upgrade --install -n cert-manager-ns --set 'installCRDs=true' cert-manager jetstack/cert-manager`
   #
   useCertManager: false
+  # the validation depth between a federator client certificate and tlsClientCA
+  verify_depth: 1
 
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted
@@ -59,6 +63,8 @@ service:
 #     ssl: nginz-ssl.<domain>
 #     webapp: webapp.<domain>
 #     fakeS3: assets.<domain>
+#     federator: federator.<domain>
+#     ^ federator is ignored unless federator.enabled == true
 #     teamSettings: teams.<domain>
 #     ^ teamSettings is ignored unless teamSettings.enabled == true
 #     accountPages: account.<domain>
@@ -71,6 +77,10 @@ service:
 #     tlsWildcardKey: |
 #         -----BEGIN PRIVATE KEY-----
 #         -----END PRIVATE KEY-----
+#     tlsClientCA: |
+#         -----BEGIN PRIVATE KEY-----
+#         -----END PRIVATE KEY-----
+#     ^ CA to use to verify client certificates.
 #
 # For Services:
 # service:

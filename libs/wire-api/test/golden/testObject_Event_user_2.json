@@ -1,0 +1,22 @@
+{
+    "conversation": "0000064d-0000-7a7f-0000-5749000029e1",
+    "data": {
+        "access": [
+            "private",
+            "invite",
+            "link"
+        ],
+        "access_role": "activated"
+    },
+    "from": "00006a88-0000-2acb-0000-6aa0000061b2",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "0000064d-0000-7a7f-0000-5749000029e1"
+    },
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00006a88-0000-2acb-0000-6aa0000061b2"
+    },
+    "time": "1864-06-05T23:01:18.769Z",
+    "type": "conversation.access-update"
+}

@@ -1,0 +1,9 @@
+{
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {},
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "fields": [],
+            "version": 0
+        }
+    }
+}

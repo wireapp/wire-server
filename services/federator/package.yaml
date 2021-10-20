@@ -8,36 +8,61 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
+extra-source-files: test/resources/**/*
 dependencies:
 - aeson
 - base
 - bilge
-- bytestring-conversion
+- bytestring
+- containers
 - data-default
-- email-validate
-- errors
+- dns
+- dns-util
+- either
 - exceptions
 - extended
+- filepath
+- hinotify
+- HsOpenSSL
+- HsOpenSSL-x509-system
+- http2-client
+- http2-client-grpc
+- http-client
+- http-client-openssl
+- http-types
 - imports
 - lens
 - metrics-core
 - metrics-wai
-- QuickCheck
-- resourcet
+- mtl
+- mu-grpc-client
+- mu-grpc-server
+- mu-rpc
+- network-uri
+- pem
+- polysemy
+- polysemy-wire-zoo
+- retry
 - servant
-- servant-mock
 - servant-server
-- servant-swagger
 - string-conversions
 - text
 - tinylog
+- tls
 - types-common
+- unix
+- unliftio
+- uri-bytestring
 - uuid
 - wai
 - wai-utilities
 - warp
 - wire-api
 - wire-api-federation
+- x509
+- x509-store
+- x509-system
+- x509-validation
 
 library:
   source-dirs: src
@@ -54,6 +79,22 @@ executables:
     - base
     - federator
 
+  federator-integration:
+    main: Main.hs
+    source-dirs: test/integration
+    dependencies:
+    - federator
+    - tasty
+    - tasty-hunit
+    - hspec
+    - random
+    - cryptonite
+    - mtl
+    - retry
+    - optparse-applicative
+    - types-common
+    - yaml
+
 tests:
   federator-tests:
     main: Main.hs
@@ -62,8 +103,18 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
-    - federator
-    - tasty
-    - tasty-hunit
-    - yaml
     - bytestring
+    - directory
+    - federator
+    - interpolate
+    - polysemy-mocks
+    - streaming-commons
+    - tasty
+    - tasty-quickcheck
+    - tasty-hunit
+    - temporary
+    - transformers
+    - wai
+    - warp
+    - warp-tls
+    - yaml

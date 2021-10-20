@@ -33,17 +33,13 @@ ENV CONFIG --prefix=/etc/nginx \
         --user=nginx \
         --group=nginx \
         --with-http_ssl_module \
+        --with-http_v2_module \
         --with-http_stub_status_module \
         --with-http_realip_module \
         --with-http_gunzip_module \
         --add-module=/src/third_party/nginx-zauth-module \
         --add-module=/src/third_party/headers-more-nginx-module \
         --add-module=/src/third_party/nginx-module-vts
-
-# extra build dependencies needed for libzauth/nginx-xauth-module
-RUN apk add --no-cache --virtual .build-deps \
-        libsodium-dev \
-        llvm-libunwind-dev
 
 ################# similar block as upstream ########################################
 # see https://github.com/nginxinc/docker-nginx/blob/master/stable/alpine/Dockerfile
@@ -52,11 +48,9 @@ RUN apk add --no-cache --virtual .build-deps \
 
 ENV NGINX_VERSION 1.16.1
 
-RUN set -x \
-    && addgroup -g 101 -S nginx \
-    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
-    && export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
-    && apk add --no-cache --virtual .build-deps \
+RUN apk update
+
+RUN apk add -vv --virtual .build-deps \
         libsodium-dev \
         llvm-libunwind-dev \
         gcc \
@@ -70,7 +64,15 @@ RUN set -x \
         gnupg1 \
         libxslt-dev \
         gd-dev \
-        geoip-dev \
+        geoip-dev
+
+# This line checks whether the 'apk add' succeeded, sometimes it doesn't work.
+RUN curl -h
+
+RUN set -x \
+    && addgroup -g 101 -S nginx \
+    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
+    && export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
     && found=''; \

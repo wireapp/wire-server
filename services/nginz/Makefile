@@ -50,6 +50,7 @@ CONFIG_OPTIONS = \
 
 ADDITIONAL_MODULES = \
     --with-http_ssl_module \
+    --with-http_v2_module \
     --with-http_stub_status_module \
     --with-http_realip_module \
     --with-http_gunzip_module \

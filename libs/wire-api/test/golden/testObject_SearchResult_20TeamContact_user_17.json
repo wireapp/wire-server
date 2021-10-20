@@ -1,0 +1,19 @@
+{
+    "documents": [
+        {
+            "accent_id": null,
+            "created_at": "1864-05-09T02:22:14.746Z",
+            "email": null,
+            "handle": "",
+            "id": "00000001-0000-0000-0000-000100000000",
+            "managed_by": "wire",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": null
+        }
+    ],
+    "found": -7,
+    "returned": -5,
+    "took": 4
+}

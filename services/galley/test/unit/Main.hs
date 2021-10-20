@@ -22,12 +22,21 @@ where
 
 import Imports
 import qualified Test.Galley.API
+import qualified Test.Galley.API.Message
+import qualified Test.Galley.API.One2One
+import qualified Test.Galley.Intra.User
+import qualified Test.Galley.Mapping
+import qualified Test.Galley.Roundtrip
 import Test.Tasty
 
 main :: IO ()
 main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.API.tests
+  defaultMain . testGroup "Tests"
+    =<< sequence
+      [ pure Test.Galley.API.tests,
+        pure Test.Galley.API.Message.tests,
+        pure Test.Galley.API.One2One.tests,
+        pure Test.Galley.Intra.User.tests,
+        pure Test.Galley.Mapping.tests,
+        Test.Galley.Roundtrip.tests
       ]

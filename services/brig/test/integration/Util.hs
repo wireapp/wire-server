@@ -37,29 +37,35 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Retry
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain (mkDomain)
+import Data.Domain (Domain (..), domainText, mkDomain)
+import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
+import Data.Qualified
+import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Test as WaiTest
+import Servant.Client.Generic (AsClientT)
 import System.Random (randomIO, randomRIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
@@ -67,11 +73,17 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
 import Util.AWS
-import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Conversation
+import Wire.API.Conversation.Role (roleNameWireAdmin)
+import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
 
 type Cannon = Request -> Request
+
+type Gundeck = Request -> Request
 
 type CargoHold = Request -> Request
 
@@ -80,6 +92,10 @@ type Galley = Request -> Request
 type Nginz = Request -> Request
 
 type Spar = Request -> Request
+
+type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
+
+type FedGalleyClient = FedGalley.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -110,6 +126,42 @@ test m n h = testCase n (void $ runHttpT m h)
 
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
+
+twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
+twoRandomUsers brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+  pure (quid1, uid1, quid2, uid2)
+
+localAndRemoteUser ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m (UserId, Qualified UserId)
+localAndRemoteUser brig = do
+  uid1 <- userId <$> randomUser brig
+  quid2 <- fakeRemoteUser
+  pure (uid1, quid2)
+
+localAndRemoteUserWithConvId ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Bool ->
+  m (UserId, Qualified UserId, Qualified ConvId)
+localAndRemoteUserWithConvId brig shouldBeLocal = do
+  quid <- userQualifiedId <$> randomUser brig
+  let go = do
+        other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+        let convId = one2OneConvId quid other
+            isLocal = qDomain quid == qDomain convId
+        if shouldBeLocal == isLocal
+          then pure (qUnqualified quid, other, convId)
+          else go
+  go
+
+fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
+fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -383,7 +435,7 @@ sendLoginCode b p typ force =
             "force" .= force
           ]
 
-postConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
+postConnection :: Brig -> UserId -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
     brig
@@ -395,9 +447,18 @@ postConnection brig from to =
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest (makeIdOpaque to) "some conv name" (Message "some message")
+        ConnectionRequest to (unsafeRange "some conv name")
 
-putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
+postConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+postConnectionQualified brig from (Qualified toUser toDomain) =
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
+
+putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
     brig
@@ -409,7 +470,19 @@ putConnection brig from to r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
-connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
+putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnectionQualified brig from (Qualified to toDomain) r =
+  put $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object ["status" .= r]
+
+connectUsers :: Brig -> UserId -> List1 UserId -> (MonadIO m, MonadHttp m) => m ()
 connectUsers b u = mapM_ connectTo
   where
     connectTo v = do
@@ -432,6 +505,36 @@ putHandle brig usr h =
       . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
+
+createUserWithHandle :: Brig -> (MonadCatch m, MonadIO m, MonadHttp m) => m (Handle, User)
+createUserWithHandle brig = do
+  u <- randomUser brig
+  h <- randomHandle
+  void $ putHandle brig (userId u) h
+  userWithHandle <- selfUser <$> getSelfProfile brig (userId u)
+  -- Verify if creating user and setting handle succeeded
+  let handle = fromJust (userHandle userWithHandle)
+  liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
+  -- We return the handle separately in this function for convenience
+  -- of not needing to de-maybe-ify the user handle field of the user object
+  -- when using this function.
+  pure (handle, userWithHandle)
+
+getUserInfoFromHandle ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Domain ->
+  Handle ->
+  m UserProfile
+getUserInfoFromHandle brig domain handle = do
+  u <- randomId
+  responseJsonError
+    =<< get
+      ( brig
+          . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
+          . zUser u
+          . expect2xx
+      )
 
 addClient ::
   (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) =>
@@ -467,11 +570,12 @@ defNewClient ty pks lpk =
       newClientModel = Just "Test Model"
     }
 
-getPreKey :: Brig -> UserId -> ClientId -> Http ResponseLBS
-getPreKey brig u c =
+getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
+getPreKey brig zusr u c =
   get $
     brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
+      . zUser zusr
 
 getTeamMember ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
@@ -488,12 +592,53 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ConvId -> m ResponseLBS
 getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
       . zAuthAccess usr "conn"
+
+getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
+getConversationQualified galley usr cnv =
+  get $
+    galley
+      . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
+      . zAuthAccess usr "conn"
+
+createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
+createConversation galley zusr usersToAdd = do
+  let conv = NewConvUnmanaged $ NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  post $
+    galley
+      . path "/conversations"
+      . zUser zusr
+      . zConn "conn"
+      . json conv
+
+listConvIdsFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listConvIdsFirstPage galley zusr = do
+  let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
+  post $
+    galley
+      . path "/conversations/list-ids"
+      . zUser zusr
+      . zConn "conn"
+      . json req
+
+listConvs ::
+  (MonadIO m, MonadHttp m) =>
+  Galley ->
+  UserId ->
+  Range 1 1000 [Qualified ConvId] ->
+  m ResponseLBS
+listConvs galley zusr convs = do
+  post $
+    galley
+      . path "/conversations/list/v2"
+      . zUser zusr
+      . zConn "conn"
+      . json (ListConversations convs)
 
 isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
@@ -504,7 +649,7 @@ isMember g usr cnv = do
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> return False
-    Just m -> return (makeIdOpaque usr == memId m)
+    Just m -> return (usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
@@ -668,7 +813,10 @@ someLastPrekeys =
   ]
 
 defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword = PlainTextPassword defPasswordText
+
+defPasswordText :: Text
+defPasswordText = "secret"
 
 defWrongPassword :: PlainTextPassword
 defWrongPassword = PlainTextPassword "not secret"
@@ -723,11 +871,18 @@ retryWhileN n f m =
     (const (return . f))
     (const m)
 
+recoverN :: (MonadIO m, MonadMask m) => Int -> m a -> m a
+recoverN n m =
+  recoverAll
+    (constantDelay 1000000 <> limitRetries n)
+    (const m)
+
 -- | This allows you to run requests against a brig instantiated using the given options.
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other
 --   services will fail.
 --
---   Beware: Not all async parts of brig are running in this.
+--   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
+--   see the old, unaltered brig.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
@@ -746,3 +901,24 @@ withDomainsBlockedForRegistration opts domains sess = do
       blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+aFewTimes ::
+  (HasCallStack, MonadIO m) =>
+  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
+  Int ->
+  m a ->
+  (a -> Bool) ->
+  m a
+aFewTimes
+  retries
+  action
+  good = do
+    retrying
+      (exponentialBackoff 1000 <> limitRetries retries)
+      (\_ -> pure . not . good)
+      (\_ -> action)
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 46c27a7dd27a8d410e856a84b3d86983e03db46567976decb2856d18e0d2068f
+-- hash: 2d17ec32d1990b4f59c918291cd7a1286d20e5c54ad921ecd5eb9d01b4b9f1c8
 
 name:           wire-api
 version:        0.1.0
@@ -26,13 +26,17 @@ library
       Wire.API.Call.Config
       Wire.API.Connection
       Wire.API.Conversation
+      Wire.API.Conversation.Action
       Wire.API.Conversation.Bot
       Wire.API.Conversation.Code
       Wire.API.Conversation.Member
       Wire.API.Conversation.Role
       Wire.API.Conversation.Typing
+      Wire.API.Cookie
       Wire.API.CustomBackend
+      Wire.API.ErrorDescription
       Wire.API.Event.Conversation
+      Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
@@ -45,9 +49,25 @@ library
       Wire.API.Provider.Service.Tag
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.Routes.Internal.Brig
+      Wire.API.Routes.Internal.Brig.Connection
+      Wire.API.Routes.Internal.Brig.EJPD
+      Wire.API.Routes.MultiTablePaging
+      Wire.API.Routes.MultiTablePaging.State
+      Wire.API.Routes.MultiVerb
+      Wire.API.Routes.Public
+      Wire.API.Routes.Public.Brig
+      Wire.API.Routes.Public.Galley
+      Wire.API.Routes.Public.Galley.Responses
+      Wire.API.Routes.Public.LegalHold
+      Wire.API.Routes.Public.Spar
+      Wire.API.Routes.Public.Util
+      Wire.API.Routes.QualifiedCapture
+      Wire.API.ServantProto
       Wire.API.Swagger
       Wire.API.Team
       Wire.API.Team.Conversation
+      Wire.API.Team.Export
       Wire.API.Team.Feature
       Wire.API.Team.Invitation
       Wire.API.Team.LegalHold
@@ -56,6 +76,7 @@ library
       Wire.API.Team.Permission
       Wire.API.Team.Role
       Wire.API.Team.SearchVisibility
+      Wire.API.Team.Size
       Wire.API.User
       Wire.API.User.Activation
       Wire.API.User.Auth
@@ -63,16 +84,22 @@ library
       Wire.API.User.Client.Prekey
       Wire.API.User.Handle
       Wire.API.User.Identity
+      Wire.API.User.IdentityProvider
       Wire.API.User.Orphans
       Wire.API.User.Password
       Wire.API.User.Profile
       Wire.API.User.RichInfo
+      Wire.API.User.Saml
+      Wire.API.User.Scim
       Wire.API.User.Search
+      Wire.API.UserMap
+      Wire.API.Util.Aeson
+      Wire.API.Wrapped
   other-modules:
       Paths_wire_api
   hs-source-dirs:
       src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       QuickCheck >=2.14
@@ -80,46 +107,72 @@ library
     , attoparsec >=0.10
     , base >=4 && <5
     , base64-bytestring >=1.0
+    , binary
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive
     , cassandra-util
+    , cassava >=0.5
+    , cereal
+    , comonad
     , containers >=0.5
-    , cryptonite >=0.11
+    , cookie
+    , cryptonite
     , currency-codes >=2.0
     , deriving-aeson >=0.2
     , deriving-swagger2
     , email-validate >=2.0
     , errors
-    , exceptions >=0.10.0
+    , extended
     , extra
+    , filepath
     , generic-random >=1.2
+    , generics-sop
+    , ghc-prim
     , hashable
     , hostname-validate
+    , hscim
+    , http-api-data
+    , http-media
+    , http-types
     , imports
     , insert-ordered-containers
     , iproute >=1.5
     , iso3166-country-codes >=0.2
     , iso639 >=0.1
     , lens >=4.12
-    , memory >=0.11
+    , memory
     , mime >=0.4
-    , network-uri >=2.6
+    , mtl
     , pem >=0.2
+    , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
-    , random
-    , safe >=0.3
+    , resourcet
+    , saml2-web-sso
+    , schema-profunctor
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , servant-swagger-ui
+    , singletons
+    , sop-core
     , string-conversions
     , swagger >=0.1
     , swagger2
     , text >=0.11
     , time >=1.4
-    , transformers >=0.3
     , types-common >=0.16
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
     , uuid >=1.3
+    , vector >=0.12
+    , wai
+    , wire-message-proto-lens
+    , x509
   default-language: Haskell2010
 
 test-suite wire-api-tests
@@ -127,32 +180,298 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.Config
+      Test.Wire.API.Golden.FromJSON
+      Test.Wire.API.Golden.Generated
+      Test.Wire.API.Golden.Generated.Access_user
+      Test.Wire.API.Golden.Generated.AccessRole_user
+      Test.Wire.API.Golden.Generated.AccessToken_user
+      Test.Wire.API.Golden.Generated.Action_user
+      Test.Wire.API.Golden.Generated.Activate_user
+      Test.Wire.API.Golden.Generated.ActivationCode_user
+      Test.Wire.API.Golden.Generated.ActivationKey_user
+      Test.Wire.API.Golden.Generated.ActivationResponse_user
+      Test.Wire.API.Golden.Generated.AddBot_user
+      Test.Wire.API.Golden.Generated.AddBotResponse_user
+      Test.Wire.API.Golden.Generated.AppName_user
+      Test.Wire.API.Golden.Generated.ApproveLegalHoldForUserRequest_team
+      Test.Wire.API.Golden.Generated.Asset_asset
+      Test.Wire.API.Golden.Generated.AssetKey_user
+      Test.Wire.API.Golden.Generated.AssetRetention_user
+      Test.Wire.API.Golden.Generated.AssetSettings_user
+      Test.Wire.API.Golden.Generated.AssetSize_user
+      Test.Wire.API.Golden.Generated.AssetToken_user
+      Test.Wire.API.Golden.Generated.BindingNewTeam_team
+      Test.Wire.API.Golden.Generated.BindingNewTeamUser_user
+      Test.Wire.API.Golden.Generated.BotConvView_provider
+      Test.Wire.API.Golden.Generated.BotUserView_provider
+      Test.Wire.API.Golden.Generated.CheckHandles_user
+      Test.Wire.API.Golden.Generated.ChunkSize_user
+      Test.Wire.API.Golden.Generated.Client_user
+      Test.Wire.API.Golden.Generated.ClientClass_user
+      Test.Wire.API.Golden.Generated.ClientMismatch_user
+      Test.Wire.API.Golden.Generated.ClientPrekey_user
+      Test.Wire.API.Golden.Generated.ClientType_user
+      Test.Wire.API.Golden.Generated.ColourId_user
+      Test.Wire.API.Golden.Generated.CompletePasswordReset_provider
+      Test.Wire.API.Golden.Generated.CompletePasswordReset_user
+      Test.Wire.API.Golden.Generated.Connect_user
+      Test.Wire.API.Golden.Generated.ConnectionRequest_user
+      Test.Wire.API.Golden.Generated.ConnectionUpdate_user
+      Test.Wire.API.Golden.Generated.Contact_user
+      Test.Wire.API.Golden.Generated.Conversation_user
+      Test.Wire.API.Golden.Generated.ConversationAccessData_user
+      Test.Wire.API.Golden.Generated.ConversationCode_user
+      Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user
+      Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user
+      Test.Wire.API.Golden.Generated.ConversationMessageTimerUpdate_user
+      Test.Wire.API.Golden.Generated.ConversationReceiptModeUpdate_user
+      Test.Wire.API.Golden.Generated.ConversationRename_user
+      Test.Wire.API.Golden.Generated.ConversationRole_user
+      Test.Wire.API.Golden.Generated.ConversationRolesList_user
+      Test.Wire.API.Golden.Generated.ConvMembers_user
+      Test.Wire.API.Golden.Generated.ConvTeamInfo_user
+      Test.Wire.API.Golden.Generated.ConvType_user
+      Test.Wire.API.Golden.Generated.Cookie_20_28_29_user
+      Test.Wire.API.Golden.Generated.CookieId_user
+      Test.Wire.API.Golden.Generated.CookieLabel_user
+      Test.Wire.API.Golden.Generated.CookieList_user
+      Test.Wire.API.Golden.Generated.CookieType_user
+      Test.Wire.API.Golden.Generated.CustomBackend_user
+      Test.Wire.API.Golden.Generated.DeleteProvider_provider
+      Test.Wire.API.Golden.Generated.DeleteService_provider
+      Test.Wire.API.Golden.Generated.DeleteUser_user
+      Test.Wire.API.Golden.Generated.DeletionCodeTimeout_user
+      Test.Wire.API.Golden.Generated.DisableLegalHoldForUserRequest_team
+      Test.Wire.API.Golden.Generated.Email_user
+      Test.Wire.API.Golden.Generated.EmailUpdate_provider
+      Test.Wire.API.Golden.Generated.EmailUpdate_user
+      Test.Wire.API.Golden.Generated.Event_team
+      Test.Wire.API.Golden.Generated.Event_user
+      Test.Wire.API.Golden.Generated.EventType_team
+      Test.Wire.API.Golden.Generated.EventType_user
+      Test.Wire.API.Golden.Generated.HandleUpdate_user
+      Test.Wire.API.Golden.Generated.Invitation_team
+      Test.Wire.API.Golden.Generated.InvitationCode_user
+      Test.Wire.API.Golden.Generated.InvitationList_team
+      Test.Wire.API.Golden.Generated.InvitationRequest_team
+      Test.Wire.API.Golden.Generated.Invite_user
+      Test.Wire.API.Golden.Generated.LastPrekey_user
+      Test.Wire.API.Golden.Generated.LegalHoldServiceConfirm_team
+      Test.Wire.API.Golden.Generated.LegalHoldServiceRemove_team
+      Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user
+      Test.Wire.API.Golden.Generated.ListType_team
+      Test.Wire.API.Golden.Generated.Locale_user
+      Test.Wire.API.Golden.Generated.LocaleUpdate_user
+      Test.Wire.API.Golden.Generated.Login_user
+      Test.Wire.API.Golden.Generated.LoginCode_user
+      Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
+      Test.Wire.API.Golden.Generated.LoginId_user
+      Test.Wire.API.Golden.Generated.ManagedBy_user
+      Test.Wire.API.Golden.Generated.Member_user
+      Test.Wire.API.Golden.Generated.MemberUpdate_user
+      Test.Wire.API.Golden.Generated.MemberUpdateData_user
+      Test.Wire.API.Golden.Generated.MutedStatus_user
+      Test.Wire.API.Golden.Generated.Name_user
+      Test.Wire.API.Golden.Generated.NameUpdate_user
+      Test.Wire.API.Golden.Generated.NewAssetToken_user
+      Test.Wire.API.Golden.Generated.NewBotRequest_provider
+      Test.Wire.API.Golden.Generated.NewBotResponse_provider
+      Test.Wire.API.Golden.Generated.NewClient_user
+      Test.Wire.API.Golden.Generated.NewConvManaged_user
+      Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
+      Test.Wire.API.Golden.Generated.NewLegalHoldClient_team
+      Test.Wire.API.Golden.Generated.NewLegalHoldService_team
+      Test.Wire.API.Golden.Generated.NewOtrMessage_user
+      Test.Wire.API.Golden.Generated.NewPasswordReset_user
+      Test.Wire.API.Golden.Generated.NewProvider_provider
+      Test.Wire.API.Golden.Generated.NewProviderResponse_provider
+      Test.Wire.API.Golden.Generated.NewService_provider
+      Test.Wire.API.Golden.Generated.NewServiceResponse_provider
+      Test.Wire.API.Golden.Generated.NewTeamMember_team
+      Test.Wire.API.Golden.Generated.NewUser_user
+      Test.Wire.API.Golden.Generated.NewUserPublic_user
+      Test.Wire.API.Golden.Generated.Offset_user
+      Test.Wire.API.Golden.Generated.OtherMember_user
+      Test.Wire.API.Golden.Generated.OtherMemberUpdate_user
+      Test.Wire.API.Golden.Generated.OtrMessage_user
+      Test.Wire.API.Golden.Generated.OtrRecipients_user
+      Test.Wire.API.Golden.Generated.PasswordChange_provider
+      Test.Wire.API.Golden.Generated.PasswordChange_user
+      Test.Wire.API.Golden.Generated.PasswordReset_provider
+      Test.Wire.API.Golden.Generated.PasswordResetCode_user
+      Test.Wire.API.Golden.Generated.PasswordResetKey_user
+      Test.Wire.API.Golden.Generated.PendingLoginCode_user
+      Test.Wire.API.Golden.Generated.Permissions_team
+      Test.Wire.API.Golden.Generated.Phone_user
+      Test.Wire.API.Golden.Generated.PhoneUpdate_user
+      Test.Wire.API.Golden.Generated.Pict_user
+      Test.Wire.API.Golden.Generated.Prekey_user
+      Test.Wire.API.Golden.Generated.PrekeyBundle_user
+      Test.Wire.API.Golden.Generated.PrekeyId_user
+      Test.Wire.API.Golden.Generated.Priority_user
+      Test.Wire.API.Golden.Generated.PropertyKey_user
+      Test.Wire.API.Golden.Generated.PropertyValue_user
+      Test.Wire.API.Golden.Generated.Provider_provider
+      Test.Wire.API.Golden.Generated.ProviderActivationResponse_provider
+      Test.Wire.API.Golden.Generated.ProviderLogin_provider
+      Test.Wire.API.Golden.Generated.ProviderProfile_provider
+      Test.Wire.API.Golden.Generated.PubClient_user
+      Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user
+      Test.Wire.API.Golden.Generated.PushToken_user
+      Test.Wire.API.Golden.Generated.PushTokenList_user
+      Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user
+      Test.Wire.API.Golden.Generated.QueuedNotification_user
+      Test.Wire.API.Golden.Generated.QueuedNotificationList_user
+      Test.Wire.API.Golden.Generated.ReceiptMode_user
+      Test.Wire.API.Golden.Generated.Relation_user
+      Test.Wire.API.Golden.Generated.RemoveBotResponse_user
+      Test.Wire.API.Golden.Generated.RemoveCookies_user
+      Test.Wire.API.Golden.Generated.RemoveLegalHoldSettingsRequest_team
+      Test.Wire.API.Golden.Generated.RequestNewLegalHoldClient_team
+      Test.Wire.API.Golden.Generated.ResumableAsset_user
+      Test.Wire.API.Golden.Generated.ResumableSettings_user
+      Test.Wire.API.Golden.Generated.RichField_user
+      Test.Wire.API.Golden.Generated.RichInfo_user
+      Test.Wire.API.Golden.Generated.RichInfoAssocList_user
+      Test.Wire.API.Golden.Generated.RichInfoMapAndList_user
+      Test.Wire.API.Golden.Generated.RmClient_user
+      Test.Wire.API.Golden.Generated.Role_team
+      Test.Wire.API.Golden.Generated.RoleName_user
+      Test.Wire.API.Golden.Generated.RTCConfiguration_user
+      Test.Wire.API.Golden.Generated.RTCIceServer_user
+      Test.Wire.API.Golden.Generated.Scheme_user
+      Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
+      Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
+      Test.Wire.API.Golden.Generated.SelfProfile_user
+      Test.Wire.API.Golden.Generated.SendActivationCode_user
+      Test.Wire.API.Golden.Generated.SendLoginCode_user
+      Test.Wire.API.Golden.Generated.Service_provider
+      Test.Wire.API.Golden.Generated.ServiceKey_provider
+      Test.Wire.API.Golden.Generated.ServiceKeyPEM_provider
+      Test.Wire.API.Golden.Generated.ServiceKeyType_provider
+      Test.Wire.API.Golden.Generated.ServiceProfile_provider
+      Test.Wire.API.Golden.Generated.ServiceProfilePage_provider
+      Test.Wire.API.Golden.Generated.ServiceRef_provider
+      Test.Wire.API.Golden.Generated.ServiceTag_provider
+      Test.Wire.API.Golden.Generated.ServiceTagList_provider
+      Test.Wire.API.Golden.Generated.ServiceToken_provider
+      Test.Wire.API.Golden.Generated.SFTServer_user
+      Test.Wire.API.Golden.Generated.SimpleMember_user
+      Test.Wire.API.Golden.Generated.SimpleMembers_user
+      Test.Wire.API.Golden.Generated.Team_team
+      Test.Wire.API.Golden.Generated.TeamBinding_team
+      Test.Wire.API.Golden.Generated.TeamContact_user
+      Test.Wire.API.Golden.Generated.TeamConversation_team
+      Test.Wire.API.Golden.Generated.TeamConversationList_team
+      Test.Wire.API.Golden.Generated.TeamDeleteData_team
+      Test.Wire.API.Golden.Generated.TeamFeatureStatusNoConfig_team
+      Test.Wire.API.Golden.Generated.TeamFeatureStatusValue_team
+      Test.Wire.API.Golden.Generated.TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team
+      Test.Wire.API.Golden.Generated.TeamList_team
+      Test.Wire.API.Golden.Generated.TeamMember_team
+      Test.Wire.API.Golden.Generated.TeamMemberDeleteData_team
+      Test.Wire.API.Golden.Generated.TeamMemberList_team
+      Test.Wire.API.Golden.Generated.TeamSearchVisibility_team
+      Test.Wire.API.Golden.Generated.TeamSearchVisibilityView_team
+      Test.Wire.API.Golden.Generated.TeamUpdateData_team
+      Test.Wire.API.Golden.Generated.Token_user
+      Test.Wire.API.Golden.Generated.TokenType_user
+      Test.Wire.API.Golden.Generated.TotalSize_user
+      Test.Wire.API.Golden.Generated.Transport_user
+      Test.Wire.API.Golden.Generated.TurnHost_user
+      Test.Wire.API.Golden.Generated.TurnURI_user
+      Test.Wire.API.Golden.Generated.TurnUsername_user
+      Test.Wire.API.Golden.Generated.TypingData_user
+      Test.Wire.API.Golden.Generated.TypingStatus_user
+      Test.Wire.API.Golden.Generated.UpdateBotPrekeys_user
+      Test.Wire.API.Golden.Generated.UpdateClient_user
+      Test.Wire.API.Golden.Generated.UpdateProvider_provider
+      Test.Wire.API.Golden.Generated.UpdateService_provider
+      Test.Wire.API.Golden.Generated.UpdateServiceConn_provider
+      Test.Wire.API.Golden.Generated.UpdateServiceWhitelist_provider
+      Test.Wire.API.Golden.Generated.User_2eProfile_2eAsset_user
+      Test.Wire.API.Golden.Generated.User_user
+      Test.Wire.API.Golden.Generated.UserClientMap_20Int_user
+      Test.Wire.API.Golden.Generated.UserClients_user
+      Test.Wire.API.Golden.Generated.UserConnection_user
+      Test.Wire.API.Golden.Generated.UserConnectionList_user
+      Test.Wire.API.Golden.Generated.UserHandleInfo_user
+      Test.Wire.API.Golden.Generated.UserIdentity_user
+      Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team
+      Test.Wire.API.Golden.Generated.UserProfile_user
+      Test.Wire.API.Golden.Generated.UserSSOId_user
+      Test.Wire.API.Golden.Generated.UserUpdate_user
+      Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
+      Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
+      Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
+      Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
+      Test.Wire.API.Golden.Generator
+      Test.Wire.API.Golden.Manual
+      Test.Wire.API.Golden.Manual.ClientCapability
+      Test.Wire.API.Golden.Manual.ClientCapabilityList
+      Test.Wire.API.Golden.Manual.ConversationCoverView
+      Test.Wire.API.Golden.Manual.ConversationPagingState
+      Test.Wire.API.Golden.Manual.ConversationsResponse
+      Test.Wire.API.Golden.Manual.ConvIdsPage
+      Test.Wire.API.Golden.Manual.FeatureConfigEvent
+      Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
+      Test.Wire.API.Golden.Manual.ListConversations
+      Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
+      Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+      Test.Wire.API.Golden.Manual.UserIdList
+      Test.Wire.API.Golden.Protobuf
+      Test.Wire.API.Golden.Runner
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
+      Test.Wire.API.Roundtrip.CSV
       Test.Wire.API.Swagger
       Test.Wire.API.Team.Member
       Test.Wire.API.User
       Test.Wire.API.User.RichInfo
+      Test.Wire.API.User.Search
       Paths_wire_api
   hs-source-dirs:
       test/unit
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      aeson >=0.6
+      QuickCheck
+    , aeson >=0.6
+    , aeson-pretty
     , aeson-qq
     , base
+    , bytestring
     , bytestring-conversion
+    , case-insensitive
+    , cassava
     , containers >=0.5
+    , currency-codes
+    , directory
+    , filepath
+    , hscim
     , imports
+    , iso3166-country-codes
+    , iso639
     , lens
+    , mime
+    , pem
+    , pretty
+    , proto-lens
+    , saml2-web-sso
+    , servant-swagger-ui
+    , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
+    , text
+    , time
     , types-common >=0.16
     , unordered-containers
+    , uri-bytestring
     , uuid
+    , vector
     , wire-api
+    , wire-message-proto-lens
   default-language: Haskell2010

@@ -1,0 +1,55 @@
+{
+    "hasMore": true,
+    "members": [
+        {
+            "created_at": "1864-05-09T10:04:36.715Z",
+            "created_by": "00000000-0000-0000-0000-000000000000",
+            "legalhold_status": "disabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+            "created_at": null,
+            "created_by": null,
+            "legalhold_status": "disabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000000-0000-0001-0000-000100000000"
+        },
+        {
+            "created_at": "1864-05-09T03:02:37.641Z",
+            "created_by": "00000001-0000-0000-0000-000000000001",
+            "legalhold_status": "enabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0000-0000-000000000001"
+        },
+        {
+            "created_at": "1864-05-09T23:21:44.944Z",
+            "created_by": "00000001-0000-0001-0000-000000000000",
+            "legalhold_status": "disabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0000-0000-000100000001"
+        },
+        {
+            "created_at": "1864-05-09T08:47:48.774Z",
+            "created_by": "00000000-0000-0000-0000-000100000000",
+            "legalhold_status": "disabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0001-0000-000000000001"
+        }
+    ]
+}

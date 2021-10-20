@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -21,7 +20,6 @@
 
 module Federator.Options where
 
-import qualified Control.Lens as Lens
 import Data.Aeson
 import Data.Domain (Domain ())
 import Imports
@@ -32,7 +30,6 @@ newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
 
--- FUTUREWORK: Support a DenyList
 data FederationStrategy
   = -- | This backend allows federating with any other Wire-Server backend
     AllowAll
@@ -63,15 +60,29 @@ instance FromJSON FederationStrategy where
 -- | Options that persist as runtime settings.
 data RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: !(FederationStrategy)
+    federationStrategy :: FederationStrategy,
+    useSystemCAStore :: Bool,
+    remoteCAStore :: Maybe FilePath,
+    clientCertificate :: FilePath,
+    clientPrivateKey :: FilePath,
+    dnsHost :: Maybe String,
+    dnsPort :: Maybe Word16
   }
-  deriving (Show, Generic)
+  deriving (Eq, Show, Generic)
 
 instance FromJSON RunSettings
 
 data Opts = Opts
-  { -- | Host and port
-    federator :: Endpoint,
+  { -- | Host and port for endpoint reachable only by other wire-server
+    -- components in the same private network
+    federatorInternal :: Endpoint,
+    -- | Host and port for endpoint exposed to the open internet via nginx, to
+    -- be contacted by other federators
+    federatorExternal :: Endpoint,
+    -- | Host and port of brig
+    brig :: Endpoint,
+    -- | Host and port of galley
+    galley :: Endpoint,
     -- | Log level (Debug, Info, etc)
     logLevel :: Level,
     -- | Use netstrings encoding (see <http://cr.yp.to/proto/netstrings.txt>)
@@ -84,8 +95,3 @@ data Opts = Opts
   deriving (Show, Generic)
 
 instance FromJSON Opts
-
-Lens.makeLensesFor
-  [ ("setFederationStrategy", "federationStrategy")
-  ]
-  ''RunSettings

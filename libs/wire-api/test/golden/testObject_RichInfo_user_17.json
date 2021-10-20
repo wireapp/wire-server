@@ -1,0 +1,16 @@
+{
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "􎵟_𢳀𡸿\u0002qF\u0016𑙄": "qx\u001d\u000b\u001dE𗷤䨽s𩶻`?\u0004\u0014\u001f*㋊"
+    },
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "fields": [
+                {
+                    "type": "􎵟_𢳀𡸿\u0002qF\u0016𑙄",
+                    "value": "qx\u001d\u000b\u001dE𗷤䨽s𩶻`?\u0004\u0014\u001f*㋊"
+                }
+            ],
+            "version": 0
+        }
+    }
+}

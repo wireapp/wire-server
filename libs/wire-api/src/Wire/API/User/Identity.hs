@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
@@ -41,26 +40,43 @@ module Wire.API.User.Identity
 
     -- * UserSSOId
     UserSSOId (..),
-
-    -- * Swagger
+    emailFromSAML,
+    emailToSAML,
+    emailToSAMLNameID,
+    emailFromSAMLNameID,
+    mkSampleUref,
+    mkSimpleSampleUref,
   )
 where
 
 import Control.Applicative (optional)
-import Control.Lens ((.~), (?~))
-import Data.Aeson hiding ((<?>))
+import Control.Lens ((.~), (?~), (^.))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import Data.Attoparsec.Text
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (..))
-import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
+import Data.Schema
+import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
 import Imports
+import SAML2.WebSSO.Test.Arbitrary ()
+import qualified SAML2.WebSSO.Types as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
+import qualified SAML2.WebSSO.XML as SAML
+import System.FilePath ((</>))
 import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
+import qualified URI.ByteString as URI
+import URI.ByteString.QQ (uri)
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.User.Profile (fromName, mkName)
 
 --------------------------------------------------------------------------------
 -- UserIdentity
@@ -75,16 +91,16 @@ data UserIdentity
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
-instance ToSchema UserIdentity where
+instance S.ToSchema UserIdentity where
   declareNamedSchema _ = do
-    emailSchema <- declareSchemaRef (Proxy @Email)
-    phoneSchema <- declareSchemaRef (Proxy @Phone)
-    ssoSchema <- declareSchemaRef (Proxy @UserSSOId)
+    emailSchema <- S.declareSchemaRef (Proxy @Email)
+    phoneSchema <- S.declareSchemaRef (Proxy @Phone)
+    ssoSchema <- S.declareSchemaRef (Proxy @UserSSOId)
     return $
-      NamedSchema (Just "userIdentity") $
+      S.NamedSchema (Just "userIdentity") $
         mempty
-          & type_ ?~ SwaggerObject
-          & properties
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
             .~ [ ("email", emailSchema),
                  ("phone", phoneSchema),
                  ("sso_id", ssoSchema)
@@ -97,14 +113,14 @@ instance ToJSON UserIdentity where
     PhoneIdentity ph -> go Nothing (Just ph) Nothing
     SSOIdentity si em ph -> go em ph (Just si)
     where
-      go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
-      go em ph si = object ["email" .= em, "phone" .= ph, "sso_id" .= si]
+      go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> A.Value
+      go em ph si = A.object ["email" A..= em, "phone" A..= ph, "sso_id" A..= si]
 
 instance FromJSON UserIdentity where
-  parseJSON = withObject "UserIdentity" $ \o -> do
-    email <- o .:? "email"
-    phone <- o .:? "phone"
-    ssoid <- o .:? "sso_id"
+  parseJSON = A.withObject "UserIdentity" $ \o -> do
+    email <- o A..:? "email"
+    phone <- o A..:? "phone"
+    ssoid <- o A..:? "sso_id"
     maybe
       (fail "Missing 'email' or 'phone' or 'sso_id'.")
       return
@@ -144,9 +160,18 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
 
 instance ToSchema Email where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  schema =
+    fromEmail
+      .= parsedText
+        "Email"
+        ( maybe
+            (Left "Invalid email. Expected '<local>@<domain>'.")
+            pure
+            . parseEmail
+        )
 
 instance Show Email where
   show = Text.unpack . fromEmail
@@ -156,15 +181,6 @@ instance ToByteString Email where
 
 instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") return . parseEmail
-
-instance ToJSON Email where
-  toJSON = String . fromEmail
-
-instance FromJSON Email where
-  parseJSON =
-    withText "email" $
-      maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
-        . parseEmail
 
 instance Arbitrary Email where
   arbitrary = do
@@ -225,11 +241,11 @@ validateEmail =
 -- Phone
 
 newtype Phone = Phone {fromPhone :: Text}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToSchema)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToJSON, S.ToSchema)
 
 instance FromJSON Phone where
-  parseJSON (String s) = case parsePhone s of
+  parseJSON (A.String s) = case parsePhone s of
     Just p -> return p
     Nothing -> fail "Invalid phone number. Expected E.164 format."
   parseJSON _ = mempty
@@ -266,36 +282,33 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 
 -- | User's external identity.
 --
--- Morally this is the same thing as 'SAML.UserRef', but we forget the
--- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
--- of those blobs changes, Brig won't have to deal with it, only Spar will.
+-- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
+-- deserialiation is more lenient: it also allows for the `Issuer` to be a plain URL (without
+-- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
+-- text (=> format "unspecified").  This is for backwards compatibility and general
+-- robustness.
 --
--- FUTUREWORK: rename the data type to @UserSparId@ (not the two constructors, those are ok).
+-- FUTUREWORK: we should probably drop this entirely and store saml and scim data in separate
+-- database columns.
 data UserSSOId
-  = UserSSOId
-      -- An XML blob pointing to the identity provider that can confirm
-      -- user's identity.
-      Text
-      -- An XML blob specifying the user's ID on the identity provider's side.
-      Text
-  | UserScimExternalId
-      Text
+  = UserSSOId SAML.UserRef
+  | UserScimExternalId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
--- FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
+-- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2
 -- Maybe this becomes possible with swagger 3?
-instance ToSchema UserSSOId where
+instance S.ToSchema UserSSOId where
   declareNamedSchema _ = do
-    tenantSchema <- declareSchemaRef (Proxy @Text)
-    subjectSchema <- declareSchemaRef (Proxy @Text)
-    scimSchema <- declareSchemaRef (Proxy @Text)
+    tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
+    subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
+    scimSchema <- S.declareSchemaRef (Proxy @Text)
     return $
-      NamedSchema (Just "UserSSOId") $
+      S.NamedSchema (Just "UserSSOId") $
         mempty
-          & type_ ?~ SwaggerObject
-          & properties
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema),
                  ("scim_external_id", scimSchema)
@@ -303,16 +316,16 @@ instance ToSchema UserSSOId where
 
 instance ToJSON UserSSOId where
   toJSON = \case
-    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
-    UserScimExternalId eid -> object ["scim_external_id" .= eid]
+    UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+    UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
 
 instance FromJSON UserSSOId where
-  parseJSON = withObject "UserSSOId" $ \obj -> do
-    mtenant <- obj .:? "tenant"
-    msubject <- obj .:? "subject"
-    meid <- obj .:? "scim_external_id"
+  parseJSON = A.withObject "UserSSOId" $ \obj -> do
+    mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
+    msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
+    meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId tenant subject
+      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
@@ -325,8 +338,83 @@ newtype PhoneBudgetTimeout = PhoneBudgetTimeout
   deriving newtype (Arbitrary)
 
 instance FromJSON PhoneBudgetTimeout where
-  parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
-    PhoneBudgetTimeout <$> o .: "expires_in"
+  parseJSON = A.withObject "PhoneBudgetTimeout" $ \o ->
+    PhoneBudgetTimeout <$> o A..: "expires_in"
 
 instance ToJSON PhoneBudgetTimeout where
-  toJSON (PhoneBudgetTimeout t) = object ["expires_in" .= t]
+  toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]
+
+lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
+lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
+  let asxml :: Either String SAML.Issuer
+      asxml = SAML.decodeElem txt
+
+      asurl :: Either String SAML.Issuer
+      asurl =
+        first show
+          . second SAML.Issuer
+          $ URI.parseURI URI.laxURIParserOptions (cs txt)
+
+      err :: String
+      err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)
+
+  either (const $ fail err) pure $ asxml <|> asurl
+
+lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
+lenientlyParseSAMLNameID Nothing = pure Nothing
+lenientlyParseSAMLNameID (Just txt) = do
+  let asxml :: Either String SAML.NameID
+      asxml = SAML.decodeElem txt
+
+      asemail :: Either String SAML.NameID
+      asemail =
+        maybe
+          (Left "not an email")
+          (fmap emailToSAMLNameID . validateEmail)
+          (parseEmail (cs txt))
+
+      astxt :: Either String SAML.NameID
+      astxt = do
+        nm <- mkName (cs txt)
+        SAML.mkNameID (SAML.mkUNameIDUnspecified (fromName nm)) Nothing Nothing Nothing
+
+      err :: String
+      err = "lenientlyParseSAMLNameID: " <> show (asxml, asemail, astxt, txt)
+
+  either
+    (const $ fail err)
+    (pure . Just)
+    (asxml <|> asemail <|> astxt)
+
+emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
+emailFromSAML = fromJust . parseEmail . SAMLEmail.render
+
+emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
+emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
+
+-- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
+-- function total without all that praying and hoping.
+emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
+emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
+
+emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
+emailFromSAMLNameID nid = case nid ^. SAML.nameID of
+  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
+  _ -> Nothing
+
+-- | For testing.  Create a sample 'SAML.UserRef' value with random seeds to make 'Issuer' and
+-- 'NameID' unique.  FUTUREWORK: move to saml2-web-sso.
+mkSampleUref :: Text -> Text -> SAML.UserRef
+mkSampleUref iseed nseed = SAML.UserRef issuer nameid
+  where
+    issuer :: SAML.Issuer
+    issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs ("/" </> cs iseed))
+
+    nameid :: SAML.NameID
+    nameid = fromRight (error "impossible") $ do
+      unqualified <- SAML.mkUNameIDEmail $ "me" <> nseed <> "@example.com"
+      SAML.mkNameID unqualified Nothing Nothing Nothing
+
+-- | @mkSampleUref "" ""@
+mkSimpleSampleUref :: SAML.UserRef
+mkSimpleSampleUref = mkSampleUref "" ""

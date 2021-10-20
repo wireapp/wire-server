@@ -26,14 +26,6 @@ dependencies:
     - fake-aws-s3
     - aws-mocks
     - demo
-- name: fake-aws-dynamodb
-  version: "0.0.42"
-  repository: "file://../fake-aws-dynamodb"
-  condition: fake-aws-dynamodb.enabled,global.fake-aws-dynamodb.enabled
-  tags:
-    - fake-aws-dynamodb
-    - aws-mocks
-    - demo
 - name: fake-aws-ses
   version: "0.0.42"
   repository: "file://../fake-aws-ses"

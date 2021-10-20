@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
@@ -19,78 +20,41 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.Qualified
-  ( -- * Optionally qualified
-    OptionallyQualified (..),
-    unqualified,
-    qualified,
-    eitherQualifiedOrNot,
-
-    -- * Qualified
+  ( -- * Qualified
     Qualified (..),
-    renderQualifiedId,
-    mkQualifiedId,
-    renderQualifiedHandle,
-    mkQualifiedHandle,
-    partitionRemoteOrLocalIds,
-    deprecatedUnqualifiedSchemaRef,
+    qToPair,
+    QualifiedWithTag,
+    tUnqualified,
+    tUnqualifiedL,
+    tDomain,
+    qUntagged,
+    qTagUnsafe,
+    Remote,
+    toRemoteUnsafe,
+    Local,
+    toLocalUnsafe,
+    qualifyAs,
+    foldQualified,
+    partitionQualified,
+    partitionQualifiedAndTag,
+    indexQualified,
+    bucketQualified,
+    bucketRemote,
+    deprecatedSchema,
   )
 where
 
-import Control.Applicative (optional)
-import Control.Lens (view, (.~), (?~))
-import Data.Aeson (FromJSON, ToJSON, withObject, withText, (.:), (.=))
-import qualified Data.Aeson as Aeson
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Control.Lens (Lens, lens, (?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bifunctor (first)
-import Data.ByteString.Conversion (FromByteString (parser))
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID))
-import Data.Proxy (Proxy (..))
-import Data.String.Conversions (cs)
-import Data.Swagger
-import Data.Swagger.Declare (Declare)
-import qualified Data.Text.Encoding as Text.E
-import qualified Data.UUID as UUID
+import Data.Id
+import qualified Data.Map as Map
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports hiding (local)
-import Servant.API (FromHttpApiData (parseUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary))
-
-----------------------------------------------------------------------
--- OPTIONALLY QUALIFIED
-
-data OptionallyQualified a = OptionallyQualified
-  { oqUnqualified :: a,
-    oqDomain :: Maybe Domain
-  }
-  deriving (Eq, Show)
-
-unqualified :: a -> OptionallyQualified a
-unqualified x = OptionallyQualified x Nothing
-
-qualified :: Qualified a -> OptionallyQualified a
-qualified (Qualified x domain) = OptionallyQualified x (Just domain)
-
-eitherQualifiedOrNot :: OptionallyQualified a -> Either a (Qualified a)
-eitherQualifiedOrNot = \case
-  OptionallyQualified x Nothing -> Left x
-  OptionallyQualified x (Just domain) -> Right (Qualified x domain)
-
-optionallyQualifiedParser :: Atto.Parser a -> Atto.Parser (OptionallyQualified a)
-optionallyQualifiedParser localParser =
-  OptionallyQualified
-    <$> localParser
-    <*> optional (Atto.char '@' *> parser @Domain)
-
--- | we could have an
--- @instance FromByteString a => FromByteString (OptionallyQualified a)@,
--- but we only need this for specific things and don't want to just allow parsing things like
--- @OptionallyQualified HttpsUrl@.
-instance FromByteString (OptionallyQualified (Id a)) where
-  parser = optionallyQualifiedParser (parser @(Id a))
-
-instance FromByteString (OptionallyQualified Handle) where
-  parser = optionallyQualifiedParser (parser @Handle)
 
 ----------------------------------------------------------------------
 -- QUALIFIED
@@ -99,104 +63,139 @@ data Qualified a = Qualified
   { qUnqualified :: a,
     qDomain :: Domain
   }
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
-renderQualified :: (a -> Text) -> Qualified a -> Text
-renderQualified renderLocal (Qualified localPart domain) =
-  renderLocal localPart <> "@" <> domainText domain
+qToPair :: Qualified a -> (Domain, a)
+qToPair (Qualified x dom) = (dom, x)
 
--- FUTUREWORK: do we want a different way to serialize these than with an '@' ? A '/' was talked about also.
+data QTag = QLocal | QRemote
+  deriving (Eq, Show)
+
+-- | A type to differentiate between generally 'Qualified' values, and "tagged" values,
+-- for which it is known whether they are coming from a remote or local backend.
+-- Use 'foldQualified', 'partitionQualified' or 'qualifyLocal' to get tagged values and use
+-- 'qUntagged' to convert from a tagged value back to a plain 'Qualified' one.
+newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {qUntagged :: Qualified a}
+  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+  deriving newtype (Arbitrary)
+
+qTagUnsafe :: forall t a. Qualified a -> QualifiedWithTag t a
+qTagUnsafe = QualifiedWithTag
+
+tUnqualified :: QualifiedWithTag t a -> a
+tUnqualified = qUnqualified . qUntagged
+
+tDomain :: QualifiedWithTag t a -> Domain
+tDomain = qDomain . qUntagged
+
+tUnqualifiedL :: Lens (QualifiedWithTag t a) (QualifiedWithTag t b) a b
+tUnqualifiedL = lens tUnqualified qualifyAs
+
+-- | A type representing a 'Qualified' value where the domain is guaranteed to
+-- be remote.
+type Remote = QualifiedWithTag 'QRemote
+
+-- | Convert a 'Domain' and an @a@ to a 'Remote' value. This is only safe if we
+-- already know that the domain is remote.
+toRemoteUnsafe :: Domain -> a -> Remote a
+toRemoteUnsafe d a = qTagUnsafe $ Qualified a d
+
+-- | A type representing a 'Qualified' value where the domain is guaranteed to
+-- be local.
+type Local = QualifiedWithTag 'QLocal
+
+-- | Convert a 'Domain' and an @a@ to a 'Local' value. This is only safe if we
+-- already know that the domain is local.
+toLocalUnsafe :: Domain -> a -> Local a
+toLocalUnsafe d a = qTagUnsafe $ Qualified a d
+
+-- | Convert an unqualified value to a qualified one, with the same tag as the
+-- given tagged qualified value.
+qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
+qualifyAs = ($>)
+
+foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
+foldQualified loc f g q
+  | tDomain loc == qDomain q =
+    f (qTagUnsafe q)
+  | otherwise =
+    g (qTagUnsafe q)
+
+-- Partition a collection of qualified values into locals and remotes.
 --
--- renderQualified :: (a -> Text) -> Qualified a -> Text
--- renderQualified renderLocal (Qualified localPart domain) =
--- domainText domain <> "/" <> renderLocal localPart
---
--- qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
---   domain <- parser @Domain
---   _ <- Atto.char '/'
---   local <- localParser
---   pure $ Qualified local domain
+-- Note that the local values are returned as unqualified values, as a (probably
+-- insignificant) optimisation. Use 'partitionQualifiedAndTag' to get them as
+-- 'Local' values.
+partitionQualified :: Foldable f => Local x -> f (Qualified a) -> ([a], [Remote a])
+partitionQualified loc =
+  foldMap $
+    foldQualified loc (\l -> ([tUnqualified l], mempty)) (\r -> (mempty, [r]))
 
-qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
-qualifiedParser localParser = do
-  Qualified <$> localParser <*> (Atto.char '@' *> parser @Domain)
+partitionQualifiedAndTag :: Foldable f => Local x -> f (Qualified a) -> ([Local a], [Remote a])
+partitionQualifiedAndTag loc =
+  first (map (qualifyAs loc))
+    . partitionQualified loc
 
-partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
-partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
-  if qDomain qualifiedId == localDomain
-    then (mempty, [qUnqualified qualifiedId])
-    else ([qualifiedId], mempty)
+-- | Index a list of qualified values by domain.
+indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
+indexQualified = foldr add mempty
+  where
+    add :: Qualified a -> Map Domain [a] -> Map Domain [a]
+    add (Qualified x domain) = Map.insertWith (<>) domain [x]
+
+-- | Bucket a list of qualified values by domain.
+bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
+bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
+
+bucketRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
+bucketRemote =
+  map (uncurry toRemoteUnsafe)
+    . Map.assocs
+    . indexQualified
+    . fmap qUntagged
 
 ----------------------------------------------------------------------
 
-renderQualifiedId :: Qualified (Id a) -> Text
-renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
+deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
+deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
 
-mkQualifiedId :: Text -> Either String (Qualified (Id a))
-mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
+qualifiedSchema ::
+  Text ->
+  Text ->
+  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema NamedSwaggerDoc (Qualified a)
+qualifiedSchema name fieldName sch =
+  object ("Qualified_" <> name) $
+    Qualified
+      <$> qUnqualified .= field fieldName sch
+      <*> qDomain .= field "domain" schema
 
-deprecatedUnqualifiedSchemaRef :: ToSchema a => Proxy a -> Text -> Declare (Definitions Schema) (Referenced Schema)
-deprecatedUnqualifiedSchemaRef p newField =
-  Inline
-    . (description ?~ ("Deprecated, use " <> newField))
-    . view schema
-    <$> declareNamedSchema p
+instance KnownIdTag t => ToSchema (Qualified (Id t)) where
+  schema = qualifiedSchema (idTagName (idTagValue @t) <> "Id") "id" schema
 
-instance ToSchema (Qualified (Id a)) where
-  declareNamedSchema _ = do
-    idSchema <- declareSchemaRef (Proxy @(Id a))
-    domainSchema <- declareSchemaRef (Proxy @Domain)
-    return $
-      NamedSchema (Just "QualifiedId") $
-        mempty
-          & type_ ?~ SwaggerObject
-          & properties
-            .~ [ ("id", idSchema),
-                 ("domain", domainSchema)
-               ]
+instance ToSchema (Qualified Handle) where
+  schema = qualifiedSchema "Handle" "handle" schema
 
-instance ToJSON (Qualified (Id a)) where
-  toJSON qu =
-    Aeson.object
-      [ "id" .= qUnqualified qu,
-        "domain" .= qDomain qu
-      ]
+instance KnownIdTag t => ToJSON (Qualified (Id t)) where
+  toJSON = schemaToJSON
 
-instance FromJSON (Qualified (Id a)) where
-  parseJSON = withObject "QualifiedUserId" $ \o ->
-    Qualified <$> o .: "id" <*> o .: "domain"
+instance KnownIdTag t => FromJSON (Qualified (Id t)) where
+  parseJSON = schemaParseJSON
 
-instance FromHttpApiData (Qualified (Id a)) where
-  parseUrlPiece = first cs . mkQualifiedId
-
-instance FromByteString (Qualified (Id a)) where
-  parser = qualifiedParser parser
-
-----------------------------------------------------------------------
-
-renderQualifiedHandle :: Qualified Handle -> Text
-renderQualifiedHandle = renderQualified fromHandle
-
-mkQualifiedHandle :: Text -> Either String (Qualified Handle)
-mkQualifiedHandle = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
+instance KnownIdTag t => S.ToSchema (Qualified (Id t)) where
+  declareNamedSchema = schemaToSwagger
 
 instance ToJSON (Qualified Handle) where
-  toJSON = Aeson.String . renderQualifiedHandle
+  toJSON = schemaToJSON
 
 instance FromJSON (Qualified Handle) where
-  parseJSON = withText "QualifiedHandle" $ either fail pure . mkQualifiedHandle
+  parseJSON = schemaParseJSON
 
-instance FromHttpApiData (Qualified Handle) where
-  parseUrlPiece = first cs . mkQualifiedHandle
-
-instance FromByteString (Qualified Handle) where
-  parser = qualifiedParser parser
+instance S.ToSchema (Qualified Handle) where
+  declareNamedSchema = schemaToSwagger
 
 ----------------------------------------------------------------------
 -- ARBITRARY
 
 instance Arbitrary a => Arbitrary (Qualified a) where
   arbitrary = Qualified <$> arbitrary <*> arbitrary
-
-instance Arbitrary a => Arbitrary (OptionallyQualified a) where
-  arbitrary = OptionallyQualified <$> arbitrary <*> arbitrary

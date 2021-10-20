@@ -22,6 +22,7 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
+    HasStatusCol (..),
   )
 where
 
@@ -38,53 +39,73 @@ import Wire.API.Team.Feature
   )
 import qualified Wire.API.Team.Feature as Public
 
-toCol :: TeamFeatureName -> String
-toCol TeamFeatureLegalHold = "legalhold_status"
-toCol TeamFeatureSSO = "sso_status"
-toCol TeamFeatureSearchVisibility = "search_visibility_status"
-toCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
-toCol TeamFeatureDigitalSignatures = "digital_signatures"
-toCol TeamFeatureAppLock = "app_lock_status"
+-- | Because not all so called team features are actually team-level features,
+-- not all of them have a corresponding column in the database. Therefore,
+-- instead of having a function like:
+--
+--   statusCol :: TeamFeatureName -> String
+--
+-- there is a need for turning it into a class and then defining an instance for
+-- team features that do have a database column.
+class HasStatusCol (a :: TeamFeatureName) where
+  statusCol :: String
+
+instance HasStatusCol 'TeamFeatureLegalHold where statusCol = "legalhold_status"
+
+instance HasStatusCol 'TeamFeatureSSO where statusCol = "sso_status"
+
+instance HasStatusCol 'TeamFeatureSearchVisibility where statusCol = "search_visibility_status"
+
+instance HasStatusCol 'TeamFeatureValidateSAMLEmails where statusCol = "validate_saml_emails"
+
+instance HasStatusCol 'TeamFeatureDigitalSignatures where statusCol = "digital_signatures"
+
+instance HasStatusCol 'TeamFeatureAppLock where statusCol = "app_lock_status"
+
+instance HasStatusCol 'TeamFeatureFileSharing where statusCol = "file_sharing"
+
+instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conference_calling"
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
-    Public.KnownTeamFeatureName a,
-    Public.FeatureHasNoConfig a
+    Public.FeatureHasNoConfig a,
+    HasStatusCol a
   ) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus a))
 getFeatureStatusNoConfig tid = do
-  let q = query1 (select (Public.knownTeamFeatureName @a)) (params Quorum (Identity tid))
+  let q = query1 select (params Quorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
   where
-    select :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
-    select feature = fromString $ "select " <> toCol feature <> " from team_features where team_id = ?"
+    select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
+    select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
-    Public.KnownTeamFeatureName a,
-    Public.FeatureHasNoConfig a
+    Public.FeatureHasNoConfig a,
+    HasStatusCol a
   ) =>
   TeamId ->
-  (TeamFeatureStatus a) ->
+  TeamFeatureStatus a ->
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
-  retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
+  retry x5 $ write update (params Quorum (flag, tid))
   pure status
   where
-    update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-    update feature = fromString $ "update team_features set " <> toCol feature <> " = ? where team_id = ?"
+    update :: PrepQuery W (TeamFeatureStatusValue, TeamId) ()
+    update = fromString $ "update team_features set " <> statusCol @a <> " = ? where team_id = ?"
 
 getApplockFeatureStatus ::
+  forall m.
   (MonadClient m) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus 'Public.TeamFeatureAppLock))
 getApplockFeatureStatus tid = do
-  let q = query1 (select) (params Quorum (Identity tid))
+  let q = query1 select (params Quorum (Identity tid))
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
@@ -93,13 +114,13 @@ getApplockFeatureStatus tid = do
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Public.EnforceAppLock, Maybe Int32)
     select =
       fromString $
-        "select " <> toCol Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
+        "select " <> statusCol @'Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
           <> "from team_features where team_id = ?"
 
 setApplockFeatureStatus ::
   (MonadClient m) =>
   TeamId ->
-  (TeamFeatureStatus 'Public.TeamFeatureAppLock) ->
+  TeamFeatureStatus 'Public.TeamFeatureAppLock ->
   m (TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setApplockFeatureStatus tid status = do
   let statusValue = Public.tfwcStatus status
@@ -112,7 +133,7 @@ setApplockFeatureStatus tid status = do
     update =
       fromString $
         "update team_features set "
-          <> toCol Public.TeamFeatureAppLock
+          <> statusCol @'Public.TeamFeatureAppLock
           <> " = ?, "
           <> "app_lock_enforce = ?, "
           <> "app_lock_inactivity_timeout_secs = ? "

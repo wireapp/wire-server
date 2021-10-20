@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Move to Brig.User.RPC or similar.
+-- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
     onUserEvent,
@@ -32,10 +32,12 @@ module Brig.IO.Intra
     blockConv,
     unblockConv,
     getConv,
+    upsertOne2OneConversation,
 
     -- * Clients
     Brig.IO.Intra.newClient,
     rmClient,
+    lookupPushToken,
 
     -- * Account Deletion
     rmUser,
@@ -55,22 +57,28 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+
+    -- * Legalhold
+    guardLegalhold,
   )
 where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Bilge.Retry
+import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
-import Brig.User.Event
-import qualified Brig.User.Event.Log as Log
+import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
+import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Trans.Except (throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -82,10 +90,13 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import qualified Galley.Types.Teams.Intra as Team
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Push.V2
@@ -95,7 +106,10 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
+import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.LegalHold (LegalholdProtectee)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -158,7 +172,8 @@ updateSearchIndex :: UserId -> UserEvent -> AppIO ()
 updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
-  UserIdentityUpdated {} -> return ()
+  UserIdentityUpdated UserIdentityUpdatedData {..} -> do
+    when (isJust eiuEmail) $ Search.reindex orig
   UserIdentityRemoved {} -> return ()
   UserLegalHoldDisabled {} -> return ()
   UserLegalHoldEnabled {} -> return ()
@@ -172,9 +187,11 @@ updateSearchIndex orig e = case e of
           or
             [ isJust eupName,
               isJust eupAccentId,
-              isJust eupHandle
+              isJust eupHandle,
+              isJust eupManagedBy,
+              isJust eupSSOId || eupSSOIdRemoved
             ]
-    when (interesting) $ Search.reindex orig
+    when interesting $ Search.reindex orig
 
 journalEvent :: UserId -> UserEvent -> AppIO ()
 journalEvent orig e = case e of
@@ -272,7 +289,7 @@ rawPush (toList -> events) usrs orig route conn = do
           g
           ( method POST
               . path "/i/push/v2"
-              . zUser orig
+              . zUser orig -- FUTUREWORK: Remove, because gundeck handler ignores this.
               . json (map (mkPush rcps . snd) events)
               . expect2xx
           )
@@ -286,7 +303,7 @@ rawPush (toList -> events) usrs orig route conn = do
     mkPush :: Range 1 1024 (Set.Set Recipient) -> (Object, Maybe ApsData) -> Push
     mkPush rcps (o, aps) =
       newPush
-        orig
+        (Just orig)
         rcps
         (singletonPayload o)
         & pushOriginConnection .~ conn
@@ -361,7 +378,7 @@ toPushFormat (UserEvent (UserActivated u)) =
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
-toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb))) =
+toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel))) =
   Just $
     M.fromList
       [ "type" .= ("user.update" :: Text),
@@ -375,6 +392,8 @@ toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb
                 # "handle" .= hdl
                 # "locale" .= loc
                 # "managed_by" .= mb
+                # "sso_id" .= ssoId
+                # "sso_id_deleted" .= ssoIdDel
                 # []
             )
       ]
@@ -484,9 +503,13 @@ toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
   case (ucStatus uc, name) of
-    (Pending, Just n) -> Just $ apsConnRequest n
-    (Accepted, Just n) -> Just $ apsConnAccept n
-    (_, _) -> Nothing
+    (MissingLegalholdConsent, _) -> Nothing
+    (Pending, n) -> apsConnRequest <$> n
+    (Accepted, n) -> apsConnAccept <$> n
+    (Blocked, _) -> Nothing
+    (Ignored, _) -> Nothing
+    (Sent, _) -> Nothing
+    (Cancelled, _) -> Nothing
   where
     apsConnRequest n =
       apsData (ApsLocKey "push.notification.connection.request") [fromName n]
@@ -512,29 +535,50 @@ createSelfConv u = do
         . zUser u
         . expect2xx
 
--- | Calls 'Galley.API.createConnectConversationH'.
-createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
-createConnectConv from to cname mess conn = do
+-- | Calls 'Galley.API.Create.createConnectConversation'.
+createLocalConnectConv ::
+  Local UserId ->
+  Local UserId ->
+  Maybe Text ->
+  Maybe ConnId ->
+  AppIO ConvId
+createLocalConnectConv from to cname conn = do
   debug $
-    Log.connection from to
+    logConnection (tUnqualified from) (qUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
+  let req =
+        path "/i/conversations/connect"
+          . zUser (tUnqualified from)
+          . maybe id (header "Z-Connection" . fromConnId) conn
+          . contentJson
+          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") return $
     fromByteString $
       getHeader' "Location" r
+
+createConnectConv ::
+  Qualified UserId ->
+  Qualified UserId ->
+  Maybe Text ->
+  Maybe ConnId ->
+  AppIO (Qualified ConvId)
+createConnectConv from to cname conn = do
+  lfrom <- ensureLocal from
+  lto <- ensureLocal to
+  qUntagged . qualifyAs lfrom
+    <$> createLocalConnectConv lfrom lto cname conn
   where
-    req =
-      path "/i/conversations/connect"
-        . zUser from
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . contentJson
-        . lbytes (encode $ Connect to (messageText <$> mess) cname Nothing)
-        . expect2xx
+    ensureLocal :: Qualified a -> AppIO (Local a)
+    ensureLocal x = do
+      loc <- qualifyLocal ()
+      foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptConnectConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-acceptConnectConv from conn cnv = do
+acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -543,13 +587,20 @@ acceptConnectConv from conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "accept", "v2"]
-        . zUser from
+        . zUser (tUnqualified from)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+acceptConnectConv from conn =
+  foldQualified
+    from
+    (acceptLocalConnectConv from conn . tUnqualified)
+    (const (throwM federationNotImplemented))
+
 -- | Calls 'Galley.API.blockConvH'.
-blockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO ()
-blockConv usr conn cnv = do
+blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO ()
+blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -558,13 +609,20 @@ blockConv usr conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "block"]
-        . zUser usr
+        . zUser (tUnqualified lusr)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO ()
+blockConv lusr conn =
+  foldQualified
+    lusr
+    (blockLocalConv lusr conn . tUnqualified)
+    (const (throwM federationNotImplemented))
+
 -- | Calls 'Galley.API.unblockConvH'.
-unblockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-unblockConv usr conn cnv = do
+unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -573,9 +631,16 @@ unblockConv usr conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "unblock"]
-        . zUser usr
+        . zUser (tUnqualified lusr)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
+
+unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+unblockConv luid conn =
+  foldQualified
+    luid
+    (unblockLocalConv luid conn . tUnqualified)
+    (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv :: UserId -> ConvId -> AppIO (Maybe Conversation)
@@ -593,6 +658,18 @@ getConv usr cnv = do
       paths ["conversations", toByteString' cnv]
         . zUser usr
         . expect [status200, status404]
+
+upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> AppIO UpsertOne2OneConversationResponse
+upsertOne2OneConversation urequest = do
+  response <- galleyRequest POST req
+  case Bilge.statusCode response of
+    200 -> decodeBody "galley" response
+    _ -> throwM internalServerError
+  where
+    req =
+      paths ["i", "conversations", "one2one", "upsert"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
@@ -682,6 +759,20 @@ rmClient u c = do
   where
     expected = [status200, status204, status404]
 
+lookupPushToken :: UserId -> AppIO [Push.PushToken]
+lookupPushToken uid = do
+  g <- view gundeck
+  rsp <-
+    rpc'
+      "gundeck"
+      (g :: Request)
+      ( method GET
+          . paths ["i", "push-tokens", toByteString' uid]
+          . zUser uid
+          . expect2xx
+      )
+  responseJsonMaybe rsp & maybe (pure []) (pure . pushTokens)
+
 -------------------------------------------------------------------------------
 -- Team Management
 
@@ -714,7 +805,7 @@ addTeamMember u tid (minvmeta, role) = do
     _ -> False
   where
     prm = Team.rolePermissions role
-    bdy = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
+    bdy = Team.newNewTeamMember u prm minvmeta
     req =
       paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"
@@ -859,3 +950,17 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+guardLegalhold :: LegalholdProtectee -> UserClients -> ExceptT ClientError AppIO ()
+guardLegalhold protectee userClients = do
+  res <- lift $ galleyRequest PUT req
+  case Bilge.statusCode res of
+    200 -> pure ()
+    403 -> throwE ClientMissingLegalholdConsent
+    404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
+    _ -> throwM internalServerError
+  where
+    req =
+      paths ["i", "guard-legalhold-policy-conflicts"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)

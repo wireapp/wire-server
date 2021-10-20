@@ -1,0 +1,25 @@
+{
+    "hasMore": false,
+    "members": [
+        {
+            "created_at": null,
+            "created_by": null,
+            "legalhold_status": "enabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000000-0000-0000-0000-000100000001"
+        },
+        {
+            "created_at": "1864-05-08T15:41:51.601Z",
+            "created_by": "00000000-0000-0000-0000-000000000000",
+            "legalhold_status": "pending",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0001-0000-000100000000"
+        }
+    ]
+}

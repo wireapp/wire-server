@@ -143,15 +143,16 @@ mkWatcher tbs logHistory = do
 tests :: TestTree
 tests =
   testGroup "thread budgets" $
-    [ testCase "unit test" testThreadBudgets,
+    [ -- flaky test case as described in https://wearezeta.atlassian.net/browse/BE-527
+      -- testCase "unit test" testThreadBudgets,
       testProperty "qc stm (sequential)" propSequential
     ]
 
 ----------------------------------------------------------------------
 -- deterministic unit test
 
-testThreadBudgets :: Assertion
-testThreadBudgets = do
+_testThreadBudgets :: Assertion
+_testThreadBudgets = do
   let timeUnits n = MilliSeconds $ lengthOfTimeUnit * n
       lengthOfTimeUnit = 5 -- if you make this larger, the test will run more slowly, and be
       -- less likely to have timing issues.  if you make it too small, some of the calls to

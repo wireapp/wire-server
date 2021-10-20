@@ -18,35 +18,72 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Types.Conversations.Members
-  ( LocalMember,
-    Member,
-    InternalMember (..),
+  ( RemoteMember (..),
+    remoteMemberToOther,
+    LocalMember (..),
+    localMemberToOther,
+    MemberStatus (..),
+    defMemberStatus,
   )
 where
 
+import Data.Domain
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId)
+import Data.Qualified
 import Imports
-import Wire.API.Conversation.Member (MutedStatus)
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Provider.Service (ServiceRef)
 
-type LocalMember = InternalMember Id.UserId
-
-type Member = InternalMember (MappedOrLocalId Id.U)
-
--- | Internal representation of a conversation member.
-data InternalMember id = Member
-  { memId :: id,
-    memService :: Maybe ServiceRef,
-    -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
-    memOtrMuted :: Bool,
-    memOtrMutedStatus :: Maybe MutedStatus,
-    memOtrMutedRef :: Maybe Text,
-    memOtrArchived :: Bool,
-    memOtrArchivedRef :: Maybe Text,
-    memHidden :: Bool,
-    memHiddenRef :: Maybe Text,
-    memConvRoleName :: RoleName
+-- | Internal (cassandra) representation of a remote conversation member.
+data RemoteMember = RemoteMember
+  { rmId :: Remote UserId,
+    rmConvRoleName :: RoleName
   }
-  deriving stock (Functor, Show)
+  deriving stock (Show)
+
+remoteMemberToOther :: RemoteMember -> OtherMember
+remoteMemberToOther x =
+  OtherMember
+    { omQualifiedId = qUntagged (rmId x),
+      omService = Nothing,
+      omConvRoleName = rmConvRoleName x
+    }
+
+-- | Internal (cassandra) representation of a local conversation member.
+data LocalMember = LocalMember
+  { lmId :: UserId,
+    lmStatus :: MemberStatus,
+    lmService :: Maybe ServiceRef,
+    lmConvRoleName :: RoleName
+  }
+  deriving stock (Show)
+
+localMemberToOther :: Domain -> LocalMember -> OtherMember
+localMemberToOther domain x =
+  OtherMember
+    { omQualifiedId = Qualified (lmId x) domain,
+      omService = lmService x,
+      omConvRoleName = lmConvRoleName x
+    }
+
+data MemberStatus = MemberStatus
+  { msOtrMutedStatus :: Maybe MutedStatus,
+    msOtrMutedRef :: Maybe Text,
+    msOtrArchived :: Bool,
+    msOtrArchivedRef :: Maybe Text,
+    msHidden :: Bool,
+    msHiddenRef :: Maybe Text
+  }
+  deriving stock (Show)
+
+defMemberStatus :: MemberStatus
+defMemberStatus =
+  MemberStatus
+    { msOtrMutedStatus = Nothing,
+      msOtrMutedRef = Nothing,
+      msOtrArchived = False,
+      msOtrArchivedRef = Nothing,
+      msHidden = False,
+      msHiddenRef = Nothing
+    }

@@ -1,0 +1,35 @@
+{
+    "accent_id": -5,
+    "assets": [
+        {
+            "key": "",
+            "type": "image"
+        }
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "R𨙙"
+    },
+    "prekeys": [
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        }
+    ]
+}

@@ -27,12 +27,14 @@
 
 module Test.Brig.Types.User where
 
+import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Imports
-import Test.Brig.Roundtrip (testRoundTrip)
+import Test.Brig.Roundtrip (testRoundTrip, testRoundTripWithSwagger)
 import Test.QuickCheck (Arbitrary (arbitrary))
 import Test.Tasty
+import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (..), EJPDResponseBody (..))
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ roundtripTests
@@ -42,7 +44,10 @@ roundtripTests =
   [ testRoundTrip @ManagedByUpdate,
     testRoundTrip @ReAuthUser,
     testRoundTrip @RichInfoUpdate,
-    testRoundTrip @NewUserScimInvitation
+    testRoundTrip @NewUserScimInvitation,
+    testRoundTripWithSwagger @EJPDRequestBody,
+    testRoundTripWithSwagger @EJPDResponseBody,
+    testRoundTrip @UpdateConnectionsInternal
   ]
 
 instance Arbitrary ManagedByUpdate where

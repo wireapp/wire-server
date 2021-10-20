@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -39,7 +38,7 @@ import Data.Time
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
-import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
+import Wire.API.Util.Aeson (CustomEncoded (CustomEncoded))
 
 data AnyEvent
   = EventMemberJoin (ConversationEvent MemberJoin)

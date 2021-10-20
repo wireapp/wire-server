@@ -1,9 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,31 +21,45 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.Json.Util
-  ( append,
+  ( -- * JSON object utilities
+    append,
     toJSONFieldName,
     (#),
+    ToJSONObject (..),
+
+    -- * UTCTimeMillis
     UTCTimeMillis,
     toUTCTimeMillis,
     fromUTCTimeMillis,
     showUTCTimeMillis,
     readUTCTimeMillis,
-    ToJSONObject (..),
+
+    -- * Base64
     Base64ByteString (..),
+    fromBase64TextLenient,
+    fromBase64Text,
+    toBase64Text,
   )
 where
 
 import qualified Cassandra as CQL
-import Control.Lens (coerced, (%~))
-import Data.Aeson
-import Data.Aeson.Types
-import qualified Data.ByteString.Base64.Lazy as EL
+import Control.Lens (coerced, (%~), (?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.Lazy as B64L
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Conversion as BS
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Fixed
-import Data.Swagger (ToSchema (..))
+import Data.Schema
+import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import Data.Text (pack)
-import qualified Data.Text.Encoding
-import qualified Data.Text.Encoding.Error
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
 import qualified Data.Time.Lens as TL
@@ -57,8 +69,8 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 -- for UTCTime
 import Test.QuickCheck.Instances ()
 
-append :: Pair -> [Pair] -> [Pair]
-append (_, Null) pp = pp
+append :: A.Pair -> [A.Pair] -> [A.Pair]
+append (_, A.Null) pp = pp
 append p pp = p : pp
 {-# INLINE append #-}
 
@@ -66,7 +78,7 @@ infixr 5 #
 
 -- | An operator for building JSON in cases where you want @null@ fields to
 -- disappear from the result instead of being present as @null@s.
-(#) :: Pair -> [Pair] -> [Pair]
+(#) :: A.Pair -> [A.Pair] -> [A.Pair]
 (#) = append
 {-# INLINE (#) #-}
 
@@ -79,7 +91,18 @@ infixr 5 #
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
 newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
   deriving (Eq, Ord, Generic)
-  deriving newtype (ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UTCTimeMillis
+
+instance ToSchema UTCTimeMillis where
+  schema =
+    UTCTimeMillis <$> showUTCTimeMillis
+      .= mkSchema swagger parseJSON (pure . A.String . pack)
+    where
+      swagger =
+        S.NamedSchema (Just "UTCTimeMillis") <$> mempty
+          & S.schema . S.type_ ?~ S.SwaggerString
+          & S.schema . S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq"
+          & S.schema . S.example ?~ "2021-05-12T10:52:02.671Z"
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
@@ -98,11 +121,11 @@ formatUTCTimeMillis = "%FT%T%QZ"
 instance Show UTCTimeMillis where
   showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
 
-instance ToJSON UTCTimeMillis where
-  toJSON = String . pack . showUTCTimeMillis
+instance BS.ToByteString UTCTimeMillis where
+  builder = BB.byteString . cs . show
 
-instance FromJSON UTCTimeMillis where
-  parseJSON = fmap UTCTimeMillis . parseJSON
+instance BS.FromByteString UTCTimeMillis where
+  parser = maybe (fail "UTCTimeMillis") pure . readUTCTimeMillis =<< BS.parser
 
 instance CQL.Cql UTCTimeMillis where
   ctype = CQL.Tagged CQL.TimestampColumn
@@ -116,9 +139,9 @@ instance Arbitrary UTCTimeMillis where
 -- ToJSONObject
 
 class ToJSONObject a where
-  toJSONObject :: a -> Object
+  toJSONObject :: a -> A.Object
 
-instance ToJSONObject Object where
+instance ToJSONObject A.Object where
   toJSONObject = id
 
 -----------------------------------------------------------------------------
@@ -134,8 +157,8 @@ instance ToJSONObject Object where
 --
 -- would generate {To/From}JSON instances where
 -- the field name is "team_name"
-toJSONFieldName :: Options
-toJSONFieldName = defaultOptions {fieldLabelModifier = camelTo2 '_' . dropPrefix}
+toJSONFieldName :: A.Options
+toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . dropPrefix}
   where
     dropPrefix :: String -> String
     dropPrefix = dropWhile (not . isUpper)
@@ -149,9 +172,9 @@ newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: L.ByteStrin
   deriving (Eq, Show, Generic)
 
 instance FromJSON Base64ByteString where
-  parseJSON (String st) = handleError . EL.decode . stToLbs $ st
+  parseJSON (A.String st) = handleError . B64L.decode . stToLbs $ st
     where
-      stToLbs = L.fromChunks . pure . Data.Text.Encoding.encodeUtf8
+      stToLbs = L.fromChunks . pure . Text.encodeUtf8
       handleError =
         either
           (const $ fail "parse Base64ByteString: invalid base64 encoding")
@@ -159,12 +182,27 @@ instance FromJSON Base64ByteString where
   parseJSON _ = fail "parse Base64ByteString: not a string"
 
 instance ToJSON Base64ByteString where
-  toJSON (Base64ByteString lbs) = String . lbsToSt . EL.encode $ lbs
+  toJSON (Base64ByteString lbs) = A.String . lbsToSt . B64L.encode $ lbs
     where
       lbsToSt =
-        Data.Text.Encoding.decodeUtf8With Data.Text.Encoding.Error.lenientDecode
+        Text.decodeUtf8With Text.lenientDecode
           . mconcat
           . L.toChunks
 
 instance IsString Base64ByteString where
   fromString = Base64ByteString . L8.pack
+
+instance Arbitrary Base64ByteString where
+  arbitrary = Base64ByteString <$> arbitrary
+
+--------------------------------------------------------------------------------
+-- Utilities
+
+fromBase64TextLenient :: Text -> ByteString
+fromBase64TextLenient = B64.decodeLenient . Text.encodeUtf8
+
+fromBase64Text :: Text -> Either String ByteString
+fromBase64Text = B64.decode . Text.encodeUtf8
+
+toBase64Text :: ByteString -> Text
+toBase64Text = Text.decodeUtf8 . B64.encode

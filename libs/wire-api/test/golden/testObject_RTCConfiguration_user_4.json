@@ -1,0 +1,67 @@
+{
+    "ice_servers": [
+        {
+            "credential": "",
+            "urls": [
+                "turns:248.187.155.126:1",
+                "turn:166.155.90.230:0?transport=tcp",
+                "turns:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp",
+                "turn:host.name:1?transport=tcp"
+            ],
+            "username": "d=2.v=0.k=0.t=󷁝.r=tj"
+        }
+    ],
+    "sft_servers": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ],
+    "ttl": 2
+}

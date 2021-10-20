@@ -1,0 +1,10 @@
+{
+    "client": {
+        "id": "12"
+    },
+    "last_prekey": {
+        "id": 65535,
+        "key": "?\tvSq"
+    },
+    "status": "enabled"
+}

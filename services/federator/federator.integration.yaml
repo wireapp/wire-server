@@ -1,19 +1,39 @@
-federator:
+federatorInternal:
   host: 0.0.0.0
   port: 8097
+federatorExternal:
+  host: 0.0.0.0
+  port: 8098
+brig:
+  host: 0.0.0.0
+  port: 8082
+galley:
+  host: 0.0.0.0
+  port: 8085
 
 logLevel: Debug
 logNetStrings: false
 
 optSettings:
+  # Filepath to one or more PEM-encoded server certificates to use as a trust
+  # store when making grpc requests to remote backends
+  remoteCAStore: "test/resources/integration-ca.pem"
+
   # Would you like to federate with every wire-server installation ?
   #
-  setFederationStrategy:
+  federationStrategy:
     allowAll:
   #
   # or only with a select set of other wire-server installations?
   #
-  # setFederationStrategy:
+  # federationStrategy:
   #   allowedDomains:
   #     - wire.com
   #     - example.com
+
+  useSystemCAStore: false
+
+  clientCertificate: "test/resources/integration-leaf.pem"
+  clientPrivateKey: "test/resources/integration-leaf-key.pem"
+  dnsHost: "127.0.0.1"
+  dnsPort: 9053

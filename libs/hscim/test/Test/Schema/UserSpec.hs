@@ -25,10 +25,11 @@ module Test.Schema.UserSpec
 where
 
 import Data.Aeson
+import qualified Data.CaseInsensitive as CI
 import Data.Either (isLeft, isRight)
 import Data.Foldable (for_)
 import qualified Data.HashMap.Strict as HM
-import Data.Text (Text, toLower, toUpper)
+import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
@@ -36,9 +37,13 @@ import qualified Hedgehog.Range as Range
 import Lens.Micro
 import Network.URI.Static (uri)
 import Test.Hspec
+import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress)
+import qualified Web.Scim.Class.User as UserClass
 import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..))
+import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..))
+import qualified Web.Scim.Schema.ListResponse as ListResponse
+import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
 import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import Web.Scim.Schema.Schema (Schema (..))
@@ -57,17 +62,6 @@ prop_roundtrip :: Property
 prop_roundtrip = property $ do
   user <- forAll genUser
   tripping user toJSON fromJSON
-
--- TODO(arianvp): Note that this only tests the top-level fields.
--- extrac this to a generic test and also do this for sub-properties
-prop_caseInsensitive :: Property
-prop_caseInsensitive = property $ do
-  user <- forAll genUser
-  let (Object user') = toJSON user
-  let user'' = HM.foldlWithKey' (\u k v -> HM.insert (toUpper k) v u) user' HM.empty
-  let user''' = HM.foldlWithKey' (\u k v -> HM.insert (toLower k) v u) user' HM.empty
-  fromJSON (Object user'') === Success user
-  fromJSON (Object user''') === Success user
 
 type PatchTag = TestTag Text () () UserExtraPatch
 
@@ -136,7 +130,8 @@ spec = do
     it "treats 'null' and '[]' as absence of fields" $
       eitherDecode (encode minimalUserJsonRedundant) `shouldBe` Right minimalUser
     it "allows casing variations in field names" $ do
-      require prop_caseInsensitive
+      require $ mk_prop_caseInsensitive (genUser)
+      require $ mk_prop_caseInsensitive (ListResponse.fromList . (: []) <$> genStoredUser)
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
     it "doesn't require the 'schemas' field" $
       eitherDecode (encode minimalUserJsonNoSchemas) `shouldBe` Right minimalUser
@@ -159,8 +154,20 @@ genName =
     <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
     <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
 
-genUri :: Gen URI
-genUri = Gen.element [URI [uri|https://example.com|]]
+genStoredUser :: Gen (UserClass.StoredUser (TestTag Text () () NoUserExtra))
+genStoredUser = do
+  m <- genMeta
+  i <- Gen.element @_ @Text ["wef", "asdf", "@", "#", "1"]
+  u <- genUser
+  pure $ WithMeta m (WithId i u)
+
+genMeta :: Gen Meta
+genMeta =
+  Meta <$> Gen.enumBounded
+    <*> Gen.element [read "2021-08-23 13:13:31.450140036 UTC", read "2019-01-01 09:55:59 UTC"]
+    <*> Gen.element [read "2021-08-23 13:13:31.450140036 UTC", read "2022-01-01 09:55:59 UTC"]
+    <*> (Gen.element [Weak, Strong] <*> Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> genUri
 
 -- TODO(arianvp) Generate the lists too, but first need better support for SCIM
 -- lists in the first place
@@ -437,7 +444,7 @@ instance FromJSON UserExtraTest where
       Nothing -> pure UserExtraEmpty
       Just (lowercase -> o2) -> UserExtraObject <$> o2 .: "test"
     where
-      lowercase = HM.fromList . map (over _1 toLower) . HM.toList
+      lowercase = HM.fromList . map (over _1 CI.foldCase) . HM.toList
 
 instance ToJSON UserExtraTest where
   toJSON UserExtraEmpty = object []

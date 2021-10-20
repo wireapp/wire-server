@@ -1,0 +1,83 @@
+{
+    "assets": [
+        {
+            "key": "C#􁹦",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "\u0014\n",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "V",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "Y+_",
+            "size": "complete",
+            "type": "image"
+        }
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "𦨴S󷟄󼌫󳛼"
+    },
+    "name": "𭓐}nqW\t𫲡7f",
+    "prekeys": [
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        }
+    ]
+}

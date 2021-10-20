@@ -1,0 +1,81 @@
+{
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "\n󽸵&3掠~\u0008[\u0014o8􉉈𑨬嘦}󴣉󽎰-\n": "=\u001b;>𮤓EĒ\u0008󳴚p􉳎9𖫓,\u0016F󰣰􃝛$",
+        "/`𣠮/}砲𝂜󷑛Qr􃲱>p󸯶󹬮$\nt6󰪦􍕡Y}\u0010\u0010􌤘,": "▩\u000c",
+        ">-E[?l􆄍\u0013h\u0003A$u{p|-W97u\u0017f\u0016": "#\u0001􌈜/9󻱾EϺH\u0012P\u0010",
+        "G7t\u0018c": "~*\rm",
+        "Z􈔍;}3\u001c": "\u0000𑖂􎃧󲦟@󻛪\u000f@𢥺@",
+        "^􍟿󴆙`": "\u0012\u001cMl",
+        "j\u0012\u00158a_": "g<􆵪2FV\u0004=[!{U`",
+        "o\"𫠯@}𘕾C􎃩{!)󴭂\t,󼍕Q,l󹊎󽆬􎪱\\N攆Cq\r\u0001Q": "ᖀ:\u001eJN⪟C9JoA)i^\u0005]vZ=􎲴p􌀏K\u0019𪥯nb\u0015􆟯",
+        "s𗔴(󷴖𛈄\u001fi󵠋Io🖻q1%l/\u00101e\u0003": "\u0013\u0012ꅔ聈M4ri4K=zA",
+        "x𫐇s": "\n\u0008G𣘓\u000e\u0019\u00055%𓍶6Gz!Wj/i\u0011qk􉑡U󹱒",
+        "{\u001duHh1c": "wwMX@\u0010t\u0000􇩿\u0010\u0014'/Qb􅗭󽄣󰲩B\u001az",
+        "𧭜⠶*2􊗰󷭦\u000f\u000b:": "B􁌚J;",
+        "󻪋)􋽊A+r𖧃0fHG쁫iH\u0019󽤔\rl%u'\u000b􃛹\t9𦇮Ud𦝾": "􎙤0헭􆞇呐󷈘A𭗌dF\u0012g\u0013a\u0015|\u0008",
+        "􈲕p-\u0010\u0013𤊖\u0006􈖺|\u0000e}yY": "𥴨L+j$󹯗}{뼃\t_=𓎜ズ좇[\u0018\n𪥕i𐬢Y)󲹕"
+    },
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "fields": [
+                {
+                    "type": "o\"𫠯@}𘕾C􎃩{!)󴭂\t,󼍕Q,l󹊎󽆬􎪱\\N攆Cq\r\u0001Q",
+                    "value": "ᖀ:\u001eJN⪟C9JoA)i^\u0005]vZ=􎲴p􌀏K\u0019𪥯nb\u0015􆟯"
+                },
+                {
+                    "type": "^􍟿󴆙`",
+                    "value": "\u0012\u001cMl"
+                },
+                {
+                    "type": "{\u001duHh1c",
+                    "value": "wwMX@\u0010t\u0000􇩿\u0010\u0014'/Qb􅗭󽄣󰲩B\u001az"
+                },
+                {
+                    "type": "󻪋)􋽊A+r𖧃0fHG쁫iH\u0019󽤔\rl%u'\u000b􃛹\t9𦇮Ud𦝾",
+                    "value": "􎙤0헭􆞇呐󷈘A𭗌dF\u0012g\u0013a\u0015|\u0008"
+                },
+                {
+                    "type": "x𫐇s",
+                    "value": "\n\u0008G𣘓\u000e\u0019\u00055%𓍶6Gz!Wj/i\u0011qk􉑡U󹱒"
+                },
+                {
+                    "type": "/`𣠮/}砲𝂜󷑛Qr􃲱>p󸯶󹬮$\nt6󰪦􍕡Y}\u0010\u0010􌤘,",
+                    "value": "▩\u000c"
+                },
+                {
+                    "type": "G7t\u0018c",
+                    "value": "~*\rm"
+                },
+                {
+                    "type": ">-E[?l􆄍\u0013h\u0003A$u{p|-W97u\u0017f\u0016",
+                    "value": "#\u0001􌈜/9󻱾EϺH\u0012P\u0010"
+                },
+                {
+                    "type": "\n󽸵&3掠~\u0008[\u0014o8􉉈𑨬嘦}󴣉󽎰-\n",
+                    "value": "=\u001b;>𮤓EĒ\u0008󳴚p􉳎9𖫓,\u0016F󰣰􃝛$"
+                },
+                {
+                    "type": "𧭜⠶*2􊗰󷭦\u000f\u000b:",
+                    "value": "B􁌚J;"
+                },
+                {
+                    "type": "s𗔴(󷴖𛈄\u001fi󵠋Io🖻q1%l/\u00101e\u0003",
+                    "value": "\u0013\u0012ꅔ聈M4ri4K=zA"
+                },
+                {
+                    "type": "j\u0012\u00158a_",
+                    "value": "g<􆵪2FV\u0004=[!{U`"
+                },
+                {
+                    "type": "􈲕p-\u0010\u0013𤊖\u0006􈖺|\u0000e}yY",
+                    "value": "𥴨L+j$󹯗}{뼃\t_=𓎜ズ좇[\u0018\n𪥕i𐬢Y)󲹕"
+                },
+                {
+                    "type": "Z􈔍;}3\u001c",
+                    "value": "\u0000𑖂􎃧󲦟@󻛪\u000f@𢥺@"
+                }
+            ],
+            "version": 0
+        }
+    }
+}

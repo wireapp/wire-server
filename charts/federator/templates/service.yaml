@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: federator
+  labels:
+    wireService: federator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: internal
+      port: {{ .Values.service.internalFederatorPort }}
+      targetPort: {{ .Values.service.internalFederatorPort }}
+
+    - name: federator-ext
+      port: {{ .Values.service.externalFederatorPort }}
+      targetPort: {{ .Values.service.externalFederatorPort }}
+  selector:
+    wireService: federator
+    release: {{ .Release.Name }}

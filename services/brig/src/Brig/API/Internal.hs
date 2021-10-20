@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -19,6 +17,10 @@
 
 module Brig.API.Internal
   ( sitemap,
+    servantSitemap,
+    swaggerDocsAPI,
+    BrigIRoutes.API,
+    BrigIRoutes.SwaggerDocsAPI,
   )
 where
 
@@ -30,7 +32,10 @@ import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
 import Brig.App
+import qualified Brig.Data.Client as Data
+import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
+import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -38,16 +43,20 @@ import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
+import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
+import qualified Brig.User.EJPD
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Conversion as List
 import Data.Handle (Handle)
 import Data.Id as Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Qualified
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports hiding (head)
@@ -57,31 +66,54 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.Swagger.Internal.Orphans ()
+import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import Wire.API.ErrorDescription
+import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
+import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
+import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
--- Sitemap
+-- Sitemap (servant)
+
+servantSitemap :: ServerT BrigIRoutes.API Handler
+servantSitemap =
+  Brig.User.EJPD.ejpdRequest
+    :<|> getAccountFeatureConfig
+    :<|> putAccountFeatureConfig
+    :<|> deleteAccountFeatureConfig
+    :<|> getConnectionsStatusUnqualified
+    :<|> getConnectionsStatus
+
+-- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
+getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
+getAccountFeatureConfig uid =
+  lift (Data.lookupFeatureConferenceCalling uid)
+    >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
+
+putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
+putAccountFeatureConfig uid status =
+  lift $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
+
+deleteAccountFeatureConfig :: UserId -> Handler NoContent
+deleteAccountFeatureConfig uid =
+  lift $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
+
+swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
+swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
+
+---------------------------------------------------------------------------
+-- Sitemap (wai-route)
 
 sitemap :: Routes a Handler ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to the user and all users connecting with
-  -- - ConvCreate event to the user for each connect conversation that did not exist before
-  --   (via galley)
-  -- - ConvConnect event to the user for each connection that was not already accepted by the
-  --   other
-  -- - MemberJoin event to the user and other for each connection that was not already
-  --   accepted by the other
-  post "/i/users/:uid/auto-connect" (continue autoConnectH) $
-    accept "application" "json"
-      .&. capture "uid"
-      .&. opt zauthConnId
-      .&. jsonRequest @UserSet
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
@@ -104,13 +136,10 @@ sitemap = do
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
     capture "uid"
-  get "/i/users/connections-status" (continue deprecatedGetConnectionsStatusH) $
-    query "users"
-      .&. opt (query "filter")
-  post "/i/users/connections-status" (continue getConnectionsStatusH) $
+
+  put "/i/connections/connection-update" (continue updateConnectionInternalH) $
     accept "application" "json"
-      .&. jsonRequest @ConnectionsStatusRequest
-      .&. opt (query "filter")
+      .&. jsonRequest @UpdateConnectionsInternal
 
   -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
   -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
@@ -203,10 +232,17 @@ sitemap = do
   get "/i/users/:uid/rich-info" (continue getRichInfoH) $
     capture "uid"
 
+  get "/i/users/rich-info" (continue getRichInfoMultiH) $
+    param "ids"
+
   head "/i/users/handles/:handle" (continue checkHandleInternalH) $
     capture "handle"
 
   post "/i/clients" (continue internalListClientsH) $
+    accept "application" "json"
+      .&. jsonRequest @UserSet
+
+  post "/i/clients/full" (continue internalListFullClientsH) $
     accept "application" "json"
       .&. jsonRequest @UserSet
 
@@ -269,23 +305,16 @@ internalListClientsH (_ ::: req) = do
 
 internalListClients :: UserSet -> AppIO UserClients
 internalListClients (UserSet usrs) = do
-  UserClients . Map.mapKeys makeIdOpaque . Map.fromList
-    <$> (API.lookupUsersClientIds $ Set.toList usrs)
+  UserClients . Map.fromList
+    <$> API.lookupUsersClientIds (Set.toList usrs)
 
-autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
-autoConnectH (_ ::: uid ::: conn ::: req) = do
-  json <$> (autoConnect uid conn =<< parseJsonBody req)
+internalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListFullClientsH (_ ::: req) =
+  json <$> (lift . internalListFullClients =<< parseJsonBody req)
 
-autoConnect :: UserId -> Maybe ConnId -> UserSet -> Handler [UserConnection]
-autoConnect uid conn (UserSet to) = do
-  let num = Set.size to
-  when (num < 1) $
-    throwStd $
-      badRequest "No users given for auto-connect."
-  when (num > 25) $
-    throwStd $
-      badRequest "Too many users given for auto-connect (> 25)."
-  API.autoConnect uid to conn !>> connError
+internalListFullClients :: UserSet -> AppIO UserClientsFull
+internalListFullClients (UserSet usrs) =
+  UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
 createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
 createUserNoVerifyH (_ ::: req) = do
@@ -316,23 +345,25 @@ deleteUserNoVerifyH uid = do
 
 deleteUserNoVerify :: UserId -> Handler ()
 deleteUserNoVerify uid = do
-  void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
+  void $
+    lift (API.lookupAccount uid)
+      >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email >>= \case
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> Handler ChangeEmailResponse
-changeSelfEmailMaybeSend u ActuallySendEmail email = do
-  API.changeSelfEmail u email
-changeSelfEmailMaybeSend u DoNotSendEmail email = do
-  API.changeEmail u email !>> changeEmailError >>= \case
+changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> Handler ChangeEmailResponse
+changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
+  API.changeSelfEmail u email allowScim
+changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
+  API.changeEmail u email allowScim !>> changeEmailError >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
@@ -417,23 +448,34 @@ getAccountStatusH (_ ::: usr) = do
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
-getConnectionsStatusH ::
-  JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->
-  Handler Response
-getConnectionsStatusH (_ ::: req ::: flt) = do
-  body <- parseJsonBody req
-  json <$> lift (getConnectionsStatus body flt)
-
-getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> AppIO [ConnectionStatus]
-getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
-  r <- API.lookupConnectionStatus csrFrom csrTo
+getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> Handler [ConnectionStatus]
+getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
+  r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
+getConnectionsStatus :: ConnectionsStatusRequestV2 -> Handler [ConnectionStatusV2]
+getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
+  loc <- qualifyLocal ()
+  conns <- lift $ case mtos of
+    Nothing -> Data.lookupAllStatuses =<< qualifyLocal froms
+    Just tos -> do
+      let getStatusesForOneDomain = foldQualified loc (Data.lookupLocalConnectionStatuses froms) (Data.lookupRemoteConnectionStatuses froms)
+      concat <$> mapM getStatusesForOneDomain (bucketQualified tos)
+  pure $ maybe conns (filterByRelation conns) mrel
+  where
+    filterByRelation l rel = filter ((== rel) . csv2Status) l
+
 revokeIdentityH :: Either Email Phone -> Handler Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
+  return $ setStatus status200 empty
+
+updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> Handler Response
+updateConnectionInternalH (_ ::: req) = do
+  updateConn <- parseJsonBody req
+  API.updateConnectionInternal updateConn !>> connError
   return $ setStatus status200 empty
 
 checkBlacklistH :: Either Email Phone -> Handler Response
@@ -477,14 +519,18 @@ updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
   success <- lift $ Data.updateSSOId uid (Just ssoid)
   if success
-    then return empty
+    then do
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
 deleteSSOIdH :: UserId ::: JSON -> Handler Response
 deleteSSOIdH (uid ::: _) = do
   success <- lift $ Data.updateSSOId uid Nothing
   if success
-    then return empty
+    then do
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
 updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
@@ -499,18 +545,25 @@ updateRichInfoH (uid ::: _ ::: req) = do
 
 updateRichInfo :: UserId -> RichInfoUpdate -> Handler ()
 updateRichInfo uid rup = do
-  let RichInfoAssocList richInfo = normalizeRichInfoAssocList . riuRichInfo $ rup
+  let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
   maxSize <- setRichInfoLimit <$> view settings
-  when (richInfoSize (RichInfo (RichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
+  when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
-  lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)
+  lift $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
 getRichInfoH :: UserId -> Handler Response
 getRichInfoH uid = json <$> getRichInfo uid
 
 getRichInfo :: UserId -> Handler RichInfo
-getRichInfo uid = RichInfo . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo uid)
+getRichInfo uid = RichInfo . fromMaybe mempty <$> lift (API.lookupRichInfo uid)
+
+getRichInfoMultiH :: List UserId -> Handler Response
+getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)
+
+getRichInfoMulti :: [UserId] -> Handler [(UserId, RichInfo)]
+getRichInfoMulti uids =
+  lift (API.lookupRichInfoMultiUsers uids)
 
 updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> Handler Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
@@ -518,14 +571,14 @@ updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBod
 updateHandle :: UserId -> HandleUpdate -> Handler ()
 updateHandle uid (HandleUpdate handleUpd) = do
   handle <- validateHandle handleUpd
-  API.changeHandle uid Nothing handle !>> changeHandleError
+  API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
 updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> Handler Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
 
 updateUserName :: UserId -> NameUpdate -> Handler ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd invalidUser) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -534,8 +587,8 @@ updateUserName uid (NameUpdate nameUpd) = do
             uupAccentId = Nothing
           }
   lift (Data.lookupUser WithPendingInvitations uid) >>= \case
-    Just _ -> lift $ API.updateUser uid Nothing uu
-    Nothing -> throwStd invalidUser
+    Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
+    Nothing -> throwStd (errorDescriptionTypeToWai @InvalidUser)
 
 checkHandleInternalH :: Text -> Handler Response
 checkHandleInternalH =
@@ -547,20 +600,7 @@ checkHandleInternalH =
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
-  return $ json $ (UserIds contacts)
-
--- Deprecated
-
--- Deprecated and to be removed after new versions of brig and galley are
--- deployed. Reason for deprecation: it returns N^2 things (which is not
--- needed), it doesn't scale, and it accepts everything in URL parameters,
--- which doesn't work when the list of users is long.
-deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
-deprecatedGetConnectionsStatusH (users ::: flt) = do
-  r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
-  return . json $ maybe r (filterByRelation r) flt
-  where
-    filterByRelation l rel = filter ((== rel) . csStatus) l
+  return $ json $ UserIds contacts
 
 -- Utilities
 

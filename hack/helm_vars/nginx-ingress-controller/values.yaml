@@ -1,0 +1,10 @@
+nginx-ingress:
+  controller:
+    kind: DaemonSet
+    service:
+      type: NodePort
+      externalTrafficPolicy: Local
+      nodePorts:
+        # choose a random free port
+        https: null
+        http: null

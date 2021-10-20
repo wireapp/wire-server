@@ -1,0 +1,45 @@
+{
+    "has_more": true,
+    "services": [
+        {
+            "assets": [],
+            "description": "",
+            "enabled": true,
+            "id": "00000000-0000-0000-0000-000000000001",
+            "name": "𩆼\u001fA4𩃐󵻙bx𨤋G=7tdW5UW\\𭱅8\u0003h𦙏y)YiF􇫐 \u0018𧹨\u001a*nuV=@L󾝫c苾",
+            "provider": "00000000-0000-0001-0000-000100000000",
+            "summary": "",
+            "tags": []
+        },
+        {
+            "assets": [],
+            "description": "",
+            "enabled": false,
+            "id": "00000000-0000-0001-0000-000000000000",
+            "name": "\"\u000c󽑺\u0014\u0007\u000cdP]%k",
+            "provider": "00000001-0000-0001-0000-000100000001",
+            "summary": "",
+            "tags": []
+        },
+        {
+            "assets": [],
+            "description": "",
+            "enabled": true,
+            "id": "00000001-0000-0001-0000-000100000001",
+            "name": "vDj!\u0015\u000c&𗡼`􊪥􅔏x]𩔠\u000f\u001e𫔁\u001eF^N\u0016uW\t)\u0017\u000fxB\u0017䬊yr􃤮𪄹\u0014􌴠#J\u0008k`t&}󻆝\u0007AhUOh&>:V3᪨ED`S𤱈T\u000f𐂸똧^^B􈍎󽫺􉟍xy醤摆\u0012o\u001f􃔀\u000fr*]𓃇cP⛱E􁓂|\u001aWlhtY\u000eH\u000c􆛫\\A!\u0008+\u000cg肮a\u000fG𪕩\n<\u0018𧶋r\u0001l",
+            "provider": "00000000-0000-0001-0000-000000000000",
+            "summary": "",
+            "tags": []
+        },
+        {
+            "assets": [],
+            "description": "",
+            "enabled": false,
+            "id": "00000001-0000-0000-0000-000000000000",
+            "name": "$􊋡&?f6󿔑\u0008𥄉/:󸢾-\u001d9®`_b􆃾\u0000𩕳Y;xA?8!22*K\u0012\u0012~\u0016􀖐Pg\u0007\u0013#𣁃\u0010􄴉􊭊ⅸ6𦵒",
+            "provider": "00000001-0000-0001-0000-000100000000",
+            "summary": "",
+            "tags": []
+        }
+    ]
+}

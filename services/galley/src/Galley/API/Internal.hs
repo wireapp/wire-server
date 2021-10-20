@@ -17,6 +17,9 @@
 
 module Galley.API.Internal
   ( sitemap,
+    servantSitemap,
+    InternalApi,
+    ServantAPI,
     deleteLoop,
     safeForever,
   )
@@ -25,26 +28,29 @@ where
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch, throwM)
-import Data.Aeson (FromJSON, ToJSON)
-import Data.ByteString.Conversion (toByteString')
+import Control.Monad.Catch (MonadCatch)
+import Data.Data (Proxy (Proxy))
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
-import Data.List.NonEmpty (nonEmpty)
-import Data.List1 (List1, list1, maybeList1)
+import Data.List1 (maybeList1)
+import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
+import Data.Time
+import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import qualified Galley.API.Error as Error
+import Galley.API.Error (throwErrorDescriptionType)
+import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
+import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import qualified Galley.API.One2One as One2One
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember)
+import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -52,7 +58,8 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
-import Galley.Types.Teams
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
+import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
@@ -60,17 +67,238 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)
 import qualified Network.Wai.Predicate as P
-import Network.Wai.Routing hiding (route)
+import Network.Wai.Routing hiding (route, toList)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
+import Servant.API hiding (JSON)
+import qualified Servant.API as Servant
+import Servant.API.Generic
+import Servant.Server
+import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
+import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
+import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
+import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
+import Wire.API.Routes.Public (ZOptConn, ZUser)
+import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
+
+data InternalApi routes = InternalApi
+  { iStatusGet ::
+      routes
+        :- "i"
+        :> "status"
+        :> Get '[Servant.JSON] NoContent,
+    iStatusHead ::
+      routes
+        :- "i"
+        :> "status"
+        :> Verb 'HEAD 200 '[Servant.JSON] NoContent,
+    -- Team Feature Flag API (internal) -----------------------------------
+    --
+    -- Configuring some features should only be possible internally.
+    -- Viewing the config for features should be allowed for any admin.
+    iTeamFeatureStatusSSOGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureSSO,
+    iTeamFeatureStatusSSOPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureSSO,
+    iTeamFeatureStatusLegalHoldGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureLegalHold,
+    iTeamFeatureStatusLegalHoldPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureLegalHold,
+    iTeamFeatureStatusSearchVisibilityGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusValidateSAMLEmailsGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusDigitalSignaturesGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusAppLockGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
+    iTeamFeatureStatusAppLockPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
+    iTeamFeatureStatusFileSharingGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureFileSharing,
+    iTeamFeatureStatusFileSharingPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
+    iTeamFeatureStatusClassifiedDomainsGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains,
+    iTeamFeatureStatusConferenceCallingPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
+    iTeamFeatureStatusConferenceCallingGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members for all conversations the user was in
+    iDeleteUser ::
+      routes
+        :- Summary
+             "Remove a user from their teams and conversations and erase their clients"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "user"
+        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] (),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to self, if conversation did not exist before
+    -- - ConvConnect event to self, if other didn't join the connect conversation before
+    iConnect ::
+      routes
+        :- Summary "Create a connect conversation (deprecated)"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "conversations"
+        :> "connect"
+        :> ReqBody '[Servant.JSON] Connect
+        :> ConversationVerb,
+    iUpsertOne2OneConversation ::
+      routes
+        :- Summary "Create or Update a connect or one2one conversation."
+        :> "i"
+        :> "conversations"
+        :> "one2one"
+        :> "upsert"
+        :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
+        :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
+  }
+  deriving (Generic)
+
+type ServantAPI = ToServantApi InternalApi
+
+type IFeatureStatusGet featureName =
+  Summary (AppendSymbol "Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+type IFeatureStatusPut featureName =
+  Summary (AppendSymbol "Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+-- | A type for a GET endpoint for a feature with a deprecated path
+type IFeatureStatusDeprecatedGet featureName =
+  Summary (AppendSymbol "[deprecated] Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.DeprecatedFeatureName featureName
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+-- | A type for a PUT endpoint for a feature with a deprecated path
+type IFeatureStatusDeprecatedPut featureName =
+  Summary (AppendSymbol "[deprecated] Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.DeprecatedFeatureName featureName
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+servantSitemap :: ServerT ServantAPI Galley
+servantSitemap =
+  genericServerT $
+    InternalApi
+      { iStatusGet = pure NoContent,
+        iStatusHead = pure NoContent,
+        iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
+        iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal,
+        iTeamFeatureStatusLegalHoldGet = iGetTeamFeature @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
+        iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal,
+        iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusValidateSAMLEmailsGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
+        iTeamFeatureStatusDigitalSignaturesGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
+        iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
+        iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
+        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        iDeleteUser = rmUser,
+        iConnect = Create.createConnectConversation,
+        iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
+      }
+
+iGetTeamFeature ::
+  forall a.
+  Public.KnownTeamFeatureName a =>
+  (Features.GetFeatureInternalParam -> Galley (Public.TeamFeatureStatus a)) ->
+  TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
+
+iPutTeamFeature ::
+  forall a.
+  Public.KnownTeamFeatureName a =>
+  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  Galley (Public.TeamFeatureStatus a)
+iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
 sitemap :: Routes a Galley ()
 sitemap = do
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true
-
   -- Conversation API (internal) ----------------------------------------
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
@@ -88,14 +316,6 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to self, if conversation did not exist before
-  -- - ConvConnect event to self, if other didn't join the connect conversation before
-  post "/i/conversations/connect" (continue Create.createConnectConversationH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @Connect
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -169,18 +389,6 @@ sitemap = do
   get "/i/teams/:tid/members/check" (continue Teams.canUserJoinTeamH) $
     capture "tid"
 
-  -- Team Feature Flag API (internal) -----------------------------------
-  --
-  -- Enabling this should only be possible internally.
-  -- Viewing the status should be allowed for any admin.
-
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
-
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
@@ -200,11 +408,6 @@ sitemap = do
   delete "/i/clients/:client" (continue Clients.rmClientH) $
     zauthUserId
       .&. capture "client"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members for all conversations the user was in
-  delete "/i/user" (continue rmUserH) $
-    zauthUserId .&. opt zauthConnId
 
   post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service
@@ -243,51 +446,79 @@ sitemap = do
       .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
-rmUserH :: UserId ::: Maybe ConnId -> Galley Response
-rmUserH (user ::: conn) = do
-  empty <$ rmUser user conn
+  put "/i/guard-legalhold-policy-conflicts" (continue guardLegalholdPolicyConflictsH) $
+    jsonRequest @GuardLegalholdPolicyConflicts
+      .&. accept "application" "json"
+
+  put "/i/legalhold/whitelisted-teams/:tid" (continue setTeamLegalholdWhitelistedH) $
+    capture "tid"
+
+  delete "/i/legalhold/whitelisted-teams/:tid" (continue unsetTeamLegalholdWhitelistedH) $
+    capture "tid"
+
+  get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
+    capture "tid"
 
 rmUser :: UserId -> Maybe ConnId -> Galley ()
 rmUser user conn = do
-  let n = unsafeRange 100 :: Range 1 100 Int32
-  tids <- Data.teamIdsForPagination user Nothing (rcast n)
+  let n = toRange (Proxy @100) :: Range 1 100 Int32
+      nRange1000 = rcast n :: Range 1 1000 Int32
+  tids <- Data.teamIdsForPagination user Nothing n
   leaveTeams tids
-  cids <- Data.conversationIdRowsForPagination user Nothing (rcast n)
-  let u = list1 user []
-  leaveConversations u cids
+  allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
+  lusr <- qualifyLocal user
+  goConvPages lusr nRange1000 allConvIds
   Data.eraseClients user
   where
+    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
+    goConvPages lusr range page = do
+      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
+      leaveLocalConversations localConvs
+      leaveRemoteConversations lusr remoteConvs
+      when (mtpHasMore page) $ do
+        let nextState = mtpPagingState page
+            usr = tUnqualified lusr
+            nextQuery = GetPaginatedConversationIds (Just nextState) range
+        newCids <- Query.conversationIdsPageFrom usr nextQuery
+        goConvPages lusr range newCids
+
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveConversations :: List1 UserId -> Cql.Page (Data.MappedOrLocalIdRow Id.C) -> Galley ()
-    leaveConversations u ids = do
-      (localConvIds, remoteConvIds) <-
-        partitionMappedOrLocalIds <$> traverse Data.toMappedOrLocalId (Cql.result ids)
-      -- FUTUREWORK(federation, #1275): leave remote conversations.
-      -- If we could just get all conversation IDs at once and then leave conversations
-      -- in batches, it would make everything much easier.
-      for_ (nonEmpty remoteConvIds) $
-        throwM . Error.federationNotImplemented
-      cc <- Data.conversations localConvIds
+
+    leaveLocalConversations :: [ConvId] -> Galley ()
+    leaveLocalConversations ids = do
+      localDomain <- viewFederationDomain
+      cc <- Data.localConversations ids
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> Data.removeMember (Local user) (Data.convId c) >> return Nothing
-        ConnectConv -> Data.removeMember (Local user) (Data.convId c) >> return Nothing
+        One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
+        ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
-          | Local user `isMember` Data.convMembers c -> do
-            e <- Data.removeMembers c user (Local <$> u)
+          | user `isMember` Data.convLocalMembers c -> do
+            Data.removeLocalMembersFromLocalConv (Data.convId c) (pure user)
+            now <- liftIO getCurrentTime
+            let e =
+                  Event
+                    MemberLeave
+                    (Qualified (Data.convId c) localDomain)
+                    (Qualified user localDomain)
+                    now
+                    (EdMembersLeave (QualifiedUserIdList [Qualified user localDomain]))
             return $
-              (Intra.newPush ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
       for_
         (maybeList1 (catMaybes pp))
         Intra.push
-      unless (null $ Cql.result ids) $
-        leaveConversations u =<< Cql.liftClient (Cql.nextPage ids)
+
+    leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
+    leaveRemoteConversations lusr cids =
+      for_ cids $ \cid ->
+        Update.removeMemberFromRemoteConv cid lusr Nothing (qUntagged lusr)
 
 deleteLoop :: Galley ()
 deleteLoop = do
@@ -310,41 +541,9 @@ safeForever funName action =
       err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
-mkFeatureGetAndPutRoute ::
-  forall (a :: Public.TeamFeatureName) r.
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
-  Routes r Galley ()
-mkFeatureGetAndPutRoute getter setter = do
-  let featureName = Public.knownTeamFeatureName @a
-
-  let getHandler :: TeamId ::: JSON -> Galley Response
-      getHandler (tid ::: _) =
-        json <$> Features.getFeatureStatus @a getter DontDoAuth tid
-
-  let mkGetRoute name =
-        get ("/i/teams/:tid/features/" <> name) (continue getHandler) $
-          capture "tid"
-            .&. accept "application" "json"
-
-  mkGetRoute (toByteString' featureName)
-  mkGetRoute `mapM_` Public.deprecatedFeatureName featureName
-
-  let putHandler :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-      putHandler (tid ::: req ::: _) = do
-        status <- fromJsonBody req
-        res <- Features.setFeatureStatus @a setter DontDoAuth tid status
-        pure $ (json res) & Network.Wai.Utilities.setStatus status200
-
-  let mkPutRoute name =
-        put ("/i/teams/:tid/features/" <> name) (continue putHandler) $
-          capture "tid"
-            .&. jsonRequest @(Public.TeamFeatureStatus a)
-            .&. accept "application" "json"
-
-  mkPutRoute (toByteString' featureName)
-  mkPutRoute `mapM_` Public.deprecatedFeatureName featureName
+guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley Response
+guardLegalholdPolicyConflictsH (req ::: _) = do
+  glh <- fromJsonBody req
+  guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+    >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
+  pure $ Network.Wai.Utilities.setStatus status200 empty

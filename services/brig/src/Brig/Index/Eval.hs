@@ -44,10 +44,10 @@ runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es -> do
     e <- initIndex es
-    runIndexIO e $ uncurry createIndexIfNotPresent $ mkCreateIndexSettings es
+    runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
   Reset es -> do
     e <- initIndex es
-    runIndexIO e $ uncurry resetIndex $ mkCreateIndexSettings es
+    runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas -> do
     e <- initIndex es
     c <- initDb cas

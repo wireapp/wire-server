@@ -328,7 +328,6 @@ main = do
                        -- brig.excluded_phones
                        --   PRIMARY KEY (mapped_id)
                        --   FUTUREWORK: is mapped_id a user id?
-                       mkChunk' "brig" "id_mapping" "[UserId]" "uids" "mapped_id in ?",
                        -- brig.invitation
                        --   mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
                        -- brig.invitation_info
@@ -439,16 +438,17 @@ main = do
                        -- spar.idp_raw_metadata
                        -- spar.issuer_idp
                        -- spar.meta
-                       -- spar.scim_external_ids
-                       --   PRIMARY KEY (external :: text) -- FUTUREWORK: can we do better than full table scan?
-                       mkChunk' "spar" "scim_external_ids" "[Int32]" "external" "external in ?",
+                       -- spar.scim_external
+                       mkChunkTeam "spar" "scim_external",
                        -- spar.scim_user_times
                        --   PRIMARY KEY (uid)
-                       mkChunk' "spar" "scim_user_times" "[UserId]" "uids" "uid in ?"
+                       mkChunk' "spar" "scim_user_times" "[UserId]" "uids" "uid in ?",
                        -- spar.team_idp
                        -- spar.team_provisioning_by_team
                        -- spar.team_provisioning_by_token
                        -- spar.user
+                       mkChunk' "spar" "user" "[Text]" "issuer" "issuer in ?"
+                       -- PRIMARY KEY (issuer, sso_id)
                        -- spar.verdict
                      ]
               ]

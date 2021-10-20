@@ -1,0 +1,44 @@
+replicaCount: 3
+
+image:
+  repository: quay.io/wire/federator
+  tag: do-not-use
+
+service:
+  internalFederatorPort: 8080
+  externalFederatorPort: 8081
+
+tls:
+  # if enabled, federator will get its client certificate and private key from
+  # the secret used by the federator ingress
+  useSharedFederatorSecret: false
+
+resources:
+  # FUTUREWORK: come up with numbers which didn't appear out of thin air (See
+  # https://wearezeta.atlassian.net/browse/BE-518)
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+config:
+  logLevel: Debug
+  logFormat: JSON
+  optSettings:
+    # Defaults to using system CA store in the federator image for making
+    # connections to remote federators.
+    # A custom CA certificate can be provided by specifying
+    #   federator.remoteCAContents
+    # e.g. from a pem file myca.pem:
+    #   { echo "federator:"; echo "  remoteCAContents: |"; sed -e 's/^/    /' myca.pem; } > myca.yaml
+    # then use '-f myca.yaml' as additional flag to your helm commands.
+    #
+    # Using custom CA doesn't automatically disable system CA store, it should
+    # be disabled explicitly by setting useSystemCAStore to false.
+    #
+    # A client certificate and corresponding private key can be specified
+    # similarly to a custom CA store.
+    useSystemCAStore: true
+    federationStrategy:
+      allowedDomains: []

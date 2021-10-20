@@ -1,0 +1,33 @@
+defaults:
+  local: ../../../package-defaults.yaml
+name: repair-handles
+version: '1.0.0'
+synopsis: Repair inconsistencies between tables user and user_handle
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2018 Wire Swiss GmbH
+license: AGPL-3
+
+dependencies:
+- base
+- brig
+- cassandra-util
+- conduit
+- containers
+- imports
+- lens
+- mtl
+- optparse-applicative
+- string-conversions
+- text
+- tinylog
+- types-common
+- uuid
+
+executables:
+  repair-handles:
+    main: Main.hs
+    source-dirs:
+      - repair-handles
+      - src

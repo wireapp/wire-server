@@ -1,0 +1,55 @@
+{
+    "documents": [
+        {
+            "accent_id": null,
+            "created_at": null,
+            "email": "@",
+            "handle": "",
+            "id": "00000001-0000-0000-0000-000100000001",
+            "managed_by": "scim",
+            "name": "",
+            "role": "owner",
+            "saml_idp": "",
+            "team": "00000001-0000-0000-0000-000100000001"
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T13:46:22.701Z",
+            "email": "@",
+            "handle": null,
+            "id": "00000000-0000-0000-0000-000000000000",
+            "managed_by": "wire",
+            "name": "",
+            "role": "owner",
+            "saml_idp": null,
+            "team": null
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T09:25:11.685Z",
+            "email": "@",
+            "handle": "",
+            "id": "00000000-0000-0000-0000-000000000000",
+            "managed_by": "wire",
+            "name": "",
+            "role": null,
+            "saml_idp": "",
+            "team": "00000001-0000-0000-0000-000100000001"
+        },
+        {
+            "accent_id": 0,
+            "created_at": "1864-05-09T11:37:20.763Z",
+            "email": "@",
+            "handle": "",
+            "id": "00000000-0000-0001-0000-000000000000",
+            "managed_by": "wire",
+            "name": "",
+            "role": null,
+            "saml_idp": "",
+            "team": "00000000-0000-0001-0000-000000000001"
+        }
+    ],
+    "found": 7,
+    "returned": 2,
+    "took": -7
+}

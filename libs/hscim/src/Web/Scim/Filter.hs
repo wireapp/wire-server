@@ -49,6 +49,7 @@ module Web.Scim.Filter
     pSubAttr,
     pFilter,
     rAttrPath,
+    rCompareOp,
     rValuePath,
     rSubAttr,
     compareStr,

@@ -1,0 +1,41 @@
+{
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "\u000c&3გ$ur𫚞oQ󹄏o\u0004": "~\u0017􈫞􏸍LR",
+        "1=D=\u0000v𬴂jD\u0005O(": "\u000bAlLMb\u0018vvn\u0013\u001bM𮇱X`𩇭",
+        "3\u0000𦰷\u0001\u0002􅥗`𣌕P\u001fKEV􍮈4U瞒Ox": "}83i𪨗􉩚􎦌\u0015􂢒𣗁6h\u0008𡿣I􂖶S\u0014\u0013OW%_\u0012*𡾒",
+        "CV󺦎/\u0014C󺴜EB*􅿳r󺏁\u0008󻩿󱬯𤽶m5𣓄i": "\u0015Ik\u0014",
+        "D\u001a\"𗎨d\u0002\u0000": "\r\u0012\u001b9罣C𗜬\u0011H𤼔𗧗\u0017󱼚wZ􄯒䆶𡹳\u0001}x>Fd\u000e&ጯ",
+        "􈉥🨑\u000b9\u0006yXg􏆫NU\u0005𐢉\u001e𐓛4e6󸖾\u0007$𗚽~": "E/V+~p􉧶\u0013ⲍa\u0003𓇒\u000b\u000c󺘿A[n6^N\t7"
+    },
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "fields": [
+                {
+                    "type": "\u000c&3გ$ur𫚞oQ󹄏o\u0004",
+                    "value": "~\u0017􈫞􏸍LR"
+                },
+                {
+                    "type": "D\u001a\"𗎨d\u0002\u0000",
+                    "value": "\r\u0012\u001b9罣C𗜬\u0011H𤼔𗧗\u0017󱼚wZ􄯒䆶𡹳\u0001}x>Fd\u000e&ጯ"
+                },
+                {
+                    "type": "􈉥🨑\u000b9\u0006yXg􏆫NU\u0005𐢉\u001e𐓛4e6󸖾\u0007$𗚽~",
+                    "value": "E/V+~p􉧶\u0013ⲍa\u0003𓇒\u000b\u000c󺘿A[n6^N\t7"
+                },
+                {
+                    "type": "CV󺦎/\u0014C󺴜EB*􅿳r󺏁\u0008󻩿󱬯𤽶m5𣓄i",
+                    "value": "\u0015Ik\u0014"
+                },
+                {
+                    "type": "1=D=\u0000v𬴂jD\u0005O(",
+                    "value": "\u000bAlLMb\u0018vvn\u0013\u001bM𮇱X`𩇭"
+                },
+                {
+                    "type": "3\u0000𦰷\u0001\u0002􅥗`𣌕P\u001fKEV􍮈4U瞒Ox",
+                    "value": "}83i𪨗􉩚􎦌\u0015􂢒𣗁6h\u0008𡿣I􂖶S\u0014\u0013OW%_\u0012*𡾒"
+                }
+            ],
+            "version": 0
+        }
+    }
+}

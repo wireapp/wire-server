@@ -1,0 +1,55 @@
+{
+    "hasMore": true,
+    "members": [
+        {
+            "created_at": "1864-05-09T20:33:17.912Z",
+            "created_by": "00000001-0000-0000-0000-000000000001",
+            "legalhold_status": "disabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0000-0000-000100000001"
+        },
+        {
+            "created_at": "1864-05-09T09:03:59.579Z",
+            "created_by": "00000000-0000-0001-0000-000100000001",
+            "legalhold_status": "enabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0000-0000-000100000001"
+        },
+        {
+            "created_at": null,
+            "created_by": null,
+            "legalhold_status": "pending",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0000-0000-000100000001"
+        },
+        {
+            "created_at": null,
+            "created_by": null,
+            "legalhold_status": "enabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000001-0000-0001-0000-000100000001"
+        },
+        {
+            "created_at": null,
+            "created_by": null,
+            "legalhold_status": "disabled",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            },
+            "user": "00000000-0000-0001-0000-000100000001"
+        }
+    ]
+}

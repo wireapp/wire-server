@@ -25,8 +25,11 @@ config:
     region: "eu-west-1"
     sesEndpoint: https://email.eu-west-1.amazonaws.com
     sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
-    dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
+    # dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
+  # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
+  randomPrekeys: true
   useSES: true
+  enableFederator: false # keep enableFederator default in sync with galley chart's config.enableFederator as well as wire-server chart's tag.federator
   emailSMS:
     general:
       templateBranding:
@@ -87,3 +90,5 @@ turnStatic:
   v2:
   - turn:localhost:3478
   - turn:localhost:3478?transport=tcp
+tests:
+  enableFederationTests: false

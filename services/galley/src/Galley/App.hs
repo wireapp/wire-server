@@ -26,6 +26,8 @@ module Galley.App
     options,
     applog,
     manager,
+    federator,
+    brig,
     cstate,
     deleteQueue,
     createEnv,
@@ -40,6 +42,7 @@ module Galley.App
     evalGalley,
     ask,
     DeleteItem (..),
+    toServantHandler,
 
     -- * Utilities
     ifNothing,
@@ -52,7 +55,7 @@ module Galley.App
   )
 where
 
-import Bilge hiding (Request, header, options, statusCode)
+import Bilge hiding (Request, header, options, statusCode, statusMessage)
 import Bilge.RPC
 import Cassandra hiding (Set)
 import qualified Cassandra as C
@@ -61,6 +64,7 @@ import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Id (ConnId, TeamId, UserId)
@@ -68,9 +72,12 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import qualified Data.ProtocolBuffers as Proto
+import Data.Proxy (Proxy (..))
 import Data.Range
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
@@ -79,15 +86,22 @@ import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Media.RenderHeader (RenderHeader (..))
+import Network.HTTP.Types (hContentType)
+import Network.HTTP.Types.Status (statusCode, statusMessage)
 import Network.Wai
 import Network.Wai.Utilities
+import qualified Network.Wai.Utilities as WaiError
+import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
+import qualified Servant
 import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
 import Util.Options
+import Wire.API.Federation.Client (HasFederatorConfig (..))
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -99,6 +113,8 @@ data Env = Env
     _options :: Opts,
     _applog :: Logger,
     _manager :: Manager,
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
+    _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
@@ -129,6 +145,10 @@ newtype Galley a = Galley
       MonadReader Env,
       MonadClient
     )
+
+instance HasFederatorConfig Galley where
+  federatorEndpoint = view federator
+  federationDomain = view (options . optSettings . setFederationDomain)
 
 fanoutLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
 fanoutLimit = view options >>= return . currentFanoutLimit
@@ -184,10 +204,11 @@ instance HasRequestId Galley where
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  cass <- initCassandra o l
   mgr <- initHttpManager o
   validateOptions l o
-  Env def m o l mgr <$> initCassandra o l
-    <*> Q.new 16000
+  Env def m o l mgr (o ^. optFederator) (o ^. optBrig) cass
+    <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
 
@@ -282,3 +303,20 @@ fromProtoBody r = do
 ifNothing :: Error -> Maybe a -> Galley a
 ifNothing e = maybe (throwM e) return
 {-# INLINE ifNothing #-}
+
+toServantHandler :: Env -> Galley a -> Servant.Handler a
+toServantHandler env galley = do
+  eith <- liftIO $ try (evalGalley env galley)
+  case eith of
+    Left werr ->
+      handleWaiErrors (view applog env) (unRequestId (view reqId env)) werr
+    Right result -> pure result
+  where
+    handleWaiErrors :: Logger -> ByteString -> Error -> Servant.Handler a
+    handleWaiErrors logger reqId' werr = do
+      Server.logError' logger (Just reqId') werr
+      Servant.throwError $
+        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+
+    mkCode = statusCode . WaiError.code
+    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code

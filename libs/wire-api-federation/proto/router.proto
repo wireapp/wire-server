@@ -1,0 +1,104 @@
+syntax = "proto3";
+package wire.federator;
+
+// These definitions are part of the federation protocol.
+//
+// 1. A component (e.g. 'brig') will send some data of type 'FederatedRequest' to
+// the 'federator' server (more precisely: the 'Outward' service part of the federator) within a same private network.
+// 2. The federator will use the domain from the 'FederatedRequest' to discover
+// where to send some data of type 'Request' to.
+// 3. On the other side, a publicly exposed 'Inward' service (also co-hosted on the
+// federator) will turn the received 'Request' into a 'Response' by making a call to a
+// component (e.g. brig) on its private network.
+
+enum Component {
+  Brig = 0;
+  Galley = 1;
+}
+
+message InwardResponse {
+  oneof response {
+    InwardError err = 1;
+    bytes body = 2;
+  }
+}
+
+message OutwardResponse {
+  oneof response {
+    OutwardError outErr = 1;
+    InwardError inErr = 2;
+    bytes body = 3;
+  }
+}
+
+message OutwardError {
+  enum ErrorType {
+    RemoteNotFound = 0;
+    DiscoveryFailed = 1;
+    ConnectionRefused = 2;
+    TLSFailure = 3;
+    VersionMismatch = 4;
+    FederationDeniedByRemote = 5;
+    FederationDeniedLocally = 6;
+    TooMuchConcurrency = 7;
+    GrpcError = 8;
+    InvalidRequest = 9;
+  }
+
+  ErrorType type = 1;
+  string msg = 2;
+}
+
+message InwardError {
+  enum ErrorType {
+    IOther = 0;
+    IAuthenticationFailed = 1;
+    IFederationDeniedByRemote = 2;
+    IInvalidEndpoint = 3;
+    IForbiddenEndpoint = 4;
+    IDiscoveryFailed = 5;
+  }
+
+  ErrorType type = 1;
+  string msg = 2;
+}
+
+// The envelope message which is sent from brig to the Outward service of a local federator
+message FederatedRequest {
+  string domain = 1;
+  Request request = 2;
+}
+
+// The request message is not a high-level protocol of federation. Instead, it
+// allows encoding more-or-less arbitrary HTTP requests. The idea is to separate
+// the concern of discovery and routing (federator's domain) from the concern of
+// actual API routes available in a federated context (those are currently
+// specified within each component. This may change in the future, however).
+// FUTUREWORK(Akshay): detail the design thoughts behind this type a bit more
+message Request {
+  Component component = 1;
+  bytes path = 2; //Maybe this can be made into a 'function name'
+  bytes body = 3;
+  string originDomain = 4;
+}
+
+// The federator actually listens on two ports and exposes two services:
+//
+// 'Outward' is only accessible from within the private network and serves
+// as a forwarding service to other backends.
+//
+// Example: 'brig' will use Outward.call on an internal server on
+//          127.0.0.1:8097 to (indirectly) talk to the federated world.
+service Outward {
+  rpc call (FederatedRequest) returns (OutwardResponse);
+}
+
+// 'Inward' is exposed to the public internet (via nginx) and serves as a
+// forwarding service within its own private network
+//
+// Example: 'federator' will use Inward.call on federator.another-domain to
+//           talk to a component inside the group of servers of another-domain
+//           which is not directly accessible.
+service Inward {
+  rpc call (Request) returns (InwardResponse);
+}

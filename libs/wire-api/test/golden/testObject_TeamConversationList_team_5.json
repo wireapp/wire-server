@@ -1,0 +1,16 @@
+{
+    "conversations": [
+        {
+            "conversation": "00000073-0000-005a-0000-00250000000d",
+            "managed": true
+        },
+        {
+            "conversation": "00000033-0000-005c-0000-006e00000014",
+            "managed": true
+        },
+        {
+            "conversation": "00000017-0000-005d-0000-003b00000023",
+            "managed": false
+        }
+    ]
+}

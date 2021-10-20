@@ -1,0 +1,10 @@
+{
+    "client": {
+        "id": "ba"
+    },
+    "last_prekey": {
+        "id": 65535,
+        "key": "Z"
+    },
+    "status": "pending"
+}

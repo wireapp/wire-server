@@ -34,15 +34,16 @@ import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Spar.App as Spar
-import qualified Spar.Data as Data
 import Spar.Orphans ()
-import Spar.Types (IdP)
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Text.XML as XML
 import qualified Text.XML.DSig as DSig
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 import Web.Cookie
+import Wire.API.User.IdentityProvider (IdP)
+import qualified Wire.API.User.IdentityProvider as User
 
 spec :: SpecWith TestEnv
 spec = describe "accessVerdict" $ do
@@ -152,7 +153,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
     raw <- mkAuthnReq (idp ^. SAML.idpId)
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  spmeta <- getTestSPMetadata
+  spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . User.wiTeam)
   (privKey, _, _) <- DSig.mkSignCredsWithCert Nothing 96
   authnresp :: SAML.AuthnResponse <- do
     case authnreq of
@@ -165,7 +166,12 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
         if isGranted
           then SAML.AccessGranted uref
           else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
-  outcome :: ResponseVerdict <- runSpar $ Spar.verdictHandler Nothing authnresp verdict
+  outcome :: ResponseVerdict <- do
+    mbteam <-
+      asks (^. teWireIdPAPIVersion) <&> \case
+        User.WireIdPAPIV1 -> Nothing
+        User.WireIdPAPIV2 -> Just (idp ^. SAML.idpExtraInfo . User.wiTeam)
+    runSpar $ Spar.verdictHandler Nothing mbteam authnresp verdict
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)
@@ -174,5 +180,5 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           $ outcome
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
-  muid <- runSparCass $ Data.getSAMLUser uref
+  muid <- runSpar $ SAMLUserStore.get uref
   pure (muid, outcome, loc, qry)

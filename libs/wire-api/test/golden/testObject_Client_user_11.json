@@ -1,0 +1,16 @@
+{
+    "capabilities": {
+        "capabilities": []
+    },
+    "class": "legalhold",
+    "cookie": "5",
+    "id": "3",
+    "label": "\u001fb",
+    "location": {
+        "lat": 0.44311730892815937,
+        "lon": 0.6936233843789369
+    },
+    "model": "ML",
+    "time": "1864-05-08T11:57:08.087Z",
+    "type": "temporary"
+}

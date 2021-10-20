@@ -1,0 +1,28 @@
+{
+    "assets": [],
+    "auth_tokens": [
+        "ZQ=="
+    ],
+    "base_url": "https://example.com",
+    "description": "",
+    "enabled": true,
+    "id": "00000000-0000-0000-0000-000100000001",
+    "name": "􇌩0󵃇\u0012AhO)ZzoZ{\u0004􁤄z\u001f􉅄`JJsBj#𒊟\u0001$r\u0013P\u0004@#l􇝻\u0007w滳\n𑣆N𛋱m?X\u0014Ԁ#0QKKdPiH%N-1*\u0005/D潴𭯤\u0014&\u000cg𬜰𡋈vY2c<󶍞A俳􋔃z\u000b󽀆;\u0001g;\u001f@\u0005󸝝󱵼{ks`UW\u0000v𪶮\u001d.󾮗𦐼/𥀦鍻\u0004\u0018/q\u0007",
+    "public_keys": [
+        {
+            "pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0\nG06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH\nWvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV\nVPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS\nbUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8\n7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la\nnQIDAQAB\n-----END PUBLIC KEY-----\n",
+            "size": 1,
+            "type": "rsa"
+        },
+        {
+            "pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0\nG06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH\nWvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV\nVPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS\nbUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8\n7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la\nnQIDAQAB\n-----END PUBLIC KEY-----\n",
+            "size": 0,
+            "type": "rsa"
+        }
+    ],
+    "summary": "",
+    "tags": [
+        "media",
+        "poll"
+    ]
+}

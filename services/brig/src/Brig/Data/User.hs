@@ -42,9 +42,11 @@ module Brig.Data.User
     lookupPassword,
     lookupStatus,
     lookupRichInfo,
+    lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupServiceUsers,
     lookupServiceUsersForTeam,
+    lookupFeatureConferenceCalling,
 
     -- * Updates
     updateUser,
@@ -59,6 +61,7 @@ module Brig.Data.User
     updateStatus,
     updateHandle,
     updateRichInfo,
+    updateFeatureConferenceCalling,
 
     -- * Deletions
     deleteEmail,
@@ -89,6 +92,7 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
+import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User.RichInfo
 
 -- | Authentication errors.
@@ -104,8 +108,16 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
-newAccount u inv tid = do
+-- | Preconditions:
+--
+-- 1. @newUserUUID u == Just inv || isNothing (newUserUUID u)@.
+-- 2. If @isJust@, @mbHandle@ must be claimed by user with id @inv@.
+--
+-- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
+-- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
+-- there, it was claimed properly.
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
+newAccount u inv tid mbHandle = do
   defLoc <- setDefaultLocale <$> view settings
   domain <- viewFederationDomain
   uid <-
@@ -138,7 +150,7 @@ newAccount u inv tid = do
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing Nothing e tid managedBy
+    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
 newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
 newAccountInviteViaScim uid tid locale name email = do
@@ -289,6 +301,15 @@ updatePassword u t = do
 updateRichInfo :: UserId -> RichInfoAssocList -> AppIO ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ri, u))
 
+updateFeatureConferenceCalling :: UserId -> Maybe ApiFt.TeamFeatureStatusNoConfig -> AppIO (Maybe ApiFt.TeamFeatureStatusNoConfig)
+updateFeatureConferenceCalling uid mbStatus = do
+  let flag = ApiFt.tfwoStatus <$> mbStatus
+  retry x5 $ write update (params Quorum (flag, uid))
+  pure mbStatus
+  where
+    update :: PrepQuery W (Maybe ApiFt.TeamFeatureStatusValue, UserId) ()
+    update = fromString $ "update user set feature_conference_calling = ? where id = ?"
+
 deleteEmail :: UserId -> AppIO ()
 deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
 
@@ -372,6 +393,12 @@ lookupRichInfo u =
   fmap runIdentity
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
+-- | Returned rich infos are in the same order as users
+lookupRichInfoMultiUsers :: [UserId] -> AppIO [(UserId, RichInfo)]
+lookupRichInfoMultiUsers users = do
+  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
+    <$> retry x1 (query richInfoSelectMulti (params Quorum (Identity users)))
+
 -- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
 -- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
 -- successful login.
@@ -436,6 +463,15 @@ lookupServiceUsersForTeam pid sid tid =
     cql =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
+
+lookupFeatureConferenceCalling :: MonadClient m => UserId -> m (Maybe ApiFt.TeamFeatureStatusNoConfig)
+lookupFeatureConferenceCalling uid = do
+  let q = query1 select (params Quorum (Identity uid))
+  mStatusValue <- (>>= runIdentity) <$> retry x1 q
+  pure $ ApiFt.TeamFeatureStatusNoConfig <$> mStatusValue
+  where
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.TeamFeatureStatusValue))
+    select = fromString $ "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------
 -- Queries
@@ -539,6 +575,9 @@ statusSelect = "SELECT status FROM user WHERE id = ?"
 
 richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
+
+richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
+richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"

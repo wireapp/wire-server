@@ -1,0 +1,60 @@
+{
+    "assets": [
+        {
+            "key": "𦳝\u0011",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "\t",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "V#",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "(\u0003",
+            "size": "complete",
+            "type": "image"
+        }
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "u=\u0015"
+    },
+    "name": "FvrT0g\\𩞩",
+    "prekeys": [
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        }
+    ]
+}

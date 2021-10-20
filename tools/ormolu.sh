@@ -5,11 +5,9 @@ set -e
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 command -v grep >/dev/null 2>&1 || { echo >&2 "grep is not installed, aborting."; exit 1; }
-command -v awk  >/dev/null 2>&1 || { echo >&2 "awk is not installed, aborting."; exit 1; }
 command -v sed  >/dev/null 2>&1 || { echo >&2 "sed is not installed, aborting."; exit 1; }
-command -v yq   >/dev/null 2>&1 || { echo >&2 "yq is not installed, aborting. See https://github.com/mikefarah/yq"; exit 1; }
 
-ORMOLU_VERSION=$(yq read stack.yaml 'extra-deps[*]' | sed -n 's/ormolu-//p')
+ORMOLU_VERSION=$(sed -n '/^extra-deps:/,$ { s/^- ormolu-//p }' < stack.yaml)
 ( ormolu -v 2>/dev/null | grep -q $ORMOLU_VERSION ) || ( echo "please install ormolu $ORMOLU_VERSION (eg., run 'stack install ormolu' and ensure ormolu is on your PATH.)"; exit 1 )
 echo "ormolu version: $ORMOLU_VERSION"
 
@@ -66,20 +64,32 @@ if [ "$(git status -s | grep -v \?\?)" != "" ]; then
     fi
 fi
 
-LANGUAGE_EXTS=$(yq read package-defaults.yaml 'default-extensions[*]' | awk '{print "--ghc-opt -X" $0}' ORS=' ')
+readarray -t EXTS < <(sed -n '/^default-extensions:/,$ { s/^- //p }' < package-defaults.yaml)
 echo "ormolu mode: $ARG_ORMOLU_MODE"
-echo "language extensions: $LANGUAGE_EXTS"
+echo "language extensions: ${EXTS[@]}"
 
 FAILURES=0
 
+if [ -t 1 ]; then
+    : ${ORMOLU_CONDENSE_OUTPUT:=1}
+fi
+
 for hsfile in $(git ls-files | grep '\.hsc\?$'); do
     FAILED=0
-    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence $LANGUAGE_EXTS "$hsfile" || FAILED=1
-    if [ "$FAILED" == "1" ]; then
+
+    # run in background so that we can detect Ctrl-C properly
+    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence ${EXTS[@]/#/'-o -X'} "$hsfile" &
+    wait $! && err=0 || err=$?
+
+    if [ "$err" == "100" ]; then
         ((++FAILURES))
         echo "$hsfile...  *** FAILED"
+        clear=""
+    elif [ "$err" == "0" ]; then
+        echo -e "$clear$hsfile...  ok"
+        [ "$ORMOLU_CONDENSE_OUTPUT" == "1" ] && clear="\033[A\r\033[K"
     else
-        echo "$hsfile...  ok"
+        exit "$err"
     fi
 done
 

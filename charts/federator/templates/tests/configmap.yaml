@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "federator-integration"
+data:
+  integration.yaml: |
+    federatorInternal:
+      host: federator
+      port: {{ .Values.service.internalFederatorPort }}
+    federatorExternal:
+      host: federator
+      port: {{ .Values.service.externalFederatorPort }}
+    brig:
+      host: brig
+      port: 8080
+    galley:
+      host: galley
+      port: 8080
+    nginxIngress:
+      host: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+      port: 443
+    originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local

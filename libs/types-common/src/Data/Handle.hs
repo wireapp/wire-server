@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
@@ -26,17 +25,18 @@ module Data.Handle
   )
 where
 
-import Data.Aeson hiding ((<?>))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
 import Data.Hashable (Hashable)
-import Data.Swagger (ToParamSchema, ToSchema (..))
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), choose, elements, oneof)
 import Util.Attoparsec (takeUpToWhile)
 
@@ -46,20 +46,24 @@ import Util.Attoparsec (takeUpToWhile)
 -- | Also called username.
 newtype Handle = Handle
   {fromHandle :: Text}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToByteString, Hashable, ToSchema, ToParamSchema)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToByteString, Hashable, S.ToParamSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Handle
+
+instance ToSchema Handle where
+  schema = fromHandle .= parsedText "Handle" p
+    where
+      p = first ("Invalid handle: " <>) . parseHandleEither
 
 instance FromHttpApiData Handle where
   parseUrlPiece =
     first Text.pack . parseHandleEither
 
+instance ToHttpApiData Handle where
+  toUrlPiece (Handle h) = toUrlPiece h
+
 instance FromByteString Handle where
   parser = handleParser
-
-instance FromJSON Handle where
-  parseJSON =
-    withText "Handle" $
-      either (fail . ("Invalid handle: " <>)) pure . parseHandleEither
 
 parseHandle :: Text -> Maybe Handle
 parseHandle = either (const Nothing) Just . parseHandleEither

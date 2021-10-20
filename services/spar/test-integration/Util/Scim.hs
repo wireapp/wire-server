@@ -22,7 +22,6 @@ module Util.Scim where
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
-import Cassandra
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
@@ -35,11 +34,9 @@ import Data.UUID.V4 as UUID
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
-import Spar.Data as Data
-import qualified Spar.Intra.Brig as Intra
-import Spar.Scim.Types
+import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
-import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
@@ -56,7 +53,9 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
+import Wire.API.User.Scim
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -75,15 +74,14 @@ registerIdPAndScimTokenWithMeta = do
 -- | Create a fresh SCIM token and register it for the team.
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
-  env <- ask
   tok <-
     ScimToken <$> do
       code <- liftIO UUID.nextRandom
       pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
-  runClient (env ^. teCql) $
-    Data.insertScimToken
+  runSpar $
+    ScimTokenStore.insert
       tok
       ScimTokenInfo
         { stiTeam = teamid,
@@ -116,7 +114,7 @@ randomScimUserWithSubjectAndRichInfo ::
   RichInfo ->
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
-  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  suffix <- cs <$> replicateM 20 (getRandomR ('a', 'z'))
   emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
@@ -624,4 +622,6 @@ userShouldMatch u1 u2 = liftIO $ do
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
 whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit
+whatSparReturnsFor idp richInfoSizeLimit =
+  either (Left . show) (Right . synthesizeScimUser)
+    . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit

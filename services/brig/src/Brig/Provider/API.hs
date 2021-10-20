@@ -61,10 +61,11 @@ import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Hashable (hash)
 import Data.Id
+import Data.LegalHold
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
-import Data.Misc (Fingerprint (..), Rsa)
+import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
 import Data.Predicate
 import Data.Qualified
 import Data.Range
@@ -72,7 +73,7 @@ import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
-import Galley.Types (AccessRole (..), ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..))
+import Galley.Types
 import Galley.Types.Bot (newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Teams
@@ -95,14 +96,16 @@ import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import qualified Wire.API.Conversation.Bot as Public
+import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public (Event)
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
-import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientMap, UserClients, userClients)
-import qualified Wire.API.User.Client.Prekey as Public (Prekey, PrekeyId)
+import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -358,7 +361,7 @@ activateAccountKey key val = do
   c <- Code.verify key Code.IdentityVerification val >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> return (Id p, e)
-    _ -> throwStd invalidCode
+    _ -> throwErrorDescriptionType @InvalidCode
   (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
   case memail of
     Just email' | email == email' -> return Nothing
@@ -407,7 +410,7 @@ approveAccountKey key val = do
       (name, _, _, _) <- DB.lookupAccountData (Id pid) >>= maybeInvalidCode
       activate (Id pid) Nothing email
       lift $ sendApprovalConfirmMail name email
-    _ -> throwStd invalidCode
+    _ -> throwErrorDescriptionType @InvalidCode
 
 loginH :: JsonRequest Public.ProviderLogin -> Handler Response
 loginH req = do
@@ -419,7 +422,7 @@ login l = do
   pid <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (providerLoginPassword l) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   ZAuth.newProviderToken pid
 
 beginPasswordResetH :: JsonRequest Public.PasswordReset -> Handler Response
@@ -515,7 +518,7 @@ updateAccountPassword :: ProviderId -> Public.PasswordChange -> Handler ()
 updateAccountPassword pid upd = do
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (cpOldPassword upd) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   when (verifyPassword (cpNewPassword upd) pass) $
     throwStd newPasswordMustDiffer
   DB.updateAccountPassword pid (cpNewPassword upd)
@@ -583,7 +586,7 @@ updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> Hand
 updateServiceConn pid sid upd = do
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (updateServiceConnPassword upd) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
   svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
@@ -632,7 +635,7 @@ deleteService :: ProviderId -> ServiceId -> Public.DeleteService -> Handler ()
 deleteService pid sid del = do
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (deleteServicePassword del) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   _ <- DB.lookupService pid sid >>= maybeServiceNotFound
   -- Disable the service
   DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
@@ -663,7 +666,7 @@ deleteAccount pid del = do
   prov <- DB.lookupAccount pid >>= maybeInvalidProvider
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   svcs <- DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
@@ -834,9 +837,10 @@ addBot zuid zcon cid add = do
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = newClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
-  let origmem = OtherMember (makeIdOpaque zuid) Nothing roleNameWireAdmin
-  let members = origmem : (cmOthers mems)
-  let bcnv = Ext.botConvView (cnvId cnv) (cnvName cnv) members
+  let zQualifiedUid = Qualified zuid domain
+  let origmem = OtherMember zQualifiedUid Nothing roleNameWireAdmin
+  let members = origmem : cmOthers mems
+  let bcnv = Ext.botConvView (qUnqualified . cnvQualifiedId $ cnv) (cnvName cnv) members
   let busr = mkBotUserView zusr
   let bloc = fromMaybe (userLocale zusr) (addBotLocale add)
   let botReq = Ext.NewBotRequest bid bcl busr bcnv btk bloc
@@ -855,8 +859,12 @@ addBot zuid zcon cid add = do
           }
   lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
-  (clt, _, _) <-
-    User.addClient (botUserId bid) bcl newClt maxPermClients Nothing
+  (clt, _, _) <- do
+    _ <- do
+      -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
+      -- implicitly in the next line.
+      pure $ FutureWork @'UnprotectedBot undefined
+    User.addClient (botUserId bid) bcl newClt maxPermClients Nothing (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
       !>> const (StdError badGateway) -- MalformedPrekeys
 
   -- Add the bot to the conversation
@@ -884,7 +892,7 @@ removeBot zusr zcon cid bid = do
     throwStd invalidConv
   -- Find the bot in the member list and delete it
   let busr = botUserId bid
-  let bot = List.find ((== makeIdOpaque busr) . omId) (cmOthers mems)
+  let bot = List.find ((== busr) . qUnqualified . omQualifiedId) (cmOthers mems)
   case bot >>= omService of
     Nothing -> return Nothing
     Just _ -> do
@@ -899,11 +907,11 @@ botGetSelfH bot = json <$> botGetSelf bot
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
   p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd userNotFound) (return . Public.publicProfile) p
+  maybe (throwErrorDescriptionType @UserNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do
-  maybe (throwStd clientNotFound) (pure . json) =<< lift (botGetClient bot)
+  maybe (throwErrorDescriptionType @ClientNotFound) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> AppIO (Maybe Public.Client)
 botGetClient bot = do
@@ -928,7 +936,7 @@ botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> Handler ()
 botUpdatePrekeys bot upd = do
   clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
   case clt of
-    Nothing -> throwStd clientNotFound
+    Nothing -> throwErrorDescriptionType @ClientNotFound
     Just c -> do
       let pks = updateBotPrekeyList upd
       User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
@@ -937,12 +945,12 @@ botClaimUsersPrekeysH :: JsonRequest Public.UserClients -> Handler Response
 botClaimUsersPrekeysH req = do
   json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
 
-botClaimUsersPrekeys :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
+botClaimUsersPrekeys :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
-    throwStd tooManyClients
-  Client.claimMultiPrekeyBundles body
+    throwErrorDescriptionType @TooManyClients
+  Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
 botListUserProfilesH :: List UserId -> Handler Response
 botListUserProfilesH uids = do
@@ -1057,7 +1065,7 @@ maybeInvalidProvider :: Maybe a -> Handler a
 maybeInvalidProvider = maybe (throwStd invalidProvider) return
 
 maybeInvalidCode :: Maybe a -> Handler a
-maybeInvalidCode = maybe (throwStd invalidCode) return
+maybeInvalidCode = maybe (throwErrorDescriptionType @InvalidCode) return
 
 maybeServiceNotFound :: Maybe a -> Handler a
 maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) return
@@ -1069,7 +1077,7 @@ maybeConvNotFound :: Maybe a -> Handler a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) return
 
 maybeBadCredentials :: Maybe a -> Handler a
-maybeBadCredentials = maybe (throwStd badCredentials) return
+maybeBadCredentials = maybe (throwErrorDescriptionType @BadCredentials) return
 
 maybeInvalidServiceKey :: Maybe a -> Handler a
 maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) return
@@ -1078,37 +1086,37 @@ maybeInvalidBot :: Maybe a -> Handler a
 maybeInvalidBot = maybe (throwStd invalidBot) return
 
 maybeInvalidUser :: Maybe a -> Handler a
-maybeInvalidUser = maybe (throwStd invalidUser) return
+maybeInvalidUser = maybe (throwStd (errorDescriptionTypeToWai @InvalidUser)) return
 
 rangeChecked :: Within a n m => a -> Handler (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
 
 invalidServiceKey :: Wai.Error
-invalidServiceKey = Wai.Error status400 "invalid-service-key" "Invalid service key."
+invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service key."
 
 invalidProvider :: Wai.Error
-invalidProvider = Wai.Error status403 "invalid-provider" "The provider does not exist."
+invalidProvider = Wai.mkError status403 "invalid-provider" "The provider does not exist."
 
 invalidBot :: Wai.Error
-invalidBot = Wai.Error status403 "invalid-bot" "The targeted user is not a bot."
+invalidBot = Wai.mkError status403 "invalid-bot" "The targeted user is not a bot."
 
 invalidConv :: Wai.Error
-invalidConv = Wai.Error status403 "invalid-conversation" "The operation is not allowed in this conversation."
+invalidConv = Wai.mkError status403 "invalid-conversation" "The operation is not allowed in this conversation."
 
 badGateway :: Wai.Error
-badGateway = Wai.Error status502 "bad-gateway" "The upstream service returned an invalid response."
+badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."
 
 tooManyMembers :: Wai.Error
-tooManyMembers = Wai.Error status403 "too-many-members" "Maximum number of members per conversation reached."
+tooManyMembers = Wai.mkError status403 "too-many-members" "Maximum number of members per conversation reached."
 
 tooManyBots :: Wai.Error
-tooManyBots = Wai.Error status409 "too-many-bots" "Maximum number of bots for the service reached."
+tooManyBots = Wai.mkError status409 "too-many-bots" "Maximum number of bots for the service reached."
 
 serviceDisabled :: Wai.Error
-serviceDisabled = Wai.Error status403 "service-disabled" "The desired service is currently disabled."
+serviceDisabled = Wai.mkError status403 "service-disabled" "The desired service is currently disabled."
 
 serviceNotWhitelisted :: Wai.Error
-serviceNotWhitelisted = Wai.Error status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
+serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway

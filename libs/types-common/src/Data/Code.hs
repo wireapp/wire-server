@@ -26,49 +26,87 @@
 module Data.Code where
 
 import Cassandra hiding (Value)
-import Data.Aeson hiding (Value)
+import qualified Data.Aeson as A
 import Data.Aeson.TH
+import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import Data.Json.Util
+import Data.Proxy (Proxy (Proxy))
 import Data.Range
-import Data.Scientific (toBoundedInteger)
+import Data.Schema
+import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
+import Data.Swagger.ParamSchema
+import Data.Text (pack)
 import Data.Text.Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Imports
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
 newtype Key = Key {asciiKey :: Range 20 20 AsciiBase64Url}
   deriving (Eq, Show)
-  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
+  deriving newtype
+    ( A.FromJSON,
+      A.ToJSON,
+      ToSchema,
+      S.ToSchema,
+      FromByteString,
+      ToByteString,
+      Arbitrary
+    )
+
+instance ToParamSchema Key where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData Key where
+  parseQueryParam s =
+    first pack $ runParser parser (encodeUtf8 s)
+
+instance ToHttpApiData Key where
+  toQueryParam key = cs (toByteString' key)
 
 -- | A secret value bound to a 'Key' and a 'Timeout'.
 newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
   deriving (Eq, Show)
-  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
+  deriving newtype
+    ( A.FromJSON,
+      A.ToJSON,
+      ToSchema,
+      S.ToSchema,
+      FromByteString,
+      ToByteString,
+      Arbitrary
+    )
 
+instance ToParamSchema Value where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData Value where
+  parseQueryParam s =
+    first pack $ runParser parser (encodeUtf8 s)
+
+instance ToHttpApiData Value where
+  toQueryParam key = cs (toByteString' key)
+
+-- | A 'Timeout' is rendered in/parsed from JSON as an integer representing the
+-- number of seconds remaining.
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}
   deriving (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Timeout)
+
+instance ToSchema Timeout where
+  schema = Timeout . fromIntegral <$> (roundDiffTime . timeoutDiffTime) .= schema
+    where
+      roundDiffTime :: NominalDiffTime -> Int32
+      roundDiffTime = round
 
 -- | A 'Timeout' is rendered as an integer representing the number of seconds remaining.
 instance ToByteString Timeout where
   builder (Timeout t) = builder (round t :: Int32)
-
--- | A 'Timeout' is rendered in JSON as an integer representing the
--- number of seconds remaining.
-instance ToJSON Timeout where
-  toJSON (Timeout t) = toJSON (round t :: Int32)
-
--- | A 'Timeout' is parsed from JSON as an integer representing the
--- number of seconds remaining.
-instance FromJSON Timeout where
-  parseJSON = withScientific "Timeout" $ \n ->
-    let t = toBoundedInteger n :: Maybe Int32
-     in maybe
-          (fail "Invalid timeout value")
-          (pure . Timeout . fromIntegral)
-          t
 
 instance Arbitrary Timeout where
   arbitrary = Timeout . fromIntegral <$> arbitrary @Int

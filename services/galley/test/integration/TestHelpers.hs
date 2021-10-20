@@ -22,11 +22,14 @@ module TestHelpers where
 
 import API.SQS
 import Control.Lens (view)
+import Data.Domain (Domain)
 import qualified Galley.Aws as Aws
+import Galley.Options (optSettings, setFederationDomain)
 import Imports
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, assertBool, testCase)
 import TestSetup
+import UnliftIO.Exception (finally)
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
@@ -46,4 +49,9 @@ test s n h = testCase n runTest
     runTest :: Assertion
     runTest = do
       setup <- s
-      void . flip runReaderT setup . runTestM $ h >> assertClean
+      -- this `finally` doesnt seem to help. if there is an exception in a test
+      -- the other tests still see remaining messages on the queue
+      void . flip runReaderT setup . runTestM $ (ensureQueueEmpty >> h) `finally` assertClean
+
+viewFederationDomain :: TestM Domain
+viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)

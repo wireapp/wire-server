@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -22,13 +21,104 @@
 
 module Wire.API.User.Orphans where
 
+import Control.Lens
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
-import Data.Swagger (ToSchema (..))
+import Data.Proxy
+import Data.Swagger
+import Data.UUID
+import Data.X509 as X509
 import Imports
+import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Types.TH (deriveJSONOptions)
+import Servant.API ((:>))
+import qualified Servant.Multipart as SM
+import Servant.Swagger
+import URI.ByteString
 
 deriving instance Generic ISO639_1
+
+-- Swagger instances
 
 instance ToSchema ISO639_1
 
 instance ToSchema CountryCode
+
+-- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
+-- FUTUREWORK: maybe avoid orphans altogether by defining schema instances manually
+
+-- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
+
+-- | The options to use for schema generation. Must match the options used
+-- for 'ToJSON' instances elsewhere.
+samlSchemaOptions :: SchemaOptions
+samlSchemaOptions = fromAesonOptions deriveJSONOptions
+
+instance ToSchema SAML.XmlText where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToParamSchema SAML.IdPId where
+  toParamSchema _ = toParamSchema (Proxy @UUID)
+
+instance ToSchema SAML.AuthnRequest where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIdPolicy where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIDFormat where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+-- The generic schema breaks on this type, so we define it by hand.
+--
+-- The reason is that genericDeclareNamedSchema tries to define the schema for
+-- this type as a heterogeneous array (i.e. tuple) with Swagger types String
+-- and AuthnRequest. However, Swagger does not support heterogeneous arrays,
+-- and this results in an array whose underlying type which is at the same time
+-- marked as a string, and referring to the schema for AuthnRequest, which is of
+-- course invalid.
+instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
+  declareNamedSchema _ = do
+    authnReqSchema <- declareSchemaRef (Proxy @SAML.AuthnRequest)
+    pure $
+      NamedSchema (Just "FormRedirect") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties . at "uri" ?~ Inline (toSchema (Proxy @Text))
+          & properties . at "xml" ?~ authnReqSchema
+
+instance ToSchema (SAML.ID SAML.AuthnRequest) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.Time where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.SPMetadata where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema Void where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
+  toSwagger _proxy = toSwagger (Proxy @route)
+
+instance ToSchema SAML.IdPId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+
+instance ToSchema SAML.IdPMetadata where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema a => ToSchema (SAML.IdPConfig a) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.Issuer where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema URI where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToParamSchema URI where
+  toParamSchema _ = toParamSchema (Proxy @String)
+
+instance ToSchema X509.SignedCertificate where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)

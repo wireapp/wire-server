@@ -80,6 +80,9 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: /list-users
+      envs:
+      - all
     - path: ~* ^/api/swagger.json$
       disable_zauth: true
       envs:
@@ -92,6 +95,9 @@ nginx_conf:
       envs:
       - all
     - path: /connections
+      envs:
+      - all
+    - path: ~* ^/list-connections$
       envs:
       - all
     - path: /invitations
@@ -190,6 +196,11 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: ~* ^/i/users/([^/]*)/rich-info
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     - path: ~* ^/i/teams/([^/]*)/suspend
       envs:
       - staging
@@ -198,6 +209,16 @@ nginx_conf:
     - path: ~* ^/i/teams/([^/]*)/unsuspend
       envs:
       - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: /i/provider/activation-code
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: ~* ^/i/legalhold/whitelisted-teams(.*)
+      envs:
+        - staging
       disable_zauth: true
       basic_auth: true
     - path: /cookies
@@ -245,6 +266,12 @@ nginx_conf:
     - path: /calls
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/size$
+      envs:
+      - all
+    - path: ~* ^/teams/([^/]*)/search$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -253,12 +280,17 @@ nginx_conf:
     - path: ~* ^/conversations/([^/]*)/otr/messages
       envs:
       - all
-      max_body_size: 1m
+      max_body_size: 40m
+      body_buffer_size: 256k
+    - path: ~* ^/conversations/([^/]*)/([^/]*)/proteus/messages
+      envs:
+      - all
+      max_body_size: 40m
       body_buffer_size: 256k
     - path: /broadcast/otr/messages
       envs:
       - all
-      max_body_size: 1m
+      max_body_size: 40m
       body_buffer_size: 256k
     - path: /bot/conversation
       envs:
@@ -266,7 +298,7 @@ nginx_conf:
     - path: /bot/messages
       envs:
       - all
-      max_body_size: 1m
+      max_body_size: 40m
       body_buffer_size: 256k
     - path: /conversations
       envs:
@@ -285,6 +317,9 @@ nginx_conf:
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/conversations(.*)
+      envs:
+      - all
+    - path: ~* ^/teams/([^/]*)/members/csv$
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/legalhold(.*)
@@ -312,6 +347,18 @@ nginx_conf:
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/features/([^/])*
+      envs:
+      - all
+    - path: ~* /i/teams/([^/]*)/features/([^/]*)
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: ~* ^/feature-configs(.*)
+      envs:
+      - all
+    - path: /galley-api/swagger-ui
+      disable_zauth: true
       envs:
       - all
     gundeck:

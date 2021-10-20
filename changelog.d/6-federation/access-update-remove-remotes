@@ -1,0 +1,1 @@
+Remove remote guests as well as local ones when "Guests and services" is disabled in a group conversation, and propagate removal to remote members.

@@ -1,0 +1,41 @@
+{
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "\u0019q%*Bq𬒦q*󴩙e\u0012\u0010\u000ekBv\u0016": "𩠌퀁\u0013eYmQ8HmG􉔬𪩜N\u000b𭴛",
+        "\u001cq󳭕r𫷜{𫒐𧫨󻆈K󺆛*g[闞\u0018": "\u0013B",
+        ".Z\u0013zn}\u0014": "󳓠􀸪wQ]i\u0017S\u001fkh$\u001e\u0018\u00038\u0013󳸊R[\u0000E􎊧>+0Zg",
+        ": )L!G󿮞xZ𪴿9󱎰肼PO1RK󿪨^": "vpm)P𤚏\u001f􀳳-􁶿<喆\u0008\u0016n",
+        "H󱀌\r5󱎛􇹕풻󸜈7𤅉􀟻": "Qꞝ0\\l\u0000\u0006\r𨚔핃\u0003",
+        "K캧H\u001c\u0010tG{z\u000fw1\u0016I􁺵\u001e󻴩=&妇j<\u001307_r": "Sw󰽵󺡻󰹞("
+    },
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "fields": [
+                {
+                    "type": "K캧H\u001c\u0010tG{z\u000fw1\u0016I􁺵\u001e󻴩=&妇j<\u001307_r",
+                    "value": "Sw󰽵󺡻󰹞("
+                },
+                {
+                    "type": ": )L!G󿮞xZ𪴿9󱎰肼PO1RK󿪨^",
+                    "value": "vpm)P𤚏\u001f􀳳-􁶿<喆\u0008\u0016n"
+                },
+                {
+                    "type": "\u001cq󳭕r𫷜{𫒐𧫨󻆈K󺆛*g[闞\u0018",
+                    "value": "\u0013B"
+                },
+                {
+                    "type": "H󱀌\r5󱎛􇹕풻󸜈7𤅉􀟻",
+                    "value": "Qꞝ0\\l\u0000\u0006\r𨚔핃\u0003"
+                },
+                {
+                    "type": ".Z\u0013zn}\u0014",
+                    "value": "󳓠􀸪wQ]i\u0017S\u001fkh$\u001e\u0018\u00038\u0013󳸊R[\u0000E􎊧>+0Zg"
+                },
+                {
+                    "type": "\u0019q%*Bq𬒦q*󴩙e\u0012\u0010\u000ekBv\u0016",
+                    "value": "𩠌퀁\u0013eYmQ8HmG􉔬𪩜N\u000b𭴛"
+                }
+            ],
+            "version": 0
+        }
+    }
+}

@@ -1,0 +1,60 @@
+{
+    "cookies": [
+        {
+            "created": "1864-05-09T21:38:36.962487709315Z",
+            "expires": "1864-05-09T17:24:08.4207201721Z",
+            "id": 0,
+            "label": "",
+            "successor": 1,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T05:32:54.535236659092Z",
+            "expires": "1864-05-09T02:08:31.382135612599Z",
+            "id": 0,
+            "label": "",
+            "successor": 1,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T02:58:57.072719529853Z",
+            "expires": "1864-05-09T19:37:02.8130152956Z",
+            "id": 0,
+            "label": "",
+            "successor": null,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T23:51:38.654707901616Z",
+            "expires": "1864-05-09T03:57:54.743030292927Z",
+            "id": 1,
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T04:36:48.48199209557Z",
+            "expires": "1864-05-09T05:21:46.868629016909Z",
+            "id": 0,
+            "label": "",
+            "successor": null,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T04:07:33.742323455186Z",
+            "expires": "1864-05-09T19:38:39.447967135478Z",
+            "id": 1,
+            "label": "",
+            "successor": 1,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T08:44:40.136721832699Z",
+            "expires": "1864-05-09T03:39:04.647771815878Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "session"
+        }
+    ]
+}

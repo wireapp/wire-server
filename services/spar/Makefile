@@ -1,17 +1,18 @@
 LANG := en_US.UTF-8
-SHELL         := /usr/bin/env bash
-NAME          := spar
-VERSION       ?=
-BUILD_NUMBER  ?= 0
-BUILD_LABEL   ?= local
-BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := ../../dist/$(NAME)-integration
-EXE_SCHEMA    := ../../dist/$(NAME)-schema
-DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
-DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+SHELL             := /usr/bin/env bash
+NAME              := spar
+VERSION           ?=
+BUILD_NUMBER      ?= 0
+BUILD_LABEL       ?= local
+BUILD             := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
+EXE_IT            := ../../dist/$(NAME)-integration
+EXE_SCHEMA        := ../../dist/$(NAME)-schema
+DEB               := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+DEB_SCHEMA        := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
+DEB_MIGRATE_DATA  := dist/$(NAME)-migrate-data_$(VERSION)+$(BUILD)_amd64.deb
+EXECUTABLES       := $(NAME) $(NAME)-integration $(NAME)-schema
+DOCKER_USER        ?= quay.io/wire
+DOCKER_TAG         ?= local
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -42,7 +43,7 @@ compile:
 	stack build --fast --test --bench --no-run-benchmarks --no-copy-bins spar
 
 .PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_SCHEMA) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_SCHEMA) $(DEB_MIGRATE_DATA) .metadata
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
@@ -60,6 +61,14 @@ $(DEB_SCHEMA): install
 	makedeb --name=$(NAME)-schema \
 		--version=$(VERSION) \
 		--debian-dir=schema/deb \
+		--build=$(BUILD) \
+		--architecture=amd64 \
+		--output-dir=dist
+
+$(DEB_MIGRATE_DATA): install
+	makedeb --name=$(NAME)-migrate-data \
+		--version=$(VERSION) \
+		--debian-dir=migrate-data/deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
 		--output-dir=dist

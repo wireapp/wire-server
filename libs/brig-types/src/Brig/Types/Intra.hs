@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,7 +23,6 @@ module Brig.Types.Intra
   ( AccountStatus (..),
     AccountStatusUpdate (..),
     AccountStatusResp (..),
-    ConnectionStatus (..),
     UserAccount (..),
     NewUserScimInvitation (..),
     UserSet (..),
@@ -92,30 +90,6 @@ instance ToJSON AccountStatusUpdate where
   toJSON s = object ["status" .= suStatus s]
 
 -------------------------------------------------------------------------------
--- ConnectionStatus
-
-data ConnectionStatus = ConnectionStatus
-  { csFrom :: !UserId,
-    csTo :: !UserId,
-    csStatus :: !Relation
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON ConnectionStatus where
-  parseJSON = withObject "connection-status" $ \o ->
-    ConnectionStatus <$> o .: "from"
-      <*> o .: "to"
-      <*> o .: "status"
-
-instance ToJSON ConnectionStatus where
-  toJSON cs =
-    object
-      [ "from" .= csFrom cs,
-        "to" .= csTo cs,
-        "status" .= csStatus cs
-      ]
-
--------------------------------------------------------------------------------
 -- UserAccount
 
 -- | A UserAccount is targeted to be used by our \"backoffice\" and represents
@@ -174,7 +148,7 @@ instance ToJSON NewUserScimInvitation where
 -- UserList
 
 -- | Set of user ids, can be used for different purposes (e.g., used on the internal
--- APIs for auto-connections, listing user's clients)
+-- APIs for listing user's clients)
 data UserSet = UserSet
   { usUsrs :: !(Set UserId)
   }

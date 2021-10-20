@@ -36,13 +36,14 @@ import Brig.Types.User.Auth hiding (user)
 import qualified Brig.Types.User.Auth as Auth
 import qualified CargoHold.Types.V3 as CHV3
 import Control.Arrow ((&&&))
-import Control.Lens ((^.), (^?))
+import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens
 import qualified Data.Aeson.Lens as AesonL
+import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
-import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
@@ -61,7 +62,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
-import Imports
+import Imports hiding (head)
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -71,6 +72,8 @@ import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import Wire.API.User (ListUsersQuery (..))
+import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
@@ -89,12 +92,21 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test' aws p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
       test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry opts b at,
-      test' aws p "get /users/:uid - 404" $ testNonExistingUser b,
-      test' aws p "get /users/:uid - 200" $ testExistingUser b,
-      test' aws p "get /users?:id=.... - 200" $ testMultipleUsers b,
+      test' aws p "get /users/:uid - 404" $ testNonExistingUserUnqualified b,
+      test' aws p "get /users/<localdomain>/:uid - 404" $ testNonExistingUser b,
+      test' aws p "get /users/:domain/:uid - 422" $ testUserInvalidDomain b,
+      test' aws p "get /users/:uid - 200" $ testExistingUserUnqualified b,
+      test' aws p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
+      test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
+      test' aws p "head /users/:uid - 200" $ testUserExistsUnqualified b,
+      test' aws p "head /users/:uid - 404" $ testUserDoesNotExistUnqualified b,
+      test' aws p "head /users/:domain/:uid - 200" $ testUserExists b,
+      test' aws p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
+      test' aws p "post /list-users - 200" $ testMultipleUsers b,
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
-      test' aws p "put /self/email - 2xx" $ testEmailUpdate b aws,
+      test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
+      test' aws p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
@@ -204,6 +216,7 @@ testCreateUserAnon brig galley = do
   liftIO $ assertBool "Missing zuid cookie" (isJust zuid)
   -- Every registered user gets a self conversation.
   let Just uid = userId <$> responseJsonMaybe rs
+      Just quid = userQualifiedId <$> responseJsonMaybe rs
   get (galley . path "conversations" . zAuthAccess uid "conn") !!! do
     const 200 === statusCode
     -- check number of conversations:
@@ -218,7 +231,7 @@ testCreateUserAnon brig galley = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid "Mr. Pink"
+  Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserPending :: Opt.Opts -> Brig -> Http ()
 testCreateUserPending (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -244,6 +257,7 @@ testCreateUserPending _ brig = do
     const (Just "pending-activation") === fmap Error.label . responseJsonMaybe
   -- The user has no verified / activated identity yet
   let Just uid = userId <$> responseJsonMaybe rs
+      Just quid = userQualifiedId <$> responseJsonMaybe rs
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just True) === \rs' -> do
@@ -252,7 +266,7 @@ testCreateUserPending _ brig = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid "Mr. Pink"
+  Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserNoEmailNoPassword :: Brig -> Http ()
 testCreateUserNoEmailNoPassword brig = do
@@ -268,9 +282,10 @@ testCreateUserNoEmailNoPassword brig = do
       <!! const 201 === statusCode
   let Just uid = userId <$> responseJsonMaybe rs
   e <- randomEmail
-  let setEmail = RequestBodyLBS . encode $ EmailUpdate e
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "conn" . body setEmail)
-    !!! const 202 === statusCode
+  Just code <- do
+    sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
+    getPhoneLoginCode brig p
+  initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
 
 -- | email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
@@ -375,7 +390,7 @@ testCreateUserBlacklist _ brig aws =
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
   teamid <- Id <$> liftIO UUID.nextRandom
-  let ssoid = UserSSOId "nil" "nil"
+  let ssoid = UserSSOId mkSimpleSampleUref
       p withsso withteam =
         RequestBodyLBS . encode . object $
           ["name" .= ("foo" :: Text)]
@@ -415,17 +430,49 @@ testActivateWithExpiry _ brig timeout = do
       when (statusCode r == 204 && n > 0) $
         awaitExpiry (n -1) kc
 
-testNonExistingUser :: Brig -> Http ()
-testNonExistingUser brig = do
+testNonExistingUserUnqualified :: Brig -> Http ()
+testNonExistingUserUnqualified brig = do
   findingOne <- liftIO $ Id <$> UUID.nextRandom
   foundOne <- liftIO $ Id <$> UUID.nextRandom
   get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
-testExistingUser :: Brig -> Http ()
-testExistingUser brig = do
+testNonExistingUser :: Brig -> Http ()
+testNonExistingUser brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid1 <- liftIO $ Id <$> UUID.nextRandom
+  uid2 <- liftIO $ Id <$> UUID.nextRandom
+  let uid = qUnqualified qself
+      domain = qDomain qself
+  get (brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
+  get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testUserInvalidDomain :: Brig -> Http ()
+testUserInvalidDomain brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  let uid = qUnqualified qself
+  get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
+    !!! do
+      const 422 === statusCode
+      const (Just "/federation/get-users-by-ids")
+        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
+      const (Just "invalid.example.com")
+        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+
+testExistingUserUnqualified :: Brig -> Http ()
+testExistingUserUnqualified brig = do
   uid <- userId <$> randomUser brig
   get (brig . paths ["users", pack $ show uid] . zUser uid) !!! do
     const 200 === statusCode
@@ -435,8 +482,82 @@ testExistingUser brig = do
               b ^? key "id" >>= maybeFromJSON
           )
 
-testMultipleUsers :: Brig -> Http ()
-testMultipleUsers brig = do
+testExistingUser :: Brig -> Http ()
+testExistingUser brig = do
+  quser <- userQualifiedId <$> randomUser brig
+  let uid = qUnqualified quser
+      domain = qDomain quser
+  get
+    ( brig
+        . zUser uid
+        . paths
+          [ "users",
+            toByteString' domain,
+            toByteString' uid
+          ]
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just uid)
+        === ( \r -> do
+                b <- responseBody r
+                b ^? key "id" >>= maybeFromJSON
+            )
+
+testUserExistsUnqualified :: Brig -> Http ()
+testUserExistsUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExistUnqualified :: Brig -> Http ()
+testUserDoesNotExistUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
+
+testUserExists :: Brig -> Http ()
+testUserExists brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain quser), toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExist :: Brig -> Http ()
+testUserDoesNotExist brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain qself), toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
+
+testMultipleUsersUnqualified :: Brig -> Http ()
+testMultipleUsersUnqualified brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
   u3 <- createAnonUser "a" brig
@@ -449,9 +570,47 @@ testMultipleUsers brig = do
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing)
           ]
-  get (brig . zUser (userId u1) . path "users" . queryItem "ids" uids) !!! do
-    const 200 === statusCode
-    const (Just expected) === result
+  get
+    ( brig
+        . zUser (userId u1)
+        . contentJson
+        . path "users"
+        . queryItem "ids" uids
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected) === result
+  where
+    result r =
+      Set.fromList
+        . map (field "name" &&& field "email")
+        <$> responseJsonMaybe r
+    field :: FromJSON a => Text -> Value -> Maybe a
+    field f u = u ^? key f >>= maybeFromJSON
+
+testMultipleUsers :: Brig -> Http ()
+testMultipleUsers brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  u3 <- createAnonUser "a" brig
+  let users = [u1, u2, u3]
+      q = ListUsersByIds (map userQualifiedId users)
+      expected =
+        Set.fromList
+          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+            (Just $ userDisplayName u2, Nothing),
+            (Just $ userDisplayName u3, Nothing)
+          ]
+  post
+    ( brig
+        . zUser (userId u1)
+        . contentJson
+        . path "list-users"
+        . body (RequestBodyLBS (Aeson.encode q))
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected) === result
   where
     result r =
       Set.fromList
@@ -509,6 +668,7 @@ testUserUpdate brig cannon aws = do
   aliceUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled aliceUser)
   let alice = userId aliceUser
+      aliceQ = userQualifiedId aliceUser
   bobUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bobUser)
   let bob = userId bobUser
@@ -548,8 +708,11 @@ testUserUpdate brig cannon aws = do
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCanFind brig suid alice "dogbert"
+  Search.assertCanFind brig suid aliceQ "dogbert"
 
+-- This tests the behavior of `/i/self/email` instead of `/self/email` or
+-- `/access/self/email`.  tests for session token handling under `/access/self/email` are in
+-- `services/brig/test/integration/API/User/Auth.hs`.
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
   usr <- randomUser brig
@@ -557,13 +720,14 @@ testEmailUpdate brig aws = do
   let uid = userId usr
   eml <- randomEmail
   -- update email
-  initiateEmailUpdate brig eml uid !!! const 202 === statusCode
+  let Just oldeml = userEmail usr
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid !!! const 202 === statusCode
   -- activate
   activateEmail brig eml
   checkEmail brig uid eml
   liftIO $ Util.assertUserJournalQueue "user update" aws (userEmailUpdateJournaled uid eml)
-  -- update email, which is exactly the same as before
-  initiateEmailUpdate brig eml uid !!! const 204 === statusCode
+  -- update email, which is exactly the same as before (idempotency)
+  initiateEmailUpdateLogin brig eml (emailLogin eml defPassword Nothing) uid !!! const 204 === statusCode
   -- ensure no other user has "test+<uuid>@example.com"
   -- if there is such a user, let's delete it first.  otherwise
   -- this test fails since there can be only one user with "test+...@example.com"
@@ -572,12 +736,15 @@ testEmailUpdate brig aws = do
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   where
+    ensureNoOtherUserWithEmail :: Email -> Http ()
     ensureNoOtherUserWithEmail eml = do
       tk :: Maybe AccessToken <-
         responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
       for_ tk $ \t -> do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
+
+    initiateUpdateAndActivate :: Email -> UserId -> Http ()
     initiateUpdateAndActivate eml uid = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml
@@ -596,6 +763,22 @@ testPhoneUpdate brig = do
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just phn) === (userPhone <=< responseJsonMaybe)
+
+testPhoneUpdateBlacklisted :: Brig -> Http ()
+testPhoneUpdateBlacklisted brig = do
+  uid <- userId <$> randomUser brig
+  phn <- randomPhone
+  let prefix = mkPrefix $ T.take 5 (fromPhone phn)
+
+  insertPrefix brig prefix
+  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
+    !!! (const 403 === statusCode)
+
+  -- check that phone is not updated
+  get (brig . path "/self" . zUser uid) !!! do
+    const 200 === statusCode
+    const (Right Nothing) === fmap userPhone . responseJsonEither
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -649,6 +832,7 @@ testSuspendUser :: Brig -> Http ()
 testSuspendUser brig = do
   u <- randomUser brig
   let uid = userId u
+      quid = userQualifiedId u
       Just email = userEmail u
   setStatus brig uid Suspended
   -- login fails
@@ -660,13 +844,13 @@ testSuspendUser brig = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid (fromName (userDisplayName u))
+  Search.assertCan'tFind brig suid quid (fromName (userDisplayName u))
   -- re-activate
   setStatus brig uid Active
   chkStatus brig uid Active
   -- should appear in search again
   Search.refreshIndex brig
-  Search.assertCanFind brig suid uid (fromName (userDisplayName u))
+  Search.assertCanFind brig suid quid (fromName (userDisplayName u))
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
@@ -832,6 +1016,11 @@ testEmailPhoneDelete brig cannon = do
   user <- randomUser brig
   let uid = userId user
   let Just email = userEmail user
+  (cky, tok) <- do
+    rsp <-
+      login brig (emailLogin email defPassword Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    pure (decodeCookie rsp, decodeToken rsp)
   -- Cannot remove the only identity
   delete (brig . path "/self/email" . zUser uid . zConn "c")
     !!! const 403 === statusCode
@@ -864,9 +1053,7 @@ testEmailPhoneDelete brig cannon = do
     !!! const 403 === statusCode
   -- Add back a new email address
   eml <- randomEmail
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . body emailUpdate)
-    !!! const 202 === statusCode
+  initiateEmailUpdateCreds brig eml (cky, tok) uid !!! (const 202 === statusCode)
   act' <- getActivationCode brig (Left eml)
   case act' of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
@@ -896,9 +1083,8 @@ testDeleteUserByPassword brig cannon aws = do
   -- Initiate a change of email address, to verify that activation
   -- does not work after the account has been deleted.
   eml <- randomEmail
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid1 . zConn "c" . body emailUpdate)
-    !!! const 202 === statusCode
+  let Just oldeml = userEmail u
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid1 !!! (const 202 === statusCode)
   -- Establish some connections
   usr2 <- randomUser brig
   let uid2 = userId usr2
@@ -1018,7 +1204,7 @@ testUpdateSSOId brig galley = do
   put
     ( brig
         . paths ["i", "users", toByteString' noSuchUserId, "sso-id"]
-        . Bilge.json (UserSSOId "1" "1")
+        . Bilge.json (UserSSOId (mkSampleUref "1" "1"))
     )
     !!! const 404 === statusCode
   let go :: HasCallStack => User -> UserSSOId -> Http ()
@@ -1045,8 +1231,8 @@ testUpdateSSOId brig galley = do
         when (not hasEmail) $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
-  let ssoids1 = [UserSSOId "1" "1", UserSSOId "1" "2"]
-      ssoids2 = [UserSSOId "2" "1", UserSSOId "2" "2"]
+  let ssoids1 = [UserSSOId (mkSampleUref "1" "1"), UserSSOId (mkSampleUref "1" "2")]
+      ssoids2 = [UserSSOId (mkSampleUref "2" "1"), UserSSOId (mkSampleUref "2" "2")]
   users <-
     sequence
       [ mkMember True False,
@@ -1140,7 +1326,7 @@ testRestrictedUserCreation opts brig = do
 
     -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
     teamid <- Id <$> liftIO UUID.nextRandom
-    let ssoid = UserSSOId "nil" "nil"
+    let ssoid = UserSSOId mkSimpleSampleUref
     let Object ssoUser =
           object
             [ "name" .= Name "Alice",
@@ -1154,6 +1340,7 @@ testRestrictedUserCreation opts brig = do
 setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
 setHandleAndDeleteUser brig cannon u others aws execDelete = do
   let uid = userId u
+      quid = userQualifiedId u
       email = fromMaybe (error "Must have an email set") (userEmail u)
   -- First set a unique handle (to verify freeing of the handle)
   hdl <- randomHandle
@@ -1187,8 +1374,8 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Does not appear in search; public profile shows the user as deleted
   forM_ others $ \usr -> do
     get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
-    Search.assertCan'tFind brig usr uid (fromName (userDisplayName u))
-    Search.assertCan'tFind brig usr uid hdl
+    Search.assertCan'tFind brig usr quid (fromName (userDisplayName u))
+    Search.assertCan'tFind brig usr quid hdl
   -- Email address is available again
   let Object o =
         object

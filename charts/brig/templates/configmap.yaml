@@ -15,6 +15,8 @@ data:
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
+    randomPrekeys: {{ .randomPrekeys }}
+
     brig:
       host: 0.0.0.0
       port: 8080
@@ -44,11 +46,24 @@ data:
       host: gundeck
       port: 8080
 
+    {{- if .enableFederator }}
+    # TODO remove this
+    federator:
+      host: federator
+      port: 8080
+
+    federatorInternal:
+      host: federator
+      port: 8080
+    {{- end }}
+
     {{- with .aws }}
     aws:
       prekeyTable: {{ .prekeyTable }}
       sqsEndpoint: {{ .sqsEndpoint | quote }}
+      {{- if .dynamoDBEndpoint }}
       dynamoDBEndpoint: {{ .dynamoDBEndpoint | quote }}
+      {{- end }}
     {{- end }}
 
     internalEvents:

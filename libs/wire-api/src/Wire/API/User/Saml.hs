@@ -1,0 +1,162 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+-- | A "default" module for types used in Spar, unless there's a better / more specific place
+-- for them.
+module Wire.API.User.Saml where
+
+import Control.Lens (makeLenses)
+import Control.Monad.Except
+import Data.Aeson hiding (fieldLabelModifier)
+import Data.Aeson.TH hiding (fieldLabelModifier)
+import qualified Data.ByteString.Builder as Builder
+import Data.Id (UserId)
+import Data.Proxy (Proxy (Proxy))
+import Data.String.Conversions
+import Data.Swagger
+import qualified Data.Text as ST
+import Data.Time
+import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.Types (Symbol)
+import Imports
+import SAML2.Util (parseURI', renderURI)
+import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPId)
+import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Types.TH (deriveJSONOptions)
+import System.Logger.Extended (LogFormat)
+import URI.ByteString
+import Util.Options
+import Web.Cookie
+import Wire.API.User.Orphans ()
+
+----------------------------------------------------------------------------
+-- Requests and verdicts
+
+type AReqId = ID AuthnRequest
+
+type AssId = ID Assertion
+
+-- | Clients can request different ways of receiving the final 'AccessVerdict' when fetching their
+-- 'AuthnRequest'.  Web-based clients want an html page, mobile clients want to set two URIs for the
+-- two resp. 'AccessVerdict' constructors.  This format is stored in cassandra under the request id
+-- so that the verdict handler can act on it.
+data VerdictFormat
+  = VerdictFormatWeb
+  | VerdictFormatMobile {_verdictFormatGrantedURI :: URI, _verdictFormatDeniedURI :: URI}
+  deriving (Eq, Show, Generic)
+
+makeLenses ''VerdictFormat
+
+deriveJSON deriveJSONOptions ''VerdictFormat
+
+mkVerdictGrantedFormatMobile :: MonadError String m => URI -> SetCookie -> UserId -> m URI
+mkVerdictGrantedFormatMobile before cky uid =
+  parseURI'
+    . substituteVar "cookie" (cs . Builder.toLazyByteString . renderSetCookie $ cky)
+    . substituteVar "userid" (cs . show $ uid)
+    $ renderURI before
+
+mkVerdictDeniedFormatMobile :: MonadError String m => URI -> ST -> m URI
+mkVerdictDeniedFormatMobile before lbl =
+  parseURI'
+    . substituteVar "label" lbl
+    $ renderURI before
+
+substituteVar :: ST -> ST -> ST -> ST
+substituteVar var val = substituteVar' ("$" <> var) val . substituteVar' ("%24" <> var) val
+
+substituteVar' :: ST -> ST -> ST -> ST
+substituteVar' var val = ST.intercalate val . ST.splitOn var
+
+type Opts = Opts' DerivedOpts
+
+data Opts' a = Opts
+  { saml :: !SAML.Config,
+    brig :: !Endpoint,
+    galley :: !Endpoint,
+    cassandra :: !CassandraOpts,
+    maxttlAuthreq :: !(TTL "authreq"),
+    maxttlAuthresp :: !(TTL "authresp"),
+    -- | The maximum number of SCIM tokens that we will allow teams to have.
+    maxScimTokens :: !Int,
+    -- | The maximum size of rich info. Should be in sync with 'Brig.Types.richInfoLimit'.
+    richInfoLimit :: !Int,
+    -- | Wire/AWS specific; optional; used to discover Cassandra instance
+    -- IPs using describe-instances.
+    discoUrl :: !(Maybe Text),
+    logNetStrings :: !(Maybe (Last Bool)),
+    logFormat :: !(Maybe (Last LogFormat)),
+    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
+    derivedOpts :: !a
+  }
+  deriving (Functor, Show, Generic)
+
+instance FromJSON (Opts' (Maybe ()))
+
+data DerivedOpts = DerivedOpts
+  { derivedOptsBindCookiePath :: !SBS,
+    derivedOptsScimBaseURI :: !URI
+  }
+  deriving (Show, Generic)
+
+-- | (seconds)
+newtype TTL (tablename :: Symbol) = TTL {fromTTL :: Int32}
+  deriving (Eq, Ord, Show, Num)
+
+showTTL :: KnownSymbol a => TTL a -> String
+showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
+
+instance FromJSON (TTL a) where
+  parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
+
+data TTLError = TTLTooLong String String | TTLNegative String
+  deriving (Eq, Show)
+
+ttlToNominalDiffTime :: TTL a -> NominalDiffTime
+ttlToNominalDiffTime (TTL i32) = fromIntegral i32
+
+maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
+maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
+
+data SsoSettings = SsoSettings
+  { defaultSsoCode :: !(Maybe IdPId)
+  }
+  deriving (Generic, Show)
+
+instance FromJSON SsoSettings where
+  parseJSON = withObject "SsoSettings" $ \obj -> do
+    -- key needs to be present, but can be null
+    SsoSettings <$> obj .: "default_sso_code"
+
+instance ToJSON SsoSettings where
+  toJSON SsoSettings {defaultSsoCode} =
+    object ["default_sso_code" .= defaultSsoCode]
+
+-- Swagger instances
+
+instance ToSchema SsoSettings where
+  declareNamedSchema =
+    genericDeclareNamedSchema
+      defaultSchemaOptions
+        { fieldLabelModifier = \case
+            "defaultSsoCode" -> "default_sso_code"
+            other -> other
+        }

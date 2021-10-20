@@ -236,8 +236,10 @@ data Push = Push
     _pushRecipients :: Range 1 1024 (Set Recipient),
     -- | Originating user
     --
+    -- 'Nothing' here means that the originating user is on another backend.
+    --
     -- REFACTOR: where is this required, and for what?  or can it be removed?  (see also: #531)
-    _pushOrigin :: !UserId,
+    _pushOrigin :: !(Maybe UserId),
     -- | Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
     -- from '_pushRecipients' and only push to those contained in this set.
     --
@@ -266,7 +268,7 @@ data Push = Push
 
 makeLenses ''Push
 
-newPush :: UserId -> Range 1 1024 (Set Recipient) -> List1 Object -> Push
+newPush :: Maybe UserId -> Range 1 1024 (Set Recipient) -> List1 Object -> Push
 newPush from to pload =
   Push
     { _pushRecipients = to,
@@ -290,7 +292,7 @@ singletonPayload = List1.singleton . toJSONObject
 instance FromJSON Push where
   parseJSON = withObject "Push" $ \p ->
     Push <$> p .: "recipients"
-      <*> p .: "origin"
+      <*> p .:? "origin"
       <*> p .:? "connections" .!= Set.empty
       <*> p .:? "origin_connection"
       <*> p .:? "transient" .!= False

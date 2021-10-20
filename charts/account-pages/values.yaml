@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/account
-  tag: 2.1.4-5f9c54-v0.26.5-production
+  tag: "2.2.1-v0.28.21-0-6bfd7c5"
 service:
   https:
     externalPort: 443
@@ -23,9 +23,11 @@ service:
 #   backendRest: nginz-https.example.com
 #   backendWebsocket: nginz-ssl.example.com
 #   appHost: account.example.com
+
+# Some relevant environment options. For a comprehensive
+# list of available variables, please refer to:
+# https://github.com/wireapp/wire-web-config-wire/blob/master/wire-account/.env.defaults
 #
-# Some relevant environment options, have a look at
-# https://github.com/wireapp/wire-account/wiki/Self-hosting
 # NOTE: Without an empty dictionary, you will see warnings
 #       when overriding envVars
 envVars: {}

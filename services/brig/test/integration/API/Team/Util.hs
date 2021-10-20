@@ -85,7 +85,9 @@ createPopulatedBindingTeamWithNames brig names = do
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
     let invite = stdInvitationRequest inviteeEmail
-    inv <- responseJsonError =<< postInvitation brig tid (userId inviter) invite
+    inv <-
+      responseJsonError =<< postInvitation brig tid (userId inviter) invite
+        <!! statusCode === const 201
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
       post
@@ -171,7 +173,9 @@ inviteAndRegisterUser ::
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
-  inv <- responseJsonError =<< postInvitation brig tid u invite
+  inv <-
+    responseJsonError =<< postInvitation brig tid u invite
+      <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
     post
@@ -199,14 +203,14 @@ updatePermissions from tid (to, perm) galley =
     !!! const 200
     === statusCode
   where
-    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm Nothing
+    changeMember = Team.newNewTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid False
   let conv =
         NewConvUnmanaged $
-          NewConv (makeIdOpaque <$> us) Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+          NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g
@@ -228,7 +232,7 @@ createManagedConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid True
   let conv =
         NewConvManaged $
-          NewConv (makeIdOpaque <$> us) Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+          NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g
@@ -292,6 +296,13 @@ putLegalHoldEnabled tid enabled g = do
       . contentJson
       . lbytes (encode (Public.TeamFeatureStatusNoConfig enabled))
       . expect2xx
+
+putLHWhitelistTeam :: HasCallStack => Galley -> TeamId -> Http ResponseLBS
+putLHWhitelistTeam galley tid = do
+  put
+    ( galley
+        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
+    )
 
 accept :: Email -> InvitationCode -> RequestBody
 accept email code = acceptWithName (Name "Bob") email code

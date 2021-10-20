@@ -1,0 +1,5 @@
+apiVersion: v2
+description: Federator (part of Wire Server) - connects different wire installations
+name: federator
+version: 0.0.42
+type: application

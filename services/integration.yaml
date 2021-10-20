@@ -35,6 +35,29 @@ nginz:
   host: 127.0.0.1
   port: 8080
 
+# client-API:
+# webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
+#
+# federation API:
+# federator@B ---> load balancer ---> nginx-ingress (TLS termination) ----> federator@A ---> brig@A
+# (for local integration tests, we (ab)use nginz as a stand-in kube-ingress for TLS-aware tests)
+nginxIngress:
+  host: localhost
+  port: 8443
+
+federatorInternal:
+  host: 127.0.0.1
+  port: 8097
+
+federatorExternal:
+  host: 127.0.0.1
+  port: 8098
+
+# This domain is configured using coredns runing along with the rest of
+# docker-ephemeral setup. There is only an SRV record for
+# _wire-server-federator._tcp.example.com
+originDomain: example.com
+
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem
@@ -42,3 +65,22 @@ provider:
   cert: test/resources/cert.pem
   botHost: https://127.0.0.1
   botPort: 29631
+
+# Used by spar integration tests
+# Keep this in sync with setTeamInvitationTimeout from brig
+brigSettingsTeamInvitationTimeout: 5
+
+# Used by brig-integration (Federation subfolder)
+backendTwo:
+  brig:
+    host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
+    port: 9082
+  galley:
+    host: 127.0.0.1 # in kubernetes, galley.<NAMESPACE>.svc.cluster.local
+    port: 9085
+  federatorInternal:
+    host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
+    port: 9097
+  federatorExternal:
+    host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
+    port: 9097

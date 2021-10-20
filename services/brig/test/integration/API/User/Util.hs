@@ -22,10 +22,11 @@ module API.User.Util where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Data.PasswordReset
+import Brig.Options (Opts)
 import Brig.Types
-import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
+import qualified Brig.ZAuth
 import qualified CargoHold.Types.V3 as CHV3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
@@ -36,20 +37,34 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
+import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import Data.Range (unsafeRange)
-import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
+import Federation.Util (withTempMockFederator)
 import Imports
 import Test.Tasty.HUnit
 import Util
+import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.GRPC.Types hiding (body, path)
+import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
-checkHandles :: Brig -> UserId -> [Text] -> Word -> Http ResponseLBS
+checkHandles ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  [Text] ->
+  Word ->
+  m ResponseLBS
 checkHandles brig uid hs num =
   let hs' = unsafeRange hs
       num' = unsafeRange num
@@ -85,7 +100,7 @@ setRandomHandle brig user = do
 
 -- Note: This actually _will_ send out an email, so we ensure that the email
 --       used here has a domain 'simulator.amazonses.com'.
-registerUser :: Text -> Brig -> Http ResponseLBS
+registerUser :: (MonadIO m, MonadHttp m) => Text -> Brig -> m ResponseLBS
 registerUser name brig = do
   e <- randomEmail
   let p =
@@ -97,7 +112,7 @@ registerUser name brig = do
             ]
   post (brig . path "/register" . contentJson . body p)
 
-createRandomPhoneUser :: HasCallStack => Brig -> Http (UserId, Phone)
+createRandomPhoneUser :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (UserId, Phone)
 createRandomPhoneUser brig = do
   usr <- randomUser brig
   let uid = userId usr
@@ -117,7 +132,7 @@ createRandomPhoneUser brig = do
     const (Just phn) === (userPhone <=< responseJsonMaybe)
   return (uid, phn)
 
-initiatePasswordReset :: Brig -> Email -> Http ResponseLBS
+initiatePasswordReset :: Brig -> Email -> (MonadIO m, MonadHttp m) => m ResponseLBS
 initiatePasswordReset brig email =
   post
     ( brig
@@ -126,7 +141,7 @@ initiatePasswordReset brig email =
         . body (RequestBodyLBS . encode $ NewPasswordReset (Left email))
     )
 
-activateEmail :: HasCallStack => Brig -> Email -> HttpT IO ()
+activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Email -> m ()
 activateEmail brig email = do
   act <- getActivationCode brig (Left email)
   case act of
@@ -136,23 +151,37 @@ activateEmail brig email = do
         const 200 === statusCode
         const (Just False) === fmap activatedFirst . responseJsonMaybe
 
-checkEmail :: HasCallStack => Brig -> UserId -> Email -> HttpT IO ()
+checkEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Email -> m ()
 checkEmail brig uid expectedEmail =
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just expectedEmail) === (userEmail <=< responseJsonMaybe)
 
-initiateEmailUpdate :: Brig -> Email -> UserId -> Http ResponseLBS
-initiateEmailUpdate brig email uid =
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
-   in put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . body emailUpdate)
+initiateEmailUpdateLogin :: Brig -> Email -> Login -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateLogin brig email loginCreds uid = do
+  (cky, tok) <- do
+    rsp <-
+      login brig loginCreds PersistentCookie
+        <!! const 200 === statusCode
+    pure (decodeCookie rsp, decodeToken rsp)
+  initiateEmailUpdateCreds brig email (cky, tok) uid
 
-initiateEmailUpdateNoSend :: Brig -> Email -> UserId -> Http ResponseLBS
+initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateCreds brig email (cky, tok) uid = do
+  put $
+    brig
+      . path "/access/self/email"
+      . cookie cky
+      . header "Authorization" ("Bearer " <> toByteString' tok)
+      . zUser uid
+      . Bilge.json (EmailUpdate email)
+
+initiateEmailUpdateNoSend :: Brig -> Email -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateNoSend brig email uid =
   let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
    in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
 
-preparePasswordReset :: Brig -> Email -> UserId -> PlainTextPassword -> Http CompletePasswordReset
+preparePasswordReset :: Brig -> Email -> UserId -> PlainTextPassword -> (MonadIO m, MonadHttp m) => m CompletePasswordReset
 preparePasswordReset brig email uid newpw = do
   let qry = queryItem "email" (toByteString' email)
   r <- get $ brig . path "/i/users/password-reset-code" . qry
@@ -162,7 +191,7 @@ preparePasswordReset brig email uid newpw = do
   let complete = CompletePasswordReset ident pwcode newpw
   return complete
 
-completePasswordReset :: Brig -> CompletePasswordReset -> Http ResponseLBS
+completePasswordReset :: Brig -> CompletePasswordReset -> (MonadIO m, MonadHttp m) => m ResponseLBS
 completePasswordReset brig passwordResetData =
   post
     ( brig
@@ -171,18 +200,39 @@ completePasswordReset brig passwordResetData =
         . body (RequestBodyLBS $ encode passwordResetData)
     )
 
-removeBlacklist :: Brig -> Email -> Http ()
+removeBlacklist :: Brig -> Email -> (MonadIO m, MonadHttp m) => m ()
 removeBlacklist brig email =
   void $ delete (brig . path "/i/users/blacklist" . queryItem "email" (toByteString' email))
 
-getClient :: Brig -> UserId -> ClientId -> Http ResponseLBS
+getClient :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getClient brig u c =
   get $
     brig
       . paths ["clients", toByteString' c]
       . zUser u
 
-deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> Http ResponseLBS
+getClientCapabilities :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getClientCapabilities brig u c =
+  get $
+    brig
+      . paths ["clients", toByteString' c, "capabilities"]
+      . zUser u
+
+getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getUserClientsUnqualified brig uid =
+  get $
+    brig
+      . paths ["users", toByteString' uid, "clients"]
+      . zUser uid
+
+getUserClientsQualified :: Brig -> UserId -> Domain -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getUserClientsQualified brig zusr domain uid =
+  get $
+    brig
+      . paths ["users", toByteString' domain, toByteString' uid, "clients"]
+      . zUser zusr
+
+deleteClient :: Brig -> UserId -> ClientId -> Maybe Text -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteClient brig u c pw =
   delete $
     brig
@@ -193,30 +243,41 @@ deleteClient brig u c pw =
       . body payload
   where
     payload =
-      RequestBodyLBS . encode $
-        object
-          [ "password" .= pw
-          ]
+      RequestBodyLBS . encode . object . maybeToList $
+        fmap ("password" .=) pw
 
-listConnections :: Brig -> UserId -> Http ResponseLBS
+listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =
   get $
     brig
       . path "connections"
       . zUser u
 
-postAutoConnection :: Brig -> UserId -> [UserId] -> Http ResponseLBS
-postAutoConnection brig from to =
+listAllConnections :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Maybe Int -> Maybe (MultiTablePagingState "Connections" LocalOrRemoteTable) -> m ResponseLBS
+listAllConnections brig u size state =
   post $
     brig
-      . paths ["/i/users", toByteString' from, "auto-connect"]
+      . path "list-connections"
+      . zUser u
+      . expect2xx
       . contentJson
-      . body payload
-      . zConn "conn"
-  where
-    payload = RequestBodyLBS . encode $ UserSet (Set.fromList to)
+      . body
+        ( RequestBodyLBS $
+            encode $
+              object
+                [ "size" .= size,
+                  "paging_state" .= state
+                ]
+        )
 
-setProperty :: Brig -> UserId -> ByteString -> Value -> Http ResponseLBS
+getConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+getConnectionQualified brig from (Qualified toUser toDomain) =
+  get $
+    brig
+      . paths ["connections", toByteString' toDomain, toByteString' toUser]
+      . zUser from
+
+setProperty :: Brig -> UserId -> ByteString -> Value -> (MonadIO m, MonadHttp m) => m ResponseLBS
 setProperty brig u k v =
   put $
     brig
@@ -226,14 +287,14 @@ setProperty brig u k v =
       . contentJson
       . body (RequestBodyLBS $ encode v)
 
-getProperty :: Brig -> UserId -> ByteString -> Http ResponseLBS
+getProperty :: Brig -> UserId -> ByteString -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getProperty brig u k =
   get $
     brig
       . paths ["/properties", k]
       . zUser u
 
-deleteProperty :: Brig -> UserId -> ByteString -> Http ResponseLBS
+deleteProperty :: Brig -> UserId -> ByteString -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteProperty brig u k =
   delete $
     brig
@@ -241,7 +302,7 @@ deleteProperty brig u k =
       . zConn "conn"
       . zUser u
 
-countCookies :: HasCallStack => Brig -> UserId -> CookieLabel -> Http (Maybe Int)
+countCookies :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> CookieLabel -> m (Maybe Int)
 countCookies brig u label = do
   r <-
     get
@@ -254,16 +315,84 @@ countCookies brig u label = do
       === statusCode
   return $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
-assertConnections :: HasCallStack => Brig -> UserId -> [ConnectionStatus] -> Http ()
-assertConnections brig u cs =
+assertConnections :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> [ConnectionStatus] -> m ()
+assertConnections brig u connections =
   listConnections brig u !!! do
     const 200 === statusCode
     const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
-    check xs = all (`elem` xs) cs
-    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    check xs = all (`elem` xs) connections
+    status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
 
-assertEmailVisibility :: HasCallStack => Brig -> User -> User -> Bool -> Http ()
+assertConnectionQualified :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Relation -> m ()
+assertConnectionQualified brig u1 qu2 rel =
+  getConnectionQualified brig u1 qu2 !!! do
+    const 200 === statusCode
+    const (Right rel) === fmap ucStatus . responseJsonEither
+
+receiveConnectionAction ::
+  HasCallStack =>
+  Brig ->
+  FedBrigClient ->
+  UserId ->
+  Qualified UserId ->
+  F.RemoteConnectionAction ->
+  Maybe F.RemoteConnectionAction ->
+  Relation ->
+  Http ()
+receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
+  res <-
+    F.sendConnectionAction fedBrigClient (qDomain quid2) $
+      F.NewConnectionRequest (qUnqualified quid2) uid1 action
+  liftIO $ do
+    res @?= F.NewConnectionResponseOk expectedReaction
+  assertConnectionQualified brig uid1 quid2 expectedRel
+
+sendConnectionAction ::
+  HasCallStack =>
+  Brig ->
+  Opts ->
+  UserId ->
+  Qualified UserId ->
+  Maybe F.RemoteConnectionAction ->
+  Relation ->
+  Http ()
+sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
+  let mockConnectionResponse = F.NewConnectionResponseOk reaction
+      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+  (res, reqs) <-
+    liftIO . withTempMockFederator opts mockResponse $
+      postConnectionQualified brig uid1 quid2
+
+  liftIO $ do
+    req <- assertOne reqs
+    F.domain req @?= domainText (qDomain quid2)
+    fmap F.component (F.request req) @?= Just F.Brig
+    fmap F.path (F.request req) @?= Just "/federation/send-connection-action"
+    eitherDecode . cs . F.body <$> F.request req
+      @?= Just (Right (F.NewConnectionRequest uid1 (qUnqualified quid2) F.RemoteConnect))
+
+  liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
+  assertConnectionQualified brig uid1 quid2 expectedRel
+
+sendConnectionUpdateAction ::
+  HasCallStack =>
+  Brig ->
+  Opts ->
+  UserId ->
+  Qualified UserId ->
+  Maybe F.RemoteConnectionAction ->
+  Relation ->
+  Http ()
+sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
+  let mockConnectionResponse = F.NewConnectionResponseOk reaction
+      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+  void $
+    liftIO . withTempMockFederator opts mockResponse $
+      putConnectionQualified brig uid1 quid2 expectedRel !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 expectedRel
+
+assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
   get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
     const 200 === statusCode
@@ -271,7 +400,12 @@ assertEmailVisibility brig a b visible =
       then const (Just (userEmail b)) === fmap userEmail . responseJsonMaybe
       else const Nothing === (userEmail <=< responseJsonMaybe)
 
-uploadAsset :: HasCallStack => CargoHold -> UserId -> ByteString -> Http CHV3.Asset
+uploadAsset ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  CargoHold ->
+  UserId ->
+  ByteString ->
+  m CHV3.Asset
 uploadAsset c usr dat = do
   let sts = CHV3.defAssetSettings
       ct = MIME.Type (MIME.Application "text") []
@@ -289,7 +423,7 @@ uploadAsset c usr dat = do
       === statusCode
   responseJsonError rsp
 
-downloadAsset :: CargoHold -> UserId -> ByteString -> Http (Response (Maybe LB.ByteString))
+downloadAsset :: CargoHold -> UserId -> ByteString -> (MonadIO m, MonadHttp m) => m (Response (Maybe LB.ByteString))
 downloadAsset c usr ast =
   get
     ( c
@@ -298,7 +432,7 @@ downloadAsset c usr ast =
         . zConn "conn"
     )
 
-requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> Http ResponseLBS
+requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> (MonadIO m, MonadHttp m) => m ResponseLBS
 requestLegalHoldDevice brig requesterId targetUserId lastPrekey' =
   post $
     brig
@@ -310,7 +444,7 @@ requestLegalHoldDevice brig requesterId targetUserId lastPrekey' =
       RequestBodyLBS . encode $
         LegalHoldClientRequest requesterId lastPrekey'
 
-deleteLegalHoldDevice :: Brig -> UserId -> Http ResponseLBS
+deleteLegalHoldDevice :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteLegalHoldDevice brig uid =
   delete $
     brig

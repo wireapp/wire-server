@@ -23,6 +23,7 @@ where
 
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App (AppIO)
 import Brig.Phone
@@ -50,8 +51,11 @@ import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
 import Network.Wai.Utilities.Response (empty, json)
+import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Wire.API.ErrorDescription
+import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
 
@@ -77,7 +81,7 @@ routesPublic = do
     Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
       Doc.description "The access-token as query parameter."
       Doc.optional
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
 
   post "/login/send" (continue sendLoginCodeH) $
     jsonRequest @Public.SendLoginCode
@@ -109,7 +113,7 @@ routesPublic = do
     Doc.parameter Doc.Query "persist" (Doc.bool $ Doc.def False) $ do
       Doc.description "Request a persistent cookie instead of a session cookie."
       Doc.optional
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
     Doc.errorResponse accountSuspended
     Doc.errorResponse accountPending
     Doc.errorResponse loginsTooFrequent
@@ -130,7 +134,33 @@ routesPublic = do
     Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
       Doc.description "The access-token as query parameter."
       Doc.optional
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
+
+  put "/access/self/email" (continue changeSelfEmailH) $
+    accept "application" "json"
+      .&. jsonRequest @Public.EmailUpdate
+      .&. tokenRequest
+  document "PUT" "changeEmail" $ do
+    Doc.summary "Change your email address"
+    Doc.parameter Doc.Header "cookie" Doc.bytes' $
+      Doc.description "The 'zuid' cookie header"
+    Doc.parameter Doc.Header "Authorization" Doc.bytes' $ do
+      Doc.description "The access-token as 'Authorization' header."
+      Doc.optional
+    Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
+      Doc.description "The access-token as query parameter."
+      Doc.optional
+    Doc.body (Doc.ref Public.modelEmailUpdate) $
+      Doc.description "JSON body"
+    Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
+    Doc.response 204 "No update, current and new email address are the same." Doc.end
+    Doc.errorResponse invalidEmail
+    Doc.errorResponse userKeyExists
+    Doc.errorResponse blacklistedEmail
+    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse missingAccessToken
+    Doc.errorResponse invalidAccessToken
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
 
   get "/cookies" (continue listCookiesH) $
     header "Z-User"
@@ -149,7 +179,7 @@ routesPublic = do
   document "POST" "rmCookies" $ do
     Doc.summary "Revoke stored cookies."
     Doc.body (Doc.ref Public.modelRemoveCookies) Doc.end
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
 
 routesInternal :: Routes a Handler ()
 routesInternal = do
@@ -243,6 +273,37 @@ logout (Just (Right _)) (Just (Left _)) = throwStd authTokenMismatch
 logout (Just (Left ut)) (Just (Left at)) = Auth.logout ut at !>> zauthError
 logout (Just (Right ut)) (Just (Right at)) = Auth.logout ut at !>> zauthError
 
+changeSelfEmailH ::
+  JSON
+    ::: JsonRequest Public.EmailUpdate
+    ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
+    ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  Handler Response
+changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
+  usr <- validateCredentials ckies toks
+  email <- Public.euEmail <$> parseJsonBody req
+  User.changeSelfEmail usr email User.ForbidSCIMUpdates >>= \case
+    ChangeEmailResponseIdempotent -> pure (WaiResp.setStatus status204 empty)
+    ChangeEmailResponseNeedsActivation -> pure (WaiResp.setStatus status202 empty)
+  where
+    validateCredentials ::
+      Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
+      Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+      Handler UserId
+    validateCredentials = \case
+      Nothing ->
+        const $ throwStd authMissingCookie
+      Just (Right _legalholdUserTokens) ->
+        const $ throwStd authInvalidCookie
+      Just (Left userCookies) ->
+        \case
+          Nothing ->
+            throwStd missingAccessToken
+          Just (Right _legalholdAccessToken) ->
+            throwStd invalidAccessToken
+          Just (Left userTokens) ->
+            fst <$> (Auth.validateTokens userCookies (Just userTokens) !>> zauthError)
+
 listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> Handler Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
 
@@ -307,17 +368,17 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
     legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookies "zuid"
     accessToken = parse @ZAuth.Access <$> (tokenHeader .|. tokenQuery)
     legalHoldAccessToken = parse @ZAuth.LegalHoldAccess <$> (tokenHeader .|. tokenQuery)
-    --
+
     tokenHeader :: r -> Result P.Error ByteString
     tokenHeader = bearer <$> header "authorization"
-    --
+
     tokenQuery :: r -> Result P.Error ByteString
     tokenQuery = query "access_token"
-    --
+
     cookieErr :: ZAuth.UserTokenLike u => Result P.Error (List1 (ZAuth.Token u)) -> Result P.Error (List1 (ZAuth.Token u))
     cookieErr x@Okay {} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
-    --
+
     -- Extract the access token from the Authorization header.
     bearer :: Result P.Error ByteString -> Result P.Error ByteString
     bearer (Fail x) = Fail x
@@ -331,7 +392,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
                     TypeError
                     (setMessage "Invalid authorization scheme" (err status403))
                 )
-    --
+
     -- Parse the access token
     parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail x) = Fail x

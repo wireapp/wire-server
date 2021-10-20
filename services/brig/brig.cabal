@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bb4a3b9b5b4305ddf1e6c3bb031fa8784a988c45b2754e5be43c1db94a057502
+-- hash: 33acd5be229059e16903857f1923a9afcf55f285461298721a15d8d8c5b88a12
 
 name:           brig
 version:        1.35.0
@@ -22,9 +22,11 @@ library
       Brig.API
       Brig.API.Client
       Brig.API.Connection
+      Brig.API.Connection.Remote
+      Brig.API.Connection.Util
       Brig.API.Error
+      Brig.API.Federation
       Brig.API.Handler
-      Brig.API.IdMapping
       Brig.API.Internal
       Brig.API.Properties
       Brig.API.Public
@@ -53,10 +55,12 @@ library
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
       Brig.Email
+      Brig.Federation.Client
       Brig.Index.Eval
       Brig.Index.Migrations
       Brig.Index.Migrations.Types
       Brig.Index.Options
+      Brig.Index.Types
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
@@ -65,7 +69,6 @@ library
       Brig.Options
       Brig.Password
       Brig.Phone
-      Brig.PolyLog
       Brig.Provider.API
       Brig.Provider.DB
       Brig.Provider.Email
@@ -85,20 +88,23 @@ library
       Brig.Template
       Brig.Unique
       Brig.User.API.Auth
+      Brig.User.API.Handle
       Brig.User.API.Search
       Brig.User.Auth
       Brig.User.Auth.Cookie
       Brig.User.Auth.Cookie.Limit
       Brig.User.Auth.DB.Cookie
       Brig.User.Auth.DB.Instances
+      Brig.User.EJPD
       Brig.User.Email
-      Brig.User.Event
-      Brig.User.Event.Log
       Brig.User.Handle
       Brig.User.Handle.Blacklist
       Brig.User.Phone
       Brig.User.Search.Index
       Brig.User.Search.Index.Types
+      Brig.User.Search.SearchIndex
+      Brig.User.Search.TeamSize
+      Brig.User.Search.TeamUserSearch
       Brig.User.Template
       Brig.Whitelist
       Brig.ZAuth
@@ -107,7 +113,7 @@ library
       Paths_brig
   hs-source-dirs:
       src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       HaskellNet >=0.3
@@ -119,7 +125,6 @@ library
     , amazonka >=1.3.7
     , amazonka-dynamodb >=1.3.7
     , amazonka-ses >=1.3.7
-    , amazonka-sns >=1.3.7
     , amazonka-sqs >=1.3.7
     , async >=2.1
     , attoparsec >=0.12
@@ -134,6 +139,7 @@ library
     , bytestring >=0.10
     , bytestring-conversion >=0.2
     , cassandra-util >=0.16.2
+    , comonad
     , conduit >=1.2.8
     , containers >=0.5
     , cookie >=0.4
@@ -141,7 +147,6 @@ library
     , currency-codes >=2.0
     , data-default >=0.5
     , data-timeout >=0.3
-    , directory >=1.2
     , dns
     , dns-util
     , either >=4.3
@@ -149,7 +154,6 @@ library
     , errors >=1.4
     , exceptions >=0.5
     , extended
-    , extra >=1.3
     , filepath >=1.3
     , fsnotify >=0.2
     , galley-types >=0.75.3
@@ -159,28 +163,30 @@ library
     , html-entities >=1.1
     , http-client >=0.5
     , http-client-openssl >=0.2
+    , http-media
     , http-types >=0.8
     , imports
+    , insert-ordered-containers
+    , interpolate
     , iproute >=1.5
     , iso639 >=0.1
     , lens >=3.8
     , lens-aeson >=1.0
-    , lifted-base >=0.2
     , metrics-core >=0.3
     , metrics-wai >=0.3
     , mime
     , mime-mail >=0.4
-    , monad-control >=1.0
+    , mmorph
     , mtl >=2.1
+    , mu-grpc-client
     , multihash >=0.1.3
     , mwc-random
     , network >=2.4
     , network-conduit-tls
-    , network-uri >=2.6
     , optparse-applicative >=0.11
     , pem >=0.2
     , polysemy
-    , prometheus-client
+    , polysemy-wire-zoo
     , proto-lens >=0.1
     , random-shuffle >=0.0.3
     , resource-pool >=0.2
@@ -189,15 +195,14 @@ library
     , ropes >=0.4.20
     , safe >=0.3
     , safe-exceptions >=0.1
+    , saml2-web-sso
     , scientific >=0.3.4
     , scrypt >=0.5
-    , semigroups >=0.15
     , servant
+    , servant-client
     , servant-server
     , servant-swagger
     , servant-swagger-ui
-    , singletons >=2.0
-    , smtp-mail >=0.1
     , sodium-crypto-sign >=0.1
     , split >=0.2
     , ssl-util
@@ -206,23 +211,19 @@ library
     , string-conversions
     , swagger >=0.1
     , swagger2
-    , tagged >=0.7
+    , tagged
     , template >=0.2
     , text >=0.11
     , text-icu-translit >=0.1
     , time >=1.1
     , tinylog >=0.10
-    , tls >=1.3.4
     , transformers >=0.3
-    , transformers-base >=0.4
     , types-common >=0.16
     , types-common-journal >=0.1
     , unliftio >=0.2
-    , unliftio-core >=0.1
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
     , uuid >=1.3.5
-    , vault >=0.3
     , vector >=0.11
     , wai >=3.0
     , wai-extra >=3.0
@@ -232,6 +233,7 @@ library
     , wai-utilities >=0.16
     , warp >=3.0.12.1
     , wire-api
+    , wire-api-federation
     , yaml >=0.8.22
     , zauth >=0.10.3
   default-language: Haskell2010
@@ -240,13 +242,12 @@ executable brig
   main-is: src/Main.hs
   other-modules:
       Paths_brig
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
       HsOpenSSL
     , base
     , brig
-    , directory >=1.3
     , imports
     , optparse-applicative >=0.10
     , types-common
@@ -256,7 +257,7 @@ executable brig-index
   main-is: index/src/Main.hs
   other-modules:
       Paths_brig
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
       base
@@ -270,6 +271,9 @@ executable brig-integration
   main-is: Main.hs
   other-modules:
       API.Calling
+      API.Federation
+      API.Internal
+      API.Internal.Util
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -278,6 +282,7 @@ executable brig-integration
       API.Settings
       API.Team
       API.Team.Util
+      API.TeamUserSearch
       API.User
       API.User.Account
       API.User.Auth
@@ -289,13 +294,15 @@ executable brig-integration
       API.User.RichInfo
       API.User.Util
       API.UserPendingActivation
+      Federation.End2end
+      Federation.Util
       Index.Create
       Util
       Util.AWS
       Paths_brig
   hs-source-dirs:
       test/integration
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       HsOpenSSL
@@ -305,6 +312,7 @@ executable brig-integration
     , async
     , attoparsec
     , base
+    , base16-bytestring
     , bilge
     , bloodhound
     , brig
@@ -316,10 +324,10 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , cql-io
     , data-timeout
     , email-validate
     , exceptions
-    , extra
     , filepath >=1.4
     , galley-types
     , gundeck-types
@@ -333,16 +341,21 @@ executable brig-integration
     , lens-aeson
     , metrics-wai
     , mime >=0.4
+    , mu-grpc-server
+    , mu-rpc
     , network
-    , options >=0.1
     , optparse-applicative
     , pem
     , proto-lens
     , random >=1.0
+    , random-shuffle
+    , raw-strings-qq
     , retry >=0.6
     , safe
     , saml2-web-sso
-    , semigroups
+    , servant
+    , servant-client
+    , servant-client-core
     , spar
     , string-conversions
     , tasty >=1.0
@@ -352,10 +365,10 @@ executable brig-integration
     , text
     , time >=1.5
     , tinylog
+    , transformers
     , types-common >=0.3
     , types-common-aws >=0.1
     , types-common-journal
-    , unix >=2.5
     , unliftio
     , unordered-containers
     , uri-bytestring >=0.2
@@ -368,6 +381,7 @@ executable brig-integration
     , warp
     , warp-tls >=3.2
     , wire-api
+    , wire-api-federation
     , yaml
     , zauth
   default-language: Haskell2010
@@ -427,16 +441,18 @@ executable brig-schema
       V61_team_invitation_email
       V62_RemoveFederationIdMapping
       V63_AddUsersPendingActivation
+      V64_ClientCapabilities
+      V65_FederatedConnections
+      V66_PersonalFeatureConfCallInit
       V9
       Paths_brig
   hs-source-dirs:
       schema/src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       base
     , cassandra-util >=0.12
-    , directory >=1.3
     , extended
     , imports
     , optparse-applicative >=0.10
@@ -450,13 +466,15 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Brig.API.Error
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:
       test/unit
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
       aeson
@@ -467,15 +485,22 @@ test-suite brig-tests
     , containers
     , dns
     , dns-util
+    , http-types
     , imports
     , polysemy
+    , polysemy-wire-zoo
     , retry
+    , servant-client-core
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
+    , time
     , tinylog
     , types-common
     , unliftio
     , uri-bytestring
     , uuid
+    , wai-utilities
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010

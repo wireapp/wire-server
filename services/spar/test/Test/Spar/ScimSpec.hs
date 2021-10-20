@@ -9,7 +9,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,8 +29,8 @@
 
 module Test.Spar.ScimSpec where
 
-import Brig.Types.Test.Arbitrary
-import Data.Aeson (eitherDecode', encode, parseJSON)
+import Control.Lens (view)
+import Data.Aeson
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.Aeson.Types as Aeson
 import Data.Id
@@ -41,6 +40,7 @@ import Imports
 import Network.URI (parseURI)
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim
+import Spar.Scim.Types (normalizeLikeStored)
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString
@@ -50,9 +50,8 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import Web.Scim.Schema.PatchOp (Op (Remove), Operation (..), PatchOp (..), Path (NormalPath), applyOperation)
 import qualified Web.Scim.Schema.ResourceType as ScimR
-import Web.Scim.Schema.Schema (Schema (CustomSchema))
-import qualified Web.Scim.Schema.Schema as Scim
-import qualified Web.Scim.Schema.User as Scim
+import Web.Scim.Schema.Schema as Scim
+import Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User.Name as ScimN
 import Wire.API.User.RichInfo
 
@@ -123,6 +122,7 @@ spec = describe "toScimStoredUser'" $ do
   it "roundtrips" . property $ do
     \(sue :: ScimUserExtra) ->
       eitherDecode' (encode sue) `shouldBe` Right sue
+
   describe "ScimUserExtra" $ do
     describe "Patchable" $ do
       it "can add to rich info map" $ do
@@ -137,7 +137,7 @@ spec = describe "toScimStoredUser'" $ do
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
         applyOperation (ScimUserExtra mempty) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "newAttr" "newValue"]))))
+          `shouldBe` (Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "newAttr" "newValue"]))))
       it "can replace in rich info map" $ do
         let operationJSON =
               [aesonQQ|{
@@ -149,8 +149,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "newValue"]))))
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "newValue"]))))
       it "treats rich info map case insensitively" $ do
         let operationJSON =
               [aesonQQ|{
@@ -162,8 +162,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "newValue"]))))
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "newValue"]))))
       it "can remove from rich info map" $ do
         let operationJSON =
               [aesonQQ|{
@@ -174,7 +174,7 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
           `shouldBe` (Right (ScimUserExtra mempty))
       it "adds new fields to rich info assoc list at the end" $ do
         let operationJSON =
@@ -187,8 +187,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue", RichField "newAttr" "newValue"]))))
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue", RichField "newAttr" "newValue"]))))
       it "can replace in rich info assoc list while maintaining order" $ do
         let operationJSON =
               [aesonQQ|{
@@ -210,8 +210,8 @@ spec = describe "toScimStoredUser'" $ do
                 RichField "secondAttr" "newSecondVal",
                 RichField "thirdAttr" "thirdVal"
               ]
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList origAssocList))) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList expectedAssocList))))
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList origAssocList))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (mkRichInfoAssocList expectedAssocList))))
       it "can remove from rich info assoc list" $ do
         let operationJSON =
               [aesonQQ|{
@@ -222,13 +222,13 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
           `shouldBe` (Right (ScimUserExtra mempty))
       it "throws error if asked to patch an recognized schema" $ do
         let schema = Just (CustomSchema "wrong-schema")
             path = Just (NormalPath (AttrPath schema "oldAttr" Nothing))
             operation = Operation Remove path Nothing
-        isLeft (applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation)
+        isLeft (applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation)
           `shouldBe` True
       it "treats rich info assoc list case insensitively" $ do
         let operationJSON =
@@ -251,8 +251,22 @@ spec = describe "toScimStoredUser'" $ do
                 RichField "secondAttr" "newSecondVal",
                 RichField "thirdAttr" "thirdVal"
               ]
-        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList origAssocList))) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList expectedAssocList))))
+        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList origAssocList))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (mkRichInfoAssocList expectedAssocList))))
 
-instance Arbitrary ScimUserExtra where
-  arbitrary = ScimUserExtra <$> arbitrary
+  describe "normalization" $ do
+    let usr :: User SparTag
+        usr = User {schemas = [PatchOp20, CustomSchema "asdf", ResourceType20, CustomSchema "", CustomSchema "", Group20, ServiceProviderConfig20], userName = ">/nP6S3|)RBmeJ/'PqYzRr\96446F\42072HS_izq", externalId = Just "nZ\179219)DZ\13375\\v", name = Nothing, displayName = Just "`b++0RD Ty~ z/S`Z\\\"bDE-\13666\&32>%<\189311", nickName = Nothing, profileUrl = Nothing, title = Nothing, userType = Nothing, preferredLanguage = Nothing, locale = Nothing, active = Just (Scim.ScimBool True), password = Nothing, emails = [], phoneNumbers = [], ims = [], photos = [], addresses = [], entitlements = [], roles = [], x509Certificates = [], extra = ScimUserExtra {_sueRichInfo = RichInfo {unRichInfo = assocs}}}
+
+        assocs :: RichInfoAssocList
+        assocs = mkRichInfoAssocList [RichField {richFieldType = "0-plIe\176041Sdu]\129492ouXy*]j\49123`jDNJ:N%\32939\&6\183443\\>HSi\6502q,\28951wZ].\11331w`", richFieldValue = "C ny6Nx0f&b\121034\29092r"}, RichField {richFieldType = "[&c;VP9\42304Q.I\43963OS\83057}G ]\175364xYLqO\156677q*ZBtZ`vKc", richFieldValue = "+FEv\28180"}, RichField {richFieldType = "}121@^z{", richFieldValue = "{KZQqjqs Py%ETB>;y1}\142167\181794\164475p"}, RichField {richFieldType = "\48098\&2#-p\68080\&9\37971|\190007K|m(", richFieldValue = ":j7\83424lQ\19571\188281*[)D8\50056\9019n\189416\100233]*!={FX|/!!&my]+8\175071\135759\&0\13316K'(\14120\172092w,2"}, RichField {richFieldType = "\50520MX>\\kQcBz\169538\147873\\\177286FqS!GW]#\20027_n", richFieldValue = "53\190108.?%t[ &9=hd9t:}Q@yj#w~B\164946B# fs!\39091}eEP"}, RichField {richFieldType = "sE7hmj\164437:", richFieldValue = "ns\"EJftf6~g5U\"&tt\20456@]M"}, RichField {richFieldType = "\172698p\41097sHk \37897X0Io\8286OU\173780\18370h\46873&GAOpuQU+T)]rC\5068WCA\68875(-\175596'", richFieldValue = "lRiP"}]
+
+    describe "'normalizeLikeStored'" $ do
+      it "works (counter-example of earlier bug)" $ do
+        let f = length . unRichInfoAssocList . unRichInfo . view sueRichInfo . Scim.extra
+        f (normalizeLikeStored usr) `shouldBe` f usr
+        normalizeLikeStored usr `shouldBe` usr
+
+      it "keeps (already normalized) user record intact (property)" . property $
+        \(usr' :: Scim.User SparTag) -> counterexample (show usr') $ do
+          normalizeLikeStored usr' `shouldBe` usr'

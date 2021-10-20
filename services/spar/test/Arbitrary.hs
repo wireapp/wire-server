@@ -31,8 +31,9 @@ import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes
 import Spar.Scim
-import Spar.Types
 import Test.QuickCheck
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
 
 instance Arbitrary IdPList where
   arbitrary = do
@@ -40,7 +41,7 @@ instance Arbitrary IdPList where
     pure $ IdPList {..}
 
 instance Arbitrary WireIdP where
-  arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 deriving instance Arbitrary ScimToken
 

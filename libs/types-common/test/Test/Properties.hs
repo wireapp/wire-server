@@ -25,17 +25,19 @@ module Test.Properties
   )
 where
 
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import Data.Aeson (FromJSON (parseJSON), FromJSONKey, ToJSON (toJSON), ToJSONKey)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Char8 as C8
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion as BS
 import Data.ByteString.Lazy as L
+import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Json.Util as Util
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
+import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time
@@ -123,9 +125,15 @@ tests =
       testGroup
         "UTCTimeMillis"
         [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
-            \(t :: Util.UTCTimeMillis) ->
-              (Aeson.eitherDecode . Aeson.encode) t == Right t,
+            \(t :: Util.UTCTimeMillis) -> do
+              (Aeson.eitherDecode . Aeson.encode) t === Right t,
           -- (we could test @show x == show y ==> x == y@, but that kind of follows from the above.)
+
+          testProperty
+            "validate (Aeson.decode . Aeson.encode) == pure . id"
+            $ \(t :: Util.UTCTimeMillis) -> do
+              (BS.fromByteString' . cs . BS.toByteString') t === Just t,
+          --
 
           let toUTCTimeMillisSlow :: HasCallStack => UTCTime -> Maybe UTCTime
               toUTCTimeMillisSlow t = parseExact formatRounded
@@ -196,6 +204,11 @@ tests =
         "Id NoId"
         [ testProperty "decode . encode = id" $
             \t (x :: Id NoId) -> roundtrip t x === Right x
+        ],
+      testGroup
+        "Domain"
+        [ jsonRoundtrip @Domain,
+          jsonKeyRoundtrip @Domain
         ]
     ]
 
@@ -208,8 +221,16 @@ jsonRoundtrip ::
   TestTree
 jsonRoundtrip = testProperty msg trip
   where
-    msg = show (typeRep @a)
+    msg = "json round trip: " <> show (typeRep @a)
     trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (Aeson.parseEither parseJSON . toJSON) v
+
+jsonKeyRoundtrip :: forall a. (Arbitrary a, Typeable a, ToJSONKey a, FromJSONKey a, Eq a, Show a, Ord a) => TestTree
+jsonKeyRoundtrip = testProperty msg trip
+  where
+    msg = "json key round trip: " <> show (typeRep @a)
+    trip (v :: Map a Int) =
       counterexample (show $ toJSON v) $
         Right v === (Aeson.parseEither parseJSON . toJSON) v
 

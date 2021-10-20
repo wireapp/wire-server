@@ -14,7 +14,13 @@ self: super: {
           sha256 = "1i9dlhw0xk1viglyhail9fb36v1awrypps8jmhrkz8k1bhx98ci3";
         };
         cargoSha256 = "0zs8ibv7rinrrzp9naxd7yak7kn1gp3pjb3g8i4wf7xw2hkkq81z";
+
+        patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
+            install_name_tool -id $out/lib/libcryptobox.dylib $out/lib/libcryptobox.dylib
+          '';
+      
         postInstall = ''
+          ${patchLibs}
           mkdir -p $out/include
           cp src/cbox.h $out/include
         '';
@@ -32,6 +38,11 @@ self: super: {
         sourceRoot = "libzauth/libzauth-c";
 
         cargoSha256 = "10ijvi3rnnqpy589hhhp8s4p7xfpsbb1c3mzqnf65ra96q4nd6bf"; # self.lib.fakeSha256;
+
+        patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
+            install_name_tool -id $out/lib/libzauth.dylib $out/lib/libzauth.dylib
+          '';
+      
         postInstall = ''
           mkdir -p $out/lib/pkgconfig
           mkdir -p $out/include
@@ -39,7 +50,8 @@ self: super: {
           sed -e "s~<<VERSION>>~${version}~" \
             -e "s~<<PREFIX>>~$out~" \
             src/libzauth.pc > $out/lib/pkgconfig/libzauth.pc
-          cp target/release-tmp/libzauth.so $out/lib/
+          cp target/release-tmp/libzauth.* $out/lib/
+          ${patchLibs}
         '';
       }
   ) {};

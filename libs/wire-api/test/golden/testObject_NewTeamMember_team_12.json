@@ -1,0 +1,11 @@
+{
+    "member": {
+        "created_at": null,
+        "created_by": null,
+        "permissions": {
+            "copy": 0,
+            "self": 1408
+        },
+        "user": "00000001-0000-0004-0000-000000000007"
+    }
+}

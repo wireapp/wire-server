@@ -1,0 +1,44 @@
+{
+    "accent_id": -6,
+    "assets": [
+        {
+            "key": "\u0010k",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "/",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "呬𮀉",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "\u000c􇀊E",
+            "size": "preview",
+            "type": "image"
+        }
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "󴏳eP'X"
+    },
+    "name": "Pcf\u0010j\u0006􋺶\u0007\u001a_V}*p󱨃!O\r\u0014u㗏􁪑J\u0015l\u000c\u0004E󵸴&\"D:ly|",
+    "prekeys": [
+        {
+            "id": 1,
+            "key": "h𠄨I"
+        }
+    ]
+}

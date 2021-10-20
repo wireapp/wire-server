@@ -1,0 +1,32 @@
+{
+    "event": {
+        "conversation": "00003ab8-0000-0cff-0000-427f000000df",
+        "data": {
+            "qualified_user_ids": [
+                {
+                    "domain": "faraway.example.com",
+                    "id": "000038c1-0000-4a9c-0000-511300004c8b"
+                },
+                {
+                    "domain": "faraway.example.com",
+                    "id": "00003111-0000-2620-0000-1c8800000ea0"
+                }
+            ],
+            "user_ids": [
+                "000038c1-0000-4a9c-0000-511300004c8b",
+                "00003111-0000-2620-0000-1c8800000ea0"
+            ]
+        },
+        "from": "00004166-0000-1e32-0000-52cb0000428d",
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00003ab8-0000-0cff-0000-427f000000df"
+        },
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00004166-0000-1e32-0000-52cb0000428d"
+        },
+        "time": "1864-05-07T01:13:35.741Z",
+        "type": "conversation.member-leave"
+    }
+}

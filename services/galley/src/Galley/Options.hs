@@ -15,7 +15,40 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Options where
+module Galley.Options
+  ( Settings,
+    setHttpPoolSize,
+    setMaxTeamSize,
+    setMaxFanoutSize,
+    setMaxConvSize,
+    setIntraListing,
+    setConversationCodeURI,
+    setConcurrentDeletionEvents,
+    setDeleteConvThrottleMillis,
+    setFederationDomain,
+    setEnableIndexedBillingTeamMembers,
+    setFeatureFlags,
+    defConcurrentDeletionEvents,
+    defDeleteConvThrottleMillis,
+    defFanoutLimit,
+    JournalOpts (JournalOpts),
+    awsQueueName,
+    awsEndpoint,
+    Opts,
+    optGalley,
+    optCassandra,
+    optBrig,
+    optGundeck,
+    optSpar,
+    optFederator,
+    optDiscoUrl,
+    optSettings,
+    optJournal,
+    optLogLevel,
+    optLogNetStrings,
+    optLogFormat,
+  )
+where
 
 import Control.Lens hiding (Level, (.=))
 import Data.Aeson.TH (deriveFromJSON)
@@ -53,7 +86,7 @@ data Settings = Settings
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
-    --    _wire-server._tcp.<federationDomain>
+    --    _wire-server-federator._tcp.<federationDomain>
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
     -- Remember to keep it the same in Galley.
     -- Example:
@@ -67,6 +100,7 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
+    -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags
   }
   deriving (Show, Generic)

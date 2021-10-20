@@ -20,7 +20,8 @@
 
 module Network.Wire.Bot.Assert where
 
-import Data.Id (ConvId, UserId, makeIdOpaque)
+import Data.Id (ConvId, UserId)
+import Data.Qualified (qUnqualified)
 import qualified Data.Set as Set
 import Imports
 import Network.Wire.Bot.Monad
@@ -39,18 +40,18 @@ assertConvCreated ::
 assertConvCreated c b bs = do
   let everyone = b : bs
   forM_ bs $ \u ->
-    let others = Set.fromList . map makeIdOpaque . filter (/= botId u) . map botId $ everyone
+    let others = Set.fromList . filter (/= botId u) . map botId $ everyone
      in assertEvent u TConvCreate (convCreate (botId u) others)
   where
     convCreate self others = \case
       EConvCreate e ->
         let cnv = convEvtData e
             mems = cnvMembers cnv
-            omems = Set.fromList (map omId (cmOthers mems))
-         in cnvId cnv == c
+            omems = Set.fromList (map (qUnqualified . omQualifiedId) (cmOthers mems))
+         in (qUnqualified . cnvQualifiedId $ cnv) == c
               && convEvtFrom e == botId b
               && cnvType cnv == RegularConv
-              && memId (cmSelf mems) == makeIdOpaque self
+              && memId (cmSelf mems) == self
               && omems == others
       _ -> False
 
@@ -122,13 +123,13 @@ connStatus :: UserId -> UserId -> Relation -> Event -> Bool
 connStatus from to rel = \case
   EConnection c _ ->
     ucFrom c == from
-      && ucTo c == to
+      && qUnqualified (ucTo c) == to
       && ucStatus c == rel
   _ -> False
 
 memberJoined :: UserId -> UserId -> Event -> Bool
 memberJoined from other = \case
   EMemberJoin m ->
-    null (toList (fmap smId $ mMembers (convEvtData m)) \\ [other, from])
+    null (toList (smId <$> mMembers (convEvtData m)) \\ [other, from])
       && convEvtFrom m == from
   _ -> False

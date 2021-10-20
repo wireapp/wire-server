@@ -25,6 +25,7 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Types as Aeson
 import Data.Domain
 import Data.Id
+import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Qualified
 import qualified Data.UUID.V4 as UUID
 import Imports
@@ -46,7 +47,7 @@ testUserProfile = do
   uid <- Id <$> UUID.nextRandom
   let domain = Domain "example.com"
   let colour = ColourId 0
-  let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing Nothing
+  let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing Nothing UserLegalHoldNoConsent
   let profileJSONAsText = show $ Aeson.encode userProfile
   let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
   assertBool msg (not $ "null" `isInfixOf` profileJSONAsText)
@@ -84,5 +85,5 @@ parseIdentityTests =
     hphone = Phone "+493012345678"
     phone = ("phone", "+493012345678")
     badphone = ("phone", "__@@")
-    hssoid = UserSSOId "nil" "nil"
+    hssoid = UserSSOId mkSimpleSampleUref
     ssoid = ("sso_id", toJSON hssoid)

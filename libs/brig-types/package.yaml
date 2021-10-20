@@ -9,48 +9,31 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
-- hostname-validate
-- lens
+- aeson >=0.11
+- attoparsec >=0.10
+- base ==4.*
+- bytestring-conversion >=0.3.1
+- containers >=0.5
 - imports
+- QuickCheck >=2.9
+- swagger2 >=2.5
+- text >=0.11
+- time >=1.1
+- tinylog
+- types-common >=0.16
+- unordered-containers >=0.2
 - wire-api
 library:
   source-dirs: src
   ghc-options:
   - -funbox-strict-fields
   dependencies:
-  - aeson >=0.11
-  - attoparsec >=0.10
-  - base ==4.*
-  - base64-bytestring >=1.0
-  - bytestring >=0.9
   - bytestring-conversion >=0.2
-  - case-insensitive
   - cassandra-util
-  - containers >=0.5
-  - currency-codes >=2.0
-  - errors >=1.4
-  - extra
-  - hashable
-  - iproute >=1.5
-  - iso3166-country-codes >=0.2
-  - iso639 >=0.1
-  - lens-aeson
-  - network-uri >=2.6
-  - pem >=0.2
-  - QuickCheck >=2.9
-  - quickcheck-instances >=0.3.16
-  - random
-  - safe >=0.3
-  - scientific >=0.3.4
-  - singletons >=2.0
+  - deriving-swagger2 >=0.1.0
+  - servant-server >=0.18.2
+  - servant-swagger >=1.1.11
   - string-conversions
-  - swagger >=0.1
-  - text >=0.11
-  - time >=1.1
-  - types-common >=0.16
-  - unordered-containers >=0.2
-  - uri-bytestring
-  - uuid >=1.3
 tests:
   brig-types-tests:
     main: Main.hs
@@ -59,28 +42,6 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
-    - aeson
-    - aeson-qq
-    - attoparsec
-    - base
     - brig-types
-    - bytestring
-    - containers
-    - currency-codes
-    - extra
-    - iproute
-    - iso639
-    - pem
-    - QuickCheck
-    - quickcheck-instances
-    - random
     - tasty
-    - tasty-hunit
     - tasty-quickcheck
-    - text
-    - time
-    - types-common
-    - unordered-containers
-    - uuid
-    - uri-bytestring
-    - vector

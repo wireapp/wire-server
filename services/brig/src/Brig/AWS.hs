@@ -116,23 +116,24 @@ mkEnv lgr opts emailOpts mgr = do
   let g = Logger.clone (Just "aws.brig") lgr
   let pk = Opt.prekeyTable opts
   let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
+  let dynamoEndpoint = mkEndpoint DDB.dynamoDB <$> Opt.dynamoDBEndpoint opts
   e <-
     mkAwsEnv
       g
       sesEndpoint
+      dynamoEndpoint
       (mkEndpoint SQS.sqs (Opt.sqsEndpoint opts))
-      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
   sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
   jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
   return (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
-    mkAwsEnv g ses sqs dyn =
+    mkAwsEnv g ses dyn sqs =
       set AWS.envLogger (awsLogger g)
         <$> AWS.newEnvWith AWS.Discover Nothing mgr
         <&> maybe id AWS.configure ses
+        <&> maybe id AWS.configure dyn
         <&> AWS.configure sqs
-        <&> AWS.configure dyn
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
     -- Debug output from amazonka can be very useful for tracing requests

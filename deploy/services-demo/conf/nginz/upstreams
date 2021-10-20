@@ -33,3 +33,6 @@ upstream spar {
     keepalive 32;
     server 127.0.0.1:8088 max_fails=3 weight=1;
 }
+upstream federator_external {
+    server 127.0.0.1:8098 max_fails=3 weight=1;
+}

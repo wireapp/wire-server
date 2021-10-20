@@ -26,7 +26,6 @@ dependencies:
 - mtl
 - transformers
 - deepseq
-- tinylog
 library:
   source-dirs: src
 stability: experimental

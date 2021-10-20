@@ -15,18 +15,6 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Team where
+module Brig.Types.Team (module M) where
 
-import Data.Aeson
-import Imports
-import Numeric.Natural
-
-newtype TeamSize = TeamSize Natural
-  deriving (Show, Eq)
-
-instance ToJSON TeamSize where
-  toJSON (TeamSize s) = object ["teamSize" .= s]
-
-instance FromJSON TeamSize where
-  parseJSON =
-    withObject "TeamSize" $ \o -> TeamSize <$> o .: "teamSize"
+import Wire.API.Team.Size as M

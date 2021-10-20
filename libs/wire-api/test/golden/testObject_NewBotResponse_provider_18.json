@@ -1,0 +1,25 @@
+{
+    "accent_id": 8,
+    "assets": [
+        {
+            "key": "\u001c",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "𖫳󰑑",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        }
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "剡N|.\u001d"
+    },
+    "prekeys": []
+}

@@ -101,13 +101,43 @@ CREATE TABLE galley_test.data_migration (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.team_features (
-    team_id uuid PRIMARY KEY,
-    digital_signatures int,
-    legalhold_status int,
-    search_visibility_status int,
-    sso_status int,
-    validate_saml_emails int
+CREATE TABLE galley_test.user_remote_conv (
+    user uuid,
+    conv_remote_domain text,
+    conv_remote_id uuid,
+    hidden boolean,
+    hidden_ref text,
+    otr_archived boolean,
+    otr_archived_ref text,
+    otr_muted_ref text,
+    otr_muted_status int,
+    PRIMARY KEY (user, conv_remote_domain, conv_remote_id)
+) WITH CLUSTERING ORDER BY (conv_remote_domain ASC, conv_remote_id ASC)
+    AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.team (
+    team uuid PRIMARY KEY,
+    binding boolean,
+    creator uuid,
+    deleted boolean,
+    icon text,
+    icon_key text,
+    name text,
+    search_visibility int,
+    status int
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -127,25 +157,6 @@ CREATE TABLE galley_test.clients (
     user uuid PRIMARY KEY,
     clients set<text>
 ) WITH bloom_filter_fp_chance = 0.01
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
-CREATE TABLE galley_test.id_mapping (
-    mapped_id uuid PRIMARY KEY,
-    remote_domain text,
-    remote_id uuid
-) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -195,8 +206,6 @@ CREATE TABLE galley_test.member (
     provider uuid,
     service uuid,
     status int,
-    user_remote_domain text,
-    user_remote_id uuid,
     PRIMARY KEY (conv, user)
 ) WITH CLUSTERING ORDER BY (user ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -284,8 +293,6 @@ CREATE TABLE galley_test.meta (
 CREATE TABLE galley_test.user (
     user uuid,
     conv uuid,
-    conv_remote_domain text,
-    conv_remote_id uuid,
     PRIMARY KEY (user, conv)
 ) WITH CLUSTERING ORDER BY (conv ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -303,20 +310,34 @@ CREATE TABLE galley_test.user (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.team (
-    team uuid PRIMARY KEY,
-    binding boolean,
-    creator uuid,
-    deleted boolean,
-    icon text,
-    icon_key text,
-    name text,
-    search_visibility int,
-    status int
-) WITH bloom_filter_fp_chance = 0.1
+CREATE TABLE galley_test.member_remote_user (
+    conv uuid,
+    user_remote_domain text,
+    user_remote_id uuid,
+    conversation_role text,
+    PRIMARY KEY (conv, user_remote_domain, user_remote_id)
+) WITH CLUSTERING ORDER BY (user_remote_domain ASC, user_remote_id ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.legalhold_whitelisted (
+    team uuid PRIMARY KEY
+) WITH bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -377,6 +398,33 @@ CREATE TABLE galley_test.conversation_codes (
     PRIMARY KEY (key, scope)
 ) WITH CLUSTERING ORDER BY (scope ASC)
     AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.team_features (
+    team_id uuid PRIMARY KEY,
+    app_lock_enforce int,
+    app_lock_inactivity_timeout_secs int,
+    app_lock_status int,
+    conference_calling int,
+    digital_signatures int,
+    file_sharing int,
+    legalhold_status int,
+    search_visibility_status int,
+    sso_status int,
+    validate_saml_emails int
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -974,25 +1022,6 @@ CREATE TABLE brig_test.service_whitelist_rev (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE brig_test.id_mapping (
-    mapped_id uuid PRIMARY KEY,
-    remote_domain text,
-    remote_id uuid
-) WITH bloom_filter_fp_chance = 0.1
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
 CREATE TABLE brig_test.team_invitation (
     team uuid,
     id uuid,
@@ -1029,6 +1058,7 @@ CREATE TABLE brig_test.user (
     country ascii,
     email text,
     expires timestamp,
+    feature_conference_calling int,
     handle text,
     language ascii,
     managed_by int,
@@ -1147,6 +1177,7 @@ CREATE TABLE brig_test.password_reset (
 CREATE TABLE brig_test.clients (
     user uuid,
     client text,
+    capabilities set<int>,
     class int,
     cookie text,
     ip inet,
@@ -1185,6 +1216,49 @@ CREATE TABLE brig_test.budget (
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
     AND gc_grace_seconds = 0
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE brig_test.connection_remote (
+    left uuid,
+    right_domain text,
+    right_user uuid,
+    conv_domain text,
+    conv_id uuid,
+    last_update timestamp,
+    status int,
+    PRIMARY KEY (left, right_domain, right_user)
+) WITH CLUSTERING ORDER BY (right_domain ASC, right_user ASC)
+    AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE brig_test.users_pending_activation (
+    user uuid PRIMARY KEY,
+    expires_at timestamp
+) WITH bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1371,15 +1445,39 @@ CREATE TABLE spar_test.bind_cookie (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE spar_test.team_idp (
-    team uuid,
-    idp uuid,
-    PRIMARY KEY (team, idp)
-) WITH CLUSTERING ORDER BY (idp ASC)
+CREATE TABLE spar_test.user_v2 (
+    issuer text,
+    normalized_uname_id text,
+    sso_id text,
+    uid uuid,
+    PRIMARY KEY (issuer, normalized_uname_id)
+) WITH CLUSTERING ORDER BY (normalized_uname_id ASC)
     AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE spar_test.data_migration (
+    id int,
+    version int,
+    date timestamp,
+    descr text,
+    PRIMARY KEY (id, version)
+) WITH CLUSTERING ORDER BY (version ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -1447,6 +1545,7 @@ CREATE TABLE spar_test.issuer_idp (
 
 CREATE TABLE spar_test.idp (
     idp uuid PRIMARY KEY,
+    api_version int,
     extra_public_keys list<blob>,
     issuer text,
     old_issuers list<text>,
@@ -1595,11 +1694,73 @@ CREATE TABLE spar_test.team_provisioning_by_token (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
+CREATE TABLE spar_test.team_idp (
+    team uuid,
+    idp uuid,
+    PRIMARY KEY (team, idp)
+) WITH CLUSTERING ORDER BY (idp ASC)
+    AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE spar_test.issuer_idp_v2 (
+    issuer text,
+    team uuid,
+    idp uuid,
+    PRIMARY KEY (issuer, team)
+) WITH CLUSTERING ORDER BY (team ASC)
+    AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
 CREATE TABLE spar_test.scim_user_times (
     uid uuid PRIMARY KEY,
     created_at timestamp,
     last_updated_at timestamp
 ) WITH bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE spar_test.scim_external (
+    team uuid,
+    external_id text,
+    user uuid,
+    PRIMARY KEY (team, external_id)
+) WITH CLUSTERING ORDER BY (external_id ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}

@@ -1,0 +1,10 @@
+{
+    "created_at": null,
+    "created_by": null,
+    "legalhold_status": "pending",
+    "permissions": {
+        "copy": 32,
+        "self": 36
+    },
+    "user": "00000008-0000-0006-0000-000300000003"
+}

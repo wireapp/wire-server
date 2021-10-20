@@ -1,0 +1,63 @@
+{
+    "assets": [
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "complete",
+            "type": "image"
+        }
+    ],
+    "auth_tokens": [
+        "yA=="
+    ],
+    "base_url": "https://example.com",
+    "description": "",
+    "enabled": true,
+    "id": "00000002-0000-0002-0000-000200000000",
+    "name": "X􍄗 \u0018\u001a𪆬\u0007'YNs\u0003%ꄆ(􂒍􄏽\t\u0016\u000e󽢮\"u⸵7\u0004W𪦯\u0008qO8W|T$Wtw\u0000󳱽tI􇷣􎑔qg잫<$𭍓WtXD>O󸴛W󱽁PZo.\u0005􋋗\u0018h𬀙\u0019QV𑖰7\"2_𐩾𭥊!𣻭\u0011inq\u001ciJ)_𪝗;􃨾",
+    "public_keys": [
+        {
+            "pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0\nG06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH\nWvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV\nVPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS\nbUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8\n7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la\nnQIDAQAB\n-----END PUBLIC KEY-----\n",
+            "size": 0,
+            "type": "rsa"
+        },
+        {
+            "pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0\nG06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH\nWvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV\nVPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS\nbUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8\n7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la\nnQIDAQAB\n-----END PUBLIC KEY-----\n",
+            "size": -1,
+            "type": "rsa"
+        }
+    ],
+    "summary": "",
+    "tags": [
+        "design",
+        "lifestyle",
+        "quiz"
+    ]
+}

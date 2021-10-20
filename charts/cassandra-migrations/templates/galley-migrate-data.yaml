@@ -12,6 +12,7 @@ metadata:
     heritage: "{{ .Release.Service }}"
   annotations:
     "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
     "helm.sh/hook-delete-policy": "before-hook-creation"
 spec:
   template:
@@ -28,6 +29,7 @@ spec:
       containers:
         - name: galley-migrate-data
           image: "{{ .Values.images.galleyMigrateData }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
            - --cassandra-host
            - "{{ .Values.cassandra.host }}"

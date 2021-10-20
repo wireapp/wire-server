@@ -1,0 +1,11 @@
+{
+    "conversation_roles": [
+        {
+            "actions": [
+                "add_conversation_member",
+                "modify_other_conversation_member"
+            ],
+            "conversation_role": "0g843hmarr"
+        }
+    ]
+}

@@ -57,7 +57,6 @@ models =
     Call.Config.modelRtcIceServer,
     Connection.modelConnectionList,
     Connection.modelConnection,
-    Connection.modelConnectionRequest,
     Connection.modelConnectionUpdate,
     Conversation.modelConversation,
     Conversation.modelConversations,
@@ -66,7 +65,7 @@ models =
     Conversation.modelNewConversation,
     Conversation.modelTeamInfo,
     Conversation.modelConversationUpdateName,
-    Conversation.modelConversationAccessUpdate,
+    Conversation.modelConversationAccessData,
     Conversation.modelConversationReceiptModeUpdate,
     Conversation.modelConversationMessageTimerUpdate,
     Conversation.Code.modelConversationCode,
@@ -126,7 +125,9 @@ models =
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureValidateSAMLEmails,
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureDigitalSignatures,
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureAppLock,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureClassifiedDomains,
     Team.Feature.modelTeamFeatureAppLockConfig,
+    Team.Feature.modelTeamFeatureClassifiedDomainsConfig,
     Team.Invitation.modelTeamInvitation,
     Team.Invitation.modelTeamInvitationList,
     Team.Invitation.modelTeamInvitationRequest,
@@ -165,9 +166,6 @@ models =
     User.Client.modelClient,
     User.Client.modelSigkeys,
     User.Client.modelLocation, -- re-export from types-common
-    User.Client.modelPubClient,
-    User.Client.Prekey.modelPrekeyBundle,
-    User.Client.Prekey.modelClientPrekey,
     User.Client.Prekey.modelPrekey,
     User.Handle.modelUserHandleInfo,
     User.Handle.modelCheckHandles,
@@ -177,6 +175,8 @@ models =
     User.Profile.modelAsset,
     User.RichInfo.modelRichInfo,
     User.RichInfo.modelRichField,
-    User.Search.modelSearchResult,
-    User.Search.modelSearchContact
+    User.Search.modelSearchResult User.Search.modelSearchContact,
+    User.Search.modelSearchResult User.Search.modelTeamContact,
+    User.Search.modelSearchContact,
+    User.Search.modelTeamContact
   ]

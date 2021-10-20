@@ -26,8 +26,10 @@ where
 
 import qualified Codec.MIME.Type as MIME
 import qualified Data.ByteString.Lazy as LBS
-import Data.Id (ConvId, makeIdOpaque)
+import Data.Id (ConvId)
 import Data.List1
+import Data.Qualified (Qualified (..), qUnqualified)
+import Data.Range
 import Imports
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
@@ -62,12 +64,11 @@ mainBotNet n = do
         conn <-
           connectTo
             ConnectionRequest
-              { crUser = makeIdOpaque (botId user),
-                crName = fromMaybe "" (botEmail ally),
-                crMessage = Message "Hi there!"
+              { crUser = botId user,
+                crName = unsafeRange $ fromMaybe "" (botEmail ally)
               }
         assertConnectRequested ally user
-        requireMaybe (ucConvId conn) "conv_id not set after connection request"
+        requireMaybe (qUnqualified <$> ucConvId conn) "conv_id not set after connection request"
   info $ msg "Setting up connections between Ally and the rest of the gang"
   (a2b, a2c, a2goons) <- runBotSession ally $ do
     a2b <- allyConnectTo bill
@@ -87,15 +88,15 @@ mainBotNet n = do
   info $ msg "Creating a group conversation ('Meetup') with everyone"
   meetup <- runBotSession ally $ do
     let others = bill : carl : goons
-    conv <- cnvId <$> createConv (map botId others) (Just "Meetup")
+    conv <- qUnqualified . cnvQualifiedId <$> createConv (map botId others) (Just "Meetup")
     assertConvCreated conv ally others
     return conv
   info $ msg "Bill updates his member state"
+  localDomain <- viewFederationDomain
   runBotSession bill $ do
     let update =
           MemberUpdateData
-            { misTarget = Just $ botId bill,
-              misOtrMuted = Nothing,
+            { misTarget = Qualified (botId bill) localDomain,
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Nothing,
               misOtrArchived = Just True,

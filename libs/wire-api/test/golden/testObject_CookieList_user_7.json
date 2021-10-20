@@ -1,0 +1,68 @@
+{
+    "cookies": [
+        {
+            "created": "1864-05-09T11:14:58.099749644105Z",
+            "expires": "1864-05-09T20:24:55.029381103828Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T10:06:10.491020367007Z",
+            "expires": "1864-05-09T15:04:30.093775016306Z",
+            "id": 0,
+            "label": "",
+            "successor": null,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T00:16:19.909453661738Z",
+            "expires": "1864-05-09T05:54:39.512772120746Z",
+            "id": 1,
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T18:26:23.718288941861Z",
+            "expires": "1864-05-09T16:11:38.770254728195Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "session"
+        },
+        {
+            "created": "1864-05-09T15:13:20.879830850957Z",
+            "expires": "1864-05-09T01:25:18.552525669912Z",
+            "id": 1,
+            "label": null,
+            "successor": null,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T22:54:28.824084324791Z",
+            "expires": "1864-05-09T17:04:10.053358596502Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T02:27:17.023081634382Z",
+            "expires": "1864-05-09T01:10:27.638644713358Z",
+            "id": 1,
+            "label": "",
+            "successor": 1,
+            "type": "persistent"
+        },
+        {
+            "created": "1864-05-09T20:54:04.990126375152Z",
+            "expires": "1864-05-09T00:53:54.744162891679Z",
+            "id": 0,
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
+        }
+    ]
+}

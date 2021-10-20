@@ -36,6 +36,9 @@ module Spar.Data
     getVerdictFormat,
 
     -- * SAML Users
+    NormalizedUNameID (..),
+    normalizeUnqualifiedNameId,
+    normalizeQualifiedNameId,
     insertSAMLUser,
     getSAMLUser,
     getSAMLAnyUserByIssuer,
@@ -53,12 +56,12 @@ module Spar.Data
     Replacing (..),
     setReplacedBy,
     clearReplacedBy,
+    GetIdPResult (..),
     getIdPConfig,
-    getIdPConfigByIssuer,
-    getIdPIdByIssuer,
+    getIdPIdByIssuerWithoutTeam,
+    getIdPIdByIssuerWithTeam,
     getIdPConfigsByTeam,
     deleteIdPConfig,
-    deleteTeam,
     storeIdPRawMetadata,
     getIdPRawMetadata,
     deleteIdPRawMetadata,
@@ -90,6 +93,8 @@ import Cassandra as Cas
 import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
 import Control.Monad.Except
+import Data.CaseInsensitive (foldCase)
+import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.List.NonEmpty as NL
@@ -98,19 +103,25 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Spar.Types
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
+import Wire.API.Cookie
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 11
+schemaVersion = 15
 
 ----------------------------------------------------------------------
 -- helpers
@@ -257,12 +268,41 @@ getVerdictFormat req =
 ----------------------------------------------------------------------
 -- user
 
+-- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
+-- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
+-- 'normalizeQualifiedNameId' to create values.
+newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
+  deriving stock (Eq, Ord, Generic)
+
+instance Cql NormalizedUNameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unNormalizedUNameID
+  fromCql (CqlText t) = pure $ NormalizedUNameID t
+  fromCql _ = Left "NormalizedNameID: expected CqlText"
+
+normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
+normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
+  where
+    nameIdTxt :: SAML.UnqualifiedNameID -> ST
+    nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEmail email) = SAMLEmail.render $ CI.original email
+    nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
+    nameIdTxt (SAML.UNameIDPersistent txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDTransient txt) = SAML.unsafeFromXmlText txt
+
+-- | Qualifiers are ignored.
+normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID
+normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID
+
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, normalizeQualifiedNameId subject, subject, uid)
   where
-    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
-    ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
+    ins :: PrepQuery W (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId) ()
+    ins = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
 
 -- | Sometimes we only need to know if it's none or more, so this function returns the first one.
 getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
@@ -271,7 +311,7 @@ getSAMLAnyUserByIssuer issuer =
     <$$> (retry x1 . query1 sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ? LIMIT 1"
+    sel = "SELECT uid FROM user_v2 WHERE issuer = ? LIMIT 1"
 
 -- | Sometimes (eg., for IdP deletion), we can start anywhere with deleting all users in an
 -- IdP, and if we don't get all users we just try again when we're done with these.
@@ -281,28 +321,67 @@ getSAMLSomeUsersByIssuer issuer =
     <$$> (retry x1 . query sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
-    sel = "SELECT sso_id, uid FROM user WHERE issuer = ? LIMIT 2000"
+    sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
 
+-- | Lookup a brig 'UserId' by IdP issuer and NameID.
+--
+-- NB: It is not allowed for two distinct wire users from two different teams to have the same
+-- 'UserRef'.  RATIONALE: this allows us to implement 'getSAMLUser' without adding 'TeamId' to
+-- 'UserRef' (which in turn would break the (admittedly leaky) abstarctions of saml2-web-sso).
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getSAMLUser (SAML.UserRef tenant subject) =
-  runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+getSAMLUser uref = do
+  mbUid <- getSAMLUserNew uref
+  case mbUid of
+    Nothing -> migrateLegacy uref
+    Just uid -> pure $ Just uid
   where
-    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+    getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserNew (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params Quorum (tenant, normalizeQualifiedNameId subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, NormalizedUNameID) (Identity UserId)
+        sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
+
+    migrateLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    migrateLegacy uref' = do
+      mbUid <- getSAMLUserLegacy uref'
+      for mbUid $ \uid -> do
+        insertSAMLUser uref' uid
+        pure uid
+
+    getSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserLegacy (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
+        sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
 deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
 deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
-    del = "DELETE FROM user WHERE issuer = ?"
+    del = "DELETE FROM user_v2 WHERE issuer = ?"
 
--- | Delete a user from the saml users table.
-deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-deleteSAMLUser (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+deleteSAMLUser :: (HasCallStack, MonadClient m) => UserId -> SAML.UserRef -> m ()
+deleteSAMLUser uid uref = do
+  muidUref <- getSAMLUser uref
+  for_ muidUref $ \uidUref ->
+    when (uidUref == uid) $ do
+      deleteSAMLUserLegacy uref
+      deleteSAMLUserNew uref
   where
-    del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
-    del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
+    deleteSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, normalizeQualifiedNameId subject)
+      where
+        del :: PrepQuery W (SAML.Issuer, NormalizedUNameID) ()
+        del = "DELETE FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
+    deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+    deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+      where
+        del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
+        del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies
@@ -318,7 +397,7 @@ insertBindCookie ::
 insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
-  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ cky
   retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
   where
     ins :: PrepQuery W (ST, UserId, Int32) ()
@@ -336,7 +415,7 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer], Maybe SAML.IdPId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId)
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
 -- FUTUREWORK: enforce that wiReplacedby is Nothing, or throw an error.  there is no
@@ -358,13 +437,15 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
       idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpExtraInfo . wiApiVersion,
       idp ^. SAML.idpExtraInfo . wiOldIssuers,
       idp ^. SAML.idpExtraInfo . wiReplacedBy
     )
   addPrepQuery
     byIssuer
-    ( idp ^. SAML.idpId,
-      idp ^. SAML.idpMetadata . SAML.edIssuer
+    ( idp ^. SAML.idpMetadata . SAML.edIssuer,
+      idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpId
     )
   addPrepQuery
     byTeam
@@ -373,15 +454,14 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
-    byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+    -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
+    byIssuer :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()
+    byIssuer = "INSERT INTO issuer_idp_v2 (issuer, team, idp) VALUES (?, ?, ?)"
+
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-newtype Replaced = Replaced SAML.IdPId
-
-newtype Replacing = Replacing SAML.IdPId
 
 -- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
 setReplacedBy ::
@@ -424,36 +504,50 @@ getIdPConfig idpid =
         certsTail,
         -- extras
         teamId,
+        apiVersion,
         oldIssuers,
         replacedBy
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
-            _idpExtraInfo = WireIdP teamId oldIssuers replacedBy
+            _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
-getIdPConfigByIssuer ::
+-- | Find 'IdPId' without team.  Search both `issuer_idp_v2` and `issuer_idp`; in the former,
+-- make sure the result is unique (no two IdPs for two different teams).
+getIdPIdByIssuerWithoutTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
-  m (Maybe IdP)
-getIdPConfigByIssuer issuer = do
-  getIdPIdByIssuer issuer >>= \case
-    Nothing -> pure Nothing
-    Just idpid -> getIdPConfig idpid
-
-getIdPIdByIssuer ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  m (Maybe SAML.IdPId)
-getIdPIdByIssuer issuer = do
-  retry x1 (query1 sel $ params Quorum (Identity issuer)) <&> \case
-    Nothing -> Nothing
-    Just (Identity idpid) -> Just idpid
+  m (GetIdPResult SAML.IdPId)
+getIdPIdByIssuerWithoutTeam issuer = do
+  (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+    [] ->
+      (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+        Just idpid -> pure $ GetIdPFound idpid
+        Nothing -> pure GetIdPNotFound
+    [idpid] ->
+      pure $ GetIdPFound idpid
+    idpids@(_ : _ : _) ->
+      pure $ GetIdPNonUnique idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
+
+    selv2 :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
+    selv2 = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ?"
+
+getIdPIdByIssuerWithTeam ::
+  (HasCallStack, MonadClient m) =>
+  SAML.Issuer ->
+  TeamId ->
+  m (Maybe SAML.IdPId)
+getIdPIdByIssuerWithTeam issuer tid = do
+  runIdentity <$$> retry x1 (query1 sel $ params Quorum (issuer, tid))
+  where
+    sel :: PrepQuery R (SAML.Issuer, TeamId) (Identity SAML.IdPId)
+    sel = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ? and team = ?"
 
 getIdPConfigsByTeam ::
   (HasCallStack, MonadClient m) =>
@@ -478,32 +572,23 @@ deleteIdPConfig idp issuer team = retry x5 . batch $ do
   addPrepQuery delDefaultIdp (Identity idp)
   addPrepQuery delIdp (Identity idp)
   addPrepQuery delIssuerIdp (Identity issuer)
+  addPrepQuery delIssuerIdpV2 (Identity issuer)
   addPrepQuery delTeamIdp (team, idp)
   where
     delDefaultIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delDefaultIdp = "DELETE FROM default_idp WHERE partition_key_always_default = 'default' AND idp = ?"
+
     delIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delIdp = "DELETE FROM idp WHERE idp = ?"
+
     delIssuerIdp :: PrepQuery W (Identity SAML.Issuer) ()
     delIssuerIdp = "DELETE FROM issuer_idp WHERE issuer = ?"
+
+    delIssuerIdpV2 :: PrepQuery W (Identity SAML.Issuer) ()
+    delIssuerIdpV2 = "DELETE FROM issuer_idp_v2 WHERE issuer = ?"
+
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
-
--- | Delete all tokens belonging to a team.
-deleteTeam ::
-  (HasCallStack, MonadClient m) =>
-  TeamId ->
-  m ()
-deleteTeam team = do
-  deleteTeamScimTokens team
-  -- Since IdPs are not shared between teams, we can look at the set of IdPs
-  -- used by the team, and remove everything related to those IdPs, too.
-  idps <- getIdPConfigsByTeam team
-  for_ idps $ \idp -> do
-    let idpid = idp ^. SAML.idpId
-        issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    deleteSAMLUsersByIssuer issuer
-    deleteIdPConfig idpid issuer team
 
 storeIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>
@@ -782,22 +867,24 @@ deleteScimUserTimes uid = retry x5 . write del $ params Quorum (Identity uid)
 -- 'UserId' here.  (Note that since there is no associated IdP, the externalId is required to
 -- be an email address, so we enforce that in the type signature, even though we only use it
 -- as a 'Text'.)
-insertScimExternalId :: (HasCallStack, MonadClient m) => Email -> UserId -> m ()
-insertScimExternalId (fromEmail -> email) uid = retry x5 . write ins $ params Quorum (email, uid)
+insertScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> UserId -> m ()
+insertScimExternalId tid (fromEmail -> email) uid =
+  retry x5 . write insert $ params Quorum (tid, email, uid)
   where
-    ins :: PrepQuery W (Text, UserId) ()
-    ins = "INSERT INTO scim_external_ids (external, user) VALUES (?, ?)"
+    insert :: PrepQuery W (TeamId, Text, UserId) ()
+    insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"
 
 -- | The inverse of 'insertScimExternalId'.
-lookupScimExternalId :: (HasCallStack, MonadClient m) => Email -> m (Maybe UserId)
-lookupScimExternalId (fromEmail -> email) = runIdentity <$$> (retry x1 . query1 sel $ params Quorum (Identity email))
+lookupScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m (Maybe UserId)
+lookupScimExternalId tid (fromEmail -> email) = runIdentity <$$> (retry x1 . query1 sel $ params Quorum (tid, email))
   where
-    sel :: PrepQuery R (Identity Text) (Identity UserId)
-    sel = "SELECT user FROM scim_external_ids WHERE external = ?"
+    sel :: PrepQuery R (TeamId, Text) (Identity UserId)
+    sel = "SELECT user FROM scim_external WHERE team = ? and external_id = ?"
 
 -- | The other inverse of 'insertScimExternalId' :).
-deleteScimExternalId :: (HasCallStack, MonadClient m) => Email -> m ()
-deleteScimExternalId (fromEmail -> email) = retry x5 . write del $ params Quorum (Identity email)
+deleteScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m ()
+deleteScimExternalId tid (fromEmail -> email) =
+  retry x5 . write delete $ params Quorum (tid, email)
   where
-    del :: PrepQuery W (Identity Text) ()
-    del = "DELETE FROM scim_external_ids WHERE external = ?"
+    delete :: PrepQuery W (TeamId, Text) ()
+    delete = "DELETE FROM scim_external WHERE team = ? and external_id = ?"

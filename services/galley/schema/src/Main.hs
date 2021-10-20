@@ -50,6 +50,12 @@ import qualified V44_AddRemoteIdentifiers
 import qualified V45_AddFederationIdMapping
 import qualified V46_TeamFeatureAppLock
 import qualified V47_RemoveFederationIdMapping
+import qualified V48_DeleteRemoteIdentifiers
+import qualified V49_ReAddRemoteIdentifiers
+import qualified V50_AddLegalholdWhitelisted
+import qualified V51_FeatureFileSharing
+import qualified V52_FeatureConferenceCalling
+import qualified V53_AddRemoteConvStatus
 
 main :: IO ()
 main = do
@@ -85,9 +91,23 @@ main = do
       V44_AddRemoteIdentifiers.migration,
       V45_AddFederationIdMapping.migration,
       V46_TeamFeatureAppLock.migration,
-      V47_RemoveFederationIdMapping.migration
+      V47_RemoveFederationIdMapping.migration,
+      V48_DeleteRemoteIdentifiers.migration,
+      V49_ReAddRemoteIdentifiers.migration,
+      V50_AddLegalholdWhitelisted.migration,
+      V51_FeatureFileSharing.migration,
+      V52_FeatureConferenceCalling.migration,
+      V53_AddRemoteConvStatus.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
+      -- (see also docs/developer/cassandra-interaction.md)
+      --
+      -- FUTUREWORK: once #1726 has made its way to master/production,
+      -- the 'message' field in connections table can be dropped.
+      -- See also https://github.com/wireapp/wire-server/pull/1747/files
+      -- for an explanation
+      -- FUTUREWORK: once #1751 has made its way to master/production,
+      -- the 'otr_muted' field in the member table can be dropped.
     ]
     `finally` Log.close l
   where

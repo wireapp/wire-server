@@ -80,7 +80,7 @@ push ps = do
     Right () -> return ()
     Left exs -> do
       forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
-      throwM (Error status500 "server-error" "Server Error")
+      throwM (mkError status500 "server-error" "Server Error")
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class MonadThrow m => MonadPushAll m where
@@ -137,7 +137,7 @@ class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m 
   mpyPush ::
     Notification ->
     List1 NotificationTarget ->
-    UserId ->
+    Maybe UserId ->
     Maybe ConnId ->
     Set ConnId ->
     m [Presence]
@@ -272,7 +272,7 @@ shouldActuallyPush :: Push -> Recipient -> Presence -> Bool
 shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecipientWhitelist
   where
     isOrigin =
-      psh ^. pushOrigin == userId pres
+      psh ^. pushOrigin == Just (userId pres)
         && psh ^. pushOriginConnection == Just (connId pres)
     okByPushWhitelist = if whitelistExists then isWhitelisted else True
       where
@@ -299,7 +299,7 @@ nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. push
   where
     routeNative u =
       u ^. recipientRoute /= RouteDirect
-        && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
+        && (Just (u ^. recipientId) /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
 -- | FUTUREWORK: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
 -- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
@@ -324,7 +324,7 @@ nativeTargets psh rcps' alreadySent =
     eligible :: Recipient -> Address -> Bool
     eligible u a
       -- Never include the origin client.
-      | a ^. addrUser == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
+      | Just (a ^. addrUser) == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
       -- Is the specific client an intended recipient?
       | not (eligibleClient a (u ^. recipientClients)) = False
       -- Is the client not whitelisted?
@@ -452,7 +452,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
     update n t arn = do
       when (n >= 3) $ do
         Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
-        throwM (Error status500 "server-error" "Server Error")
+        throwM (mkError status500 "server-error" "Server Error")
       aws <- view awsEnv
       ept <- Aws.execute aws (Aws.lookupEndpoint arn)
       case ept of
@@ -497,7 +497,7 @@ updateEndpoint uid t arn e = do
   env <- view awsEnv
   unless (equalTransport && equalApp) $ do
     Log.err $ logMessage uid arn (t ^. token) "Transport or app mismatch"
-    throwM $ Error status500 "server-error" "Server Error"
+    throwM $ mkError status500 "server-error" "Server Error"
   Log.info $ logMessage uid arn (t ^. token) "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
@@ -514,7 +514,7 @@ deleteToken :: UserId -> Token -> Gundeck ()
 deleteToken uid tok = do
   as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.Quorum
   when (null as) $
-    throwM (Error status404 "not-found" "Push token not found")
+    throwM (mkError status404 "not-found" "Push token not found")
   Native.deleteTokens as Nothing
 
 listTokens :: UserId -> Gundeck PushTokenList

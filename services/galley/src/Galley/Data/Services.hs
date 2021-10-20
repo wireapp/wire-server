@@ -34,6 +34,7 @@ where
 import Cassandra
 import Control.Lens
 import Data.Id
+import Data.Qualified
 import Data.Time.Clock
 import Galley.App
 import Galley.Data (newMember)
@@ -51,30 +52,41 @@ import Imports
 -- FUTUREWORK(federation): allow remote bots
 newtype BotMember = BotMember {fromBotMember :: LocalMember}
 
+instance Eq BotMember where
+  (==) = (==) `on` botMemId
+
+instance Ord BotMember where
+  compare = compare `on` botMemId
+
 newBotMember :: LocalMember -> Maybe BotMember
-newBotMember m = const (BotMember m) <$> memService m
+newBotMember m = const (BotMember m) <$> lmService m
 
 botMemId :: BotMember -> BotId
-botMemId = BotId . memId . fromBotMember
+botMemId = BotId . lmId . fromBotMember
 
 botMemService :: BotMember -> ServiceRef
-botMemService = fromJust . memService . fromBotMember
+botMemService = fromJust . lmService . fromBotMember
 
-addBotMember :: UserId -> ServiceRef -> BotId -> ConvId -> UTCTime -> Galley (Event, BotMember)
-addBotMember orig s bot cnv now = do
-  let pid = s ^. serviceRefProvider
-  let sid = s ^. serviceRefId
+addBotMember :: Qualified UserId -> ServiceRef -> BotId -> ConvId -> UTCTime -> Galley (Event, BotMember)
+addBotMember qorig s bot cnv now = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery insertUserConv (botUserId bot, makeIdOpaque cnv, Nothing, Nothing)
+    addPrepQuery insertUserConv (botUserId bot, cnv)
     addPrepQuery insertBot (cnv, bot, sid, pid)
-  let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
-  let mem = (newMember (botUserId bot)) {memService = Just s}
   return (e, BotMember mem)
   where
+    pid = s ^. serviceRefProvider
+    sid = s ^. serviceRefId
+    -- FUTUREWORK: support adding bots to a remote conversation
+    qcnv = Qualified cnv localDomain
+    localDomain = qDomain qorig
+    -- FUTUREWORK: support remote bots
+    e = Event MemberJoin qcnv qorig now (EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
+    mem = (newMember (botUserId bot)) {lmService = Just s}
+
     toSimpleMember :: UserId -> SimpleMember
-    toSimpleMember u = SimpleMember u roleNameWireAdmin
+    toSimpleMember u = SimpleMember (Qualified u localDomain) roleNameWireAdmin
 
 -- Service --------------------------------------------------------------------
 

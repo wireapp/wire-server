@@ -34,27 +34,38 @@ import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), a
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
+import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Random (Random (randomRIO))
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
+import qualified Data.Csv as Csv
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (UserId, randomId)
+import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
+import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Vector as V
+import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
+import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
-import qualified SAML2.WebSSO.Types as SAML
-import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim
+import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.User as SU
-import Spar.Types (IdP, Opts' (..))
-import qualified Spar.Types
+import qualified Spar.Sem.BrigAccess as BrigAccess
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
@@ -64,8 +75,13 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
+import qualified Wire.API.Team.Export as CsvExport
 import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.User.IdentityProvider (IdP)
+import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
+import qualified Wire.API.User.Saml as Spar.Types
+import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
 
@@ -81,6 +97,7 @@ spec = do
   specAzureQuirks
   specEmailValidation
   specSuspend
+  specSCIMManaged
   describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
     it "..." $ do
       pendingWith "this is a job for quickcheck-state-machine"
@@ -98,9 +115,9 @@ specSuspend = do
           -- NOTE: once SCIM is enabled, SSO Auto-provisioning is disabled
           tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
           handle'@(Handle handle) <- nextHandle
-          runSpar $ Intra.setBrigUserHandle member handle'
+          runSpar $ BrigAccess.setHandle member handle'
           unless isActive $ do
-            runSpar $ Intra.setStatus member Suspended
+            runSpar $ BrigAccess.setStatus member Suspended
           [user] <- listUsers tok (Just (filterBy "userName" handle))
           lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
     it "pre-existing suspended users are inactive" $ do
@@ -119,19 +136,19 @@ specSuspend = do
             -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
             -- not an issue anymore.
             lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+            void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user True
             lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+            void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user False
             lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+            void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Suspended)
           do
             scimStoredUser <- putOrPatch tok uid user True
             lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+            void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
 
     it "PUT will change state from active to inactive and back" $ do
       void . activeInactiveAndBack $ \tok uid user active ->
@@ -170,10 +187,10 @@ specSuspend = do
       (tok, _) <- registerIdPAndScimToken
       scimStoredUserBlah <- createUser tok user
       let uid = Scim.id . Scim.thing $ scimStoredUserBlah
-      runSpar $ Intra.setStatus uid Suspended
-      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+      runSpar $ BrigAccess.setStatus uid Suspended
+      void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Suspended)
       void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
-      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+      void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
 
 ----------------------------------------------------------------------------
 -- User creation
@@ -193,7 +210,7 @@ specCreateUser = describe "POST /Users" $ do
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
-  it "adds a Wire scheme to the user record" $ testSchemaIsAdded
+    it "adds a Wire scheme to the user record" $ testSchemaIsAdded
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -207,6 +224,52 @@ specCreateUser = describe "POST /Users" $ do
   it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
   it "writes all the stuff to all the places" $
     pendingWith "factor this out of the PUT tests we already wrote."
+
+testCsvData ::
+  HasCallStack =>
+  TeamId ->
+  UserId ->
+  UserId ->
+  Maybe Text {- externalId -} ->
+  Maybe UserSSOId ->
+  Bool ->
+  TestSpar ()
+testCsvData tid owner uid mbeid mbsaml hasissuer = do
+  usersInCsv <- do
+    g <- view teGalley
+    resp <-
+      call $
+        get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser owner) <!! do
+          const 200 === statusCode
+          const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
+    let rbody = fromMaybe (error "no body") . responseBody $ resp
+    pure (decodeCSV @CsvExport.TeamExportUser rbody)
+
+  liftIO $ do
+    any (== uid) (CsvExport.tExportUserId <$> usersInCsv) `shouldBe` True
+    forM_ usersInCsv $ \export -> when (CsvExport.tExportUserId export == uid) $ do
+      ('e', CsvExport.tExportSCIMExternalId export)
+        `shouldBe` ('e', fromMaybe "" mbeid)
+
+      let haveIssuer :: Maybe HttpsUrl
+          haveIssuer = case mbsaml of
+            Just (UserSSOId (SAML.UserRef (SAML.Issuer issuer) _)) -> either (const Nothing) Just $ mkHttpsUrl issuer
+            Just (UserScimExternalId _) -> Nothing
+            Nothing -> Nothing
+      ('h', haveIssuer) `shouldSatisfy` bool isNothing isJust hasissuer . snd
+      ('i', CsvExport.tExportIdpIssuer export) `shouldBe` ('i', haveIssuer)
+
+      let haveSubject :: Text
+          haveSubject = case mbsaml of
+            Just (UserSSOId (SAML.UserRef _ subject)) -> CI.original $ SAML.unsafeShowNameID subject
+            Just (UserScimExternalId _) -> ""
+            Nothing -> ""
+      ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
+  where
+    decodeCSV :: Csv.FromNamedRecord a => LByteString -> [a]
+    decodeCSV bstr =
+      either (error "could not decode csv") id $
+        Csv.decodeByName bstr <&> (V.toList . snd)
 
 testCreateUserWithPass :: TestSpar ()
 testCreateUserWithPass = do
@@ -237,16 +300,17 @@ testCreateUserNoIdP = do
 
   -- get account from brig, status should be PendingInvitation
   do
-    aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
+    aFewTimes (runSpar $ BrigAccess.getAccount Intra.NoPendingInvitations userid) isJust
       >>= maybe (pure ()) (error "pending user in brig is visible, even though it should not be")
     brigUserAccount <-
-      aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.WithPendingInvitations userid) isJust
+      aFewTimes (runSpar $ BrigAccess.getAccount Intra.WithPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
     let brigUser = accountUser brigUserAccount
     brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
     liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+    liftIO $ userSSOId brigUser `shouldBe` Nothing
 
   -- searching user in brig should fail
   -- >>> searchUser brig owner userName False
@@ -279,17 +343,28 @@ testCreateUserNoIdP = do
   -- user should now be active
   do
     brigUser <-
-      aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
+      aFewTimes (runSpar $ BrigAccess.getAccount Intra.NoPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
     liftIO $ accountStatus brigUser `shouldBe` Active
     liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
-
+    liftIO $ userHandle (accountUser brigUser) `shouldBe` Just handle
+    liftIO $ userSSOId (accountUser brigUser) `shouldBe` Just (UserScimExternalId (fromEmail email))
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldNotBe` Just (Scim.ScimBool False)
 
   -- searching user in brig should succeed
   searchUser brig owner userName True
+
+  -- csv download should work
+  let eid = Scim.User.externalId scimUser
+      sml = Nothing
+   in testCsvData tid owner userid eid sml False
+
+  -- members table contains an entry
+  -- (this really shouldn't be tested here, but by the type system!)
+  members <- getTeamMembers userid tid
+  liftIO $ members `shouldContain` [userid]
   where
     -- cloned from brig's integration tests
 
@@ -339,7 +414,7 @@ testCreateUserWithSamlIdP = do
   env <- ask
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, _) <- registerIdPAndScimToken
+  (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
@@ -352,9 +427,20 @@ testCreateUserWithSamlIdP = do
           . expect2xx
       )
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
-  accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active)
+  accStatus <- aFewTimes (runSpar $ BrigAccess.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
   liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+
+  let uid = userId brigUser
+      eid = Scim.User.externalId user
+      sml :: HasCallStack => UserSSOId
+      sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
+   in testCsvData tid owner uid eid (Just sml) True
+
+  -- members table contains an entry
+  -- (this really shouldn't be tested here, but by the type system!)
+  members <- getTeamMembers userid tid
+  liftIO $ members `shouldContain` [userid]
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
@@ -466,10 +552,10 @@ testLocation = do
 
 testRichInfo :: TestSpar ()
 testRichInfo = do
-  let richInfo = RichInfo (RichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
-      richInfoOverwritten = RichInfo (RichInfoAssocList [RichField "Platforms" "Windows10"])
-      richInfoPatchedMap = RichInfo (RichInfoAssocList [RichField "Platforms" "Arch, BTW"])
-      richInfoPatchedList = RichInfo (RichInfoAssocList [RichField "Platforms" "none"])
+  let richInfo = RichInfo (mkRichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
+      richInfoOverwritten = RichInfo (mkRichInfoAssocList [RichField "Platforms" "Windows10"])
+      richInfoPatchedMap = RichInfo (mkRichInfoAssocList [RichField "Platforms" "Arch, BTW"])
+      richInfoPatchedList = RichInfo (mkRichInfoAssocList [RichField "Platforms" "none"])
       (Aeson.Success patchOpMap) =
         fromJSON
           [aesonQQ|{
@@ -491,7 +577,7 @@ testRichInfo = do
                                                       }]
                                                     }|]
 
-  brig <- asks (view teBrig)
+  brig <- view teBrig
   -- set things up
   (user, _) <- randomScimUserWithSubjectAndRichInfo richInfo
   (userOverwritten, _) <- randomScimUserWithSubjectAndRichInfo richInfoOverwritten
@@ -595,20 +681,24 @@ testScimCreateVsUserRef = do
     samlUserShouldSatisfy uref property = do
       muid <- getUserIdViaRef' uref
       liftIO $ muid `shouldSatisfy` property
+
     createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       authnReq <- negotiateAuthnRequest idp
-      spmeta <- getTestSPMetadata
+      let tid = idp ^. SAML.idpExtraInfo . User.wiTeam
+      spmeta <- getTestSPMetadata tid
       authnResp <-
         runSimpleSP $
           SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
-      submitAuthnResponse authnResp <!! const 200 === statusCode
+      submitAuthnResponse tid authnResp <!! const 200 === statusCode
+
     createViaSamlFails :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
     createViaSamlFails idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
       liftIO $ do
         maybe (error "no body") cs (responseBody resp)
-          `shouldContain` "<title>wire:sso:error:forbidden</title>"
+          `shouldNotContain` "<title>wire:sso:error:success</title>"
+
     createViaSaml :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
@@ -616,6 +706,7 @@ testScimCreateVsUserRef = do
         maybe (error "no body") cs (responseBody resp)
           `shouldContain` "<title>wire:sso:success</title>"
       getUserIdViaRef' uref
+
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
       brig <- view teBrig
@@ -637,7 +728,7 @@ testCreateUserTimeout = do
 
   waitUserExpiration
   searchUser tok scimUser email False
-  aFewTimesRecover $ registerInvitation email userName inviteeCode False
+  registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
@@ -672,7 +763,7 @@ testCreateUserTimeout = do
       tryquery (filterBy "externalId" $ fromEmail email)
 
     waitUserExpiration = do
-      timeoutSecs <- asks $ fromMaybe 5 . brigSettingsTeamInvitationTimeout . _teOpts
+      timeoutSecs <- view (teTstOpts . to cfgBrigSettingsTeamInvitationTimeout)
       Control.Exception.assert (timeoutSecs < 30) $ do
         threadDelay $ (timeoutSecs + 1) * 1_000_000
 
@@ -702,7 +793,7 @@ specListUsers = describe "GET /Users" $ do
 -- via SCIM are not listed.
 testListProvisionedUsers :: TestSpar ()
 testListProvisionedUsers = do
-  spar <- asks (^. teSpar)
+  spar <- view teSpar
   (tok, _) <- registerIdPAndScimToken
   listUsers_ (Just tok) Nothing spar !!! do
     const 400 === statusCode
@@ -713,8 +804,9 @@ testFindProvisionedUser = do
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
-  users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
-  liftIO $ users `shouldBe` [storedUser]
+  [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+  liftIO $ storedUser' `shouldBe` storedUser
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored user {Scim.User.emails = [] {- only after validation -}}
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
@@ -729,10 +821,10 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     uid <- loginSsoUserFirstTime idp privCreds
     Just usr <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
     handle <- nextHandle
-    runSpar $ Intra.setBrigUserHandle uid handle
+    runSpar $ BrigAccess.setHandle uid handle
     pure usr
   let memberIdWithSSO = userId memberWithSSO
-      externalId = either error id $ Intra.userToExternalId memberWithSSO
+      externalId = either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -742,6 +834,13 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   liftIO $ (scimUserId <$> users) `shouldContain` [memberIdWithSSO]
   Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdWithSSO
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
+  where
+    veidToText :: MonadError String m => ValidExternalId -> m Text
+    veidToText veid =
+      runValidExternalId
+        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
+        (pure . fromEmail)
+        veid
 
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO = do
@@ -785,7 +884,7 @@ testFindNonProvisionedUserNoIdP findBy = do
 
   uid <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
   handle <- nextHandle
-  runSpar $ Intra.setBrigUserHandle uid handle
+  runSpar $ BrigAccess.setHandle uid handle
   Just brigUser <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
   let Just email = userEmail brigUser
 
@@ -1100,7 +1199,7 @@ testScimSideIsUpdated = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
+  richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1155,7 +1254,7 @@ testUpdateSameHandle = do
   storedUser' <- getUser tok userid
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
+  richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1218,7 +1317,7 @@ testUpdateExternalId withidp = do
       lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
         runValidExternalId
-          (runSparCass . Data.getSAMLUser)
+          (runSpar . SAMLUserStore.get)
           ( \email -> do
               let action = SU.scimFindUserByEmail midp tid $ fromEmail email
               result <- runSpar . runExceptT . runMaybeT $ action
@@ -1239,9 +1338,7 @@ testBrigSideIsUpdated = do
   user' <- randomScimUser
   let userid = scimUserId storedUser
   _ <- updateUser tok userid user'
-  validScimUser <-
-    either (error . show) pure $
-      validateScimUser' (Just idp) 999999 user'
+  validScimUser <- either (error . show) pure $ validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
   brigUser `userShouldMatch` validScimUser
 
@@ -1437,7 +1534,7 @@ specDeleteUser = do
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUser <-
-        aFewTimes (runSparCass $ Data.readScimUserTimes uid) isNothing
+        aFewTimes (runSpar $ ScimUserTimesStore.read uid) isNothing
       liftIO $
         (brigUser, samlUser, scimUser)
           `shouldBe` (Nothing, Nothing, Nothing)
@@ -1546,14 +1643,32 @@ specDeleteUser = do
         aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
           !!! const 404 === statusCode
 
+      context "No IDP" $ do
+        describe "Deleting a User" $ do
+          it "should release their externalId" testDeletedUsersFreeExternalIdNoIdp
+
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
 -- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
--- found'.
+-- found'. If we treat it as invalid Azure will put the scim provisioning into quarantine mode,
+-- which requires manual intervention by the customer.
 specAzureQuirks :: SpecWith TestEnv
 specAzureQuirks = do
   describe "Assert that we implement all azure quirks" $ do
-    it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
-      (tok, (_, _, _)) <- registerIdPAndScimToken
+    context "with SAML IDP" $
+      it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+        (tok, (_, _, _)) <- registerIdPAndScimToken
+        testUUIds tok
+
+    context "without SAML IdP" $
+      it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            galley = env ^. teGalley
+        (_owner, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+        testUUIds tok
+  where
+    testUUIds tok = do
       users <- listUsers tok (Just (filterBy "userName" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
       liftIO $ users `shouldBe` []
       users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
@@ -1579,7 +1694,7 @@ specEmailValidation = do
               mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
           uid :: UserId <-
             getUserIdViaRef uref
-          brig <- asks (^. teBrig)
+          brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.
           if enabled
@@ -1594,3 +1709,86 @@ specEmailValidation = do
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
       eventually $ checkEmail uid Nothing
+
+testDeletedUsersFreeExternalIdNoIdp :: TestSpar ()
+testDeletedUsersFreeExternalIdNoIdp = do
+  env <- ask
+  let brig = env ^. teBrig
+  let spar = env ^. teSpar
+
+  (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  tok <- registerScimToken tid Nothing
+
+  email <- randomEmail
+  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  scimStoredUser <- createUser tok scimUser
+  let uid = scimUserId scimStoredUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
+
+  -- accept invitation
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email userName inviteeCode True
+    call $ headInvitation404 brig email
+
+  -- delete user
+  deleteUser_ (Just tok) (Just uid) spar
+    !!! const 204 === statusCode
+
+  void $
+    aFewTimes
+      (runSpar $ ScimExternalIdStore.lookup tid email)
+      (== Nothing)
+
+specSCIMManaged :: SpecWith TestEnv
+specSCIMManaged = do
+  describe "SCIM-managed users" $ do
+    it "cannot manually update their email, handle or name" $ do
+      env <- ask
+      let brig = env ^. teBrig
+
+      (tok, (_ownerid, teamid, idp, (_, privCreds))) <- registerIdPAndScimTokenWithMeta
+      enableSamlEmailValidation teamid
+      (user, oldEmail) <- randomScimUserWithEmail
+      storedUser <- createUser tok user
+      let uid :: UserId = Scim.id . Scim.thing $ storedUser
+      call $ activateEmail brig oldEmail
+      let Right nameid = SAML.emailNameID $ fromEmail oldEmail
+      (_, cky) <- loginCreatedSsoUser nameid idp privCreds
+      sessiontok <- do
+        let decodeToken :: HasCallStack => ResponseLBS -> ZAuth.Token ZAuth.Access
+            decodeToken r = fromMaybe (error "invalid access_token") $ do
+              x <- responseBody r
+              t <- x ^? key "access_token" . _String
+              fromByteString (encodeUtf8 t)
+
+        resp <- call $ post (brig . path "/access" . forceCookie cky) <!! const 200 === statusCode
+        pure $ decodeToken resp
+
+      do
+        newEmail <- randomEmail
+        call $
+          changeEmailBrigCreds brig cky sessiontok newEmail !!! do
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
+            statusCode === const 403
+
+      do
+        handleTxt <- randomAlphaNum
+        call $
+          changeHandleBrig brig uid handleTxt !!! do
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
+            statusCode === const 403
+
+      do
+        displayName <- Name <$> randomAlphaNum
+        let uupd = UserUpdate (Just displayName) Nothing Nothing Nothing
+        call $
+          updateProfileBrig brig uid uupd !!! do
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
+            statusCode === const 403
+  where
+    randomAlphaNum :: MonadIO m => m Text
+    randomAlphaNum = liftIO $ do
+      nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
+      return (cs (map chr nrs))

@@ -26,11 +26,14 @@ import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (^.))
+import qualified Data.Aeson as Aeson
 import qualified Data.Metrics.Middleware as M
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
+import Data.String.Conversions (cs)
 import Data.Text (unpack)
-import Galley.API (sitemap)
+import qualified Galley.API as API
+import Galley.API.Federation (federationSitemap)
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
@@ -38,20 +41,25 @@ import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q
 import Imports
+import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
+import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
-import Servant (Proxy (Proxy))
+import Servant (Context ((:.)), Proxy (Proxy))
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
+import Servant.API.Generic (ToServantApi, genericApi)
 import qualified Servant.Server as Servant
-import qualified System.Logger.Class as Log
+import qualified System.Logger as Log
 import Util.Options
+import qualified Wire.API.Federation.API.Galley as FederationGalley
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 run :: Opts -> IO ()
 run o = do
-  (app, e) <- mkApp o
+  (app, e, appFinalizer) <- mkApp o
   let l = e ^. App.applog
   s <-
     newSettings $
@@ -66,33 +74,62 @@ run o = do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
     shutdown (e ^. cstate)
-    Log.flush l
-    Log.close l
+    appFinalizer
 
-mkApp :: Opts -> IO (Application, Env)
+mkApp :: Opts -> IO (Application, Env, IO ())
 mkApp o = do
   m <- M.metrics
   e <- App.createEnv m o
   let l = e ^. App.applog
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
-  return (middlewares l m $ servantApp e, e)
+  let finalizer = do
+        Log.info l $ Log.msg @Text "Galley application finished."
+        Log.flush l
+        Log.close l
+      middlewares =
+        servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+          . GZip.gunzip
+          . GZip.gzip GZip.def
+          . catchErrors l [Right m]
+  return (middlewares $ servantApp e, e, finalizer)
   where
-    rtree = compile sitemap
+    rtree = compile API.sitemap
     app e r k = runGalley e r (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e r =
-      Servant.serve
-        -- we don't host any Servant endpoints yet, but will add some for the
-        -- federation API, replacing the empty API.
-        (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
-        (Servant.emptyServer :<|> Servant.Tagged (app e))
+      Servant.serveWithContext
+        (Proxy @CombinedAPI)
+        (customFormatters :. Servant.EmptyContext)
+        ( Servant.hoistServer (Proxy @GalleyAPI.ServantAPI) (toServantHandler e) API.servantSitemap
+            :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
+            :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
+            :<|> Servant.Tagged (app e)
+        )
         r
-    middlewares l m =
-      waiPrometheusMiddleware sitemap
-        . catchErrors l [Right m]
-        . GZip.gunzip
-        . GZip.gzip GZip.def
+
+customFormatters :: Servant.ErrorFormatters
+customFormatters =
+  Servant.defaultErrorFormatters
+    { Servant.bodyParserErrorFormatter = bodyParserErrorFormatter
+    }
+
+bodyParserErrorFormatter :: Servant.ErrorFormatter
+bodyParserErrorFormatter _ _ errMsg =
+  Servant.ServerError
+    { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
+      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errBody =
+        Aeson.encode $
+          Aeson.object
+            [ "code" Aeson..= Aeson.Number 400,
+              "message" Aeson..= errMsg,
+              "label" Aeson..= ("bad-request" :: Text)
+            ],
+      Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+    }
+
+type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

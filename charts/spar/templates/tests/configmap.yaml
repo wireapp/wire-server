@@ -15,3 +15,6 @@ data:
     spar:
       host: spar
       port: 8080
+
+    # Keep this in sync with brigs setTeamInvitationTimeout
+    brigSettingsTeamInvitationTimeout: 10

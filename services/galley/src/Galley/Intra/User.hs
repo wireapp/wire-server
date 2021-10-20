@@ -17,18 +17,23 @@
 
 module Galley.Intra.User
   ( getConnections,
+    getConnectionsUnqualified,
+    putConnectionInternal,
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
     getUser,
+    getUsers,
     deleteUser,
     getContactList,
+    chunkify,
+    getRichInfoMultiUser,
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
+import Brig.Types.Connection (Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
@@ -36,6 +41,7 @@ import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Qualified
 import Galley.App
 import Galley.Intra.Util
 import Imports
@@ -44,15 +50,17 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
 -- several users to one).
 --
 -- When a connection does not exist, it is skipped.
--- Calls 'Brig.API.getConnectionsStatusH'.
-getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
-getConnections uFrom uTo rlt = do
+-- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
+getConnectionsUnqualified :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnectionsUnqualified uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
     call "brig" $
@@ -61,9 +69,37 @@ getConnections uFrom uTo rlt = do
         . maybe id rfilter rlt
         . json ConnectionsStatusRequest {csrFrom = uFrom, csrTo = uTo}
         . expect2xx
-  parseResponse (Error status502 "server-error") r
+  parseResponse (mkError status502 "server-error") r
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
+
+-- | Get statuses of all connections between two groups of users (the usual
+-- pattern is to check all connections from one user to several, or from
+-- several users to one).
+--
+-- When a connection does not exist, it is skipped.
+-- Calls 'Brig.API.Internal.getConnectionsStatus'.
+getConnections :: [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley [ConnectionStatusV2]
+getConnections [] _ _ = pure []
+getConnections uFrom uTo rlt = do
+  (h, p) <- brigReq
+  r <-
+    call "brig" $
+      method POST . host h . port p
+        . path "/i/users/connections-status/v2"
+        . json (ConnectionsStatusRequestV2 uFrom uTo rlt)
+        . expect2xx
+  parseResponse (mkError status502 "server-error") r
+
+putConnectionInternal :: UpdateConnectionsInternal -> Galley Status
+putConnectionInternal updateConn = do
+  (h, p) <- brigReq
+  response <-
+    call "brig" $
+      method PUT . host h . port p
+        . paths ["/i/connections/connection-update"]
+        . json updateConn
+  pure $ responseStatus response
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()
@@ -100,29 +136,46 @@ check allowed r =
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 lookupActivatedUsers :: [UserId] -> Galley [User]
-lookupActivatedUsers uids = do
+lookupActivatedUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
+  let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
     call "brig" $
       method GET . host h . port p
         . path "/i/users"
         . queryItem "ids" users
         . expect2xx
-  parseResponse (Error status502 "server-error") r
+  parseResponse (mkError status502 "server-error") r
+
+-- | URLs with more than ~160 uids produce 400 responses, because HAProxy has a
+--   URL length limit of ~6500 (determined experimentally). 100 is a
+--   conservative setting. A uid contributes about 36+3 characters (+3 for the
+--   comma separator) to the overall URL length.
+chunkify :: forall m key a. (Monad m, ToByteString key, Monoid a) => ([key] -> m a) -> [key] -> m a
+chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
   where
-    users = BSC.intercalate "," $ toByteString' <$> uids
+    maxSize :: Int
+    maxSize = 100
+
+    chunks :: [any] -> [[any]]
+    chunks [] = []
+    chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 getUser :: UserId -> Galley (Maybe UserAccount)
-getUser uid = do
+getUser uid = listToMaybe <$> getUsers [uid]
+
+-- | Calls 'Brig.API.listActivatedAccountsH'.
+getUsers :: [UserId] -> Galley [UserAccount]
+getUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-
     call "brig" $
       method GET . host h . port p
         . path "/i/users"
-        . queryItem "ids" (toByteString' uid)
+        . queryItem "ids" (BSC.intercalate "," (toByteString' <$> uids))
         . expect2xx
-  pure . maybe Nothing listToMaybe . responseJsonMaybe $ resp
+  pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
 deleteUser :: UserId -> Galley ()
@@ -143,4 +196,16 @@ getContactList uid = do
       method GET . host h . port p
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
-  cUsers <$> parseResponse (Error status502 "server-error") r
+  cUsers <$> parseResponse (mkError status502 "server-error") r
+
+-- | Calls 'Brig.API.Internal.getRichInfoMultiH'
+getRichInfoMultiUser :: [UserId] -> Galley [(UserId, RichInfo)]
+getRichInfoMultiUser = chunkify $ \uids -> do
+  (h, p) <- brigReq
+  resp <-
+    call "brig" $
+      method GET . host h . port p
+        . paths ["/i/users/rich-info"]
+        . queryItem "ids" (toByteString' (List uids))
+        . expect2xx
+  parseResponse (mkError status502 "server-error") resp

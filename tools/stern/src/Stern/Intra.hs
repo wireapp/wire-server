@@ -29,6 +29,7 @@ module Stern.Intra
     getUsersConnections,
     getUserProfiles,
     getUserProfilesByIdentity,
+    getEjpdInfo,
     getUserProperties,
     getInvoiceUrl,
     revokeIdentity,
@@ -76,6 +77,8 @@ import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
+import Data.Qualified (qUnqualified)
+import Data.String.Conversions (cs)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
@@ -87,12 +90,14 @@ import Gundeck.Types
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
-import Network.Wai.Utilities (Error (..))
+import Network.Wai.Utilities (Error (..), mkError)
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import qualified Wire.API.Team.Feature as Public
 
 -------------------------------------------------------------------------------
@@ -138,11 +143,12 @@ getUserConnections uid = do
   info $ msg "Getting user connections"
   fetchAll [] Nothing
   where
+    fetchAll :: [UserConnection] -> Maybe UserId -> Handler [UserConnection]
     fetchAll xs start = do
       userConnectionList <- fetchBatch start
       let batch = clConnections userConnectionList
-      if (not . null) batch && (clHasMore userConnectionList)
-        then fetchAll (batch ++ xs) (Just . ucTo $ last batch)
+      if (not . null) batch && clHasMore userConnectionList
+        then fetchAll (batch ++ xs) (Just . qUnqualified . ucTo $ last batch)
         else return (batch ++ xs)
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
@@ -159,27 +165,26 @@ getUserConnections uid = do
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
             )
-      parseResponse (Error status502 "bad-upstream") r
+      parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
 getUsersConnections :: List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
   b <- view brig
+  let reqBody = ConnectionsStatusRequest (fromList uids) Nothing
   r <-
     catchRpcErrors $
       rpc'
         "brig"
         b
-        ( method GET
+        ( method POST
             . path "/i/users/connections-status"
-            . queryItem "users" users
+            . Bilge.json reqBody
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  parseResponse (Error status502 "bad-upstream") r
-  where
-    users = BS.intercalate "," $ map toByteString' (fromList uids)
+  parseResponse (mkError status502 "bad-upstream") r
 
 getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
 getUserProfiles uidsOrHandles = do
@@ -199,7 +204,7 @@ getUserProfiles uidsOrHandles = do
                 . qry
                 . expect2xx
             )
-      parseResponse (Error status502 "bad-upstream") r
+      parseResponse (mkError status502 "bad-upstream") r
     prepareQS :: Either [UserId] [Handle] -> [(Request -> Request)]
     prepareQS (Left uids) = fmap (queryItem "ids") (toQS uids)
     prepareQS (Right handles) = fmap (queryItem "handles") (toQS handles)
@@ -222,7 +227,26 @@ getUserProfilesByIdentity emailOrPhone = do
             . userKeyToParam emailOrPhone
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
+
+getEjpdInfo :: [Handle] -> Bool -> Handler EJPD.EJPDResponseBody
+getEjpdInfo handles includeContacts = do
+  info $ msg "Getting ejpd info on users by handle"
+  b <- view brig
+  let bdy :: Value
+      bdy = object ["ejpd_request" .= ((cs @_ @Text . toByteString') <$> handles)]
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method POST
+            . path "/i/ejpd-request"
+            . Bilge.json bdy
+            . (if includeContacts then queryItem "include_contacts" "true" else id)
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
 
 getContacts :: UserId -> Text -> Int32 -> Handler (SearchResult Contact)
 getContacts u q s = do
@@ -240,7 +264,7 @@ getContacts u q s = do
             . queryItem "size" (toByteString' s)
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 revokeIdentity :: Either Email Phone -> Handler ()
 revokeIdentity emailOrPhone = do
@@ -337,7 +361,7 @@ getUserBindingTeam u = do
             . header "Z-Connection" (toByteString' "")
             . expect2xx
         )
-  teams <- parseResponse (Error status502 "bad-upstream") r
+  teams <- parseResponse (mkError status502 "bad-upstream") r
   return $
     listToMaybe $
       fmap (view teamId) $
@@ -373,9 +397,9 @@ getTeamBillingInfo tid = do
             . paths ["i", "team", toByteString' tid, "billing"]
         )
   case Bilge.statusCode r of
-    200 -> Just <$> parseResponse (Error status502 "bad-upstream") r
+    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
     404 -> return Nothing
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
@@ -408,7 +432,7 @@ isBlacklisted emailOrPhone = do
   case Bilge.statusCode r of
     200 -> return True
     404 -> return False
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
 setBlacklistStatus status emailOrPhone = do
@@ -444,8 +468,8 @@ getTeamFeatureFlag tid = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
     200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus a) resp
-    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
+    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -466,8 +490,8 @@ setTeamFeatureFlag tid status = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
-    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
+    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 getTeamFeatureFlagNoConfig ::
   TeamId ->
@@ -484,8 +508,8 @@ getTeamFeatureFlagNoConfig tid featureName = do
   resp <- catchRpcErrors (rpc' "galley" gly req)
   case statusCode resp of
     200 -> pure $ responseJsonUnsafe @Public.TeamFeatureStatusNoConfig resp
-    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
+    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlagNoConfig ::
   TeamId ->
@@ -503,7 +527,7 @@ setTeamFeatureFlagNoConfig tid featureName statusValue = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
-    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
+    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
@@ -520,7 +544,7 @@ getSearchVisibility tid = do
       )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler TeamSearchVisibilityView
-    fromResponseBody resp = parseResponse (Error status502 "bad-upstream") resp
+    fromResponseBody resp = parseResponse (mkError status502 "bad-upstream") resp
 
 setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler ()
 setSearchVisibility tid typ = do
@@ -540,7 +564,7 @@ setSearchVisibility tid typ = do
     200 -> pure ()
     403 ->
       throwE $
-        Error
+        mkError
           status403
           "team-search-visibility-unset"
           "This team does not have TeamSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
@@ -564,7 +588,7 @@ catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
     catchRPCException :: RPCException -> App (Either Error a)
     catchRPCException rpcE = do
       Log.err $ rpcExceptionMsg rpcE
-      pure . Left $ Error status500 "io-error" (pack $ show rpcE)
+      pure . Left $ mkError status500 "io-error" (pack $ show rpcE)
 
 getTeamData :: TeamId -> Handler TeamData
 getTeamData tid = do
@@ -580,8 +604,8 @@ getTeamData tid = do
             . expectStatus (`elem` [200, 404])
         )
   case Bilge.statusCode r of
-    200 -> parseResponse (Error status502 "bad-upstream") r
-    _ -> throwE (Error status404 "no-team" "no such team")
+    200 -> parseResponse (mkError status502 "bad-upstream") r
+    _ -> throwE (mkError status404 "no-team" "no such team")
 
 getTeamMembers :: TeamId -> Handler TeamMemberList
 getTeamMembers tid = do
@@ -596,7 +620,7 @@ getTeamMembers tid = do
             . paths ["i", "teams", toByteString' tid, "members"]
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 getEmailConsentLog :: Email -> Handler ConsentLog
 getEmailConsentLog email = do
@@ -611,7 +635,7 @@ getEmailConsentLog email = do
             . paths ["/i/consent/logs/emails", toByteString' email]
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 -- TODO: Temporary in stern -- All functions below this
 --       will eventually be moved to a separate service
@@ -630,7 +654,7 @@ getUserConsentValue uid = do
             . path "/self/consent"
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 getMarketoResult :: Email -> Handler MarketoResult
 getMarketoResult email = do
@@ -647,9 +671,9 @@ getMarketoResult email = do
         )
   -- 404 is acceptable when marketo doesn't know about this user, return an empty result
   case statusCode r of
-    200 -> parseResponse (Error status502 "bad-upstream") r
+    200 -> parseResponse (mkError status502 "bad-upstream") r
     404 -> return noEmail
-    _ -> throwE (Error status502 "bad-upstream" "")
+    _ -> throwE (mkError status502 "bad-upstream" "")
   where
     noEmail = MarketoResult $ M.singleton "results" emptyArray
 
@@ -666,7 +690,7 @@ getUserConsentLog uid = do
             . paths ["/i/consent/logs/users", toByteString' uid]
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 getUserCookies :: UserId -> Handler CookieList
 getUserCookies uid = do
@@ -682,7 +706,7 @@ getUserCookies uid = do
             . path "/cookies"
             . expect2xx
         )
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 getUserConversations :: UserId -> Handler [Conversation]
 getUserConversations uid = do
@@ -693,7 +717,7 @@ getUserConversations uid = do
       userConversationList <- fetchBatch start
       let batch = convList userConversationList
       if (not . null) batch && (convHasMore userConversationList)
-        then fetchAll (batch ++ xs) (Just . cnvId $ last batch)
+        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
         else return (batch ++ xs)
     fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
     fetchBatch start = do
@@ -710,7 +734,7 @@ getUserConversations uid = do
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
             )
-      parseResponse (Error status502 "bad-upstream") r
+      parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]
@@ -728,7 +752,7 @@ getUserClients uid = do
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  parseResponse (Error status502 "bad-upstream") r
+  parseResponse (mkError status502 "bad-upstream") r
 
 getUserProperties :: UserId -> Handler UserProperties
 getUserProperties uid = do
@@ -745,7 +769,7 @@ getUserProperties uid = do
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  keys <- parseResponse (Error status502 "bad-upstream") r :: Handler [PropertyKey]
+  keys <- parseResponse (mkError status502 "bad-upstream") r :: Handler [PropertyKey]
   UserProperties <$> fetchProperty b keys M.empty
   where
     fetchProperty _ [] acc = return acc
@@ -761,7 +785,7 @@ getUserProperties uid = do
                 . expect2xx
             )
       info $ msg ("Response" ++ show r)
-      value <- parseResponse (Error status502 "bad-upstream") r
+      value <- parseResponse (mkError status502 "bad-upstream") r
       fetchProperty b xs (M.insert x value acc)
 
 getUserNotifications :: UserId -> Handler [QueuedNotification]
@@ -793,7 +817,7 @@ getUserNotifications uid = do
       -- 404 is an acceptable response, in case, for some reason,
       -- "start" is not found we still return a QueuedNotificationList
       case statusCode r of
-        200 -> parseResponse (Error status502 "bad-upstream") r
-        404 -> parseResponse (Error status502 "bad-upstream") r
-        _ -> throwE (Error status502 "bad-upstream" "")
+        200 -> parseResponse (mkError status502 "bad-upstream") r
+        404 -> parseResponse (mkError status502 "bad-upstream") r
+        _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int

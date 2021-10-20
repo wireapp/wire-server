@@ -21,7 +21,6 @@ module Test.Brig.Calling where
 
 import Brig.Calling
 import Brig.Options
-import Brig.PolyLog
 import Control.Retry
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -30,6 +29,7 @@ import qualified Data.Set as Set
 import Imports
 import Network.DNS
 import Polysemy
+import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -57,12 +57,12 @@ newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Log.Level, LByteStrin
 newLogRecorder :: IO LogRecorder
 newLogRecorder = LogRecorder <$> newIORef []
 
-recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (PolyLog ': r) a -> Sem r a
-recordLogs LogRecorder {..} = interpret $ \(PolyLog lvl msg) ->
+recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
+recordLogs LogRecorder {..} = interpret $ \(Polylog lvl msg) ->
   modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])
 
-ignoreLogs :: Sem (PolyLog ': r) a -> Sem r a
-ignoreLogs = interpret $ \(PolyLog _ _) -> pure ()
+ignoreLogs :: Sem (TinyLog ': r) a -> Sem r a
+ignoreLogs = interpret $ \(Polylog _ _) -> pure ()
 
 {-# ANN tests ("HLint: ignore" :: String) #-}
 tests :: TestTree

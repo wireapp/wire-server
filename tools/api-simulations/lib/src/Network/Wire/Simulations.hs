@@ -47,8 +47,10 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Id (ConvId, UserId, makeIdOpaque)
+import Data.Id (ConvId, UserId)
 import qualified Data.Map.Strict as Map
+import Data.Qualified (qUnqualified)
+import Data.Range
 import Data.Serialize
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -72,13 +74,13 @@ prepareConv [_] = error "prepareConv: at least two bots required"
 prepareConv [a, b] = do
   connectIfNeeded a b
   conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
-  requireMaybe conv $
+  requireMaybe (qUnqualified <$> conv) $
     "Missing 1-1 conversation between: "
       <> Text.concat (Text.pack . show . botId <$> [a, b])
 prepareConv (a : bs) = do
   mapM_ (connectIfNeeded a) bs
   let bIds = map botId bs
-  conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
+  conv <- qUnqualified . cnvQualifiedId <$> runBotSession a (createConv bIds Nothing)
   assertConvCreated conv a bs
   return conv
 
@@ -97,7 +99,7 @@ connectIfNeeded = go 6 -- six turns should be enough
         case s of
           -- If no connection: initiate one
           Nothing -> do
-            void $ connectTo (ConnectionRequest (makeIdOpaque (botId b)) (fromMaybe "" (botEmail a)) (Message "Hi there!"))
+            void $ connectTo (ConnectionRequest (botId b) (unsafeRange (fromMaybe "" (botEmail a))))
             assertConnectRequested a b
             return False
           -- If there's a pending connection to us: accept it
@@ -215,6 +217,6 @@ assertClientMissing ::
   BotSession ()
 assertClientMissing u d cm =
   assertEqual
-    (UserClients (Map.singleton (makeIdOpaque u) (Set.singleton $ botClientId d)))
+    (UserClients (Map.singleton u (Set.singleton $ botClientId d)))
     (missingClients cm)
     "Missing Clients"

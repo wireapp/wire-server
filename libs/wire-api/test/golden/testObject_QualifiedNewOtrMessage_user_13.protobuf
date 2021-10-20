@@ -1,0 +1,30 @@
+sender { client: 8 }
+recipients {
+  domain: "0i7268.w"
+  entries {
+    user {
+      uuid: "\000\000\000\001\000\000\000\001\000\000\000\000\000\000\000\000"
+    }
+  }
+}
+recipients {
+  domain: "l6.3.cf9d-z9wd.ay4qmup"
+  entries {
+    user {
+      uuid: "\000\000\000\001\000\000\000\001\000\000\000\001\000\000\000\000"
+    }
+  }
+}
+recipients {
+  domain: "o.ecc22-8z0s"
+  entries {
+    user {
+      uuid: "\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\001"
+    }
+  }
+}
+native_push: false
+blob: " "
+native_priority: LOW_PRIORITY
+transient: false
+report_only { }
