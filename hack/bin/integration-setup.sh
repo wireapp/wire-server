@@ -5,6 +5,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
+HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
 . "$DIR/helm_overrides.sh"
@@ -24,7 +25,7 @@ export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 
 echo "Installing charts..."
 
-helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" sync
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile-single.yaml" sync
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {

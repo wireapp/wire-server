@@ -450,7 +450,7 @@ testSearchOtherDomain opts brig = do
   -- a mocked federator started and stopped during this test
   otherSearchResult :: [Contact] <- liftIO $ generate arbitrary
   let mockResponse = OutwardResponseBody (cs $ Aeson.encode otherSearchResult)
-  (results, _) <- liftIO . withTempMockFederator opts (Domain "non-existent.example.com") mockResponse $ do
+  (results, _) <- liftIO . withTempMockFederator opts mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   let expectedResult =
         SearchResult

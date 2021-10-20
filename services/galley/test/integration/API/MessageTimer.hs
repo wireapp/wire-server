@@ -49,7 +49,6 @@ import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Team.Member as Member
-import Wire.API.User.Profile (Name (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -153,16 +152,13 @@ messageTimerChangeWithRemotes = do
 
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 

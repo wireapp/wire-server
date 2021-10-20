@@ -44,7 +44,6 @@ import TestSetup
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Federation.GRPC.Types as F
-import Wire.API.User
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -170,16 +169,13 @@ roleUpdateRemoteMember = do
   traverse_ (connectWithRemoteUser bob) [qalice, qcharlie]
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
-      [mkProfile qalice (Name "Alice"), mkProfile qcharlie (Name "Charlie")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -242,16 +238,13 @@ roleUpdateWithRemotes = do
   connectWithRemoteUser bob qalice
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -303,17 +296,14 @@ accessUpdateWithRemotes = do
   connectWithRemoteUser bob qalice
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
-      [mkProfile qalice (Name "Alice")]
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 

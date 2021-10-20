@@ -101,7 +101,6 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let allUsers = newConvMembers lusr body
   checkedUsers <- checkedConvSize allUsers
   ensureConnected lusr allUsers
-  checkRemoteUsersExist (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   c <-
     Data.createConversation
@@ -146,7 +145,7 @@ createTeamGroupConv zusr zcon tinfo body = do
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
   ensureConnectedToLocals zusr (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
-  checkRemoteUsersExist (ulRemotes allUsers)
+  ensureConnectedToRemotes lusr (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
     Data.createConversation

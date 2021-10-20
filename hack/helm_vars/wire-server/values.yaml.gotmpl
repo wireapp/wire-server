@@ -15,12 +15,12 @@ tags:
   sftd: false
 
 cassandra-migrations:
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   cassandra:
     host: cassandra-ephemeral
     replicaCount: 1
 elasticsearch-index:
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     host: elasticsearch-ephemeral
     index: directory_test
@@ -29,7 +29,7 @@ elasticsearch-index:
 
 brig:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
     requests: {}
     limits:
@@ -106,7 +106,7 @@ brig:
     enableFederationTests: true
 cannon:
   replicaCount: 2
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
     requests: {}
     limits:
@@ -115,7 +115,7 @@ cannon:
   drainTimeout: 0
 cargohold:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
     requests: {}
     limits:
@@ -130,7 +130,7 @@ cargohold:
     awsSecretKey: dummysecret
 galley:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -160,7 +160,7 @@ galley:
     awsSecretKey: dummysecret
 gundeck:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
     requests: {}
     limits:
@@ -188,7 +188,7 @@ gundeck:
     awsSecretKey: dummysecret
 nginz:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   nginx_conf:
     env: staging
     external_env_domain: zinfra.io
@@ -199,7 +199,7 @@ nginz:
       publicKeys: 0UW38se1yeoc5bVNEvf5LyrHWGZkyvcGTVilK2geGdU=
 proxy:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   secrets:
     proxy_config: |-
       secrets {
@@ -211,7 +211,7 @@ proxy:
        }
 spar:
   replicaCount: 1
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
     requests: {}
     limits:
@@ -237,7 +237,7 @@ federator:
   replicaCount: 1
   resources:
     requests: {}
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
       federationStrategy:

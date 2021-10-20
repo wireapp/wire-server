@@ -84,8 +84,8 @@ withMockFederator opts ref resp action = assertRightT
             }
     withSettingsOverrides opts' action
 
-withTempMockFederator :: Opt.Opts -> Domain -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action = assertRightT
+withTempMockFederator :: Opt.Opts -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
+withTempMockFederator opts resp action = assertRightT
   . Mock.withTempMockFederator st0 (const (pure resp))
   $ \st -> lift $ do
     let opts' =
@@ -95,7 +95,7 @@ withTempMockFederator opts targetDomain resp action = assertRightT
             }
     withSettingsOverrides opts' action
   where
-    st0 = Mock.initState targetDomain (Domain "example.com")
+    st0 = Mock.initState (Domain "example.com")
 
 generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
 generateClientPrekeys brig prekeys = do

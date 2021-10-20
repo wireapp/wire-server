@@ -130,12 +130,15 @@ import Wire.API.User.Identity (mkSimpleSampleUref)
 -- | A class for monads with access to a Galley instance
 class HasGalley m where
   viewGalley :: m GalleyR
+  viewGalleyOpts :: m Opts.Opts
 
 instance HasGalley TestM where
   viewGalley = view tsGalley
+  viewGalleyOpts = view tsGConf
 
 instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
   viewGalley = lift viewGalley
+  viewGalleyOpts = lift viewGalleyOpts
 
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
@@ -565,24 +568,15 @@ postConvQualified u n = do
 
 postConvWithRemoteUsers ::
   HasCallStack =>
-  Domain ->
-  [UserProfile] ->
   UserId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers remoteDomain profiles u n = do
-  opts <- view tsGConf
+postConvWithRemoteUsers u n = do
   fmap fst $
-    withTempMockFederator opts remoteDomain respond $
+    withTempMockFederator (const ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201 === statusCode
   where
-    respond :: F.FederatedRequest -> Value
-    respond req
-      | fmap F.component (F.request req) == Just F.Brig =
-        toJSON profiles
-      | otherwise = toJSON ()
-
     setName :: Maybe Text -> Maybe Text
     setName Nothing = Just "federated gossip"
     setName x = x
@@ -695,8 +689,7 @@ postProteusMessageQualifiedWithMockFederator ::
   TestM (ResponseLBS, Mock.ReceivedRequests)
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
-  opts <- view tsGConf
-  withTempServantMockFederator opts brigApi galleyApi localDomain (Domain "far-away.example.com") $
+  withTempServantMockFederator brigApi galleyApi localDomain $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -2184,43 +2177,39 @@ mkProfile quid name =
 -- expected request.
 withTempMockFederator ::
   (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
-  Opts.Opts ->
-  Domain ->
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp = withTempMockFederator' opts targetDomain (pure . oresp)
+withTempMockFederator resp = withTempMockFederator' (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
 withTempMockFederator' ::
   (MonadIO m, HasGalley m, MonadMask m) =>
-  Opts.Opts ->
-  Domain ->
   (FederatedRequest -> IO F.OutwardResponse) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator' opts targetDomain resp action = assertRightT
-  . Mock.withTempMockFederator st0 (lift . resp)
-  $ \st -> lift $ do
-    let opts' =
-          opts & Opts.optFederator
-            ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
-    withSettingsOverrides opts' action
+withTempMockFederator' resp action = do
+  opts <- viewGalleyOpts
+  assertRightT
+    . Mock.withTempMockFederator st0 (lift . resp)
+    $ \st -> lift $ do
+      let opts' =
+            opts & Opts.optFederator
+              ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
+      withSettingsOverrides opts' action
   where
-    st0 = Mock.initState targetDomain (Domain "example.com")
+    st0 = Mock.initState (Domain "example.com")
 
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  Opts.Opts ->
   FederatedBrig.Api (AsServerT Handler) ->
   FederatedGalley.Api (AsServerT Handler) ->
   Domain ->
-  Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempServantMockFederator opts brigApi galleyApi originDomain targetDomain =
-  withTempMockFederator' opts targetDomain mock
+withTempServantMockFederator brigApi galleyApi originDomain =
+  withTempMockFederator' mock
   where
     server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
     server = genericServerT brigApi :<|> genericServerT galleyApi
