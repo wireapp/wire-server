@@ -80,6 +80,7 @@ tests _ at opts p b c ch g aws =
   testGroup
     "account"
     [ test' aws p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b aws,
+      test' aws p "post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test' aws p "post /register - 201" $ testCreateUser b g,
       test' aws p "post /register - 201 + no email" $ testCreateUserNoEmailNoPassword b,
       test' aws p "post /register - 201 anonymous" $ testCreateUserAnon b g,
@@ -132,6 +133,31 @@ tests _ at opts p b c ch g aws =
         [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
         ]
     ]
+
+-- The testCreateUserConflict test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI
+--
+-- Registering with an invalid verification code and valid account details should fail.
+testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
+testCreateUserWithInvalidVerificationCode brig = do
+  -- Register (pre verified) user with phone
+  p <- randomPhone
+  code <- randomActivationCode -- incorrect but syntactically valid activation code
+  let Object regPhone =
+        object
+          [ "name" .= Name "Alice",
+            "phone" .= fromPhone p,
+            "phone_code" .= code
+          ]
+  postUserRegister' regPhone brig !!! const 403 === statusCode
+  e <- randomEmail
+  let Object regEmail =
+        object
+          [ "name" .= Name "Alice",
+            "email" .= fromEmail e,
+            "email_code" .= code
+          ]
+  postUserRegister' regEmail brig !!! const 403 === statusCode
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserWithPreverified opts brig aws = do
@@ -206,7 +232,7 @@ testCreateUser brig galley = do
 -- The testCreateUserConflict test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI
 --
--- email address must not be taken on @/register@.
+-- An empty name is not allowed on registration
 testCreateUserEmptyName :: Brig -> Http ()
 testCreateUserEmptyName brig = do
   let p =
