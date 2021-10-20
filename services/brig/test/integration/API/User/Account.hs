@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
+{-# LANGUAGE NumericUnderscores #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -16,6 +15,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.User.Account
   ( tests,
@@ -45,13 +45,16 @@ import qualified Data.Aeson.Lens as AesonL
 import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import Data.Domain (Domain (..), domainText)
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
+import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time (UTCTime, getCurrentTime)
@@ -63,6 +66,8 @@ import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports hiding (head)
+import qualified Network.HTTP.Types as Http
+import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -72,6 +77,11 @@ import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import Wire.API.Federation.API.Brig (UserDeletedNotification (..))
+import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
+import Wire.API.Federation.GRPC.Types (OutwardResponse (OutwardResponseBody))
+import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.User (ListUsersQuery (..))
 import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
@@ -125,6 +135,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "delete/anonymous" $ testDeleteAnonUser b,
       test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
+      test' aws p "delete with connected remote users" $ testDeleteWithRemotes opts b,
       test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
       testGroup
         "temporary customer extensions"
@@ -1182,9 +1193,6 @@ testDeleteInternal brig cannon aws = do
   setHandleAndDeleteUser brig cannon u [] aws $
     \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
 
--- Check that user deletion is also triggered
--- liftIO $ Util.assertUserJournalQueue "user deletion testDeleteInternal2: " aws (userDeleteJournaled $ userId u)
-
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
   uid <- userId <$> createAnonUser "anon" brig
@@ -1200,6 +1208,49 @@ testDeleteWithProfilePic brig cargohold = do
   deleteUser uid Nothing brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
   downloadAsset cargohold uid (toByteString' (ast ^. CHV3.assetKey)) !!! const 404 === statusCode
+
+testDeleteWithRemotes :: Opt.Opts -> Brig -> Http ()
+testDeleteWithRemotes opts brig = do
+  localUser <- randomUser brig
+
+  let remote1Domain = Domain "far-away.example.com"
+  remote1UserConnected <- Qualified <$> randomId <*> pure remote1Domain
+  remote1UserPending <- Qualified <$> randomId <*> pure remote1Domain
+
+  sendConnectionAction brig opts (userId localUser) remote1UserConnected (Just FedBrig.RemoteConnect) Accepted
+  sendConnectionAction brig opts (userId localUser) remote1UserPending Nothing Sent
+
+  let fedMockResponse = OutwardResponseBody (cs $ Aeson.encode EmptyResponse)
+  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
+      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
+        case (requestMethod, requestPath) of
+          (_methodDelete, ["i", "user"]) -> do
+            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
+            pure response
+          _ -> error "not mocked"
+
+  (_, rpcCalls, _galleyCalls) <- liftIO $
+    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
+      deleteUser (userId localUser) (Just defPassword) brig !!! do
+        const 200 === statusCode
+
+  liftIO $ do
+    rpcCall <- assertOne $ filter (\c -> F.domain c == domainText (qDomain remote1UserConnected)) rpcCalls
+    userDeleted <- assertRight $ parseFedRequest rpcCall
+    udnUser userDeleted @?= userId localUser
+    sort (fromRange (udnConnections userDeleted))
+      @?= ( sort
+              [ qUnqualified remote1UserConnected,
+                qUnqualified remote1UserPending
+              ]
+          )
+  where
+    parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
+    parseFedRequest fr =
+      case F.request fr of
+        Just r ->
+          (eitherDecode . cs) (F.body r)
+        Nothing -> Left "No request"
 
 testUpdateSSOId :: Brig -> Galley -> Http ()
 testUpdateSSOId brig galley = do

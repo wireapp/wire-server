@@ -279,6 +279,7 @@ deleteConnections u = do
     paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
       .| C.mapM_ (pooledMapConcurrentlyN_ 16 delete)
   retry x1 . write connectionClear $ params Quorum (Identity u)
+  retry x1 . write remoteConnectionClear $ params Quorum (Identity u)
   where
     delete (other, _status) = write connectionDelete $ params Quorum (other, u)
 

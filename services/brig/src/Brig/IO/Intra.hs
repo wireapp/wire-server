@@ -73,15 +73,19 @@ import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
+import qualified Brig.Data.Connection as Data
+import Brig.Federation.Client (notifyUserDeleted)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Cassandra (PageWithState (pwsResults, pwsState), pwsHasMore)
+import Cassandra.CQL (PagingState)
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadThrow (throwM))
-import Control.Monad.Trans.Except (throwE)
+import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -96,6 +100,8 @@ import Data.List1 (List1, list1, singleton)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import Galley.Types (Connect (..), Conversation)
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
@@ -239,8 +245,42 @@ dispatchNotifications orig conn e = case e of
     -- If done asynchronously, the connections may already have been deleted.
     recipients <- list1 orig <$> lookupContactList orig
     notify event orig Push.RouteDirect conn (pure recipients)
+
+    loc <- qualifyLocal ()
+    let luidDeleted = toLocalUnsafe (tDomain loc) orig
+
+    let notifyRemotes :: Maybe PagingState -> AppIO ()
+        notifyRemotes pagingState = do
+          pageWithState <- Data.lookupRemoteConnectionsPage luidDeleted pagingState 1000 -- don't exceed 1000, see UserDeletedNotification
+          let quidsTo = (map ucTo . pwsResults) pageWithState
+          for_ (bucketQualified quidsTo) $ \conns -> do
+            foldQualified
+              loc
+              (const (pure ())) -- this cannot happen, because we only look up remote connections
+              ( \remotes -> do
+                  let rangedRemotes = unsafeRange @_ @1 @1000 <$> remotes
+                  runExceptT (notifyUserDeleted luidDeleted rangedRemotes) >>= \case
+                    -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
+                    -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
+                    Left ferror -> do
+                      Log.err $
+                        Log.msg $
+                          T.unwords
+                            [ "Federation error while notifying remote backends of a user deletion.",
+                              "user_id: " <> showText luidDeleted,
+                              "details: " <> showText ferror
+                            ]
+                    Right () -> pure ()
+              )
+              conns
+          when (pwsHasMore pageWithState) $
+            notifyRemotes (pwsState pageWithState)
+    notifyRemotes Nothing
   where
     event = singleton $ UserEvent e
+
+    showText :: Show a => a -> Text
+    showText = cs . show
 
 -- | Push events to other users.
 push ::

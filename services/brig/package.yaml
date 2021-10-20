@@ -221,6 +221,7 @@ executables:
     - metrics-wai
     - mime >=0.4
     - MonadRandom >= 0.5
+    - mtl
     - mu-grpc-server
     - mu-rpc
     - network

@@ -106,11 +106,6 @@ generateClientPrekeys brig prekeys = do
   clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
   pure (quser, zipWith mkClientPrekey prekeys clients)
 
-assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
-assertRight = \case
-  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
-  Right x -> pure x
-
 assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
 assertRightT = assertRight <=< runExceptT
 
