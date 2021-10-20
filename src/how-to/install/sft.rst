@@ -119,6 +119,8 @@ can not directly connect to the SFT. In practise this means the SFT should
 allow ingress and egress traffic on the UDP port range ``32768-61000`` from and
 to both, clients and :ref:`Restund servers <understand-restund>`.
 
+*For more information on port ranges, please see* `this note <../../understand/notes/port-ranges.html>`__.
+
 The SFT also has an HTTP interface for initializing (allocation) or joining (signaling) a call. This is exposed through
 the ingress controller as an HTTPS service.
 
