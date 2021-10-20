@@ -49,7 +49,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
 import qualified Data.Map.Strict as Map
-import Data.Qualified (qUnqualified, toLocalUnsafe)
+import Data.Qualified (qUnqualified)
 import Data.Range
 import Data.Serialize
 import qualified Data.Set as Set
