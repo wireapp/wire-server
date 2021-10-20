@@ -137,7 +137,7 @@ import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
@@ -763,13 +763,13 @@ deleteConversation :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId
 deleteConversation cid = do
   retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
 
-  members cid >>= \case
-    [] -> pure ()
-    (m : ms) -> removeLocalMembersFromLocalConv cid (lmId <$> (m :| ms))
+  localMembers <- members cid
+  for_ (nonEmpty localMembers) $ \ms ->
+    removeLocalMembersFromLocalConv cid (lmId <$> ms)
 
-  lookupRemoteMembers cid >>= \case
-    [] -> pure ()
-    (m : ms) -> removeRemoteMembersFromLocalConv cid (rmId <$> (m :| ms))
+  remoteMembers <- lookupRemoteMembers cid
+  for_ (nonEmpty remoteMembers) $ \ms ->
+    removeRemoteMembersFromLocalConv cid (rmId <$> ms)
 
   retry x5 $ write Cql.deleteConv (params Quorum (Identity cid))
 
