@@ -640,16 +640,16 @@ listConvs galley zusr convs = do
       . zConn "conn"
       . json (ListConversations convs)
 
-isMember :: Galley -> Qualified UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
+isMember :: Galley -> Local UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
   res <-
     get $
       g
-        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (qUnqualified usr)]
+        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> return False
-    Just m -> return (usr == memId m)
+    Just m -> return (qUntagged usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =

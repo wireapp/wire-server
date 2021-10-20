@@ -502,25 +502,26 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   bid2 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   liftIO $ assertBool "bot ids should be different" (bid1 /= bid2)
-  let buid1 = botUserId bid1
-      buid2 = botUserId bid2
-      qbuid1 = Qualified buid1 localDomain
-      qbuid2 = Qualified buid2 localDomain
+  let lbuid1 = qualifyLocalVia quid1 . botUserId $ bid1
+      lbuid2 = qualifyLocalVia quid1 . botUserId $ bid2
   -- Delete the service; the bots should be removed from the conversation
   WS.bracketR cannon uid1 $ \ws -> do
     deleteService brig pid sid defProviderPassword
       !!! const 202 === statusCode
-    _ <- waitFor (5 # Second) not (isMember galley qbuid1 cid)
-    _ <- waitFor (5 # Second) not (isMember galley qbuid2 cid)
+    _ <- waitFor (5 # Second) not (isMember galley lbuid1 cid)
+    _ <- waitFor (5 # Second) not (isMember galley lbuid2 cid)
     getBotConv galley bid1 cid !!! const 404 === statusCode
     getBotConv galley bid2 cid !!! const 404 === statusCode
-    wsAssertMemberLeave ws qcid qbuid1 [qbuid1]
-    wsAssertMemberLeave ws qcid qbuid2 [qbuid2]
+    wsAssertMemberLeave ws qcid (qUntagged lbuid1) [qUntagged lbuid1]
+    wsAssertMemberLeave ws qcid (qUntagged lbuid2) [qUntagged lbuid2]
   -- The service should not be available
   getService brig pid sid
     !!! const 404 === statusCode
   getServiceProfile brig uid1 pid sid
     !!! const 404 === statusCode
+  where
+    qualifyLocalVia :: Qualified a -> b -> Local b
+    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 testAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -611,12 +612,11 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
   -- Make the conversation allowed for guests and add the bot successfully
   setAccessRole uid1 cid NonActivatedAccessRole
   bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
-  let buid = botUserId bid
-      qbuid = Qualified buid localDomain
+  let lbuid = qualifyLocalVia quid1 . botUserId $ bid
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
     setAccessRole uid1 cid TeamAccessRole
-    _ <- waitFor (5 # Second) not (isMember galley qbuid cid)
+    _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
     svcAssertConvAccessUpdate
@@ -624,12 +624,14 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       quid1
       (ConversationAccessData (Set.singleton InviteAccess) TeamAccessRole)
       qcid
-    svcAssertMemberLeave buf qbuid [qbuid] qcid
-    wsAssertMemberLeave ws qcid qbuid [qbuid]
+    svcAssertMemberLeave buf (qUntagged lbuid) [qUntagged lbuid] qcid
+    wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
   where
     setAccessRole uid cid role =
       updateConversationAccess galley uid cid [InviteAccess] role
         !!! const 200 === statusCode
+    qualifyLocalVia :: Qualified a -> b -> Local b
+    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 testMessageBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -888,24 +890,26 @@ testWhitelistKickout localDomain config db brig galley cannon = do
       responseJsonError
         =<< (addBot brig owner pid sid cid <!! const 201 === statusCode)
     let bid = rsAddBotId bot
-        buid = botUserId bid
-        qbuid = Qualified buid localDomain
+        lbuid = qualifyLocalVia qowner . botUserId $ bid
     _ <- svcAssertBotCreated buf bid cid
-    svcAssertMemberJoin buf qowner [qbuid] qcid
+    svcAssertMemberJoin buf qowner [qUntagged lbuid] qcid
     -- De-whitelist the service; both bots should be kicked out
     WS.bracketR cannon owner $ \ws -> do
       dewhitelistService brig owner tid pid sid
-      _ <- waitFor (2 # Second) not (isMember galley qbuid cid)
+      _ <- waitFor (2 # Second) not (isMember galley lbuid cid)
       getBotConv galley bid cid
         !!! const 404 === statusCode
-      wsAssertMemberLeave ws qcid qowner [qbuid]
-      svcAssertMemberLeave buf qowner [qbuid] qcid
+      wsAssertMemberLeave ws qcid qowner [qUntagged lbuid]
+      svcAssertMemberLeave buf qowner [qUntagged lbuid] qcid
     -- The bot should not get any further events
     liftIO $
       timeout (2 # Second) (readChan buf) >>= \case
         Nothing -> pure ()
         Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
         Just (TestBotMessage e) -> assertFailure ("bot got an event: " <> show (evtType e))
+  where
+    qualifyLocalVia :: Qualified a -> b -> Local b
+    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 testDeWhitelistDeletedConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeWhitelistDeletedConv config db brig galley cannon = do
@@ -1951,10 +1955,10 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   let Just ars = responseJsonMaybe _rs
   let bid = rsAddBotId ars
   let buid = botUserId bid
-      qbuid = Qualified buid localDomain
+      lbuid = qualifyLocalVia quid buid
   let bc = rsAddBotClient ars
   _ <- svcAssertBotCreated buf bid cid
-  svcAssertMemberJoin buf quid [qbuid] qcid
+  svcAssertMemberJoin buf quid [qUntagged lbuid] qcid
   -- The bot can now fetch the conversation
   _rs <- getBotConv galley bid cid <!! const 200 === statusCode
   let Just bcnv = responseJsonMaybe _rs
@@ -1971,7 +1975,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   WS.bracketR cannon uid $ \ws -> do
     postBotMessage galley bid bc cid [(uid, uc, (toBase64Text "Hi User!"))]
       !!! const 201 === statusCode
-    wsAssertMessage ws qcid qbuid bc uc (toBase64Text "Hi User!")
+    wsAssertMessage ws qcid (qUntagged lbuid) bc uc (toBase64Text "Hi User!")
   -- The user replies
   postMessage galley uid uc cid [(buid, bc, (toBase64Text "Hi Bot"))]
     !!! const 201 === statusCode
@@ -1981,10 +1985,13 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   WS.bracketR cannon uid $ \ws -> do
     deleteService brig pid sid defProviderPassword
       !!! const 202 === statusCode
-    _ <- waitFor (5 # Second) not (isMember galley qbuid cid)
+    _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
-    wsAssertMemberLeave ws qcid qbuid [qbuid]
+    wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
+  where
+    qualifyLocalVia :: Qualified a -> b -> Local b
+    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 prepareBotUsersTeam ::
   HasCallStack =>
