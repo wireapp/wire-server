@@ -489,10 +489,9 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   -- Create a conversation
   u1 <- createUser "Ernie" brig
   u2 <- createUser "Bert" brig
-  let uid1 = userId u1
-      quid1 = userQualifiedId u1
-      localDomain = qDomain quid1
-      uid2 = userId u2
+  let uid2 = userId u2
+      Qualified uid1 localDomain = userQualifiedId u1
+      luid1 = toLocalUnsafe localDomain uid1
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
@@ -502,8 +501,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   bid2 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   liftIO $ assertBool "bot ids should be different" (bid1 /= bid2)
-  let lbuid1 = qualifyLocalVia quid1 . botUserId $ bid1
-      lbuid2 = qualifyLocalVia quid1 . botUserId $ bid2
+  let lbuid1 = qualifyAs luid1 . botUserId $ bid1
+      lbuid2 = qualifyAs luid1 . botUserId $ bid2
   -- Delete the service; the bots should be removed from the conversation
   WS.bracketR cannon uid1 $ \ws -> do
     deleteService brig pid sid defProviderPassword
@@ -519,9 +518,6 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     !!! const 404 === statusCode
   getServiceProfile brig uid1 pid sid
     !!! const 404 === statusCode
-  where
-    qualifyLocalVia :: Qualified a -> b -> Local b
-    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 testAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -599,9 +595,9 @@ testAddRemoveBotTeam config db brig galley cannon = withTestService config db br
 testBotTeamOnlyConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBotTeamOnlyConv config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (u1, u2, _h, _tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
-  let (uid1, uid2) = (userId u1, userId u2)
-      quid1 = userQualifiedId u1
-      localDomain = qDomain quid1
+  let uid2 = userId u2
+      Qualified uid1 localDomain = userQualifiedId u1
+      luid1 = toLocalUnsafe localDomain uid1
       qcid = Qualified cid localDomain
   -- Make the conversation team-only and check that the bot can't be added
   -- to the conversation
@@ -612,7 +608,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
   -- Make the conversation allowed for guests and add the bot successfully
   setAccessRole uid1 cid NonActivatedAccessRole
   bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
-  let lbuid = qualifyLocalVia quid1 . botUserId $ bid
+  let lbuid = qualifyAs luid1 . botUserId $ bid
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
     setAccessRole uid1 cid TeamAccessRole
@@ -621,7 +617,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       !!! const 404 === statusCode
     svcAssertConvAccessUpdate
       buf
-      quid1
+      (qUntagged luid1)
       (ConversationAccessData (Set.singleton InviteAccess) TeamAccessRole)
       qcid
     svcAssertMemberLeave buf (qUntagged lbuid) [qUntagged lbuid] qcid
@@ -630,8 +626,6 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
     setAccessRole uid cid role =
       updateConversationAccess galley uid cid [InviteAccess] role
         !!! const 200 === statusCode
-    qualifyLocalVia :: Qualified a -> b -> Local b
-    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 testMessageBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -878,6 +872,7 @@ testWhitelistKickout localDomain config db brig galley cannon = do
   -- Create a team and a conversation
   (owner, tid) <- Team.createUserWithTeam brig
   let qowner = Qualified owner localDomain
+      lowner = toLocalUnsafe localDomain owner
   cid <- Team.createTeamConv galley tid owner [] Nothing
   let qcid = Qualified cid localDomain
   -- Create a service
@@ -890,7 +885,7 @@ testWhitelistKickout localDomain config db brig galley cannon = do
       responseJsonError
         =<< (addBot brig owner pid sid cid <!! const 201 === statusCode)
     let bid = rsAddBotId bot
-        lbuid = qualifyLocalVia qowner . botUserId $ bid
+        lbuid = qualifyAs lowner . botUserId $ bid
     _ <- svcAssertBotCreated buf bid cid
     svcAssertMemberJoin buf qowner [qUntagged lbuid] qcid
     -- De-whitelist the service; both bots should be kicked out
@@ -907,9 +902,6 @@ testWhitelistKickout localDomain config db brig galley cannon = do
         Nothing -> pure ()
         Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
         Just (TestBotMessage e) -> assertFailure ("bot got an event: " <> show (evtType e))
-  where
-    qualifyLocalVia :: Qualified a -> b -> Local b
-    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 testDeWhitelistDeletedConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeWhitelistDeletedConv config db brig galley cannon = do
@@ -1947,15 +1939,15 @@ testMessageBotUtil ::
   WS.Cannon ->
   Http ()
 testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
-  let uid = qUnqualified quid
-      localDomain = qDomain quid
+  let Qualified uid localDomain = quid
+      luid = toLocalUnsafe localDomain uid
       qcid = Qualified cid localDomain
   -- Add bot to conversation
   _rs <- addBot brig uid pid sid cid <!! const 201 === statusCode
   let Just ars = responseJsonMaybe _rs
   let bid = rsAddBotId ars
   let buid = botUserId bid
-      lbuid = qualifyLocalVia quid buid
+      lbuid = qualifyAs luid buid
   let bc = rsAddBotClient ars
   _ <- svcAssertBotCreated buf bid cid
   svcAssertMemberJoin buf quid [qUntagged lbuid] qcid
@@ -1989,9 +1981,6 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     getBotConv galley bid cid
       !!! const 404 === statusCode
     wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
-  where
-    qualifyLocalVia :: Qualified a -> b -> Local b
-    qualifyLocalVia (Qualified _ d) = toLocalUnsafe d
 
 prepareBotUsersTeam ::
   HasCallStack =>
