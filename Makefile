@@ -234,7 +234,7 @@ libzauth:
 .PHONY: hie.yaml
 hie.yaml: stack-dev.yaml
 	stack build implicit-hie
-	stack exec gen-hie | nix-shell --command 'yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml'
+	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
 
 .PHONY: stack-dev.yaml
 stack-dev.yaml:

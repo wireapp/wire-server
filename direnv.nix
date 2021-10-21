@@ -90,11 +90,21 @@ let
 
       binPath = "client/bin/kubectl";
     };
+
+    kind = staticBinary {
+      pname = "kind";
+      version = "0.11.0";
+
+      darwinAmd64Url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.11.1/kind-darwin-amd64";
+      darwinAmd64Sha256 = "432bef555a70e9360b44661c759658265b9eaaf7f75f1beec4c4d1e6bbf97ce3";
+
+      linuxAmd64Url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.11.1/kind-linux-amd64";
+      linuxAmd64Sha256 = "949f81b3c30ca03a3d4effdecda04f100fa3edc07a28b19400f72ede7c5f0491";
+    };
   };
-in pkgs.mkShell {
-  name = "shell";
-  LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive"; # works around https://github.com/tweag/ormolu/issues/38
-  buildInputs = [
+in pkgs.buildEnv {
+  name = "wire-server-direnv";
+  paths = [
     pkgs.docker-compose
     pkgs.gnumake
     pkgs.haskell-language-server
@@ -107,11 +117,12 @@ in pkgs.mkShell {
 
     # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
     pkgs.buildah
-    pkgs.kind
 
     pinned.stack
     pinned.helm
     pinned.helmfile
     pinned.kubectl
+    pinned.kind
   ];
 }
+
