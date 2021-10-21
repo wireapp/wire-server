@@ -53,6 +53,9 @@ module Galley.App
     initExtEnv,
     fanoutLimit,
     currentFanoutLimit,
+
+    -- * MonadUnliftIO / Sem compatibility
+    async,
   )
 where
 
@@ -103,6 +106,7 @@ import qualified Servant
 import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
+import qualified UnliftIO as U
 import Util.Options
 import Wire.API.Federation.Client (HasFederatorConfig (..))
 
@@ -325,3 +329,11 @@ toServantHandler env galley = do
 
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
+
+--------------------------------------------------------------------------------
+-- temporary MonadUnliftIO support code for the polysemy refactoring
+
+-- FUTUREWORK: move these functions to the Concurrency effect
+
+async :: Member Concurrency r => Galley r a -> Galley r (U.Async a)
+async = Galley . U.async . unGalley

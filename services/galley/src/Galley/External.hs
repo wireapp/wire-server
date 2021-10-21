@@ -40,7 +40,7 @@ import Ssl.Util (withVerifiedSslConnection)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
-import UnliftIO (Async, async, waitCatch)
+import UnliftIO (Async, waitCatch)
 
 -- | Deliver events to external (bot) services.
 --

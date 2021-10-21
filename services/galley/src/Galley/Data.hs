@@ -173,7 +173,7 @@ import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding (Set, max)
 import qualified System.Logger.Class as Log
-import UnliftIO (async, mapConcurrently, wait)
+import UnliftIO (mapConcurrently, wait)
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Member
 

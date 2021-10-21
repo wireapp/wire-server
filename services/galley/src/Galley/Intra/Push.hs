@@ -190,8 +190,8 @@ pushLocal :: Member Concurrency r => List1 (PushTo UserId) -> Galley r ()
 pushLocal ps = do
   limit <- fanoutLimit
   -- Do not fan out for very large teams
-  let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
-  forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
+  let (asyncs, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
+  forM_ (pushes asyncs) $ gundeckReq >=> callAsync "gundeck"
   void $ mapConcurrently (gundeckReq >=> call "gundeck") (pushes sync)
   return ()
   where
