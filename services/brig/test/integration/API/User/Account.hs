@@ -780,6 +780,9 @@ testPhoneUpdateBlacklisted brig = do
     const 200 === statusCode
     const (Right Nothing) === fmap userPhone . responseJsonEither
 
+  -- cleanup to avoid other tests failing sporadically
+  deletePrefix brig (phonePrefix prefix)
+
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateAccountPendingActivationKey _ brig = do

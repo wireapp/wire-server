@@ -727,12 +727,14 @@ randomPhone = liftIO $ do
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
   return $ fromMaybe (error "Invalid random phone#") phone
 
-updatePhone :: Brig -> UserId -> Phone -> Http ()
+updatePhone :: HasCallStack => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do
   -- update phone
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 202 === statusCode)
+      failMsg = "updatePhone (PUT /self/phone): failed to update to " <> show phn <> " - might be a flaky test tracked in https://wearezeta.atlassian.net/browse/BE-526"
+  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!! do
+    const 202 === statusCode
+    assertTrue failMsg ((== 202) . statusCode)
   -- activate
   act <- getActivationCode brig (Right phn)
   case act of
