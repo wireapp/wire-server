@@ -49,7 +49,7 @@ import qualified System.Logger.Class as Logger
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
-lookupClients :: [UserId] -> Galley UserClients
+lookupClients :: [UserId] -> Galley r UserClients
 lookupClients uids = do
   (brigHost, brigPort) <- brigReq
   r <-
@@ -62,7 +62,7 @@ lookupClients uids = do
   return $ filterClients (not . Set.null) clients
 
 -- | Calls 'Brig.API.internalListClientsFullH'.
-lookupClientsFull :: [UserId] -> Galley UserClientsFull
+lookupClientsFull :: [UserId] -> Galley r UserClientsFull
 lookupClientsFull uids = do
   (brigHost, brigPort) <- brigReq
   r <-
@@ -75,7 +75,7 @@ lookupClientsFull uids = do
   return $ filterClientsFull (not . Set.null) clients
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
-notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
+notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley r ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
   (brigHost, brigPort) <- brigReq
   void . call "brig" $
@@ -87,7 +87,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
       . expect2xx
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
-getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley OpaqueAuthToken
+getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   (brigHost, brigPort) <- brigReq
   r <-
@@ -106,7 +106,7 @@ getLegalHoldAuthToken uid pw = do
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
 -- | Calls 'Brig.API.addClientInternalH'.
-addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
+addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley r ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
   clientId <$> brigAddClient uid connId lhClient
   where
@@ -123,7 +123,7 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
-removeLegalHoldClientFromUser :: UserId -> Galley ()
+removeLegalHoldClientFromUser :: UserId -> Galley r ()
 removeLegalHoldClientFromUser targetUid = do
   (brigHost, brigPort) <- brigReq
   void . call "brig" $
@@ -135,7 +135,7 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
+brigAddClient :: UserId -> ConnId -> NewClient -> Galley r Client
 brigAddClient uid connId client = do
   (brigHost, brigPort) <- brigReq
   r <-

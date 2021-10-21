@@ -252,7 +252,7 @@ type IFeatureStatusDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
-servantSitemap :: ServerT ServantAPI Galley
+servantSitemap :: ServerT ServantAPI (Galley ())
 servantSitemap =
   genericServerT $
     InternalApi
@@ -287,23 +287,23 @@ servantSitemap =
       }
 
 iGetTeamFeature ::
-  forall a.
+  forall a r.
   Public.KnownTeamFeatureName a =>
-  (Features.GetFeatureInternalParam -> Galley (Public.TeamFeatureStatus a)) ->
+  (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
-  Galley (Public.TeamFeatureStatus a)
+  Galley r (Public.TeamFeatureStatus a)
 iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
-  forall a.
+  forall a r.
   Public.KnownTeamFeatureName a =>
-  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
+  (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
-  Galley (Public.TeamFeatureStatus a)
+  Galley r (Public.TeamFeatureStatus a)
 iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
-sitemap :: Routes a Galley ()
+sitemap :: Routes a (Galley ()) ()
 sitemap = do
   -- Conversation API (internal) ----------------------------------------
 
@@ -465,7 +465,7 @@ sitemap = do
   get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
     capture "tid"
 
-rmUser :: UserId -> Maybe ConnId -> Galley ()
+rmUser :: UserId -> Maybe ConnId -> Galley r ()
 rmUser user conn = do
   let n = toRange (Proxy @100) :: Range 1 100 Int32
       nRange1000 = rcast n :: Range 1 1000 Int32
@@ -476,7 +476,7 @@ rmUser user conn = do
   goConvPages lusr nRange1000 allConvIds
   Data.eraseClients user
   where
-    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
+    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
     goConvPages lusr range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
@@ -494,7 +494,7 @@ rmUser user conn = do
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
 
     -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
-    leaveLocalConversations :: [ConvId] -> Galley ()
+    leaveLocalConversations :: [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
       cc <- Data.localConversations ids
@@ -522,7 +522,7 @@ rmUser user conn = do
         (maybeList1 (catMaybes pp))
         Intra.push
 
-    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley ()
+    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
     leaveRemoteConversations lusr cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
@@ -542,7 +542,7 @@ rmUser user conn = do
             pure ()
           Right _ -> pure ()
 
-deleteLoop :: Galley ()
+deleteLoop :: Galley r ()
 deleteLoop = do
   q <- view deleteQueue
   safeForever "deleteLoop" $ do
@@ -563,7 +563,7 @@ safeForever funName action =
       err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
-guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley Response
+guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)

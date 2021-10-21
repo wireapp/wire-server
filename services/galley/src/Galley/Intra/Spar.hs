@@ -29,7 +29,7 @@ import Imports
 import Network.HTTP.Types.Method
 
 -- | Notify Spar that a team is being deleted.
-deleteTeam :: TeamId -> Galley ()
+deleteTeam :: TeamId -> Galley r ()
 deleteTeam tid = do
   (h, p) <- sparReq
   _ <-

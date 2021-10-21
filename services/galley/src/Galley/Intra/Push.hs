@@ -158,14 +158,14 @@ newConversationEventPush localDomain e users =
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
-push1 :: Push -> Galley ()
+push1 :: Push -> Galley r ()
 push1 p = push (list1 p [])
 
-pushSome :: [Push] -> Galley ()
+pushSome :: [Push] -> Galley r ()
 pushSome [] = return ()
 pushSome (x : xs) = push (list1 x xs)
 
-push :: List1 Push -> Galley ()
+push :: List1 Push -> Galley r ()
 push ps = do
   let (localPushes, remotePushes) = foldMap (bimap toList toList . splitPush) (toList ps)
   traverse_ (pushLocal . List1) (nonEmpty localPushes)
@@ -185,7 +185,7 @@ push ps = do
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: List1 (PushTo UserId) -> Galley ()
+pushLocal :: List1 (PushTo UserId) -> Galley r ()
 pushLocal ps = do
   limit <- fanoutLimit
   -- Do not fan out for very large teams
@@ -226,7 +226,7 @@ pushLocal ps = do
         )
 
 -- instead of IdMapping, we could also just take qualified IDs
-pushRemote :: List1 (PushTo UserId) -> Galley ()
+pushRemote :: List1 (PushTo UserId) -> Galley r ()
 pushRemote _ps = do
   -- FUTUREWORK(federation, #1261): send these to the other backends
   pure ()
@@ -234,7 +234,7 @@ pushRemote _ps = do
 -----------------------------------------------------------------------------
 -- Helpers
 
-gundeckReq :: [Gundeck.Push] -> Galley (Request -> Request)
+gundeckReq :: [Gundeck.Push] -> Galley r (Request -> Request)
 gundeckReq ps = do
   o <- view options
   return $
@@ -245,7 +245,7 @@ gundeckReq ps = do
       . json ps
       . expect2xx
 
-callAsync :: LT.Text -> (Request -> Request) -> Galley ()
+callAsync :: LT.Text -> (Request -> Request) -> Galley r ()
 callAsync n r = void . forkIO $ void (call n r) `catches` handlers
   where
     handlers =
@@ -253,7 +253,7 @@ callAsync n r = void . forkIO $ void (call n r) `catches` handlers
         Handler $ \(x :: SomeException) -> err $ "remote" .= n ~~ msg (show x)
       ]
 
-call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe LByteString))
+call :: LT.Text -> (Request -> Request) -> Galley r (Response (Maybe LByteString))
 call n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy

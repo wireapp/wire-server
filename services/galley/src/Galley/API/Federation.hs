@@ -72,7 +72,7 @@ import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..)
 import Wire.API.ServantProto (FromProto (..))
 import Wire.API.User.Client (userClientMap)
 
-federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
+federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) (Galley ())
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
@@ -85,7 +85,7 @@ federationSitemap =
         FederationAPIGalley.onUserDeleted = onUserDeleted
       }
 
-onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
+onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
@@ -119,7 +119,7 @@ onConversationCreated domain rc = do
             (EdConversation c)
     pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
 
-getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
+getConversations :: Domain -> GetConversationsRequest -> Galley r GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   localDomain <- viewFederationDomain
@@ -132,7 +132,7 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
-onConversationUpdated :: Domain -> ConversationUpdate -> Galley ()
+onConversationUpdated :: Domain -> ConversationUpdate -> Galley r ()
 onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
   loc <- qualifyLocal ()
@@ -191,7 +191,7 @@ onConversationUpdated requestingDomain cu = do
     -- FUTUREWORK: support bots?
     pushConversationEvent Nothing event targets []
 
-addLocalUsersToRemoteConv :: Remote ConvId -> Qualified UserId -> [UserId] -> Galley (Set UserId)
+addLocalUsersToRemoteConv :: Remote ConvId -> Qualified UserId -> [UserId] -> Galley r (Set UserId)
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   connStatus <- getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
@@ -216,7 +216,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 leaveConversation ::
   Domain ->
   LeaveConversationRequest ->
-  Galley LeaveConversationResponse
+  Galley r LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (lcConvId lc)
@@ -233,7 +233,7 @@ leaveConversation requestingDomain lc = do
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
-onMessageSent :: Domain -> RemoteMessage ConvId -> Galley ()
+onMessageSent :: Domain -> RemoteMessage ConvId -> Galley r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
       convId = qUntagged $ rmConversation rm
@@ -260,7 +260,7 @@ onMessageSent domain rmUnqualified = do
   void $ sendLocalMessages (rmTime rm) (rmSender rm) (rmSenderClient rm) Nothing convId localMembers msgMetadata msgs
   where
     -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-875
-    mkLocalMember :: UserId -> Galley LocalMember
+    mkLocalMember :: UserId -> Galley r LocalMember
     mkLocalMember m =
       pure $
         LocalMember
@@ -270,7 +270,7 @@ onMessageSent domain rmUnqualified = do
             lmConvRoleName = Public.roleNameWireMember
           }
 
-sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse
+sendMessage :: Domain -> MessageSendRequest -> Galley r MessageSendResponse
 sendMessage originDomain msr = do
   let sender = Qualified (msrSender msr) originDomain
   msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
@@ -278,7 +278,7 @@ sendMessage originDomain msr = do
   where
     err = throwM . invalidPayload . LT.pack
 
-onUserDeleted :: Domain -> UserDeletedConversationsNotification -> Galley EmptyResponse
+onUserDeleted :: Domain -> UserDeletedConversationsNotification -> Galley r EmptyResponse
 onUserDeleted origDomain udcn = do
   let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udcnUser udcn)
       untaggedDeletedUser = qUntagged deletedUser

@@ -62,7 +62,7 @@ getTeamNotifications ::
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
-  Galley QueuedNotificationList
+  Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
   tid :: TeamId <- do
     mtid <- (userTeam . accountUser =<<) <$> Intra.getUser zusr
@@ -75,7 +75,7 @@ getTeamNotifications zusr since size = do
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: TeamId -> Event -> Galley ()
+pushTeamEvent :: TeamId -> Event -> Galley r ()
 pushTeamEvent tid evt = do
   nid <- mkNotificationId
   DataTeamQueue.add tid nid (List1.singleton $ toJSONObject evt)

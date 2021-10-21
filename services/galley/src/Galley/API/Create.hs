@@ -67,7 +67,7 @@ createGroupConversation ::
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
   case newConvTeam body of
     Nothing -> createRegularGroupConv user conn wrapped
@@ -75,18 +75,18 @@ createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
-internalCreateManagedConversationH :: UserId ::: ConnId ::: JsonRequest NewConvManaged -> Galley Response
+internalCreateManagedConversationH :: UserId ::: ConnId ::: JsonRequest NewConvManaged -> Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
   newConv <- fromJsonBody req
   handleConversationResponse <$> internalCreateManagedConversation zusr zcon newConv
 
-internalCreateManagedConversation :: UserId -> ConnId -> NewConvManaged -> Galley ConversationResponse
+internalCreateManagedConversation :: UserId -> ConnId -> NewConvManaged -> Galley r ConversationResponse
 internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
   case newConvTeam body of
     Nothing -> throwM internalError
     Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
-ensureNoLegalholdConflicts :: [Remote UserId] -> [UserId] -> Galley ()
+ensureNoLegalholdConflicts :: [Remote UserId] -> [UserId] -> Galley r ()
 ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
@@ -94,7 +94,7 @@ ensureNoLegalholdConflicts remotes locals = do
       throwErrorDescriptionType @MissingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
-createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
+createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley r ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   lusr <- qualifyLocal zusr
   name <- rangeCheckedMaybe (newConvName body)
@@ -118,7 +118,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 
 -- | A helper for creating a team group conversation, used by the endpoint
 -- handlers above. Only supports unmanaged conversations.
-createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
+createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley r ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
   lusr <- qualifyLocal zusr
   name <- rangeCheckedMaybe (newConvName body)
@@ -166,7 +166,7 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversation :: UserId -> Galley ConversationResponse
+createSelfConversation :: UserId -> Galley r ConversationResponse
 createSelfConversation zusr = do
   lusr <- qualifyLocal zusr
   c <- Data.conversation (Id . toUUID $ zusr)
@@ -176,7 +176,7 @@ createSelfConversation zusr = do
       c <- Data.createSelfConversation lusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
+createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley r ConversationResponse
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   lusr <- qualifyLocal zusr
   let allUsers = newConvMembers lusr j
@@ -221,7 +221,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Local UserId ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   mc <- Data.conversation (tUnqualified lcnv)
@@ -239,7 +239,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -255,7 +255,7 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- Data.conversation (tUnqualified lcnv)
   case mc of
@@ -272,7 +272,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throwM federationNotImplemented
 
@@ -280,7 +280,7 @@ createConnectConversation ::
   UserId ->
   Maybe ConnId ->
   Connect ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createConnectConversation usr conn j = do
   lusr <- qualifyLocal usr
   foldQualified
@@ -293,7 +293,7 @@ createConnectConversationWithRemote ::
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createConnectConversationWithRemote _ _ _ =
   throwM federationNotImplemented
 
@@ -302,7 +302,7 @@ createLegacyConnectConversation ::
   Maybe ConnId ->
   Local UserId ->
   Connect ->
-  Galley ConversationResponse
+  Galley r ConversationResponse
 createLegacyConnectConversation lusr conn lrecipient j = do
   (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
@@ -367,10 +367,10 @@ createLegacyConnectConversation lusr conn lrecipient j = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
+conversationCreated :: UserId -> Data.Conversation -> Galley r ConversationResponse
 conversationCreated usr cnv = Created <$> conversationView usr cnv
 
-conversationExisted :: UserId -> Data.Conversation -> Galley ConversationResponse
+conversationExisted :: UserId -> Data.Conversation -> Galley r ConversationResponse
 conversationExisted usr cnv = Existed <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
@@ -378,7 +378,7 @@ handleConversationResponse = \case
   Created cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
   Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
-notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
+notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley r ()
 notifyCreatedConversation dtime usr conn c = do
   localDomain <- viewFederationDomain
   now <- maybe (liftIO getCurrentTime) pure dtime
@@ -404,12 +404,12 @@ notifyCreatedConversation dtime usr conn c = do
           & pushConn .~ conn
           & pushRoute .~ route
 
-localOne2OneConvId :: Local UserId -> Local UserId -> Galley (Local ConvId)
+localOne2OneConvId :: Local UserId -> Local UserId -> Galley r (Local ConvId)
 localOne2OneConvId self other = do
   (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
   pure . qualifyAs self $ Data.localOne2OneConvId x y
 
-toUUIDs :: UserId -> UserId -> Galley (U.UUID U.V4, U.UUID U.V4)
+toUUIDs :: UserId -> UserId -> Galley r (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do
   a' <- U.fromUUID (toUUID a) & ifNothing invalidUUID4
   b' <- U.fromUUID (toUUID b) & ifNothing invalidUUID4
@@ -428,6 +428,6 @@ newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
 
-ensureOne :: [a] -> Galley a
+ensureOne :: [a] -> Galley r a
 ensureOne [x] = pure x
 ensureOne _ = throwM (invalidRange "One-to-one conversations can only have a single invited member")

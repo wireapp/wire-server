@@ -42,7 +42,7 @@ import Wire.API.User.Client as Client
 
 data LegalholdConflicts = LegalholdConflicts
 
-guardQualifiedLegalholdPolicyConflicts :: LegalholdProtectee -> QualifiedUserClients -> Galley (Either LegalholdConflicts ())
+guardQualifiedLegalholdPolicyConflicts :: LegalholdProtectee -> QualifiedUserClients -> Galley r (Either LegalholdConflicts ())
 guardQualifiedLegalholdPolicyConflicts protectee qclients = do
   localDomain <- viewFederationDomain
   guardLegalholdPolicyConflicts protectee
@@ -57,7 +57,7 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 --
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
-guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley (Either LegalholdConflicts ())
+guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley r (Either LegalholdConflicts ())
 guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure . pure $ ()
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure . pure $ ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
@@ -67,7 +67,7 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
 
-guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley (Either LegalholdConflicts ())
+guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley r (Either LegalholdConflicts ())
 guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
   let otherCids :: [ClientId]
       otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
@@ -111,7 +111,7 @@ guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
                 . Client.fromClientCapabilityList
                 . Client.clientCapabilities
 
-        checkConsentMissing :: Galley Bool
+        checkConsentMissing :: Galley r Bool
         checkConsentMissing = do
           -- (we could also get the profile from brig.  would make the code slightly more
           -- concise, but not really help with the rpc back-and-forth, so, like, why?)

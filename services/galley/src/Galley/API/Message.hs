@@ -179,7 +179,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
         mkQualifiedMismatch reportedMissing redundant deleted
       )
 
-getRemoteClients :: [RemoteMember] -> Galley (Map (Domain, UserId) (Set ClientId))
+getRemoteClients :: [RemoteMember] -> Galley r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers = do
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
     . pooledMapConcurrentlyN 8 getRemoteClientsFromDomain
@@ -187,7 +187,7 @@ getRemoteClients remoteMembers = do
     . map rmId
     $ remoteMembers
   where
-    getRemoteClientsFromDomain :: Remote [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
+    getRemoteClientsFromDomain :: Remote [UserId] -> Galley r (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) = do
       let rpc = FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
@@ -196,7 +196,7 @@ postRemoteOtrMessage ::
   Qualified UserId ->
   Qualified ConvId ->
   LByteString ->
-  Galley (PostOtrResponse MessageSendingStatus)
+  Galley r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         FederatedGalley.MessageSendRequest
@@ -207,7 +207,7 @@ postRemoteOtrMessage sender conv rawMsg = do
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
   FederatedGalley.msResponse <$> runFederatedGalley (qDomain conv) rpc
 
-postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> QualifiedNewOtrMessage -> Galley (PostOtrResponse MessageSendingStatus)
+postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> QualifiedNewOtrMessage -> Galley r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
@@ -305,7 +305,7 @@ sendMessages ::
   Map UserId LocalMember ->
   MessageMetadata ->
   Map (Domain, UserId, ClientId) ByteString ->
-  Galley QualifiedUserClients
+  Galley r QualifiedUserClients
 sendMessages now sender senderClient mconn conv localMemberMap metadata messages = do
   localDomain <- viewFederationDomain
   let messageMap = byDomain $ fmap toBase64Text messages
@@ -331,7 +331,7 @@ sendLocalMessages ::
   Map UserId LocalMember ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
-  Galley (Set (UserId, ClientId))
+  Galley r (Set (UserId, ClientId))
 sendLocalMessages now sender senderClient mconn conv localMemberMap metadata localMessages = do
   localDomain <- viewFederationDomain
   let events =
@@ -356,7 +356,7 @@ sendRemoteMessages ::
   ConvId ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
-  Galley (Set (UserId, ClientId))
+  Galley r (Set (UserId, ClientId))
 sendRemoteMessages domain now sender senderClient conv metadata messages = handle <=< runExceptT $ do
   let rcpts =
         foldr
@@ -381,7 +381,7 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = handl
   let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes originDomain rm
   executeFederated domain rpc
   where
-    handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
+    handle :: Either FederationError a -> Galley r (Set (UserId, ClientId))
     handle (Right _) = pure mempty
     handle (Left e) = do
       Log.warn $
@@ -419,12 +419,12 @@ newUserPush p = MessagePush {userPushes = pure p, botPushes = mempty}
 newBotPush :: BotMember -> Event -> MessagePush
 newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
-runMessagePush :: Qualified ConvId -> MessagePush -> Galley ()
+runMessagePush :: Qualified ConvId -> MessagePush -> Galley r ()
 runMessagePush cnv mp = do
   pushSome (userPushes mp)
   pushToBots (botPushes mp)
   where
-    pushToBots :: [(BotMember, Event)] -> Galley ()
+    pushToBots :: [(BotMember, Event)] -> Galley r ()
     pushToBots pushes = do
       localDomain <- viewFederationDomain
       if localDomain /= qDomain cnv

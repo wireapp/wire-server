@@ -46,7 +46,7 @@ import Wire.API.Federation.API.Galley
 -- | View for a given user of a stored conversation.
 --
 -- Throws "bad-state" when the user is not part of the conversation.
-conversationView :: UserId -> Data.Conversation -> Galley Conversation
+conversationView :: UserId -> Data.Conversation -> Galley r Conversation
 conversationView uid conv = do
   luid <- qualifyLocal uid
   let mbConv = conversationViewMaybe luid conv

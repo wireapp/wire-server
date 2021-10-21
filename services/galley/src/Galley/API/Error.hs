@@ -232,7 +232,7 @@ disableSsoNotImplemented =
     "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
     \\n\
     \Rationale: there are two services in the backend that need to keep their status in sync: galley (teams),\n\
-    \and spar (SSO).  Galley keeps track of team features.  If galley creates an idp, the feature flag is\n\
+    \and spar (SSO).  Galley r keeps track of team features.  If galley creates an idp, the feature flag is\n\
     \checked.  For authentication, spar avoids this expensive check and assumes that the idp can only have\n\
     \been created if the SSO is enabled.  This assumption does not hold any more if the switch is turned off\n\
     \again, so we do not support this.\n\
