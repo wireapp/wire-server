@@ -174,7 +174,7 @@ onConvCreated = do
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") requestMembers
     liftIO $ do
-      let expectedSelf = alice
+      let expectedSelf = qAlice
           expectedOthers = [(qBob, roleNameWireAdmin), (qDee, roleNameWireMember)]
           expectedFrom = qBob
       -- since Charlie is not connected to Bob; expect a conversation with Alice&Bob only
@@ -250,7 +250,7 @@ addUnconnectedUsersOnly = do
     -- Remote Bob creates a conversation with local Alice
     registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") requestMembers
     liftIO $ do
-      let expectedSelf = alice
+      let expectedSelf = qAlice
           expectedOthers = [(qBob, roleNameWireAdmin)]
           expectedFrom = qBob
       WS.assertMatch_ (5 # Second) wsA $

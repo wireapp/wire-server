@@ -34,7 +34,7 @@ domain = Domain "golden.example.com"
 testObject_Conversation_user_1 :: Conversation
 testObject_Conversation_user_1 =
   Conversation
-    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
       cnvMetadata =
         ConversationMetadata
           { cnvmType = One2OneConv,
@@ -50,7 +50,7 @@ testObject_Conversation_user_1 =
         ConvMembers
           { cmSelf =
               Member
-                { memId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
+                { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
                   memService = Nothing,
                   memOtrMutedStatus = Nothing,
                   memOtrMutedRef = Nothing,
@@ -67,7 +67,7 @@ testObject_Conversation_user_1 =
 testObject_Conversation_user_2 :: Conversation
 testObject_Conversation_user_2 =
   Conversation
-    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain "golden.example.com"),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) domain,
       cnvMetadata =
         ConversationMetadata
           { cnvmType = SelfConv,
@@ -96,7 +96,7 @@ testObject_Conversation_user_2 =
         ConvMembers
           { cmSelf =
               Member
-                { memId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
+                { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
                   memService = Nothing,
                   memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -1}),
                   memOtrMutedRef = Nothing,

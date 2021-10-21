@@ -111,7 +111,7 @@ onConversationCreated domain rc = do
             (qUntagged (FederationAPIGalley.rcRemoteOrigUserId qrcConnected))
             (rcTime qrcConnected)
             (EdConversation c)
-    pushConversationEvent Nothing event [Public.memId mem] []
+    pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
 
 getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do

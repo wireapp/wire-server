@@ -1266,16 +1266,16 @@ registerRemoteConv convId originUser name othMembers = do
 -------------------------------------------------------------------------------
 -- Common Assertions
 
-assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> TestM ()
+assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> Qualified UserId -> TestM ()
 assertConvMemberWithRole r c u =
-  getSelfMember u c !!! do
+  getSelfMember (qUnqualified u) c !!! do
     const 200 === statusCode
     const (Right u) === (fmap memId <$> responseJsonEither)
     const (Right r) === (fmap memConvRoleName <$> responseJsonEither)
 
-assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
+assertConvMember :: HasCallStack => Qualified UserId -> ConvId -> TestM ()
 assertConvMember u c =
-  getSelfMember u c !!! do
+  getSelfMember (qUnqualified u) c !!! do
     const 200 === statusCode
     const (Right u) === (fmap memId <$> responseJsonEither)
 
@@ -1304,7 +1304,7 @@ assertConv ::
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
   UserId ->
-  UserId ->
+  Qualified UserId ->
   [UserId] ->
   Maybe Text ->
   Maybe Milliseconds ->
@@ -1316,7 +1316,7 @@ assertConvWithRole ::
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
   UserId ->
-  UserId ->
+  Qualified UserId ->
   [UserId] ->
   Maybe Text ->
   Maybe Milliseconds ->
@@ -2331,7 +2331,14 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
-wsAssertConvCreateWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> UserId -> [(Qualified UserId, RoleName)] -> Notification -> IO ()
+wsAssertConvCreateWithRole ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Qualified UserId ->
+  [(Qualified UserId, RoleName)] ->
+  Notification ->
+  IO ()
 wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False

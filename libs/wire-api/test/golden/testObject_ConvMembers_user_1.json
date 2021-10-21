@@ -23,6 +23,10 @@
         "otr_archived_ref": "",
         "otr_muted_ref": "",
         "otr_muted_status": null,
+        "qualified_id": {
+            "domain": "golden.example.com",
+            "id": "00000000-0000-0001-0000-000100000001"
+        },
         "service": {
             "id": "00000001-0000-0000-0000-000000000000",
             "provider": "00000000-0000-0000-0000-000000000000"

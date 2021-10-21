@@ -290,7 +290,7 @@ postConvOk = do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
         <!! const 201 === statusCode
-    cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
+    cid <- assertConv rsp RegularConv alice qalice [bob, jane] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
   where
@@ -1633,22 +1633,24 @@ postConvHelper g zusr newUsers = do
 
 postSelfConvOk :: TestM ()
 postSelfConvOk = do
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   m <- postSelfConv alice <!! const 200 === statusCode
   n <- postSelfConv alice <!! const 200 === statusCode
-  mId <- assertConv m SelfConv alice alice [] Nothing Nothing
-  nId <- assertConv n SelfConv alice alice [] Nothing Nothing
+  mId <- assertConv m SelfConv alice qalice [] Nothing Nothing
+  nId <- assertConv n SelfConv alice qalice [] Nothing Nothing
   liftIO $ mId @=? nId
 
 postO2OConvOk :: TestM ()
 postO2OConvOk = do
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   bob <- randomUser
   connectUsers alice (singleton bob)
   a <- postO2OConv alice bob Nothing <!! const 200 === statusCode
   c <- postO2OConv alice bob Nothing <!! const 200 === statusCode
-  aId <- assertConv a One2OneConv alice alice [bob] Nothing Nothing
-  cId <- assertConv c One2OneConv alice alice [bob] Nothing Nothing
+  aId <- assertConv a One2OneConv alice qalice [bob] Nothing Nothing
+  cId <- assertConv c One2OneConv alice qalice [bob] Nothing Nothing
   liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: TestM ()
@@ -1662,7 +1664,8 @@ postConvO2OFailWithSelf = do
 
 postConnectConvOk :: TestM ()
 postConnectConvOk = do
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   bob <- randomUser
   m <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
@@ -1670,8 +1673,8 @@ postConnectConvOk = do
   n <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
       <!! const 200 === statusCode
-  mId <- assertConv m ConnectConv alice alice [] (Just "Alice") Nothing
-  nId <- assertConv n ConnectConv alice alice [] (Just "Alice") Nothing
+  mId <- assertConv m ConnectConv alice qalice [] (Just "Alice") Nothing
+  nId <- assertConv n ConnectConv alice qalice [] (Just "Alice") Nothing
   liftIO $ mId @=? nId
 
 postConnectConvOk2 :: TestM ()
@@ -1709,18 +1712,20 @@ putConvAcceptRetry = do
 
 postMutualConnectConvOk :: TestM ()
 postMutualConnectConvOk = do
-  alice <- randomUser
-  bob <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
   ac <-
     postConnectConv alice bob "A" "a" Nothing
       <!! const 201 === statusCode
-  acId <- assertConv ac ConnectConv alice alice [] (Just "A") Nothing
+  acId <- assertConv ac ConnectConv alice qalice [] (Just "A") Nothing
   bc <-
     postConnectConv bob alice "B" "b" Nothing
       <!! const 200 === statusCode
   -- The connect conversation was simply accepted, thus the
   -- conversation name and message sent in Bob's request ignored.
-  bcId <- assertConv bc One2OneConv alice bob [alice] (Just "A") Nothing
+  bcId <- assertConv bc One2OneConv alice qbob [alice] (Just "A") Nothing
   liftIO $ acId @=? bcId
 
 postRepeatConnectConvCancel :: TestM ()
@@ -1987,6 +1992,7 @@ testGetQualifiedRemoteConv :: TestM ()
 testGetQualifiedRemoteConv = do
   aliceQ <- randomQualifiedUser
   let aliceId = qUnqualified aliceQ
+  loc <- flip toLocalUnsafe () <$> viewFederationDomain
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
@@ -1995,7 +2001,7 @@ testGetQualifiedRemoteConv = do
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       aliceAsLocal = LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
-      aliceAsSelfMember = localMemberToSelf aliceAsLocal
+      aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
 
   connectWithRemoteUser aliceId bobQ
   registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
@@ -2069,6 +2075,7 @@ testBulkGetQualifiedConvs = do
   localDomain <- viewFederationDomain
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
+      lAlice = toLocalUnsafe localDomain alice
   bobId <- randomId
   carlId <- randomId
   deeId <- randomId
@@ -2134,8 +2141,8 @@ testBulkGetQualifiedConvs = do
     let expectedFound =
           sortOn
             cnvQualifiedId
-            $ maybeToList (remoteConversationView alice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
-              <> maybeToList (remoteConversationView alice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
+            $ maybeToList (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              <> maybeToList (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
               <> [localConv]
         actualFound = sortOn cnvQualifiedId $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
@@ -2242,14 +2249,14 @@ postMembersOk2 :: TestM ()
 postMembersOk2 = do
   alice <- randomUser
   bob <- randomUser
-  chuck <- randomUser
-  connectUsers alice (list1 bob [chuck])
-  connectUsers bob (singleton chuck)
-  conv <- decodeConvId <$> postConv alice [bob, chuck] Nothing [] Nothing Nothing
-  postMembers bob (singleton chuck) conv !!! do
+  chuck <- randomQualifiedUser
+  connectUsers alice (list1 bob [qUnqualified chuck])
+  connectUsers bob (singleton . qUnqualified $ chuck)
+  conv <- decodeConvId <$> postConv alice [bob, qUnqualified chuck] Nothing [] Nothing Nothing
+  postMembers bob (singleton . qUnqualified $ chuck) conv !!! do
     const 204 === statusCode
     const Nothing === responseBody
-  chuck' <- responseJsonUnsafe <$> (getSelfMember chuck conv <!! const 200 === statusCode)
+  chuck' <- responseJsonUnsafe <$> (getSelfMember (qUnqualified chuck) conv <!! const 200 === statusCode)
   liftIO $
     assertEqual "wrong self member" (Just chuck) (memId <$> chuck')
 
@@ -2787,7 +2794,7 @@ putMemberOk update = do
   -- Expected member state
   let memberBob =
         Member
-          { memId = bob,
+          { memId = qbob,
             memService = Nothing,
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
@@ -2857,7 +2864,7 @@ putRemoteConvMemberOk update = do
   -- Expected member state
   let memberAlice =
         Member
-          { memId = alice,
+          { memId = qalice,
             memService = Nothing,
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
