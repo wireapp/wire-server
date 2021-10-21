@@ -65,6 +65,7 @@ library:
   - mtl >=2.2
   - optparse-applicative >=0.10
   - pem
+  - polysemy
   - protobuf >=0.2
   - proto-lens >=0.2
   - QuickCheck >=2.14

@@ -28,6 +28,9 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
+
+    -- * Internal
+    deleteBot0,
   )
 where
 
@@ -101,9 +104,8 @@ putConnectionInternal updateConn = do
         . json updateConn
   pure $ responseStatus response
 
--- | Calls 'Brig.Provider.API.botGetSelfH'.
-deleteBot :: ConvId -> BotId -> Galley r ()
-deleteBot cid bot = do
+deleteBot0 :: ConvId -> BotId -> Galley0 ()
+deleteBot0 cid bot = do
   (h, p) <- brigReq
   void $
     call "brig" $
@@ -113,6 +115,10 @@ deleteBot cid bot = do
         . header "Z-Bot" (toByteString' bot)
         . header "Z-Conversation" (toByteString' cid)
         . expect2xx
+
+-- | Calls 'Brig.Provider.API.botGetSelfH'.
+deleteBot :: ConvId -> BotId -> Galley r ()
+deleteBot cid bot = liftGalley0 $ deleteBot0 cid bot
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser :: UserId -> ReAuthUser -> Galley r Bool

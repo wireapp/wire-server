@@ -41,6 +41,7 @@ import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatu
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
+import Galley.Effects
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -72,7 +73,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
-servantSitemap :: ServerT GalleyAPI.ServantAPI (Galley ())
+servantSitemap :: ServerT GalleyAPI.ServantAPI (Galley GalleyEffects)
 servantSitemap =
   genericServerT $
     GalleyAPI.Api
@@ -174,7 +175,7 @@ servantSitemap =
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
       }
 
-sitemap :: Routes ApiBuilder (Galley ()) ()
+sitemap :: Routes ApiBuilder (Galley GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
 
@@ -731,7 +732,7 @@ sitemap = do
     errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
-apiDocs :: Routes ApiBuilder (Galley ()) ()
+apiDocs :: Routes ApiBuilder (Galley r) ()
 apiDocs =
   get "/conversations/api-docs" (continue docs) $
     accept "application" "json"

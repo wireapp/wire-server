@@ -38,8 +38,9 @@ import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtr
 import Galley.API.Update (notifyConversationMetadataUpdate)
 import qualified Galley.API.Update as API
 import Galley.API.Util
-import Galley.App (Galley)
+import Galley.App
 import qualified Galley.Data as Data
+import Galley.Effects
 import Galley.Intra.User (getConnections)
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Imports
@@ -72,7 +73,7 @@ import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..)
 import Wire.API.ServantProto (FromProto (..))
 import Wire.API.User.Client (userClientMap)
 
-federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) (Galley ())
+federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) (Galley GalleyEffects)
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
@@ -85,7 +86,11 @@ federationSitemap =
         FederationAPIGalley.onUserDeleted = onUserDeleted
       }
 
-onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley r ()
+onConversationCreated ::
+  Members '[GundeckAccess, ExternalAccess] r =>
+  Domain ->
+  NewRemoteConversation ConvId ->
+  Galley r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
@@ -119,7 +124,10 @@ onConversationCreated domain rc = do
             (EdConversation c)
     pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
 
-getConversations :: Domain -> GetConversationsRequest -> Galley r GetConversationsResponse
+getConversations ::
+  Domain ->
+  GetConversationsRequest ->
+  Galley r GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   localDomain <- viewFederationDomain
@@ -132,7 +140,11 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
-onConversationUpdated :: Domain -> ConversationUpdate -> Galley r ()
+onConversationUpdated ::
+  Members '[GundeckAccess, ExternalAccess] r =>
+  Domain ->
+  ConversationUpdate ->
+  Galley r ()
 onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
   loc <- qualifyLocal ()
@@ -214,6 +226,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
+  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   Domain ->
   LeaveConversationRequest ->
   Galley r LeaveConversationResponse
@@ -233,7 +246,11 @@ leaveConversation requestingDomain lc = do
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
-onMessageSent :: Domain -> RemoteMessage ConvId -> Galley r ()
+onMessageSent ::
+  Members '[BotAccess, GundeckAccess, ExternalAccess] r =>
+  Domain ->
+  RemoteMessage ConvId ->
+  Galley r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
       convId = qUntagged $ rmConversation rm
@@ -270,7 +287,11 @@ onMessageSent domain rmUnqualified = do
             lmConvRoleName = Public.roleNameWireMember
           }
 
-sendMessage :: Domain -> MessageSendRequest -> Galley r MessageSendResponse
+sendMessage ::
+  Members '[BotAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
+  Domain ->
+  MessageSendRequest ->
+  Galley r MessageSendResponse
 sendMessage originDomain msr = do
   let sender = Qualified (msrSender msr) originDomain
   msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))

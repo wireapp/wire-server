@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,21 +15,47 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API
-  ( sitemap,
-    Public.servantSitemap,
+module Galley.Effects
+  ( GalleyEffects,
+    Concurrency,
+    Intra,
+    BrigAccess,
+    GundeckAccess,
+    ExternalAccess,
+    FederatorAccess,
+    BotAccess,
+    FireAndForget,
+
+    -- * Polysemy re-exports
+    Member,
+    Members,
   )
 where
 
-import qualified Data.Swagger.Build.Api as Doc
-import qualified Galley.API.Internal as Internal
-import qualified Galley.API.Public as Public
-import Galley.App (Galley)
-import Galley.Effects (GalleyEffects)
-import Network.Wai.Routing (Routes)
+import Polysemy
 
-sitemap :: Routes Doc.ApiBuilder (Galley GalleyEffects) ()
-sitemap = do
-  Public.sitemap
-  Public.apiDocs
-  Internal.sitemap
+data Concurrency m a
+
+data Intra m a
+
+data BrigAccess m a
+
+data GundeckAccess m a
+
+data ExternalAccess m a
+
+data FederatorAccess m a
+
+data BotAccess m a
+
+data FireAndForget m a
+
+type GalleyEffects =
+  '[ Intra,
+     BrigAccess,
+     GundeckAccess,
+     ExternalAccess,
+     FederatorAccess,
+     BotAccess,
+     FireAndForget
+   ]

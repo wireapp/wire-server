@@ -181,7 +181,8 @@ getRemoteConversationsWithFailures zusr convs = do
         | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  fmap (bimap (localFailures <>) concat . partitionEithers)
+  liftGalley0
+    . fmap (bimap (localFailures <>) concat . partitionEithers)
     . pooledForConcurrentlyN 8 (bucketRemote locallyFound)
     $ \someConvs -> do
       let req = FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
@@ -192,8 +193,8 @@ getRemoteConversationsWithFailures zusr convs = do
   where
     handleFailures ::
       [Remote ConvId] ->
-      ExceptT FederationError (Galley r) a ->
-      Galley r (Either FailedGetConversation a)
+      ExceptT FederationError Galley0 a ->
+      Galley0 (Either FailedGetConversation a)
     handleFailures rconvs action = runExceptT
       . withExceptT (failedGetConversationRemotely rconvs)
       . catchE action
@@ -259,12 +260,22 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
           mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
 
-getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley r (Public.ConversationList Public.Conversation)
+getConversations ::
+  UserId ->
+  Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
+  Maybe ConvId ->
+  Maybe (Range 1 500 Int32) ->
+  Galley r (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do
   ConversationList cs more <- getConversationsInternal user mids mstart msize
   flip ConversationList more <$> mapM (Mapping.conversationView user) cs
 
-getConversationsInternal :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley r (Public.ConversationList Data.Conversation)
+getConversationsInternal ::
+  UserId ->
+  Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
+  Maybe ConvId ->
+  Maybe (Range 1 500 Int32) ->
+  Galley r (Public.ConversationList Data.Conversation)
 getConversationsInternal user mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
@@ -291,7 +302,10 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
-listConversations :: UserId -> Public.ListConversations -> Galley r Public.ConversationsResponse
+listConversations ::
+  UserId ->
+  Public.ListConversations ->
+  Galley r Public.ConversationsResponse
 listConversations user (Public.ListConversations ids) = do
   luser <- qualifyLocal user
 
@@ -338,7 +352,11 @@ listConversations user (Public.ListConversations ids) = do
       let notFounds = xs \\ founds
       pure (founds, notFounds)
 
-iterateConversations :: UserId -> Range 1 500 Int32 -> ([Data.Conversation] -> Galley r a) -> Galley r [a]
+iterateConversations ::
+  UserId ->
+  Range 1 500 Int32 ->
+  ([Data.Conversation] -> Galley r a) ->
+  Galley r [a]
 iterateConversations uid pageSize handleConvs = go Nothing
   where
     go mbConv = do
@@ -380,7 +398,11 @@ getConversationMeta cnv = do
       Data.deleteConversation cnv
       pure Nothing
 
-getConversationByReusableCode :: UserId -> Key -> Value -> Galley r ConversationCoverView
+getConversationByReusableCode ::
+  UserId ->
+  Key ->
+  Value ->
+  Galley r ConversationCoverView
 getConversationByReusableCode zusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
   conv <- ensureConversationAccess zusr (Data.codeConversation c) CodeAccess

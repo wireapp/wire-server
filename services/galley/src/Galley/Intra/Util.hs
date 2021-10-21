@@ -51,11 +51,8 @@ sparReq = do
 
 -- gundeckReq lives in Galley.Intra.Push
 
-call :: forall r. LT.Text -> (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
-call n r = recovering x1 rpcHandlers (const m)
-  where
-    m :: Galley r (Response (Maybe LByteString))
-    m = rpc n r
+call :: LT.Text -> (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
+call n r = recovering x1 rpcHandlers (const (rpc n r))
 
 x1 :: RetryPolicy
 x1 = limitRetries 1

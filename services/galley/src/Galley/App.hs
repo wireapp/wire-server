@@ -38,6 +38,7 @@ module Galley.App
 
     -- * Galley monad
     Galley,
+    Galley0,
     runGalley,
     evalGalley,
     ask,
@@ -52,6 +53,12 @@ module Galley.App
     initExtEnv,
     fanoutLimit,
     currentFanoutLimit,
+
+    -- * MonadUnliftIO / Sem compatibility
+    fireAndForget,
+    fireAndForgetMany,
+    liftGalley0,
+    interpretGalleyToGalley0,
   )
 where
 
@@ -80,10 +87,11 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
+import Galley.Effects
 import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.HTTP.Media.RenderHeader (RenderHeader (..))
@@ -96,10 +104,13 @@ import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
+import Polysemy
 import qualified Servant
 import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
+import UnliftIO.Async (pooledMapConcurrentlyN_)
+import UnliftIO.Concurrent (forkIO)
 import Util.Options
 import Wire.API.Federation.Client (HasFederatorConfig (..))
 
@@ -131,7 +142,9 @@ makeLenses ''Env
 
 makeLenses ''ExtEnv
 
-newtype Galley (r :: *) a = Galley
+type Galley0 = Galley '[]
+
+newtype Galley (r :: EffectRow) a = Galley
   { unGalley :: ReaderT Env Client a
   }
   deriving
@@ -181,12 +194,6 @@ validateOptions l o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
-
-instance MonadUnliftIO (Galley r) where
-  askUnliftIO =
-    Galley . ReaderT $ \r ->
-      withUnliftIO $ \u ->
-        return (UnliftIO (unliftIO u . flip runReaderT r . unGalley))
 
 instance MonadLogger (Galley r) where
   log l m = do
@@ -271,12 +278,12 @@ initExtEnv = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-runGalley :: Env -> Request -> Galley r a -> IO a
+runGalley :: Env -> Request -> Galley GalleyEffects a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m
 
-evalGalley :: Env -> Galley r a -> IO a
+evalGalley :: Env -> Galley GalleyEffects a -> IO a
 evalGalley e m = runClient (e ^. cstate) (runReaderT (unGalley m) e)
 
 lookupReqId :: Request -> RequestId
@@ -304,7 +311,7 @@ ifNothing :: Error -> Maybe a -> Galley r a
 ifNothing e = maybe (throwM e) return
 {-# INLINE ifNothing #-}
 
-toServantHandler :: Env -> Galley r a -> Servant.Handler a
+toServantHandler :: Env -> (Galley GalleyEffects) a -> Servant.Handler a
 toServantHandler env galley = do
   eith <- liftIO $ try (evalGalley env galley)
   case eith of
@@ -320,3 +327,24 @@ toServantHandler env galley = do
 
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
+
+--------------------------------------------------------------------------------
+-- temporary MonadUnliftIO support code for the polysemy refactoring
+
+fireAndForget :: Member FireAndForget r => Galley r () -> Galley r ()
+fireAndForget = Galley . void . forkIO . unGalley
+
+fireAndForgetMany :: Member FireAndForget r => [Galley r ()] -> Galley r ()
+-- I picked this number by fair dice roll, feel free to change it :P
+fireAndForgetMany = Galley . pooledMapConcurrentlyN_ 8 unGalley
+
+instance MonadUnliftIO Galley0 where
+  askUnliftIO = do
+    f <- Galley askUnliftIO
+    pure (UnliftIO (unliftIO f . unGalley))
+
+liftGalley0 :: Galley0 a -> Galley r a
+liftGalley0 = Galley . unGalley
+
+interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
+interpretGalleyToGalley0 = Galley . unGalley
