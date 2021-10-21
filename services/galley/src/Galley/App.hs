@@ -57,6 +57,7 @@ module Galley.App
     -- * MonadUnliftIO / Sem compatibility
     async,
     forkIO,
+    mapConcurrently,
   )
 where
 
@@ -342,3 +343,10 @@ async = Galley . U.async . unGalley
 
 forkIO :: Member Concurrency r => Galley r () -> Galley r ThreadId
 forkIO = Galley . U.forkIO . unGalley
+
+mapConcurrently ::
+  (Member Concurrency r, Traversable t) =>
+  (a -> Galley r b) ->
+  t a ->
+  Galley r (t b)
+mapConcurrently f = Galley . U.mapConcurrently (unGalley . f)

@@ -173,7 +173,8 @@ import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding (Set, max)
 import qualified System.Logger.Class as Log
-import UnliftIO (mapConcurrently, wait)
+import UnliftIO (wait)
+import qualified UnliftIO
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Member
 
@@ -1198,7 +1199,7 @@ lookupClients = liftClient . lookupClients'
 lookupClients' :: [UserId] -> Client Clients
 lookupClients' users =
   Clients.fromList . concat . concat
-    <$> forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)
+    <$> forM (chunksOf 2048 users) (UnliftIO.mapConcurrently getClients . chunksOf 128)
   where
     getClients us =
       map (second fromSet)

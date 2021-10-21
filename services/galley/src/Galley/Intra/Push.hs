@@ -81,7 +81,6 @@ import Imports hiding (forkIO)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
-import UnliftIO (mapConcurrently)
 import Util.Options
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 

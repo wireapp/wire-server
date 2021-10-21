@@ -113,7 +113,6 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
-import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (ConvNotFound, NotATeamMember, operationDenied)
 import qualified Wire.API.Notification as Public
@@ -871,14 +870,13 @@ withTeamIds usr range size k = case range of
     k False ids
 {-# INLINE withTeamIds #-}
 
-ensureUnboundUsers :: [UserId] -> Galley r ()
+ensureUnboundUsers :: Member Concurrency r => [UserId] -> Galley r ()
 ensureUnboundUsers uids = do
-  e <- ask
   -- We check only 1 team because, by definition, users in binding teams
   -- can only be part of one team.
-  ts <- liftIO $ mapConcurrently (evalGalley e . Data.oneUserTeam) uids
+  ts <- mapConcurrently Data.oneUserTeam uids
   let teams = toList $ fromList (catMaybes ts)
-  binds <- liftIO $ mapConcurrently (evalGalley e . Data.teamBinding) teams
+  binds <- mapConcurrently Data.teamBinding teams
   when (any ((==) (Just Binding)) binds) $
     throwM userBindingExists
 
