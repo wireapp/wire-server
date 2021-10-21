@@ -39,6 +39,7 @@ import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~))
 import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -59,9 +60,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
-import Database.CQL.IO
 import Galley.API.Mapping
-import qualified Galley.Data as Data
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (LocalMember (..))
 import Galley.Types.Conversations.Intra
@@ -3247,7 +3246,6 @@ testOne2OneConversationRequest :: Bool -> Actor -> DesiredMembership -> TestM ()
 testOne2OneConversationRequest shouldBeLocal actor desired = do
   alice <- qTagUnsafe <$> randomQualifiedUser
   (bob, expectedConvId) <- generateRemoteAndConvId shouldBeLocal alice
-  db <- view tsCass
 
   convId <- do
     let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
@@ -3260,20 +3258,34 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
 
   case shouldBeLocal of
     True -> do
-      mems <- runClient db $ do
-        lmems <- fmap (qUntagged . qualifyAs alice . lmId) <$> Data.members (qUnqualified convId)
-        rmems <- fmap (qUntagged . rmId) <$> Data.lookupRemoteMembers (qUnqualified convId)
-        pure (lmems <> rmems)
-      let actorId = case actor of
-            LocalActor -> qUntagged alice
-            RemoteActor -> qUntagged bob
-      liftIO $ isJust (find (actorId ==) mems) @?= (desired == Included)
-      liftIO $ filter (actorId /=) mems @?= []
+      members <- case actor of
+        LocalActor -> runMaybeT $ do
+          resp <- lift $ getConvQualified (tUnqualified alice) convId
+          guard $ statusCode resp == 200
+          conv <- lift $ responseJsonError resp
+          pure . map omQualifiedId . cmOthers . cnvMembers $ conv
+        RemoteActor -> do
+          fedGalleyClient <- view tsFedGalleyClient
+          GetConversationsResponse convs <-
+            FederatedGalley.getConversations
+              fedGalleyClient
+              (tDomain bob)
+              FederatedGalley.GetConversationsRequest
+                { FederatedGalley.gcrUserId = tUnqualified bob,
+                  FederatedGalley.gcrConvIds = [qUnqualified convId]
+                }
+          pure
+            . fmap (map omQualifiedId . rcmOthers . rcnvMembers)
+            . listToMaybe
+            $ convs
+      liftIO $ case desired of
+        Included -> members @?= Just []
+        Excluded -> members @?= Nothing
     False -> do
-      mems <- runClient db $ do
-        smap <- Data.remoteConversationStatus (tUnqualified alice) [qTagUnsafe convId]
-        case Map.lookup (qTagUnsafe convId) smap of
-          Just _ -> pure [qUntagged alice]
-          _ -> pure []
-      when (actor == LocalActor) $
-        liftIO $ isJust (find (qUntagged alice ==) mems) @?= (desired == Included)
+      found <- do
+        let rconv = mkConv (qUnqualified convId) (tUnqualified bob) roleNameWireAdmin []
+        (resp, _) <-
+          withTempMockFederator (const (FederatedGalley.GetConversationsResponse [rconv])) $
+            getConvQualified (tUnqualified alice) convId
+        pure $ statusCode resp == 200
+      liftIO $ found @?= ((actor, desired) == (LocalActor, Included))

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1daf2eec8d6d9666168a442a3c2856c2d453361e3bbffcc4a17c55d8bbf914f4
+-- hash: 4672b718d579fa096a208ce87a0d959fe701b2c18eebae45c120309108c4ee5c
 
 name:           galley
 version:        0.83.0
@@ -146,7 +146,7 @@ library
     , time >=1.4
     , tinylog >=0.10
     , tls >=1.3.10
-    , transformers >=0.3
+    , transformers
     , types-common >=0.16
     , types-common-journal >=0.1
     , unliftio >=0.2
@@ -186,6 +186,7 @@ executable galley
     , servant-client
     , ssl-util
     , tagged
+    , transformers
     , types-common
     , wire-api
     , wire-api-federation
@@ -283,6 +284,7 @@ executable galley-integration
     , time
     , tinylog
     , tls >=1.3.8
+    , transformers
     , types-common
     , types-common-journal
     , unliftio
@@ -334,6 +336,7 @@ executable galley-migrate-data
     , text
     , time
     , tinylog
+    , transformers
     , types-common
     , unliftio
     , wire-api
@@ -400,6 +403,7 @@ executable galley-schema
     , tagged
     , text
     , tinylog
+    , transformers
     , wire-api
     , wire-api-federation
   if flag(static)
@@ -444,6 +448,7 @@ test-suite galley-types-tests
     , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
+    , transformers
     , types-common
     , wai
     , wai-predicates
