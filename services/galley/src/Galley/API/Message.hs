@@ -39,7 +39,7 @@ import Galley.Options (optSettings, setIntraListing)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
-import Imports
+import Imports hiding (forkIO)
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
 import Wire.API.Event.Conversation

@@ -106,7 +106,7 @@ import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus)

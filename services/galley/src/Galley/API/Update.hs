@@ -107,7 +107,7 @@ import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Types.UserList
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients (..))
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)

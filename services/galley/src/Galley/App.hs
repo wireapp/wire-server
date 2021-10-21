@@ -56,6 +56,7 @@ module Galley.App
 
     -- * MonadUnliftIO / Sem compatibility
     async,
+    forkIO,
   )
 where
 
@@ -88,7 +89,7 @@ import Galley.Effects
 import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.HTTP.Media.RenderHeader (RenderHeader (..))
@@ -107,6 +108,7 @@ import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO as U
+import qualified UnliftIO.Concurrent as U
 import Util.Options
 import Wire.API.Federation.Client (HasFederatorConfig (..))
 
@@ -337,3 +339,6 @@ toServantHandler env galley = do
 
 async :: Member Concurrency r => Galley r a -> Galley r (U.Async a)
 async = Galley . U.async . unGalley
+
+forkIO :: Member Concurrency r => Galley r () -> Galley r ThreadId
+forkIO = Galley . U.forkIO . unGalley

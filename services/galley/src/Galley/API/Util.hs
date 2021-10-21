@@ -54,7 +54,7 @@ import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOth
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event, MemberJoin, self)
 import Galley.Types.UserList
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)

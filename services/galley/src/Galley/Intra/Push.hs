@@ -77,7 +77,7 @@ import Galley.Types
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
