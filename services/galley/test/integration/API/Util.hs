@@ -1257,7 +1257,7 @@ registerRemoteConv convId originUser name othMembers = do
           rcCnvAccess = [],
           rcCnvAccessRole = ActivatedAccessRole,
           rcCnvName = name,
-          rcMembers = othMembers,
+          rcNonCreatorMembers = othMembers,
           rcMessageTimer = Nothing,
           rcReceiptMode = Nothing
         }
@@ -1335,6 +1335,54 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
     assertEqual "self" (Just s) (memId <$> _self)
     assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
+    assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
+    assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
+    assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
+    assertBool "otr archived not false" (Just False == (memOtrArchived <$> _self))
+    assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< _self))
+    case t of
+      SelfConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
+      ConnectConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
+      One2OneConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
+      _ -> return ()
+  return cId
+
+assertConvQualified ::
+  HasCallStack =>
+  Response (Maybe Lazy.ByteString) ->
+  ConvType ->
+  UserId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Maybe Text ->
+  Maybe Milliseconds ->
+  TestM ConvId
+assertConvQualified r t c s us n mt = assertConvQualifiedWithRole r t c s us n mt roleNameWireAdmin
+
+assertConvQualifiedWithRole ::
+  HasCallStack =>
+  Response (Maybe Lazy.ByteString) ->
+  ConvType ->
+  UserId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Maybe Text ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ConvId
+assertConvQualifiedWithRole r t c s us n mt role = do
+  cId <- fromBS $ getHeader' "Location" r
+  let cnv = responseJsonMaybe @Conversation r
+  let _self = cmSelf . cnvMembers <$> cnv
+  let others = cmOthers . cnvMembers <$> cnv
+  liftIO $ do
+    assertEqual "id" (Just cId) (qUnqualified . cnvQualifiedId <$> cnv)
+    assertEqual "name" n (cnv >>= cnvName)
+    assertEqual "type" (Just t) (cnvType <$> cnv)
+    assertEqual "creator" (Just c) (cnvCreator <$> cnv)
+    assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
+    assertEqual "self" (Just s) (memId <$> _self)
+    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map omQualifiedId . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
     assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))

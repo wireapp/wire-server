@@ -690,7 +690,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       rcCnvAccess = convAccess,
       rcCnvAccessRole = convAccessRole,
       rcCnvName = convName,
-      rcMembers = toMembers convLocalMembers convRemoteMembers,
+      rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = convMessageTimer,
       rcReceiptMode = convReceiptMode
     }
@@ -714,7 +714,7 @@ fromNewRemoteConversation ::
   NewRemoteConversation (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
-  let membersView = fmap (second Set.toList) . setHoles $ rcMembers
+  let membersView = fmap (second Set.toList) . setHoles $ rcNonCreatorMembers
       creatorOther =
         OtherMember
           (qUntagged (rcRemoteOrigUserId rc))
