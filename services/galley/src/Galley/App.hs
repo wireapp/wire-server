@@ -63,6 +63,7 @@ module Galley.App
     pooledForConcurrentlyN,
     pooledMapConcurrentlyN_,
     pooledMapConcurrentlyN,
+    concurrently,
   )
 where
 
@@ -390,3 +391,6 @@ pooledForConcurrentlyN_ ::
   (a -> Galley r ()) ->
   Galley r ()
 pooledForConcurrentlyN_ n t = void . pooledForConcurrentlyN n t
+
+concurrently :: Member Concurrency r => Galley r a -> Galley r b -> Galley r (a, b)
+concurrently a b = Galley $ U.concurrently (unGalley a) (unGalley b)
