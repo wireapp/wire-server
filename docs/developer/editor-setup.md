@@ -57,6 +57,16 @@ Install the [projectile][] package for Emacs and do `M-x projectile-add-known-pr
       ad-do-it)))
 ```
 
+### Haskell Language Server
+
+To use HLS bundled in direnv setup, here is a sample `.dir-locals.el` that can
+be put in the root directory of the project:
+```el
+((haskell-mode . ((haskell-completion-backend . lsp)
+                  (lsp-haskell-server-path . "/home/haskeller/code/wire-server/hack/bin/nix-hls.sh")
+                  )))
+```
+
 ### Ormolu integration
 
 There are make targets `format`, `formatf`, `formatc` to re-format
