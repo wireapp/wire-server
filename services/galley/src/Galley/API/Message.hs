@@ -41,7 +41,6 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports hiding (forkIO)
 import qualified System.Logger.Class as Log
-import UnliftIO.Async
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley

@@ -64,7 +64,6 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified System.Logger.Class as Logger
-import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public

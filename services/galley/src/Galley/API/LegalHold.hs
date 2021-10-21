@@ -70,7 +70,6 @@ import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Routes.Internal.Brig.Connection

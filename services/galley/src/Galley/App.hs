@@ -59,6 +59,10 @@ module Galley.App
     forkIO,
     mapConcurrently,
     wait,
+    pooledForConcurrentlyN_,
+    pooledForConcurrentlyN,
+    pooledMapConcurrentlyN_,
+    pooledMapConcurrentlyN,
   )
 where
 
@@ -354,3 +358,35 @@ mapConcurrently f = Galley . U.mapConcurrently (unGalley . f)
 
 wait :: Member Concurrency r => U.Async a -> Galley r a
 wait = Galley . U.wait
+
+pooledMapConcurrentlyN ::
+  (Member Concurrency r, Traversable t) =>
+  Int ->
+  (a -> Galley r b) ->
+  t a ->
+  Galley r (t b)
+pooledMapConcurrentlyN n f = Galley . U.pooledMapConcurrentlyN n (unGalley . f)
+
+pooledMapConcurrentlyN_ ::
+  (Member Concurrency r, Traversable t) =>
+  Int ->
+  (a -> Galley r ()) ->
+  t a ->
+  Galley r ()
+pooledMapConcurrentlyN_ n f = void . pooledMapConcurrentlyN n f
+
+pooledForConcurrentlyN ::
+  (Member Concurrency r, Traversable t) =>
+  Int ->
+  t a ->
+  (a -> Galley r b) ->
+  Galley r (t b)
+pooledForConcurrentlyN n = flip (pooledMapConcurrentlyN n)
+
+pooledForConcurrentlyN_ ::
+  (Member Concurrency r, Traversable t) =>
+  Int ->
+  t a ->
+  (a -> Galley r ()) ->
+  Galley r ()
+pooledForConcurrentlyN_ n t = void . pooledForConcurrentlyN n t

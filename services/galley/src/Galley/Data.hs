@@ -174,7 +174,6 @@ import Galley.Validation
 import Imports hiding (Set, max)
 import qualified System.Logger.Class as Log
 import qualified UnliftIO
-import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Member
 
 -- We use this newtype to highlight the fact that the 'Page' wrapped in here
