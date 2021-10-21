@@ -209,7 +209,7 @@ postRemoteOtrMessage sender conv rawMsg = do
 
 postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> QualifiedNewOtrMessage -> Galley r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
-  alive <- Data.isConvAlive convId
+  alive <- lift $ Data.isConvAlive convId
   localDomain <- viewFederationDomain
   now <- liftIO getCurrentTime
   let nowMillis = toUTCTimeMillis now
@@ -222,7 +222,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 
   -- conversation members
   localMembers <- lift $ Data.members convId
-  remoteMembers <- Data.lookupRemoteMembers convId
+  remoteMembers <- lift $ Data.lookupRemoteMembers convId
 
   let localMemberIds = lmId <$> localMembers
       localMemberMap :: Map UserId LocalMember
