@@ -54,15 +54,7 @@ idPToMem = evState . evEff
         modify (_2 %~ deleteRawMetadata i)
 
 storeConfig :: IP.IdP -> TypedState -> TypedState
-storeConfig iw =
-  M.filter
-    ( \iw' ->
-        or
-          [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
-            iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
-          ]
-    )
-    . M.insert (iw ^. SAML.idpId) iw
+storeConfig iw = M.insert (iw ^. SAML.idpId) iw
 
 getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
 getConfig = M.lookup
