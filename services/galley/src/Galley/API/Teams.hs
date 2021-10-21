@@ -90,6 +90,7 @@ import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
+import Galley.Effects
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -168,13 +169,21 @@ lookupTeam zusr tid = do
       pure (tdTeam <$> t)
     else pure Nothing
 
-createNonBindingTeamH :: UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON -> Galley r Response
+createNonBindingTeamH ::
+  Member Concurrency r =>
+  UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
+  Galley r Response
 createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
   newTeam <- fromJsonBody req
   newTeamId <- createNonBindingTeam zusr zcon newTeam
   pure (empty & setStatus status201 . location newTeamId)
 
-createNonBindingTeam :: UserId -> ConnId -> Public.NonBindingNewTeam -> Galley r TeamId
+createNonBindingTeam ::
+  Member Concurrency r =>
+  UserId ->
+  ConnId ->
+  Public.NonBindingNewTeam ->
+  Galley r TeamId
 createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
@@ -191,26 +200,41 @@ createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   finishCreateTeam team owner others (Just zcon)
   pure (team ^. teamId)
 
-createBindingTeamH :: UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON -> Galley r Response
+createBindingTeamH ::
+  Member Concurrency r =>
+  UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON ->
+  Galley r Response
 createBindingTeamH (zusr ::: tid ::: req ::: _) = do
   newTeam <- fromJsonBody req
   newTeamId <- createBindingTeam zusr tid newTeam
   pure (empty & setStatus status201 . location newTeamId)
 
-createBindingTeam :: UserId -> TeamId -> BindingNewTeam -> Galley r TeamId
+createBindingTeam ::
+  Member Concurrency r =>
+  UserId ->
+  TeamId ->
+  BindingNewTeam ->
+  Galley r TeamId
 createBindingTeam zusr tid (BindingNewTeam body) = do
   let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
   pure tid
 
-updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley r Response
+updateTeamStatusH ::
+  Member Concurrency r =>
+  TeamId ::: JsonRequest TeamStatusUpdate ::: JSON ->
+  Galley r Response
 updateTeamStatusH (tid ::: req ::: _) = do
   teamStatusUpdate <- fromJsonBody req
   updateTeamStatus tid teamStatusUpdate
   return empty
 
-updateTeamStatus :: TeamId -> TeamStatusUpdate -> Galley r ()
+updateTeamStatus ::
+  Member Concurrency r =>
+  TeamId ->
+  TeamStatusUpdate ->
+  Galley r ()
 updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   oldStatus <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
   valid <- validateTransition (oldStatus, newStatus)
@@ -240,13 +264,16 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       (Suspended, Suspended) -> return False
       (_, _) -> throwM invalidTeamStatusUpdate
 
-updateTeamH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.TeamUpdateData ::: JSON -> Galley r Response
+updateTeamH ::
+  Member Concurrency r =>
+  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.TeamUpdateData ::: JSON ->
+  Galley r Response
 updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
   updateData <- fromJsonBody req
   updateTeam zusr zcon tid updateData
   pure empty
 
-updateTeam :: UserId -> ConnId -> TeamId -> Public.TeamUpdateData -> Galley r ()
+updateTeam :: Member Concurrency r => UserId -> ConnId -> TeamId -> Public.TeamUpdateData -> Galley r ()
 updateTeam zusr zcon tid updateData = do
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
@@ -298,7 +325,7 @@ internalDeleteBindingTeamWithOneMember tid = do
     _ -> throwM notAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
-uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley r ()
+uncheckedDeleteTeam :: forall r. Member Concurrency r => UserId -> Maybe ConnId -> TeamId -> Galley r ()
 uncheckedDeleteTeam zusr zcon tid = do
   team <- Data.team tid
   when (isJust team) $ do
@@ -543,16 +570,22 @@ uncheckedGetTeamMembersH :: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSO
 uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
   json <$> uncheckedGetTeamMembers tid maxResults
 
-uncheckedGetTeamMembers :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley r TeamMemberList
+uncheckedGetTeamMembers ::
+  TeamId ->
+  Range 1 HardTruncationLimit Int32 ->
+  Galley r TeamMemberList
 uncheckedGetTeamMembers tid maxResults = Data.teamMembersWithLimit tid maxResults
 
-addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON -> Galley r Response
+addTeamMemberH ::
+  Member Concurrency r =>
+  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
+  Galley r Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   nmem <- fromJsonBody req
   addTeamMember zusr zcon tid nmem
   pure empty
 
-addTeamMember :: UserId -> ConnId -> TeamId -> Public.NewTeamMember -> Galley r ()
+addTeamMember :: Member Concurrency r => UserId -> ConnId -> TeamId -> Public.NewTeamMember -> Galley r ()
 addTeamMember zusr zcon tid nmem = do
   let uid = nmem ^. ntmNewTeamMember . userId
   Log.debug $
@@ -573,13 +606,13 @@ addTeamMember zusr zcon tid nmem = do
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
-uncheckedAddTeamMemberH :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley r Response
+uncheckedAddTeamMemberH :: Member Concurrency r => TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley r Response
 uncheckedAddTeamMemberH (tid ::: req ::: _) = do
   nmem <- fromJsonBody req
   uncheckedAddTeamMember tid nmem
   return empty
 
-uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley r ()
+uncheckedAddTeamMember :: Member Concurrency r => TeamId -> NewTeamMember -> Galley r ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersForFanout tid
   (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
@@ -588,14 +621,24 @@ uncheckedAddTeamMember tid nmem = do
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
-updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON -> Galley r Response
+updateTeamMemberH ::
+  Member Concurrency r =>
+  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
+  Galley r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
   targetMember <- view ntmNewTeamMember <$> fromJsonBody req
   updateTeamMember zusr zcon tid targetMember
   pure empty
 
-updateTeamMember :: UserId -> ConnId -> TeamId -> TeamMember -> Galley r ()
+updateTeamMember ::
+  forall r.
+  Member Concurrency r =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  TeamMember ->
+  Galley r ()
 updateTeamMember zusr zcon tid targetMember = do
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
@@ -658,7 +701,10 @@ updateTeamMember zusr zcon tid targetMember = do
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
-deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON -> Galley r Response
+deleteTeamMemberH ::
+  Member Concurrency r =>
+  UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
+  Galley r Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
   mBody <- fromOptionalJsonBody req
   deleteTeamMember zusr zcon tid remove mBody >>= \case
@@ -670,7 +716,14 @@ data TeamMemberDeleteResult
   | TeamMemberDeleteCompleted
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
-deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> Maybe Public.TeamMemberDeleteData -> Galley r TeamMemberDeleteResult
+deleteTeamMember ::
+  Member Concurrency r =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  UserId ->
+  Maybe Public.TeamMemberDeleteData ->
+  Galley r TeamMemberDeleteResult
 deleteTeamMember zusr zcon tid remove mBody = do
   Log.debug $
     Log.field "targets" (toByteString remove)
@@ -705,7 +758,15 @@ deleteTeamMember zusr zcon tid remove mBody = do
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
-uncheckedDeleteTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> TeamMemberList -> Galley r ()
+uncheckedDeleteTeamMember ::
+  forall r.
+  Member Concurrency r =>
+  UserId ->
+  Maybe ConnId ->
+  TeamId ->
+  UserId ->
+  TeamMemberList ->
+  Galley r ()
 uncheckedDeleteTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
   pushMemberLeaveEvent now
@@ -761,7 +822,7 @@ getTeamConversation zusr tid cid = do
     throwErrorDescription (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwErrorDescriptionType @ConvNotFound) pure
 
-deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley r ()
+deleteTeamConversation :: Member Concurrency r => UserId -> ConnId -> TeamId -> ConvId -> Galley r ()
 deleteTeamConversation zusr zcon _tid cid = do
   lusr <- qualifyLocal zusr
   lconv <- qualifyLocal cid
@@ -877,7 +938,14 @@ teamSizeBelowLimit teamSize = do
       -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
       pure True
 
-addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley r TeamSize
+addTeamMemberInternal ::
+  Member Concurrency r =>
+  TeamId ->
+  Maybe UserId ->
+  Maybe ConnId ->
+  NewTeamMember ->
+  TeamMemberList ->
+  Galley r TeamSize
 addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
@@ -931,7 +999,13 @@ getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
     isV1UUID :: UUID.UUID -> Maybe UUID.UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
-finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley r ()
+finishCreateTeam ::
+  Member Concurrency r =>
+  Team ->
+  TeamMember ->
+  [TeamMember] ->
+  Maybe ConnId ->
+  Galley r ()
 finishCreateTeam team owner others zcon = do
   let zusr = owner ^. userId
   for_ (owner : others) $

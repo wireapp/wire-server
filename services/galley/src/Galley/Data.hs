@@ -153,6 +153,7 @@ import Galley.Data.Instances ()
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
+import Galley.Effects
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -336,7 +337,7 @@ userTeams u =
   map runIdentity
     <$> retry x1 (query Cql.selectUserTeams (params Quorum (Identity u)))
 
-usersTeams :: [UserId] -> Galley r (Map UserId TeamId)
+usersTeams :: Member Concurrency r => [UserId] -> Galley r (Map UserId TeamId)
 usersTeams uids = do
   pairs :: [(UserId, TeamId)] <- catMaybes <$> pooledMapConcurrentlyN 8 (\uid -> (uid,) <$$> oneUserTeam uid) uids
   pure $ foldl' (\m (k, v) -> Map.insert k v m) Map.empty pairs
@@ -494,9 +495,7 @@ isConvAlive cid = do
     Just (Just True) -> pure False
     Just (Just False) -> pure True
 
-conversation ::
-  ConvId ->
-  Galley r (Maybe Conversation)
+conversation :: Member Concurrency r => ConvId -> Galley r (Maybe Conversation)
 conversation conv = do
   cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   remoteMems <- async $ lookupRemoteMembers conv
@@ -514,9 +513,7 @@ conversationGC conv = case join (convDeleted <$> conv) of
     return Nothing
   _ -> return conv
 
-localConversations ::
-  [ConvId] ->
-  Galley r [Conversation]
+localConversations :: Member Concurrency r => [ConvId] -> Galley r [Conversation]
 localConversations [] = return []
 localConversations ids = do
   convs <- async fetchConvs
@@ -603,6 +600,7 @@ localConversationIdsOf usr cids = do
 -- | Takes a list of remote conversation ids and fetches member status flags
 -- for the given user
 remoteConversationStatus ::
+  Member Concurrency r =>
   UserId ->
   [Remote ConvId] ->
   Galley r (Map (Remote ConvId) MemberStatus)
@@ -611,7 +609,7 @@ remoteConversationStatus uid =
     . pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomain uid)
     . bucketRemote
 
-remoteConversationStatusOnDomain :: UserId -> Remote [ConvId] -> Galley r (Map (Remote ConvId) MemberStatus)
+remoteConversationStatusOnDomain :: Member Concurrency r => UserId -> Remote [ConvId] -> Galley r (Map (Remote ConvId) MemberStatus)
 remoteConversationStatusOnDomain uid rconvs =
   Map.fromList . map toPair
     <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, tDomain rconvs, tUnqualified rconvs))
@@ -1057,7 +1055,11 @@ updateOtherMemberRemoteConv _ _ _ = pure ()
 -- | Select only the members of a remote conversation from a list of users.
 -- Return the filtered list and a boolean indicating whether the all the input
 -- users are members.
-filterRemoteConvMembers :: [UserId] -> Qualified ConvId -> Galley r ([UserId], Bool)
+filterRemoteConvMembers ::
+  Member Concurrency r =>
+  [UserId] ->
+  Qualified ConvId ->
+  Galley r ([UserId], Bool)
 filterRemoteConvMembers users (Qualified conv dom) =
   fmap Data.Monoid.getAll
     . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))

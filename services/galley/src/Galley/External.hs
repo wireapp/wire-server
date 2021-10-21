@@ -29,6 +29,7 @@ import Data.Misc
 import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import qualified Galley.Data.Services as Data
+import Galley.Effects
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Imports
@@ -46,7 +47,7 @@ import UnliftIO (Async, async, waitCatch)
 -- Returns those bots which are found to be orphaned by the external
 -- service, e.g. when the service tells us that it no longer knows about the
 -- bot.
-deliver :: [(BotMember, Event)] -> Galley r [BotMember]
+deliver :: Member Concurrency r => [(BotMember, Event)] -> Galley r [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
     exec :: (BotMember, Event) -> Galley r Bool

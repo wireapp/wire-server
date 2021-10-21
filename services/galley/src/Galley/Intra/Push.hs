@@ -71,6 +71,7 @@ import qualified Data.Set as Set
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Galley.App
+import Galley.Effects
 import Galley.Options
 import Galley.Types
 import qualified Galley.Types.Teams as Teams
@@ -158,14 +159,14 @@ newConversationEventPush localDomain e users =
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
-push1 :: Push -> Galley r ()
+push1 :: Member Concurrency r => Push -> Galley r ()
 push1 p = push (list1 p [])
 
-pushSome :: [Push] -> Galley r ()
+pushSome :: Member Concurrency r => [Push] -> Galley r ()
 pushSome [] = return ()
 pushSome (x : xs) = push (list1 x xs)
 
-push :: List1 Push -> Galley r ()
+push :: Member Concurrency r => List1 Push -> Galley r ()
 push ps = do
   let (localPushes, remotePushes) = foldMap (bimap toList toList . splitPush) (toList ps)
   traverse_ (pushLocal . List1) (nonEmpty localPushes)
@@ -185,7 +186,7 @@ push ps = do
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: List1 (PushTo UserId) -> Galley r ()
+pushLocal :: Member Concurrency r => List1 (PushTo UserId) -> Galley r ()
 pushLocal ps = do
   limit <- fanoutLimit
   -- Do not fan out for very large teams
@@ -245,7 +246,7 @@ gundeckReq ps = do
       . json ps
       . expect2xx
 
-callAsync :: LT.Text -> (Request -> Request) -> Galley r ()
+callAsync :: Member Concurrency r => LT.Text -> (Request -> Request) -> Galley r ()
 callAsync n r = void . forkIO $ void (call n r) `catches` handlers
   where
     handlers =

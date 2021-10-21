@@ -30,6 +30,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
+import Galley.Effects
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
@@ -179,7 +180,11 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
         mkQualifiedMismatch reportedMissing redundant deleted
       )
 
-getRemoteClients :: [RemoteMember] -> Galley r (Map (Domain, UserId) (Set ClientId))
+getRemoteClients ::
+  forall r.
+  Member Concurrency r =>
+  [RemoteMember] ->
+  Galley r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers = do
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
     . pooledMapConcurrentlyN 8 getRemoteClientsFromDomain
@@ -193,6 +198,7 @@ getRemoteClients remoteMembers = do
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
 
 postRemoteOtrMessage ::
+  Member Concurrency r =>
   Qualified UserId ->
   Qualified ConvId ->
   LByteString ->
@@ -207,7 +213,14 @@ postRemoteOtrMessage sender conv rawMsg = do
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
   FederatedGalley.msResponse <$> runFederatedGalley (qDomain conv) rpc
 
-postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> QualifiedNewOtrMessage -> Galley r (PostOtrResponse MessageSendingStatus)
+postQualifiedOtrMessage ::
+  Member Concurrency r =>
+  UserType ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  QualifiedNewOtrMessage ->
+  Galley r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   alive <- lift $ Data.isConvAlive convId
   localDomain <- viewFederationDomain
@@ -297,6 +310,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 -- | Send both local and remote messages, return the set of clients for which
 -- sending has failed.
 sendMessages ::
+  Member Concurrency r =>
   UTCTime ->
   Qualified UserId ->
   ClientId ->
@@ -323,6 +337,7 @@ sendMessages now sender senderClient mconn conv localMemberMap metadata messages
         mempty
 
 sendLocalMessages ::
+  Member Concurrency r =>
   UTCTime ->
   Qualified UserId ->
   ClientId ->
@@ -419,7 +434,7 @@ newUserPush p = MessagePush {userPushes = pure p, botPushes = mempty}
 newBotPush :: BotMember -> Event -> MessagePush
 newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
-runMessagePush :: Qualified ConvId -> MessagePush -> Galley r ()
+runMessagePush :: forall r. Member Concurrency r => Qualified ConvId -> MessagePush -> Galley r ()
 runMessagePush cnv mp = do
   pushSome (userPushes mp)
   pushToBots (botPushes mp)

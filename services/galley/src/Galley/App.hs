@@ -38,6 +38,7 @@ module Galley.App
 
     -- * Galley monad
     Galley,
+    Galley0,
     runGalley,
     evalGalley,
     ask,
@@ -80,6 +81,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
+import Galley.Effects
 import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
@@ -96,6 +98,7 @@ import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
+import Polysemy
 import qualified Servant
 import Ssl.Util
 import System.Logger.Class hiding (Error, info)
@@ -131,7 +134,9 @@ makeLenses ''Env
 
 makeLenses ''ExtEnv
 
-newtype Galley (r :: *) a = Galley
+type Galley0 = Galley GalleyEffects
+
+newtype Galley (r :: EffectRow) a = Galley
   { unGalley :: ReaderT Env Client a
   }
   deriving
@@ -182,7 +187,7 @@ validateOptions l o = do
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
-instance MonadUnliftIO (Galley r) where
+instance Member Concurrency r => MonadUnliftIO (Galley r) where
   askUnliftIO =
     Galley . ReaderT $ \r ->
       withUnliftIO $ \u ->
@@ -271,12 +276,12 @@ initExtEnv = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-runGalley :: Env -> Request -> Galley r a -> IO a
+runGalley :: (r ~ GalleyEffects) => Env -> Request -> Galley r a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m
 
-evalGalley :: Env -> Galley r a -> IO a
+evalGalley :: (r ~ GalleyEffects) => Env -> Galley r a -> IO a
 evalGalley e m = runClient (e ^. cstate) (runReaderT (unGalley m) e)
 
 lookupReqId :: Request -> RequestId
@@ -304,7 +309,7 @@ ifNothing :: Error -> Maybe a -> Galley r a
 ifNothing e = maybe (throwM e) return
 {-# INLINE ifNothing #-}
 
-toServantHandler :: Env -> Galley r a -> Servant.Handler a
+toServantHandler :: (r ~ GalleyEffects) => Env -> Galley r a -> Servant.Handler a
 toServantHandler env galley = do
   eith <- liftIO $ try (evalGalley env galley)
   case eith of

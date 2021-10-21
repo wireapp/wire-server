@@ -26,16 +26,20 @@ import Data.Id
 import Data.Qualified
 import Galley.App (Galley)
 import qualified Galley.Data as Data
+import Galley.Effects
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.UserList (UserList (..))
 import Imports
 
-iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> Galley r UpsertOne2OneConversationResponse
+iUpsertOne2OneConversation ::
+  Member Concurrency r =>
+  UpsertOne2OneConversationRequest ->
+  Galley r UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
   let convId = fromMaybe (one2OneConvId (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooConvId
 
-  let dolocal :: Local ConvId -> Galley r ()
+  let dolocal :: Member Concurrency r => Local ConvId -> Galley r ()
       dolocal lconvId = do
         mbConv <- Data.conversation (tUnqualified lconvId)
         case mbConv of

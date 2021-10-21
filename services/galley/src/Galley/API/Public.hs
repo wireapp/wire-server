@@ -72,7 +72,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
-servantSitemap :: ServerT GalleyAPI.ServantAPI (Galley ())
+servantSitemap :: ServerT GalleyAPI.ServantAPI Galley0
 servantSitemap =
   genericServerT $
     GalleyAPI.Api
@@ -174,7 +174,7 @@ servantSitemap =
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
       }
 
-sitemap :: Routes ApiBuilder (Galley ()) ()
+sitemap :: Routes ApiBuilder Galley0 ()
 sitemap = do
   -- Team API -----------------------------------------------------------
 
@@ -731,7 +731,7 @@ sitemap = do
     errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
-apiDocs :: Routes ApiBuilder (Galley ()) ()
+apiDocs :: Routes ApiBuilder Galley0 ()
 apiDocs =
   get "/conversations/api-docs" (continue docs) $
     accept "application" "json"

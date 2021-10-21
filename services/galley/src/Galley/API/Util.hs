@@ -44,6 +44,7 @@ import qualified Galley.Data as Data
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
+import Galley.Effects
 import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -88,7 +89,7 @@ ensureAccessRole role users = case role of
 --
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
-ensureConnectedOrSameTeam :: Qualified UserId -> [UserId] -> Galley r ()
+ensureConnectedOrSameTeam :: Member Concurrency r => Qualified UserId -> [UserId] -> Galley r ()
 ensureConnectedOrSameTeam _ [] = pure ()
 ensureConnectedOrSameTeam (Qualified u domain) uids = do
   -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
@@ -106,12 +107,12 @@ ensureConnectedOrSameTeam (Qualified u domain) uids = do
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: Local UserId -> UserList UserId -> Galley r ()
+ensureConnected :: Member Concurrency r => Local UserId -> UserList UserId -> Galley r ()
 ensureConnected self others = do
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
   ensureConnectedToRemotes self (ulRemotes others)
 
-ensureConnectedToLocals :: UserId -> [UserId] -> Galley r ()
+ensureConnectedToLocals :: Member Concurrency r => UserId -> [UserId] -> Galley r ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
@@ -245,7 +246,7 @@ assertOnTeam uid tid = do
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
-permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley r ()
+permissionCheckTeamConv :: Member Concurrency r => UserId -> ConvId -> Perm -> Galley r ()
 permissionCheckTeamConv zusr cnv perm =
   Data.conversation cnv >>= \case
     Just cnv' -> case Data.convTeam cnv' of
@@ -254,7 +255,12 @@ permissionCheckTeamConv zusr cnv perm =
     Nothing -> throwErrorDescriptionType @ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
-acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley r Data.Conversation
+acceptOne2One ::
+  Member Concurrency r =>
+  UserId ->
+  Data.Conversation ->
+  Maybe ConnId ->
+  Galley r Data.Conversation
 acceptOne2One usr conv conn = do
   lusr <- qualifyLocal usr
   lcid <- qualifyLocal cid
@@ -538,7 +544,11 @@ getMember ::
   ExceptT e m mem
 getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
-getConversationAndCheckMembership :: UserId -> ConvId -> Galley r Data.Conversation
+getConversationAndCheckMembership ::
+  Member Concurrency r =>
+  UserId ->
+  ConvId ->
+  Galley r Data.Conversation
 getConversationAndCheckMembership uid cnv = do
   (conv, _) <-
     getConversationAndMemberWithError
@@ -548,7 +558,7 @@ getConversationAndCheckMembership uid cnv = do
   pure conv
 
 getConversationAndMemberWithError ::
-  IsConvMemberId uid mem =>
+  (IsConvMemberId uid mem, Member Concurrency r) =>
   Error ->
   uid ->
   ConvId ->
@@ -582,7 +592,13 @@ canDeleteMember deleter deletee
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
 -- | Send an event to local users and bots
-pushConversationEvent :: Foldable f => Maybe ConnId -> Event -> f UserId -> f BotMember -> Galley r ()
+pushConversationEvent ::
+  (Member Concurrency r, Foldable f) =>
+  Maybe ConnId ->
+  Event ->
+  f UserId ->
+  f BotMember ->
+  Galley r ()
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
   for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
@@ -598,7 +614,7 @@ verifyReusableCode convCode = do
     throwM (errorDescriptionTypeToWai @CodeNotFound)
   return c
 
-ensureConversationAccess :: UserId -> ConvId -> Access -> Galley r Data.Conversation
+ensureConversationAccess :: Member Concurrency r => UserId -> ConvId -> Access -> Galley r Data.Conversation
 ensureConversationAccess zusr cnv access = do
   conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access
@@ -620,12 +636,15 @@ viewFederationDomain = view (options . optSettings . setFederationDomain)
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
-checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley r ()
+checkRemoteUsersExist ::
+  (Member Concurrency r, Functor f, Foldable f) =>
+  f (Remote UserId) ->
+  Galley r ()
 checkRemoteUsersExist =
   -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
   traverse_ checkRemotesFor . bucketRemote
 
-checkRemotesFor :: Remote [UserId] -> Galley r ()
+checkRemotesFor :: Member Concurrency r => Remote [UserId] -> Galley r ()
 checkRemotesFor (qUntagged -> Qualified uids domain) = do
   let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
   users <- runFederatedBrig domain rpc
@@ -638,14 +657,15 @@ checkRemotesFor (qUntagged -> Qualified uids domain) = do
 
 type FederatedGalleyRPC c r a = FederatorClient c (ExceptT FederationClientFailure (Galley r)) a
 
-runFederatedGalley :: Domain -> FederatedGalleyRPC 'Galley r a -> Galley r a
+runFederatedGalley :: Member Concurrency r => Domain -> FederatedGalleyRPC 'Galley r a -> Galley r a
 runFederatedGalley = runFederated @'Galley
 
-runFederatedBrig :: Domain -> FederatedGalleyRPC 'Brig r a -> Galley r a
+runFederatedBrig :: Member Concurrency r => Domain -> FederatedGalleyRPC 'Brig r a -> Galley r a
 runFederatedBrig = runFederated @'Brig
 
 runFederated ::
   forall (c :: Component) r a.
+  Member Concurrency r =>
   Domain ->
   FederatedGalleyRPC c r a ->
   Galley r a
@@ -654,6 +674,7 @@ runFederated remoteDomain rpc = do
     >>= either (throwM . federationErrorToWai) pure
 
 runFederatedConcurrently ::
+  Member Concurrency r =>
   (Foldable f, Functor f) =>
   f (Remote a) ->
   (Remote [a] -> FederatedGalleyRPC c r b) ->
@@ -663,6 +684,7 @@ runFederatedConcurrently xs rpc =
     qualifyAs r <$> runFederated (tDomain r) (rpc r)
 
 runFederatedConcurrently_ ::
+  Member Concurrency r =>
   (Foldable f, Functor f) =>
   f (Remote a) ->
   (Remote [a] -> FederatedGalleyRPC c r ()) ->
@@ -771,6 +793,7 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::
+  Member Concurrency r =>
   -- | The time stamp when the conversation was created
   UTCTime ->
   -- | The domain of the user that created the conversation
@@ -817,7 +840,7 @@ getLHStatus teamOfUser other = do
       mMember <- Data.teamMember team other
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
-anyLegalholdActivated :: [UserId] -> Galley r Bool
+anyLegalholdActivated :: Member Concurrency r => [UserId] -> Galley r Bool
 anyLegalholdActivated uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
@@ -829,7 +852,7 @@ anyLegalholdActivated uids = do
         teamsOfUsers <- Data.usersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
-allLegalholdConsentGiven :: [UserId] -> Galley r Bool
+allLegalholdConsentGiven :: Member Concurrency r => [UserId] -> Galley r Bool
 allLegalholdConsentGiven uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
@@ -846,7 +869,7 @@ allLegalholdConsentGiven uids = do
         allM isTeamLegalholdWhitelisted teamsPage
 
 -- | Add to every uid the legalhold status
-getLHStatusForUsers :: [UserId] -> Galley r [(UserId, UserLegalHoldStatus)]
+getLHStatusForUsers :: Member Concurrency r => [UserId] -> Galley r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
   mconcat
     <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do

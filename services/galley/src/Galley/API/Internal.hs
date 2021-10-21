@@ -53,6 +53,7 @@ import qualified Galley.API.Update as Update
 import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Effects
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types
@@ -246,7 +247,7 @@ type IFeatureStatusDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
-servantSitemap :: ServerT ServantAPI (Galley ())
+servantSitemap :: ServerT ServantAPI Galley0
 servantSitemap =
   genericServerT $
     InternalApi
@@ -297,7 +298,7 @@ iPutTeamFeature ::
   Galley r (Public.TeamFeatureStatus a)
 iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
-sitemap :: Routes a (Galley ()) ()
+sitemap :: Routes a Galley0 ()
 sitemap = do
   -- Conversation API (internal) ----------------------------------------
 
@@ -459,7 +460,7 @@ sitemap = do
   get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
     capture "tid"
 
-rmUser :: UserId -> Maybe ConnId -> Galley r ()
+rmUser :: forall r. Member Concurrency r => UserId -> Maybe ConnId -> Galley r ()
 rmUser user conn = do
   let n = toRange (Proxy @100) :: Range 1 100 Int32
       nRange1000 = rcast n :: Range 1 1000 Int32
@@ -520,7 +521,7 @@ rmUser user conn = do
       for_ cids $ \cid ->
         Update.removeMemberFromRemoteConv cid lusr Nothing (qUntagged lusr)
 
-deleteLoop :: Galley r ()
+deleteLoop :: forall r. Member Concurrency r => Galley r ()
 deleteLoop = do
   q <- view deleteQueue
   safeForever "deleteLoop" $ do
