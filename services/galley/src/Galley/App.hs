@@ -200,12 +200,6 @@ validateOptions l o = do
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
-instance Member Concurrency r => MonadUnliftIO (Galley r) where
-  askUnliftIO =
-    Galley . ReaderT $ \r ->
-      withUnliftIO $ \u ->
-        return (UnliftIO (unliftIO u . flip runReaderT r . unGalley))
-
 instance MonadLogger (Galley r) where
   log l m = do
     e <- ask
