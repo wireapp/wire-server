@@ -59,7 +59,7 @@ import Wire.API.User.RichInfo (RichInfo)
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
-getConnectionsUnqualified :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnectionsUnqualified :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley r [ConnectionStatus]
 getConnectionsUnqualified uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
@@ -79,7 +79,7 @@ getConnectionsUnqualified uFrom uTo rlt = do
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatus'.
-getConnections :: [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley [ConnectionStatusV2]
+getConnections :: [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley r [ConnectionStatusV2]
 getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
@@ -91,7 +91,7 @@ getConnections uFrom uTo rlt = do
         . expect2xx
   parseResponse (mkError status502 "server-error") r
 
-putConnectionInternal :: UpdateConnectionsInternal -> Galley Status
+putConnectionInternal :: UpdateConnectionsInternal -> Galley r Status
 putConnectionInternal updateConn = do
   (h, p) <- brigReq
   response <-
@@ -102,7 +102,7 @@ putConnectionInternal updateConn = do
   pure $ responseStatus response
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
-deleteBot :: ConvId -> BotId -> Galley ()
+deleteBot :: ConvId -> BotId -> Galley r ()
 deleteBot cid bot = do
   (h, p) <- brigReq
   void $
@@ -115,7 +115,7 @@ deleteBot cid bot = do
         . expect2xx
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
-reAuthUser :: UserId -> ReAuthUser -> Galley Bool
+reAuthUser :: UserId -> ReAuthUser -> Galley r Bool
 reAuthUser uid auth = do
   (h, p) <- brigReq
   let req =
@@ -135,7 +135,7 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: [UserId] -> Galley [User]
+lookupActivatedUsers :: [UserId] -> Galley r [User]
 lookupActivatedUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
   let users = BSC.intercalate "," $ toByteString' <$> uids
@@ -162,11 +162,11 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUser :: UserId -> Galley (Maybe UserAccount)
+getUser :: UserId -> Galley r (Maybe UserAccount)
 getUser uid = listToMaybe <$> getUsers [uid]
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> Galley [UserAccount]
+getUsers :: [UserId] -> Galley r [UserAccount]
 getUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-
@@ -178,7 +178,7 @@ getUsers = chunkify $ \uids -> do
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
-deleteUser :: UserId -> Galley ()
+deleteUser :: UserId -> Galley r ()
 deleteUser uid = do
   (h, p) <- brigReq
   void $
@@ -188,7 +188,7 @@ deleteUser uid = do
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList :: UserId -> Galley [UserId]
+getContactList :: UserId -> Galley r [UserId]
 getContactList uid = do
   (h, p) <- brigReq
   r <-
@@ -199,7 +199,7 @@ getContactList uid = do
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: [UserId] -> Galley [(UserId, RichInfo)]
+getRichInfoMultiUser :: [UserId] -> Galley r [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-

@@ -34,11 +34,11 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 
-getClientsH :: UserId -> Galley Response
+getClientsH :: UserId -> Galley r Response
 getClientsH usr = do
   json <$> getClients usr
 
-getClients :: UserId -> Galley [ClientId]
+getClients :: UserId -> Galley r [ClientId]
 getClients usr = do
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
@@ -47,12 +47,12 @@ getClients usr = do
       else Data.lookupClients [usr]
   return $ clientIds usr clts
 
-addClientH :: UserId ::: ClientId -> Galley Response
+addClientH :: UserId ::: ClientId -> Galley r Response
 addClientH (usr ::: clt) = do
   Data.updateClient True usr clt
   return empty
 
-rmClientH :: UserId ::: ClientId -> Galley Response
+rmClientH :: UserId ::: ClientId -> Galley r Response
 rmClientH (usr ::: clt) = do
   Data.updateClient False usr clt
   return empty

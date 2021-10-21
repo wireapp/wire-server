@@ -29,7 +29,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-getSize :: TeamId -> Galley TeamSize
+getSize :: TeamId -> Galley r TeamSize
 getSize tid = do
   (h, p) <- brigReq
   r <-

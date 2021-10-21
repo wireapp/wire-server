@@ -131,7 +131,7 @@ makeLenses ''Env
 
 makeLenses ''ExtEnv
 
-newtype Galley a = Galley
+newtype Galley (r :: *) a = Galley
   { unGalley :: ReaderT Env Client a
   }
   deriving
@@ -146,11 +146,11 @@ newtype Galley a = Galley
       MonadClient
     )
 
-instance HasFederatorConfig Galley where
+instance HasFederatorConfig (Galley r) where
   federatorEndpoint = view federator
   federationDomain = view (options . optSettings . setFederationDomain)
 
-fanoutLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
+fanoutLimit :: Galley r (Range 1 Teams.HardTruncationLimit Int32)
 fanoutLimit = view options >>= return . currentFanoutLimit
 
 currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
@@ -182,23 +182,23 @@ validateOptions l o = do
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
-instance MonadUnliftIO Galley where
+instance MonadUnliftIO (Galley r) where
   askUnliftIO =
     Galley . ReaderT $ \r ->
       withUnliftIO $ \u ->
         return (UnliftIO (unliftIO u . flip runReaderT r . unGalley))
 
-instance MonadLogger Galley where
+instance MonadLogger (Galley r) where
   log l m = do
     e <- ask
     Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
 
-instance MonadHttp Galley where
+instance MonadHttp (Galley r) where
   handleRequestWithCont req handler = do
     httpManager <- view manager
     liftIO $ withResponse req httpManager handler
 
-instance HasRequestId Galley where
+instance HasRequestId (Galley r) where
   getRequestId = view reqId
 
 createEnv :: Metrics -> Opts -> IO Env
@@ -271,12 +271,12 @@ initExtEnv = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-runGalley :: Env -> Request -> Galley a -> IO a
+runGalley :: Env -> Request -> Galley r a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m
 
-evalGalley :: Env -> Galley a -> IO a
+evalGalley :: Env -> Galley r a -> IO a
 evalGalley e m = runClient (e ^. cstate) (runReaderT (unGalley m) e)
 
 lookupReqId :: Request -> RequestId
@@ -286,25 +286,25 @@ reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-fromJsonBody :: FromJSON a => JsonRequest a -> Galley a
+fromJsonBody :: FromJSON a => JsonRequest a -> Galley r a
 fromJsonBody r = exceptT (throwM . invalidPayload) return (parseBody r)
 {-# INLINE fromJsonBody #-}
 
-fromOptionalJsonBody :: FromJSON a => OptionalJsonRequest a -> Galley (Maybe a)
+fromOptionalJsonBody :: FromJSON a => OptionalJsonRequest a -> Galley r (Maybe a)
 fromOptionalJsonBody r = exceptT (throwM . invalidPayload) return (parseOptionalBody r)
 {-# INLINE fromOptionalJsonBody #-}
 
-fromProtoBody :: Proto.Decode a => Request -> Galley a
+fromProtoBody :: Proto.Decode a => Request -> Galley r a
 fromProtoBody r = do
   b <- readBody r
   either (throwM . invalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
 {-# INLINE fromProtoBody #-}
 
-ifNothing :: Error -> Maybe a -> Galley a
+ifNothing :: Error -> Maybe a -> Galley r a
 ifNothing e = maybe (throwM e) return
 {-# INLINE ifNothing #-}
 
-toServantHandler :: Env -> Galley a -> Servant.Handler a
+toServantHandler :: Env -> Galley r a -> Servant.Handler a
 toServantHandler env galley = do
   eith <- liftIO $ try (evalGalley env galley)
   case eith of

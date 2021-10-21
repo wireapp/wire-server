@@ -277,7 +277,7 @@ teamConversationsForPagination tid start (fromRange -> max) =
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP Quorum (tid, c) max)
     Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) max)
 
-teamMembersForFanout :: TeamId -> Galley TeamMemberList
+teamMembersForFanout :: TeamId -> Galley r TeamMemberList
 teamMembersForFanout t = fanoutLimit >>= teamMembersWithLimit t
 
 teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m, MonadReader Env m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m TeamMemberList
@@ -301,7 +301,7 @@ teamMembersForPagination tid start (fromRange -> max) =
 
 -- NOTE: Use this function with care... should only be required when deleting a team!
 --       Maybe should be left explicitly for the caller?
-teamMembersCollectedWithPagination :: TeamId -> Galley [TeamMember]
+teamMembersCollectedWithPagination :: TeamId -> Galley r [TeamMember]
 teamMembersCollectedWithPagination tid = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   collectTeamMembersPaginated [] mems
@@ -1271,8 +1271,8 @@ newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -
 -- which are looked up based on:
 withTeamMembersWithChunks ::
   TeamId ->
-  ([TeamMember] -> Galley ()) ->
-  Galley ()
+  ([TeamMember] -> Galley r ()) ->
+  Galley r ()
 withTeamMembersWithChunks tid action = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange hardTruncationLimit)
   handleMembers mems

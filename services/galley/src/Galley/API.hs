@@ -27,7 +27,7 @@ import qualified Galley.API.Public as Public
 import Galley.App (Galley)
 import Network.Wai.Routing (Routes)
 
-sitemap :: Routes Doc.ApiBuilder Galley ()
+sitemap :: Routes Doc.ApiBuilder (Galley ()) ()
 sitemap = do
   Public.sitemap
   Public.apiDocs

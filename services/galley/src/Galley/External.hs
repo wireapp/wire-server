@@ -46,17 +46,17 @@ import UnliftIO (Async, async, waitCatch)
 -- Returns those bots which are found to be orphaned by the external
 -- service, e.g. when the service tells us that it no longer knows about the
 -- bot.
-deliver :: [(BotMember, Event)] -> Galley [BotMember]
+deliver :: [(BotMember, Event)] -> Galley r [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> Galley Bool
+    exec :: (BotMember, Event) -> Galley r Bool
     exec (b, e) =
       Data.lookupService (botMemService b) >>= \case
         Nothing -> return False
         Just s -> do
           deliver1 s b e
           return True
-    eval :: [BotMember] -> (BotMember, Async Bool) -> Galley [BotMember]
+    eval :: [BotMember] -> (BotMember, Async Bool) -> Galley r [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
       r <- waitCatch a
@@ -95,7 +95,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> Galley ()
+deliver1 :: Service -> BotMember -> Event -> Galley r ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
     let t = toByteString' (s ^. serviceToken)
@@ -125,7 +125,7 @@ urlPort (HttpsUrl u) = do
   p <- a ^. authorityPortL
   return (fromIntegral (p ^. portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley ()
+sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley r ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
