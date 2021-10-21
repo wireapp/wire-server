@@ -58,6 +58,7 @@ module Galley.App
     async,
     forkIO,
     mapConcurrently,
+    wait,
   )
 where
 
@@ -350,3 +351,6 @@ mapConcurrently ::
   t a ->
   Galley r (t b)
 mapConcurrently f = Galley . U.mapConcurrently (unGalley . f)
+
+wait :: Member Concurrency r => U.Async a -> Galley r a
+wait = Galley . U.wait
