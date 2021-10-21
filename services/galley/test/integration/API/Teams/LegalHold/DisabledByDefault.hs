@@ -256,7 +256,7 @@ testApproveLegalHoldDevice = do
         renewToken authToken
       cassState <- view tsCass
       liftIO $ do
-        clients' <- Cql.runClient cassState $ Data.lookupClients [member]
+        clients' <- Cql.runClient cassState $ Data.lookupClients' [member]
         assertBool "Expect clientId to be saved on the user" $
           Clients.contains member someClientId clients'
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
