@@ -19,8 +19,14 @@ You read this range for your system by running the following command:
 
 Or by finding the following line in your ``/etc/sysctl.conf`` file, if it exists:
 
-.. code-block:: bash
+.. code-block::
 
     # Allowed local port range
     net.ipv4.ip_local_port_range = 32768 61000
+
+To change the range, edit the ``/etc/sysctl.conf`` file or run the following command:
+
+.. code-block:: bash
+
+    echo "32768 61001" > /proc/sys/net/ipv4/ip_local_port_range
 
