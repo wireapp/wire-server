@@ -1,5 +1,7 @@
 :orphan:
 
+.. _port-ranges:
+
 Note on port ranges
 ===================
 

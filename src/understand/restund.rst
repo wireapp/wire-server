@@ -100,7 +100,7 @@ can connect to them via UDP. In this case, a firewall (if any) needs to allow
 and/or forward the complete UDP port range ``32768-61000`` for incoming UDP
 traffic. 
 
-Ports for allocations are allocated from `ip_local_port_range <https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>`__, for more information on this port range, how to read and change it, and how to configure your firewall, see `this note <./notes/port-ranges.html>`__.
+Ports for allocations are allocated from `ip_local_port_range <https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>`__, for more information on this port range, how to read and change it, and how to configure your firewall, see :ref:`this note <port-ranges>`.
 
 In case e.g. office firewall rules disallow UDP traffic in this range, there is a possibility to use TCP instead, at the expense of call quality. 
 
