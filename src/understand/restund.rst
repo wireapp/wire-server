@@ -98,20 +98,15 @@ Protocols and open ports
 Restund servers provide the best audio/video connections if end-user devices
 can connect to them via UDP. In this case, a firewall (if any) needs to allow
 and/or forward the complete UDP port range ``32768-61000`` for incoming UDP
-traffic. Ports for allocations are allocated from `ip_local_port_range
-<https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>`__ which
-is ``32768-61000`` by default.
+traffic. 
 
-*For more information on this port range, how to read and change it, and how to configure your firewall, please see* `this note <./notes/port-ranges.html>`__.
+Ports for allocations are allocated from `ip_local_port_range <https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>`__, for more information on this port range, how to read and change it, and how to configure your firewall, see `this note <./notes/port-ranges.html>`__.
+
+In case e.g. office firewall rules disallow UDP traffic in this range, there is a possibility to use TCP instead, at the expense of call quality. 
 
 Port ``3478`` is the default control port,
 however one UDP port per active connection is required, so a whole port
 range must be available and reachable from the outside.
-
-In case e.g. office firewall rules disallow UDP traffic, there is a
-possibility to use TCP instead, at the expense of call quality. So in
-practise; it is recommended to allow the port range ``32768-61000`` on both
-UDP and TCP.
 
 If *Conference Calling 2.0* (:ref:`SFT <understand-sft>`) is enabled, a Restund instance,
 additionally, must be allowed to communicate with ::ref:`SFT instances <install-sft-firewall-rules>`

@@ -3,11 +3,11 @@
 Note on port ranges
 ===================
 
-Some parts of the wire system use the port range 32768 to 61000 for some operations, for example SFT and Restund.
+The /proc/sys/net/ipv4/ip_local_port_range defines the local port range that is used by TCP and UDP traffic to choose the local port. 
+
+You will see in the parameters of this file two numbers: The first number is the first local port allowed for TCP and UDP traffic on the server, the second is the last local port number.
 
 When setting up firewall rules, this entire range must be allowed for both UDP and TCP. 
-
-If only TCP is allowed, but not UDP, Restund (Audio/Video) call quality will be degraded.
 
 This range is defined by the system, and is set by the ``/proc/sys/net/ipv4/ip_local_port_range`` parameter.
 
