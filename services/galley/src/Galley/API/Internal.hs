@@ -29,12 +29,14 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
 import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
@@ -76,8 +78,12 @@ import Servant.API.Generic
 import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
+import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Federation.API.Galley (UserDeletedNotification (UserDeletedNotification))
+import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Federation.Client (executeFederated)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
@@ -474,7 +480,7 @@ rmUser user conn = do
     goConvPages lusr range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
-      leaveRemoteConversations lusr remoteConvs
+      for_ (rangedChunks remoteConvs) (leaveRemoteConversations lusr)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
             usr = tUnqualified lusr
@@ -516,10 +522,26 @@ rmUser user conn = do
         (maybeList1 (catMaybes pp))
         Intra.push
 
-    leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
-    leaveRemoteConversations lusr cids =
-      for_ cids $ \cid ->
-        Update.removeMemberFromRemoteConv cid lusr Nothing (qUntagged lusr)
+    leaveRemoteConversations :: Local UserId -> Range 1 1000 [Remote ConvId] -> Galley ()
+    leaveRemoteConversations lusr cids = do
+      loc <- qualifyLocal ()
+      for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
+        let userDelete = UserDeletedNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
+        let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain loc) userDelete
+        res <- runExceptT (executeFederated (tDomain remoteConvs) rpc)
+        case res of
+          -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
+          -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
+          Left federationError -> do
+            Log.err $
+              Log.msg $
+                T.unwords
+                  [ "Federation error while notifying remote backends of a user deletion (Galley).",
+                    "user_id: " <> (cs . show) lusr,
+                    "details: " <> (cs . show) federationError
+                  ]
+            pure ()
+          Right _ -> pure ()
 
 deleteLoop :: Galley ()
 deleteLoop = do

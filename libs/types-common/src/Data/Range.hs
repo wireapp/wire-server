@@ -30,6 +30,7 @@ module Data.Range
     checked,
     checkedEither,
     checkedEitherMsg,
+    rangedChunks,
     errorMsg,
     unsafeRange,
     fromRange,
@@ -285,6 +286,14 @@ checkedEither x = do
   case mk x sn sm of
     Nothing -> Left (errorMsg (fromSing sn) (fromSing sm) "")
     Just r -> Right r
+
+rangedChunks :: forall a n. (Within [a] 1 n, KnownNat n) => [a] -> [Range 1 n [a]]
+rangedChunks xs =
+  let (headPart, tailPart) = splitAt (fromIntegral (natVal (Proxy @n))) xs
+   in -- Since n >= 1, headPart being empty can only be when 'xs' was empty.
+      case headPart of
+        [] -> []
+        _ -> Range headPart : rangedChunks tailPart
 
 unsafeRange :: (Show a, Within a n m) => a -> Range n m a
 unsafeRange x = fromMaybe (msg sing sing) (checked x)
