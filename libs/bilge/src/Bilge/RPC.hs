@@ -68,7 +68,7 @@ instance Show RPCException where
       . showString "}"
 
 rpc ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasRequestId m, MonadLogger m) =>
+  (MonadIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
   LText ->
   (Request -> Request) ->
   m (Response (Maybe LByteString))
