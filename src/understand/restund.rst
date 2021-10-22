@@ -102,7 +102,7 @@ traffic. Ports for allocations are allocated from `ip_local_port_range
 <https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>`__ which
 is ``32768-61000`` by default.
 
-*For more information on port ranges, please see* `this note <./notes/port-ranges.html>`__.
+*For more information on this port range, how to read and change it, and how to configure your firewall, please see* `this note <./notes/port-ranges.html>`__.
 
 Port ``3478`` is the default control port,
 however one UDP port per active connection is required, so a whole port
