@@ -3,6 +3,8 @@
 Note on port ranges
 ===================
 
+Some parts of Wire (SFT, Restund) related to conference calling and Audio/Video, establish outgoing connections in a range of UDP ports. Which ports are used is determined by the kernel using ``/proc/sys/net/ipv4/ip_local_port_range``.
+
 The /proc/sys/net/ipv4/ip_local_port_range defines the local port range that is used by TCP and UDP traffic to choose the local port. 
 
 You will see in the parameters of this file two numbers: The first number is the first local port allowed for TCP and UDP traffic on the server, the second is the last local port number.
