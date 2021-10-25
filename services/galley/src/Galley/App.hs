@@ -153,7 +153,6 @@ newtype Galley (r :: EffectRow) a = Galley
       Monad,
       MonadIO,
       MonadThrow,
-      MonadCatch,
       MonadReader Env,
       MonadClient
     )
@@ -310,7 +309,7 @@ ifNothing :: Error -> Maybe a -> Galley r a
 ifNothing e = maybe (throwM e) return
 {-# INLINE ifNothing #-}
 
-toServantHandler :: Env -> (Galley GalleyEffects) a -> Servant.Handler a
+toServantHandler :: Env -> Galley GalleyEffects a -> Servant.Handler a
 toServantHandler env galley = do
   eith <- liftIO $ try (evalGalley env galley)
   case eith of
@@ -343,6 +342,8 @@ instance MonadUnliftIO Galley0 where
     pure (UnliftIO (unliftIO f . unGalley))
 
 deriving newtype instance MonadMask Galley0
+
+deriving newtype instance MonadCatch Galley0
 
 liftGalley0 :: Galley0 a -> Galley r a
 liftGalley0 = Galley . unGalley

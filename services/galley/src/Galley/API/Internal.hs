@@ -28,8 +28,7 @@ where
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Except (runExceptT)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
@@ -548,15 +547,13 @@ rmUser user conn = do
             pure ()
           Right _ -> pure ()
 
-deleteLoop ::
-  forall r.
-  Members '[BrigAccess, ExternalAccess, GundeckAccess, SparAccess] r =>
-  Galley r ()
-deleteLoop = do
+deleteLoop :: Galley r ()
+deleteLoop = liftGalley0 $ do
   q <- view deleteQueue
   safeForever "deleteLoop" $ do
     i@(TeamItem tid usr con) <- Q.pop q
-    Teams.uncheckedDeleteTeam usr con tid `catchAny` someError q i
+    interpretGalleyToGalley0 (Teams.uncheckedDeleteTeam usr con tid)
+      `catchAny` someError q i
   where
     someError q i x = do
       err $ "error" .= show x ~~ msg (val "failed to delete")
@@ -565,7 +562,7 @@ deleteLoop = do
         err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
       liftIO $ threadDelay 1000000
 
-safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
+safeForever :: String -> Galley0 () -> Galley0 ()
 safeForever funName action =
   forever $
     action `catchAny` \exc -> do

@@ -48,7 +48,6 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified System.Logger.Class as Log
-import UnliftIO.Async (pooledForConcurrentlyN_)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
@@ -304,28 +303,34 @@ sendMessage originDomain msr = do
   where
     err = throwM . invalidPayload . LT.pack
 
-onUserDeleted :: Domain -> UserDeletedConversationsNotification -> Galley r EmptyResponse
+onUserDeleted ::
+  Members '[FederatorAccess, FireAndForget, ExternalAccess, GundeckAccess] r =>
+  Domain ->
+  UserDeletedConversationsNotification ->
+  Galley r EmptyResponse
 onUserDeleted origDomain udcn = do
   let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udcnUser udcn)
       untaggedDeletedUser = qUntagged deletedUser
       convIds = FederationAPIGalley.udcnConversations udcn
-  pooledForConcurrentlyN_ 16 (fromRange convIds) $ \c -> do
-    lc <- qualifyLocal c
-    mconv <- Data.conversation c
-    Data.removeRemoteMembersFromLocalConv c (pure deletedUser)
-    for_ mconv $ \conv -> do
-      when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $
-        case Data.convType conv of
-          -- No need for a notification on One2One conv as the user is being
-          -- deleted and that notification should suffice.
-          Public.One2OneConv -> pure ()
-          -- No need for a notification on Connect Conv as there should be no
-          -- other user in the conv.
-          Public.ConnectConv -> pure ()
-          -- The self conv cannot be on a remote backend.
-          Public.SelfConv -> pure ()
-          Public.RegularConv -> do
-            let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
-                botsAndMembers = convBotsAndMembers conv
-            void $ notifyConversationMetadataUpdate untaggedDeletedUser Nothing lc botsAndMembers action
+
+  fireAndForgetMany $
+    fromRange convIds <&> \c -> do
+      lc <- qualifyLocal c
+      mconv <- Data.conversation c
+      Data.removeRemoteMembersFromLocalConv c (pure deletedUser)
+      for_ mconv $ \conv -> do
+        when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $
+          case Data.convType conv of
+            -- No need for a notification on One2One conv as the user is being
+            -- deleted and that notification should suffice.
+            Public.One2OneConv -> pure ()
+            -- No need for a notification on Connect Conv as there should be no
+            -- other user in the conv.
+            Public.ConnectConv -> pure ()
+            -- The self conv cannot be on a remote backend.
+            Public.SelfConv -> pure ()
+            Public.RegularConv -> do
+              let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
+                  botsAndMembers = convBotsAndMembers conv
+              void $ notifyConversationMetadataUpdate untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse

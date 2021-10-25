@@ -132,7 +132,7 @@ bodyParserErrorFormatter _ _ errMsg =
 type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley r ()
-refreshMetrics = do
+refreshMetrics = liftGalley0 $ do
   m <- view monitor
   q <- view deleteQueue
   Internal.safeForever "refreshMetrics" $ do
