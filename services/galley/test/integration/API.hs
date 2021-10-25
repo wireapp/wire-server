@@ -3155,14 +3155,15 @@ removeUser = do
   connectWithRemoteUser alexDel' bart
   connectWithRemoteUser alexDel' carl
 
-  conv1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice' [alexDel', amy'] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
+  convA1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
+  convA2 <- decodeConvId <$> postConv alice' [alexDel', amy'] (Just "gossip2") [] Nothing Nothing
+  convA3 <- decodeConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
+  convA4 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, bart, carl]}
   convB1 <- randomId -- a remote conversation at 'bDomain' that Alice, AlexDel and Bart will be in
   convB2 <- randomId -- a remote conversation at 'bDomain' that AlexDel and Bart will be in
   convC1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Carl will be in
-  let qconv1 = Qualified conv1 (qDomain alexDel)
-      qconv2 = Qualified conv2 (qDomain alexDel)
+  let qconvA1 = Qualified convA1 (qDomain alexDel)
+      qconvA2 = Qualified convA2 (qDomain alexDel)
 
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
@@ -3188,6 +3189,9 @@ removeUser = do
       withTempMockFederator (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
         deleteUser alexDel' !!! const 200 === statusCode
 
+    -- FUTUTREWORK: There should be 4 requests, one to each domain for telling
+    -- them that alex left the conversation hosted locally. Add assertions for
+    -- that and implement it.
     liftIO $ do
       assertEqual ("expect exactly 2 federated requests in : " <> show fedRequests) 2 (length fedRequests)
     bReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain) fedRequests
@@ -3206,20 +3210,22 @@ removeUser = do
       FederatedGalley.udnUser udnC @?= qUnqualified alexDel
 
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
-        wsAssertMembersLeave qconv1 alexDel [alexDel]
+        wsAssertMembersLeave qconvA1 alexDel [alexDel]
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel, wsAmy] $
-        wsAssertMembersLeave qconv2 alexDel [alexDel]
+        wsAssertMembersLeave qconvA2 alexDel [alexDel]
   -- Check memberships
-  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv1
-  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv2
-  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv3
-  let other u = find ((== u) . omQualifiedId) . cmOthers
+  mems1 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA1
+  mems2 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA2
+  mems3 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA3
+  mems4 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA4
+  let findOther u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
-    (mems1 >>= other alexDel) @?= Nothing
-    (mems2 >>= other alexDel) @?= Nothing
-    (mems2 >>= other amy) @?= Just (OtherMember amy Nothing roleNameWireAdmin)
-    (mems3 >>= other alexDel) @?= Nothing
-    (mems3 >>= other amy) @?= Just (OtherMember amy Nothing roleNameWireAdmin)
+    findOther alexDel mems1 @?= Nothing
+    findOther alexDel mems2 @?= Nothing
+    findOther amy mems2 @?= Just (OtherMember amy Nothing roleNameWireAdmin)
+    findOther alexDel mems3 @?= Nothing
+    findOther amy mems3 @?= Just (OtherMember amy Nothing roleNameWireAdmin)
+    findOther alexDel mems4 @?= Nothing
   where
     createOtherMember :: Qualified UserId -> OtherMember
     createOtherMember quid =
