@@ -25,6 +25,7 @@ import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as Le
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
 import qualified Test.Wire.API.Federation.Golden.NewConnectionRequest as NewConnectionRequest
 import qualified Test.Wire.API.Federation.Golden.NewConnectionResponse as NewConnectionResponse
+import qualified Test.Wire.API.Federation.Golden.NewRemoteConversation as NewRemoteConversation
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
 
 spec :: Spec
@@ -61,4 +62,8 @@ spec =
         (NewConnectionResponse.testObject_NewConnectionResponse2, "testObject_NewConnectionResponse2.json"),
         (NewConnectionResponse.testObject_NewConnectionResponse3, "testObject_NewConnectionResponse3.json"),
         (NewConnectionResponse.testObject_NewConnectionResponse4, "testObject_NewConnectionResponse4.json")
+      ]
+    testObjects
+      [ (NewRemoteConversation.testObject_NewRemoteConversation1, "testObject_NewRemoteConversation1.json"),
+        (NewRemoteConversation.testObject_NewRemoteConversation2, "testObject_NewRemoteConversation2.json")
       ]

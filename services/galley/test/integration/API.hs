@@ -125,6 +125,7 @@ tests s =
         [ test s "status" status,
           test s "metrics" metrics,
           test s "create conversation" postConvOk,
+          test s "create conversation with remote users" postConvWithRemoteUsersOk,
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations" getConvsFailMaxSize,
@@ -294,6 +295,73 @@ postConvOk = do
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
   where
+    convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
+    checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
+      ntfTransient n @?= False
+      let e = List1.head (WS.unpackPayload n)
+      evtConv e @?= cnvQualifiedId cnv
+      evtType e @?= ConvCreate
+      evtFrom e @?= qalice
+      case evtData e of
+        EdConversation c' -> assertConvEquals cnv c'
+        _ -> assertFailure "Unexpected event data"
+
+postConvWithRemoteUsersOk :: TestM ()
+postConvWithRemoteUsersOk = do
+  c <- view tsCannon
+  (alice, qAlice) <- randomUserTuple
+  (alex, qAlex) <- randomUserTuple
+  (amy, qAmy) <- randomUserTuple
+  connectUsers alice (list1 alex [amy])
+  let cDomain = Domain "c.example.com"
+      dDomain = Domain "d.example.com"
+  qChad <- randomQualifiedId cDomain
+  qCharlie <- randomQualifiedId cDomain
+  qDee <- randomQualifiedId dDomain
+  mapM_ (connectWithRemoteUser alice) [qChad, qCharlie, qDee]
+
+  -- Ensure name is within range, max size is 256
+  postConvQualified alice defNewConv {newConvName = Just (T.replicate 257 "a"), newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
+    !!! const 400 === statusCode
+
+  let nameMaxSize = T.replicate 256 "a"
+  WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
+    (rsp, federatedRequests) <-
+      withTempMockFederator (const ()) $
+        postConvQualified alice defNewConv {newConvName = Just nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
+          <!! const 201 === statusCode
+    cid <- assertConvQualified rsp RegularConv alice qAlice [qAlex, qAmy, qChad, qCharlie, qDee] (Just nameMaxSize) Nothing
+    cvs <- mapM (convView cid) [alice, alex, amy]
+    liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
+
+    cFedReq <- assertOne $ filter (\r -> F.domain r == domainText cDomain) federatedRequests
+    cFedReqBody <- assertRight $ parseFedReqBody cFedReq
+
+    dFedReq <- assertOne $ filter (\r -> F.domain r == domainText dDomain) federatedRequests
+    dFedReqBody <- assertRight $ parseFedReqBody dFedReq
+
+    liftIO $ do
+      length federatedRequests @?= 2
+
+      FederatedGalley.rcOrigUserId cFedReqBody @?= alice
+      FederatedGalley.rcCnvId cFedReqBody @?= cid
+      FederatedGalley.rcCnvType cFedReqBody @?= RegularConv
+      FederatedGalley.rcCnvAccess cFedReqBody @?= [InviteAccess]
+      FederatedGalley.rcCnvAccessRole cFedReqBody @?= ActivatedAccessRole
+      FederatedGalley.rcCnvName cFedReqBody @?= Just nameMaxSize
+      FederatedGalley.rcNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
+      FederatedGalley.rcMessageTimer cFedReqBody @?= Nothing
+      FederatedGalley.rcReceiptMode cFedReqBody @?= Nothing
+
+      dFedReqBody @?= cFedReqBody
+  where
+    parseFedReqBody :: FromJSON a => F.FederatedRequest -> Either String a
+    parseFedReqBody fr =
+      case F.request fr of
+        Just r ->
+          (eitherDecode . cs) (F.body r)
+        Nothing -> Left "No request"
+    toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
     convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
     checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
@@ -3065,7 +3133,7 @@ removeUser = do
             FederatedGalley.rcCnvAccess = [],
             FederatedGalley.rcCnvAccessRole = PrivateAccessRole,
             FederatedGalley.rcCnvName = Just "gossip4",
-            FederatedGalley.rcMembers = Set.fromList $ createOtherMember <$> [dee, alice, bob],
+            FederatedGalley.rcNonCreatorMembers = Set.fromList $ createOtherMember <$> [alice, bob],
             FederatedGalley.rcMessageTimer = Nothing,
             FederatedGalley.rcReceiptMode = Nothing
           }

@@ -83,7 +83,7 @@ onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
-  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (rcMembers rc)))
+  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (rcNonCreatorMembers rc)))
 
   addedUserIds <-
     addLocalUsersToRemoteConv
@@ -99,9 +99,9 @@ onConversationCreated domain rc = do
               (const True)
               . omQualifiedId
           )
-          (rcMembers rc)
+          (rcNonCreatorMembers rc)
   -- Make sure to notify only about local users connected to the adder
-  let qrcConnected = qrc {rcMembers = connectedMembers}
+  let qrcConnected = qrc {rcNonCreatorMembers = connectedMembers}
 
   forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
     let event =

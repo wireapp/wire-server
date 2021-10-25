@@ -163,8 +163,8 @@ data NewRemoteConversation conv = NewRemoteConversation
     rcCnvAccessRole :: AccessRole,
     -- | The conversation name,
     rcCnvName :: Maybe Text,
-    -- | Members of the conversation
-    rcMembers :: Set OtherMember,
+    -- | Members of the conversation apart from the creator
+    rcNonCreatorMembers :: Set OtherMember,
     rcMessageTimer :: Maybe Milliseconds,
     rcReceiptMode :: Maybe ReceiptMode
   }
