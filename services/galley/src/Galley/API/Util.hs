@@ -72,7 +72,7 @@ import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
 
-ensureAccessRole :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley r ()
+ensureAccessRole :: Member BrigAccess r => AccessRole -> [(UserId, Maybe TeamMember)] -> Galley r ()
 ensureAccessRole role users = case role of
   PrivateAccessRole -> throwErrorDescriptionType @ConvAccessDenied
   TeamAccessRole ->
@@ -116,19 +116,19 @@ ensureConnectedToLocals :: Member BrigAccess r => UserId -> [UserId] -> Galley r
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = liftGalley0 $ do
   (connsFrom, connsTo) <-
-    getConnectionsUnqualified [u] (Just uids) (Just Accepted)
-      `concurrently` getConnectionsUnqualified uids (Just [u]) (Just Accepted)
+    getConnectionsUnqualified0 [u] (Just uids) (Just Accepted)
+      `concurrently` getConnectionsUnqualified0 uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwErrorDescriptionType @NotConnected
 
-ensureConnectedToRemotes :: Local UserId -> [Remote UserId] -> Galley r ()
+ensureConnectedToRemotes :: Member BrigAccess r => Local UserId -> [Remote UserId] -> Galley r ()
 ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
     throwErrorDescriptionType @NotConnected
 
-ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley r ()
+ensureReAuthorised :: Member BrigAccess r => UserId -> Maybe PlainTextPassword -> Galley r ()
 ensureReAuthorised u secret = do
   reAuthed <- reAuthUser u (ReAuthUser secret)
   unless reAuthed $
@@ -613,7 +613,7 @@ verifyReusableCode convCode = do
     throwM (errorDescriptionTypeToWai @CodeNotFound)
   return c
 
-ensureConversationAccess :: UserId -> ConvId -> Access -> Galley r Data.Conversation
+ensureConversationAccess :: Member BrigAccess r => UserId -> ConvId -> Access -> Galley r Data.Conversation
 ensureConversationAccess zusr cnv access = do
   conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access

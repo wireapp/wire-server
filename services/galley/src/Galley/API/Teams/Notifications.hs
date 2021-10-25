@@ -51,6 +51,7 @@ import qualified Data.UUID.V1 as UUID
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
+import Galley.Effects
 import Galley.Intra.User as Intra
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
@@ -59,6 +60,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 
 getTeamNotifications ::
+  Member BrigAccess r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->

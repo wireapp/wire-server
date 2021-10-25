@@ -73,7 +73,7 @@ deliver = liftGalley0 . deliver0
 deliver0 :: [(BotMember, Event)] -> Galley0 [BotMember]
 deliver0 pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> Galley r Bool
+    exec :: (BotMember, Event) -> Galley0 Bool
     exec (b, e) =
       Data.lookupService (botMemService b) >>= \case
         Nothing -> return False
@@ -119,7 +119,7 @@ deliver0 pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> Galley r ()
+deliver1 :: Service -> BotMember -> Event -> Galley0 ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
     let t = toByteString' (s ^. serviceToken)

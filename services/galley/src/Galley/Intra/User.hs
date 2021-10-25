@@ -17,6 +17,7 @@
 
 module Galley.Intra.User
   ( getConnections,
+    getConnectionsUnqualified0,
     getConnectionsUnqualified,
     putConnectionInternal,
     deleteBot,
@@ -46,6 +47,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import Galley.App
+import Galley.Effects
 import Galley.Intra.Util
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
@@ -62,11 +64,24 @@ import Wire.API.User.RichInfo (RichInfo)
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
-getConnectionsUnqualified :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley r [ConnectionStatus]
-getConnectionsUnqualified uFrom uTo rlt = do
+getConnectionsUnqualified ::
+  Member BrigAccess r =>
+  [UserId] ->
+  Maybe [UserId] ->
+  Maybe Relation ->
+  Galley r [ConnectionStatus]
+getConnectionsUnqualified uFrom uTo rlt =
+  liftGalley0 $ getConnectionsUnqualified0 uFrom uTo rlt
+
+getConnectionsUnqualified0 ::
+  [UserId] ->
+  Maybe [UserId] ->
+  Maybe Relation ->
+  Galley0 [ConnectionStatus]
+getConnectionsUnqualified0 uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
-    call "brig" $
+    call0 "brig" $
       method POST . host h . port p
         . path "/i/users/connections-status"
         . maybe id rfilter rlt
@@ -82,23 +97,23 @@ getConnectionsUnqualified uFrom uTo rlt = do
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatus'.
-getConnections :: [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley r [ConnectionStatusV2]
+getConnections :: Member BrigAccess r => [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley r [ConnectionStatusV2]
 getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method POST . host h . port p
         . path "/i/users/connections-status/v2"
         . json (ConnectionsStatusRequestV2 uFrom uTo rlt)
         . expect2xx
   parseResponse (mkError status502 "server-error") r
 
-putConnectionInternal :: UpdateConnectionsInternal -> Galley r Status
+putConnectionInternal :: Member BrigAccess r => UpdateConnectionsInternal -> Galley r Status
 putConnectionInternal updateConn = do
   (h, p) <- brigReq
   response <-
-    call "brig" $
+    callBrig $
       method PUT . host h . port p
         . paths ["/i/connections/connection-update"]
         . json updateConn
@@ -108,7 +123,7 @@ deleteBot0 :: ConvId -> BotId -> Galley0 ()
 deleteBot0 cid bot = do
   (h, p) <- brigReq
   void $
-    call "brig" $
+    call0 "brig" $
       method DELETE . host h . port p
         . path "/bot/self"
         . header "Z-Type" "bot"
@@ -117,18 +132,18 @@ deleteBot0 cid bot = do
         . expect2xx
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
-deleteBot :: ConvId -> BotId -> Galley r ()
+deleteBot :: Member BotAccess r => ConvId -> BotId -> Galley r ()
 deleteBot cid bot = liftGalley0 $ deleteBot0 cid bot
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
-reAuthUser :: UserId -> ReAuthUser -> Galley r Bool
+reAuthUser :: Member BrigAccess r => UserId -> ReAuthUser -> Galley r Bool
 reAuthUser uid auth = do
   (h, p) <- brigReq
   let req =
         method GET . host h . port p
           . paths ["/i/users", toByteString' uid, "reauthenticate"]
           . json auth
-  st <- statusCode . responseStatus <$> call "brig" (check [status200, status403] . req)
+  st <- statusCode . responseStatus <$> callBrig (check [status200, status403] . req)
   return $ st == 200
 
 check :: [Status] -> Request -> Request
@@ -141,12 +156,12 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: [UserId] -> Galley r [User]
+lookupActivatedUsers :: Member BrigAccess r => [UserId] -> Galley r [User]
 lookupActivatedUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
   let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
-    call "brig" $
+    callBrig $
       method GET . host h . port p
         . path "/i/users"
         . queryItem "ids" users
@@ -168,15 +183,15 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUser :: UserId -> Galley r (Maybe UserAccount)
+getUser :: Member BrigAccess r => UserId -> Galley r (Maybe UserAccount)
 getUser uid = listToMaybe <$> getUsers [uid]
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> Galley r [UserAccount]
+getUsers :: Member BrigAccess r => [UserId] -> Galley r [UserAccount]
 getUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-
-    call "brig" $
+    callBrig $
       method GET . host h . port p
         . path "/i/users"
         . queryItem "ids" (BSC.intercalate "," (toByteString' <$> uids))
@@ -184,32 +199,32 @@ getUsers = chunkify $ \uids -> do
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
-deleteUser :: UserId -> Galley r ()
+deleteUser :: Member BrigAccess r => UserId -> Galley r ()
 deleteUser uid = do
   (h, p) <- brigReq
   void $
-    call "brig" $
+    callBrig $
       method DELETE . host h . port p
         . paths ["/i/users", toByteString' uid]
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList :: UserId -> Galley r [UserId]
+getContactList :: Member BrigAccess r => UserId -> Galley r [UserId]
 getContactList uid = do
   (h, p) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method GET . host h . port p
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: [UserId] -> Galley r [(UserId, RichInfo)]
+getRichInfoMultiUser :: Member BrigAccess r => [UserId] -> Galley r [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-
-    call "brig" $
+    callBrig $
       method GET . host h . port p
         . paths ["/i/users/rich-info"]
         . queryItem "ids" (toByteString' (List uids))

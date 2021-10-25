@@ -26,6 +26,7 @@ import Control.Lens (view)
 import Data.Id
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Effects
 import qualified Galley.Intra.Client as Intra
 import Galley.Options
 import Galley.Types.Clients (clientIds, fromUserClients)
@@ -34,11 +35,11 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 
-getClientsH :: UserId -> Galley r Response
+getClientsH :: Member BrigAccess r => UserId -> Galley r Response
 getClientsH usr = do
   json <$> getClients usr
 
-getClients :: UserId -> Galley r [ClientId]
+getClients :: Member BrigAccess r => UserId -> Galley r [ClientId]
 getClients usr = do
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-

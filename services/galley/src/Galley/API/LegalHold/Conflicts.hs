@@ -30,6 +30,7 @@ import qualified Data.Set as Set
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Effects
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.User (getUser)
 import Galley.Options
@@ -42,7 +43,11 @@ import Wire.API.User.Client as Client
 
 data LegalholdConflicts = LegalholdConflicts
 
-guardQualifiedLegalholdPolicyConflicts :: LegalholdProtectee -> QualifiedUserClients -> Galley r (Either LegalholdConflicts ())
+guardQualifiedLegalholdPolicyConflicts ::
+  Member BrigAccess r =>
+  LegalholdProtectee ->
+  QualifiedUserClients ->
+  Galley r (Either LegalholdConflicts ())
 guardQualifiedLegalholdPolicyConflicts protectee qclients = do
   localDomain <- viewFederationDomain
   guardLegalholdPolicyConflicts protectee
@@ -57,7 +62,11 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 --
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
-guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley r (Either LegalholdConflicts ())
+guardLegalholdPolicyConflicts ::
+  Member BrigAccess r =>
+  LegalholdProtectee ->
+  UserClients ->
+  Galley r (Either LegalholdConflicts ())
 guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure . pure $ ()
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure . pure $ ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
@@ -67,7 +76,12 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
 
-guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley r (Either LegalholdConflicts ())
+guardLegalholdPolicyConflictsUid ::
+  forall r.
+  Member BrigAccess r =>
+  UserId ->
+  UserClients ->
+  Galley r (Either LegalholdConflicts ())
 guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
   let otherCids :: [ClientId]
       otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients

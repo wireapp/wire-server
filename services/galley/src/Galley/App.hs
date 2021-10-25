@@ -154,7 +154,6 @@ newtype Galley (r :: EffectRow) a = Galley
       MonadIO,
       MonadThrow,
       MonadCatch,
-      MonadMask,
       MonadReader Env,
       MonadClient
     )
@@ -342,6 +341,8 @@ instance MonadUnliftIO Galley0 where
   askUnliftIO = do
     f <- Galley askUnliftIO
     pure (UnliftIO (unliftIO f . unGalley))
+
+deriving newtype instance MonadMask Galley0
 
 liftGalley0 :: Galley0 a -> Galley r a
 liftGalley0 = Galley . unGalley

@@ -221,13 +221,13 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   finishCreateTeam team owner [] Nothing
   pure tid
 
-updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley r Response
+updateTeamStatusH :: Member BrigAccess r => TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley r Response
 updateTeamStatusH (tid ::: req ::: _) = do
   teamStatusUpdate <- fromJsonBody req
   updateTeamStatus tid teamStatusUpdate
   return empty
 
-updateTeamStatus :: TeamId -> TeamStatusUpdate -> Galley r ()
+updateTeamStatus :: Member BrigAccess r => TeamId -> TeamStatusUpdate -> Galley r ()
 updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   oldStatus <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
   valid <- validateTransition (oldStatus, newStatus)
@@ -287,14 +287,23 @@ updateTeam zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
-deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON -> Galley r Response
+deleteTeamH ::
+  Member BrigAccess r =>
+  UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON ->
+  Galley r Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
   mBody <- fromOptionalJsonBody req
   deleteTeam zusr zcon tid mBody
   pure (empty & setStatus status202)
 
 -- | 'TeamDeleteData' is only required for binding teams
-deleteTeam :: UserId -> ConnId -> TeamId -> Maybe Public.TeamDeleteData -> Galley r ()
+deleteTeam ::
+  Member BrigAccess r =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  Maybe Public.TeamDeleteData ->
+  Galley r ()
 deleteTeam zusr zcon tid mBody = do
   team <- Data.team tid >>= ifNothing teamNotFound
   case tdStatus team of
@@ -326,7 +335,7 @@ internalDeleteBindingTeamWithOneMember tid = do
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
   forall r.
-  Members '[ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ExternalAccess, GundeckAccess, SparAccess] r =>
   UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -420,7 +429,10 @@ getTeamMembers zusr tid maxResults = do
       let withPerms = (m `canSeePermsOf`)
       pure (mems, withPerms)
 
-getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley r Response
+getTeamMembersCSVH ::
+  Member BrigAccess r =>
+  UserId ::: TeamId ::: JSON ->
+  Galley r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM accessDenied
@@ -491,7 +503,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportUserId = U.userId user
           }
 
-    lookupInviterHandle :: [TeamMember] -> Galley r (UserId -> Maybe Handle.Handle)
+    lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Galley r (UserId -> Maybe Handle.Handle)
     lookupInviterHandle members = do
       let inviterIds :: [UserId]
           inviterIds = nub $ catMaybes $ fmap fst . view invitation <$> members
@@ -618,7 +630,7 @@ addTeamMember zusr zcon tid nmem = do
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH ::
-  Member GundeckAccess r =>
+  Members '[BrigAccess, GundeckAccess] r =>
   TeamId ::: JsonRequest NewTeamMember ::: JSON ->
   Galley r Response
 uncheckedAddTeamMemberH (tid ::: req ::: _) = do
@@ -626,7 +638,11 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
   uncheckedAddTeamMember tid nmem
   return empty
 
-uncheckedAddTeamMember :: Member GundeckAccess r => TeamId -> NewTeamMember -> Galley r ()
+uncheckedAddTeamMember ::
+  Members '[BrigAccess, GundeckAccess] r =>
+  TeamId ->
+  NewTeamMember ->
+  Galley r ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersForFanout tid
   (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
@@ -636,7 +652,7 @@ uncheckedAddTeamMember tid nmem = do
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH ::
-  Member GundeckAccess r =>
+  Members '[BrigAccess, GundeckAccess] r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
   Galley r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -647,7 +663,7 @@ updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 updateTeamMember ::
   forall r.
-  Member GundeckAccess r =>
+  Members '[BrigAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -716,7 +732,7 @@ updateTeamMember zusr zcon tid targetMember = do
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH ::
-  Members '[ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ExternalAccess, GundeckAccess] r =>
   UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
   Galley r Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
@@ -731,7 +747,7 @@ data TeamMemberDeleteResult
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember ::
-  Members '[ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ExternalAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -774,7 +790,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedDeleteTeamMember ::
   forall r.
-  Members '[GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess] r =>
   UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -837,7 +853,7 @@ getTeamConversation zusr tid cid = do
   Data.teamConversation tid cid >>= maybe (throwErrorDescriptionType @ConvNotFound) pure
 
 deleteTeamConversation ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -917,7 +933,7 @@ ensureNotElevated targetPermissions member =
     )
     $ throwM invalidPermissions
 
-ensureNotTooLarge :: TeamId -> Galley r TeamSize
+ensureNotTooLarge :: Member BrigAccess r => TeamId -> Galley r TeamSize
 ensureNotTooLarge tid = do
   o <- view options
   (TeamSize size) <- BrigTeam.getSize tid
@@ -934,13 +950,13 @@ ensureNotTooLarge tid = do
 -- size unlimited, because we make the assumption that these teams won't turn
 -- LegalHold off after activation.
 --  FUTUREWORK: Find a way around the fanout limit.
-ensureNotTooLargeForLegalHold :: TeamId -> Int -> Galley r ()
+ensureNotTooLargeForLegalHold :: Member BrigAccess r => TeamId -> Int -> Galley r ()
 ensureNotTooLargeForLegalHold tid teamSize = do
   whenM (isLegalHoldEnabledForTeam tid) $ do
     unlessM (teamSizeBelowLimit teamSize) $ do
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
-ensureNotTooLargeToActivateLegalHold :: TeamId -> Galley r ()
+ensureNotTooLargeToActivateLegalHold :: Member BrigAccess r => TeamId -> Galley r ()
 ensureNotTooLargeToActivateLegalHold tid = do
   (TeamSize teamSize) <- BrigTeam.getSize tid
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $ do
@@ -958,7 +974,7 @@ teamSizeBelowLimit teamSize = do
       pure True
 
 addTeamMemberInternal ::
-  Member GundeckAccess r =>
+  Members '[BrigAccess, GundeckAccess] r =>
   TeamId ->
   Maybe UserId ->
   Maybe ConnId ->
@@ -995,6 +1011,7 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
 -- less warped.  This is a work-around because we cannot send events to all of a large team.
 -- See haddocks of module "Galley.API.TeamNotifications" for details.
 getTeamNotificationsH ::
+  Member BrigAccess r =>
   UserId
     ::: Maybe ByteString {- NotificationId -}
     ::: Range 1 10000 Int32
@@ -1055,11 +1072,11 @@ getBindingTeamMembers :: UserId -> Galley r TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
   Data.teamMembersForFanout tid
 
-canUserJoinTeamH :: TeamId -> Galley r Response
+canUserJoinTeamH :: Member BrigAccess r => TeamId -> Galley r Response
 canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 
 -- This could be extended for more checks, for now we test only legalhold
-canUserJoinTeam :: TeamId -> Galley r ()
+canUserJoinTeam :: Member BrigAccess r => TeamId -> Galley r ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do

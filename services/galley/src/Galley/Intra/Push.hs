@@ -194,7 +194,7 @@ pushLocal ps = do
   -- Do not fan out for very large teams
   let (asyncs, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
   forM_ (pushes asyncs) $ callAsync "gundeck" . gundeckReq opts
-  void . liftGalley0 $ mapConcurrently (call "gundeck" . gundeckReq opts) (pushes sync)
+  void . liftGalley0 $ mapConcurrently (call0 "gundeck" . gundeckReq opts) (pushes sync)
   return ()
   where
     pushes = fst . foldr chunk ([], 0)
@@ -247,15 +247,15 @@ gundeckReq o ps =
     . expect2xx
 
 callAsync :: Member GundeckAccess r => LT.Text -> (Request -> Request) -> Galley r ()
-callAsync n r = liftGalley0 . void . forkIO $ void (call n r) `catches` handlers
+callAsync n r = liftGalley0 . void . forkIO $ void (call0 n r) `catches` handlers
   where
     handlers =
       [ Handler $ \(x :: RPCException) -> err (rpcExceptionMsg x),
         Handler $ \(x :: SomeException) -> err $ "remote" .= n ~~ msg (show x)
       ]
 
-call :: LT.Text -> (Request -> Request) -> Galley0 (Response (Maybe LByteString))
-call n r = recovering x3 rpcHandlers (const (rpc n r))
+call0 :: LT.Text -> (Request -> Request) -> Galley0 (Response (Maybe LByteString))
+call0 n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000

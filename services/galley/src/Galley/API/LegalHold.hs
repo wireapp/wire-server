@@ -132,7 +132,7 @@ getSettings zusr tid = do
     (True, Just result) -> viewLegalHoldService result
 
 removeSettingsH ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
   Galley r Response
 removeSettingsH (zusr ::: tid ::: req ::: _) = do
@@ -141,7 +141,7 @@ removeSettingsH (zusr ::: tid ::: req ::: _) = do
   pure noContent
 
 removeSettings ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   TeamId ->
   Public.RemoveLegalHoldSettingsRequest ->
@@ -169,7 +169,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
   forall r.
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   TeamId ->
   Galley r ()
 removeSettings' tid = do
@@ -228,7 +228,7 @@ getUserStatus tid uid = do
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
 -- out).
 grantConsentH ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 grantConsentH (zusr ::: tid ::: _) = do
@@ -241,7 +241,7 @@ data GrantConsentResult
   | GrantConsentAlreadyGranted
 
 grantConsent ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   TeamId ->
   Galley r GrantConsentResult
@@ -258,7 +258,7 @@ grantConsent zusr tid = do
 
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
   Galley r Response
 requestDeviceH (zusr ::: tid ::: uid ::: _) = do
@@ -272,7 +272,7 @@ data RequestDeviceResult
 
 requestDevice ::
   forall r.
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   TeamId ->
   UserId ->
@@ -319,7 +319,7 @@ requestDevice zusr tid uid = do
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
 approveDeviceH ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
   Galley r Response
 approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
@@ -328,7 +328,7 @@ approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
   pure empty
 
 approveDevice ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   TeamId ->
   UserId ->
@@ -372,7 +372,7 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
         UserLegalHoldNoConsent -> throwM userLegalHoldNotPending
 
 disableForUserH ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
   Galley r Response
 disableForUserH (zusr ::: tid ::: uid ::: req ::: _) = do
@@ -387,7 +387,7 @@ data DisableLegalHoldForUserResponse
 
 disableForUser ::
   forall r.
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   TeamId ->
   UserId ->
@@ -419,7 +419,7 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   TeamId ->
   UserId ->
   UserLegalHoldStatus ->
@@ -460,7 +460,7 @@ changeLegalholdStatus tid uid old new = do
     illegal = throwM userLegalHoldIllegalOperation
 
 -- FUTUREWORK: make this async?
-blockNonConsentingConnections :: UserId -> Galley r ()
+blockNonConsentingConnections :: forall r. Member BrigAccess r => UserId -> Galley r ()
 blockNonConsentingConnections uid = do
   conns <- getConnectionsUnqualified [uid] Nothing Nothing
   errmsgs <- do
@@ -530,7 +530,7 @@ getTeamLegalholdWhitelistedH tid = do
 -- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
 -- one from the database.
 handleGroupConvPolicyConflicts ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   UserId ->
   UserLegalHoldStatus ->
   Galley r ()

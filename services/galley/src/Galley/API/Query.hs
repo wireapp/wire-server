@@ -53,6 +53,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
+import Galley.Effects
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
@@ -399,6 +400,7 @@ getConversationMeta cnv = do
       pure Nothing
 
 getConversationByReusableCode ::
+  Member BrigAccess r =>
   UserId ->
   Key ->
   Value ->

@@ -87,7 +87,7 @@ federationSitemap =
       }
 
 onConversationCreated ::
-  Members '[GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess] r =>
   Domain ->
   NewRemoteConversation ConvId ->
   Galley r ()
@@ -141,7 +141,7 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
-  Members '[GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess] r =>
   Domain ->
   ConversationUpdate ->
   Galley r ()
@@ -203,7 +203,12 @@ onConversationUpdated requestingDomain cu = do
     -- FUTUREWORK: support bots?
     pushConversationEvent Nothing event targets []
 
-addLocalUsersToRemoteConv :: Remote ConvId -> Qualified UserId -> [UserId] -> Galley r (Set UserId)
+addLocalUsersToRemoteConv ::
+  Member BrigAccess r =>
+  Remote ConvId ->
+  Qualified UserId ->
+  [UserId] ->
+  Galley r (Set UserId)
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   connStatus <- getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
@@ -226,7 +231,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
   Domain ->
   LeaveConversationRequest ->
   Galley r LeaveConversationResponse
@@ -288,7 +293,7 @@ onMessageSent domain rmUnqualified = do
           }
 
 sendMessage ::
-  Members '[BotAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BotAccess, BrigAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
   Domain ->
   MessageSendRequest ->
   Galley r MessageSendResponse

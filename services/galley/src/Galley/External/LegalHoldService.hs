@@ -176,13 +176,14 @@ makeVerifiedRequestFreshManager fpr url reqBuilder = do
 makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
 makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
   let verified = verifyFingerprints [fpr]
-  extHandleAll errHandler $ do
-    recovering x3 httpHandlers $
-      const $
-        liftIO $
-          withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
-            \req ->
-              Http.httpLbs req mgr
+  liftGalley0 $
+    extHandleAll errHandler $ do
+      recovering x3 httpHandlers $
+        const $
+          liftIO $
+            withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
+              \req ->
+                Http.httpLbs req mgr
   where
     reqBuilderMods =
       maybe id Bilge.host (Bilge.extHost url)

@@ -23,6 +23,7 @@ module Galley.Effects
     GundeckAccess,
     ExternalAccess,
     FederatorAccess,
+    SparAccess,
     BotAccess,
     FireAndForget,
 
@@ -46,6 +47,8 @@ data ExternalAccess m a
 
 data FederatorAccess m a
 
+data SparAccess m a
+
 data BotAccess m a
 
 data FireAndForget m a
@@ -54,6 +57,7 @@ type GalleyEffects =
   '[ Intra,
      BrigAccess,
      GundeckAccess,
+     SparAccess,
      ExternalAccess,
      FederatorAccess,
      BotAccess,

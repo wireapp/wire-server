@@ -18,7 +18,10 @@
 module Galley.Intra.Util
   ( brigReq,
     sparReq,
-    call,
+    call0,
+    callBrig,
+    callSpar,
+    callBot,
     x1,
   )
 where
@@ -33,6 +36,7 @@ import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Galley.App
+import Galley.Effects
 import Galley.Options
 import Imports
 import Util.Options
@@ -51,8 +55,17 @@ sparReq = do
 
 -- gundeckReq lives in Galley.Intra.Push
 
-call :: LT.Text -> (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
-call n r = recovering x1 rpcHandlers (const (rpc n r))
+call0 :: LT.Text -> (Request -> Request) -> Galley0 (Response (Maybe LB.ByteString))
+call0 n r = liftGalley0 $ recovering x1 rpcHandlers (const (rpc n r))
+
+callBrig :: Member BrigAccess r => (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
+callBrig r = liftGalley0 $ call0 "brig" r
+
+callSpar :: Member SparAccess r => (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
+callSpar r = liftGalley0 $ call0 "spar" r
+
+callBot :: Member BotAccess r => (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
+callBot r = liftGalley0 $ call0 "brig" r
 
 x1 :: RetryPolicy
 x1 = limitRetries 1

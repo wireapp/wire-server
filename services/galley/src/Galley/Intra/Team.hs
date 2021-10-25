@@ -23,17 +23,18 @@ import Brig.Types.Team
 import Data.ByteString.Conversion
 import Data.Id
 import Galley.App
+import Galley.Effects
 import Galley.Intra.Util
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-getSize :: TeamId -> Galley r TeamSize
+getSize :: Member BrigAccess r => TeamId -> Galley r TeamSize
 getSize tid = do
   (h, p) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method GET . host h . port p
         . paths ["/i/teams", toByteString' tid, "size"]
         . expect2xx

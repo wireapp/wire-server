@@ -39,6 +39,7 @@ import qualified Data.Set as Set
 import Data.Text.Encoding
 import Galley.API.Error
 import Galley.App
+import Galley.Effects
 import Galley.External.LegalHoldService
 import Galley.Intra.Util
 import Imports
@@ -49,11 +50,11 @@ import qualified System.Logger.Class as Logger
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
-lookupClients :: [UserId] -> Galley r UserClients
+lookupClients :: Member BrigAccess r => [UserId] -> Galley r UserClients
 lookupClients uids = do
   (brigHost, brigPort) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method POST . host brigHost . port brigPort
         . path "/i/clients"
         . json (UserSet $ Set.fromList uids)
@@ -62,11 +63,14 @@ lookupClients uids = do
   return $ filterClients (not . Set.null) clients
 
 -- | Calls 'Brig.API.internalListClientsFullH'.
-lookupClientsFull :: [UserId] -> Galley r UserClientsFull
+lookupClientsFull ::
+  Member BrigAccess r =>
+  [UserId] ->
+  Galley r UserClientsFull
 lookupClientsFull uids = do
   (brigHost, brigPort) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method POST . host brigHost . port brigPort
         . path "/i/clients/full"
         . json (UserSet $ Set.fromList uids)
@@ -75,10 +79,15 @@ lookupClientsFull uids = do
   return $ filterClientsFull (not . Set.null) clients
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
-notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley r ()
+notifyClientsAboutLegalHoldRequest ::
+  Member BrigAccess r =>
+  UserId ->
+  UserId ->
+  LastPrekey ->
+  Galley r ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
   (brigHost, brigPort) <- brigReq
-  void . call "brig" $
+  void . callBrig $
     method POST
       . host brigHost
       . port brigPort
@@ -87,11 +96,15 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
       . expect2xx
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
-getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley r OpaqueAuthToken
+getLegalHoldAuthToken ::
+  Member BrigAccess r =>
+  UserId ->
+  Maybe PlainTextPassword ->
+  Galley r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   (brigHost, brigPort) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method POST
         . host brigHost
         . port brigPort
@@ -106,7 +119,13 @@ getLegalHoldAuthToken uid pw = do
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
 -- | Calls 'Brig.API.addClientInternalH'.
-addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley r ClientId
+addLegalHoldClientToUser ::
+  Member BrigAccess r =>
+  UserId ->
+  ConnId ->
+  [Prekey] ->
+  LastPrekey ->
+  Galley r ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
   clientId <$> brigAddClient uid connId lhClient
   where
@@ -123,10 +142,13 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
-removeLegalHoldClientFromUser :: UserId -> Galley r ()
+removeLegalHoldClientFromUser ::
+  Member BrigAccess r =>
+  UserId ->
+  Galley r ()
 removeLegalHoldClientFromUser targetUid = do
   (brigHost, brigPort) <- brigReq
-  void . call "brig" $
+  void . callBrig $
     method DELETE
       . host brigHost
       . port brigPort
@@ -135,11 +157,11 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> Galley r Client
+brigAddClient :: Member BrigAccess r => UserId -> ConnId -> NewClient -> Galley r Client
 brigAddClient uid connId client = do
   (brigHost, brigPort) <- brigReq
   r <-
-    call "brig" $
+    callBrig $
       method POST
         . host brigHost
         . port brigPort

@@ -204,7 +204,7 @@ postRemoteOtrMessage sender conv rawMsg = do
   FederatedGalley.msResponse <$> runFederatedGalley (qDomain conv) rpc
 
 postQualifiedOtrMessage ::
-  Members '[BotAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BotAccess, BrigAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
   UserType ->
   Qualified UserId ->
   Maybe ConnId ->

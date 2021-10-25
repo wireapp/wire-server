@@ -24,16 +24,17 @@ import Bilge
 import Data.ByteString.Conversion
 import Data.Id
 import Galley.App
+import Galley.Effects
 import Galley.Intra.Util
 import Imports
 import Network.HTTP.Types.Method
 
 -- | Notify Spar that a team is being deleted.
-deleteTeam :: TeamId -> Galley r ()
+deleteTeam :: Member SparAccess r => TeamId -> Galley r ()
 deleteTeam tid = do
   (h, p) <- sparReq
   _ <-
-    call "spar" $
+    callSpar $
       method DELETE . host h . port p
         . paths ["i", "teams", toByteString' tid]
         . expect2xx
