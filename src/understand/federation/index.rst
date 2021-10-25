@@ -1,3 +1,5 @@
+.. _federation-understand:
+
 +++++++++++++++++
 Wire federation
 +++++++++++++++++

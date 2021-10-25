@@ -12,11 +12,14 @@ Please refer to the following :ref:`section to better understand SFT and how it 
 As part of the wire-server umbrella chart
 -----------------------------------------
 
-By default, ``sftd`` will be installed as part of the ``wire-server`` umbrella chart.
+`sftd`` will be installed as part of the ``wire-server`` umbrella chart if you set `tags.sftd: true`
 
 In your ``./values/wire-server/values.yaml`` file you should set the following settings:
 
 .. code:: yaml
+
+   tags:
+     sftd: true
 
    sftd:
      host: sftd.example.com # Replace example.com with your domain

@@ -23,33 +23,34 @@ Backend Domain
 
    The domain of a backend, which is used to qualify the names and identifiers of
    resources (users, clients, groups, etc) that are local to a given backend.
+   See also the :ref:`Consequences of choosing a backend domain <consequences-backend-domain>`
 
 .. _glossary_infra_domain:
 
 Infrastructure Domain or Infra Domain
 
    The domain under which the :ref:`Federator <glossary_federator>` of a given
-   backend is reachable (via that backend's :ref:`Ingress <glossary_ingress>`)
+   backend is reachable (via that backend's :ref:`Ingress <glossary_federation_ingress>`)
    for other, remote backends.
 
-.. _glossary_ingress:
+.. _glossary_federation_ingress:
 
-Ingress
+Federation Ingress
 
-   Ingress is the first point of contact of a given :ref:`backend
+   Federation Ingress is the first point of contact of a given :ref:`backend
    <glossary_backend>` for other, remote backends. It also deals with the
-   :ref:`authentication` of incoming requests. See :ref:`here <ingress>` for
+   :ref:`authentication` of incoming requests. See :ref:`here <federation_ingress>` for
    more information.
 
 .. _glossary_federator:
 
 Federator
 
-   The federator is the local point of contact for :ref:`other backend
+   The `Federator` is the local point of contact for :ref:`other backend
    components <other-wire-server>` that want to make calls to remote backends.
    It is also the component that deals with the :ref:`authorization` of incoming
-   requests from other backends after they have passed the :ref:`ingress
-   <glossary_ingress>`. See :ref:`here <federator>` for more information.
+   requests from other backends after they have passed the :ref:`Federation Ingress
+   <glossary_federation_ingress>`. See :ref:`here <federator>` for more information.
 
 .. _glossary_asset:
 

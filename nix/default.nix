@@ -13,8 +13,9 @@ in
       pkgs.zip
       pkgs.gnumake
       pkgs.entr
+      pkgs.texlive.combined.scheme-full
 
-      (pkgs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild sphinxcontrib-fulltoc sphinx-multiversion ]))
+      (pkgs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild sphinxcontrib-fulltoc sphinx-multiversion sphinx_rtd_theme ]))
     ];
   };
 }

@@ -18,6 +18,7 @@ Installing wire-server
    (production) How to see centralized logs for wire-server <logging.rst>
    (production) Other configuration options <configuration-options.rst>
    sft
+   configure-federation
    Managing authentication with ansible <ansible-authentication.rst>
    Using tinc <ansible-tinc.rst>
    Troubleshooting during installation <troubleshooting.rst>
