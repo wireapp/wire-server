@@ -88,14 +88,14 @@ Pods with an HTTP API:
 
 Supporting pods and data storage:
 
-* ``cassandra-ephemeral`` (or ``cassandra-external``): `NoSQL Database management system  <https://github.com/wireapp/wire-server/tree/develop/charts/cassandra-ephemeral>`__ (https://en.wikipedia.org/wiki/Apache_Cassandra). Everything stateful in wire-server (cassandra is used by ``brig``, ``galley``, ``gundeck`` and ``spar``) is stored in cassandra.
- * ``cassandra-ephemeral`` is for test clusters where persisting the data (i.e. loose users, conversations,...) does not matter, but this shouldn't be used in production environments. 
- * ``cassandra-external`` is used to point to an external cassandra cluster which is installed outside of Kubernetes.
+* ``cassandra-ephemeral`` (or ``cassandra-external``): `NoSQL Database management system  <https://github.com/wireapp/wire-server/tree/develop/charts/cassandra-ephemeral>`__ (https://en.wikipedia.org/wiki/Apache_Cassandra). Everything stateful in wire-server (cassandra is used by ``brig``, ``galley``, ``gundeck`` and ``spar``) is stored in cassandra. 
+  * ``cassandra-ephemeral`` is for test clusters where persisting the data (i.e. loose users, conversations,...) does not matter, but this shouldn't be used in production environments. 
+  * ``cassandra-external`` is used to point to an external cassandra cluster which is installed outside of Kubernetes.
 * ``demo-smtp``: In "demo" installations, used to replace a proper external SMTP server for the sending of emails (for example verification codes). In production environments, an actual SMTP server is used directly instead of this pod. (https://github.com/namshi/docker-smtp)
 * ``fluent-bit``: A log processor and forwarder, allowing collection of data such as metrics and logs from different sources. Not typically deployed. (https://fluentbit.io/)
 * ``elastisearch-ephemeral`` (or ``elastisearch-external``): `Distributed search and analytics engines, stores some user information (name, handle, userid, teamid) <https://github.com/wireapp/wire-server/tree/develop/charts/elastisearch-external>`__. Information is duplicated here from cassandra to allow searching for users. Information here can be re-populated from data in cassandra (albeit with some downtime for search functionality) (https://www.elastic.co/what-is/elasticsearch). 
- * ``elastisearch-ephemeral`` is for test clusters where persisting the data doesn't matter. 
- * ``elastisearch-external`` refers to elasticsearch IPs located outside kubernetes by specifying IPs manually.
+  * ``elastisearch-ephemeral`` is for test clusters where persisting the data doesn't matter. 
+  * ``elastisearch-external`` refers to elasticsearch IPs located outside kubernetes by specifying IPs manually.
 * ``fake-aws-s3``: Amazon-AWS-S3-compatible object storage using MinIO (https://min.io/), used by cargohold to store (encrypted) assets such as files, posted images, profile pics, etc.
 * ``fake-aws-s3-reaper``: Creates the default S3 bucket inside fake-aws-s3. 
 * ``fake-aws-sns``. `Amazon Simple Notification Service (Amazon SNS) <https://docs.aws.amazon.com/AmazonS3/latest/userguide/NotificationHowTo.html>`__, used to push messages to mobile devices or distributed services. SNS can publish a message once, and deliver it one or more times.
