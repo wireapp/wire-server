@@ -129,6 +129,24 @@ data TeamFeatureName
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
+{-
+
+PUT /feature-configs/selfDeletingMessages
+
+{
+  "payment-status": "locked" | "unlocked",
+  "status": "enabled" | "disabled",
+  // Only present if status is "enabled".
+  "config": {
+    // 0 indicates not forced, any value greater indicates forced.
+    "enforcedTimeoutSeconds": [0...)
+  }
+}
+
+enforcedTimeoutSeconds: A non negative integer; The number of seconds of the timeout when the feature is forced. If it is 0, then the feature is not forced.
+
+-}
+
 class KnownTeamFeatureName (a :: TeamFeatureName) where
   knownTeamFeatureName :: TeamFeatureName
   type KnownTeamFeatureNameSymbol a :: Symbol
@@ -313,11 +331,26 @@ modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatu
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
 
-newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
-  { tfwoStatus :: TeamFeatureStatusValue
+data TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
+  { -- | Payment status is used by our payment service ibis in the wire cloud to enable or
+    -- disable features for teams based on their payment plan.  Default is `enabled` (compiled
+    -- in) and can be changed in `galley.yaml`.  ibis would contact internal end-points to set
+    -- only `payment-status` and neither `status` nor config.  This will be parsed to a
+    -- complete default.
+    --
+    -- Parser rules: only one of the two attributes can be present.  If `payment-status` is
+    -- `disabled`, `status` can not be updated.
+    tfwoPaymentStatus :: TeamFeatureStatusValue,
+    tfwoStatus :: TeamFeatureStatusValue
   }
-  deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfig)
+  deriving stock (Eq, Show, Generic, Typeable)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureStatusNoConfig)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfig) -- where is this schema defined?  ask paolo.
+
+-- TODO: tfwoPaymentStatus also complicates conference calling: ibis needs to push something
+-- else to galley now for this to work, or we need to have a parser that supports the old API.
+-- (latter's probably easier, and we can also support the new API, which will make migration
+-- later easy.  we just need to check all the other features if anything goes wrong there.)
 
 modelTeamFeatureStatusNoConfig :: Doc.Model
 modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
@@ -328,7 +361,8 @@ instance ToSchema TeamFeatureStatusNoConfig where
   schema =
     object "TeamFeatureStatusNoConfig" $
       TeamFeatureStatusNoConfig
-        <$> tfwoStatus .= field "status" schema
+        <$> error "TODO: make this optional, with baked-in default `enabled`" -- tfwoPaymentStatus .= field "payment-status" schema
+        <*> tfwoStatus .= field "status" schema
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
@@ -338,18 +372,21 @@ instance ToSchema TeamFeatureStatusNoConfig where
 -- that is turned on and off occasionally, and so not force the admin
 -- to recreate the config every time it's turned on.
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
-  { tfwcStatus :: TeamFeatureStatusValue,
+  { -- | See 'TeamFeatureStatusNoConfig' for the semantics of 'tfwcPaymentStatus'.
+    tfwcPaymentStatus :: TeamFeatureStatusValue,
+    tfwcStatus :: TeamFeatureStatusValue,
     tfwcConfig :: cfg
   }
   deriving stock (Eq, Show, Generic, Typeable)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfig cfg))
 
 instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
-  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
+  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary <*> arbitrary
 
 modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
 modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
   Doc.description $ "Status and config of " <> cs (show name)
+  Doc.property "payment-status" typeTeamFeatureStatusValue $ Doc.description "payment status"
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
   Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
 
@@ -358,6 +395,7 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
     object "TeamFeatureStatusWithConfig" $
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
+        <*> error "TODO" -- tfwcPaymentStatus .= field "payment-status" schema
         <*> tfwcConfig .= field "config" schema
 
 ----------------------------------------------------------------------
@@ -383,7 +421,7 @@ modelTeamFeatureClassifiedDomainsConfig =
     Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
 
 defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-defaultClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureDisabled (TeamFeatureClassifiedDomainsConfig [])
+defaultClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureEnabled TeamFeatureDisabled (TeamFeatureClassifiedDomainsConfig [])
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig
@@ -421,6 +459,7 @@ modelTeamFeatureAppLockConfig =
 defaultAppLockStatus :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
 defaultAppLockStatus =
   TeamFeatureStatusWithConfig
+    TeamFeatureEnabled
     TeamFeatureEnabled
     (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
 
