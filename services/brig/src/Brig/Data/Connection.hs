@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -35,6 +33,7 @@ module Brig.Data.Connection
     lookupLocalConnectionStatuses,
     lookupRemoteConnectionStatuses,
     lookupAllStatuses,
+    lookupRemoteStatusesC,
     countConnections,
     deleteConnections,
     deleteRemoteConnections,
@@ -56,7 +55,7 @@ import Brig.Types
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
-import Data.Conduit (runConduit, (.|))
+import Data.Conduit (ConduitT, runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Domain (Domain)
 import Data.Id
@@ -242,6 +241,14 @@ lookupAllStatuses lfroms = do
     lookupRemoteStatuses from =
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params Quorum (Identity from)))
+
+lookupRemoteStatusesC :: forall m. (MonadClient m) => UserId -> Int32 -> ConduitT () [(Remote UserId, Relation)] m ()
+lookupRemoteStatusesC u maxResults =
+  paginateC remoteRelationsSelectAll (paramsP Quorum (Identity u) maxResults) x1
+    .| C.map (map mkValues)
+  where
+    mkValues :: (Domain, UserId, RelationWithHistory) -> (Remote UserId, Relation)
+    mkValues (domain, uid, rel) = (toRemoteUnsafe domain uid, relationDropHistory rel)
 
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]

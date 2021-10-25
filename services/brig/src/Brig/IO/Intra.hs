@@ -80,8 +80,7 @@ import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
-import Cassandra (PageWithState (pwsResults, pwsState), pwsHasMore)
-import Cassandra.CQL (PagingState)
+import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadThrow (throwM))
@@ -91,7 +90,9 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import Data.Coerce (coerce)
+import qualified Data.Conduit.List as C
 import qualified Data.Currency as Currency
+import Data.Domain
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
@@ -100,8 +101,6 @@ import Data.List1 (List1, list1, singleton)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
-import qualified Data.Text as T
 import Galley.Types (Connect (..), Conversation)
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
@@ -115,7 +114,8 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Client
+import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
 import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
@@ -243,44 +243,55 @@ dispatchNotifications orig conn e = case e of
   UserDeleted {} -> do
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
-    recipients <- list1 orig <$> lookupContactList orig
-    notify event orig Push.RouteDirect conn (pure recipients)
-
-    loc <- qualifyLocal ()
-    let luidDeleted = toLocalUnsafe (tDomain loc) orig
-
-    let notifyRemotes :: Maybe PagingState -> AppIO ()
-        notifyRemotes pagingState = do
-          pageWithState <- Data.lookupRemoteConnectionsPage luidDeleted pagingState 1000 -- don't exceed 1000, see UserDeletedNotification
-          let quidsTo = (map ucTo . pwsResults) pageWithState
-          for_ (bucketQualified quidsTo) $ \conns -> do
-            foldQualified
-              loc
-              (const (pure ())) -- this cannot happen, because we only look up remote connections
-              ( \remotes -> do
-                  let rangedRemotes = unsafeRange @_ @1 @1000 <$> remotes
-                  runExceptT (notifyUserDeleted luidDeleted rangedRemotes) >>= \case
-                    -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
-                    -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
-                    Left ferror -> do
-                      Log.err $
-                        Log.msg $
-                          T.unwords
-                            [ "Federation error while notifying remote backends of a user deletion.",
-                              "user_id: " <> showText luidDeleted,
-                              "details: " <> showText ferror
-                            ]
-                    Right () -> pure ()
-              )
-              conns
-          when (pwsHasMore pageWithState) $
-            notifyRemotes (pwsState pageWithState)
-    notifyRemotes Nothing
+    notifyUserDeletionLocals orig conn event
+    notifyUserDeletionRemotes orig
   where
     event = singleton $ UserEvent e
 
-    showText :: Show a => a -> Text
-    showText = cs . show
+notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> AppIO ()
+notifyUserDeletionLocals deleted conn event = do
+  recipients <- list1 deleted <$> lookupContactList deleted
+  notify event deleted Push.RouteDirect conn (pure recipients)
+
+notifyUserDeletionRemotes :: UserId -> AppIO ()
+notifyUserDeletionRemotes deleted = do
+  runConduit $
+    Data.lookupRemoteStatusesC deleted 1000
+      .| C.map filterAccepteds
+      .| C.mapM_ fanoutNotifications
+  where
+    logFederationError :: Domain -> FederationError -> AppT IO ()
+    logFederationError domain fErr =
+      Log.err $
+        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
+          . Log.field "user_id" (show deleted)
+          . Log.field "domain" (domainText domain)
+          . Log.field "error" (show fErr)
+
+    filterAccepteds :: [(Remote UserId, Relation)] -> [Remote UserId]
+    filterAccepteds = fmap fst . filter (\(_, rel) -> rel == Accepted)
+
+    fanoutNotifications :: [Remote UserId] -> AppIO ()
+    fanoutNotifications = mapM_ notifyBackend . bucketRemote
+
+    notifyBackend :: Remote [UserId] -> AppIO ()
+    notifyBackend uids = do
+      let rangedMaybeUids = checked @_ @1 @1000 <$> uids
+      case tUnqualified rangedMaybeUids of
+        Nothing ->
+          -- The user IDs cannot be more than 1000, so we can assume the range
+          -- check will only fail because there are 0 User Ids.
+          pure ()
+        Just rangedUids -> do
+          luidDeleted <- qualifyLocal deleted
+          eitherFErr <- runExceptT (notifyUserDeleted luidDeleted (qualifyAs uids rangedUids))
+          case eitherFErr of
+            Left fErr -> do
+              logFederationError (tDomain uids) fErr
+              -- FUTUTREWORK: Do something better here?
+              -- FUTUREWORK: Write test that this happens
+              throwM $ federationErrorToWai fErr
+            Right () -> pure ()
 
 -- | Push events to other users.
 push ::
