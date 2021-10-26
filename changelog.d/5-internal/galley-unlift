@@ -1,1 +1,0 @@
-Add type parameter for Galley effects and remove `MonadUnliftIO` instance.
