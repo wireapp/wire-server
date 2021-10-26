@@ -256,21 +256,9 @@ notifyUserDeletionLocals deleted conn event = do
 notifyUserDeletionRemotes :: UserId -> AppIO ()
 notifyUserDeletionRemotes deleted = do
   runConduit $
-    Data.lookupRemoteStatusesC deleted 1000
-      .| C.map filterAccepteds
+    Data.lookupRemoteConnectedUsersC deleted 1000
       .| C.mapM_ fanoutNotifications
   where
-    logFederationError :: Domain -> FederationError -> AppT IO ()
-    logFederationError domain fErr =
-      Log.err $
-        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
-          . Log.field "user_id" (show deleted)
-          . Log.field "domain" (domainText domain)
-          . Log.field "error" (show fErr)
-
-    filterAccepteds :: [(Remote UserId, Relation)] -> [Remote UserId]
-    filterAccepteds = fmap fst . filter (\(_, rel) -> rel == Accepted)
-
     fanoutNotifications :: [Remote UserId] -> AppIO ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
@@ -292,6 +280,14 @@ notifyUserDeletionRemotes deleted = do
               -- FUTUREWORK: Write test that this happens
               throwM $ federationErrorToWai fErr
             Right () -> pure ()
+
+    logFederationError :: Domain -> FederationError -> AppT IO ()
+    logFederationError domain fErr =
+      Log.err $
+        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
+          . Log.field "user_id" (show deleted)
+          . Log.field "domain" (domainText domain)
+          . Log.field "error" (show fErr)
 
 -- | Push events to other users.
 push ::

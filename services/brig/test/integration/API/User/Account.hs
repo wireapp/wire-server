@@ -1213,12 +1213,16 @@ testDeleteWithRemotes :: Opt.Opts -> Brig -> Http ()
 testDeleteWithRemotes opts brig = do
   localUser <- randomUser brig
 
-  let remote1Domain = Domain "far-away.example.com"
+  let remote1Domain = Domain "remote1.example.com"
+      remote2Domain = Domain "remote2.example.com"
   remote1UserConnected <- Qualified <$> randomId <*> pure remote1Domain
   remote1UserPending <- Qualified <$> randomId <*> pure remote1Domain
+  remote2UserBlocked <- Qualified <$> randomId <*> pure remote2Domain
 
   sendConnectionAction brig opts (userId localUser) remote1UserConnected (Just FedBrig.RemoteConnect) Accepted
   sendConnectionAction brig opts (userId localUser) remote1UserPending Nothing Sent
+  sendConnectionAction brig opts (userId localUser) remote2UserBlocked (Just FedBrig.RemoteConnect) Accepted
+  void $ putConnectionQualified brig (userId localUser) remote2UserBlocked Blocked
 
   let fedMockResponse = OutwardResponseBody (cs $ Aeson.encode EmptyResponse)
   let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
@@ -1235,15 +1239,16 @@ testDeleteWithRemotes opts brig = do
         const 200 === statusCode
 
   liftIO $ do
-    rpcCall <- assertOne $ filter (\c -> F.domain c == domainText (qDomain remote1UserConnected)) rpcCalls
-    userDeleted <- assertRight $ parseFedRequest rpcCall
-    udnUser userDeleted @?= userId localUser
-    sort (fromRange (udnConnections userDeleted))
-      @?= ( sort
-              [ qUnqualified remote1UserConnected,
-                qUnqualified remote1UserPending
-              ]
-          )
+    remote1Call <- assertOne $ filter (\c -> F.domain c == domainText remote1Domain) rpcCalls
+    remote1Udn <- assertRight $ parseFedRequest remote1Call
+    udnUser remote1Udn @?= userId localUser
+    sort (fromRange (udnConnections remote1Udn))
+      @?= sort (map qUnqualified [remote1UserConnected, remote1UserPending])
+
+    remote2Call <- assertOne $ filter (\c -> F.domain c == domainText remote2Domain) rpcCalls
+    remote2Udn <- assertRight $ parseFedRequest remote2Call
+    udnUser remote2Udn @?= userId localUser
+    fromRange (udnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
   where
     parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
     parseFedRequest fr =

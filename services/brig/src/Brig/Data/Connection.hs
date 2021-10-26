@@ -33,7 +33,7 @@ module Brig.Data.Connection
     lookupLocalConnectionStatuses,
     lookupRemoteConnectionStatuses,
     lookupAllStatuses,
-    lookupRemoteStatusesC,
+    lookupRemoteConnectedUsersC,
     countConnections,
     deleteConnections,
     deleteRemoteConnections,
@@ -242,13 +242,10 @@ lookupAllStatuses lfroms = do
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params Quorum (Identity from)))
 
-lookupRemoteStatusesC :: forall m. (MonadClient m) => UserId -> Int32 -> ConduitT () [(Remote UserId, Relation)] m ()
-lookupRemoteStatusesC u maxResults =
-  paginateC remoteRelationsSelectAll (paramsP Quorum (Identity u) maxResults) x1
-    .| C.map (map mkValues)
-  where
-    mkValues :: (Domain, UserId, RelationWithHistory) -> (Remote UserId, Relation)
-    mkValues (domain, uid, rel) = (toRemoteUnsafe domain uid, relationDropHistory rel)
+lookupRemoteConnectedUsersC :: forall m. (MonadClient m) => UserId -> Int32 -> ConduitT () [Remote UserId] m ()
+lookupRemoteConnectedUsersC u maxResults =
+  paginateC remoteConnectionsSelectUsers (paramsP Quorum (Identity u) maxResults) x1
+    .| C.map (map (uncurry toRemoteUnsafe))
 
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
@@ -368,6 +365,9 @@ remoteRelationsSelect = "SELECT right_user, status FROM connection_remote WHERE 
 
 remoteRelationsSelectAll :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
 remoteRelationsSelectAll = "SELECT right_domain, right_user, status FROM connection_remote WHERE left = ?"
+
+remoteConnectionsSelectUsers :: PrepQuery R (Identity UserId) (Domain, UserId)
+remoteConnectionsSelectUsers = "SELECT right_domain, right_user FROM connection_remote WHERE left = ?"
 
 -- Conversions
 
