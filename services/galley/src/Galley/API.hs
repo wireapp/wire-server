@@ -24,8 +24,7 @@ where
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.API.Internal as Internal
 import qualified Galley.API.Public as Public
-import Galley.App (Galley)
-import Galley.Effects (GalleyEffects)
+import Galley.App (Galley, GalleyEffects)
 import Network.Wai.Routing (Routes)
 
 sitemap :: Routes Doc.ApiBuilder (Galley GalleyEffects) ()

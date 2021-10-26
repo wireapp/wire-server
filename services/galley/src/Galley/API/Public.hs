@@ -41,7 +41,6 @@ import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatu
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
-import Galley.Effects
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai

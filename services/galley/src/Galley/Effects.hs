@@ -16,16 +16,41 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Effects
-  ( GalleyEffects,
-    Concurrency,
+  ( -- * Effects needed in Galley
+    GalleyEffects1,
+    interpretGalleyEffects,
+
+    -- * Internal services
     Intra,
+    interpretIntra,
+
+    -- * Brig
     BrigAccess,
-    GundeckAccess,
-    ExternalAccess,
+    interpretBrig,
+
+    -- * Federator
     FederatorAccess,
+    interpretFederator,
+
+    -- * Spar
     SparAccess,
+    interpretSpar,
+
+    -- * Gundeck
+    GundeckAccess,
+    interpretGundeck,
+
+    -- * External services
+    ExternalAccess,
+    interpretExternal,
+
+    -- * Bot API
     BotAccess,
+    interpretBot,
+
+    -- * Fire-and-forget async
     FireAndForget,
+    interpretFireAndForget,
 
     -- * Polysemy re-exports
     Member,
@@ -33,33 +58,65 @@ module Galley.Effects
   )
 where
 
+import Galley.Effects.FireAndForget
+import Imports
 import Polysemy
-
-data Concurrency m a
+import Polysemy.Internal
 
 data Intra m a
 
+interpretIntra :: Sem (Intra ': r) a -> Sem r a
+interpretIntra = interpret $ \case
+
 data BrigAccess m a
+
+interpretBrig :: Sem (BrigAccess ': r) a -> Sem r a
+interpretBrig = interpret $ \case
 
 data GundeckAccess m a
 
+interpretGundeck :: Sem (GundeckAccess ': r) a -> Sem r a
+interpretGundeck = interpret $ \case
+
 data ExternalAccess m a
+
+interpretExternal :: Sem (ExternalAccess ': r) a -> Sem r a
+interpretExternal = interpret $ \case
 
 data FederatorAccess m a
 
+interpretFederator :: Sem (FederatorAccess ': r) a -> Sem r a
+interpretFederator = interpret $ \case
+
 data SparAccess m a
+
+interpretSpar :: Sem (SparAccess ': r) a -> Sem r a
+interpretSpar = interpret $ \case
 
 data BotAccess m a
 
-data FireAndForget m a
+interpretBot :: Sem (BotAccess ': r) a -> Sem r a
+interpretBot = interpret $ \case
 
-type GalleyEffects =
-  '[ Intra,
-     BrigAccess,
+-- All the possible high-level effects.
+type GalleyEffects1 =
+  '[ BrigAccess,
      GundeckAccess,
      SparAccess,
      ExternalAccess,
      FederatorAccess,
      BotAccess,
+     Intra,
      FireAndForget
    ]
+
+interpretGalleyEffects :: Member (Final IO) r => Sem (Append GalleyEffects1 r) a -> Sem r a
+interpretGalleyEffects =
+  interpretFireAndForget
+    . interpretIntra
+    . interpretBot
+    . interpretFederator
+    . interpretExternal
+    . interpretSpar
+    . interpretGundeck
+    . interpretBrig
