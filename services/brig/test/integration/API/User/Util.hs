@@ -40,6 +40,7 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
+import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import Data.Range (unsafeRange)
@@ -47,6 +48,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Federation.Util (withTempMockFederator)
+import Gundeck.Types (Notification (..))
 import Imports
 import Test.Tasty.HUnit
 import Util
@@ -450,3 +452,13 @@ deleteLegalHoldDevice brig uid =
     brig
       . paths ["i", "clients", "legalhold", toByteString' uid]
       . contentJson
+
+matchDeleteUserNotification :: Qualified UserId -> Notification -> Assertion
+matchDeleteUserNotification quid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eUnqualifiedId = maybeFromJSON =<< j ^? key "id"
+  let eQualifiedId = maybeFromJSON =<< j ^? key "qualified_id"
+  etype @?= Just "user.delete"
+  eUnqualifiedId @?= Just (qUnqualified quid)
+  eQualifiedId @?= Just quid

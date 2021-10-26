@@ -72,6 +72,7 @@ import qualified Galley.Run as Run
 import Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
@@ -2469,3 +2470,12 @@ iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM Response
 iUpsertOne2OneConversation req = do
   galley <- view tsGalley
   post (galley . path "/i/conversations/one2one/upsert" . Bilge.json req)
+
+generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
+generateRemoteAndConvId shouldBeLocal lUserId = do
+  other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  let convId = one2OneConvId (qUntagged lUserId) other
+      isLocal = tDomain lUserId == qDomain convId
+  if shouldBeLocal == isLocal
+    then pure (qTagUnsafe other, convId)
+    else generateRemoteAndConvId shouldBeLocal lUserId

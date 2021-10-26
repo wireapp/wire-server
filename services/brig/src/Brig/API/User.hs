@@ -1054,7 +1054,8 @@ deleteAccount account@(accountUser -> user) = do
   Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
-  Intra.onUserEvent uid Nothing (UserDeleted uid)
+  luid <- qualifyLocal uid
+  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   Data.deleteConnections uid

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 33acd5be229059e16903857f1923a9afcf55f285461298721a15d8d8c5b88a12
+-- hash: 3f6cdbdd5b65f096b8f3e838b1009c4a1a0dd5e295304d123a4ad90ebcdf2057
 
 name:           brig
 version:        1.35.0
@@ -341,6 +341,7 @@ executable brig-integration
     , lens-aeson
     , metrics-wai
     , mime >=0.4
+    , mtl
     , mu-grpc-server
     , mu-rpc
     , network

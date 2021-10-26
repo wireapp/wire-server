@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -35,8 +33,10 @@ module Brig.Data.Connection
     lookupLocalConnectionStatuses,
     lookupRemoteConnectionStatuses,
     lookupAllStatuses,
+    lookupRemoteConnectedUsersC,
     countConnections,
     deleteConnections,
+    deleteRemoteConnections,
     remoteConnectionInsert,
     remoteConnectionSelect,
     remoteConnectionSelectFrom,
@@ -55,7 +55,7 @@ import Brig.Types
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
-import Data.Conduit (runConduit, (.|))
+import Data.Conduit (ConduitT, runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Domain (Domain)
 import Data.Id
@@ -64,7 +64,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time (getCurrentTime)
 import Imports hiding (local)
-import UnliftIO.Async (pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
+import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection
 
@@ -242,6 +242,11 @@ lookupAllStatuses lfroms = do
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params Quorum (Identity from)))
 
+lookupRemoteConnectedUsersC :: forall m. (MonadClient m) => UserId -> Int32 -> ConduitT () [Remote UserId] m ()
+lookupRemoteConnectedUsersC u maxResults =
+  paginateC remoteConnectionsSelectUsers (paramsP Quorum (Identity u) maxResults) x1
+    .| C.map (map (uncurry toRemoteUnsafe))
+
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
@@ -278,8 +283,14 @@ deleteConnections u = do
     paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
       .| C.mapM_ (pooledMapConcurrentlyN_ 16 delete)
   retry x1 . write connectionClear $ params Quorum (Identity u)
+  retry x1 . write remoteConnectionClear $ params Quorum (Identity u)
   where
     delete (other, _status) = write connectionDelete $ params Quorum (other, u)
+
+deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO ()
+deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
+  pooledForConcurrentlyN_ 16 locals $ \u ->
+    write remoteConnectionDelete $ params Quorum (u, remoteDomain, remoteUser)
 
 -- Queries
 
@@ -354,6 +365,9 @@ remoteRelationsSelect = "SELECT right_user, status FROM connection_remote WHERE 
 
 remoteRelationsSelectAll :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
 remoteRelationsSelectAll = "SELECT right_domain, right_user, status FROM connection_remote WHERE left = ?"
+
+remoteConnectionsSelectUsers :: PrepQuery R (Identity UserId) (Domain, UserId)
+remoteConnectionsSelectUsers = "SELECT right_domain, right_user FROM connection_remote WHERE left = ?"
 
 -- Conversions
 

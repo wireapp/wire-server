@@ -23,6 +23,7 @@ import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
 import Data.Misc (Milliseconds)
 import Data.Qualified
+import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, Summary, (:>))
@@ -39,6 +40,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -102,7 +104,14 @@ data Api routes = Api
         :> "send-message"
         :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
-        :> Post '[JSON] MessageSendResponse
+        :> Post '[JSON] MessageSendResponse,
+    onUserDeleted ::
+      routes
+        :- "federation"
+        :> "on-user-deleted"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] UserDeletedNotification
+        :> Post '[JSON] EmptyResponse
   }
   deriving (Generic)
 
@@ -252,6 +261,16 @@ newtype LeaveConversationResponse = LeaveConversationResponse
   deriving
     (ToJSON, FromJSON)
     via (Either (CustomEncoded RemoveFromConversationError) ())
+
+data UserDeletedNotification = UserDeletedNotification
+  { -- | This is qualified implicitly by the origin domain
+    udnUser :: UserId,
+    -- | These are qualified implicitly by the target domain
+    udnConversations :: Range 1 1000 [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserDeletedNotification)
+  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedNotification)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

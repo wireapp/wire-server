@@ -18,15 +18,17 @@
 module Wire.API.Federation.API.Brig where
 
 import Control.Monad.Except (MonadError (..))
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
+import Data.Range
 import Imports
 import Servant.API
 import Servant.API.Generic
 import Servant.Client.Generic (AsClientT, genericClient)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -100,7 +102,14 @@ data Api routes = Api
         :> "send-connection-action"
         :> OriginDomainHeader
         :> ReqBody '[JSON] NewConnectionRequest
-        :> Post '[JSON] NewConnectionResponse
+        :> Post '[JSON] NewConnectionResponse,
+    onUserDeleted ::
+      routes
+        :- "federation"
+        :> "on-user-deleted"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] UserDeletedNotification
+        :> Post '[JSON] EmptyResponse
   }
   deriving (Generic)
 
@@ -150,6 +159,16 @@ data NewConnectionResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
+
+data UserDeletedNotification = UserDeletedNotification
+  { -- | This is qualified implicitly by the origin domain
+    udnUser :: UserId,
+    -- | These are qualified implicitly by the target domain
+    udnConnections :: Range 1 1000 [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserDeletedNotification)
+  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedNotification)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
 clientRoutes = genericClient
