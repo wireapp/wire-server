@@ -12,6 +12,7 @@ dependencies:
 - aeson >=0.7
 - base >=4.6 && <5.0
 - conduit
+- containers
 - cql >=3.0.0
 - cql-io >=0.14
 - cql-io-tinylog

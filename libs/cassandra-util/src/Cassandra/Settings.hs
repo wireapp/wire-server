@@ -23,6 +23,8 @@ module Cassandra.Settings
   ( module C,
     initialContactsDisco,
     initialContactsPlain,
+    dcAwareRandomPolicy,
+    dcAwareSettings,
   )
 where
 
@@ -30,7 +32,7 @@ import Control.Lens
 import Data.Aeson.Lens
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
-import Database.CQL.IO as C (Policy, Settings, addContact, defSettings, setCompression, setConnectTimeout, setContacts, setIdleTimeout, setKeyspace, setLogger, setMaxConnections, setMaxStreams, setMaxTimeouts, setPolicy, setPoolStripes, setPortNumber, setPrepareStrategy, setProtocolVersion, setResponseTimeout, setRetrySettings, setSendTimeout)
+import Database.CQL.IO as C hiding (values)
 import Database.CQL.IO.Tinylog as C (mkLogger)
 import Imports
 import Network.Wreq
@@ -62,3 +64,18 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
 -- | Puts the address into a list using the same signature as the other initialContacts
 initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
 initialContactsPlain address = pure $ unpack address :| []
+
+-- | Return hosts in random order for a given DC.
+--
+-- TODO: validate/guard against invalid datacentre names at service startup time
+-- TODO: do we want to protect against a misconfigured datacentre during runtime while a datacentre migration is ongoing? Maybe not?
+dcAwareRandomPolicy :: Text -> IO Policy
+dcAwareRandomPolicy dc = do
+  randomPolicy <- C.random
+  pure $ randomPolicy {acceptable = dcAcceptable}
+  where
+    dcAcceptable :: Host -> IO Bool
+    dcAcceptable host = pure $ (host ^. dataCentre) == dc
+
+dcAwareSettings :: Text -> Settings
+dcAwareSettings dc = setPolicy (dcAwareRandomPolicy dc) defSettings
