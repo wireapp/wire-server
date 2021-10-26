@@ -318,7 +318,16 @@ getLegalholdStatusInternal (Right tid) = do
     False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
 setLegalholdStatusInternal ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ConversationStore,
+       ExternalAccess,
+       FederatorAccess,
+       FireAndForget,
+       GundeckAccess
+     ]
+    r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)

@@ -32,7 +32,7 @@ import Data.Id (UserId, idToText)
 import Data.Qualified
 import Galley.API.Util (qualifyLocal)
 import Galley.App
-import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
 import Galley.Types.Conversations.Members
 import Imports

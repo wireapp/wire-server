@@ -54,6 +54,7 @@ import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
 import Galley.Effects
+import qualified Galley.Effects.ConversationStore as E
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
@@ -76,11 +77,18 @@ import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
-getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley r Response
+getBotConversationH ::
+  Member ConversationStore r =>
+  BotId ::: ConvId ::: JSON ->
+  Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot zcnv
 
-getBotConversation :: BotId -> ConvId -> Galley r Public.BotConvView
+getBotConversation ::
+  Member ConversationStore r =>
+  BotId ->
+  ConvId ->
+  Galley r Public.BotConvView
 getBotConversation zbot zcnv = do
   (c, _) <- getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
   domain <- viewFederationDomain
@@ -94,12 +102,20 @@ getBotConversation zbot zcnv = do
       | otherwise =
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
-getUnqualifiedConversation :: UserId -> ConvId -> Galley r Public.Conversation
+getUnqualifiedConversation ::
+  Member ConversationStore r =>
+  UserId ->
+  ConvId ->
+  Galley r Public.Conversation
 getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
 
-getConversation :: UserId -> Qualified ConvId -> Galley r Public.Conversation
+getConversation ::
+  Member ConversationStore r =>
+  UserId ->
+  Qualified ConvId ->
+  Galley r Public.Conversation
 getConversation zusr cnv = do
   lusr <- qualifyLocal zusr
   foldQualified
@@ -205,7 +221,11 @@ getRemoteConversationsWithFailures zusr convs = do
             . Logger.field "error" (show e)
         throwE e
 
-getConversationRoles :: UserId -> ConvId -> Galley r Public.ConversationRolesList
+getConversationRoles ::
+  Member ConversationStore r =>
+  UserId ->
+  ConvId ->
+  Galley r Public.ConversationRolesList
 getConversationRoles zusr cnv = do
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
@@ -262,6 +282,7 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
+  Member ConversationStore r =>
   UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -272,6 +293,8 @@ getConversations user mids mstart msize = do
   flip ConversationList more <$> mapM (Mapping.conversationView user) cs
 
 getConversationsInternal ::
+  forall r.
+  Member ConversationStore r =>
   UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -281,7 +304,7 @@ getConversationsInternal user mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
   cs <-
-    Data.localConversations localConvIds
+    liftSem (E.getConversations localConvIds)
       >>= filterM removeDeleted
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   pure $ Public.ConversationList cs more
@@ -299,11 +322,13 @@ getConversationsInternal user mids mstart msize = do
       let hasMore = Data.resultSetType r == Data.ResultSetTruncated
       pure (hasMore, Data.resultSetResult r)
 
+    removeDeleted :: Data.Conversation -> Galley r Bool
     removeDeleted c
-      | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
+      | Data.isConvDeleted c = liftSem $ E.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
 listConversations ::
+  Member ConversationStore r =>
   UserId ->
   Public.ListConversations ->
   Galley r Public.ConversationsResponse
@@ -314,7 +339,7 @@ listConversations user (Public.ListConversations ids) = do
   (foundLocalIds, notFoundLocalIds) <- foundsAndNotFounds (Data.localConversationIdsOf user) localIds
 
   localInternalConversations <-
-    Data.localConversations foundLocalIds
+    liftSem (E.getConversations foundLocalIds)
       >>= filterM removeDeleted
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   localConversations <- mapM (Mapping.conversationView user) localInternalConversations
@@ -343,9 +368,12 @@ listConversations user (Public.ListConversations ids) = do
         crFailed = failedConvsRemotely
       }
   where
-    removeDeleted :: Data.Conversation -> Galley r Bool
+    removeDeleted ::
+      Member ConversationStore r =>
+      Data.Conversation ->
+      Galley r Bool
     removeDeleted c
-      | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
+      | Data.isConvDeleted c = liftSem $ E.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
     foundsAndNotFounds :: (Monad m, Eq a) => ([a] -> m [a]) -> [a] -> m ([a], [a])
     foundsAndNotFounds f xs = do
@@ -354,6 +382,7 @@ listConversations user (Public.ListConversations ids) = do
       pure (founds, notFounds)
 
 iterateConversations ::
+  Member ConversationStore r =>
   UserId ->
   Range 1 500 Int32 ->
   ([Data.Conversation] -> Galley r a) ->
@@ -371,36 +400,48 @@ iterateConversations uid pageSize handleConvs = go Nothing
         _ -> pure []
       pure $ resultHead : resultTail
 
-internalGetMemberH :: ConvId ::: UserId -> Galley r Response
+internalGetMemberH ::
+  Member ConversationStore r =>
+  ConvId ::: UserId ->
+  Galley r Response
 internalGetMemberH (cnv ::: usr) = do
   json <$> getLocalSelf usr cnv
 
-getLocalSelf :: UserId -> ConvId -> Galley r (Maybe Public.Member)
+getLocalSelf ::
+  Member ConversationStore r =>
+  UserId ->
+  ConvId ->
+  Galley r (Maybe Public.Member)
 getLocalSelf usr cnv = do
   lusr <- qualifyLocal usr
-  alive <- Data.isConvAlive cnv
+  alive <- liftSem $ E.isConversationAlive cnv
   if alive
     then Mapping.localMemberToSelf lusr <$$> Data.member cnv usr
-    else Nothing <$ Data.deleteConversation cnv
+    else liftSem $ Nothing <$ E.deleteConversation cnv
 
-getConversationMetaH :: ConvId -> Galley r Response
+getConversationMetaH ::
+  Member ConversationStore r =>
+  ConvId ->
+  Galley r Response
 getConversationMetaH cnv = do
   getConversationMeta cnv <&> \case
     Nothing -> setStatus status404 empty
     Just meta -> json meta
 
-getConversationMeta :: ConvId -> Galley r (Maybe ConversationMetadata)
-getConversationMeta cnv = do
-  alive <- Data.isConvAlive cnv
-  localDomain <- viewFederationDomain
+getConversationMeta ::
+  Member ConversationStore r =>
+  ConvId ->
+  Galley r (Maybe ConversationMetadata)
+getConversationMeta cnv = liftSem $ do
+  alive <- E.isConversationAlive cnv
   if alive
-    then Data.conversationMeta localDomain cnv
+    then E.getConversationMetadata cnv
     else do
-      Data.deleteConversation cnv
+      E.deleteConversation cnv
       pure Nothing
 
 getConversationByReusableCode ::
-  Member BrigAccess r =>
+  Members '[ConversationStore, BrigAccess] r =>
   UserId ->
   Key ->
   Value ->

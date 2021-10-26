@@ -86,11 +86,13 @@ import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import Galley.Effects.ConversationStore
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -732,7 +734,7 @@ updateTeamMember zusr zcon tid targetMember = do
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH ::
-  Members '[BrigAccess, ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ConversationStore, ExternalAccess, GundeckAccess] r =>
   UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
   Galley r Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
@@ -747,7 +749,7 @@ data TeamMemberDeleteResult
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember ::
-  Members '[BrigAccess, ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ConversationStore, ExternalAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -790,7 +792,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedDeleteTeamMember ::
   forall r.
-  Members '[BrigAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, ConversationStore, GundeckAccess, ExternalAccess] r =>
   UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -820,7 +822,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [Qualified remove localDomain])
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
-        Data.conversation (c ^. conversationId) >>= \conv ->
+        liftSem (getConversation (c ^. conversationId)) >>= \conv ->
           for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
             Data.removeMember remove (c ^. conversationId)
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
@@ -853,7 +855,16 @@ getTeamConversation zusr tid cid = do
   Data.teamConversation tid cid >>= maybe (throwErrorDescriptionType @ConvNotFound) pure
 
 deleteTeamConversation ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ConversationStore,
+       ExternalAccess,
+       FederatorAccess,
+       FireAndForget,
+       GundeckAccess
+     ]
+    r =>
   UserId ->
   ConnId ->
   TeamId ->

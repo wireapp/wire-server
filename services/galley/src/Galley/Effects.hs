@@ -51,12 +51,16 @@ module Galley.Effects
     FireAndForget,
     interpretFireAndForget,
 
+    -- * Store effects
+    ConversationStore,
+
     -- * Polysemy re-exports
     Member,
     Members,
   )
 where
 
+import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
 import Imports
 import Polysemy
@@ -105,5 +109,6 @@ type GalleyEffects1 =
      FederatorAccess,
      BotAccess,
      Intra,
-     FireAndForget
+     FireAndForget,
+     ConversationStore
    ]

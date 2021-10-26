@@ -41,10 +41,12 @@ import Data.Time
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
+import Galley.Effects.ConversationStore
 import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -246,9 +248,14 @@ assertOnTeam uid tid = do
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
-permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley r ()
+permissionCheckTeamConv ::
+  Member ConversationStore r =>
+  UserId ->
+  ConvId ->
+  Perm ->
+  Galley r ()
 permissionCheckTeamConv zusr cnv perm =
-  Data.conversation cnv >>= \case
+  liftSem (getConversation cnv) >>= \case
     Just cnv' -> case Data.convTeam cnv' of
       Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
       Nothing -> pure ()
@@ -256,7 +263,7 @@ permissionCheckTeamConv zusr cnv perm =
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
-  Member GundeckAccess r =>
+  Members '[ConversationStore, GundeckAccess] r =>
   UserId ->
   Data.Conversation ->
   Maybe ConnId ->
@@ -272,7 +279,7 @@ acceptOne2One usr conv conn = do
           mm <- Data.addMember lcid lusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
-      [_, _] | usr `isMember` mems -> promote
+      [_, _] | usr `isMember` mems -> liftSem promote
       [_, _] -> throwErrorDescriptionType @ConvNotFound
       _ -> do
         when (length mems > 2) $
@@ -280,7 +287,7 @@ acceptOne2One usr conv conn = do
         now <- liftIO getCurrentTime
         mm <- Data.addMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
-        conv' <- if isJust (find ((usr /=) . lmId) mems) then promote else pure conv
+        conv' <- if isJust (find ((usr /=) . lmId) mems) then liftSem promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
@@ -290,7 +297,7 @@ acceptOne2One usr conv conn = do
     cid = Data.convId conv
     mems = Data.convLocalMembers conv
     promote = do
-      Data.acceptConnect cid
+      acceptConnectConversation cid
       return $ conv {Data.convType = One2OneConv}
     badConvState =
       mkError status500 "bad-state" $
@@ -545,6 +552,7 @@ getMember ::
 getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership ::
+  Member ConversationStore r =>
   UserId ->
   ConvId ->
   Galley r Data.Conversation
@@ -557,15 +565,17 @@ getConversationAndCheckMembership uid cnv = do
   pure conv
 
 getConversationAndMemberWithError ::
-  IsConvMemberId uid mem =>
+  (Member ConversationStore r, IsConvMemberId uid mem) =>
   Error ->
   uid ->
   ConvId ->
   Galley r (Data.Conversation, mem)
 getConversationAndMemberWithError ex usr convId = do
-  c <- Data.conversation convId >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+  c <-
+    liftSem (getConversation convId)
+      >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   when (DataTypes.isConvDeleted c) $ do
-    Data.deleteConversation convId
+    liftSem $ deleteConversation convId
     throwErrorDescriptionType @ConvNotFound
   loc <- qualifyLocal ()
   member <-
@@ -613,9 +623,16 @@ verifyReusableCode convCode = do
     throwM (errorDescriptionTypeToWai @CodeNotFound)
   return c
 
-ensureConversationAccess :: Member BrigAccess r => UserId -> ConvId -> Access -> Galley r Data.Conversation
+ensureConversationAccess ::
+  Members '[ConversationStore, BrigAccess] r =>
+  UserId ->
+  ConvId ->
+  Access ->
+  Galley r Data.Conversation
 ensureConversationAccess zusr cnv access = do
-  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+  conv <-
+    liftSem (getConversation cnv)
+      >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]

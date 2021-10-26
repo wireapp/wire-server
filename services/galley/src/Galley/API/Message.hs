@@ -27,6 +27,7 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Effects
+import Galley.Effects.ConversationStore
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
@@ -188,7 +189,7 @@ getRemoteClients remoteMembers =
         <$> FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
 
 postRemoteOtrMessage ::
-  Member FederatorAccess r =>
+  Members '[ConversationStore, FederatorAccess] r =>
   Qualified UserId ->
   Qualified ConvId ->
   LByteString ->
@@ -204,7 +205,15 @@ postRemoteOtrMessage sender conv rawMsg = do
   FederatedGalley.msResponse <$> runFederatedGalley (qDomain conv) rpc
 
 postQualifiedOtrMessage ::
-  Members '[BotAccess, BrigAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ConversationStore,
+       FederatorAccess,
+       GundeckAccess,
+       ExternalAccess
+     ]
+    r =>
   UserType ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -212,7 +221,7 @@ postQualifiedOtrMessage ::
   QualifiedNewOtrMessage ->
   Galley r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
-  alive <- lift $ Data.isConvAlive convId
+  alive <- lift . liftSem $ isConversationAlive convId
   localDomain <- viewFederationDomain
   now <- liftIO getCurrentTime
   let nowMillis = toUTCTimeMillis now
@@ -220,7 +229,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
       senderUser = qUnqualified sender
   let senderClient = qualifiedNewOtrSender msg
   unless alive $ do
-    lift $ Data.deleteConversation convId
+    lift . liftSem $ deleteConversation convId
     throwError MessageNotSentConversationNotFound
 
   -- conversation members

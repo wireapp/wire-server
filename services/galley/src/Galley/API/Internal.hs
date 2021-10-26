@@ -54,7 +54,9 @@ import qualified Galley.API.Update as Update
 import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.ConversationStore
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types
@@ -475,7 +477,14 @@ sitemap = do
 
 rmUser ::
   forall r.
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess
+     ]
+    r =>
   UserId ->
   Maybe ConnId ->
   Galley r ()
@@ -510,7 +519,7 @@ rmUser user conn = do
     leaveLocalConversations :: [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
-      cc <- Data.localConversations ids
+      cc <- liftSem $ getConversations ids
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing

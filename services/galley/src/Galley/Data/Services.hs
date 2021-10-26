@@ -37,11 +37,11 @@ import Data.Id
 import Data.Qualified
 import Data.Time.Clock
 import Galley.App
-import Galley.Data (newMember)
 import Galley.Data.Instances ()
 import Galley.Data.Queries
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
+import Galley.Types.Conversations.Members (newMember)
 import Galley.Types.Conversations.Roles
 import Imports
 

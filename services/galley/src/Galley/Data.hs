@@ -53,34 +53,14 @@ module Galley.Data
     updateTeam,
     updateTeamStatus,
 
-    -- * Conversations
-    Conversation (..),
-    convMetadata,
-    convAccessData,
-    acceptConnect,
-    conversation,
+    -- * Conversation lists
     conversationIdsFrom,
     localConversationIdsOf,
-    remoteConversationStatus,
+    remoteConversationIdsPageFrom,
     localConversationIdsPageFrom,
     localConversationIdRowsForPagination,
-    localConversations,
-    conversationMeta,
+    remoteConversationStatus,
     conversationsRemote,
-    createConnectConversation,
-    createConnectConversationWithRemote,
-    createConversation,
-    createLegacyOne2OneConversation,
-    createOne2OneConversation,
-    createSelfConversation,
-    isConvAlive,
-    updateConversation,
-    updateConversationAccess,
-    updateConversationReceiptMode,
-    updateConversationMessageTimer,
-    deleteConversation,
-    lookupReceiptMode,
-    remoteConversationIdsPageFrom,
 
     -- * Conversation Members
     addMember,
@@ -100,7 +80,6 @@ module Galley.Data
     updateOtherMemberLocalConv,
     updateOtherMemberRemoteConv,
     ToUserRole (..),
-    toQualifiedUserRole,
     filterRemoteConvMembers,
 
     -- * Conversation Codes
@@ -116,7 +95,6 @@ module Galley.Data
 
     -- * Utilities
     localOne2OneConvId,
-    newMember,
 
     -- * Defaults
     defRole,
@@ -133,32 +111,31 @@ import Control.Lens hiding ((<|))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Extra (ifM)
 import Data.ByteString.Conversion hiding (parser)
-import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
-import Data.Misc (Milliseconds)
 import qualified Data.Monoid
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
+import qualified Galley.Cassandra.Conversation as C
+import qualified Galley.Cassandra.Conversation.Members as C
+import Galley.Data.Access
+import Galley.Data.Conversation
 import Galley.Data.Instances ()
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
 import Galley.Types hiding (Conversation)
-import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
-import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding
   ( Event,
     EventType (..),
@@ -168,10 +145,9 @@ import Galley.Types.Teams hiding
   )
 import qualified Galley.Types.Teams as Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.ToUserRole
 import Galley.Types.UserList
-import Galley.Validation
 import Imports hiding (Set, max)
-import qualified System.Logger.Class as Log
 import qualified UnliftIO
 import Wire.API.Team.Member
 
@@ -465,13 +441,13 @@ listBillingTeamMembers tid =
     <$> retry x1 (query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
 
 removeTeamConv :: TeamId -> ConvId -> Galley r ()
-removeTeamConv tid cid = do
+removeTeamConv tid cid = liftClient $ do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery Cql.markConvDeleted (Identity cid)
     addPrepQuery Cql.deleteTeamConv (tid, cid)
-  deleteConversation cid
+  C.deleteConversation cid
 
 updateTeamStatus :: TeamId -> TeamStatus -> Galley r ()
 updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params Quorum (s, t))
@@ -486,89 +462,6 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
-
--- Conversations ------------------------------------------------------------
-
-isConvAlive :: ConvId -> Galley r Bool
-isConvAlive cid = do
-  result <- retry x1 (query1 Cql.isConvDeleted (params Quorum (Identity cid)))
-  case runIdentity <$> result of
-    Nothing -> pure False
-    Just Nothing -> pure True
-    Just (Just True) -> pure False
-    Just (Just False) -> pure True
-
-conversation :: ConvId -> Galley r (Maybe Conversation)
-conversation conv = liftClient $ do
-  cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-  remoteMems <- UnliftIO.async $ lookupRemoteMembersC conv
-  mbConv <-
-    toConv conv
-      <$> membersC conv
-      <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait cdata
-  return mbConv >>= conversationGC
-
-{- "Garbage collect" the conversation, i.e. the conversation may be
-   marked as deleted, in which case we delete it and return Nothing -}
-conversationGC ::
-  Maybe Conversation ->
-  Client (Maybe Conversation)
-conversationGC conv = case join (convDeleted <$> conv) of
-  (Just True) -> do
-    sequence_ $ deleteConversationC . convId <$> conv
-    return Nothing
-  _ -> return conv
-
-localConversations :: [ConvId] -> Galley r [Conversation]
-localConversations [] = return []
-localConversations ids = do
-  cs <- liftClient $ do
-    convs <- UnliftIO.async fetchConvs
-    mems <- UnliftIO.async $ memberLists ids
-    remoteMems <- UnliftIO.async $ remoteMemberLists ids
-    zipWith4 toConv ids
-      <$> UnliftIO.wait mems
-      <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait convs
-  foldrM flatten [] (zip ids cs)
-  where
-    fetchConvs = do
-      cs <- retry x1 $ query Cql.selectConvs (params Quorum (Identity ids))
-      let m = Map.fromList $ map (\(c, t, u, n, a, r, i, d, mt, rm) -> (c, (t, u, n, a, r, i, d, mt, rm))) cs
-      return $ map (`Map.lookup` m) ids
-    flatten (i, c) cc = case c of
-      Nothing -> do
-        Log.warn $ Log.msg ("No conversation for: " <> toByteString i)
-        return cc
-      Just c' -> return (c' : cc)
-
-toConv ::
-  ConvId ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
-  Maybe Conversation
-toConv cid mms remoteMems conv =
-  f mms <$> conv
-  where
-    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
-
-conversationMeta :: Domain -> ConvId -> Galley r (Maybe ConversationMetadata)
-conversationMeta _localDomain conv =
-  fmap toConvMeta
-    <$> retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-  where
-    toConvMeta (t, c, a, r, n, i, _, mt, rm) =
-      ConversationMetadata
-        t
-        c
-        (defAccess t a)
-        (maybeRole t r)
-        n
-        i
-        mt
-        rm
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
@@ -627,237 +520,12 @@ remoteConversationStatusOnDomainC uid rconvs =
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
       ( qualifyAs rconvs conv,
-        toMemberStatus (omus, omur, oar, oarr, hid, hidr)
+        C.toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
 conversationsRemote :: UserId -> Galley r [Remote ConvId]
 conversationsRemote usr = do
   uncurry toRemoteUnsafe <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
-
-createConversation ::
-  Local UserId ->
-  Maybe (Range 1 256 Text) ->
-  [Access] ->
-  AccessRole ->
-  ConvSizeChecked UserList UserId ->
-  Maybe ConvTeamInfo ->
-  -- | Message timer
-  Maybe Milliseconds ->
-  Maybe ReceiptMode ->
-  RoleName ->
-  Galley r Conversation
-createConversation lusr name acc role others tinfo mtimer recpt othersConversationRole = do
-  conv <- Id <$> liftIO nextRandom
-  let lconv = qualifyAs lusr conv
-      usr = tUnqualified lusr
-  retry x5 $ case tinfo of
-    Nothing ->
-      write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
-    Just ti -> batch $ do
-      setType BatchLogged
-      setConsistency Quorum
-      addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
-      addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-  let newUsers = fmap (,othersConversationRole) (fromConvSize others)
-  (lmems, rmems) <- addMembers lconv (ulAddLocal (tUnqualified lusr, roleNameWireAdmin) newUsers)
-  pure $ newConv conv RegularConv usr lmems rmems acc role name (cnvTeamId <$> tinfo) mtimer recpt
-
-createSelfConversation :: Local UserId -> Maybe (Range 1 256 Text) -> Galley r Conversation
-createSelfConversation lusr name = do
-  let usr = tUnqualified lusr
-      conv = selfConv usr
-      lconv = qualifyAs lusr conv
-  retry x5 $
-    write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-  (lmems, rmems) <- addMembers lconv (UserList [tUnqualified lusr] [])
-  pure $ newConv conv SelfConv usr lmems rmems [PrivateAccess] privateRole name Nothing Nothing Nothing
-
-createConnectConversation ::
-  Local x ->
-  U.UUID U.V4 ->
-  U.UUID U.V4 ->
-  Maybe (Range 1 256 Text) ->
-  Galley r Conversation
-createConnectConversation loc a b name = do
-  let conv = localOne2OneConvId a b
-      lconv = qualifyAs loc conv
-      a' = Id . U.unpack $ a
-  retry x5 $
-    write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-  -- We add only one member, second one gets added later,
-  -- when the other user accepts the connection request.
-  (lmems, rmems) <- addMembers lconv (UserList [a'] [])
-  pure $ newConv conv ConnectConv a' lmems rmems [PrivateAccess] privateRole name Nothing Nothing Nothing
-
-createConnectConversationWithRemote ::
-  Local ConvId ->
-  Local UserId ->
-  UserList UserId ->
-  Galley r ()
-createConnectConversationWithRemote lconvId creator m = do
-  retry x5 $
-    write Cql.insertConv (params Quorum (tUnqualified lconvId, ConnectConv, tUnqualified creator, privateOnly, privateRole, Nothing, Nothing, Nothing, Nothing))
-  -- We add only one member, second one gets added later,
-  -- when the other user accepts the connection request.
-  void $ addMembers lconvId m
-
-createLegacyOne2OneConversation ::
-  Local x ->
-  U.UUID U.V4 ->
-  U.UUID U.V4 ->
-  Maybe (Range 1 256 Text) ->
-  Maybe TeamId ->
-  Galley r Conversation
-createLegacyOne2OneConversation loc a b name ti = do
-  let conv = localOne2OneConvId a b
-      lconv = qualifyAs loc conv
-      a' = Id (U.unpack a)
-      b' = Id (U.unpack b)
-  createOne2OneConversation
-    lconv
-    (qualifyAs loc a')
-    (qUntagged (qualifyAs loc b'))
-    name
-    ti
-
-createOne2OneConversation ::
-  Local ConvId ->
-  Local UserId ->
-  Qualified UserId ->
-  Maybe (Range 1 256 Text) ->
-  Maybe TeamId ->
-  Galley r Conversation
-createOne2OneConversation lconv self other name mtid = do
-  retry x5 $ case mtid of
-    Nothing -> write Cql.insertConv (params Quorum (tUnqualified lconv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-    Just tid -> batch $ do
-      setType BatchLogged
-      setConsistency Quorum
-      addPrepQuery Cql.insertConv (tUnqualified lconv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
-      addPrepQuery Cql.insertTeamConv (tid, tUnqualified lconv, False)
-  (lmems, rmems) <- addMembers lconv (toUserList self [qUntagged self, other])
-  pure $ newConv (tUnqualified lconv) One2OneConv (tUnqualified self) lmems rmems [PrivateAccess] privateRole name mtid Nothing Nothing
-
-updateConversation :: ConvId -> Range 1 256 Text -> Galley r ()
-updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
-
-updateConversationAccess :: ConvId -> ConversationAccessData -> Galley r ()
-updateConversationAccess cid (ConversationAccessData acc role) =
-  retry x5 $
-    write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
-
-updateConversationReceiptMode :: ConvId -> ReceiptMode -> Galley r ()
-updateConversationReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params Quorum (receiptMode, cid))
-
-lookupReceiptMode :: ConvId -> Galley r (Maybe ReceiptMode)
-lookupReceiptMode cid = join . fmap runIdentity <$> retry x1 (query1 Cql.selectReceiptMode (params Quorum (Identity cid)))
-
-updateConversationMessageTimer :: ConvId -> Maybe Milliseconds -> Galley r ()
-updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))
-
-deleteConversation :: ConvId -> Galley r ()
-deleteConversation = liftClient . deleteConversationC
-
-deleteConversationC :: ConvId -> Client ()
-deleteConversationC cid = do
-  retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
-
-  localMembers <- membersC cid
-  for_ (nonEmpty localMembers) $ \ms ->
-    removeLocalMembersFromLocalConvC cid (lmId <$> ms)
-
-  remoteMembers <- lookupRemoteMembersC cid
-  for_ (nonEmpty remoteMembers) $ \ms ->
-    removeRemoteMembersFromLocalConvC cid (rmId <$> ms)
-
-  retry x5 $ write Cql.deleteConv (params Quorum (Identity cid))
-
-acceptConnect :: ConvId -> Galley r ()
-acceptConnect cid = retry x5 $ write Cql.updateConvType (params Quorum (One2OneConv, cid))
-
--- | We deduce the conversation ID by adding the 4 components of the V4 UUID
--- together pairwise, and then setting the version bits (v4) and variant bits
--- (variant 2). This means that we always know what the UUID is for a
--- one-to-one conversation which hopefully makes them unique.
-localOne2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
-localOne2OneConvId a b = Id . U.unpack $ U.addv4 a b
-
-newConv ::
-  ConvId ->
-  ConvType ->
-  UserId ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  [Access] ->
-  AccessRole ->
-  Maybe (Range 1 256 Text) ->
-  Maybe TeamId ->
-  Maybe Milliseconds ->
-  Maybe ReceiptMode ->
-  Conversation
-newConv cid ct usr mems rMems acc role name tid mtimer rMode =
-  Conversation
-    { convId = cid,
-      convType = ct,
-      convCreator = usr,
-      convName = fromRange <$> name,
-      convAccess = acc,
-      convAccessRole = role,
-      convLocalMembers = mems,
-      convRemoteMembers = rMems,
-      convTeam = tid,
-      convDeleted = Nothing,
-      convMessageTimer = mtimer,
-      convReceiptMode = rMode
-    }
-
-convMetadata :: Conversation -> ConversationMetadata
-convMetadata c =
-  ConversationMetadata
-    (convType c)
-    (convCreator c)
-    (convAccess c)
-    (convAccessRole c)
-    (convName c)
-    (convTeam c)
-    (convMessageTimer c)
-    (convReceiptMode c)
-
-convAccessData :: Conversation -> ConversationAccessData
-convAccessData conv =
-  ConversationAccessData
-    (Set.fromList (convAccess conv))
-    (convAccessRole conv)
-
-defAccess :: ConvType -> Maybe (Set Access) -> [Access]
-defAccess SelfConv Nothing = [PrivateAccess]
-defAccess ConnectConv Nothing = [PrivateAccess]
-defAccess One2OneConv Nothing = [PrivateAccess]
-defAccess RegularConv Nothing = defRegularConvAccess
-defAccess SelfConv (Just (Set [])) = [PrivateAccess]
-defAccess ConnectConv (Just (Set [])) = [PrivateAccess]
-defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
-defAccess RegularConv (Just (Set [])) = defRegularConvAccess
-defAccess _ (Just (Set (x : xs))) = x : xs
-
-maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
-maybeRole SelfConv _ = privateRole
-maybeRole ConnectConv _ = privateRole
-maybeRole One2OneConv _ = privateRole
-maybeRole RegularConv Nothing = defRole
-maybeRole RegularConv (Just r) = r
-
-defRole :: AccessRole
-defRole = ActivatedAccessRole
-
-defRegularConvAccess :: [Access]
-defRegularConvAccess = [InviteAccess]
-
-privateRole :: AccessRole
-privateRole = PrivateAccessRole
-
-privateOnly :: Set Access
-privateOnly = Set [PrivateAccess]
 
 -- Conversation Members -----------------------------------------------------
 
@@ -866,102 +534,27 @@ member ::
   UserId ->
   Galley r (Maybe LocalMember)
 member cnv usr =
-  (toMember =<<)
+  (C.toMember =<<)
     <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
 
-remoteMemberLists :: [ConvId] -> Client [[RemoteMember]]
-remoteMemberLists convs = do
-  mems <- retry x1 $ query Cql.selectRemoteMembers (params Quorum (Identity convs))
-  let convMembers = foldr (insert . mkMem) Map.empty mems
-  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
-  where
-    insert (conv, mem) acc =
-      let f = (Just . maybe [mem] (mem :))
-       in Map.alter f conv acc
-    mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
-
-toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
-toRemoteMember u d = RemoteMember (toRemoteUnsafe d u)
-
-memberLists :: [ConvId] -> Client [[LocalMember]]
-memberLists convs = do
-  mems <- retry x1 $ query Cql.selectMembers (params Quorum (Identity convs))
-  let convMembers = foldr (\m acc -> insert (mkMem m) acc) mempty mems
-  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
-  where
-    insert (_, Nothing) acc = acc
-    insert (conv, Just mem) acc =
-      let f = (Just . maybe [mem] (mem :))
-       in Map.alter f conv acc
-    mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
-      (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn))
-
 members :: ConvId -> Galley r [LocalMember]
-members = liftClient . membersC
-
-membersC :: ConvId -> Client [LocalMember]
-membersC = fmap concat . liftClient . memberLists . pure
+members = liftClient . C.members
 
 lookupRemoteMembers :: ConvId -> Galley r [RemoteMember]
-lookupRemoteMembers = liftClient . lookupRemoteMembersC
-
-lookupRemoteMembersC :: ConvId -> Client [RemoteMember]
-lookupRemoteMembersC conv = join <$> remoteMemberLists [conv]
+lookupRemoteMembers = liftClient . C.lookupRemoteMembers
 
 -- | Add a member to a local conversation, as an admin.
 addMember :: Local ConvId -> Local UserId -> Galley r [LocalMember]
-addMember c u = fst <$> addMembers c (UserList [tUnqualified u] [])
+addMember c u =
+  liftClient $
+    fst <$> C.addMembers (tUnqualified c) (UserList [tUnqualified u] [])
 
-class ToUserRole a where
-  toUserRole :: a -> (UserId, RoleName)
-
-instance ToUserRole (UserId, RoleName) where
-  toUserRole = id
-
-instance ToUserRole UserId where
-  toUserRole uid = (uid, roleNameWireAdmin)
-
-toQualifiedUserRole :: ToUserRole a => Qualified a -> (Qualified UserId, RoleName)
-toQualifiedUserRole = requalify . fmap toUserRole
-  where
-    requalify (Qualified (a, role) dom) = (Qualified a dom, role)
-
--- | Add members to a local conversation.
--- Conversation is local, so we can add any member to it (including remote ones).
--- When the role is not specified, it defaults to admin.
--- Please make sure the conversation doesn't exceed the maximum size!
-addMembers :: ToUserRole a => Local ConvId -> UserList a -> Galley r ([LocalMember], [RemoteMember])
-addMembers (tUnqualified -> conv) (fmap toUserRole -> UserList lusers rusers) = do
-  -- batch statement with 500 users are known to be above the batch size limit
-  -- and throw "Batch too large" errors. Therefor we chunk requests and insert
-  -- sequentially. (parallelizing would not aid performance as the partition
-  -- key, i.e. the convId, is on the same cassandra node)
-  -- chunk size 32 was chosen to lead to batch statements
-  -- below the batch threshold
-  -- With chunk size of 64:
-  -- [galley] Server warning: Batch for [galley_test.member, galley_test.user] is of size 7040, exceeding specified threshold of 5120 by 1920.
-  --
-  for_ (List.chunksOf 32 lusers) $ \chunk -> do
-    retry x5 . batch $ do
-      setType BatchLogged
-      setConsistency Quorum
-      for_ chunk $ \(u, r) -> do
-        -- User is local, too, so we add it to both the member and the user table
-        addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
-        addPrepQuery Cql.insertUserConv (u, conv)
-
-  for_ (List.chunksOf 32 rusers) $ \chunk -> do
-    retry x5 . batch $ do
-      setType BatchLogged
-      setConsistency Quorum
-      for_ chunk $ \(qUntagged -> Qualified (uid, role) domain) -> do
-        -- User is remote, so we only add it to the member_remote_user
-        -- table, but the reverse mapping has to be done on the remote
-        -- backend; so we assume an additional call to their backend has
-        -- been (or will be) made separately. See Galley.API.Update.addMembers
-        addPrepQuery Cql.insertRemoteMember (conv, domain, uid, role)
-
-  pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
+addMembers ::
+  ToUserRole a =>
+  ConvId ->
+  UserList a ->
+  Galley r ([LocalMember], [RemoteMember])
+addMembers cid = liftClient . C.addMembers cid
 
 -- | Set local users as belonging to a remote conversation. This is invoked by a
 -- remote galley when users from the current backend are added to conversations
@@ -1088,27 +681,10 @@ filterRemoteConvMembers users (Qualified conv dom) =
         $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, conv))
 
 removeLocalMembersFromLocalConv :: ConvId -> NonEmpty UserId -> Galley r ()
-removeLocalMembersFromLocalConv cnv = liftClient . removeLocalMembersFromLocalConvC cnv
-
-removeLocalMembersFromLocalConvC :: ConvId -> NonEmpty UserId -> Client ()
-removeLocalMembersFromLocalConvC cnv victims = do
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    for_ victims $ \victim -> do
-      addPrepQuery Cql.removeMember (cnv, victim)
-      addPrepQuery Cql.deleteUserConv (victim, cnv)
+removeLocalMembersFromLocalConv cnv = liftClient . C.removeLocalMembersFromLocalConv cnv
 
 removeRemoteMembersFromLocalConv :: ConvId -> NonEmpty (Remote UserId) -> Galley r ()
-removeRemoteMembersFromLocalConv cnv = liftClient . removeRemoteMembersFromLocalConvC cnv
-
-removeRemoteMembersFromLocalConvC :: ConvId -> NonEmpty (Remote UserId) -> Client ()
-removeRemoteMembersFromLocalConvC cnv victims = do
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    for_ victims $ \(qUntagged -> Qualified uid domain) ->
-      addPrepQuery Cql.removeRemoteMember (cnv, domain, uid)
+removeRemoteMembersFromLocalConv cnv = liftClient . C.removeRemoteMembersFromLocalConv cnv
 
 removeLocalMembersFromRemoteConv ::
   -- | The conversation to remove members from
@@ -1129,75 +705,6 @@ removeMember usr cnv = retry x5 . batch $ do
   setConsistency Quorum
   addPrepQuery Cql.removeMember (cnv, usr)
   addPrepQuery Cql.deleteUserConv (usr, cnv)
-
-newMember :: UserId -> LocalMember
-newMember u = newMemberWithRole (u, roleNameWireAdmin)
-
-newMemberWithRole :: (UserId, RoleName) -> LocalMember
-newMemberWithRole (u, r) =
-  LocalMember
-    { lmId = u,
-      lmService = Nothing,
-      lmStatus = defMemberStatus,
-      lmConvRoleName = r
-    }
-
-newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
-newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
-  RemoteMember
-    { rmId = qualifyAs ur u,
-      rmConvRoleName = r
-    }
-
-toMemberStatus ::
-  ( -- otr muted
-    Maybe MutedStatus,
-    Maybe Text,
-    -- otr archived
-    Maybe Bool,
-    Maybe Text,
-    -- hidden
-    Maybe Bool,
-    Maybe Text
-  ) ->
-  MemberStatus
-toMemberStatus (omus, omur, oar, oarr, hid, hidr) =
-  MemberStatus
-    { msOtrMutedStatus = omus,
-      msOtrMutedRef = omur,
-      msOtrArchived = fromMaybe False oar,
-      msOtrArchivedRef = oarr,
-      msHidden = fromMaybe False hid,
-      msHiddenRef = hidr
-    }
-
-toMember ::
-  ( UserId,
-    Maybe ServiceId,
-    Maybe ProviderId,
-    Maybe Cql.MemberStatus,
-    -- otr muted
-    Maybe MutedStatus,
-    Maybe Text,
-    -- otr archived
-    Maybe Bool,
-    Maybe Text,
-    -- hidden
-    Maybe Bool,
-    Maybe Text,
-    -- conversation role name
-    Maybe RoleName
-  ) ->
-  Maybe LocalMember
-toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
-  Just $
-    LocalMember
-      { lmId = usr,
-        lmService = newServiceRef <$> srv <*> prv,
-        lmStatus = toMemberStatus (omus, omur, oar, oarr, hid, hidr),
-        lmConvRoleName = fromMaybe roleNameWireAdmin crn
-      }
-toMember _ = Nothing
 
 -- Clients ------------------------------------------------------------------
 

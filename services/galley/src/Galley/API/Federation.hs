@@ -40,7 +40,9 @@ import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import qualified Galley.Effects.ConversationStore as E
 import Galley.Intra.User (getConnections)
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Imports
@@ -124,15 +126,17 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
 
 getConversations ::
+  Member ConversationStore r =>
   Domain ->
   GetConversationsRequest ->
   Galley r GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   localDomain <- viewFederationDomain
-  GetConversationsResponse
-    . mapMaybe (Mapping.conversationToRemote localDomain ruid)
-    <$> Data.localConversations cids
+  liftSem $
+    GetConversationsResponse
+      . mapMaybe (Mapping.conversationToRemote localDomain ruid)
+      <$> E.getConversations cids
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
@@ -230,7 +234,16 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ConversationStore,
+       ExternalAccess,
+       FederatorAccess,
+       FireAndForget,
+       GundeckAccess
+     ]
+    r =>
   Domain ->
   LeaveConversationRequest ->
   Galley r LeaveConversationResponse
@@ -292,7 +305,15 @@ onMessageSent domain rmUnqualified = do
           }
 
 sendMessage ::
-  Members '[BotAccess, BrigAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ConversationStore,
+       FederatorAccess,
+       GundeckAccess,
+       ExternalAccess
+     ]
+    r =>
   Domain ->
   MessageSendRequest ->
   Galley r MessageSendResponse
@@ -304,7 +325,14 @@ sendMessage originDomain msr = do
     err = throwM . invalidPayload . LT.pack
 
 onUserDeleted ::
-  Members '[FederatorAccess, FireAndForget, ExternalAccess, GundeckAccess] r =>
+  Members
+    '[ ConversationStore,
+       FederatorAccess,
+       FireAndForget,
+       ExternalAccess,
+       GundeckAccess
+     ]
+    r =>
   Domain ->
   UserDeletedConversationsNotification ->
   Galley r EmptyResponse
@@ -316,7 +344,7 @@ onUserDeleted origDomain udcn = do
   spawnMany $
     fromRange convIds <&> \c -> do
       lc <- qualifyLocal c
-      mconv <- Data.conversation c
+      mconv <- liftSem $ E.getConversation c
       Data.removeRemoteMembersFromLocalConv c (pure deletedUser)
       for_ mconv $ \conv -> do
         when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $

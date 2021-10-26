@@ -6,7 +6,7 @@
 -- the terms of the GNU Affero General Public License as published by the Free
 -- Software Foundation, either version 3 of the License, or (at your option) any
 -- later version.
---
+
 -- This program is distributed in the hope that it will be useful, but WITHOUT
 -- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 -- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
@@ -40,9 +40,12 @@ import Galley.API.One2One
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation.Types
 import Galley.Effects
+import qualified Galley.Effects.ConversationStore as E
 import Galley.Intra.Push
-import Galley.Types
+import Galley.Types.Conversations.Members
 import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
 import Galley.Types.UserList
 import Galley.Validation
@@ -51,8 +54,10 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Wire.API.Conversation hiding (Conversation, Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
@@ -65,7 +70,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 --
 -- See Note [managed conversations].
 createGroupConversation ::
-  Members '[BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
@@ -78,7 +83,7 @@ createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
 internalCreateManagedConversationH ::
-  Members '[BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
   Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
@@ -86,7 +91,7 @@ internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
   handleConversationResponse <$> internalCreateManagedConversation zusr zcon newConv
 
 internalCreateManagedConversation ::
-  Members '[BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   NewConvManaged ->
@@ -108,7 +113,7 @@ ensureNoLegalholdConflicts remotes locals = do
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv ::
-  Members '[BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   NewConvUnmanaged ->
@@ -121,23 +126,27 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   ensureConnected lusr allUsers
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   c <-
-    Data.createConversation
-      lusr
-      name
-      (access body)
-      (accessRole body)
-      checkedUsers
-      (newConvTeam body)
-      (newConvMessageTimer body)
-      (newConvReceiptMode body)
-      (newConvUsersRole body)
+    liftSem $
+      E.createConversation
+        NewConversation
+          { ncType = RegularConv,
+            ncCreator = tUnqualified lusr,
+            ncAccess = access body,
+            ncAccessRole = accessRole body,
+            ncName = name,
+            ncTeam = fmap cnvTeamId (newConvTeam body),
+            ncMessageTimer = newConvMessageTimer body,
+            ncReceiptMode = newConvReceiptMode body,
+            ncUsers = checkedUsers,
+            ncRole = newConvUsersRole body
+          }
   notifyCreatedConversation Nothing zusr (Just zcon) c
   conversationCreated zusr c
 
 -- | A helper for creating a team group conversation, used by the endpoint
 -- handlers above. Only supports unmanaged conversations.
 createTeamGroupConv ::
-  Members '[BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   Public.ConvTeamInfo ->
@@ -172,16 +181,20 @@ createTeamGroupConv zusr zcon tinfo body = do
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
-    Data.createConversation
-      lusr
-      name
-      (access body)
-      (accessRole body)
-      checkedUsers
-      (newConvTeam body)
-      (newConvMessageTimer body)
-      (newConvReceiptMode body)
-      (newConvUsersRole body)
+    liftSem $
+      E.createConversation
+        NewConversation
+          { ncType = RegularConv,
+            ncCreator = tUnqualified lusr,
+            ncAccess = access body,
+            ncAccessRole = accessRole body,
+            ncName = name,
+            ncTeam = fmap cnvTeamId (newConvTeam body),
+            ncMessageTimer = newConvMessageTimer body,
+            ncReceiptMode = newConvReceiptMode body,
+            ncUsers = checkedUsers,
+            ncRole = newConvUsersRole body
+          }
   now <- liftIO getCurrentTime
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) zusr (Just zcon) conv
@@ -190,18 +203,21 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversation :: UserId -> Galley r ConversationResponse
+createSelfConversation ::
+  Member ConversationStore r =>
+  UserId ->
+  Galley r ConversationResponse
 createSelfConversation zusr = do
   lusr <- qualifyLocal zusr
-  c <- Data.conversation (Id . toUUID $ zusr)
+  c <- liftSem $ E.getConversation (Id . toUUID $ zusr)
   maybe (create lusr) (conversationExisted zusr) c
   where
     create lusr = do
-      c <- Data.createSelfConversation lusr Nothing
+      c <- liftSem $ E.createSelfConversation lusr Nothing
       conversationCreated zusr c
 
 createOne2OneConversation ::
-  Members '[BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ConversationStore, FederatorAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   NewConvUnmanaged ->
@@ -245,7 +261,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
         Nothing -> throwM teamNotFound
 
 createLegacyOne2OneConversationUnchecked ::
-  Members '[FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -254,17 +270,17 @@ createLegacyOne2OneConversationUnchecked ::
   Galley r ConversationResponse
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
-  mc <- Data.conversation (tUnqualified lcnv)
+  mc <- liftSem $ E.getConversation (tUnqualified lcnv)
   case mc of
     Just c -> conversationExisted (tUnqualified self) c
     Nothing -> do
       (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
-      c <- Data.createLegacyOne2OneConversation self x y name mtid
+      c <- liftSem $ E.createLegacyOne2OneConversation self x y name mtid
       notifyCreatedConversation Nothing (tUnqualified self) (Just zcon) c
       conversationCreated (tUnqualified self) c
 
 createOne2OneConversationUnchecked ::
-  Members '[FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -280,7 +296,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId (qUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  Members '[FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
   Local ConvId ->
   Local UserId ->
   ConnId ->
@@ -289,11 +305,11 @@ createOne2OneConversationLocally ::
   Qualified UserId ->
   Galley r ConversationResponse
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
-  mc <- Data.conversation (tUnqualified lcnv)
+  mc <- liftSem $ E.getConversation (tUnqualified lcnv)
   case mc of
     Just c -> conversationExisted (tUnqualified self) c
     Nothing -> do
-      c <- Data.createOne2OneConversation lcnv self other name mtid
+      c <- liftSem $ E.createOne2OneConversation (tUnqualified lcnv) self other name mtid
       notifyCreatedConversation Nothing (tUnqualified self) (Just zcon) c
       conversationCreated (tUnqualified self) c
 
@@ -309,7 +325,7 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
   throwM federationNotImplemented
 
 createConnectConversation ::
-  Members '[FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
   UserId ->
   Maybe ConnId ->
   Connect ->
@@ -331,7 +347,7 @@ createConnectConversationWithRemote _ _ _ =
   throwM federationNotImplemented
 
 createLegacyConnectConversation ::
-  Members '[FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
   Local UserId ->
   Maybe ConnId ->
   Local UserId ->
@@ -340,11 +356,11 @@ createLegacyConnectConversation ::
 createLegacyConnectConversation lusr conn lrecipient j = do
   (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
-  conv <- Data.conversation (Data.localOne2OneConvId x y)
+  conv <- liftSem $ E.getConversation (Data.localOne2OneConvId x y)
   maybe (create x y n) (update n) conv
   where
     create x y n = do
-      c <- Data.createConnectConversation lusr x y n
+      c <- liftSem $ E.createConnectConversation x y n
       now <- liftIO getCurrentTime
       let lcid = qualifyAs lusr (Data.convId c)
           e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
@@ -384,8 +400,8 @@ createLegacyConnectConversation lusr conn lrecipient j = do
         localDomain <- viewFederationDomain
         let qconv = Qualified (Data.convId conv) localDomain
         n' <- case n of
-          Just x -> do
-            Data.updateConversation (Data.convId conv) x
+          Just x -> liftSem $ do
+            E.setConversationName (Data.convId conv) x
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime

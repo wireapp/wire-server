@@ -66,6 +66,7 @@ library:
   - optparse-applicative >=0.10
   - pem
   - polysemy
+  - polysemy-wire-zoo
   - protobuf >=0.2
   - proto-lens >=0.2
   - QuickCheck >=2.14

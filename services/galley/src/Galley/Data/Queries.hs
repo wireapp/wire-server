@@ -28,7 +28,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import qualified Data.Text.Lazy as LT
-import Galley.Data.Types
+import Galley.Data.Scope
 import Galley.Types hiding (Conversation)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
