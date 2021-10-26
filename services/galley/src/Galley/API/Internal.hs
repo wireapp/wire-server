@@ -524,10 +524,9 @@ rmUser user conn = do
 
     leaveRemoteConversations :: Local UserId -> Range 1 1000 [Remote ConvId] -> Galley ()
     leaveRemoteConversations lusr cids = do
-      loc <- qualifyLocal ()
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain loc) userDelete
+        let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete
         res <- runExceptT (executeFederated (tDomain remoteConvs) rpc)
         case res of
           -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
