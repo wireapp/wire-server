@@ -161,11 +161,13 @@ data NewConnectionResponse
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
 
+type UserDeletedNotificationMaxConnections = 1000
+
 data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   { -- | This is qualified implicitly by the origin domain
     udcnUser :: UserId,
     -- | These are qualified implicitly by the target domain
-    udcnConnections :: Range 1 1000 [UserId]
+    udcnConnections :: Range 1 UserDeletedNotificationMaxConnections [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)

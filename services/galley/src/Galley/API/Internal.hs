@@ -522,7 +522,7 @@ rmUser user conn = do
         (maybeList1 (catMaybes pp))
         Intra.push
 
-    leaveRemoteConversations :: Local UserId -> Range 1 1000 [Remote ConvId] -> Galley ()
+    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley ()
     leaveRemoteConversations lusr cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))

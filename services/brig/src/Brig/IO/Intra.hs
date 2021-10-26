@@ -98,9 +98,11 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
+import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import GHC.TypeLits
 import Galley.Types (Connect (..), Conversation)
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
@@ -114,6 +116,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
 import Wire.API.Message (UserClients)
@@ -256,7 +259,7 @@ notifyUserDeletionLocals deleted conn event = do
 notifyUserDeletionRemotes :: UserId -> AppIO ()
 notifyUserDeletionRemotes deleted = do
   runConduit $
-    Data.lookupRemoteConnectedUsersC deleted 1000
+    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
       .| C.mapM_ fanoutNotifications
   where
     fanoutNotifications :: [Remote UserId] -> AppIO ()
@@ -264,8 +267,7 @@ notifyUserDeletionRemotes deleted = do
 
     notifyBackend :: Remote [UserId] -> AppIO ()
     notifyBackend uids = do
-      let rangedMaybeUids = checked @_ @1 @1000 <$> uids
-      case tUnqualified rangedMaybeUids of
+      case tUnqualified (checked <$> uids) of
         Nothing ->
           -- The user IDs cannot be more than 1000, so we can assume the range
           -- check will only fail because there are 0 User Ids.

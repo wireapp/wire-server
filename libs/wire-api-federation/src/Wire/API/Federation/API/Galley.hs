@@ -263,11 +263,13 @@ newtype LeaveConversationResponse = LeaveConversationResponse
     (ToJSON, FromJSON)
     via (Either (CustomEncoded RemoveFromConversationError) ())
 
+type UserDeletedNotificationMaxConvs = 1000
+
 data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   { -- | This is qualified implicitly by the origin domain
     udcnUser :: UserId,
     -- | These are qualified implicitly by the target domain
-    udcnConversations :: Range 1 1000 [ConvId]
+    udcnConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
