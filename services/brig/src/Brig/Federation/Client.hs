@@ -104,5 +104,5 @@ notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   let fedRPC =
         FederatedBrig.onUserDeleted clientRoutes (tDomain self) $
-          UserDeletedNotification (tUnqualified self) remoteConnections
+          UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
   void $ executeFederated (tDomain remotes) fedRPC

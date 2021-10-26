@@ -42,7 +42,7 @@ import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
-import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest), UserDeletedNotification (..))
+import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest), UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
@@ -67,7 +67,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/on-user-deleted : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient)
+        test m "POST /federation/on-user-deleted/connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -238,7 +238,7 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
       FedBrig.onUserDeleted
         fedBrigClient
         (qDomain remoteUser)
-        (UserDeletedNotification (qUnqualified remoteUser) (unsafeRange localUsers))
+        (UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers))
 
     WS.assertMatchN_ (5 # Second) [cc] $ matchDeleteUserNotification remoteUser
     WS.assertNoEvent (1 # Second) [pc, bc, uc]

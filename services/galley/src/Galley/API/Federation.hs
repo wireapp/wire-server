@@ -64,7 +64,7 @@ import Wire.API.Federation.API.Galley
     MessageSendResponse (..),
     NewRemoteConversation (..),
     RemoteMessage (..),
-    UserDeletedNotification,
+    UserDeletedConversationsNotification,
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 import Wire.API.Routes.Internal.Brig.Connection
@@ -278,11 +278,11 @@ sendMessage originDomain msr = do
   where
     err = throwM . invalidPayload . LT.pack
 
-onUserDeleted :: Domain -> UserDeletedNotification -> Galley EmptyResponse
-onUserDeleted origDomain udn = do
-  let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udnUser udn)
+onUserDeleted :: Domain -> UserDeletedConversationsNotification -> Galley EmptyResponse
+onUserDeleted origDomain udcn = do
+  let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udcnUser udcn)
       untaggedDeletedUser = qUntagged deletedUser
-      convIds = FederationAPIGalley.udnConversations udn
+      convIds = FederationAPIGalley.udcnConversations udcn
   pooledForConcurrentlyN_ 16 (fromRange convIds) $ \c -> do
     lc <- qualifyLocal c
     mconv <- Data.conversation c

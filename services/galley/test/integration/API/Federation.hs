@@ -83,7 +83,7 @@ tests s =
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
-      test s "POST /federation/on-user-deleted : Remove deleted remote user from local conversations" onUserDeleted
+      test s "POST /federation/on-user-deleted/conversations : Remove deleted remote user from local conversations" onUserDeleted
     ]
 
 getConversationsAllFound :: TestM ()
@@ -912,10 +912,10 @@ onUserDeleted = do
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified charlie) $ \(wsAlice, wsCharlie) -> do
     (resp, rpcCalls) <- withTempMockFederator (const ()) $ do
-      let udn =
-            FedGalley.UserDeletedNotification
-              { FedGalley.udnUser = tUnqualified bob,
-                FedGalley.udnConversations =
+      let udcn =
+            FedGalley.UserDeletedConversationsNotification
+              { FedGalley.udcnUser = tUnqualified bob,
+                FedGalley.udcnConversations =
                   unsafeRange
                     [ qUnqualified ooConvId,
                       qUnqualified groupConvId,
@@ -927,10 +927,10 @@ onUserDeleted = do
       responseJsonError
         =<< post
           ( g
-              . paths ["federation", "on-user-deleted"]
+              . paths ["federation", "on-user-deleted", "conversations"]
               . content "application/json"
               . header "Wire-Origin-Domain" (toByteString' (tDomain bob))
-              . json udn
+              . json udcn
           )
         <!! const 200 === statusCode
 
