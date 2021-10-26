@@ -3199,16 +3199,16 @@ removeUser = do
     cReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain) fedRequests
     liftIO $ do
       fmap F.component (F.request bReq) @?= Just F.Galley
-      fmap F.path (F.request bReq) @?= Just "/federation/on-user-deleted"
-      Just (Right udnB) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bReq)
-      sort (fromRange (FederatedGalley.udnConversations udnB)) @?= sort [convB1, convB2]
-      FederatedGalley.udnUser udnB @?= qUnqualified alexDel
+      fmap F.path (F.request bReq) @?= Just "/federation/on-user-deleted/conversations"
+      Just (Right udcnB) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bReq)
+      sort (fromRange (FederatedGalley.udcnConversations udcnB)) @?= sort [convB1, convB2]
+      FederatedGalley.udcnUser udcnB @?= qUnqualified alexDel
 
       fmap F.component (F.request bReq) @?= Just F.Galley
-      fmap F.path (F.request cReq) @?= Just "/federation/on-user-deleted"
-      Just (Right udnC) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cReq)
-      sort (fromRange (FederatedGalley.udnConversations udnC)) @?= sort [convC1]
-      FederatedGalley.udnUser udnC @?= qUnqualified alexDel
+      fmap F.path (F.request cReq) @?= Just "/federation/on-user-deleted/conversations"
+      Just (Right udcnC) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cReq)
+      sort (fromRange (FederatedGalley.udcnConversations udcnC)) @?= sort [convC1]
+      FederatedGalley.udcnUser udcnC @?= qUnqualified alexDel
 
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
         wsAssertMembersLeave qconvA1 alexDel [alexDel]

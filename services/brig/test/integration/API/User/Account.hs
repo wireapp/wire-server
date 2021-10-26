@@ -77,7 +77,7 @@ import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
-import Wire.API.Federation.API.Brig (UserDeletedNotification (..))
+import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Federation.GRPC.Types (OutwardResponse (OutwardResponseBody))
@@ -1241,14 +1241,14 @@ testDeleteWithRemotes opts brig = do
   liftIO $ do
     remote1Call <- assertOne $ filter (\c -> F.domain c == domainText remote1Domain) rpcCalls
     remote1Udn <- assertRight $ parseFedRequest remote1Call
-    udnUser remote1Udn @?= userId localUser
-    sort (fromRange (udnConnections remote1Udn))
+    udcnUser remote1Udn @?= userId localUser
+    sort (fromRange (udcnConnections remote1Udn))
       @?= sort (map qUnqualified [remote1UserConnected, remote1UserPending])
 
     remote2Call <- assertOne $ filter (\c -> F.domain c == domainText remote2Domain) rpcCalls
     remote2Udn <- assertRight $ parseFedRequest remote2Call
-    udnUser remote2Udn @?= userId localUser
-    fromRange (udnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
+    udcnUser remote2Udn @?= userId localUser
+    fromRange (udcnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
   where
     parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
     parseFedRequest fr =
