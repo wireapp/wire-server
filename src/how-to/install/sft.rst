@@ -112,12 +112,14 @@ For more advanced setups please refer to the `technical documentation <https://g
 Firewall rules
 --------------
 
-The SFT allocates media addresses in the ``32768-61000`` UDP range. Ingress and
+The SFT allocates media addresses in the UDP :ref:`default port range <port-ranges>`. Ingress and
 egress traffic should be allowed for this range. Furthermore the SFT needs to be
 able to reach the :ref:`Restund server <understand-restund>`, as it uses STUN and TURN in cases the client
 can not directly connect to the SFT. In practise this means the SFT should
-allow ingress and egress traffic on the UDP port range ``32768-61000`` from and
+allow ingress and egress traffic on the UDP :ref:`default port range <port-ranges>` from and
 to both, clients and :ref:`Restund servers <understand-restund>`.
+
+*For more information on this port range, how to read and change it, and how to configure your firewall, please see* :ref:`this note <port-ranges>`.
 
 The SFT also has an HTTP interface for initializing (allocation) or joining (signaling) a call. This is exposed through
 the ingress controller as an HTTPS service.
