@@ -54,7 +54,7 @@ import Spar.Orphans ()
 import Spar.Sem.Logger.TinyLog (toLevel)
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
-import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
+import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
 import Wire.API.User.Saml as Types
 
 ----------------------------------------------------------------------
@@ -80,8 +80,17 @@ initCassandra opts lgr = do
         & Cas.setSendTimeout 3
         & Cas.setResponseTimeout 10
         & Cas.setProtocolVersion V4
+        & Cas.setPolicy policy
   runClient cas $ Cas.versionCheck Data.schemaVersion
   pure cas
+  where
+    -- Use FilterNodesByDatacentre if set, otherwise use all available nodes
+    -- TODO: Discuss whether to fail startup of service here if datacentre doesn't exist.
+    policy :: IO Cas.Policy
+    policy = do
+      let filterOptions = Types.cassandra opts ^. casFilterNodesByDatacentre
+      Log.info lgr $ Log.msg ("Using the following cassandra load balancing options:" :: Text) . Log.field "filter_datacentre" (show filterOptions)
+      maybe Cas.random Cas.dcAwareRandomPolicy filterOptions
 
 ----------------------------------------------------------------------
 -- servant / wai / warp
