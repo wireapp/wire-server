@@ -207,6 +207,21 @@ impersonate rogue accounts) hard that were otherwise quite feasible.
 Wire therefore only supports SP-initiated login.
 
 
+How are SAML2 assertion details used in wire?
+---------------------------------------------
+
+Wire only uses the SAML `NameID` from the assertion, plus the
+information whether authentication and authorization was successful.
+Any other information is ignored.  In particular, Wire does not
+support SAML2 `AttributeStatements`.  For best user experience, use
+SCIM for provisioning users (see next section).
+
+If SCIM is not in the picture, the SAML `NameID` is used to give the
+wire user display name a default value.  (The user will be allowed to
+change that value later; changing it does NOT affect the
+authentication handshake between wire and the IdP.)
+
+
 How should I map user data to SCIM attributes when provisioning users via SCIM?
 -------------------------------------------------------------------------------
 

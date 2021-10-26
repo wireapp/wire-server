@@ -1,7 +1,9 @@
-How to set up user provisioning with SCIM
-=========================================
+How to set up user provisioning with LDAP or SCIM
+=================================================
 
 Wire supports the `SCIM <http://www.simplecloud.info/>`__ (`RFC 7643 <https://tools.ietf.org/html/rfc7643>`__) protocol to create, update and delete users.
+
+If your user data is stored in an LDAP data source like Active Directory or OpenLDAP, you can use our docker-base `ldap-scim-bridge <https://github.com/wireapp/ldap-scim-bridge/#use-via-docker>`__ to connect it to wire.
 
 Note that connecting a SCIM client to Wire also disables the functionality to create new users in the SSO login process. This functionality is disabled when a token is created (see below) and re-enabled when all tokens have been deleted.
 
