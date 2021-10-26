@@ -3153,6 +3153,7 @@ removeUser = do
   connectUsers alice' (list1 alexDel' [amy'])
   connectWithRemoteUser alice' bart
   connectWithRemoteUser alexDel' bart
+  connectWithRemoteUser alice' carl
   connectWithRemoteUser alexDel' carl
 
   convA1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
