@@ -316,7 +316,7 @@ evalGalley0 e =
     . P.runReader (e ^. cstate)
 
 evalGalley :: Env -> Galley GalleyEffects a -> IO a
-evalGalley e = evalGalley0 e . interpretGalleyEffects . unGalley
+evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
 
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
@@ -395,4 +395,14 @@ liftSem :: Sem r a -> Galley r a
 liftSem m = Galley m
 
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
-interpretGalleyToGalley0 = Galley . interpretGalleyEffects . unGalley
+interpretGalleyToGalley0 =
+  Galley
+    . interpretFireAndForget
+    . interpretIntra
+    . interpretBot
+    . interpretFederator
+    . interpretExternal
+    . interpretSpar
+    . interpretGundeck
+    . interpretBrig
+    . unGalley

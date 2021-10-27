@@ -18,7 +18,6 @@
 module Galley.Effects
   ( -- * Effects needed in Galley
     GalleyEffects1,
-    interpretGalleyEffects,
 
     -- * Internal services
     Intra,
@@ -61,7 +60,6 @@ where
 import Galley.Effects.FireAndForget
 import Imports
 import Polysemy
-import Polysemy.Internal
 
 data Intra m a
 
@@ -109,14 +107,3 @@ type GalleyEffects1 =
      Intra,
      FireAndForget
    ]
-
-interpretGalleyEffects :: Member (Final IO) r => Sem (Append GalleyEffects1 r) a -> Sem r a
-interpretGalleyEffects =
-  interpretFireAndForget
-    . interpretIntra
-    . interpretBot
-    . interpretFederator
-    . interpretExternal
-    . interpretSpar
-    . interpretGundeck
-    . interpretBrig
