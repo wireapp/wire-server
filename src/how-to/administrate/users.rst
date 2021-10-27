@@ -5,7 +5,7 @@ Investigative tasks (e.g. searching for users as server admin)
 
 This page requires that you have root access to the machines where kubernetes runs on, or have kubernetes permissions allowing you to port-forward arbitrary pods and services.
 
-If you have the `backoffice` pod installed, see also the `backoffice README <https://github.com/wireapp/wire-server-deploy/tree/develop/charts/backoffice>`__.
+If you have the `backoffice` pod installed, see also the `backoffice README <https://github.com/wireapp/wire-server/tree/develop/charts/backoffice>`__.
 
 If you don't have `backoffice`, see below for some options:
 
@@ -146,6 +146,12 @@ First, ssh to an elasticsearch instance.
 
 .. code:: sh
 
+  ssh <ip of elasticsearch instance> 
+
+Then run the following:
+
+.. code:: sh
+
    PREFIX=...
    curl -s "http://localhost:9200/directory/_search?q=$PREFIX" | json_pp
 
@@ -160,7 +166,11 @@ How to manually delete a user from elasticsearch only
 
 If, despite the warning, you wish to continue?
 
-First, ssh to an elasticsearch instance.
+First, ssh to an elasticsearch instance:
+
+.. code:: sh
+
+  ssh <ip of elasticsearch instance> 
 
 Next, check that the user exists:
 

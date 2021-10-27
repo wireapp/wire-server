@@ -22,7 +22,7 @@ What you need:
 
    -  A kubernetes cluster (some cloud providers offer a managed
       kubernetes cluster these days).
-   -  One single virtual machine running ubuntu 16.04 or 18.04 with at least 20 GB of disk, 8 GB of memory, and 8 CPU cores.
+   -  One single virtual machine running ubuntu 18.04 with at least 20 GB of disk, 8 GB of memory, and 8 CPU cores.
 
 A demo installation will look a bit like this:
 
@@ -65,7 +65,7 @@ server component (cassandra, minio, elasticsearch, redis, kubernetes,
 restund)
 
 It's up to you how you create these VMs - kvm on a bare metal machine,
-VM on a cloud provider, etc. Make sure they run ubuntu 16.04 or 18.04.
+VM on a cloud provider, etc. Make sure they run ubuntu 18.04.
 
 Ensure that your VMs have IP addresses that do not change.
 

@@ -26,7 +26,8 @@ users, they need to be reachable by both of these users, which usually
 means they need to have a **public IP address**.
 
 While one server is enough to get started, two servers provide
-high-availability in case one server gets into trouble.
+high-availability in case one server gets into trouble. A
+Restund instance may communicate with other Restund instances.
 
 You can either have restund servers directly exposed to the public
 internet:
@@ -89,30 +90,29 @@ also for ingress traffic. Tools like ``iptables`` or ``ufw`` can be used to set 
 .. [1] `Details about CVE-2020-26262, bypass of Coturn's default access control protection <https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/>`__
 
 
+.. _understand-restund-protocal-and-ports:
+
 Protocols and open ports
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Restund servers provide the best audio/video connections if end-user devices
-can connect to them via UDP. In this case, a firewall (if any) needs to allow
-and/or forward the complete UDP port range ``32768-61000`` for incoming UDP
-traffic. Ports for allocations are allocated from `ip_local_port_range
-<https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>`__ which
-is ``32768-61000`` by default.
+can connect to them via UDP. 
+
+In this case, a firewall (if any) needs to allow and/or forward the complete :ref:`default port range <port-ranges>` for incoming UDP traffic. 
+
+Ports for allocations are allocated from the :ref:`default port range <port-ranges>`, for more information on this port range, how to read and change it, and how to configure your firewall, see :ref:`this note <port-ranges>`.
+
+In case e.g. office firewall rules disallow UDP traffic in this range, there is a possibility to use TCP instead, at the expense of call quality. 
 
 Port ``3478`` is the default control port,
 however one UDP port per active connection is required, so a whole port
 range must be available and reachable from the outside.
 
-In case e.g. office firewall rules disallow UDP traffic, there is a
-possibility to use TCP instead, at the expense of call quality. So in
-practise; it is recommended to allow the port range ``32768-61000`` on both
-UDP and TCP.
-
 If *Conference Calling 2.0* (:ref:`SFT <understand-sft>`) is enabled, a Restund instance,
 additionally, must be allowed to communicate with ::ref:`SFT instances <install-sft-firewall-rules>`
 on the same UDP ports mentioned above. In this scenario a Restund server becomes sort
-of a proxy for the client, if the client is not able to establish a direct connection
-to the SFT server.
+of a proxy for the client, if the client is not able to establish a media channel between
+itself and the SFT server.
 
 *For more information, please refer to the source code of the Ansible role:* `restund <https://github.com/wireapp/ansible-restund/blob/master/tasks/firewall.yml>`__.
 

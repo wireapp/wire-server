@@ -22,7 +22,9 @@ You need to have wire-server installed, see either of
 How to install Prometheus and Grafana on Kubernetes using Helm
 ---------------------------------------------------------------
 
-*Note: the following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.*
+.. note::
+
+    The following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.
 
 Create an override file:
 
@@ -135,8 +137,9 @@ file.
      grafana:
        persistence:
          enabled: false
-     prometheusSpec:
-       storageSpec: null
+     prometheus:
+       prometheusSpec:
+         storageSpec: null
      alertmanager:
        alertmanagerSpec:
            storage: null
@@ -161,11 +164,12 @@ file.
      grafana:
        persistence:
          storageClassName: "<my-storage-class>"
-     prometheusSpec:
-       storageSpec:
-         volumeClaimTemplate:
-           spec:
-             storageClassName: "<my-storage-class>"
+     prometheus:
+       prometheusSpec:
+         storageSpec:
+           volumeClaimTemplate:
+             spec:
+               storageClassName: "<my-storage-class>"
      alertmanager:
        alertmanagerSpec:
          storage:

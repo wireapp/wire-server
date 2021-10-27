@@ -9,5 +9,3 @@ RUN nix-env -f /wire-docs/nix/default.nix -iA env && \
     rm -rf /wire-docs
 
 WORKDIR /mnt
-
-ENV USE_POETRY=0

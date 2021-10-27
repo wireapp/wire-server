@@ -1,8 +1,13 @@
 Required/Supported versions
 ===========================
 
+*Updated: 26.04.2021*
 
-*Updated: 20.05.2020*
+.. warning::
+
+    If you already installed Wire by using ``poetry``, please refer to the
+    `old version </versions/install-with-poetry/how-to/install/version-requirements.html>`__ of
+    the installation guide.
 
 
 Persistence
@@ -20,11 +25,11 @@ Infrastructure
 
 - Ubuntu: 18.04
 - Docker: latest
-- Kubernetes: 1.14.2 (tested: Kubspray `e2f5a97 <https://github.com/kubernetes-sigs/kubespray/commit/e2f5a9748e4dbfe2fdba7931198b0b5f1f4bdc7e>`_)
+- Kubernetes: 1.19.7
 
 
 Automation
 ----------
 
-- Ansible: 2.7
+- Ansible: 2.9
 - Helm: >= v3

@@ -18,6 +18,8 @@ which may yield output like this:
 
    tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      1536/sshd
 
+.. _how-to-see-tls-certs:
+
 How can I see if my TLS certificates are configured the way I expect?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

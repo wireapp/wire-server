@@ -169,3 +169,86 @@ takes care of this. Just change the inventory accordingly and re-apply the
 role.
 
 For more information, please refer to the *Credentials* section in the `official documentation <https://docs.min.io/docs/minio-server-configuration-guide.html>`__.
+
+Check the health of a MinIO node
+================================
+
+This is the procedure to check a minio node's health.
+
+First log into the minio server 
+
+.. code:: sh 
+
+  ssh <ip of minio node>
+
+There, run the following commands:
+
+.. code:: sh
+
+  env $(sudo grep KEY /etc/default/minio-server1 | xargs) bash
+  export MC_HOST_local="http://$MINIO_ACCESS_KEY:$MINIO_SECRET_KEY@127.0.0.1:9000"
+  mc admin info local
+
+You should see a result similar to this:
+
+.. code:: sh
+
+   *  192.168.0.12:9092
+   Uptime: 2 months
+   Version: 2020-10-28T08:16:50Z
+   Network: 6/6 OK
+   Drives: 1/1 OK
+
+   *  192.168.0.22:9000
+   Uptime: 2 months
+   Version: 2020-10-28T08:16:50Z
+   Network: 6/6 OK
+   Drives: 1/1 OK
+
+   *  192.168.0.22:9092
+   Uptime: 2 months
+   Version: 2020-10-28T08:16:50Z
+   Network: 6/6 OK
+   Drives: 1/1 OK
+
+   *  192.168.0.32:9000
+   Uptime: 2 months
+   Version: 2020-10-28T08:16:50Z
+   Network: 6/6 OK
+   Drives: 1/1 OK
+
+   *  192.168.0.32:9092
+   Uptime: 2 months
+   Version: 2020-10-28T08:16:50Z
+   Network: 6/6 OK
+   Drives: 1/1 OK
+
+   *  192.168.0.12:9000
+   Uptime: 2 months
+   Version: 2020-10-28T08:16:50Z
+   Network: 6/6 OK
+   Drives: 1/1 OK
+
+Make sure you see ``Network: 6/6 OK``.
+
+Reboot the machine with:
+
+.. code:: sh 
+
+  sudo reboot 
+
+Then wait at least a minute.
+
+If you go to ssh in, and get 'Connection refused', it just means you need to wait a bit longer.
+
+Tip: You can automatically ask SSH to attempt to connect until it is succesful, by using the following command: 
+
+.. code:: sh 
+
+  ssh -o 'ConnectionAttempts 3600' <ip of minio node> exit
+
+Log into minio ( repeat the steps above ), and check again.
+
+You should see a very low uptime value on two hosts now.
+
+This is because we install minio 'twice' on each host.

@@ -15,7 +15,7 @@ Assumptions
 -----------
 
 - A bare-metal setup (no cloud provider)
-- All machines run ubuntu 16.04 or ubuntu 18.04
+- All machines run ubuntu 18.04
 - All machines have static IP addresses
 - Time on all machines is being kept in sync
 - You have the following virtual machines:
@@ -27,8 +27,6 @@ machine, VM on a cloud provider, real physical machines, etc.)
 
 Preparing to run ansible
 ------------------------
-
-.. include:: ansible-dependencies.rst
 
 .. _adding-ips-to-hostsini:
 
@@ -106,7 +104,7 @@ To install kubernetes:
 
 From ``wire-server-deploy/ansible``::
 
-   poetry run ansible-playbook -i hosts.ini kubernetes.yml -vv
+   ansible-playbook -i hosts.ini kubernetes.yml -vv
 
 When the playbook finishes correctly (which can take up to 20 minutes), you should have a folder ``artifacts`` containing a file ``admin.conf``. Copy this file::
 
@@ -119,8 +117,8 @@ Make sure you can reach the server::
 
 should give output similar to this::
 
-  Client Version: version.Info{Major:"1", Minor:"14", GitVersion:"v1.14.2", GitCommit:"66049e3b21efe110454d67df4fa62b08ea79a19b", GitTreeState:"clean", BuildDate:"2019-05-16T16:23:09Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
-  Server Version: version.Info{Major:"1", Minor:"14", GitVersion:"v1.14.2", GitCommit:"66049e3b21efe110454d67df4fa62b08ea79a19b", GitTreeState:"clean", BuildDate:"2019-05-16T16:14:56Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+  Client Version: version.Info{Major:"1", Minor:"19", GitVersion:"v1.19.7", GitCommit:"1dd5338295409edcfff11505e7bb246f0d325d15", GitTreeState:"clean", BuildDate:"2021-01-13T13:23:52Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+  Server Version: version.Info{Major:"1", Minor:"19", GitVersion:"v1.19.7", GitCommit:"1dd5338295409edcfff11505e7bb246f0d325d15", GitTreeState:"clean", BuildDate:"2021-01-13T13:15:20Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
 
 Cassandra
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -151,11 +149,11 @@ Cassandra
 `defaults/main.yml <https://github.com/wireapp/ansible-cassandra/blob/master/defaults/main.yml>`__
 for a full list of variables to change if necessary)
 
-- Use poetry to run ansible, and deploy Cassandra:
+- Use ansible to deploy Cassandra:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini cassandra.yml -vv
+   ansible-playbook -i hosts.ini cassandra.yml -vv
 
 ElasticSearch
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -179,11 +177,11 @@ ElasticSearch
    # es_apt_key = "https://<mymirror>/linux/ubuntu/gpg"
    # es_apt_url = "deb [trusted=yes] https://<mymirror>/apt bionic stable"
 
--  Use poetry to run ansible, and deploy ElasticSearch:
+-  Use ansible and deploy ElasticSearch:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini elasticsearch.yml -vv
+   ansible-playbook -i hosts.ini elasticsearch.yml -vv
 
 Minio
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -219,11 +217,11 @@ this step.
    # Default first interface on ubuntu on kvm:
    minio_network_interface=ens3
 
--  Use poetry to run ansible, and deploy Minio:
+-  Use ansible, and deploy Minio:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini minio.yml -vv
+   ansible-playbook -i hosts.ini minio.yml -vv
 
 Restund
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -269,7 +267,7 @@ Install restund:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini restund.yml -vv
+   ansible-playbook -i hosts.ini restund.yml -vv
 
 IMPORTANT checks
 ^^^^^^^^^^^^^^^^
@@ -278,7 +276,7 @@ IMPORTANT checks
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini cassandra-verify-ntp.yml -vv
+   ansible-playbook -i hosts.ini cassandra-verify-ntp.yml -vv
 
 Installing helm charts - prerequisites
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -302,11 +300,12 @@ In your hosts.ini under ``[all:vars]``:
    # if you're using redis external...
    redis_network_interface = ...
 
+
+Now run the helm_external.yml playbook, to populate network values for helm:
+
 ::
 
-- Now run the helm_external.yml playbook, to populate network values for helm:
-
-   poetry run ansible-playbook -i hosts.ini -vv --diff helm_external.yml
+   ansible-playbook -i hosts.ini -vv --diff helm_external.yml
 
 You can now can install the helm charts.
 

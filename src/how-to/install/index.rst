@@ -7,6 +7,7 @@ Installing wire-server
 
    How to plan an installation <planning.rst>
    Version requirements <version-requirements.rst>
+   dependencies
    (demo) How to install kubernetes <kubernetes.rst>
    (demo) How to install wire-server using Helm <helm.rst>
    (production) Introduction <prod-intro.rst>
@@ -17,6 +18,7 @@ Installing wire-server
    (production) How to see centralized logs for wire-server <logging.rst>
    (production) Other configuration options <configuration-options.rst>
    sft
+   configure-federation
    Managing authentication with ansible <ansible-authentication.rst>
    Using tinc <ansible-tinc.rst>
    Troubleshooting during installation <troubleshooting.rst>

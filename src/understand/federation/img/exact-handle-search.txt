@@ -18,6 +18,8 @@ federator@B -> brig@B: (handle="alice")
 
 brig@B -> federator@B: Response: UserProfile of Alice
 
-federator@B -> federator@A: Response: UserProfile of Alice
+federator@B -> ingress@B: Response: UserProfile of Alice
+
+ingress@B -> federator@A: Response: UserProfile of Alice
 
 federator@A -> brig@A: Response: UserProfile of Alice

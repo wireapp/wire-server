@@ -12,11 +12,14 @@ Please refer to the following :ref:`section to better understand SFT and how it 
 As part of the wire-server umbrella chart
 -----------------------------------------
 
-By default, ``sftd`` will be installed as part of the ``wire-server`` umbrella chart.
+`sftd`` will be installed as part of the ``wire-server`` umbrella chart if you set `tags.sftd: true`
 
 In your ``./values/wire-server/values.yaml`` file you should set the following settings:
 
 .. code:: yaml
+
+   tags:
+     sftd: true
 
    sftd:
      host: sftd.example.com # Replace example.com with your domain
@@ -109,16 +112,40 @@ For more advanced setups please refer to the `technical documentation <https://g
 Firewall rules
 --------------
 
-The SFT allocates media addresses in the ``32768-61000`` UDP range. Ingress and
+The SFT allocates media addresses in the UDP :ref:`default port range <port-ranges>`. Ingress and
 egress traffic should be allowed for this range. Furthermore the SFT needs to be
 able to reach the :ref:`Restund server <understand-restund>`, as it uses STUN and TURN in cases the client
 can not directly connect to the SFT. In practise this means the SFT should
-allow ingress and egress traffic on the UDP port range ``32768-61000`` from and
-to both clients and the :ref:`Restund server <understand-restund>`.
+allow ingress and egress traffic on the UDP :ref:`default port range <port-ranges>` from and
+to both, clients and :ref:`Restund servers <understand-restund>`.
+
+*For more information on this port range, how to read and change it, and how to configure your firewall, please see* :ref:`this note <port-ranges>`.
 
 The SFT also has an HTTP interface for initializing (allocation) or joining (signaling) a call. This is exposed through
 the ingress controller as an HTTPS service.
 
-An SFT instance does **not** communicate with other SFT instances.
+SFT does require access to the TURN control port during process startup, but does not use it for any real purpose.
+It is a health check, that is going to be removed eventually.
+
+An SFT instance does **not** communicate with other SFT instances, TURN does talk to TURN.
+
+Recapitulation table:
+
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Name                       | Origin      | Destination | Direction | Protocol | Ports                                                                       | Action (Policy)                      | Description                                                                                                                                                                                   |
++============================+=============+=============+===========+==========+=============================================================================+======================================+===============================================================================================================================================================================================+
+| Denying all ingress        | Any / none. | Here        | Incoming  | All      | None                                                                        | Deny                                 | Deny anything incoming: by default nothing is allowed to come in, and we will individually allow specific ports below.                                                                        |
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Allowing all egress        | Here        | Any         | Outgoing  | All      | All                                                                         | Allow                                | Allow everything outgoing, by default everything is allowed (all ports) in the outgoing direction.                                                                                            |
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Allowing HTTP(S) ingress   | Any         | Here        | Incoming  | TCP      | sft_nginx_certbot_port, sft_nginx_sft_port, sft_nginx_metrics_port          | Allow                                | Allow HTTP(S) access to three different (nginx) confiigured ports. This interface is for initializing (allocation) or joining (signaling) a call.                                             |
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Allowing SSH ingress       | Any         | Here        | Incoming  | TCP      | 22 (SSH)                                                                    | Allow                                | Allow Secure Shell Protocol access for administration.                                                                                                                                        |
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Allowing SFT media ingress | Any         | Here        | Incoming  | UDP      | 32768-61000                                                                 | Allow                                | Allow ports in the "Ephemeral range" (https://en.wikipedia.org/wiki/Ephemeral_port), defined by the Linux Kernel ass the range from ports 32768 to 61000, used for UDP transmission of media. |
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+                                                                                                                                                                                               |
+| Allowing SFT media egress  | Here        | Anny        | Outgoing  | UDP      | 32768-61000                                                                 | Allow                                |                                                                                                                                                                                               |
++----------------------------+-------------+-------------+-----------+----------+-----------------------------------------------------------------------------+--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
 
 *For more information, please refer to the source code of the Ansible role:* `sft-server <https://github.com/wireapp/ansible-sft/blob/develop/roles/sft-server/tasks/traffic.yml>`__.
