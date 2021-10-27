@@ -392,7 +392,7 @@ liftGalley0 :: Galley0 a -> Galley r a
 liftGalley0 (Galley m) = Galley $ subsume_ m
 
 liftSem :: Sem r a -> Galley r a
-liftSem m = Galley $ subsume_ m
+liftSem m = Galley m
 
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 = Galley . interpretGalleyEffects . unGalley
