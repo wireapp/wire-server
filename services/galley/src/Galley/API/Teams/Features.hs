@@ -59,6 +59,7 @@ import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Paging
 import qualified Galley.Data as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
@@ -325,7 +326,8 @@ setLegalholdStatusInternal ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   TeamId ->

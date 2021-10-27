@@ -53,6 +53,7 @@ import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
 import Galley.App
+import Galley.Cassandra.Paging
 import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
@@ -476,15 +477,19 @@ sitemap = do
     capture "tid"
 
 rmUser ::
-  forall r.
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess
-     ]
-    r =>
+  forall p r.
+  ( p ~ CassandraPaging,
+    Members
+      '[ BrigAccess,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         ListItems p ConvId,
+         ListItems p (Remote ConvId)
+       ]
+      r
+  ) =>
   UserId ->
   Maybe ConnId ->
   Galley r ()

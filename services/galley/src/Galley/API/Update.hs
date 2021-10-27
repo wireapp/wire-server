@@ -868,7 +868,7 @@ addMembers zusr zcon cnv (Public.InviteQualified users role) = do
       ConversationActionAddMembers users role
 
 updateSelfMember ::
-  Members '[GundeckAccess, ExternalAccess] r =>
+  Members '[ConversationStore, GundeckAccess, ExternalAccess] r =>
   UserId ->
   ConnId ->
   Qualified ConvId ->
@@ -886,9 +886,15 @@ updateSelfMember zusr zcon qcnv update = do
     checkLocalMembership lcnv lusr =
       isMember (tUnqualified lusr)
         <$> Data.members (tUnqualified lcnv)
+    checkRemoteMembership ::
+      Members '[ConversationStore] r =>
+      Remote ConvId ->
+      Local UserId ->
+      Galley r Bool
     checkRemoteMembership rcnv lusr =
-      isJust . Map.lookup rcnv
-        <$> Data.remoteConversationStatus (tUnqualified lusr) [rcnv]
+      liftSem $
+        isJust . Map.lookup rcnv
+          <$> getRemoteConversationStatus (tUnqualified lusr) [rcnv]
     updateData luid =
       MemberUpdateData
         { misTarget = qUntagged luid,

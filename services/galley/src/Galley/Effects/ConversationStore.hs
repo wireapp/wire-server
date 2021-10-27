@@ -32,6 +32,8 @@ module Galley.Effects.ConversationStore
     getConversations,
     getConversationMetadata,
     isConversationAlive,
+    getRemoteConversationStatus,
+    selectConversations,
 
     -- * Update conversation
     setConversationType,
@@ -52,6 +54,7 @@ import Data.Qualified
 import Data.Range
 import Data.UUID.Tagged
 import Galley.Data.Conversation
+import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Imports
 import Polysemy
@@ -92,6 +95,11 @@ data ConversationStore m a where
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
+  GetRemoteConversationStatus ::
+    UserId ->
+    [Remote ConvId] ->
+    ConversationStore m (Map (Remote ConvId) MemberStatus)
+  SelectConversations :: UserId -> [ConvId] -> ConversationStore m [ConvId]
   SetConversationType :: ConvId -> ConvType -> ConversationStore m ()
   SetConversationName :: ConvId -> Range 1 256 Text -> ConversationStore m ()
   SetConversationAccess :: ConvId -> ConversationAccessData -> ConversationStore m ()

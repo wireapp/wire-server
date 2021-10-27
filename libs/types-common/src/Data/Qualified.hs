@@ -21,6 +21,7 @@
 
 module Data.Qualified
   ( -- * Qualified
+    QTag (..),
     Qualified (..),
     qToPair,
     QualifiedWithTag,

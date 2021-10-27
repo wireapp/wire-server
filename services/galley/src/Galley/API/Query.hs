@@ -51,10 +51,12 @@ import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Paging
 import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.Paging as E
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
@@ -64,6 +66,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
 import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
 import qualified System.Logger.Class as Logger
 import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
@@ -112,6 +115,7 @@ getUnqualifiedConversation zusr cnv = do
   Mapping.conversationView zusr c
 
 getConversation ::
+  forall r.
   Member ConversationStore r =>
   UserId ->
   Qualified ConvId ->
@@ -132,7 +136,11 @@ getConversation zusr cnv = do
         [conv] -> pure conv
         _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
-getRemoteConversations :: UserId -> [Remote ConvId] -> Galley r [Public.Conversation]
+getRemoteConversations ::
+  Member ConversationStore r =>
+  UserId ->
+  [Remote ConvId] ->
+  Galley r [Public.Conversation]
 getRemoteConversations zusr remoteConvs =
   getRemoteConversationsWithFailures zusr remoteConvs >>= \case
     -- throw first error
@@ -173,6 +181,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
+  Member ConversationStore r =>
   UserId ->
   [Remote ConvId] ->
   Galley r ([FailedGetConversation], [Public.Conversation])
@@ -181,7 +190,7 @@ getRemoteConversationsWithFailures zusr convs = do
   lusr <- qualifyLocal zusr
 
   -- get self member statuses from the database
-  statusMap <- Data.remoteConversationStatus zusr convs
+  statusMap <- liftSem $ E.getRemoteConversationStatus zusr convs
   let remoteView :: Remote FederatedGalley.RemoteConversation -> Maybe Conversation
       remoteView rconv =
         Mapping.remoteConversationView
@@ -232,10 +241,15 @@ getConversationRoles zusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-conversationIdsPageFromUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley r (Public.ConversationList ConvId)
-conversationIdsPageFromUnqualified zusr start msize = do
+conversationIdsPageFromUnqualified ::
+  Member (ListItems LegacyPaging ConvId) r =>
+  UserId ->
+  Maybe ConvId ->
+  Maybe (Range 1 1000 Int32) ->
+  Galley r (Public.ConversationList ConvId)
+conversationIdsPageFromUnqualified zusr start msize = liftSem $ do
   let size = fromMaybe (toRange (Proxy @1000)) msize
-  ids <- Data.conversationIdsFrom zusr start size
+  ids <- E.listItems zusr start size
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)
@@ -249,29 +263,50 @@ conversationIdsPageFromUnqualified zusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-conversationIdsPageFrom :: UserId -> Public.GetPaginatedConversationIds -> Galley r Public.ConvIdsPage
+conversationIdsPageFrom ::
+  forall p r.
+  ( p ~ CassandraPaging,
+    Members '[ListItems p ConvId, ListItems p (Remote ConvId)] r
+  ) =>
+  UserId ->
+  Public.GetPaginatedConversationIds ->
+  Galley r Public.ConvIdsPage
 conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
   localDomain <- viewFederationDomain
-  case gmtprState of
-    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gmtprSize)
+  liftSem $ case gmtprState of
+    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
+      remotesOnly (mkState <$> stateBS) gmtprSize
     _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
-    localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley r Public.ConvIdsPage
+    localsAndRemotes ::
+      Domain ->
+      Maybe C.PagingState ->
+      Range 1 1000 Int32 ->
+      Sem r Public.ConvIdsPage
     localsAndRemotes localDomain pagingState size = do
-      localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.localConversationIdsPageFrom zusr pagingState size
+      localPage <-
+        pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain)
+          <$> E.listItems zusr pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
         then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
         else do
-          remotePage <- remotesOnly Nothing remainingSize
+          -- remainingSize <= size and remainingSize >= 1, so it is safe to convert to Range
+          remotePage <- remotesOnly Nothing (unsafeRange remainingSize)
           pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
-    remotesOnly :: Maybe C.PagingState -> Int32 -> Galley r Public.ConvIdsPage
+    remotesOnly ::
+      Members '[ListItems p (Remote ConvId)] r =>
+      Maybe C.PagingState ->
+      Range 1 1000 Int32 ->
+      Sem r Public.ConvIdsPage
     remotesOnly pagingState size =
-      pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsPageFrom zusr pagingState size
+      pageToConvIdPage Public.PagingRemotes
+        . fmap (qUntagged @'QRemote)
+        <$> E.listItems zusr pagingState size
 
     pageToConvIdPage :: Public.LocalOrRemoteTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
     pageToConvIdPage table page@Data.PageWithState {..} =
@@ -282,7 +317,7 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
-  Member ConversationStore r =>
+  Members '[ListItems LegacyPaging ConvId, ConversationStore] r =>
   UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -293,38 +328,44 @@ getConversations user mids mstart msize = do
   flip ConversationList more <$> mapM (Mapping.conversationView user) cs
 
 getConversationsInternal ::
-  forall r.
-  Member ConversationStore r =>
+  Members '[ConversationStore, ListItems LegacyPaging ConvId] r =>
   UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
   Maybe (Range 1 500 Int32) ->
   Galley r (Public.ConversationList Data.Conversation)
 getConversationsInternal user mids mstart msize = do
-  (more, ids) <- getIds mids
+  (more, ids) <- liftSem $ getIds mids
   let localConvIds = ids
   cs <-
     liftSem (E.getConversations localConvIds)
-      >>= filterM removeDeleted
+      >>= filterM (liftSem . removeDeleted)
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   pure $ Public.ConversationList cs more
   where
     size = fromMaybe (toRange (Proxy @32)) msize
 
     -- get ids and has_more flag
+    getIds ::
+      Members '[ConversationStore, ListItems LegacyPaging ConvId] r =>
+      Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
+      Sem r (Bool, [ConvId])
     getIds (Just ids) =
       (False,)
-        <$> Data.localConversationIdsOf
+        <$> E.selectConversations
           user
           (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
-      r <- Data.conversationIdsFrom user mstart (rcast size)
+      r <- E.listItems @LegacyPaging @ConvId user mstart (rcast size)
       let hasMore = Data.resultSetType r == Data.ResultSetTruncated
       pure (hasMore, Data.resultSetResult r)
 
-    removeDeleted :: Data.Conversation -> Galley r Bool
+    removeDeleted ::
+      Member ConversationStore r =>
+      Data.Conversation ->
+      Sem r Bool
     removeDeleted c
-      | Data.isConvDeleted c = liftSem $ E.deleteConversation (Data.convId c) >> pure False
+      | Data.isConvDeleted c = E.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
 listConversations ::
@@ -336,7 +377,9 @@ listConversations user (Public.ListConversations ids) = do
   luser <- qualifyLocal user
 
   let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
-  (foundLocalIds, notFoundLocalIds) <- foundsAndNotFounds (Data.localConversationIdsOf user) localIds
+  (foundLocalIds, notFoundLocalIds) <-
+    liftSem $
+      foundsAndNotFounds (E.selectConversations user) localIds
 
   localInternalConversations <-
     liftSem (E.getConversations foundLocalIds)
@@ -382,7 +425,7 @@ listConversations user (Public.ListConversations ids) = do
       pure (founds, notFounds)
 
 iterateConversations ::
-  Member ConversationStore r =>
+  Members '[ListItems LegacyPaging ConvId, ConversationStore] r =>
   UserId ->
   Range 1 500 Int32 ->
   ([Data.Conversation] -> Galley r a) ->

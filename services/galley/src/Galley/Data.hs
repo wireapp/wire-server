@@ -53,15 +53,6 @@ module Galley.Data
     updateTeam,
     updateTeamStatus,
 
-    -- * Conversation lists
-    conversationIdsFrom,
-    localConversationIdsOf,
-    remoteConversationIdsPageFrom,
-    localConversationIdsPageFrom,
-    localConversationIdRowsForPagination,
-    remoteConversationStatus,
-    conversationsRemote,
-
     -- * Conversation Members
     addMember,
     addMembers,
@@ -131,11 +122,11 @@ import Galley.Data.Conversation
 import Galley.Data.Instances ()
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.Queries as Cql
+import Galley.Data.ResultSet
 import Galley.Data.Types as Data
 import Galley.Types hiding (Conversation)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
-import Galley.Types.Conversations.Members
 import Galley.Types.Teams hiding
   ( Event,
     EventType (..),
@@ -150,36 +141,6 @@ import Galley.Types.UserList
 import Imports hiding (Set, max)
 import qualified UnliftIO
 import Wire.API.Team.Member
-
--- We use this newtype to highlight the fact that the 'Page' wrapped in here
--- can not reliably used for paging.
---
--- The reason for this is that Cassandra returns 'hasMore' as true if the
--- page size requested is equal to result size. To work around this we
--- actually request for one additional element and drop the last value if
--- necessary. This means however that 'nextPage' does not work properly as
--- we would miss a value on every page size.
--- Thus, and since we don't want to expose the ResultSet constructor
--- because it gives access to `nextPage`, we give accessors to the results
--- and a more typed `hasMore` (ResultSetComplete | ResultSetTruncated)
-data ResultSet a = ResultSet
-  { resultSetResult :: [a],
-    resultSetType :: ResultSetType
-  }
-  deriving stock (Show, Functor, Foldable, Traversable)
-
--- | A more descriptive type than using a simple bool to represent `hasMore`
-data ResultSetType
-  = ResultSetComplete
-  | ResultSetTruncated
-  deriving stock (Eq, Show)
-
-mkResultSet :: Page a -> ResultSet a
-mkResultSet page = ResultSet (result page) typ
-  where
-    typ
-      | hasMore page = ResultSetTruncated
-      | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
 schemaVersion = 54
@@ -462,70 +423,6 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
-
--- | Deprecated, use 'localConversationIdsPageFrom'
-conversationIdsFrom ::
-  UserId ->
-  Maybe ConvId ->
-  Range 1 1000 Int32 ->
-  Galley r (ResultSet ConvId)
-conversationIdsFrom usr start (fromRange -> max) =
-  mkResultSet . strip . fmap runIdentity <$> case start of
-    Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
-    Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
-  where
-    strip p = p {result = take (fromIntegral max) (result p)}
-
-localConversationIdsPageFrom ::
-  UserId ->
-  Maybe PagingState ->
-  Range 1 1000 Int32 ->
-  Galley r (PageWithState ConvId)
-localConversationIdsPageFrom usr pagingState (fromRange -> max) =
-  fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState Quorum (Identity usr) max pagingState)
-
-remoteConversationIdsPageFrom :: UserId -> Maybe PagingState -> Int32 -> Galley r (PageWithState (Qualified ConvId))
-remoteConversationIdsPageFrom usr pagingState max =
-  uncurry (flip Qualified) <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState Quorum (Identity usr) max pagingState)
-
-localConversationIdRowsForPagination :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Galley r (Page ConvId)
-localConversationIdRowsForPagination usr start (fromRange -> max) =
-  runIdentity
-    <$$> case start of
-      Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
-      Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
-
--- | Takes a list of conversation ids and returns those found for the given
--- user.
-localConversationIdsOf :: UserId -> [ConvId] -> Galley r [ConvId]
-localConversationIdsOf usr cids = do
-  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
-
--- | Takes a list of remote conversation ids and fetches member status flags
--- for the given user
-remoteConversationStatus ::
-  UserId ->
-  [Remote ConvId] ->
-  Galley r (Map (Remote ConvId) MemberStatus)
-remoteConversationStatus uid =
-  liftClient
-    . fmap mconcat
-    . UnliftIO.pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomainC uid)
-    . bucketRemote
-
-remoteConversationStatusOnDomainC :: UserId -> Remote [ConvId] -> Client (Map (Remote ConvId) MemberStatus)
-remoteConversationStatusOnDomainC uid rconvs =
-  Map.fromList . map toPair
-    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, tDomain rconvs, tUnqualified rconvs))
-  where
-    toPair (conv, omus, omur, oar, oarr, hid, hidr) =
-      ( qualifyAs rconvs conv,
-        C.toMemberStatus (omus, omur, oar, oarr, hid, hidr)
-      )
-
-conversationsRemote :: UserId -> Galley r [Remote ConvId]
-conversationsRemote usr = do
-  uncurry toRemoteUnsafe <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
 
 -- Conversation Members -----------------------------------------------------
 

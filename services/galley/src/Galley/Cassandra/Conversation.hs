@@ -308,6 +308,33 @@ localConversations ids = do
         return cc
       Just c' -> return (c' : cc)
 
+-- | Takes a list of conversation ids and returns those found for the given
+-- user.
+localConversationIdsOf :: UserId -> [ConvId] -> Client [ConvId]
+localConversationIdsOf usr cids = do
+  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+
+-- | Takes a list of remote conversation ids and fetches member status flags
+-- for the given user
+remoteConversationStatus ::
+  UserId ->
+  [Remote ConvId] ->
+  Client (Map (Remote ConvId) MemberStatus)
+remoteConversationStatus uid =
+  fmap mconcat
+    . UnliftIO.pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomain uid)
+    . bucketRemote
+
+remoteConversationStatusOnDomain :: UserId -> Remote [ConvId] -> Client (Map (Remote ConvId) MemberStatus)
+remoteConversationStatusOnDomain uid rconvs =
+  Map.fromList . map toPair
+    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, tDomain rconvs, tUnqualified rconvs))
+  where
+    toPair (conv, omus, omur, oar, oarr, hid, hidr) =
+      ( qualifyAs rconvs conv,
+        toMemberStatus (omus, omur, oar, oarr, hid, hidr)
+      )
+
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, P.Reader ClientState, TinyLog] r =>
   Sem (ConversationStore ': r) a ->
@@ -328,6 +355,8 @@ interpretConversationStoreToCassandra = interpret $ \case
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
   IsConversationAlive cid -> embedClient $ isConvAlive cid
+  SelectConversations uid cids -> embedClient $ localConversationIdsOf uid cids
+  GetRemoteConversationStatus uid cids -> embedClient $ remoteConversationStatus uid cids
   SetConversationType cid ty -> embedClient $ updateConvType cid ty
   SetConversationName cid value -> embedClient $ updateConvName cid value
   SetConversationAccess cid value -> embedClient $ updateConvAccess cid value

@@ -89,6 +89,7 @@ import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Cassandra.Conversation
+import Galley.Cassandra.ConversationList
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
 import Galley.Env
@@ -343,6 +344,9 @@ toServantHandler env galley = do
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 =
   Galley
+    . interpretLegacyConversationListToCassandra
+    . interpretRemoteConversationListToCassandra
+    . interpretConversationListToCassandra
     . interpretConversationStoreToCassandra
     . interpretFireAndForget
     . interpretIntra

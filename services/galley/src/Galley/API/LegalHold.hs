@@ -52,6 +52,7 @@ import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Paging
 import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
@@ -140,7 +141,8 @@ removeSettingsH ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
@@ -158,7 +160,8 @@ removeSettings ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ->
@@ -195,7 +198,8 @@ removeSettings' ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   TeamId ->
@@ -263,7 +267,8 @@ grantConsentH ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ::: TeamId ::: JSON ->
@@ -285,7 +290,8 @@ grantConsent ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ->
@@ -311,7 +317,8 @@ requestDeviceH ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
@@ -334,7 +341,8 @@ requestDevice ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ->
@@ -390,7 +398,8 @@ approveDeviceH ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
@@ -408,7 +417,8 @@ approveDevice ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ->
@@ -461,7 +471,8 @@ disableForUserH ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
@@ -485,7 +496,8 @@ disableForUser ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ->
@@ -526,7 +538,8 @@ changeLegalholdStatus ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   TeamId ->
@@ -646,7 +659,8 @@ handleGroupConvPolicyConflicts ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       ListItems LegacyPaging ConvId
      ]
     r =>
   UserId ->

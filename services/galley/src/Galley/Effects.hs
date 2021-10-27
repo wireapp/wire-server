@@ -54,14 +54,21 @@ module Galley.Effects
     -- * Store effects
     ConversationStore,
 
+    -- * Paging effects
+    ListItems,
+
     -- * Polysemy re-exports
     Member,
     Members,
   )
 where
 
+import Data.Id
+import Data.Qualified
+import Galley.Cassandra.Paging
 import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
+import Galley.Effects.Paging
 import Imports
 import Polysemy
 
@@ -110,5 +117,8 @@ type GalleyEffects1 =
      BotAccess,
      Intra,
      FireAndForget,
-     ConversationStore
+     ConversationStore,
+     ListItems CassandraPaging ConvId,
+     ListItems CassandraPaging (Remote ConvId),
+     ListItems LegacyPaging ConvId
    ]
