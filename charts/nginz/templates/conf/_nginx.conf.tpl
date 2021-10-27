@@ -344,6 +344,21 @@ http {
             image/png               png;
         }
     }
+
+    {{- if hasKey .Values.nginx_conf "deeplink" }}
+    location ~* ^/deeplink.(json|html)$ {
+        zauth off;
+        root /etc/wire/nginz/conf/;
+        if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Methods' "GET, OPTIONS";
+                add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers, DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type";
+                add_header 'Content-Type' 'text/plain; charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+        }
+        more_set_headers 'Access-Control-Allow-Origin: $http_origin';
+    }
+    {{- end }}
   }
 }
 {{- end }}
