@@ -18,7 +18,7 @@
 module Galley.Effects.FireAndForget
   ( FireAndForget,
     fireAndForget,
-    fireAndForgetMany,
+    spawnMany,
     interpretFireAndForget,
   )
 where
@@ -30,7 +30,7 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 
 data FireAndForget m a where
   FireAndForgetOne :: m () -> FireAndForget m ()
-  FireAndForgetMany :: [m ()] -> FireAndForget m ()
+  SpawnMany :: [m ()] -> FireAndForget m ()
 
 makeSem ''FireAndForget
 
@@ -42,7 +42,7 @@ interpretFireAndForget = interpretFinal @IO $ \case
   FireAndForgetOne action -> do
     action' <- runS action
     liftS $ void . forkIO . void $ action'
-  FireAndForgetMany actions -> do
+  SpawnMany actions -> do
     actions' <- traverse runS actions
     -- I picked this number by fair dice roll, feel free to change it :P
     liftS $ pooledMapConcurrentlyN_ 8 void actions'

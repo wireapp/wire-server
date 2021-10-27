@@ -57,7 +57,7 @@ module Galley.App
 
     -- * MonadUnliftIO / Sem compatibility
     fireAndForget,
-    fireAndForgetMany,
+    spawnMany,
     liftGalley0,
     liftSem,
     interpretGalleyToGalley0,
@@ -366,8 +366,8 @@ toServantHandler env galley = do
 fireAndForget :: Member FireAndForget r => Galley r () -> Galley r ()
 fireAndForget (Galley m) = Galley $ E.fireAndForget m
 
-fireAndForgetMany :: Member FireAndForget r => [Galley r ()] -> Galley r ()
-fireAndForgetMany ms = Galley $ E.fireAndForgetMany (map unGalley ms)
+spawnMany :: Member FireAndForget r => [Galley r ()] -> Galley r ()
+spawnMany ms = Galley $ E.spawnMany (map unGalley ms)
 
 instance MonadUnliftIO Galley0 where
   askUnliftIO = Galley $ do

@@ -313,7 +313,7 @@ onUserDeleted origDomain udcn = do
       untaggedDeletedUser = qUntagged deletedUser
       convIds = FederationAPIGalley.udcnConversations udcn
 
-  fireAndForgetMany $
+  spawnMany $
     fromRange convIds <&> \c -> do
       lc <- qualifyLocal c
       mconv <- Data.conversation c

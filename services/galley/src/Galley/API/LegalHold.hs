@@ -184,7 +184,7 @@ removeSettings' tid = do
       Log.debug $
         Log.field "targets" (toByteString . show $ toByteString <$> zothers)
           . Log.field "action" (Log.val "LegalHold.removeSettings'")
-      fireAndForgetMany (map removeLHForUser lhMembers)
+      spawnMany (map removeLHForUser lhMembers)
     removeLHForUser :: TeamMember -> Galley r ()
     removeLHForUser member = do
       let uid = member ^. Team.userId
