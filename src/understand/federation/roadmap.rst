@@ -17,7 +17,7 @@ M1 will have support for:
 * message sending
 * visual UX for showing federation.
 * a way for on-premise (self-hosted) installations of wire to try out this implementation of federation by explicitly enabling it via configuration flags.
-* initially, Web and iOS will be supported
+* Android, Web and iOS will be supported
 * server2server discovery and authentication
 * a way to specify an allow list of backends to federate with
 
@@ -46,10 +46,7 @@ Caveats:
 
    Partially done:
      * client-server API changes for federation
-
-   Pending:
      * Other conversation features (removing users, archived/muted, ...)
-     * federation API versioning strategy
 
 Additional Milestones
 ---------------------
@@ -59,5 +56,6 @@ Some additional milestones planned include the following features:
 * conversation feature completeness
 * support more features (assets, calling, ...)
 * support better message delivery guarantees
+* federation API versioning strategy
 * support for wire-server installations to federate with wire.com
 * MLS support
