@@ -349,6 +349,10 @@ http {
     location ~* ^/deeplink.(json|html)$ {
         zauth off;
         root /etc/wire/nginz/conf/;
+        types {
+            application/json  json;
+            text/html         html;
+        }
         if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Methods' "GET, OPTIONS";
                 add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers, DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type";
