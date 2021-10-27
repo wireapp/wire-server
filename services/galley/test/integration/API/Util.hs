@@ -2209,7 +2209,6 @@ mkProfile quid name =
       profileDeleted = False,
       profileService = Nothing,
       profileHandle = Nothing,
-      profileLocale = Nothing,
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
