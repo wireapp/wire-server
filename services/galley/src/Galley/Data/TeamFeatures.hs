@@ -97,11 +97,11 @@ setFeatureStatusNoConfig ::
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
-  retry x5 $ write update (params Quorum (flag, tid))
+  retry x5 $ write insert (params Quorum (tid, flag))
   pure status
   where
-    update :: PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-    update = fromString $ "update team_features set " <> statusCol @a <> " = ? where team_id = ?"
+    insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
+    insert = fromString $ "insert team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
 
 getApplockFeatureStatus ::
   forall m.
@@ -130,18 +130,15 @@ setApplockFeatureStatus tid status = do
   let statusValue = Public.tfwcStatus status
       enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
       timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
-  retry x5 $ write update (params Quorum (statusValue, enforce, timeout, tid))
+  retry x5 $ write insert (params Quorum (tid, statusValue, enforce, timeout))
   pure status
   where
-    update :: PrepQuery W (TeamFeatureStatusValue, Public.EnforceAppLock, Int32, TeamId) ()
-    update =
+    insert :: PrepQuery W (TeamId, TeamFeatureStatusValue, Public.EnforceAppLock, Int32) ()
+    insert =
       fromString $
-        "update team_features set "
+        "insert team_features (team_id, "
           <> statusCol @'Public.TeamFeatureAppLock
-          <> " = ?, "
-          <> "app_lock_enforce = ?, "
-          <> "app_lock_inactivity_timeout_secs = ? "
-          <> "where team_id = ?"
+          <> ", app_lock_enforce, app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
 
 getSelfDeletingMessagesStatus ::
   forall m.
