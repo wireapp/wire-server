@@ -30,7 +30,7 @@ import Data.Json.Util (ToJSONObject (..))
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureStatusNoConfig, TeamFeatureStatusWithConfig, TeamFeatureSelfDeletingMessagesConfig)
+import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureSelfDeletingMessagesConfig, TeamFeatureStatusNoConfig, TeamFeatureStatusWithConfig)
 
 data Event = Event
   { _eventType :: EventType,

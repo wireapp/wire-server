@@ -601,7 +601,6 @@ data Api routes = Api
              '[Servant.JSON]
              (PostOtrResponses MessageSendingStatus)
              (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus),
-
     -- team features
     teamFeatureStatusSSOGet ::
       routes

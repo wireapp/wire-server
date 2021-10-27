@@ -44,7 +44,6 @@ module Wire.API.Team.Feature
     modelTeamFeatureAppLockConfig,
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
-
     modelForTeamFeature,
   )
 where
