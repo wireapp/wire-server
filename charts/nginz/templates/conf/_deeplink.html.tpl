@@ -1,4 +1,7 @@
 {{- define "nginz_deeplink.html" }}
+{{/* See https://docs.wire.com/how-to/associate/deeplink.html
+     (or search for "deeplink" on docs.wire.com)
+     for details on use of the deeplink*/}}
 <html>
   <head></head>
   <body>
