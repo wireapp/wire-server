@@ -32,6 +32,15 @@ nginx_conf:
   worker_rlimit_nofile: 131072
   worker_connections: 65536
   swagger_root: /var/www/swagger
+  # deeplink:
+  #   endpoints:
+  #     backendURL: "https://prod-nginz-https.wire.com"
+  #     backendWSURL: "https://prod-nginz-ssl.wire.com"
+  #     blackListURL: "https://clientblacklist.wire.com/prod"
+  #     teamsURL: "https://teams.wire.com"
+  #     accountsURL: "https://accounts.wire.com"
+  #     websiteURL: "https://wire.com"
+  #   title: "Production"
   disabled_paths:
   - /conversations/last-events
   - ~* ^/conversations/([^/]*)/knock
