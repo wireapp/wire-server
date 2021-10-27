@@ -51,6 +51,7 @@ import qualified Data.UUID.V1 as UUID
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
+import Galley.Effects
 import Galley.Intra.User as Intra
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
@@ -59,10 +60,11 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 
 getTeamNotifications ::
+  Member BrigAccess r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
-  Galley QueuedNotificationList
+  Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
   tid :: TeamId <- do
     mtid <- (userTeam . accountUser =<<) <$> Intra.getUser zusr
@@ -75,7 +77,7 @@ getTeamNotifications zusr since size = do
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: TeamId -> Event -> Galley ()
+pushTeamEvent :: TeamId -> Event -> Galley r ()
 pushTeamEvent tid evt = do
   nid <- mkNotificationId
   DataTeamQueue.add tid nid (List1.singleton $ toJSONObject evt)
