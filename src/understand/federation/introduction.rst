@@ -2,7 +2,7 @@ Introduction
 ============
 
 Federation is a feature that allows a collection of Wire backends to enable the
-establishment of connections between their respective users.
+establishment of connections among their respective users.
 
 Goals
 -----
@@ -27,7 +27,7 @@ Non-Goals
 ---------
 
 We aim to integrate federation into the Wire backend following a step-by-step
-process as described in :ref:`federation roadmap<federation-roadmap>`. Early
+process as described in the :ref:`federation roadmap<federation-roadmap>`. Early
 versions are not meant to enable a completely open federation, but rather a
 closed network of federated backends with a restricted set of features.
 

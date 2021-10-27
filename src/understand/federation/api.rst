@@ -101,8 +101,9 @@ restricted set of parameters to ensure that the API is simple.
 API From Components to Federator
 --------------------------------
 
-Between two federated backends, the components talk to each other via their
-respective `Federator`s and ingress'. When making the call to the `Federator`, the
+Between two federated backends, the components talk to each other via the
+`Federator` in the originating domain and `Ingress` in the receiving domain. 
+When making the call to the `Federator`, the
 components use protobuf over gRPC. They call the ``Outward`` service, which also
 supports one rpc called ``call``. This rpc requires a ``FederatedRequest``
 object, which contains a ``Request`` object as defined above, as well as the
@@ -238,19 +239,21 @@ Each backend keeps a record of the conversations that each of its members is a
 part of. The purpose of the Galley API is to allow backends to synchronize the
 state of the conversations of their members.
 
-* ``register-conversation``: Given a name and a list of conversation members,
+* ``on-conversation-created``: Given a name and a list of conversation members,
   create a conversation locally. This is used to inform another backend of a new
-  conversation that involves their local user.
+  conversation that involves their local user(s).  
 * ``get-conversations``: Given a qualified user id and a list of conversation
   ids, return the details of the conversations. This allows a remote backend to
   query conversation metadata of their local user from this backend. To avoid
   metadata leaks, the backend will check that the domain of the given user
   corresponds to the domain of the backend sending the request.
-* ``update-conversation-memberships``: Given a qualified user id and a qualified
+* ``on-conversation-updated``: Given a qualified user id and a qualified
   conversation id, update the conversation details locally with the other data
   provided. This is used to alert remote backend of updates in the conversation
-  metadata of conversations that one of their local users is involved in.
-* ``receive-message``: Given (sender, recipients, message payloads), propagate a message to local users.
+  metadata of conversations in which at least one of their local users is involved.
+* ``leave-conversation``: Given a remote user and a conversation id, remove the
+  the remote user from the (local) conversation.
+* ``on-message-sent``: Given a remote message and a conversation id, propagate a message to local users.
   This is used whenever there is a remote user in a conversation (see end-to-end flows).
 * ``send-message``: Given a sender and a raw message request, send a message to
   a conversation owned by another backend. This is used when the user sending a
@@ -273,7 +276,7 @@ handle the necessary discovery, authentication and authorization steps, we won't
 mention these steps explicitly each time to keep the flows simple.
 
 Additionally we assume that the backend domain and the infra domain of the
-respecivebackends involved are the same and each domain identifies a distinct
+respective backends involved are the same and each domain identifies a distinct
 backend.
 
 .. _user-discovery:
@@ -292,7 +295,7 @@ In this flow, the user `A` at `backend-a.com` tries to search for user `B` at
    ``search-users`` endpoint of B's backend for `B`.
 #. `A`'s `Federator` queries `B`'s Brig via `B`'s `Federation Ingress` and
    `Federator` as requested.
-#. `B`'s Brig replies with with `B`'s user name and qualified handle, the
+#. `B`'s Brig replies with `B`'s user name and qualified handle, the
    response goes through `B`'s `Federator` and `Federation Ingress`, as well as
    `A`'s `Federator` before it reaches `A`'s Brig.
 #. `A`'s Brig forwards that information to `A`'s client.
@@ -318,7 +321,7 @@ wants to establish a conversation with `B`.
 #. `A`'s client queries the ``/conversations`` endpoint of its Galley
    using `B`'s user id.
 #. `A`'s Galley creates the conversation locally and queries the
-   ``register-conversation`` endpoint of `B`'s Galley (again via its local
+   ``on-conversation-created`` endpoint of `B`'s Galley (again via its local
    `Federator`, as well as `B`'s `Federation Ingress` and `Federator`) to inform it about the new
    conversation, including the conversation metadata in the request.
 #. `B`'s Galley registers the conversation locally and confirms the query.
@@ -340,7 +343,7 @@ Having established a conversation with user `B` at `backend-b.com`, user `A` at
    clients the message was encrypted for.
 #. `A`'s Galley sends the message to all clients in the conversation that are
    part of `A`'s backend.
-#. `A`'s Galley queries the ``receive-message`` endpoint on `B`'s Galley via its
+#. `A`'s Galley queries the ``on-message-sent`` endpoint on `B`'s Galley via its
    `Federator` and `B`'s `Federation Ingress` and `Federator`.
 #. `B`'s Galley will propagate the message to all local clients involved in the
    conversation.
@@ -363,7 +366,7 @@ Having received a message from user `A` at `backend-a.com`, user `B` at
    clients the message was encrypted for.
 #. `A`'s Galley sends the message to all clients in the conversation that are
    part of `A`'s backend.
-#. `A`'s Galley queries the ``receive-message`` endpoint on `B`'s Galley via its
+#. `A`'s Galley queries the ``on-message-sent`` endpoint on `B`'s Galley via its
    `Federator` and `B`'s `Federation Ingress` and `Federator`.
 #. `B`'s Galley will propagate the message to all local clients involved in the
    conversation.

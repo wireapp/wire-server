@@ -21,11 +21,12 @@ from internal backend components to other, remote backends.
 Backend domains
 ^^^^^^^^^^^^^^^
 
-Each backend has two domains: an `infrastructure domain` and a `backend domain`.
+Each backend has two domain strings: an `infrastructure domain` and a 
+`backend domain`.
 
-The former is the domain under which the backend is actually reachable via the
-network. It is also the domain that each backend uses in authenticating itself
-to other backends.
+The `infrastructure domain` is the domain name under which the backend is 
+actually reachable via the network. It is also the domain name that each 
+backend uses in authenticating itself to other backends.
 
 Similarly, there is the `backend domain`, which is used to qualify the names and
 identifiers of users local to an individual backend in the context of
@@ -83,9 +84,6 @@ Its functions are:
 
 Federator
 ~~~~~~~~~
-
-.. warning:: As of July 2021, authentication is not fully implemented. See the
-             section on :ref:`authentication` for more details.
 
 The `Federator` performs additional authorization checks after receiving
 federated requests from the `Federation Ingress` and acts as egress point for
@@ -158,16 +156,17 @@ authorized. More specifically, both backends need to ensure the following:
 Authentication
 ^^^^^^^^^^^^^^
 
-.. warning:: As of July 2021, the implementation of mutual backend-to-backend
-             authentication is still work in progress. The behaviour described
+.. warning:: As of October 2021, the implementation of mutual backend-to-backend
+             authentication is still subject to change. The behaviour described
              in this section should be considered a draft specification only.
 
 Authentication between Wire backends is achieved using the mutual authentication
 feature of TLS as defined in `RFC 8556 <https://tools.ietf.org/html/rfc8446>`_.
 
 In particular, this means that the ingress of each backend needs to be
-provisioned with one or more certificates which it trusts to authenticate
-certificates provided by other backends when accepting incoming connections.
+provisioned with one or more certificates which the ingress trusts to 
+authenticate certificates provided by other backends when accepting incoming 
+connections.
 
 Conversely, every `Federator` needs to be provisioned with a (client)
 certificate which it uses to authenticate itself towards other backends.
@@ -212,7 +211,7 @@ For example, Company A with backend domain `company-a.com` and infra domain
 
    _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
 
-A backend can then be discovered, given its domain, by issueing a DNS query for
+A backend can then be discovered, given its domain, by issuing a DNS query for
 the SRV record specifying the `wire-server-federator` service.
 
 DNS Scope
