@@ -17,7 +17,7 @@ M1 will have support for:
 * message sending
 * visual UX for showing federation.
 * a way for on-premise (self-hosted) installations of wire to try out this implementation of federation by explicitly enabling it via configuration flags.
-* initially, Web and iOS will be supported
+* Android, Web and iOS will be supported
 * server2server discovery and authentication
 * a way to specify an allow list of backends to federate with
 
@@ -26,10 +26,11 @@ Caveats:
 * Message delivery guarantees will be weak if any backends are temporarily unavailable.
 * If any backends are unavailable, data inconsistencies may occur.
 * Images, files, calling, etc will not yet be supported.
+* Edit, delete, delivery notifications, mentions, replies, etc will not yet be supported. 
 * Federation with the production cloud version of wire.com will not yet be supported.
 
 .. note::
-   A rough (Backend) Implementation Status as of July 2021:
+   A rough (Backend) Implementation Status as of October 2021:
 
    Completed for M1 scope:
      * Federator as Egress, and Ingress support to allow backend-backend communication
@@ -40,27 +41,21 @@ Caveats:
      * Get user profile, user clients, and prekeys for their clients
      * Create conversation with remote users
      * Send a message in a conversation with remote users
+     * Server2server authentication
+     * connections
 
    Partially done:
      * client-server API changes for federation
-
-   Pending:
-     * Server2server authentication
      * Other conversation features (removing users, archived/muted, ...)
-     * connections
-     * federation API versioning strategy
 
-M(N) | N >1
-------------
+Additional Milestones
+---------------------
 
-.. note::
-   Status July 2021:
-     * planning, architecture and design phase: ongoing
-     * implementation: not started yet
+Some additional milestones planned include the following features:
 
 * conversation feature completeness
 * support more features (assets, calling, ...)
 * support better message delivery guarantees
-* support more platforms (Android)
+* federation API versioning strategy
 * support for wire-server installations to federate with wire.com
 * MLS support

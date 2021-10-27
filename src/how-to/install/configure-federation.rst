@@ -8,7 +8,7 @@ Background
 
 Please first understand the current scope and aim of wire-server federation by reading :ref:`Understanding federation <federation-understand>`.
 
-.. warning:: As of September 2021, federation implementation is still work in progress. Many features are not implemented yet,
+.. warning:: As of October 2021, federation implementation is still work in progress. Many features are not implemented yet,
     and it should be considered "alpha": stability, and upgrade compatibility are not guaranteed.
 
 Summary of necessary steps to configure federation
