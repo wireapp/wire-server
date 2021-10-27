@@ -101,7 +101,7 @@ setFeatureStatusNoConfig tid status = do
   pure status
   where
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
-    insert = fromString $ "insert team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
+    insert = fromString $ "insert into team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
 
 getApplockFeatureStatus ::
   forall m.
@@ -136,7 +136,7 @@ setApplockFeatureStatus tid status = do
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue, Public.EnforceAppLock, Int32) ()
     insert =
       fromString $
-        "insert team_features (team_id, "
+        "insert into team_features (team_id, "
           <> statusCol @'Public.TeamFeatureAppLock
           <> ", app_lock_enforce, app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
 
