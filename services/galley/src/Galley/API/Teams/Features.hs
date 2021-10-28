@@ -327,7 +327,8 @@ setLegalholdStatusInternal ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   TeamId ->

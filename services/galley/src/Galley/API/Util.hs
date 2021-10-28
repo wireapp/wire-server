@@ -47,6 +47,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
 import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -263,7 +264,7 @@ permissionCheckTeamConv zusr cnv perm =
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
-  Members '[ConversationStore, GundeckAccess] r =>
+  Members '[ConversationStore, MemberStore, GundeckAccess] r =>
   UserId ->
   Data.Conversation ->
   Maybe ConnId ->
@@ -276,7 +277,7 @@ acceptOne2One usr conv conn = do
       if usr `isMember` mems
         then return conv
         else do
-          mm <- Data.addMember lcid lusr
+          mm <- liftSem $ createMember lcid lusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> liftSem promote
@@ -285,7 +286,7 @@ acceptOne2One usr conv conn = do
         when (length mems > 2) $
           throwM badConvState
         now <- liftIO getCurrentTime
-        mm <- Data.addMember lcid lusr
+        mm <- liftSem $ createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
         conv' <- if isJust (find ((usr /=) . lmId) mems) then liftSem promote else pure conv
         let mems' = mems <> toList mm
@@ -462,17 +463,6 @@ membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
--- | Note that we use 2 nearly identical functions but slightly different
--- semantics; when using `getSelfMemberFromLocals`, if that user is _not_ part
--- of the conversation, we don't want to disclose that such a conversation with
--- that id exists.
-getSelfMemberFromLocals ::
-  (Foldable t, Monad m) =>
-  UserId ->
-  t LocalMember ->
-  ExceptT ConvNotFound m LocalMember
-getSelfMemberFromLocals = getLocalMember (mkErrorDescription :: ConvNotFound)
-
 -- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley r monad.
 getSelfMemberFromLocalsLegacy ::
   Foldable t =>
@@ -480,7 +470,8 @@ getSelfMemberFromLocalsLegacy ::
   t LocalMember ->
   Galley r LocalMember
 getSelfMemberFromLocalsLegacy usr lmems =
-  eitherM throwErrorDescription pure . runExceptT $ getSelfMemberFromLocals usr lmems
+  eitherM throwErrorDescription pure . runExceptT $
+    getMember lmId (mkErrorDescription :: ConvNotFound) usr lmems
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
@@ -494,35 +485,10 @@ ensureOtherMember loc quid conv =
     (Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv))
       <|> (Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv))
 
-getSelfMemberFromRemotes ::
-  (Foldable t, Monad m) =>
-  Remote UserId ->
-  t RemoteMember ->
-  ExceptT ConvNotFound m RemoteMember
-getSelfMemberFromRemotes = getRemoteMember (mkErrorDescription :: ConvNotFound)
-
 getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley r RemoteMember
 getSelfMemberFromRemotesLegacy usr rmems =
   eitherM throwErrorDescription pure . runExceptT $
-    getSelfMemberFromRemotes usr rmems
-
--- | Since we search by local user ID, we know that the member must be local.
-getLocalMember ::
-  (Foldable t, Monad m) =>
-  e ->
-  UserId ->
-  t LocalMember ->
-  ExceptT e m LocalMember
-getLocalMember = getMember lmId
-
--- | Since we search by remote user ID, we know that the member must be remote.
-getRemoteMember ::
-  (Foldable t, Monad m) =>
-  e ->
-  Remote UserId ->
-  t RemoteMember ->
-  ExceptT e m RemoteMember
-getRemoteMember = getMember rmId
+    getMember rmId (mkErrorDescription :: ConvNotFound) usr rmems
 
 getQualifiedMember ::
   Monad m =>
@@ -534,8 +500,8 @@ getQualifiedMember ::
 getQualifiedMember loc e qusr conv =
   foldQualified
     loc
-    (\lusr -> Left <$> getLocalMember e (tUnqualified lusr) (Data.convLocalMembers conv))
-    (\rusr -> Right <$> getRemoteMember e rusr (Data.convRemoteMembers conv))
+    (\lusr -> Left <$> getMember lmId e (tUnqualified lusr) (Data.convLocalMembers conv))
+    (\rusr -> Right <$> getMember rmId e rusr (Data.convRemoteMembers conv))
     qusr
 
 getMember ::

@@ -28,6 +28,7 @@ import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
@@ -211,7 +212,8 @@ postQualifiedOtrMessage ::
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
-       ExternalAccess
+       ExternalAccess,
+       MemberStore
      ]
     r =>
   UserType ->
@@ -233,8 +235,8 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
     throwError MessageNotSentConversationNotFound
 
   -- conversation members
-  localMembers <- lift $ Data.members convId
-  remoteMembers <- lift $ Data.lookupRemoteMembers convId
+  localMembers <- lift . liftSem $ getLocalMembers convId
+  remoteMembers <- lift . liftSem $ getRemoteMembers convId
 
   let localMemberIds = lmId <$> localMembers
       localMemberMap :: Map UserId LocalMember

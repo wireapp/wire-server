@@ -89,6 +89,7 @@ import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Cassandra.Conversation
+import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.ConversationList
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
@@ -347,6 +348,7 @@ interpretGalleyToGalley0 =
     . interpretLegacyConversationListToCassandra
     . interpretRemoteConversationListToCassandra
     . interpretConversationListToCassandra
+    . interpretMemberStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretFireAndForget
     . interpretIntra

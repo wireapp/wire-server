@@ -99,6 +99,7 @@ import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
 import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
@@ -119,6 +120,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
+import Polysemy
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import qualified Wire.API.Conversation.Code as Public
@@ -143,14 +145,14 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
 
 acceptConvH ::
-  Members '[ConversationStore, GundeckAccess] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
   UserId ::: Maybe ConnId ::: ConvId ->
   Galley r Response
 acceptConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> acceptConv usr conn cnv
 
 acceptConv ::
-  Members '[ConversationStore, GundeckAccess] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
@@ -163,14 +165,14 @@ acceptConv usr conn cnv = do
   conversationView usr conv'
 
 blockConvH ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, MemberStore] r =>
   UserId ::: ConvId ->
   Galley r Response
 blockConvH (zusr ::: cnv) =
   empty <$ blockConv zusr cnv
 
 blockConv ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, MemberStore] r =>
   UserId ->
   ConvId ->
   Galley r ()
@@ -182,17 +184,18 @@ blockConv zusr cnv = do
     throwM $
       invalidOp "block: invalid conversation type"
   let mems = Data.convLocalMembers conv
-  when (zusr `isMember` mems) $ Data.removeMember zusr cnv
+  when (zusr `isMember` mems) . liftSem $
+    deleteMembers cnv (UserList [zusr] [])
 
 unblockConvH ::
-  Members '[ConversationStore, GundeckAccess] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
   UserId ::: Maybe ConnId ::: ConvId ->
   Galley r Response
 unblockConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> unblockConv usr conn cnv
 
 unblockConv ::
-  Members '[ConversationStore, GundeckAccess] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
@@ -272,7 +275,8 @@ performAccessUpdateAction ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   Qualified UserId ->
@@ -444,7 +448,8 @@ type UpdateConversationActions =
      FederatorAccess,
      FireAndForget,
      GundeckAccess,
-     ConversationStore
+     ConversationStore,
+     MemberStore
    ]
 
 -- | Update a local conversation, and notify all local and remote members.
@@ -511,7 +516,7 @@ performAction qusr conv action = case action of
   ConversationActionMemberUpdate target update -> lift $ do
     lcnv <- qualifyLocal (Data.convId conv)
     void $ ensureOtherMember lcnv target conv
-    Data.updateOtherMemberLocalConv lcnv target update
+    liftSem $ setOtherMember lcnv target update
     pure (mempty, action)
   ConversationActionAccessUpdate update -> do
     performAccessUpdateAction qusr conv update
@@ -649,7 +654,8 @@ joinConversationByReusableCodeH ::
        ConversationStore,
        FederatorAccess,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.ConversationCode ->
@@ -664,7 +670,8 @@ joinConversationByReusableCode ::
        ConversationStore,
        FederatorAccess,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -681,7 +688,8 @@ joinConversationByIdH ::
        ConversationStore,
        FederatorAccess,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JSON ->
@@ -695,7 +703,8 @@ joinConversationById ::
        FederatorAccess,
        ConversationStore,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -711,7 +720,8 @@ joinConversation ::
        ConversationStore,
        FederatorAccess,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -744,12 +754,13 @@ joinConversation zusr zcon cnv access = do
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
+  Members '[MemberStore] r =>
   Local ConvId ->
   UserList UserId ->
   RoleName ->
   MaybeT (Galley r) (BotsAndMembers, ConversationAction)
 addMembersToLocalConversation lcnv users role = do
-  (lmems, rmems) <- lift $ Data.addMembers (tUnqualified lcnv) (fmap (,role) users)
+  (lmems, rmems) <- lift . liftSem $ createMembers (tUnqualified lcnv) (fmap (,role) users)
   neUsers <- maybe mzero pure . nonEmpty . ulAll lcnv $ users
   let action = ConversationActionAddMembers neUsers role
   pure (bmFromMembers lmems rmems, action)
@@ -868,7 +879,7 @@ addMembers zusr zcon cnv (Public.InviteQualified users role) = do
       ConversationActionAddMembers users role
 
 updateSelfMember ::
-  Members '[ConversationStore, GundeckAccess, ExternalAccess] r =>
+  Members '[ConversationStore, GundeckAccess, ExternalAccess, MemberStore] r =>
   UserId ->
   ConnId ->
   Qualified ConvId ->
@@ -876,25 +887,29 @@ updateSelfMember ::
   Galley r ()
 updateSelfMember zusr zcon qcnv update = do
   lusr <- qualifyLocal zusr
-  exists <- foldQualified lusr checkLocalMembership checkRemoteMembership qcnv lusr
+  exists <- liftSem $ foldQualified lusr checkLocalMembership checkRemoteMembership qcnv lusr
   unless exists (throwErrorDescriptionType @ConvNotFound)
-  Data.updateSelfMember lusr qcnv lusr update
+  liftSem $ setSelfMember qcnv lusr update
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) e [zusr] []
   where
+    checkLocalMembership ::
+      Members '[MemberStore] r =>
+      Local ConvId ->
+      Local UserId ->
+      Sem r Bool
     checkLocalMembership lcnv lusr =
       isMember (tUnqualified lusr)
-        <$> Data.members (tUnqualified lcnv)
+        <$> getLocalMembers (tUnqualified lcnv)
     checkRemoteMembership ::
       Members '[ConversationStore] r =>
       Remote ConvId ->
       Local UserId ->
-      Galley r Bool
+      Sem r Bool
     checkRemoteMembership rcnv lusr =
-      liftSem $
-        isJust . Map.lookup rcnv
-          <$> getRemoteConversationStatus (tUnqualified lusr) [rcnv]
+      isJust . Map.lookup rcnv
+        <$> getRemoteConversationStatus (tUnqualified lusr) [rcnv]
     updateData luid =
       MemberUpdateData
         { misTarget = qUntagged luid,
@@ -1015,6 +1030,7 @@ removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
   | otherwise = pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
 performRemoveMemberAction ::
+  Member MemberStore r =>
   Data.Conversation ->
   [Qualified UserId] ->
   MaybeT (Galley r) ()
@@ -1022,10 +1038,7 @@ performRemoveMemberAction conv victims = do
   loc <- qualifyLocal ()
   let presentVictims = filter (isConvMember loc conv) victims
   guard . not . null $ presentVictims
-
-  let (lvictims, rvictims) = partitionQualified loc presentVictims
-  traverse_ (lift . Data.removeLocalMembersFromLocalConv (Data.convId conv)) (nonEmpty lvictims)
-  traverse_ (lift . Data.removeRemoteMembersFromLocalConv (Data.convId conv)) (nonEmpty rvictims)
+  lift . liftSem $ deleteMembers (Data.convId conv) (toUserList loc presentVictims)
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
@@ -1066,7 +1079,8 @@ postBotMessageH ::
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
-       ExternalAccess
+       ExternalAccess,
+       MemberStore
      ]
     r =>
   BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
@@ -1083,7 +1097,8 @@ postBotMessage ::
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
-       ExternalAccess
+       ExternalAccess,
+       MemberStore
      ]
     r =>
   BotId ->
@@ -1101,7 +1116,8 @@ postProteusMessage ::
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
-       ExternalAccess
+       ExternalAccess,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -1123,7 +1139,8 @@ postOtrMessageUnqualified ::
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
-       ExternalAccess
+       ExternalAccess,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -1220,7 +1237,8 @@ postNewOtrMessage ::
        BrigAccess,
        ConversationStore,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserType ->
@@ -1352,7 +1370,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
 
 isTypingH ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, MemberStore] r =>
   UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData ->
   Galley r Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
@@ -1361,7 +1379,7 @@ isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   pure empty
 
 isTyping ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, MemberStore] r =>
   UserId ->
   ConnId ->
   ConvId ->
@@ -1371,7 +1389,7 @@ isTyping zusr zcon cnv typingData = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
       qusr = Qualified zusr localDomain
-  mm <- Data.members cnv
+  mm <- liftSem $ getLocalMembers cnv
   unless (zusr `isMember` mm) $
     throwErrorDescriptionType @ConvNotFound
   now <- liftIO getCurrentTime
@@ -1439,7 +1457,7 @@ addBot zusr zcon b = do
         throwM noAddToManaged
 
 rmBotH ::
-  Members '[ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
   UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
   Galley r Response
 rmBotH (zusr ::: zcon ::: req) = do
@@ -1447,7 +1465,7 @@ rmBotH (zusr ::: zcon ::: req) = do
   handleUpdateResult <$> rmBot zusr zcon bot
 
 rmBot ::
-  Members '[ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
   RemoveBot ->
@@ -1470,7 +1488,7 @@ rmBot zusr zcon b = do
       let e = Event MemberLeave qcnv qusr t evd
       for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
-      Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
+      liftSem $ deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
       Data.eraseClients (botUserId (b ^. rmBotId))
       External.deliverAsync (bots `zip` repeat e)
       pure $ Updated e
@@ -1551,7 +1569,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  Members '[ConversationStore, BrigAccess] r =>
+  Members '[BrigAccess, ConversationStore, MemberStore] r =>
   UserType ->
   UserId ->
   ClientId ->
@@ -1568,7 +1586,7 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
       liftSem $ deleteConversation cnv
       pure $ OtrConversationNotFound mkErrorDescription
     else do
-      localMembers <- Data.members cnv
+      localMembers <- liftSem $ getLocalMembers cnv
       let localMemberIds = lmId <$> localMembers
       isInternal <- view $ options . optSettings . setIntraListing
       clts <-

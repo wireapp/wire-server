@@ -56,6 +56,7 @@ import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Paging as E
 import Galley.Types
 import Galley.Types.Conversations.Members
@@ -444,23 +445,24 @@ iterateConversations uid pageSize handleConvs = go Nothing
       pure $ resultHead : resultTail
 
 internalGetMemberH ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, MemberStore] r =>
   ConvId ::: UserId ->
   Galley r Response
 internalGetMemberH (cnv ::: usr) = do
   json <$> getLocalSelf usr cnv
 
 getLocalSelf ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, MemberStore] r =>
   UserId ->
   ConvId ->
   Galley r (Maybe Public.Member)
 getLocalSelf usr cnv = do
   lusr <- qualifyLocal usr
-  alive <- liftSem $ E.isConversationAlive cnv
-  if alive
-    then Mapping.localMemberToSelf lusr <$$> Data.member cnv usr
-    else liftSem $ Nothing <$ E.deleteConversation cnv
+  liftSem $ do
+    alive <- E.isConversationAlive cnv
+    if alive
+      then Mapping.localMemberToSelf lusr <$$> E.getLocalMember cnv usr
+      else Nothing <$ E.deleteConversation cnv
 
 getConversationMetaH ::
   Member ConversationStore r =>

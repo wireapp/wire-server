@@ -44,6 +44,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.MemberStore as E
 import Galley.Intra.Push
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
@@ -325,7 +326,7 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
   throwM federationNotImplemented
 
 createConnectConversation ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
   Connect ->
@@ -347,7 +348,7 @@ createConnectConversationWithRemote _ _ _ =
   throwM federationNotImplemented
 
 createLegacyConnectConversation ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, FederatorAccess, GundeckAccess, MemberStore] r =>
   Local UserId ->
   Maybe ConnId ->
   Local UserId ->
@@ -380,7 +381,7 @@ createLegacyConnectConversation lusr conn lrecipient j = do
                   connect n conv
                 | otherwise -> do
                   lcid <- qualifyLocal (Data.convId conv)
-                  mm <- Data.addMember lcid lusr
+                  mm <- liftSem $ E.createMember lcid lusr
                   let conv' =
                         conv
                           { Data.convLocalMembers = Data.convLocalMembers conv <> toList mm

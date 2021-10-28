@@ -15,21 +15,36 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Conversation.Members where
+module Galley.Cassandra.Conversation.Members
+  ( addMembers,
+    members,
+    memberLists,
+    remoteMemberLists,
+    lookupRemoteMembers,
+    removeMembersFromLocalConv,
+    toMemberStatus,
+    interpretMemberStoreToCassandra,
+  )
+where
 
 import Cassandra
 import Data.Domain
 import Data.Id
 import qualified Data.List.Extra as List
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
+import Data.Monoid
 import Data.Qualified
+import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
+import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
+import Polysemy
+import qualified Polysemy.Reader as P
+import qualified UnliftIO
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role
 import Wire.API.Provider.Service
@@ -75,7 +90,14 @@ addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
 
   pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
 
-removeLocalMembersFromLocalConv :: ConvId -> NonEmpty UserId -> Client ()
+removeMembersFromLocalConv :: ConvId -> UserList UserId -> Client ()
+removeMembersFromLocalConv cnv victims = void $ do
+  UnliftIO.concurrently
+    (removeLocalMembersFromLocalConv cnv (ulLocals victims))
+    (removeRemoteMembersFromLocalConv cnv (ulRemotes victims))
+
+removeLocalMembersFromLocalConv :: ConvId -> [UserId] -> Client ()
+removeLocalMembersFromLocalConv _ [] = pure ()
 removeLocalMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
     setType BatchLogged
@@ -84,7 +106,8 @@ removeLocalMembersFromLocalConv cnv victims = do
       addPrepQuery Cql.removeMember (cnv, victim)
       addPrepQuery Cql.deleteUserConv (victim, cnv)
 
-removeRemoteMembersFromLocalConv :: ConvId -> NonEmpty (Remote UserId) -> Client ()
+removeRemoteMembersFromLocalConv :: ConvId -> [Remote UserId] -> Client ()
+removeRemoteMembersFromLocalConv _ [] = pure ()
 removeRemoteMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
     setType BatchLogged
@@ -106,7 +129,7 @@ memberLists convs = do
       (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn))
 
 members :: ConvId -> Client [LocalMember]
-members = fmap concat . liftClient . memberLists . pure
+members = fmap concat . memberLists . pure
 
 toMemberStatus ::
   ( -- otr muted
@@ -181,3 +204,156 @@ remoteMemberLists convs = do
 
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
 lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
+
+member ::
+  ConvId ->
+  UserId ->
+  Client (Maybe LocalMember)
+member cnv usr =
+  (toMember =<<)
+    <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
+
+-- | Set local users as belonging to a remote conversation. This is invoked by a
+-- remote galley when users from the current backend are added to conversations
+-- on the remote end.
+addLocalMembersToRemoteConv :: Remote ConvId -> [UserId] -> Client ()
+addLocalMembersToRemoteConv _ [] = pure ()
+addLocalMembersToRemoteConv rconv users = do
+  -- FUTUREWORK: consider using pooledMapConcurrentlyN
+  for_ (List.chunksOf 32 users) $ \chunk ->
+    retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency Quorum
+      for_ chunk $ \u ->
+        addPrepQuery
+          Cql.insertUserRemoteConv
+          (u, tDomain rconv, tUnqualified rconv)
+
+updateSelfMember ::
+  Qualified ConvId ->
+  Local UserId ->
+  MemberUpdate ->
+  Client ()
+updateSelfMember qcnv lusr =
+  foldQualified
+    lusr
+    updateSelfMemberLocalConv
+    updateSelfMemberRemoteConv
+    qcnv
+    lusr
+
+updateSelfMemberLocalConv ::
+  Local ConvId ->
+  Local UserId ->
+  MemberUpdate ->
+  Client ()
+updateSelfMemberLocalConv lcid luid mup = do
+  retry x5 . batch $ do
+    setType BatchUnLogged
+    setConsistency Quorum
+    for_ (mupOtrMuteStatus mup) $ \ms ->
+      addPrepQuery
+        Cql.updateOtrMemberMutedStatus
+        (ms, mupOtrMuteRef mup, tUnqualified lcid, tUnqualified luid)
+    for_ (mupOtrArchive mup) $ \a ->
+      addPrepQuery
+        Cql.updateOtrMemberArchived
+        (a, mupOtrArchiveRef mup, tUnqualified lcid, tUnqualified luid)
+    for_ (mupHidden mup) $ \h ->
+      addPrepQuery
+        Cql.updateMemberHidden
+        (h, mupHiddenRef mup, tUnqualified lcid, tUnqualified luid)
+
+updateSelfMemberRemoteConv ::
+  Remote ConvId ->
+  Local UserId ->
+  MemberUpdate ->
+  Client ()
+updateSelfMemberRemoteConv (qUntagged -> Qualified cid domain) luid mup = do
+  retry x5 . batch $ do
+    setType BatchUnLogged
+    setConsistency Quorum
+    for_ (mupOtrMuteStatus mup) $ \ms ->
+      addPrepQuery
+        Cql.updateRemoteOtrMemberMutedStatus
+        (ms, mupOtrMuteRef mup, domain, cid, tUnqualified luid)
+    for_ (mupOtrArchive mup) $ \a ->
+      addPrepQuery
+        Cql.updateRemoteOtrMemberArchived
+        (a, mupOtrArchiveRef mup, domain, cid, tUnqualified luid)
+    for_ (mupHidden mup) $ \h ->
+      addPrepQuery
+        Cql.updateRemoteMemberHidden
+        (h, mupHiddenRef mup, domain, cid, tUnqualified luid)
+
+updateOtherMemberLocalConv ::
+  Local ConvId ->
+  Qualified UserId ->
+  OtherMemberUpdate ->
+  Client ()
+updateOtherMemberLocalConv lcid quid omu =
+  do
+    let addQuery r
+          | tDomain lcid == qDomain quid =
+            addPrepQuery
+              Cql.updateMemberConvRoleName
+              (r, tUnqualified lcid, qUnqualified quid)
+          | otherwise =
+            addPrepQuery
+              Cql.updateRemoteMemberConvRoleName
+              (r, tUnqualified lcid, qDomain quid, qUnqualified quid)
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      traverse_ addQuery (omuConvRoleName omu)
+
+-- | Select only the members of a remote conversation from a list of users.
+-- Return the filtered list and a boolean indicating whether the all the input
+-- users are members.
+filterRemoteConvMembers ::
+  [UserId] ->
+  Remote ConvId ->
+  Client ([UserId], Bool)
+filterRemoteConvMembers users (qUntagged -> Qualified conv dom) =
+  fmap Data.Monoid.getAll
+    . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))
+    <$> UnliftIO.pooledMapConcurrentlyN 8 filterMember users
+  where
+    filterMember :: UserId -> Client [UserId]
+    filterMember user =
+      fmap (map runIdentity)
+        . retry x1
+        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, conv))
+
+removeLocalMembersFromRemoteConv ::
+  -- | The conversation to remove members from
+  Remote ConvId ->
+  -- | Members to remove local to this backend
+  [UserId] ->
+  Client ()
+removeLocalMembersFromRemoteConv _ [] = pure ()
+removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victims =
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
+
+interpretMemberStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (MemberStore ': r) a ->
+  Sem r a
+interpretMemberStoreToCassandra = interpret $ \case
+  CreateMembers cid ul -> embedClient $ addMembers cid ul
+  CreateMembersInRemoteConversation rcid uids ->
+    embedClient $ addLocalMembersToRemoteConv rcid uids
+  GetLocalMember cid uid -> embedClient $ member cid uid
+  GetLocalMembers cid -> embedClient $ members cid
+  GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
+  SelectRemoteMembers uids rcnv -> embedClient $ filterRemoteConvMembers uids rcnv
+  SetSelfMember qcid luid upd -> embedClient $ updateSelfMember qcid luid upd
+  SetOtherMember lcid quid upd ->
+    embedClient $ updateOtherMemberLocalConv lcid quid upd
+  DeleteMembers cnv ul -> embedClient $ removeMembersFromLocalConv cnv ul
+  DeleteMembersInRemoteConversation rcnv uids ->
+    embedClient $
+      removeLocalMembersFromRemoteConv rcnv uids

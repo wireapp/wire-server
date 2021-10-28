@@ -53,26 +53,6 @@ module Galley.Data
     updateTeam,
     updateTeamStatus,
 
-    -- * Conversation Members
-    addMember,
-    addMembers,
-    addLocalMembersToRemoteConv,
-    member,
-    members,
-    lookupRemoteMembers,
-    removeMember,
-    removeLocalMembersFromLocalConv,
-    removeRemoteMembersFromLocalConv,
-    removeLocalMembersFromRemoteConv,
-    updateSelfMember,
-    updateSelfMemberLocalConv,
-    updateSelfMemberRemoteConv,
-    updateOtherMember,
-    updateOtherMemberLocalConv,
-    updateOtherMemberRemoteConv,
-    ToUserRole (..),
-    filterRemoteConvMembers,
-
     -- * Conversation Codes
     lookupCode,
     deleteCode,
@@ -105,18 +85,13 @@ import Data.ByteString.Conversion hiding (parser)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import qualified Data.List.Extra as List
-import Data.List.NonEmpty (NonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
-import qualified Data.Monoid
-import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.UUID.V4 (nextRandom)
 import Galley.App
 import qualified Galley.Cassandra.Conversation as C
-import qualified Galley.Cassandra.Conversation.Members as C
 import Galley.Data.Access
 import Galley.Data.Conversation
 import Galley.Data.Instances ()
@@ -124,7 +99,6 @@ import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.ResultSet
 import Galley.Data.Types as Data
-import Galley.Types hiding (Conversation)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams hiding
@@ -136,8 +110,6 @@ import Galley.Types.Teams hiding
   )
 import qualified Galley.Types.Teams as Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Imports hiding (Set, max)
 import qualified UnliftIO
 import Wire.API.Team.Member
@@ -423,185 +395,6 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
-
--- Conversation Members -----------------------------------------------------
-
-member ::
-  ConvId ->
-  UserId ->
-  Galley r (Maybe LocalMember)
-member cnv usr =
-  (C.toMember =<<)
-    <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
-
-members :: ConvId -> Galley r [LocalMember]
-members = liftClient . C.members
-
-lookupRemoteMembers :: ConvId -> Galley r [RemoteMember]
-lookupRemoteMembers = liftClient . C.lookupRemoteMembers
-
--- | Add a member to a local conversation, as an admin.
-addMember :: Local ConvId -> Local UserId -> Galley r [LocalMember]
-addMember c u =
-  liftClient $
-    fst <$> C.addMembers (tUnqualified c) (UserList [tUnqualified u] [])
-
-addMembers ::
-  ToUserRole a =>
-  ConvId ->
-  UserList a ->
-  Galley r ([LocalMember], [RemoteMember])
-addMembers cid = liftClient . C.addMembers cid
-
--- | Set local users as belonging to a remote conversation. This is invoked by a
--- remote galley when users from the current backend are added to conversations
--- on the remote end.
-addLocalMembersToRemoteConv :: Remote ConvId -> [UserId] -> Galley r ()
-addLocalMembersToRemoteConv _ [] = pure ()
-addLocalMembersToRemoteConv rconv users = do
-  -- FUTUREWORK: consider using pooledMapConcurrentlyN
-  for_ (List.chunksOf 32 users) $ \chunk ->
-    retry x5 . batch $ do
-      setType BatchLogged
-      setConsistency Quorum
-      for_ chunk $ \u ->
-        addPrepQuery
-          Cql.insertUserRemoteConv
-          (u, tDomain rconv, tUnqualified rconv)
-
-updateSelfMember ::
-  Local x ->
-  Qualified ConvId ->
-  Local UserId ->
-  MemberUpdate ->
-  Galley r ()
-updateSelfMember loc = foldQualified loc updateSelfMemberLocalConv updateSelfMemberRemoteConv
-
-updateSelfMemberLocalConv ::
-  Local ConvId ->
-  Local UserId ->
-  MemberUpdate ->
-  Galley r ()
-updateSelfMemberLocalConv lcid luid mup = do
-  retry x5 . batch $ do
-    setType BatchUnLogged
-    setConsistency Quorum
-    for_ (mupOtrMuteStatus mup) $ \ms ->
-      addPrepQuery
-        Cql.updateOtrMemberMutedStatus
-        (ms, mupOtrMuteRef mup, tUnqualified lcid, tUnqualified luid)
-    for_ (mupOtrArchive mup) $ \a ->
-      addPrepQuery
-        Cql.updateOtrMemberArchived
-        (a, mupOtrArchiveRef mup, tUnqualified lcid, tUnqualified luid)
-    for_ (mupHidden mup) $ \h ->
-      addPrepQuery
-        Cql.updateMemberHidden
-        (h, mupHiddenRef mup, tUnqualified lcid, tUnqualified luid)
-
-updateSelfMemberRemoteConv ::
-  Remote ConvId ->
-  Local UserId ->
-  MemberUpdate ->
-  Galley r ()
-updateSelfMemberRemoteConv (qUntagged -> Qualified cid domain) luid mup = do
-  retry x5 . batch $ do
-    setType BatchUnLogged
-    setConsistency Quorum
-    for_ (mupOtrMuteStatus mup) $ \ms ->
-      addPrepQuery
-        Cql.updateRemoteOtrMemberMutedStatus
-        (ms, mupOtrMuteRef mup, domain, cid, tUnqualified luid)
-    for_ (mupOtrArchive mup) $ \a ->
-      addPrepQuery
-        Cql.updateRemoteOtrMemberArchived
-        (a, mupOtrArchiveRef mup, domain, cid, tUnqualified luid)
-    for_ (mupHidden mup) $ \h ->
-      addPrepQuery
-        Cql.updateRemoteMemberHidden
-        (h, mupHiddenRef mup, domain, cid, tUnqualified luid)
-
-updateOtherMember ::
-  Local x ->
-  Qualified ConvId ->
-  Qualified UserId ->
-  OtherMemberUpdate ->
-  Galley r ()
-updateOtherMember loc = foldQualified loc updateOtherMemberLocalConv updateOtherMemberRemoteConv
-
-updateOtherMemberLocalConv ::
-  Local ConvId ->
-  Qualified UserId ->
-  OtherMemberUpdate ->
-  Galley r ()
-updateOtherMemberLocalConv lcid quid omu =
-  do
-    let addQuery r
-          | tDomain lcid == qDomain quid =
-            addPrepQuery
-              Cql.updateMemberConvRoleName
-              (r, tUnqualified lcid, qUnqualified quid)
-          | otherwise =
-            addPrepQuery
-              Cql.updateRemoteMemberConvRoleName
-              (r, tUnqualified lcid, qDomain quid, qUnqualified quid)
-    retry x5 . batch $ do
-      setType BatchUnLogged
-      setConsistency Quorum
-      traverse_ addQuery (omuConvRoleName omu)
-
--- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-887
-updateOtherMemberRemoteConv ::
-  Remote ConvId ->
-  Qualified UserId ->
-  OtherMemberUpdate ->
-  Galley r ()
-updateOtherMemberRemoteConv _ _ _ = pure ()
-
--- | Select only the members of a remote conversation from a list of users.
--- Return the filtered list and a boolean indicating whether the all the input
--- users are members.
-filterRemoteConvMembers ::
-  [UserId] ->
-  Qualified ConvId ->
-  Galley r ([UserId], Bool)
-filterRemoteConvMembers users (Qualified conv dom) =
-  liftClient $
-    fmap Data.Monoid.getAll
-      . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))
-      <$> UnliftIO.pooledMapConcurrentlyN 8 filterMember users
-  where
-    filterMember :: UserId -> Client [UserId]
-    filterMember user =
-      fmap (map runIdentity)
-        . retry x1
-        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, conv))
-
-removeLocalMembersFromLocalConv :: ConvId -> NonEmpty UserId -> Galley r ()
-removeLocalMembersFromLocalConv cnv = liftClient . C.removeLocalMembersFromLocalConv cnv
-
-removeRemoteMembersFromLocalConv :: ConvId -> NonEmpty (Remote UserId) -> Galley r ()
-removeRemoteMembersFromLocalConv cnv = liftClient . C.removeRemoteMembersFromLocalConv cnv
-
-removeLocalMembersFromRemoteConv ::
-  -- | The conversation to remove members from
-  Remote ConvId ->
-  -- | Members to remove local to this backend
-  [UserId] ->
-  Galley r ()
-removeLocalMembersFromRemoteConv _ [] = pure ()
-removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victims =
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
-
-removeMember :: UserId -> ConvId -> Galley r ()
-removeMember usr cnv = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency Quorum
-  addPrepQuery Cql.removeMember (cnv, usr)
-  addPrepQuery Cql.deleteUserConv (usr, cnv)
 
 -- Clients ------------------------------------------------------------------
 

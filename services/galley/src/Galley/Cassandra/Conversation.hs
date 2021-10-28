@@ -25,7 +25,6 @@ where
 import Cassandra
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
@@ -215,12 +214,10 @@ deleteConversation cid = do
   retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
 
   localMembers <- members cid
-  for_ (nonEmpty localMembers) $ \ms ->
-    removeLocalMembersFromLocalConv cid (lmId <$> ms)
-
   remoteMembers <- lookupRemoteMembers cid
-  for_ (nonEmpty remoteMembers) $ \ms ->
-    removeRemoteMembersFromLocalConv cid (rmId <$> ms)
+
+  removeMembersFromLocalConv cid $
+    UserList (lmId <$> localMembers) (rmId <$> remoteMembers)
 
   retry x5 $ write Cql.deleteConv (params Quorum (Identity cid))
 

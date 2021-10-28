@@ -58,6 +58,7 @@ import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types
@@ -67,6 +68,7 @@ import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), 
 import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
+import Galley.Types.UserList
 import Imports hiding (head)
 import Network.HTTP.Types (status200)
 import Network.Wai
@@ -486,7 +488,8 @@ rmUser ::
          FederatorAccess,
          GundeckAccess,
          ListItems p ConvId,
-         ListItems p (Remote ConvId)
+         ListItems p (Remote ConvId),
+         MemberStore
        ]
       r
   ) =>
@@ -521,17 +524,17 @@ rmUser user conn = do
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
 
     -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
-    leaveLocalConversations :: [ConvId] -> Galley r ()
+    leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
       cc <- liftSem $ getConversations ids
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
-        ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
+        One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
+        ConnectConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
-            Data.removeLocalMembersFromLocalConv (Data.convId c) (pure user)
+            liftSem $ deleteMembers (Data.convId c) (UserList [user] [])
             now <- liftIO getCurrentTime
             let e =
                   Event

@@ -142,7 +142,8 @@ removeSettingsH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
@@ -161,7 +162,8 @@ removeSettings ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -199,7 +201,8 @@ removeSettings' ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   TeamId ->
@@ -268,7 +271,8 @@ grantConsentH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ::: TeamId ::: JSON ->
@@ -291,7 +295,8 @@ grantConsent ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -318,7 +323,8 @@ requestDeviceH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
@@ -342,7 +348,8 @@ requestDevice ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -399,7 +406,8 @@ approveDeviceH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
@@ -418,7 +426,8 @@ approveDevice ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -472,7 +481,8 @@ disableForUserH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
@@ -497,7 +507,8 @@ disableForUser ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -539,7 +550,8 @@ changeLegalholdStatus ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   TeamId ->
@@ -660,7 +672,8 @@ handleGroupConvPolicyConflicts ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId
+       ListItems LegacyPaging ConvId,
+       MemberStore
      ]
     r =>
   UserId ->

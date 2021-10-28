@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e766852c726a9a3e57fdfa335f55129160f2396a2f66e63bb4c66a9225123b3a
+-- hash: 5a3ccdb08ac650b5725a2768c9a3d27b1dca1f5b21f5203df1c68d033bc36ccb
 
 name:           galley
 version:        0.83.0
@@ -66,9 +66,9 @@ library
       Galley.Data.TeamNotifications
       Galley.Data.Types
       Galley.Effects
-      Galley.Effects.ConversationListStore
       Galley.Effects.ConversationStore
       Galley.Effects.FireAndForget
+      Galley.Effects.MemberStore
       Galley.Effects.Paging
       Galley.Effects.RemoteConversationListStore
       Galley.Env
@@ -94,7 +94,7 @@ library
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fplugin=Polysemy.Plugin
   build-depends:
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
@@ -140,6 +140,7 @@ library
     , optparse-applicative >=0.10
     , pem
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens >=0.2
     , protobuf >=0.2

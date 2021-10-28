@@ -93,6 +93,7 @@ import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
 import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -108,6 +109,7 @@ import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
+import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
@@ -337,7 +339,7 @@ internalDeleteBindingTeamWithOneMember tid = do
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
   forall r.
-  Members '[BrigAccess, ExternalAccess, GundeckAccess, SparAccess] r =>
+  Members '[BrigAccess, ExternalAccess, GundeckAccess, MemberStore, SparAccess] r =>
   UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -395,7 +397,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (c ^. conversationId) localDomain
           qorig = Qualified zusr localDomain
-      (bots, convMembs) <- localBotsAndUsers <$> Data.members (c ^. conversationId)
+      (bots, convMembs) <- liftSem $ localBotsAndUsers <$> getLocalMembers (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
@@ -596,7 +598,7 @@ uncheckedGetTeamMembers ::
 uncheckedGetTeamMembers tid maxResults = Data.teamMembersWithLimit tid maxResults
 
 addTeamMemberH ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, MemberStore] r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
   Galley r Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -605,7 +607,7 @@ addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   pure empty
 
 addTeamMember ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, MemberStore] r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -632,7 +634,7 @@ addTeamMember zusr zcon tid nmem = do
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, MemberStore] r =>
   TeamId ::: JsonRequest NewTeamMember ::: JSON ->
   Galley r Response
 uncheckedAddTeamMemberH (tid ::: req ::: _) = do
@@ -641,7 +643,7 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
   return empty
 
 uncheckedAddTeamMember ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, MemberStore] r =>
   TeamId ->
   NewTeamMember ->
   Galley r ()
@@ -734,7 +736,7 @@ updateTeamMember zusr zcon tid targetMember = do
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH ::
-  Members '[BrigAccess, ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
   UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
   Galley r Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
@@ -749,7 +751,7 @@ data TeamMemberDeleteResult
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember ::
-  Members '[BrigAccess, ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[BrigAccess, ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -792,7 +794,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedDeleteTeamMember ::
   forall r.
-  Members '[BrigAccess, ConversationStore, GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, ConversationStore, GundeckAccess, ExternalAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -824,7 +826,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       for_ cc $ \c ->
         liftSem (getConversation (c ^. conversationId)) >>= \conv ->
           for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
-            Data.removeMember remove (c ^. conversationId)
+            liftSem $ deleteMembers (c ^. conversationId) (UserList [remove] [])
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
             unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
               pushEvent tmids edata now dc
@@ -862,7 +864,8 @@ deleteTeamConversation ::
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
-       GundeckAccess
+       GundeckAccess,
+       MemberStore
      ]
     r =>
   UserId ->
@@ -985,7 +988,7 @@ teamSizeBelowLimit teamSize = do
       pure True
 
 addTeamMemberInternal ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, MemberStore] r =>
   TeamId ->
   Maybe UserId ->
   Maybe ConnId ->
@@ -1003,7 +1006,7 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
   for_ cc $ \c -> do
     lcid <- qualifyLocal (c ^. conversationId)
     luid <- qualifyLocal (new ^. userId)
-    Data.addMember lcid luid
+    liftSem $ createMember lcid luid
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e

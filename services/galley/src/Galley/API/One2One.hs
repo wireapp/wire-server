@@ -25,9 +25,9 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.App (Galley, liftSem)
-import qualified Galley.Data as Data
 import Galley.Data.Conversation
 import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.UserList (UserList (..))
@@ -36,15 +36,15 @@ import Polysemy
 
 iUpsertOne2OneConversation ::
   forall r.
-  Member ConversationStore r =>
+  Members '[ConversationStore, MemberStore] r =>
   UpsertOne2OneConversationRequest ->
   Galley r UpsertOne2OneConversationResponse
-iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
+iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = liftSem $ do
   let convId = fromMaybe (one2OneConvId (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooConvId
 
-  let dolocal :: Local ConvId -> Galley r ()
+  let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do
-        mbConv <- liftSem $ getConversation (tUnqualified lconvId)
+        mbConv <- getConversation (tUnqualified lconvId)
         case mbConv of
           Nothing -> do
             let members =
@@ -53,7 +53,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                     (LocalActor, Excluded) -> UserList [] []
                     (RemoteActor, Included) -> UserList [] [uooRemoteUser]
                     (RemoteActor, Excluded) -> UserList [] []
-            unless (null members) . liftSem . void $
+            unless (null members) . void $
               createConnectConversationWithRemote
                 (tUnqualified lconvId)
                 (tUnqualified uooLocalUser)
@@ -61,22 +61,28 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
           Just conv -> do
             case (uooActor, uooActorDesiredMembership) of
               (LocalActor, Included) -> do
-                void $ Data.addMember lconvId uooLocalUser
-                liftSem . unless (null (convRemoteMembers conv)) $
+                void $ createMember lconvId uooLocalUser
+                unless (null (convRemoteMembers conv)) $
                   acceptConnectConversation (tUnqualified lconvId)
-              (LocalActor, Excluded) -> Data.removeMember (tUnqualified uooLocalUser) (tUnqualified lconvId)
+              (LocalActor, Excluded) ->
+                deleteMembers
+                  (tUnqualified lconvId)
+                  (UserList [tUnqualified uooLocalUser] [])
               (RemoteActor, Included) -> do
-                void $ Data.addMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
-                liftSem . unless (null (convLocalMembers conv)) $
+                void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
+                unless (null (convLocalMembers conv)) $
                   acceptConnectConversation (tUnqualified lconvId)
-              (RemoteActor, Excluded) -> Data.removeRemoteMembersFromLocalConv (tUnqualified lconvId) (pure uooRemoteUser)
-      doremote :: Remote ConvId -> Galley r ()
+              (RemoteActor, Excluded) ->
+                deleteMembers
+                  (tUnqualified lconvId)
+                  (UserList [] [uooRemoteUser])
+      doremote :: Remote ConvId -> Sem r ()
       doremote rconvId =
         case (uooActor, uooActorDesiredMembership) of
           (LocalActor, Included) -> do
-            Data.addLocalMembersToRemoteConv rconvId [tUnqualified uooLocalUser]
+            createMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (LocalActor, Excluded) -> do
-            Data.removeLocalMembersFromRemoteConv rconvId [tUnqualified uooLocalUser]
+            deleteMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (RemoteActor, _) -> pure ()
 
   foldQualified uooLocalUser dolocal doremote convId
