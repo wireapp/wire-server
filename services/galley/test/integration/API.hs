@@ -87,7 +87,7 @@ import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley
   ( Api (onConversationUpdated),
-    ConversationUpdate (cuAction, cuAlreadyPresentUsers, cuOrigUserId),
+    ConversationUpdate (cuAction, cuAlreadyPresentUsers, cuConvId, cuOrigUserId),
     GetConversationsResponse (..),
     RemoteConvMembers (..),
     RemoteConversation (..),
@@ -3238,35 +3238,63 @@ removeUser = do
   FederatedGalley.onConversationCreated fedGalleyClient bDomain $ nc convB2 bart [alexDel]
   FederatedGalley.onConversationCreated fedGalleyClient cDomain $ nc convC1 carl [alexDel]
 
+  localDomain <- viewFederationDomain
+
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
+    let galleyApi _domain =
+          emptyFederatedGalley
+            { FederatedGalley.leaveConversation = \_domain _update ->
+                pure (FederatedGalley.LeaveConversationResponse (Right ())),
+              FederatedGalley.onConversationUpdated = \_domain _convUpdate ->
+                pure ()
+            }
     (_, fedRequests) <-
-      withTempMockFederator (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
+      withTempServantMockFederator (const emptyFederatedBrig) galleyApi localDomain $
         deleteUser alexDel' !!! const 200 === statusCode
 
-    -- FUTUTREWORK: There should be 4 requests, one to each domain for telling
-    -- them that alex left the conversation hosted locally. Add assertions for
-    -- that and implement it.
     liftIO $ do
-      assertEqual ("expect exactly 2 federated requests in : " <> show fedRequests) 2 (length fedRequests)
-    bReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain) fedRequests
-    cReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain) fedRequests
+      assertEqual ("expect exactly 4 federated requests in : " <> show fedRequests) 4 (length fedRequests)
+
     liftIO $ do
+      bReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain && fmap F.path (F.request req) == Just "/federation/on-user-deleted/conversations") fedRequests
       fmap F.component (F.request bReq) @?= Just F.Galley
       fmap F.path (F.request bReq) @?= Just "/federation/on-user-deleted/conversations"
       Just (Right udcnB) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bReq)
       sort (fromRange (FederatedGalley.udcnConversations udcnB)) @?= sort [convB1, convB2]
       FederatedGalley.udcnUser udcnB @?= qUnqualified alexDel
 
-      fmap F.component (F.request bReq) @?= Just F.Galley
+    liftIO $ do
+      cReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain && fmap F.path (F.request req) == Just "/federation/on-user-deleted/conversations") fedRequests
+      fmap F.component (F.request cReq) @?= Just F.Galley
       fmap F.path (F.request cReq) @?= Just "/federation/on-user-deleted/conversations"
       Just (Right udcnC) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cReq)
       sort (fromRange (FederatedGalley.udcnConversations udcnC)) @?= sort [convC1]
       FederatedGalley.udcnUser udcnC @?= qUnqualified alexDel
 
+    liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
         wsAssertMembersLeave qconvA1 alexDel [alexDel]
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel, wsAmy] $
         wsAssertMembersLeave qconvA2 alexDel [alexDel]
+
+    liftIO $ do
+      bLeaveReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain && fmap F.path (F.request req) == Just "/federation/on-conversation-updated") fedRequests
+      fmap F.component (F.request bLeaveReq) @?= Just F.Galley
+      fmap F.path (F.request bLeaveReq) @?= Just "/federation/on-conversation-updated"
+      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bLeaveReq)
+      cuConvId convUpdate @?= convA4
+      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers convUpdate @?= [qUnqualified bart]
+
+    liftIO $ do
+      cLeaveReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain && fmap F.path (F.request req) == Just "/federation/on-conversation-updated") fedRequests
+      fmap F.component (F.request cLeaveReq) @?= Just F.Galley
+      fmap F.path (F.request cLeaveReq) @?= Just "/federation/on-conversation-updated"
+      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cLeaveReq)
+      cuConvId convUpdate @?= convA4
+      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
+
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA1
   mems2 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA2
