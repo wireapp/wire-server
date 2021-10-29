@@ -51,7 +51,7 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
+import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
 import qualified Galley.Data as Data
@@ -301,7 +301,7 @@ servantSitemap =
 
 iGetTeamFeature ::
   forall a r.
-  Public.KnownTeamFeatureName a =>
+  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
   (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley r (Public.TeamFeatureStatus a)
@@ -309,7 +309,7 @@ iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a r.
-  Public.KnownTeamFeatureName a =>
+  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
   (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -489,7 +489,8 @@ rmUser ::
          GundeckAccess,
          ListItems p ConvId,
          ListItems p (Remote ConvId),
-         MemberStore
+         MemberStore,
+         TeamStore
        ]
       r
   ) =>
@@ -519,7 +520,7 @@ rmUser user conn = do
         goConvPages lusr range newCids
 
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
-      mems <- Data.teamMembersForFanout tid
+      mems <- getTeamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
 
@@ -595,7 +596,7 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do

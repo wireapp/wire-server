@@ -56,8 +56,8 @@ import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
-import qualified Galley.Effects.Paging as E
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
@@ -486,7 +486,7 @@ getConversationMeta cnv = liftSem $ do
       pure Nothing
 
 getConversationByReusableCode ::
-  Members '[ConversationStore, BrigAccess] r =>
+  Members '[ConversationStore, BrigAccess, TeamStore] r =>
   UserId ->
   Key ->
   Value ->

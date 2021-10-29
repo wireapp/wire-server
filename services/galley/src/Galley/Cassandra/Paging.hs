@@ -25,12 +25,18 @@ import Cassandra
 import Galley.Data.ResultSet
 import qualified Galley.Effects.Paging as E
 
+-- | This paging system uses Cassandra's 'PagingState' to keep track of state,
+-- and does not rely on ordering. This is the preferred way of paging across
+-- multiple tables, as in  'MultiTablePaging'.
 data CassandraPaging
 
 type instance E.PagingState CassandraPaging a = PagingState
 
 type instance E.Page CassandraPaging a = PageWithState a
 
+-- | This paging system is based on ordering, and keeps track of state using
+-- the id of the next item to fetch. Implementations of this paging system also
+-- contain extra logic to detect if the last page has been fetched.
 data LegacyPaging
 
 type instance E.PagingState LegacyPaging a = a

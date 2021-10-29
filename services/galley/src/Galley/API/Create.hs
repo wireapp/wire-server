@@ -45,6 +45,7 @@ import Galley.Data.Conversation.Types
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.MemberStore as E
+import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
@@ -71,7 +72,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 --
 -- See Note [managed conversations].
 createGroupConversation ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
@@ -84,7 +85,7 @@ createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
 internalCreateManagedConversationH ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
   Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
@@ -92,7 +93,7 @@ internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
   handleConversationResponse <$> internalCreateManagedConversation zusr zcon newConv
 
 internalCreateManagedConversation ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
   UserId ->
   ConnId ->
   NewConvManaged ->
@@ -103,6 +104,7 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
     Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
 ensureNoLegalholdConflicts ::
+  Member TeamStore r =>
   [Remote UserId] ->
   [UserId] ->
   Galley r ()
@@ -114,7 +116,7 @@ ensureNoLegalholdConflicts remotes locals = do
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
   UserId ->
   ConnId ->
   NewConvUnmanaged ->
@@ -147,7 +149,14 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 -- | A helper for creating a team group conversation, used by the endpoint
 -- handlers above. Only supports unmanaged conversations.
 createTeamGroupConv ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess] r =>
+  Members
+    '[ ConversationStore,
+       BrigAccess,
+       FederatorAccess,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.ConvTeamInfo ->
@@ -159,10 +168,10 @@ createTeamGroupConv zusr zcon tinfo body = do
   let allUsers = newConvMembers lusr body
       convTeam = cnvTeamId tinfo
 
-  zusrMembership <- Data.teamMember convTeam zusr
+  zusrMembership <- liftSem $ E.getTeamMember convTeam zusr
   void $ permissionCheck CreateConversation zusrMembership
   checkedUsers <- checkedConvSize allUsers
-  convLocalMemberships <- mapM (Data.teamMember convTeam) (ulLocals allUsers)
+  convLocalMemberships <- mapM (liftSem . E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRole body) (zip (ulLocals allUsers) convLocalMemberships)
   -- In teams we don't have 1:1 conversations, only regular conversations. We want
   -- users without the 'AddRemoveConvMember' permission to still be able to create
@@ -218,7 +227,15 @@ createSelfConversation zusr = do
       conversationCreated zusr c
 
 createOne2OneConversation ::
-  Members '[BrigAccess, ConversationStore, FederatorAccess, GundeckAccess] r =>
+  forall r.
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       FederatorAccess,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   NewConvUnmanaged ->
@@ -246,14 +263,20 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
     (createOne2OneConversationUnchecked lusr zcon n mtid . qUntagged)
     other
   where
+    verifyMembership :: TeamId -> UserId -> Galley r ()
     verifyMembership tid u = do
-      membership <- Data.teamMember tid u
+      membership <- liftSem $ E.getTeamMember tid u
       when (isNothing membership) $
         throwM noBindingTeamMembers
+    checkBindingTeamPermissions ::
+      Local UserId ->
+      Local UserId ->
+      TeamId ->
+      Galley r (Maybe TeamId)
     checkBindingTeamPermissions lusr lother tid = do
-      zusrMembership <- Data.teamMember tid (tUnqualified lusr)
+      zusrMembership <- liftSem $ E.getTeamMember tid (tUnqualified lusr)
       void $ permissionCheck CreateConversation zusrMembership
-      Data.teamBinding tid >>= \case
+      liftSem (E.getTeamBinding tid) >>= \case
         Just Binding -> do
           verifyMembership tid (tUnqualified lusr)
           verifyMembership tid (tUnqualified lother)

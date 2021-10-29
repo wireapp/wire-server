@@ -245,7 +245,8 @@ leaveConversation ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   Domain ->
@@ -318,7 +319,8 @@ sendMessage ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   Domain ->

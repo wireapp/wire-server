@@ -31,7 +31,7 @@ import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.ResultSet
-import Galley.Effects.Paging hiding (Page, PagingState)
+import Galley.Effects.ListItems
 import Imports hiding (max)
 import Polysemy
 import qualified Polysemy.Reader as P

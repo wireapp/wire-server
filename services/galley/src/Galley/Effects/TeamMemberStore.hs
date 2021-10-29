@@ -15,22 +15,33 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.Paging
-  ( -- * General paging types
-    Page,
-    PagingState,
+module Galley.Effects.TeamMemberStore
+  ( -- * Team member store effect
+    TeamMemberStore (..),
 
-    -- * Simple paging
-    SimplePaging,
+    -- * Team member pagination
+    listTeamMembers,
+    listTeamMemberIds,
   )
 where
 
-type family Page p a :: (page :: *) | page -> p
+import Data.Id
+import Data.Range
+import Galley.Effects.Paging
+import Galley.Types.Teams
+import Imports
+import Polysemy
 
-type family PagingState p a = (ps :: *)
+data TeamMemberStore p limit m a where
+  ListTeamMembers ::
+    TeamId ->
+    PagingState p UserId ->
+    Range 1 limit Int32 ->
+    TeamMemberStore p limit m (Page p TeamMember)
+  ListTeamMemberIds ::
+    TeamId ->
+    PagingState p UserId ->
+    Range 1 limit Int32 ->
+    TeamMemberStore p limit m (Page p UserId)
 
-data SimplePaging
-
-type instance Page SimplePaging a = [a]
-
-type instance PagingState SimplePaging a = ()
+makeSem ''TeamMemberStore

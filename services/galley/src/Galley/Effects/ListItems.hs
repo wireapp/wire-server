@@ -15,22 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.Paging
-  ( -- * General paging types
-    Page,
-    PagingState,
-
-    -- * Simple paging
-    SimplePaging,
+module Galley.Effects.ListItems
+  ( ListItems (..),
+    listItems,
   )
 where
 
-type family Page p a :: (page :: *) | page -> p
+import Data.Id
+import Data.Range
+import Galley.Effects.Paging
+import Imports
+import Polysemy
 
-type family PagingState p a = (ps :: *)
+-- | General pagination-aware list-by-user effect
+data ListItems p i m a where
+  ListItems ::
+    UserId ->
+    Maybe (PagingState p i) ->
+    Range 1 1000 Int32 ->
+    ListItems p i m (Page p i)
 
-data SimplePaging
-
-type instance Page SimplePaging a = [a]
-
-type instance PagingState SimplePaging a = ()
+makeSem ''ListItems

@@ -213,7 +213,8 @@ postQualifiedOtrMessage ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserType ->

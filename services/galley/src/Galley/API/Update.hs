@@ -100,6 +100,7 @@ import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
+import Galley.Effects.TeamStore
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
@@ -276,7 +277,8 @@ performAccessUpdateAction ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   Qualified UserId ->
@@ -296,7 +298,7 @@ performAccessUpdateAction qusr conv target = do
       Data.deleteCode key ReusableCode
 
   -- Determine bots and members to be removed
-  let filterBotsAndMembers = filterActivated >=> filterTeammates
+  let filterBotsAndMembers = filterActivated >=> (liftSem . filterTeammates)
   let current = convBotsAndMembers conv -- initial bots and members
   desired <- lift $ filterBotsAndMembers current -- desired bots and members
   let toRemove = bmDiff current desired -- bots and members to be removed
@@ -326,13 +328,13 @@ performAccessUpdateAction qusr conv target = do
         pure $ bm {bmLocals = Set.fromList activated}
       | otherwise = pure bm
 
-    filterTeammates :: BotsAndMembers -> Galley r BotsAndMembers
+    filterTeammates :: BotsAndMembers -> Sem r BotsAndMembers
     filterTeammates bm = do
       -- In a team-only conversation we also want to remove bots and guests
       case (cupAccessRole target, Data.convTeam conv) of
         (TeamAccessRole, Just tid) -> do
           onlyTeamUsers <- flip filterM (toList (bmLocals bm)) $ \user ->
-            isJust <$> Data.teamMember tid user
+            isJust <$> getTeamMember tid user
           pure $
             BotsAndMembers
               { bmLocals = Set.fromList onlyTeamUsers,
@@ -449,7 +451,8 @@ type UpdateConversationActions =
      FireAndForget,
      GundeckAccess,
      ConversationStore,
-     MemberStore
+     MemberStore,
+     TeamStore
    ]
 
 -- | Update a local conversation, and notify all local and remote members.
@@ -524,9 +527,9 @@ performAction qusr conv action = case action of
   ConversationActionDelete -> lift $ do
     let cid = Data.convId conv
     (`Data.deleteCode` ReusableCode) =<< mkKey cid
-    case Data.convTeam conv of
-      Nothing -> liftSem $ deleteConversation cid
-      Just tid -> Data.removeTeamConv tid cid
+    liftSem $ case Data.convTeam conv of
+      Nothing -> deleteConversation cid
+      Just tid -> deleteTeamConversation tid cid
     pure (mempty, action)
 
 addCodeH ::
@@ -655,7 +658,8 @@ joinConversationByReusableCodeH ::
        FederatorAccess,
        ExternalAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.ConversationCode ->
@@ -671,7 +675,8 @@ joinConversationByReusableCode ::
        FederatorAccess,
        ExternalAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ->
@@ -689,7 +694,8 @@ joinConversationByIdH ::
        FederatorAccess,
        ExternalAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JSON ->
@@ -704,7 +710,8 @@ joinConversationById ::
        ConversationStore,
        ExternalAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ->
@@ -721,7 +728,8 @@ joinConversation ::
        FederatorAccess,
        ExternalAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ->
@@ -789,10 +797,10 @@ performAddMemberAction qusr conv invited role = do
 
     checkLocals :: Local ConvId -> Maybe TeamId -> [UserId] -> Galley r ()
     checkLocals lcnv (Just tid) newUsers = do
-      tms <- Data.teamMembersLimited tid newUsers
+      tms <- liftSem $ selectTeamMembers tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
-      tcv <- Data.teamConversation tid (tUnqualified lcnv)
+      tcv <- liftSem $ getTeamConversation tid (tUnqualified lcnv)
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
       ensureConnectedOrSameTeam qusr newUsers
@@ -1080,7 +1088,8 @@ postBotMessageH ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
@@ -1098,7 +1107,8 @@ postBotMessage ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   BotId ->
@@ -1117,7 +1127,8 @@ postProteusMessage ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ->
@@ -1140,7 +1151,8 @@ postOtrMessageUnqualified ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserId ->
@@ -1177,7 +1189,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
     <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON ->
   Galley r Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1186,7 +1198,7 @@ postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ->
   Galley r Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
@@ -1195,7 +1207,7 @@ postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
   UserId ->
   ConnId ->
   Public.OtrFilterMissing ->
@@ -1215,7 +1227,7 @@ allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrep
 
 -- | bots are not supported on broadcast
 postNewOtrBroadcast ::
-  Members '[BrigAccess, GundeckAccess] r =>
+  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
   UserId ->
   Maybe ConnId ->
   OtrFilterMissing ->
@@ -1238,7 +1250,8 @@ postNewOtrMessage ::
        ConversationStore,
        ExternalAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TeamStore
      ]
     r =>
   UserType ->
@@ -1412,7 +1425,13 @@ rmServiceH req = do
   return empty
 
 addBotH ::
-  Members '[ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members
+    '[ ConversationStore,
+       ExternalAccess,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: JsonRequest AddBot ->
   Galley r Response
 addBotH (zusr ::: zcon ::: req) = do
@@ -1420,7 +1439,14 @@ addBotH (zusr ::: zcon ::: req) = do
   json <$> addBot zusr zcon bot
 
 addBot ::
-  Members '[ConversationStore, ExternalAccess, GundeckAccess] r =>
+  forall r.
+  Members
+    '[ ConversationStore,
+       ExternalAccess,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   AddBot ->
@@ -1451,8 +1477,9 @@ addBot zusr zcon b = do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
       return (bots, users)
+    teamConvChecks :: ConvId -> TeamId -> Galley r ()
     teamConvChecks cid tid = do
-      tcv <- Data.teamConversation tid cid
+      tcv <- liftSem $ getTeamConversation tid cid
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
 
@@ -1524,7 +1551,7 @@ data CheckedOtrRecipients
 
 -- | bots are not supported on broadcast
 withValidOtrBroadcastRecipients ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   UserId ->
   ClientId ->
   OtrRecipients ->
@@ -1561,15 +1588,15 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
         throwM broadcastLimitExceeded
-      Data.teamMembersLimited tid localUserIdsToLookup
+      liftSem $ selectTeamMembers tid localUserIdsToLookup
     maybeFetchAllMembersInTeam tid = do
-      mems <- Data.teamMembersForFanout tid
+      mems <- getTeamMembersForFanout tid
       when (mems ^. teamMemberListType == ListTruncated) $
         throwM broadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  Members '[BrigAccess, ConversationStore, MemberStore] r =>
+  Members '[BrigAccess, ConversationStore, MemberStore, TeamStore] r =>
   UserType ->
   UserId ->
   ClientId ->
@@ -1596,7 +1623,7 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
       handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   -- | Type of proposed sender (user / bot)
   UserType ->
   -- | Proposed sender (user)
@@ -1708,10 +1735,10 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
 
 -- Copied from 'Galley.API.Team' to break import cycles
-withBindingTeam :: UserId -> (TeamId -> Galley r b) -> Galley r b
+withBindingTeam :: Member TeamStore r => UserId -> (TeamId -> Galley r b) -> Galley r b
 withBindingTeam zusr callback = do
-  tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
-  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+  tid <- liftSem (getOneUserTeam zusr) >>= ifNothing teamNotFound
+  binding <- liftSem (getTeamBinding tid) >>= ifNothing teamNotFound
   case binding of
     Binding -> callback tid
     NonBinding -> throwM nonBindingTeam

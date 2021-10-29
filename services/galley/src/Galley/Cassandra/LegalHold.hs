@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,22 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.Paging
-  ( -- * General paging types
-    Page,
-    PagingState,
+module Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted) where
 
-    -- * Simple paging
-    SimplePaging,
-  )
-where
+import Cassandra
+import Data.Id
+import Galley.Data.Queries as Q
+import Galley.Types.Teams
+import Imports
 
-type family Page p a :: (page :: *) | page -> p
-
-type family PagingState p a = (ps :: *)
-
-data SimplePaging
-
-type instance Page SimplePaging a = [a]
-
-type instance PagingState SimplePaging a = ()
+isTeamLegalholdWhitelisted :: FeatureLegalHold -> TeamId -> Client Bool
+isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
+isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
+isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
+  isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))

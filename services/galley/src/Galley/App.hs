@@ -91,6 +91,7 @@ import qualified Galley.Aws as Aws
 import Galley.Cassandra.Conversation
 import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.ConversationList
+import Galley.Cassandra.Team
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
 import Galley.Env
@@ -342,12 +343,21 @@ toServantHandler env galley = do
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
 
+interpretTeamStoreToCassandraWithEnv ::
+  Members '[Embed IO, P.Reader ClientState, P.Reader Env] r =>
+  Sem (TeamStore ': r) a ->
+  Sem r a
+interpretTeamStoreToCassandraWithEnv action = do
+  lh <- P.asks (view (options . optSettings . setFeatureFlags . Teams.flagLegalHold))
+  interpretTeamStoreToCassandra lh action
+
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 =
   Galley
     . interpretLegacyConversationListToCassandra
     . interpretRemoteConversationListToCassandra
     . interpretConversationListToCassandra
+    . interpretTeamStoreToCassandraWithEnv
     . interpretMemberStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretFireAndForget

@@ -48,6 +48,7 @@ import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
+import Galley.Effects.TeamStore
 import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -92,16 +93,20 @@ ensureAccessRole role users = case role of
 --
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
-ensureConnectedOrSameTeam :: Member BrigAccess r => Qualified UserId -> [UserId] -> Galley r ()
+ensureConnectedOrSameTeam ::
+  Members '[BrigAccess, TeamStore] r =>
+  Qualified UserId ->
+  [UserId] ->
+  Galley r ()
 ensureConnectedOrSameTeam _ [] = pure ()
 ensureConnectedOrSameTeam (Qualified u domain) uids = do
   -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
   localDomain <- viewFederationDomain
   when (localDomain == domain) $ do
-    uTeams <- Data.userTeams u
+    uTeams <- liftSem $ getUserTeams u
     -- We collect all the relevant uids from same teams as the origin user
-    sameTeamUids <- forM uTeams $ \team ->
-      fmap (view userId) <$> Data.teamMembersLimited team uids
+    sameTeamUids <- liftSem . forM uTeams $ \team ->
+      fmap (view userId) <$> selectTeamMembers team uids
     -- Do not check connections for users that are on the same team
     ensureConnectedToLocals u (uids \\ join sameTeamUids)
 
@@ -150,7 +155,7 @@ ensureActionAllowed action self = case isActionAllowed action (convMemberRole se
 
 -- | Comprehensive permission check, taking action-specific logic into account.
 ensureConversationActionAllowed ::
-  IsConvMember mem =>
+  (IsConvMember mem, Member TeamStore r) =>
   ConversationAction ->
   Data.Conversation ->
   mem ->
@@ -173,7 +178,7 @@ ensureConversationActionAllowed action conv self = do
             loc
             ( \lusr -> do
                 void $
-                  Data.teamMember tid (tUnqualified lusr)
+                  liftSem (getTeamMember tid (tUnqualified lusr))
                     >>= ifNothing (errorDescriptionTypeToWai @NotATeamMember)
             )
             (\_ -> throwM federationNotImplemented)
@@ -192,7 +197,7 @@ ensureConversationActionAllowed action conv self = do
       case Data.convTeam conv of
         Just tid -> do
           -- Access mode change for managed conversation is not allowed
-          tcv <- Data.teamConversation tid (Data.convId conv)
+          tcv <- liftSem $ getTeamConversation tid (Data.convId conv)
           when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
           -- Access mode change might result in members being removed from the
@@ -234,23 +239,23 @@ permissionCheck p = \case
       else throwErrorDescription (operationDenied p)
   Nothing -> throwErrorDescriptionType @NotATeamMember
 
-assertTeamExists :: TeamId -> Galley r ()
+assertTeamExists :: Members '[TeamStore] r => TeamId -> Galley r ()
 assertTeamExists tid = do
-  teamExists <- isJust <$> Data.team tid
+  teamExists <- liftSem $ isJust <$> getTeam tid
   if teamExists
     then pure ()
     else throwM teamNotFound
 
-assertOnTeam :: UserId -> TeamId -> Galley r ()
+assertOnTeam :: Members '[TeamStore] r => UserId -> TeamId -> Galley r ()
 assertOnTeam uid tid = do
-  Data.teamMember tid uid >>= \case
+  liftSem (getTeamMember tid uid) >>= \case
     Nothing -> throwErrorDescriptionType @NotATeamMember
     Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
 permissionCheckTeamConv ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, TeamStore] r =>
   UserId ->
   ConvId ->
   Perm ->
@@ -258,7 +263,7 @@ permissionCheckTeamConv ::
 permissionCheckTeamConv zusr cnv perm =
   liftSem (getConversation cnv) >>= \case
     Just cnv' -> case Data.convTeam cnv' of
-      Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
+      Just tid -> void $ permissionCheck perm =<< liftSem (getTeamMember tid zusr)
       Nothing -> pure ()
     Nothing -> throwErrorDescriptionType @ConvNotFound
 
@@ -590,7 +595,7 @@ verifyReusableCode convCode = do
   return c
 
 ensureConversationAccess ::
-  Members '[ConversationStore, BrigAccess] r =>
+  Members '[BrigAccess, ConversationStore, TeamStore] r =>
   UserId ->
   ConvId ->
   Access ->
@@ -600,7 +605,9 @@ ensureConversationAccess zusr cnv access = do
     liftSem (getConversation cnv)
       >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access
-  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
+  zusrMembership <-
+    liftSem $
+      maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   pure conv
 
@@ -823,21 +830,29 @@ consentGiven = \case
   UserLegalHoldEnabled -> ConsentGiven
   UserLegalHoldNoConsent -> ConsentNotGiven
 
-checkConsent :: Map UserId TeamId -> UserId -> Galley r ConsentGiven
+checkConsent ::
+  Member TeamStore r =>
+  Map UserId TeamId ->
+  UserId ->
+  Galley r ConsentGiven
 checkConsent teamsOfUsers other = do
   consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
 
 -- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
 -- doesn't belong to a team.
-getLHStatus :: Maybe TeamId -> UserId -> Galley r UserLegalHoldStatus
+getLHStatus ::
+  Member TeamStore r =>
+  Maybe TeamId ->
+  UserId ->
+  Galley r UserLegalHoldStatus
 getLHStatus teamOfUser other = do
   case teamOfUser of
     Nothing -> pure defUserLegalHoldStatus
     Just team -> do
-      mMember <- Data.teamMember team other
+      mMember <- liftSem $ getTeamMember team other
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
-anyLegalholdActivated :: [UserId] -> Galley r Bool
+anyLegalholdActivated :: Member TeamStore r => [UserId] -> Galley r Bool
 anyLegalholdActivated uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
@@ -846,31 +861,39 @@ anyLegalholdActivated uids = do
   where
     check = do
       flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsOfUsers <- Data.usersTeams uidsPage
+        teamsOfUsers <- liftSem $ getUsersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
-allLegalholdConsentGiven :: [UserId] -> Galley r Bool
+allLegalholdConsentGiven :: Member TeamStore r => [UserId] -> Galley r Bool
 allLegalholdConsentGiven uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsOfUsers <- Data.usersTeams uidsPage
+        teamsOfUsers <- liftSem $ getUsersTeams uidsPage
         allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       -- For this feature the implementation is more efficient. Being part of
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
+        teamsPage <- liftSem $ nub . Map.elems <$> getUsersTeams uidsPage
         allM isTeamLegalholdWhitelisted teamsPage
 
 -- | Add to every uid the legalhold status
-getLHStatusForUsers :: [UserId] -> Galley r [(UserId, UserLegalHoldStatus)]
+getLHStatusForUsers ::
+  Member TeamStore r =>
+  [UserId] ->
+  Galley r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
   mconcat
     <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
-            teamsOfUsers <- Data.usersTeams uidsChunk
+            teamsOfUsers <- liftSem $ getUsersTeams uidsChunk
             for uidsChunk $ \uid -> do
               (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
         )
+
+getTeamMembersForFanout :: Member TeamStore r => TeamId -> Galley r TeamMemberList
+getTeamMembersForFanout tid = do
+  lim <- fanoutLimit
+  liftSem $ getTeamMembersWithLimit tid lim

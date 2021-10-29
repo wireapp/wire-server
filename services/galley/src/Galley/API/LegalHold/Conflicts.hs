@@ -29,8 +29,8 @@ import Data.Misc
 import qualified Data.Set as Set
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
 import Galley.Effects
+import Galley.Effects.TeamStore
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.User (getUser)
 import Galley.Options
@@ -44,7 +44,7 @@ import Wire.API.User.Client as Client
 data LegalholdConflicts = LegalholdConflicts
 
 guardQualifiedLegalholdPolicyConflicts ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   Galley r (Either LegalholdConflicts ())
@@ -63,7 +63,7 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
 guardLegalholdPolicyConflicts ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   LegalholdProtectee ->
   UserClients ->
   Galley r (Either LegalholdConflicts ())
@@ -78,7 +78,7 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
 
 guardLegalholdPolicyConflictsUid ::
   forall r.
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   UserId ->
   UserClients ->
   Galley r (Either LegalholdConflicts ())
@@ -130,7 +130,7 @@ guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
           -- (we could also get the profile from brig.  would make the code slightly more
           -- concise, but not really help with the rpc back-and-forth, so, like, why?)
           mbUser <- accountUser <$$> getUser self
-          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`Data.teamMember` self)
+          mbTeamMember <- liftSem $ join <$> for (mbUser >>= userTeam) (`getTeamMember` self)
           let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
           pure (lhStatus == UserLegalHoldNoConsent)
 
