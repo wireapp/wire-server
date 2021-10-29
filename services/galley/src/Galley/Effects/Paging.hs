@@ -19,18 +19,25 @@ module Galley.Effects.Paging
   ( -- * General paging types
     Page,
     PagingState,
+    PagingBounds,
 
     -- * Simple paging
     SimplePaging,
   )
 where
 
+import Imports
+
 type family Page p a :: (page :: *) | page -> p
 
 type family PagingState p a = (ps :: *)
+
+type family PagingBounds p a :: *
 
 data SimplePaging
 
 type instance Page SimplePaging a = [a]
 
 type instance PagingState SimplePaging a = ()
+
+type instance PagingBounds SimplePaging a = Int32

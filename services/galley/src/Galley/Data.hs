@@ -27,7 +27,6 @@ module Galley.Data
     -- * Teams
     withTeamMembersWithChunks,
     teamIdsForPagination,
-    teamIdsFrom,
 
     -- * Conversation Codes
     lookupCode,
@@ -104,14 +103,6 @@ deleteCode :: Key -> Scope -> Galley r ()
 deleteCode k s = retry x5 $ write Cql.deleteCode (params Quorum (k, s))
 
 -- Teams --------------------------------------------------------------------
-
-teamIdsFrom :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Galley r (ResultSet TeamId)
-teamIdsFrom usr range (fromRange -> max) =
-  mkResultSet . fmap runIdentity . strip <$> case range of
-    Just c -> paginate Cql.selectUserTeamsFrom (paramsP Quorum (usr, c) (max + 1))
-    Nothing -> paginate Cql.selectUserTeams (paramsP Quorum (Identity usr) (max + 1))
-  where
-    strip p = p {result = take (fromIntegral max) (result p)}
 
 teamIdsForPagination :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Galley r (Page TeamId)
 teamIdsForPagination usr range (fromRange -> max) =

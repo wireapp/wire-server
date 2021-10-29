@@ -22,7 +22,6 @@ module Galley.Effects.ListItems
 where
 
 import Data.Id
-import Data.Range
 import Galley.Effects.Paging
 import Imports
 import Polysemy
@@ -32,7 +31,7 @@ data ListItems p i m a where
   ListItems ::
     UserId ->
     Maybe (PagingState p i) ->
-    Range 1 1000 Int32 ->
+    PagingBounds p i ->
     ListItems p i m (Page p i)
 
 makeSem ''ListItems

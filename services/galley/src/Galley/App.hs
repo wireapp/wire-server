@@ -354,6 +354,7 @@ interpretTeamStoreToCassandraWithEnv action = do
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 =
   Galley
+    . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
     . interpretRemoteConversationListToCassandra
     . interpretConversationListToCassandra

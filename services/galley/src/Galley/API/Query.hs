@@ -357,7 +357,7 @@ getConversationsInternal user mids mstart msize = do
           user
           (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
-      r <- E.listItems @LegacyPaging @ConvId user mstart (rcast size)
+      r <- E.listItems user mstart (rcast size)
       let hasMore = Data.resultSetType r == Data.ResultSetTruncated
       pure (hasMore, Data.resultSetResult r)
 

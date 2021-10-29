@@ -126,5 +126,6 @@ type GalleyEffects1 =
      TeamStore,
      ListItems CassandraPaging ConvId,
      ListItems CassandraPaging (Remote ConvId),
-     ListItems LegacyPaging ConvId
+     ListItems LegacyPaging ConvId,
+     ListItems LegacyPaging TeamId
    ]

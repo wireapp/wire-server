@@ -86,6 +86,7 @@ import qualified Galley.API.Teams.Notifications as APITeamQueue
 import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Paging
 import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import qualified Galley.Data.LegalHold as Data
@@ -94,6 +95,7 @@ import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.External as External
@@ -151,14 +153,14 @@ getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
 getManyTeamsH ::
-  Member TeamStore r =>
+  (Members '[TeamStore, ListItems LegacyPaging TeamId] r) =>
   UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON ->
   Galley r Response
 getManyTeamsH (zusr ::: range ::: size ::: _) =
   json <$> getManyTeams zusr range size
 
 getManyTeams ::
-  Member TeamStore r =>
+  (Members '[TeamStore, ListItems LegacyPaging TeamId] r) =>
   UserId ->
   Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
   Range 1 100 Int32 ->
@@ -1021,8 +1023,10 @@ setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
 -- The last case returns those team IDs which have an associated
 -- user. Additionally 'k' is passed in a 'hasMore' indication (which is
 -- always false if the third lookup-case is used).
+--
+-- FUTUREWORK: avoid CPS
 withTeamIds ::
-  Member TeamStore r =>
+  (Member TeamStore r, Member (ListItems LegacyPaging TeamId) r) =>
   UserId ->
   Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
   Range 1 100 Int32 ->
@@ -1030,13 +1034,13 @@ withTeamIds ::
   Galley r a
 withTeamIds usr range size k = case range of
   Nothing -> do
-    r <- Data.teamIdsFrom usr Nothing (rcast size)
+    r <- liftSem $ E.listItems usr Nothing (rcast size)
     k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
   Just (Right c) -> do
-    r <- Data.teamIdsFrom usr (Just c) (rcast size)
+    r <- liftSem $ E.listItems usr (Just c) (rcast size)
     k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
   Just (Left (fromRange -> cc)) -> do
-    ids <- liftSem (E.selectTeams usr (Data.ByteString.Conversion.fromList cc))
+    ids <- liftSem $ E.selectTeams usr (Data.ByteString.Conversion.fromList cc)
     k False ids
 {-# INLINE withTeamIds #-}
 

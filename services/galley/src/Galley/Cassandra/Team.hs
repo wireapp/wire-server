@@ -32,10 +32,12 @@ import qualified Data.Set as Set
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Cassandra.Conversation as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
+import Galley.Cassandra.Paging
 import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.ResultSet
+import Galley.Effects.ListItems
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Types.Teams hiding
   ( DeleteTeam,
@@ -81,6 +83,13 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
   SetTeamData tid upd -> embedClient $ updateTeam tid upd
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
+
+interpretTeamListToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (ListItems LegacyPaging TeamId ': r) a ->
+  Sem r a
+interpretTeamListToCassandra = interpret $ \case
+  ListItems uid ps lim -> embedClient $ teamIdsFrom uid ps lim
 
 createTeam ::
   Maybe TeamId ->
