@@ -40,7 +40,7 @@ executable rex
     , warp
 
   ghc-options:
-    -Wall -O1 -funbox-small-strict-fields
+    -Wall -Werror -O1 -funbox-small-strict-fields
 
   if flag(static)
     ld-options: -static
