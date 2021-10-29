@@ -141,7 +141,10 @@ data Api routes = Api
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."
-        :> Description "Will not return remote conversations (will eventually be deprecated in favour of list-conversations)"
+        :> Description
+             "Will not return remote conversations.\n\n\
+             \Use `POST /conversations/list-ids` followed by \
+             \`POST /conversations/list/v2` instead."
         :> ZUser
         :> "conversations"
         :> QueryParam'
@@ -168,24 +171,12 @@ data Api routes = Api
         :> Get '[Servant.JSON] (ConversationList Conversation),
     listConversations ::
       routes
-        :- Summary "[deprecated] Get all conversations (also returns remote conversations)"
-        :> Description
-             "Like GET /conversations, but allows specifying a list of remote conversations in its request body. \
-             \Will return all or the requested qualified conversations, including remote ones. \
-             \Size parameter is not yet honoured for remote conversations.\n\
-             \**NOTE** This endpoint will soon be removed."
-        :> ZUser
-        :> "list-conversations"
-        :> ReqBody '[Servant.JSON] ListConversations
-        :> Post '[Servant.JSON] (ConversationList Conversation),
-    listConversationsV2 ::
-      routes
         :- Summary "Get conversation metadata for a list of conversation ids"
         :> ZUser
         :> "conversations"
         :> "list"
         :> "v2"
-        :> ReqBody '[Servant.JSON] ListConversationsV2
+        :> ReqBody '[Servant.JSON] ListConversations
         :> Post '[Servant.JSON] ConversationsResponse,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
@@ -233,7 +224,23 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] NewConvUnmanaged
         :> ConversationVerb,
-    addMembersToConversationV2 ::
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    addMembersToConversationUnqualified ::
+      routes
+        :- Summary "Add members to an existing conversation (deprecated)"
+        :> CanThrow ConvNotFound
+        :> CanThrow NotConnected
+        :> CanThrow ConvAccessDenied
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> ReqBody '[JSON] Invite
+        :> MultiVerb 'POST '[JSON] ConvUpdateResponses (UpdateResult Event),
+    addMembersToConversation ::
       routes
         :- Summary "Add qualified members to an existing conversation."
         :> ZUser

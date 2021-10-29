@@ -79,7 +79,6 @@ import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (hContentType, statusCode)
 import qualified SAML2.WebSSO.Types as SAML
-import qualified SAML2.WebSSO.XML as SAML
 import qualified System.Logger as Log
 import System.Logger.Class
   ( Logger,
@@ -737,8 +736,6 @@ reindexRowToIndexUser
           ]
 
       idpUrl :: UserSSOId -> Maybe Text
-      idpUrl (UserSSOId tenant _subject) =
-        case SAML.decodeElem $ cs tenant of
-          Left _ -> Nothing
-          Right (SAML.Issuer uri) -> Just $ (cs . toLazyByteString . serializeURIRef) uri
+      idpUrl (UserSSOId (SAML.UserRef (SAML.Issuer uri) _subject)) =
+        Just $ (cs . toLazyByteString . serializeURIRef) uri
       idpUrl (UserScimExternalId _) = Nothing

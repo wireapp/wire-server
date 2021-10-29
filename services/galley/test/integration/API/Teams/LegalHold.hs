@@ -31,7 +31,7 @@ import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import qualified Bilge.TestSession as BilgeTest
 import Brig.Types.Client
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserSet (..))
+import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
@@ -91,6 +91,7 @@ import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import qualified Wire.API.Message as Msg
+import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
@@ -323,7 +324,7 @@ testApproveLegalHoldDevice = do
         renewToken authToken
       cassState <- view tsCass
       liftIO $ do
-        clients' <- Cql.runClient cassState $ Data.lookupClients [member]
+        clients' <- Cql.runClient cassState $ Data.lookupClients' [member]
         assertBool "Expect clientId to be saved on the user" $
           Clients.contains member someClientId clients'
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -940,7 +941,9 @@ data GroupConvAdmin
 testNoConsentRemoveFromGroupConv :: GroupConvAdmin -> HasCallStack => TestM ()
 testNoConsentRemoveFromGroupConv whoIsAdmin = do
   (legalholder :: UserId, tid) <- createBindingTeam
+  qLegalHolder <- Qualified <$> pure legalholder <*> viewFederationDomain
   (peer :: UserId, teamPeer) <- createBindingTeam
+  qPeer <- Qualified <$> pure peer <*> viewFederationDomain
   galley <- view tsGalley
 
   let enableLHForLegalholder :: HasCallStack => TestM ()
@@ -962,41 +965,40 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
     convId <- do
       let (inviter, tidInviter, invitee, inviteeRole) =
             case whoIsAdmin of
-              LegalholderIsAdmin -> (legalholder, tid, peer, roleNameWireMember)
-              PeerIsAdmin -> (peer, teamPeer, legalholder, roleNameWireMember)
-              BothAreAdmins -> (legalholder, tid, peer, roleNameWireAdmin)
+              LegalholderIsAdmin -> (qLegalHolder, tid, qPeer, roleNameWireMember)
+              PeerIsAdmin -> (qPeer, teamPeer, qLegalHolder, roleNameWireMember)
+              BothAreAdmins -> (qLegalHolder, tid, qPeer, roleNameWireAdmin)
 
-      convId <- createTeamConvWithRole inviter tidInviter [invitee] (Just "group chat with external peer") Nothing Nothing inviteeRole
+      convId <- createTeamConvWithRole (qUnqualified inviter) tidInviter [qUnqualified invitee] (Just "group chat with external peer") Nothing Nothing inviteeRole
       mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) ([inviter] <> [invitee | whoIsAdmin == BothAreAdmins])
       mapM_ (assertConvMemberWithRole roleNameWireMember convId) [invitee | whoIsAdmin /= BothAreAdmins]
       pure convId
+    qconvId <- Qualified <$> pure convId <*> viewFederationDomain
 
     checkConvCreateEvent convId legalholderWs
     checkConvCreateEvent convId peerWs
 
-    assertConvMember legalholder convId
-    assertConvMember peer convId
+    assertConvMember qLegalHolder convId
+    assertConvMember qPeer convId
 
     void enableLHForLegalholder
 
-    localdomain <- viewFederationDomain
-
     case whoIsAdmin of
       LegalholderIsAdmin -> do
-        assertConvMember legalholder convId
+        assertConvMember qLegalHolder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
+        checkConvMemberLeaveEvent qconvId qPeer legalholderWs
+        checkConvMemberLeaveEvent qconvId qPeer peerWs
       PeerIsAdmin -> do
-        assertConvMember peer convId
+        assertConvMember qPeer convId
         assertNotConvMember legalholder convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) peerWs
+        checkConvMemberLeaveEvent qconvId qLegalHolder legalholderWs
+        checkConvMemberLeaveEvent qconvId qLegalHolder peerWs
       BothAreAdmins -> do
-        assertConvMember legalholder convId
+        assertConvMember qLegalHolder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
+        checkConvMemberLeaveEvent qconvId qPeer legalholderWs
+        checkConvMemberLeaveEvent qconvId qPeer peerWs
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
@@ -1005,8 +1007,11 @@ testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase ->
 testGroupConvInvitationHandlesLHConflicts inviteCase = do
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
+  qLegalHolder <- Qualified <$> pure legalholder <*> viewFederationDomain
   userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
-  userWithConsent2 <- (^. userId) <$> addUserToTeam legalholder tid
+  userWithConsent2 <- do
+    uid <- (^. userId) <$> addUserToTeam legalholder tid
+    Qualified <$> pure uid <*> viewFederationDomain
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
@@ -1036,10 +1041,10 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
 
     case inviteCase of
       InviteOnlyConsenters -> do
-        API.Util.postMembers userWithConsent (List1.list1 legalholder [userWithConsent2]) convId
+        API.Util.postMembers userWithConsent (List1.list1 legalholder [qUnqualified userWithConsent2]) convId
           !!! const 200 === statusCode
 
-        assertConvMember legalholder convId
+        assertConvMember qLegalHolder convId
         assertConvMember userWithConsent2 convId
         assertNotConvMember peer convId
       InviteAlsoNonConsenters -> do

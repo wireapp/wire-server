@@ -352,7 +352,7 @@ instance ToSchema SimpleMember where
           .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
 
 data Connect = Connect
-  { cRecipient :: UserId,
+  { cRecipient :: Qualified UserId,
     -- FUTUREWORK: As a follow-up from
     -- https://github.com/wireapp/wire-server/pull/1726, the message field can
     -- be removed from this event.
@@ -370,7 +370,8 @@ instance ToSchema Connect where
 connectObjectSchema :: ObjectSchema SwaggerDoc Connect
 connectObjectSchema =
   Connect
-    <$> cRecipient .= field "recipient" schema
+    <$> cRecipient .= field "qualified_recipient" schema
+    <* (Just . qUnqualified . cRecipient) .= optField "recipient" Nothing schema
     <*> cMessage .= lax (field "message" (optWithDefault A.Null schema))
     <*> cName .= lax (field "name" (optWithDefault A.Null schema))
     <*> cEmail .= lax (field "email" (optWithDefault A.Null schema))

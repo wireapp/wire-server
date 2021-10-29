@@ -24,7 +24,6 @@ module Galley.Types.UserList
 where
 
 import Data.Qualified
-import Data.Tagged
 import Imports
 
 -- | A list of users, partitioned into locals and remotes
@@ -34,11 +33,18 @@ data UserList a = UserList
   }
   deriving (Functor, Foldable, Traversable)
 
+instance Semigroup (UserList a) where
+  UserList locals1 remotes1 <> UserList locals2 remotes2 =
+    UserList (locals1 <> locals2) (remotes1 <> remotes2)
+
+instance Monoid (UserList a) where
+  mempty = UserList mempty mempty
+
 toUserList :: Foldable f => Local x -> f (Qualified a) -> UserList a
-toUserList loc = uncurry (flip UserList) . partitionRemoteOrLocalIds' (lDomain loc)
+toUserList loc = uncurry UserList . partitionQualified loc
 
 ulAddLocal :: a -> UserList a -> UserList a
 ulAddLocal x ul = ul {ulLocals = x : ulLocals ul}
 
 ulAll :: Local x -> UserList a -> [Qualified a]
-ulAll loc ul = map (unTagged . qualifyAs loc) (ulLocals ul) <> map unTagged (ulRemotes ul)
+ulAll loc ul = map (qUntagged . qualifyAs loc) (ulLocals ul) <> map qUntagged (ulRemotes ul)

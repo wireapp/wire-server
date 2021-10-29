@@ -22,14 +22,11 @@ where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson.Types as Aeson
-import Data.Domain (Domain (..))
 import Data.Handle (Handle)
-import Data.Id (Id (..), UserId)
-import Data.Qualified (Qualified (..), renderQualifiedId)
-import qualified Data.UUID as UUID
+import Data.Id (UserId)
+import Data.Qualified (Qualified (..))
 import Imports
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 
@@ -42,13 +39,7 @@ tests =
 
 testQualifiedSerialization :: [TestTree]
 testQualifiedSerialization =
-  [ testCase "render 61a73a52-e526-4892-82a9-3d638d77629f@example.com" $ do
-      uuid <-
-        maybe (assertFailure "invalid UUID") pure $
-          UUID.fromString "61a73a52-e526-4892-82a9-3d638d77629f"
-      assertEqual "" "61a73a52-e526-4892-82a9-3d638d77629f@example.com" $
-        (renderQualifiedId (Qualified (Id uuid) (Domain "example.com"))),
-    jsonRoundtrip @(Qualified Handle),
+  [ jsonRoundtrip @(Qualified Handle),
     jsonRoundtrip @(Qualified UserId)
   ]
 

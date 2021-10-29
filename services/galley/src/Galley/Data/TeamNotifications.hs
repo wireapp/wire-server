@@ -37,6 +37,7 @@ import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
+import Galley.App
 import Gundeck.Types.Notification
 import Imports
 
@@ -51,11 +52,10 @@ data ResultPage = ResultPage
 
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::
-  (MonadClient m, MonadUnliftIO m) =>
   TeamId ->
   NotificationId ->
   List1 JSON.Object ->
-  m ()
+  Galley r ()
 add tid nid (Blob . JSON.encode -> payload) =
   write cqlInsert (params Quorum (tid, nid, payload, notificationTTLSeconds)) & retry x5
   where
@@ -69,7 +69,7 @@ add tid nid (Blob . JSON.encode -> payload) =
 notificationTTLSeconds :: Int32
 notificationTTLSeconds = 24192200
 
-fetch :: forall m. MonadClient m => TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> m ResultPage
+fetch :: TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> Galley r ResultPage
 fetch tid since (fromRange -> size) = do
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
@@ -90,7 +90,11 @@ fetch tid since (fromRange -> size) = do
     EmptyL -> ResultPage Seq.empty False
     (x :< xs) -> ResultPage (x <| xs) more
   where
-    collect :: Seq QueuedNotification -> Int -> Page (TimeUuid, Blob) -> m (Seq QueuedNotification, Bool)
+    collect ::
+      Seq QueuedNotification ->
+      Int ->
+      Page (TimeUuid, Blob) ->
+      Galley r (Seq QueuedNotification, Bool)
     collect acc num page =
       let ns = splitAt num $ foldr toNotif [] (result page)
           nseq = Seq.fromList (fst ns)

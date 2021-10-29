@@ -25,7 +25,6 @@ import Control.Lens ((^.))
 import Data.Id (Id (Id))
 import qualified Data.UUID as UUID
 import Imports hiding (head)
-import Spar.App (liftSem)
 import qualified Spar.Intra.BrigApp as Intra
 import Util
 import qualified Web.Scim.Schema.User as Scim.User
@@ -40,7 +39,7 @@ spec = do
 
   describe "getBrigUser" $ do
     it "return Nothing if n/a" $ do
-      musr <- runSpar $ liftSem $ Intra.getBrigUser Intra.WithPendingInvitations (Id . fromJust $ UUID.fromText "29546d9e-ed5b-11ea-8228-c324b1ea1030")
+      musr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations (Id . fromJust $ UUID.fromText "29546d9e-ed5b-11ea-8228-c324b1ea1030")
       liftIO $ musr `shouldSatisfy` isNothing
 
     it "return Just if /a" $ do
@@ -53,5 +52,5 @@ spec = do
             scimUserId <$> createUser tok scimUser
 
       uid <- setup
-      musr <- runSpar $ liftSem $ Intra.getBrigUser Intra.WithPendingInvitations uid
+      musr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
       liftIO $ musr `shouldSatisfy` isJust

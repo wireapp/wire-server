@@ -36,6 +36,8 @@ import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
+import Wire.API.Connection
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Team.Feature as ApiFt
 
@@ -85,12 +87,36 @@ type DeleteAccountFeatureConfig =
     :> "conferenceCalling"
     :> Delete '[Servant.JSON] NoContent
 
+type GetAllConnectionsUnqualified =
+  Summary "Get all connections of a given user"
+    :> "users"
+    :> "connections-status"
+    :> ReqBody '[Servant.JSON] ConnectionsStatusRequest
+    :> QueryParam'
+         [ Optional,
+           Strict,
+           Description "Only returns connections with the given relation, if omitted, returns all connections"
+         ]
+         "filter"
+         Relation
+    :> Post '[Servant.JSON] [ConnectionStatus]
+
+type GetAllConnections =
+  Summary "Get all connections of a given user"
+    :> "users"
+    :> "connections-status"
+    :> "v2"
+    :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
+    :> Post '[Servant.JSON] [ConnectionStatusV2]
+
 type API =
   "i"
     :> ( EJPDRequest
            :<|> GetAccountFeatureConfig
            :<|> PutAccountFeatureConfig
            :<|> DeleteAccountFeatureConfig
+           :<|> GetAllConnectionsUnqualified
+           :<|> GetAllConnections
        )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"

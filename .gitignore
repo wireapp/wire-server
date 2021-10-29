@@ -33,7 +33,6 @@ TAGS
 .stack-docker-profile
 .metadata
 *.tix
-*.pem
 .DS_Store
 services/nginz/src
 services/.env

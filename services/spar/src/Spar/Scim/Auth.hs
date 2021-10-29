@@ -39,7 +39,6 @@ import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
 import Data.Id (ScimTokenId, UserId)
 import Data.String.Conversions (cs)
-import Data.Time (getCurrentTime)
 import Imports
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
@@ -49,13 +48,15 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, liftSem, wrapMonadClientSem)
+import Spar.App (throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Now (Now)
+import qualified Spar.Sem.Now as Now
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -68,14 +69,14 @@ import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
-instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) where
+instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Sem r) where
   -- Validate and resolve a given token
-  authCheck :: Maybe ScimToken -> Scim.ScimHandler (Spar r) ScimTokenInfo
+  authCheck :: Maybe ScimToken -> Scim.ScimHandler (Sem r) ScimTokenInfo
   authCheck Nothing =
     Scim.throwScim (Scim.unauthorized "Token not provided")
   authCheck (Just token) =
     maybe (Scim.throwScim (Scim.unauthorized "Invalid token")) pure
-      =<< lift (wrapMonadClientSem (ScimTokenStore.lookup token))
+      =<< lift (ScimTokenStore.lookup token)
 
 ----------------------------------------------------------------------------
 -- Token API
@@ -91,11 +92,12 @@ apiScimToken ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
+       Now,
        IdPEffect.IdP,
        Error E.SparError
      ]
     r =>
-  ServerT APIScimToken (Spar r)
+  ServerT APIScimToken (Sem r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -113,6 +115,7 @@ createScimToken ::
        BrigAccess,
        ScimTokenStore,
        IdPEffect.IdP,
+       Now,
        Error E.SparError
      ]
     r =>
@@ -120,31 +123,35 @@ createScimToken ::
   Maybe UserId ->
   -- | Request body
   CreateScimToken ->
-  Spar r CreateScimTokenResponse
+  Sem r CreateScimTokenResponse
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
-  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
-  liftSem $ BrigAccess.ensureReAuthorised zusr createScimTokenPassword
-  tokenNumber <- fmap length $ wrapMonadClientSem $ ScimTokenStore.getByTeam teamid
-  maxTokens <- liftSem $ inputs maxScimTokens
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  BrigAccess.ensureReAuthorised zusr createScimTokenPassword
+  tokenNumber <- fmap length $ ScimTokenStore.getByTeam teamid
+  maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
-    E.throwSpar E.SparProvisioningTokenLimitReached
-  idps <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
+    throwSparSem E.SparProvisioningTokenLimitReached
+  idps <- IdPEffect.getConfigsByTeam teamid
 
-  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
+  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Sem r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
-        token <- liftSem $ ScimToken . cs . ES.encode <$> Random.bytes 32
-        tokenid <- liftSem $ Random.scimTokenId
-        now <- liftIO getCurrentTime
+        token <- ScimToken . cs . ES.encode <$> Random.bytes 32
+        tokenid <- Random.scimTokenId
+        -- FUTUREWORK(fisx): the fact that we're using @Now.get@
+        -- here means that the 'Now' effect should not contain
+        -- types from saml2-web-sso. We can just use 'UTCTime'
+        -- there, right?
+        now <- Now.get
         let info =
               ScimTokenInfo
                 { stiId = tokenid,
                   stiTeam = teamid,
-                  stiCreatedAt = now,
+                  stiCreatedAt = SAML.fromTime now,
                   stiIdP = midpid,
                   stiDescr = descr
                 }
-        wrapMonadClientSem $ ScimTokenStore.insert token info
+        ScimTokenStore.insert token info
         pure $ CreateScimTokenResponse token info
 
   case idps of
@@ -154,7 +161,7 @@ createScimToken zusr CreateScimToken {..} = do
     -- be changed.  currently, it relies on the fact that there is never more than one IdP.
     -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
     _ ->
-      E.throwSpar $
+      throwSparSem $
         E.SparProvisioningMoreThanOneIdP
           "SCIM tokens can only be created for a team with at most one IdP"
 
@@ -166,10 +173,10 @@ deleteScimToken ::
   -- | Who is trying to delete a token
   Maybe UserId ->
   ScimTokenId ->
-  Spar r NoContent
+  Sem r NoContent
 deleteScimToken zusr tokenid = do
-  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
-  wrapMonadClientSem $ ScimTokenStore.delete teamid tokenid
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  ScimTokenStore.delete teamid tokenid
   pure NoContent
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
@@ -180,7 +187,7 @@ listScimTokens ::
   Members '[GalleyAccess, BrigAccess, ScimTokenStore, Error E.SparError] r =>
   -- | Who is trying to list tokens
   Maybe UserId ->
-  Spar r ScimTokenList
+  Sem r ScimTokenList
 listScimTokens zusr = do
-  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
-  ScimTokenList <$> wrapMonadClientSem (ScimTokenStore.getByTeam teamid)
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  ScimTokenList <$> ScimTokenStore.getByTeam teamid

@@ -31,6 +31,7 @@ import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
+import Data.Range (Range)
 import qualified Data.Text as T
 import Imports
 import qualified System.Logger.Class as Log
@@ -46,8 +47,8 @@ type FederationAppIO = ExceptT FederationError AppIO
 -- FUTUREWORK: Maybe find a way to tranform 'clientRoutes' into a client which
 -- only uses 'FederationAppIO' monad, then boilerplate in this module can all be
 -- deleted.
-getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
-getUserHandleInfo (Qualified handle domain) = do
+getUserHandleInfo :: Remote Handle -> FederationAppIO (Maybe UserProfile)
+getUserHandleInfo (qUntagged -> Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   executeFederated domain $ getUserByHandle clientRoutes handle
 
@@ -84,3 +85,24 @@ getUserClients :: Domain -> GetUserClients -> FederationAppIO (UserMap (Set PubC
 getUserClients domain guc = do
   Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
   executeFederated domain $ FederatedBrig.getUserClients clientRoutes guc
+
+sendConnectionAction ::
+  Local UserId ->
+  Remote UserId ->
+  RemoteConnectionAction ->
+  FederationAppIO NewConnectionResponse
+sendConnectionAction self (qUntagged -> other) action = do
+  let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
+  Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
+  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes (tDomain self) req
+
+notifyUserDeleted ::
+  Local UserId ->
+  Remote (Range 1 1000 [UserId]) ->
+  FederationAppIO ()
+notifyUserDeleted self remotes = do
+  let remoteConnections = tUnqualified remotes
+  let fedRPC =
+        FederatedBrig.onUserDeleted clientRoutes (tDomain self) $
+          UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+  void $ executeFederated (tDomain remotes) fedRPC

@@ -22,7 +22,8 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
 import Data.Misc (Milliseconds)
-import Data.Qualified (Qualified)
+import Data.Qualified
+import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, Summary, (:>))
@@ -39,6 +40,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -102,7 +104,15 @@ data Api routes = Api
         :> "send-message"
         :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
-        :> Post '[JSON] MessageSendResponse
+        :> Post '[JSON] MessageSendResponse,
+    onUserDeleted ::
+      routes
+        :- "federation"
+        :> "on-user-deleted"
+        :> "conversations"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] UserDeletedConversationsNotification
+        :> Post '[JSON] EmptyResponse
   }
   deriving (Generic)
 
@@ -127,7 +137,10 @@ data RemoteConvMembers = RemoteConvMembers
 -- fields (muted/archived/hidden) are omitted, since they are not known by the
 -- remote backend.
 data RemoteConversation = RemoteConversation
-  { rcnvMetadata :: ConversationMetadata,
+  { -- | Id of the conversation, implicitly qualified with the domain of the
+    -- backend that created this value.
+    rcnvId :: ConvId,
+    rcnvMetadata :: ConversationMetadata,
     rcnvMembers :: RemoteConvMembers
   }
   deriving stock (Eq, Show, Generic)
@@ -148,8 +161,10 @@ newtype GetConversationsResponse = GetConversationsResponse
 data NewRemoteConversation conv = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
-    -- | The user that created the conversation
-    rcOrigUserId :: Qualified UserId,
+    -- | The user that created the conversation. This is implicitly qualified
+    -- by the requesting domain, since it is impossible to create a regular/group
+    -- conversation on a remote backend.
+    rcOrigUserId :: UserId,
     -- | The conversation ID, local to the backend invoking the RPC
     rcCnvId :: conv,
     -- | The conversation type
@@ -158,13 +173,16 @@ data NewRemoteConversation conv = NewRemoteConversation
     rcCnvAccessRole :: AccessRole,
     -- | The conversation name,
     rcCnvName :: Maybe Text,
-    -- | Members of the conversation
-    rcMembers :: Set OtherMember,
+    -- | Members of the conversation apart from the creator
+    rcNonCreatorMembers :: Set OtherMember,
     rcMessageTimer :: Maybe Milliseconds,
     rcReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
+
+rcRemoteOrigUserId :: NewRemoteConversation (Remote ConvId) -> Remote UserId
+rcRemoteOrigUserId rc = qualifyAs (rcCnvId rc) (rcOrigUserId rc)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
@@ -244,6 +262,18 @@ newtype LeaveConversationResponse = LeaveConversationResponse
   deriving
     (ToJSON, FromJSON)
     via (Either (CustomEncoded RemoveFromConversationError) ())
+
+type UserDeletedNotificationMaxConvs = 1000
+
+data UserDeletedConversationsNotification = UserDeletedConversationsNotification
+  { -- | This is qualified implicitly by the origin domain
+    udcnUser :: UserId,
+    -- | These are qualified implicitly by the target domain
+    udcnConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
+  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

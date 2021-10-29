@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a5b2ec0bd44d4fcabec564b4e7683a01cfb75cdb1c78a6eee520d6c48c95bb1d
+-- hash: 8bf007e90cc28a7b92252e0fccfb998d850e30df040205e1bc7316b9008a0c9f
 
 name:           galley
 version:        0.83.0
@@ -35,6 +35,7 @@ library
       Galley.API.LegalHold.Conflicts
       Galley.API.Mapping
       Galley.API.Message
+      Galley.API.One2One
       Galley.API.Public
       Galley.API.Query
       Galley.API.Teams
@@ -54,6 +55,8 @@ library
       Galley.Data.TeamFeatures
       Galley.Data.TeamNotifications
       Galley.Data.Types
+      Galley.Effects
+      Galley.Effects.FireAndForget
       Galley.External
       Galley.External.LegalHoldService
       Galley.Intra.Client
@@ -87,6 +90,7 @@ library
     , base >=4.6 && <5
     , base64-bytestring >=1.0
     , bilge >=0.21.1
+    , binary
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2
@@ -95,6 +99,7 @@ library
     , cassava >=0.5.2
     , cereal >=0.4
     , containers >=0.5
+    , cryptonite
     , currency-codes >=2.0
     , data-default >=0.5
     , enclosed-exceptions >=1.0
@@ -113,10 +118,12 @@ library
     , imports
     , insert-ordered-containers
     , lens >=4.4
+    , memory
     , metrics-wai >=0.4
     , mtl >=2.2
     , optparse-applicative >=0.10
     , pem
+    , polysemy
     , proto-lens >=0.2
     , protobuf >=0.2
     , raw-strings-qq >=1.0
@@ -142,7 +149,7 @@ library
     , time >=1.4
     , tinylog >=0.10
     , tls >=1.3.10
-    , transformers >=0.3
+    , transformers
     , types-common >=0.16
     , types-common-journal >=0.1
     , unliftio >=0.2
@@ -172,14 +179,17 @@ executable galley
     , base
     , case-insensitive
     , extended
+    , extra >=1.3
     , galley
     , galley-types
     , imports
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , saml2-web-sso >=0.18
     , servant-client
     , ssl-util
     , tagged
+    , transformers
     , types-common
     , wire-api
     , wire-api-federation
@@ -230,11 +240,13 @@ executable galley-integration
     , cereal
     , containers
     , cookie
+    , cql-io
     , currency-codes
     , data-timeout
     , errors
     , exceptions
     , extended
+    , extra >=1.3
     , galley
     , galley-types
     , gundeck-types
@@ -257,6 +269,7 @@ executable galley-integration
     , raw-strings-qq >=1.0
     , retry
     , safe >=0.3
+    , saml2-web-sso >=0.18
     , schema-profunctor
     , servant
     , servant-client
@@ -274,6 +287,7 @@ executable galley-integration
     , time
     , tinylog
     , tls >=1.3.8
+    , transformers
     , types-common
     , types-common-journal
     , unliftio
@@ -311,18 +325,21 @@ executable galley-migrate-data
     , containers
     , exceptions
     , extended
+    , extra >=1.3
     , galley-types
     , imports
     , lens
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , saml2-web-sso >=0.18
     , servant-client
     , ssl-util
     , tagged
     , text
     , time
     , tinylog
+    , transformers
     , types-common
     , unliftio
     , wire-api
@@ -378,15 +395,18 @@ executable galley-schema
     , case-insensitive
     , cassandra-util
     , extended
+    , extra >=1.3
     , imports
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , saml2-web-sso >=0.18
     , servant-client
     , ssl-util
     , tagged
     , text
     , tinylog
+    , transformers
     , wire-api
     , wire-api-federation
   if flag(static)
@@ -399,6 +419,7 @@ test-suite galley-types-tests
   other-modules:
       Test.Galley.API
       Test.Galley.API.Message
+      Test.Galley.API.One2One
       Test.Galley.Intra.User
       Test.Galley.Mapping
       Test.Galley.Roundtrip
@@ -413,6 +434,7 @@ test-suite galley-types-tests
     , case-insensitive
     , containers
     , extended
+    , extra >=1.3
     , galley
     , galley-types
     , http-types
@@ -420,6 +442,7 @@ test-suite galley-types-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , saml2-web-sso >=0.18
     , servant-client
     , servant-swagger
     , ssl-util
@@ -428,6 +451,7 @@ test-suite galley-types-tests
     , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
+    , transformers
     , types-common
     , wai
     , wai-predicates

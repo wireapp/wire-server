@@ -174,11 +174,12 @@ docker login --username=<MY_DOCKER_USERNAME>
 * [Install docker](https://docker.com)
 * [Install docker-compose](https://docs.docker.com/compose/install/)
 
-## Nix
+## Nix + Direnv
 
 Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
 dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
-Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
+
+If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
 You can then run all the builds, and the native dependencies will be automatically present.
 
 ## Telepresence
@@ -225,4 +226,4 @@ See `make buildah-docker` for an entry point here.
 
 ## Helm chart development, integration tests in kubernetes
 
-You need `kubectl`, `helm`, and a valid kubernetes context. Refer to https://docs.wire.com for details.
+You need `kubectl`, `helm`, `helmfile`, and a valid kubernetes context. Refer to https://docs.wire.com for details.

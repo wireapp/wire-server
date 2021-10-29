@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,7 +23,6 @@ module Brig.Types.Intra
   ( AccountStatus (..),
     AccountStatusUpdate (..),
     AccountStatusResp (..),
-    ConnectionStatus (..),
     UserAccount (..),
     NewUserScimInvitation (..),
     UserSet (..),
@@ -90,30 +88,6 @@ instance FromJSON AccountStatusUpdate where
 
 instance ToJSON AccountStatusUpdate where
   toJSON s = object ["status" .= suStatus s]
-
--------------------------------------------------------------------------------
--- ConnectionStatus
-
-data ConnectionStatus = ConnectionStatus
-  { csFrom :: !UserId,
-    csTo :: !UserId,
-    csStatus :: !Relation
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON ConnectionStatus where
-  parseJSON = withObject "connection-status" $ \o ->
-    ConnectionStatus <$> o .: "from"
-      <*> o .: "to"
-      <*> o .: "status"
-
-instance ToJSON ConnectionStatus where
-  toJSON cs =
-    object
-      [ "from" .= csFrom cs,
-        "to" .= csTo cs,
-        "status" .= csStatus cs
-      ]
 
 -------------------------------------------------------------------------------
 -- UserAccount

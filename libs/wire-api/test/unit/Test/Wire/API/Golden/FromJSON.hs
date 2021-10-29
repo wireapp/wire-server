@@ -94,25 +94,13 @@ tests =
             testFromJSONFailureWithMsg @NewUser
               (Just "all team users must set a password on creation")
               "testObject_NewUser_user_5-2.json",
-          testCase "testObject_NewUser_user_6-2.json" $
-            testFromJSONFailureWithMsg @NewUser
-              (Just "sso_id, team_id must be either both present or both absent.")
-              "testObject_NewUser_user_6-2.json",
           testCase "testObject_NewUser_user_6-3.json" $
             testFromJSONFailureWithMsg @NewUser
               (Just "sso_id, team_id must be either both present or both absent.")
-              "testObject_NewUser_user_6-3.json",
-          testCase "testObject_NewUser_user_6-4.json" $
-            testFromJSONFailureWithMsg @NewUser
-              (Just "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive")
-              "testObject_NewUser_user_6-4.json"
+              "testObject_NewUser_user_6-3.json"
         ],
       testGroup "NewUserPublic: failure" $
-        [ testCase "testObject_NewUserPublic_user_1-1.json" $
-            testFromJSONFailureWithMsg @NewUserPublic
-              (Just "SSO-managed users are not allowed here.")
-              "testObject_NewUserPublic_user_1-1.json",
-          testCase "testObject_NewUserPublic_user_1-2.json" $
+        [ testCase "testObject_NewUserPublic_user_1-2.json" $
             testFromJSONFailureWithMsg @NewUserPublic
               (Just "it is not allowed to provide a UUID for the users here.")
               "testObject_NewUserPublic_user_1-2.json",
