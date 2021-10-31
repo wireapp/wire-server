@@ -23,7 +23,7 @@
 module Arbitrary where
 
 import Data.Aeson
-import Data.Id (Id, T)
+import Data.Id (TeamId)
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger hiding (Header (..))
@@ -103,13 +103,10 @@ instance CoArbitrary WireIdP
 
 instance CoArbitrary WireIdPAPIVersion
 
-instance CoArbitrary a => CoArbitrary (Id a)
+instance CoArbitrary TeamId
 
 instance CoArbitrary Issuer where
   coarbitrary (Issuer ur) = coarbitrary $ show ur
-
-instance CoArbitrary T where
-  coarbitrary _ = id
 
 instance CoArbitrary a => CoArbitrary (URIRef a) where
   coarbitrary = coarbitrary . show
