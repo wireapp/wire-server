@@ -188,13 +188,14 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
     exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
     exactHandleSearch teamSearchInfo = do
+      lsearcherId <- qualifyLocal searcherId
       let searchedHandleMaybe = parseHandle searchTerm
       exactHandleResult <-
         case searchedHandleMaybe of
           Nothing -> pure Nothing
           Just searchedHandle ->
             contactFromProfile
-              <$$> HandleAPI.getLocalHandleInfo searcherId searchedHandle
+              <$$> HandleAPI.getLocalHandleInfo lsearcherId searchedHandle
       pure $ case teamSearchInfo of
         Search.TeamOnly t ->
           if Just t == (contactTeam =<< exactHandleResult)

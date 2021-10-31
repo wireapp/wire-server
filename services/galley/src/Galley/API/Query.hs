@@ -25,7 +25,6 @@ module Galley.API.Query
     conversationIdsPageFrom,
     getConversations,
     listConversations,
-    listConversationsV2,
     iterateConversations,
     getLocalSelf,
     internalGetMemberH,
@@ -35,6 +34,7 @@ module Galley.API.Query
 where
 
 import qualified Cassandra as C
+import Control.Lens (sequenceAOf)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import qualified Data.ByteString.Lazy as LBS
@@ -44,16 +44,16 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import qualified Data.Map as Map
 import Data.Proxy
-import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged (unTagged)
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
+import Galley.Effects
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
@@ -76,11 +76,11 @@ import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
-getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
+getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot zcnv
 
-getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
+getBotConversation :: BotId -> ConvId -> Galley r Public.BotConvView
 getBotConversation zbot zcnv = do
   (c, _) <- getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
   domain <- viewFederationDomain
@@ -94,19 +94,21 @@ getBotConversation zbot zcnv = do
       | otherwise =
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
-getUnqualifiedConversation :: UserId -> ConvId -> Galley Public.Conversation
+getUnqualifiedConversation :: UserId -> ConvId -> Galley r Public.Conversation
 getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
 
-getConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
+getConversation :: UserId -> Qualified ConvId -> Galley r Public.Conversation
 getConversation zusr cnv = do
-  localDomain <- viewFederationDomain
-  if qDomain cnv == localDomain
-    then getUnqualifiedConversation zusr (qUnqualified cnv)
-    else getRemoteConversation (toRemote cnv)
+  lusr <- qualifyLocal zusr
+  foldQualified
+    lusr
+    (getUnqualifiedConversation zusr . tUnqualified)
+    getRemoteConversation
+    cnv
   where
-    getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
+    getRemoteConversation :: Remote ConvId -> Galley r Public.Conversation
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations zusr [remoteConvId]
       case conversations of
@@ -114,7 +116,7 @@ getConversation zusr cnv = do
         [conv] -> pure conv
         _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
-getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
+getRemoteConversations :: UserId -> [Remote ConvId] -> Galley r [Public.Conversation]
 getRemoteConversations zusr remoteConvs =
   getRemoteConversationsWithFailures zusr remoteConvs >>= \case
     -- throw first error
@@ -138,9 +140,9 @@ fgcError :: FailedGetConversation -> Wai.Error
 fgcError (FailedGetConversation _ r) = fgcrError r
 
 failedGetConversationRemotely ::
-  [Qualified ConvId] -> FederationError -> FailedGetConversation
+  [Remote ConvId] -> FederationError -> FailedGetConversation
 failedGetConversationRemotely qconvs =
-  FailedGetConversation qconvs . FailedGetConversationRemotely
+  FailedGetConversation (map qUntagged qconvs) . FailedGetConversationRemotely
 
 failedGetConversationLocally ::
   [Qualified ConvId] -> FailedGetConversation
@@ -157,42 +159,45 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 getRemoteConversationsWithFailures ::
   UserId ->
   [Remote ConvId] ->
-  Galley ([FailedGetConversation], [Public.Conversation])
+  Galley r ([FailedGetConversation], [Public.Conversation])
 getRemoteConversationsWithFailures zusr convs = do
   localDomain <- viewFederationDomain
+  lusr <- qualifyLocal zusr
 
   -- get self member statuses from the database
   statusMap <- Data.remoteConversationStatus zusr convs
-  let remoteView rconv =
+  let remoteView :: Remote FederatedGalley.RemoteConversation -> Maybe Conversation
+      remoteView rconv =
         Mapping.remoteConversationView
-          zusr
+          lusr
           ( Map.findWithDefault
               defMemberStatus
-              (toRemote (cnvmQualifiedId (FederatedGalley.rcnvMetadata rconv)))
+              (fmap FederatedGalley.rcnvId rconv)
               statusMap
           )
           rconv
       (locallyFound, locallyNotFound) = partition (flip Map.member statusMap) convs
       localFailures
         | null locallyNotFound = []
-        | otherwise = [failedGetConversationLocally (map unTagged locallyNotFound)]
+        | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  fmap (bimap (localFailures <>) concat . partitionEithers)
-    . pooledForConcurrentlyN 8 (partitionRemote locallyFound)
-    $ \(domain, someConvs) -> do
-      let req = FederatedGalley.GetConversationsRequest zusr someConvs
+  liftGalley0
+    . fmap (bimap (localFailures <>) concat . partitionEithers)
+    . pooledForConcurrentlyN 8 (bucketRemote locallyFound)
+    $ \someConvs -> do
+      let req = FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
           rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
-      handleFailures (map (flip Qualified domain) someConvs) $ do
-        rconvs <- gcresConvs <$> executeFederated domain rpc
-        pure $ catMaybes (map remoteView rconvs)
+      handleFailures (sequenceAOf tUnqualifiedL someConvs) $ do
+        rconvs <- gcresConvs <$> executeFederated (tDomain someConvs) rpc
+        pure $ mapMaybe (remoteView . qualifyAs someConvs) rconvs
   where
     handleFailures ::
-      [Qualified ConvId] ->
-      ExceptT FederationError Galley a ->
-      Galley (Either FailedGetConversation a)
-    handleFailures qconvs action = runExceptT
-      . withExceptT (failedGetConversationRemotely qconvs)
+      [Remote ConvId] ->
+      ExceptT FederationError Galley0 a ->
+      Galley0 (Either FailedGetConversation a)
+    handleFailures rconvs action = runExceptT
+      . withExceptT (failedGetConversationRemotely rconvs)
       . catchE action
       $ \e -> do
         lift . Logger.warn $
@@ -200,14 +205,14 @@ getRemoteConversationsWithFailures zusr convs = do
             . Logger.field "error" (show e)
         throwE e
 
-getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
+getConversationRoles :: UserId -> ConvId -> Galley r Public.ConversationRolesList
 getConversationRoles zusr cnv = do
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-conversationIdsPageFromUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
+conversationIdsPageFromUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- Data.conversationIdsFrom zusr start size
@@ -224,7 +229,7 @@ conversationIdsPageFromUnqualified zusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-conversationIdsPageFrom :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
+conversationIdsPageFrom :: UserId -> Public.GetPaginatedConversationIds -> Galley r Public.ConvIdsPage
 conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
   localDomain <- viewFederationDomain
   case gmtprState of
@@ -234,17 +239,17 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
-    localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley Public.ConvIdsPage
+    localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley r Public.ConvIdsPage
     localsAndRemotes localDomain pagingState size = do
       localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.localConversationIdsPageFrom zusr pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
-        then pure localPage {Public.mtpHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
+        then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
         else do
           remotePage <- remotesOnly Nothing remainingSize
           pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
-    remotesOnly :: Maybe C.PagingState -> Int32 -> Galley Public.ConvIdsPage
+    remotesOnly :: Maybe C.PagingState -> Int32 -> Galley r Public.ConvIdsPage
     remotesOnly pagingState size =
       pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsPageFrom zusr pagingState size
 
@@ -256,12 +261,22 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
           mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
 
-getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
+getConversations ::
+  UserId ->
+  Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
+  Maybe ConvId ->
+  Maybe (Range 1 500 Int32) ->
+  Galley r (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do
   ConversationList cs more <- getConversationsInternal user mids mstart msize
   flip ConversationList more <$> mapM (Mapping.conversationView user) cs
 
-getConversationsInternal :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Data.Conversation)
+getConversationsInternal ::
+  UserId ->
+  Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
+  Maybe ConvId ->
+  Maybe (Range 1 500 Int32) ->
+  Galley r (Public.ConversationList Data.Conversation)
 getConversationsInternal user mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
@@ -288,57 +303,14 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
--- | Deprecated. FUTUREWORK(federation): Delete this endpoint
-listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
-listConversations user (Public.ListConversations mIds qstart msize) = do
-  localDomain <- viewFederationDomain
-  when (isJust mIds && isJust qstart) $
-    throwM (invalidPayload "'start' and 'qualified_ids' are mutually exclusive")
-  (localMore, localConvIds, remoteConvIds) <- case mIds of
-    Just xs -> do
-      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList xs)
-      (localMore, localConvIds) <- getIdsAndMore localIds
-      pure (localMore, localConvIds, remoteConvIds)
-    Nothing -> do
-      (localMore, localConvIds) <- getAll (localstart localDomain)
-      remoteConvIds <- Data.conversationsRemote user
-      pure (localMore, localConvIds, remoteConvIds)
+listConversations ::
+  UserId ->
+  Public.ListConversations ->
+  Galley r Public.ConversationsResponse
+listConversations user (Public.ListConversations ids) = do
+  luser <- qualifyLocal user
 
-  localInternalConversations <-
-    Data.localConversations localConvIds
-      >>= filterM removeDeleted
-      >>= filterM (pure . isMember user . Data.convLocalMembers)
-  localConversations <- mapM (Mapping.conversationView user) localInternalConversations
-
-  remoteConversations <- getRemoteConversations user remoteConvIds
-  let allConvs = localConversations <> remoteConversations
-  pure $ Public.ConversationList allConvs localMore
-  where
-    localstart localDomain = case qstart of
-      Just start | qDomain start == localDomain -> Just (qUnqualified start)
-      _ -> Nothing
-
-    size = fromMaybe (toRange (Proxy @32)) msize
-
-    getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
-    getIdsAndMore ids = (False,) <$> Data.localConversationIdsOf user ids
-
-    getAll :: Maybe ConvId -> Galley (Bool, [ConvId])
-    getAll mstart = do
-      r <- Data.conversationIdsFrom user mstart (rcast size)
-      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
-      pure (hasMore, Data.resultSetResult r)
-
-    removeDeleted :: Data.Conversation -> Galley Bool
-    removeDeleted c
-      | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
-      | otherwise = pure True
-
-listConversationsV2 :: UserId -> Public.ListConversationsV2 -> Galley Public.ConversationsResponse
-listConversationsV2 user (Public.ListConversationsV2 ids) = do
-  localDomain <- viewFederationDomain
-
-  let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
+  let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <- foundsAndNotFounds (Data.localConversationIdsOf user) localIds
 
   localInternalConversations <-
@@ -351,7 +323,7 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
-      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map unTagged remoteIds
+      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map qUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
@@ -367,11 +339,11 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
         crNotFound =
           failedConvsLocally
             <> remoteNotFoundRemoteIds
-            <> map (`Qualified` localDomain) notFoundLocalIds,
+            <> map (qUntagged . qualifyAs luser) notFoundLocalIds,
         crFailed = failedConvsRemotely
       }
   where
-    removeDeleted :: Data.Conversation -> Galley Bool
+    removeDeleted :: Data.Conversation -> Galley r Bool
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
@@ -381,10 +353,13 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
       let notFounds = xs \\ founds
       pure (founds, notFounds)
 
-iterateConversations :: forall a. UserId -> Range 1 500 Int32 -> ([Data.Conversation] -> Galley a) -> Galley [a]
+iterateConversations ::
+  UserId ->
+  Range 1 500 Int32 ->
+  ([Data.Conversation] -> Galley r a) ->
+  Galley r [a]
 iterateConversations uid pageSize handleConvs = go Nothing
   where
-    go :: Maybe ConvId -> Galley [a]
     go mbConv = do
       convResult <- getConversationsInternal uid Nothing mbConv (Just pageSize)
       resultHead <- handleConvs (convList convResult)
@@ -396,24 +371,25 @@ iterateConversations uid pageSize handleConvs = go Nothing
         _ -> pure []
       pure $ resultHead : resultTail
 
-internalGetMemberH :: ConvId ::: UserId -> Galley Response
+internalGetMemberH :: ConvId ::: UserId -> Galley r Response
 internalGetMemberH (cnv ::: usr) = do
   json <$> getLocalSelf usr cnv
 
-getLocalSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
+getLocalSelf :: UserId -> ConvId -> Galley r (Maybe Public.Member)
 getLocalSelf usr cnv = do
+  lusr <- qualifyLocal usr
   alive <- Data.isConvAlive cnv
   if alive
-    then Mapping.localMemberToSelf <$$> Data.member cnv usr
+    then Mapping.localMemberToSelf lusr <$$> Data.member cnv usr
     else Nothing <$ Data.deleteConversation cnv
 
-getConversationMetaH :: ConvId -> Galley Response
+getConversationMetaH :: ConvId -> Galley r Response
 getConversationMetaH cnv = do
   getConversationMeta cnv <&> \case
     Nothing -> setStatus status404 empty
     Just meta -> json meta
 
-getConversationMeta :: ConvId -> Galley (Maybe ConversationMetadata)
+getConversationMeta :: ConvId -> Galley r (Maybe ConversationMetadata)
 getConversationMeta cnv = do
   alive <- Data.isConvAlive cnv
   localDomain <- viewFederationDomain
@@ -423,7 +399,12 @@ getConversationMeta cnv = do
       Data.deleteConversation cnv
       pure Nothing
 
-getConversationByReusableCode :: UserId -> Key -> Value -> Galley ConversationCoverView
+getConversationByReusableCode ::
+  Member BrigAccess r =>
+  UserId ->
+  Key ->
+  Value ->
+  Galley r ConversationCoverView
 getConversationByReusableCode zusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
   conv <- ensureConversationAccess zusr (Data.codeConversation c) CodeAccess

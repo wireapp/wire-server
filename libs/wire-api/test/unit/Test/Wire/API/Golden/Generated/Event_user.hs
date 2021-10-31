@@ -142,10 +142,10 @@ testObject_Event_user_8 =
     (read "1864-05-29 19:31:31.226 UTC")
     ( EdConversation
         ( Conversation
-            { cnvMetadata =
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
+              cnvMetadata =
                 ConversationMetadata
-                  { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
-                    cnvmType = RegularConv,
+                  { cnvmType = RegularConv,
                     cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
                     cnvmAccess =
                       [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
@@ -159,7 +159,7 @@ testObject_Event_user_8 =
                 ConvMembers
                   { cmSelf =
                       Member
-                        { memId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
+                        { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
                           memService =
                             Just
                               ( ServiceRef
@@ -214,7 +214,10 @@ testObject_Event_user_10 =
     (read "1864-05-25 01:31:49.802 UTC")
     ( EdConnect
         ( Connect
-            { cRecipient = Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000001")),
+            { cRecipient =
+                Qualified
+                  (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000001")))
+                  (Domain "faraway.example.com"),
               cMessage = Just "L",
               cName = Just "fq",
               cEmail = Just "\992986"

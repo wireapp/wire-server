@@ -32,6 +32,7 @@ module Brig.IO.Intra
     blockConv,
     unblockConv,
     getConv,
+    upsertOne2OneConversation,
 
     -- * Clients
     Brig.IO.Intra.newClient,
@@ -59,6 +60,9 @@ module Brig.IO.Intra
 
     -- * Legalhold
     guardLegalhold,
+
+    -- * Low Level API for Notifications
+    notify,
   )
 where
 
@@ -69,30 +73,38 @@ import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
+import qualified Brig.Data.Connection as Data
+import Brig.Federation.Client (notifyUserDeleted)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadThrow (throwM))
-import Control.Monad.Trans.Except (throwE)
+import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import Data.Coerce (coerce)
+import qualified Data.Conduit.List as C
 import qualified Data.Currency as Currency
+import Data.Domain
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
+import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import GHC.TypeLits
 import Galley.Types (Connect (..), Conversation)
+import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import qualified Galley.Types.Teams.Intra as Team
@@ -104,6 +116,9 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
+import Wire.API.Federation.API.Brig
+import Wire.API.Federation.Client
+import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
 import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
@@ -231,10 +246,50 @@ dispatchNotifications orig conn e = case e of
   UserDeleted {} -> do
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
-    recipients <- list1 orig <$> lookupContactList orig
-    notify event orig Push.RouteDirect conn (pure recipients)
+    notifyUserDeletionLocals orig conn event
+    notifyUserDeletionRemotes orig
   where
     event = singleton $ UserEvent e
+
+notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> AppIO ()
+notifyUserDeletionLocals deleted conn event = do
+  recipients <- list1 deleted <$> lookupContactList deleted
+  notify event deleted Push.RouteDirect conn (pure recipients)
+
+notifyUserDeletionRemotes :: UserId -> AppIO ()
+notifyUserDeletionRemotes deleted = do
+  runConduit $
+    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
+      .| C.mapM_ fanoutNotifications
+  where
+    fanoutNotifications :: [Remote UserId] -> AppIO ()
+    fanoutNotifications = mapM_ notifyBackend . bucketRemote
+
+    notifyBackend :: Remote [UserId] -> AppIO ()
+    notifyBackend uids = do
+      case tUnqualified (checked <$> uids) of
+        Nothing ->
+          -- The user IDs cannot be more than 1000, so we can assume the range
+          -- check will only fail because there are 0 User Ids.
+          pure ()
+        Just rangedUids -> do
+          luidDeleted <- qualifyLocal deleted
+          eitherFErr <- runExceptT (notifyUserDeleted luidDeleted (qualifyAs uids rangedUids))
+          case eitherFErr of
+            Left fErr -> do
+              logFederationError (tDomain uids) fErr
+              -- FUTUTREWORK: Do something better here?
+              -- FUTUREWORK: Write test that this happens
+              throwM $ federationErrorToWai fErr
+            Right () -> pure ()
+
+    logFederationError :: Domain -> FederationError -> AppT IO ()
+    logFederationError domain fErr =
+      Log.err $
+        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
+          . Log.field "user_id" (show deleted)
+          . Log.field "domain" (domainText domain)
+          . Log.field "error" (show fErr)
 
 -- | Push events to other users.
 push ::
@@ -286,7 +341,7 @@ rawPush (toList -> events) usrs orig route conn = do
           g
           ( method POST
               . path "/i/push/v2"
-              . zUser orig
+              . zUser orig -- FUTUREWORK: Remove, because gundeck handler ignores this.
               . json (map (mkPush rcps . snd) events)
               . expect2xx
           )
@@ -309,7 +364,7 @@ rawPush (toList -> events) usrs orig route conn = do
 -- | (Asynchronously) notifies other users of events.
 notify ::
   List1 Event ->
-  -- | Origin user.
+  -- | Origin user, TODO: Delete
   UserId ->
   -- | Push routing strategy.
   Push.Route ->
@@ -439,11 +494,12 @@ toPushFormat (UserEvent (UserResumed i)) =
       [ "type" .= ("user.resume" :: Text),
         "id" .= i
       ]
-toPushFormat (UserEvent (UserDeleted i)) =
+toPushFormat (UserEvent (UserDeleted qid)) =
   Just $
     M.fromList
       [ "type" .= ("user.delete" :: Text),
-        "id" .= i
+        "id" .= qUnqualified qid,
+        "qualified_id" .= qid
       ]
 toPushFormat (UserEvent (UserLegalHoldDisabled i)) =
   Just $
@@ -532,30 +588,50 @@ createSelfConv u = do
         . zUser u
         . expect2xx
 
--- | Calls 'Galley.API.createConnectConversationH'.
-createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe ConnId -> AppIO ConvId
-createConnectConv from to cname conn = do
-  localDomain <- viewFederationDomain
+-- | Calls 'Galley.API.Create.createConnectConversation'.
+createLocalConnectConv ::
+  Local UserId ->
+  Local UserId ->
+  Maybe Text ->
+  Maybe ConnId ->
+  AppIO ConvId
+createLocalConnectConv from to cname conn = do
   debug $
-    logConnection from (Qualified to localDomain)
+    logConnection (tUnqualified from) (qUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
+  let req =
+        path "/i/conversations/connect"
+          . zUser (tUnqualified from)
+          . maybe id (header "Z-Connection" . fromConnId) conn
+          . contentJson
+          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") return $
     fromByteString $
       getHeader' "Location" r
+
+createConnectConv ::
+  Qualified UserId ->
+  Qualified UserId ->
+  Maybe Text ->
+  Maybe ConnId ->
+  AppIO (Qualified ConvId)
+createConnectConv from to cname conn = do
+  lfrom <- ensureLocal from
+  lto <- ensureLocal to
+  qUntagged . qualifyAs lfrom
+    <$> createLocalConnectConv lfrom lto cname conn
   where
-    req =
-      path "/i/conversations/connect"
-        . zUser from
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . contentJson
-        . lbytes (encode $ Connect to Nothing cname Nothing)
-        . expect2xx
+    ensureLocal :: Qualified a -> AppIO (Local a)
+    ensureLocal x = do
+      loc <- qualifyLocal ()
+      foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptConnectConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-acceptConnectConv from conn cnv = do
+acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -564,13 +640,20 @@ acceptConnectConv from conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "accept", "v2"]
-        . zUser from
+        . zUser (tUnqualified from)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+acceptConnectConv from conn =
+  foldQualified
+    from
+    (acceptLocalConnectConv from conn . tUnqualified)
+    (const (throwM federationNotImplemented))
+
 -- | Calls 'Galley.API.blockConvH'.
-blockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO ()
-blockConv usr conn cnv = do
+blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO ()
+blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -579,13 +662,20 @@ blockConv usr conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "block"]
-        . zUser usr
+        . zUser (tUnqualified lusr)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO ()
+blockConv lusr conn =
+  foldQualified
+    lusr
+    (blockLocalConv lusr conn . tUnqualified)
+    (const (throwM federationNotImplemented))
+
 -- | Calls 'Galley.API.unblockConvH'.
-unblockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-unblockConv usr conn cnv = do
+unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -594,9 +684,16 @@ unblockConv usr conn cnv = do
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "unblock"]
-        . zUser usr
+        . zUser (tUnqualified lusr)
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
+
+unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+unblockConv luid conn =
+  foldQualified
+    luid
+    (unblockLocalConv luid conn . tUnqualified)
+    (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv :: UserId -> ConvId -> AppIO (Maybe Conversation)
@@ -614,6 +711,18 @@ getConv usr cnv = do
       paths ["conversations", toByteString' cnv]
         . zUser usr
         . expect [status200, status404]
+
+upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> AppIO UpsertOne2OneConversationResponse
+upsertOne2OneConversation urequest = do
+  response <- galleyRequest POST req
+  case Bilge.statusCode response of
+    200 -> decodeBody "galley" response
+    _ -> throwM internalServerError
+  where
+    req =
+      paths ["i", "conversations", "one2one", "upsert"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)

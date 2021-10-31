@@ -13,10 +13,14 @@ getPRNumber() {
 for d in "$DIR"/*; do
     if [[ ! -d "$d" ]]; then continue; fi
 
+    entries=("$d"/*[^~])
+
+    if [[ ${#entries[@]} -eq 0 ]]; then continue; fi
+
     echo -n "## "
     sed '$ a\' "$d/.title"
     echo ""
-    for f in "$d"/*[^~]; do
+    for f in "${entries[@]}"; do
         pr=$(getPRNumber $f)
         sed -r '
           # create a bullet point on the first line

@@ -45,6 +45,7 @@ import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
 import qualified Polysemy.Input as Polysemy
 import qualified Polysemy.Reader as Polysemy
+import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import Wire.API.Federation.GRPC.Client (GrpcClientErr (..))
@@ -134,6 +135,7 @@ serveOutward env port = do
            Polysemy.Error ServerError,
            Polysemy.Reader RunSettings,
            Polysemy.Input TLSSettings,
+           Polysemy.Resource,
            Embed IO,
            Embed Federator
          ]
@@ -143,6 +145,7 @@ serveOutward env port = do
       runAppT env
         . runM -- Embed Federator
         . embedToMonadIO @Federator -- Embed IO
+        . Polysemy.runResource -- Resource
         . Polysemy.runInputSem (embed @IO (readIORef (view tls env))) -- Input TLSSettings
         . Polysemy.runReader (view runSettings env) -- Reader RunSettings
         . absorbServerError

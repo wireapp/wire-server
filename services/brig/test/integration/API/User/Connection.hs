@@ -25,13 +25,17 @@ where
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import Brig.Data.Connection (remoteConnectionInsert)
 import qualified Brig.Options as Opt
 import Brig.Types
-import Brig.Types.Intra
+import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
+import Data.Domain
 import Data.Id hiding (client)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
+import Data.Time.Clock (getCurrentTime)
 import qualified Data.UUID.V4 as UUID
 import Galley.Types
 import Imports
@@ -40,10 +44,14 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
+import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (gcresConvs), RemoteConvMembers (rcmOthers), RemoteConversation (rcnvMembers))
+import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests cl _at _conf p b _c g =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> FedBrigClient -> FedGalleyClient -> DB.ClientState -> TestTree
+tests cl _at opts p b _c g fedBrigClient fedGalleyClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
@@ -73,9 +81,23 @@ tests cl _at _conf p b _c g =
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
       test p "put /connections/:domain/:id noop" $ testUpdateConnectionNoopQualified b,
       test p "get /connections - 200 (paging)" $ testLocalConnectionsPaging b,
-      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b,
+      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b db,
       test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl,
-      test p "post /connections/:domain/:id - 400 (max conns)" $ testConnectionLimitQualified b cl
+      test p "post /connections/:domain/:id - 400 (max conns)" $ testConnectionLimitQualified b cl,
+      test p "Remote connections: connect with no federation" (testConnectFederationNotAvailable b),
+      test p "Remote connections: connect OK" (testConnectOK b g fedBrigClient),
+      test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
+      test p "Remote connections: connection from Anon" (testConnectFromAnon b),
+      test p "Remote connections: mutual Connect - local action then remote action" (testConnectMutualLocalActionThenRemoteAction opts b g fedBrigClient),
+      test p "Remote connections: mutual Connect - remote action then local action" (testConnectMutualRemoteActionThenLocalAction opts b fedBrigClient fedGalleyClient),
+      test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
+      test p "Remote connections: ignore then accept" (testConnectFromIgnored opts b fedBrigClient),
+      test p "Remote connections: ignore, remote cancels, then accept" (testSentFromIgnored opts b fedBrigClient),
+      test p "Remote connections: block then accept" (testConnectFromBlocked opts b g fedBrigClient),
+      test p "Remote connections: block, remote cancels, then accept" (testSentFromBlocked opts b fedBrigClient),
+      test p "Remote connections: send then cancel" (testCancel opts b),
+      test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient),
+      test p "post /users/connections-status/v2 : All connections" (testInternalGetConnStatusesAll b opts fedBrigClient)
     ]
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
@@ -593,13 +615,19 @@ testLocalConnectionsPaging b = do
       liftIO $ assertEqual "has more" (Just (count' < total)) more
       return . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
 
-testAllConnectionsPaging :: Brig -> Http ()
-testAllConnectionsPaging b = do
+testAllConnectionsPaging :: Brig -> DB.ClientState -> Http ()
+testAllConnectionsPaging b db = do
   quid <- userQualifiedId <$> randomUser b
   let uid = qUnqualified quid
-  replicateM_ total $ do
+  replicateM_ totalLocal $ do
     qOther <- userQualifiedId <$> randomUser b
     postConnectionQualified b uid qOther !!! const 201 === statusCode
+
+  -- FUTUREWORK: For now, because we do not support creating remote connections
+  -- yet (as of Oct 1, 2021), we write some made-up remote connections directly
+  -- to the database such that querying works.
+  now <- toUTCTimeMillis <$> liftIO getCurrentTime
+  replicateM_ totalRemote $ createRemoteConnection uid now
 
   -- get all connections at once
   resAll :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing Nothing
@@ -616,7 +644,20 @@ testAllConnectionsPaging b = do
   liftIO $ assertEqual "next: has_more" False (mtpHasMore resNext)
   where
     size = 2
-    total = 5
+    totalLocal = 5
+    totalRemote = 3
+    total = totalLocal + totalRemote
+    remoteDomain = Domain "faraway.example.com"
+    createRemoteConnection :: UserId -> UTCTimeMillis -> Http ()
+    createRemoteConnection self now = do
+      qOther <- (`Qualified` remoteDomain) <$> randomId
+      qConv <- (`Qualified` remoteDomain) <$> randomId
+      liftIO . DB.runClient db $
+        DB.retry DB.x5 $
+          DB.write remoteConnectionInsert $
+            DB.params
+              DB.Quorum
+              (self, remoteDomain, qUnqualified qOther, SentWithHistory, now, qDomain qConv, qUnqualified qConv)
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
 testConnectionLimit brig (ConnectionLimit l) = do
@@ -665,3 +706,279 @@ testConnectionLimitQualified brig (ConnectionLimit l) = do
     assertLimited = do
       const 403 === statusCode
       const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
+
+testConnectFederationNotAvailable :: Brig -> Http ()
+testConnectFederationNotAvailable brig = do
+  (uid1, quid2) <- localAndRemoteUser brig
+  postConnectionQualified brig uid1 quid2
+    !!! const 422 === statusCode
+
+testConnectOK :: Brig -> Galley -> FedBrigClient -> Http ()
+testConnectOK brig galley fedBrigClient = do
+  let convIsLocal = True
+  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+
+  -- The conversation exists uid1 is not a participant however
+  getConversationQualified galley uid1 convId
+    !!! statusCode === const 403
+
+testConnectWithAnon :: Brig -> FedBrigClient -> Http ()
+testConnectWithAnon brig fedBrigClient = do
+  fromUser <- randomId
+  toUser <- userId <$> createAnonUser "anon1234" brig
+  res <- F.sendConnectionAction fedBrigClient (Domain "far-away.example.com") (F.NewConnectionRequest fromUser toUser F.RemoteConnect)
+  liftIO $
+    assertEqual "The response should specify that the user is not activated" F.NewConnectionResponseUserNotActivated res
+
+testConnectFromAnon :: Brig -> Http ()
+testConnectFromAnon brig = do
+  anonUser <- userId <$> createAnonUser "anon1234" brig
+  remoteUser <- fakeRemoteUser
+  postConnectionQualified brig anonUser remoteUser !!! const 403 === statusCode
+
+testConnectMutualLocalActionThenRemoteAction :: Opt.Opts -> Brig -> Galley -> FedBrigClient -> Http ()
+testConnectMutualLocalActionThenRemoteAction opts brig galley fedBrigClient = do
+  let convIsLocal = True
+  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+
+  -- First create a connection request from local to remote user, as this test
+  -- aims to test the behaviour of recieving a mutual request from remote
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
+
+  do
+    res <-
+      getConversationQualified galley uid1 convId <!! do
+        statusCode === const 200
+    conv <- responseJsonError res
+    liftIO $
+      (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= []
+
+  -- The response should have 'RemoteConnect' as action, because we cannot be
+  -- sure if the remote was previously in Ignored state or not
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect (Just F.RemoteConnect) Accepted
+
+  do
+    res <-
+      getConversationQualified galley uid1 convId <!! do
+        statusCode === const 200
+    conv <- responseJsonError res
+    liftIO $
+      (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= [quid2]
+
+testConnectMutualRemoteActionThenLocalAction :: Opt.Opts -> Brig -> FedBrigClient -> FedGalleyClient -> Http ()
+testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyClient = do
+  let convIsLocal = True
+  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+
+  -- First create a connection request from remote to local user, as this test
+  -- aims to test the behaviour of sending a mutual request to remote
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+
+  let request =
+        GetConversationsRequest
+          { gcrUserId = qUnqualified quid2,
+            gcrConvIds = [qUnqualified convId]
+          }
+
+  res <- F.getConversations fedGalleyClient (qDomain quid2) request
+  liftIO $
+    fmap (fmap omQualifiedId . rcmOthers . rcnvMembers) (gcresConvs res) @?= [[]]
+
+  -- The mock response has 'RemoteConnect' as action, because the remote backend
+  -- cannot be sure if the local backend was previously in Ignored state or not
+  sendConnectionAction brig opts uid1 quid2 (Just F.RemoteConnect) Accepted
+
+testConnectFromPending :: Brig -> FedBrigClient -> Http ()
+testConnectFromPending brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteRescind Nothing Cancelled
+
+testConnectFromIgnored :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testConnectFromIgnored opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Ignored' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Ignored !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Ignored
+
+  -- if the remote side sends a new connection request, we go back to 'Pending'
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+
+  -- if we accept, and the remote side still wants to connect, we transition to 'Accepted'
+  sendConnectionAction brig opts uid1 quid2 (Just F.RemoteConnect) Accepted
+
+testSentFromIgnored :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testSentFromIgnored opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Ignored' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Ignored !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Ignored
+
+  -- if the remote side rescinds, we stay in 'Ignored'
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteRescind Nothing Ignored
+
+  -- if we accept, and the remote does not want to connect anymore, we transition to 'Sent'
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
+
+testConnectFromBlocked :: Opt.Opts -> Brig -> Galley -> FedBrigClient -> Http ()
+testConnectFromBlocked opts brig galley fedBrigClient = do
+  let convIsLocal = True
+  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+
+  -- set up an initial 'Blocked' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Blocked
+
+  getConversationQualified galley uid1 convId
+    !!! statusCode === const 403
+
+  -- if the remote side sends a new connection request, we ignore it
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Blocked
+
+  -- if we accept (or send a connection request), and the remote side still
+  -- wants to connect, we transition to 'Accepted'
+  sendConnectionAction brig opts uid1 quid2 (Just F.RemoteConnect) Accepted
+
+  do
+    res <-
+      getConversationQualified galley uid1 convId <!! do
+        statusCode === const 200
+    conv <- responseJsonError res
+    liftIO $
+      (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= [quid2]
+
+testSentFromBlocked :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testSentFromBlocked opts brig fedBrigClient = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  -- set up an initial 'Blocked' state
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Blocked
+
+  -- if the remote side rescinds, we stay in 'Blocked'
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteRescind Nothing Blocked
+
+  -- if we accept, and the remote does not want to connect anymore, we transition to 'Sent'
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
+
+testCancel :: Opt.Opts -> Brig -> Http ()
+testCancel opts brig = do
+  (uid1, quid2) <- localAndRemoteUser brig
+
+  sendConnectionAction brig opts uid1 quid2 Nothing Sent
+  sendConnectionUpdateAction brig opts uid1 quid2 Nothing Cancelled
+
+testConnectionLimits :: Opt.Opts -> Brig -> FedBrigClient -> Http ()
+testConnectionLimits opts brig fedBrigClient = do
+  let connectionLimit = Opt.setUserMaxConnections (Opt.optSettings opts)
+  (uid1, quid2) <- localAndRemoteUser brig
+  [quid3, quid4, quid5] <- replicateM 3 fakeRemoteUser
+
+  -- set up N-1 connections from uid1 to remote users
+  (quid6Sent : _) <- replicateM (fromIntegral connectionLimit - 1) (newConn uid1)
+
+  -- accepting another one should be allowed
+  receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
+  sendConnectionAction brig opts uid1 quid2 (Just F.RemoteConnect) Accepted
+
+  -- get an incoming connection requests beyond the limit, This connection
+  -- cannot be accepted. This is also the behaviour without federation, if the
+  -- user wants to accept this one, they have to either sacrifice another
+  -- connection or ask the backend operator to increase the limit.
+  receiveConnectionAction brig fedBrigClient uid1 quid3 F.RemoteConnect Nothing Pending
+
+  -- accepting the second one hits the limit (and relation stays Pending):
+  sendConnectionActionExpectLimit uid1 quid3 (Just F.RemoteConnect)
+  assertConnectionQualified brig uid1 quid3 Pending
+
+  -- When a remote accepts, it is allowed, this does not break the limit as a
+  -- Sent becomes an Accepted.
+  assertConnectionQualified brig uid1 quid6Sent Sent
+  receiveConnectionAction brig fedBrigClient uid1 quid6Sent F.RemoteConnect (Just F.RemoteConnect) Accepted
+
+  -- attempting to send an own new connection request also hits the limit
+  sendConnectionActionExpectLimit uid1 quid4 (Just F.RemoteConnect)
+  getConnectionQualified brig uid1 quid4 !!! const 404 === statusCode
+
+  -- (re-)sending an already accepted connection does not affect the limit
+  sendConnectionAction brig opts uid1 quid2 (Just F.RemoteConnect) Accepted
+
+  -- blocked connections do not count towards the limit
+  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
+  assertConnectionQualified brig uid1 quid2 Blocked
+
+  -- after blocking quid2, we can now accept another connection request
+  receiveConnectionAction brig fedBrigClient uid1 quid5 F.RemoteConnect Nothing Pending
+  sendConnectionAction brig opts uid1 quid5 (Just F.RemoteConnect) Accepted
+  where
+    newConn :: UserId -> Http (Qualified UserId)
+    newConn from = do
+      to <- fakeRemoteUser
+      sendConnectionAction brig opts from to Nothing Sent
+      pure to
+
+    sendConnectionActionExpectLimit :: HasCallStack => UserId -> Qualified UserId -> Maybe F.RemoteConnectionAction -> Http ()
+    sendConnectionActionExpectLimit uid1 quid2 _reaction = do
+      postConnectionQualified brig uid1 quid2 !!! do
+        const 403 === statusCode
+        const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
+
+testInternalGetConnStatusesAll :: Brig -> Opt.Opts -> FedBrigClient -> Http ()
+testInternalGetConnStatusesAll brig opts fedBrigClient = do
+  quids <- replicateM 2 $ userQualifiedId <$> randomUser brig
+  let uids = qUnqualified <$> quids
+
+  localUsers@(localUser1 : _) <- replicateM 5 $ userQualifiedId <$> randomUser brig
+  let remoteDomain1 = Domain "remote1.example.com"
+  remoteDomain1Users@(remoteDomain1User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain1) <$> randomId
+  let remoteDomain2 = Domain "remote2.example.com"
+  remoteDomain2Users@(remoteDomain2User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain2) <$> randomId
+
+  for_ uids $ \uid -> do
+    -- Create 5 local connections, accept 1
+    for_ localUsers $ \qOther -> do
+      postConnectionQualified brig uid qOther <!! const 201 === statusCode
+    putConnection brig (qUnqualified localUser1) uid Accepted
+      !!! const 200 === statusCode
+
+    -- Create 5 remote connections with remote1, accept 1
+    for_ remoteDomain1Users $ \qOther -> sendConnectionAction brig opts uid qOther Nothing Sent
+    receiveConnectionAction brig fedBrigClient uid remoteDomain1User1 F.RemoteConnect (Just F.RemoteConnect) Accepted
+
+    -- Create 5 remote connections with remote2, accept 1
+    for_ remoteDomain2Users $ \qOther -> sendConnectionAction brig opts uid qOther Nothing Sent
+    receiveConnectionAction brig fedBrigClient uid remoteDomain2User1 F.RemoteConnect (Just F.RemoteConnect) Accepted
+
+  allStatuses :: [ConnectionStatusV2] <-
+    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing Nothing)
+      <!! const 200 === statusCode
+
+  liftIO $ do
+    sort (nub (map csv2From allStatuses)) @?= sort uids
+    let allUsers = localUsers <> remoteDomain1Users <> remoteDomain2Users
+    sort (map csv2To allStatuses) @?= sort (allUsers <> allUsers)
+    length (filter ((== Sent) . csv2Status) allStatuses) @?= 24
+    length (filter ((== Accepted) . csv2Status) allStatuses) @?= 6
+
+  acceptedRemoteDomain1Only :: [ConnectionStatusV2] <-
+    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids (Just remoteDomain1Users) (Just Accepted))
+      <!! const 200 === statusCode
+
+  liftIO $ do
+    let ordFn = (\x -> (csv2From x, csv2To x))
+    sortOn ordFn acceptedRemoteDomain1Only @?= sortOn ordFn (map (\u -> ConnectionStatusV2 u remoteDomain1User1 Accepted) uids)
+
+getConnStatusInternal :: (MonadIO m, MonadHttp m) => (Request -> Request) -> ConnectionsStatusRequestV2 -> m (Response (Maybe LByteString))
+getConnStatusInternal brig req =
+  post $
+    brig
+      . path "/i/users/connections-status/v2"
+      . json req

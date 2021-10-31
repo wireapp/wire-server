@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,22 +20,37 @@
 module Brig.API.Federation (federationSitemap) where
 
 import qualified Brig.API.Client as API
+import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import Brig.Types (PrekeyBundle)
+import Brig.App (qualifyLocal)
+import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.User as Data
+import Brig.IO.Intra (notify)
+import Brig.Types (PrekeyBundle, Relation (Accepted))
+import Brig.Types.User.Event
 import Brig.User.API.Handle
+import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
+import Data.List.NonEmpty (nonEmpty)
+import Data.List1
+import Data.Qualified
+import Data.Range
+import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as Federated
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import Wire.API.Federation.API.Common
 import Wire.API.Message (UserClients)
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -51,8 +68,22 @@ federationSitemap =
         Federated.claimPrekeyBundle = claimPrekeyBundle,
         Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
         Federated.searchUsers = searchUsers,
-        Federated.getUserClients = getUserClients
+        Federated.getUserClients = getUserClients,
+        Federated.sendConnectionAction = sendConnectionAction,
+        Federated.onUserDeleted = onUserDeleted
       }
+
+sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
+sendConnectionAction originDomain NewConnectionRequest {..} = do
+  active <- lift $ Data.isActivated ncrTo
+  if active
+    then do
+      self <- qualifyLocal ncrTo
+      let other = toRemoteUnsafe originDomain ncrFrom
+      mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+      maction <- lift $ performRemoteAction self other mconnection ncrAction
+      pure $ NewConnectionResponseOk maction
+    else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do
@@ -91,3 +122,17 @@ searchUsers (SearchRequest searchTerm) = do
 
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+
+onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> Handler EmptyResponse
+onUserDeleted origDomain udcn = lift $ do
+  let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
+      connections = udcnConnections udcn
+      event = pure . UserEvent $ UserDeleted (qUntagged deletedUser)
+  acceptedLocals <-
+    map csv2From
+      . filter (\x -> csv2Status x == Accepted)
+      <$> Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser)
+  pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
+    notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
+  Data.deleteRemoteConnections deletedUser connections
+  pure EmptyResponse

@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -16,8 +14,10 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 -- for SES notifications
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Util where
 
@@ -27,6 +27,7 @@ import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import Brig.App (applog, sftEnv)
 import Brig.Calling as Calling
+import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
@@ -38,21 +39,25 @@ import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
+import qualified Control.Monad.Catch as Catch
+import Control.Monad.State.Class (MonadState)
+import qualified Control.Monad.State.Class as MonadState
+import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
-import Data.Aeson.Types (emptyObject)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain (Domain, domainText, mkDomain)
+import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Text as Text
@@ -60,22 +65,33 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
+import Network.HTTP.Types (Method)
+import Network.Wai (Application)
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai.Test (Session)
 import qualified Network.Wai.Test as WaiTest
 import Servant.Client.Generic (AsClientT)
 import System.Random (randomIO, randomRIO)
+import qualified System.Timeout as System
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
 import Util.AWS
-import Wire.API.Conversation (ListConversations, NewConv (..), NewConvUnmanaged (..))
-import Wire.API.Conversation.Member (Member (..))
+import Util.Options (Endpoint (Endpoint))
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Federation.GRPC.Types (OutwardResponse)
+import qualified Wire.API.Federation.Mock as Mock
+import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
 
@@ -92,6 +108,8 @@ type Nginz = Request -> Request
 type Spar = Request -> Request
 
 type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
+
+type FedGalleyClient = FedGalley.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -130,6 +148,34 @@ twoRandomUsers brig = do
   let uid1 = qUnqualified quid1
       uid2 = qUnqualified quid2
   pure (quid1, uid1, quid2, uid2)
+
+localAndRemoteUser ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m (UserId, Qualified UserId)
+localAndRemoteUser brig = do
+  uid1 <- userId <$> randomUser brig
+  quid2 <- fakeRemoteUser
+  pure (uid1, quid2)
+
+localAndRemoteUserWithConvId ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Bool ->
+  m (UserId, Qualified UserId, Qualified ConvId)
+localAndRemoteUserWithConvId brig shouldBeLocal = do
+  quid <- userQualifiedId <$> randomUser brig
+  let go = do
+        other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+        let convId = one2OneConvId quid other
+            isLocal = qDomain quid == qDomain convId
+        if shouldBeLocal == isLocal
+          then pure (qUnqualified quid, other, convId)
+          else go
+  go
+
+fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
+fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -305,7 +351,7 @@ postUserRegister' :: (MonadIO m, MonadCatch m, MonadHttp m) => Object -> Brig ->
 postUserRegister' payload brig = do
   post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
-deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
+deleteUser :: (Functor m, MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
     brig
@@ -584,39 +630,40 @@ createConversation galley zusr usersToAdd = do
       . zConn "conn"
       . json conv
 
--- (should be) equivalent to
--- listConvs u (ListConversations [] Nothing Nothing)
-listAllConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
-listAllConvs g u = do
+listConvIdsFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listConvIdsFirstPage galley zusr = do
+  let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
   post $
-    g
-      . path "/list-conversations"
-      . zUser u
-      . zConn "conn"
-      . json emptyObject
-
-listConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ListConversations -> m ResponseLBS
-listConvs g u req = do
-  -- when using servant-client (pending #1605), this would become:
-  -- galleyClient <- view tsGalleyClient
-  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
-  post $
-    g
-      . path "/list-conversations"
-      . zUser u
+    galley
+      . path "/conversations/list-ids"
+      . zUser zusr
       . zConn "conn"
       . json req
 
-isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
+listConvs ::
+  (MonadIO m, MonadHttp m) =>
+  Galley ->
+  UserId ->
+  Range 1 1000 [Qualified ConvId] ->
+  m ResponseLBS
+listConvs galley zusr convs = do
+  post $
+    galley
+      . path "/conversations/list/v2"
+      . zUser zusr
+      . zConn "conn"
+      . json (ListConversations convs)
+
+isMember :: Galley -> Local UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
   res <-
     get $
       g
-        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' usr]
+        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> return False
-    Just m -> return (usr == memId m)
+    Just m -> return (qUntagged usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
@@ -694,12 +741,14 @@ randomPhone = liftIO $ do
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
   return $ fromMaybe (error "Invalid random phone#") phone
 
-updatePhone :: Brig -> UserId -> Phone -> Http ()
+updatePhone :: HasCallStack => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do
   -- update phone
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 202 === statusCode)
+      failMsg = "updatePhone (PUT /self/phone): failed to update to " <> show phn <> " - might be a flaky test tracked in https://wearezeta.atlassian.net/browse/BE-526"
+  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!! do
+    const 202 === statusCode
+    assertTrue failMsg ((== 202) . statusCode)
   -- activate
   act <- getActivationCode brig (Right phn)
   case act of
@@ -885,3 +934,126 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (\_ -> action)
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+--------------------------------------------------------------------------------
+
+newtype MockT m a = MockT {unMock :: ReaderT (IORef MockState) m a}
+  deriving newtype (Functor, Applicative, Monad, MonadReader (IORef MockState), MonadIO)
+
+instance MonadIO m => MonadState MockState (MockT m) where
+  get = readIORef =<< ask
+  put x = do
+    ref <- ask
+    writeIORef ref x
+
+data ReceivedRequest = ReceivedRequest Method [Text] LByteString
+
+data MockState = MockState
+  { receivedRequests :: [ReceivedRequest],
+    serverThread :: Async.Async (),
+    serverPort :: Integer,
+    mockHandler :: ReceivedRequest -> MockT IO Wai.Response
+  }
+
+mkMockApp :: IORef MockState -> Application
+mkMockApp ref request mkResponse = do
+  let action = do
+        req <- liftIO $ getReceivedRequest request
+        handler <- mockHandler <$> liftIO (readIORef ref)
+        response <- handler req
+        MonadState.modify (\ms -> ms {receivedRequests = receivedRequests ms <> [req]})
+        pure response
+  runMockT ref action >>= mkResponse
+
+getReceivedRequest :: Wai.Request -> IO ReceivedRequest
+getReceivedRequest r =
+  ReceivedRequest (Wai.requestMethod r) (Wai.pathInfo r) <$> Wai.strictRequestBody r
+
+runMockT :: IORef MockState -> MockT m a -> m a
+runMockT ref mock = runReaderT (unMock mock) ref
+
+startMockService :: MonadIO m => IORef MockState -> ExceptT String m ()
+startMockService ref = ExceptT . liftIO $ do
+  (sPort, sock) <- Warp.openFreePort
+  serverStarted <- newEmptyMVar
+  let settings =
+        Warp.defaultSettings
+          & Warp.setPort sPort
+          & Warp.setGracefulCloseTimeout2 0 -- Defaults to 2 seconds, causes server stop to take very long
+          & Warp.setBeforeMainLoop (putMVar serverStarted ())
+  let app = mkMockApp ref
+  serviceThread <- Async.async $ Warp.runSettingsSocket settings sock app
+  serverStartedSignal <- System.timeout 10_000_000 (takeMVar serverStarted)
+  case serverStartedSignal of
+    Nothing -> do
+      liftIO $ Async.cancel serviceThread
+      pure . Left $ "Failed to start the mock server within 10 seconds on port: " <> show sPort
+    _ -> do
+      liftIO . modifyIORef ref $ \s -> s {serverThread = serviceThread, serverPort = toInteger sPort}
+      pure (Right ())
+
+initState :: MockState
+initState = MockState [] (error "server not started") (error "server not started") (error "No mock response provided")
+
+stopMockedService :: MonadIO m => IORef MockState -> m ()
+stopMockedService ref =
+  liftIO $ Async.cancel . serverThread <=< readIORef $ ref
+
+withTempMockedService ::
+  (MonadIO m, MonadMask m) =>
+  MockState ->
+  (ReceivedRequest -> MockT IO Wai.Response) ->
+  (MockState -> ExceptT String m a) ->
+  ExceptT String m (a, [ReceivedRequest])
+withTempMockedService state handler action = do
+  ref <- newIORef state
+  startMockService ref
+  ( do
+      liftIO . modifyIORef ref $ \s -> s {mockHandler = handler}
+      st <- liftIO $ readIORef ref
+      actualResponse <- action st
+      st' <- liftIO $ readIORef ref
+      pure (actualResponse, receivedRequests st')
+    )
+    `Catch.finally` stopMockedService ref
+
+assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
+assertRight = \case
+  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
+  Right x -> pure x
+
+withMockedGalley :: (MonadIO m, MonadMask m) => Opt.Opts -> (ReceivedRequest -> MockT IO Wai.Response) -> Session a -> m (a, [ReceivedRequest])
+withMockedGalley opts handler action =
+  assertRight <=< runExceptT $
+    withTempMockedService initState handler $ \st -> lift $ do
+      let opts' =
+            opts
+              { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort st))
+              }
+      withSettingsOverrides opts' action
+
+withMockedFederatorAndGalley ::
+  Opt.Opts ->
+  Domain ->
+  OutwardResponse ->
+  (ReceivedRequest -> MockT IO Wai.Response) ->
+  Session a ->
+  IO (a, Mock.ReceivedRequests, [ReceivedRequest])
+withMockedFederatorAndGalley opts domain fedResp galleyHandler action = do
+  result <- assertRight <=< runExceptT $
+    withTempMockedService initState galleyHandler $ \galleyMockState ->
+      Mock.withTempMockFederator (Mock.initState domain) (const (pure fedResp)) $ \fedMockState -> do
+        let opts' =
+              opts
+                { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),
+                  Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort fedMockState)))
+                }
+        withSettingsOverrides opts' action
+  pure (combineResults result)
+  where
+    combineResults :: ((a, Mock.ReceivedRequests), [ReceivedRequest]) -> (a, Mock.ReceivedRequests, [ReceivedRequest])
+    combineResults ((a, mrr), rr) = (a, mrr, rr)

@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.Connect_user where
 
+import Data.Domain
 import Data.Id (Id (Id))
+import Data.Qualified
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Event.Conversation (Connect (..))
@@ -24,7 +26,10 @@ import Wire.API.Event.Conversation (Connect (..))
 testObject_Connect_user_1 :: Connect
 testObject_Connect_user_1 =
   Connect
-    { cRecipient = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000400000004")),
+    { cRecipient =
+        Qualified
+          (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000400000004")))
+          (Domain "foo.example.com"),
       cMessage = Just "E",
       cName = Just ".\128842]G",
       cEmail = Just "test email"
@@ -33,7 +38,10 @@ testObject_Connect_user_1 =
 testObject_Connect_user_2 :: Connect
 testObject_Connect_user_2 =
   Connect
-    { cRecipient = Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000200000008")),
+    { cRecipient =
+        Qualified
+          (Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000200000008")))
+          (Domain "bar.example.com"),
       cMessage = Nothing,
       cName = Nothing,
       cEmail = Nothing

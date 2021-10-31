@@ -24,7 +24,6 @@ module Galley.Types
     -- * re-exports
     ConversationMetadata (..),
     Conversation (..),
-    cnvQualifiedId,
     cnvType,
     cnvCreator,
     cnvAccess,

@@ -6,6 +6,10 @@ data:
 {{- include "nginz_upstreams.txt" . | indent 4 }}
   zwagger-config.js: |2
 {{- include "nginz_zwagger-config.js" . | indent 4 }}
+  deeplink.json: |2
+{{- include "nginz_deeplink.json" . | indent 4 }}
+  deeplink.html: |2
+{{- include "nginz_deeplink.html" . | indent 4 }}
 {{ (.Files.Glob "conf/static/*").AsConfig | indent 2 }}
 kind: ConfigMap
 metadata:

@@ -38,9 +38,10 @@ import Wire.API.User (UserProfile)
 
 spec :: Spec
 spec = do
+  let target = Domain "target.example.com"
   stateRef <-
     runIO . newIORef $
-      initState (Domain "target.example.com") (Domain "origin.example.com")
+      initState (Domain "origin.example.com")
   beforeAll (assertRightT (startMockFederator stateRef))
     . afterAll_ (stopMockFederator stateRef)
     . before_ (flushState stateRef)
@@ -50,7 +51,7 @@ spec = do
         expectedResponse :: Maybe UserProfile <- generate arbitrary
 
         (actualResponse, sentRequests) <-
-          assertRightT . withMockFederatorClient stateRef (const (mkSuccessResponse expectedResponse)) $
+          assertRightT . withMockFederatorClient target stateRef (const (mkSuccessResponse expectedResponse)) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/get-user-by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
@@ -61,7 +62,7 @@ spec = do
         someErr <- generate arbitrary
 
         (actualResponse, _) <-
-          assertRightT . withMockFederatorClient stateRef (const (mkErrorResponse someErr)) $
+          assertRightT . withMockFederatorClient target stateRef (const (mkErrorResponse someErr)) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         first fedFailError actualResponse
@@ -71,7 +72,7 @@ spec = do
         handle <- generate arbitrary
 
         (actualResponse, _) <-
-          assertRightT . withMockFederatorClient stateRef (error "some IO error!") $
+          assertRightT . withMockFederatorClient target stateRef (error "some IO error!") $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         case actualResponse of
@@ -86,7 +87,7 @@ spec = do
         handle <- generate arbitrary
 
         (actualResponse, _) <-
-          assertRightT . withMockFederatorClient stateRef (const (throwError $ Mu.ServerError Mu.NotFound "Just testing")) $
+          assertRightT . withMockFederatorClient target stateRef (const (throwError $ Mu.ServerError Mu.NotFound "Just testing")) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         first fedFailError actualResponse

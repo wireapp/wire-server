@@ -51,7 +51,6 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
-import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
@@ -65,11 +64,9 @@ import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
 
 ----------------------------------------------------------------------
 
+-- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
-
-urefToUserSSOId :: SAML.UserRef -> UserSSOId
-urefToUserSSOId (SAML.UserRef t s) = UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s)
+veidToUserSSOId = runValidExternalId UserSSOId (UserScimExternalId . fromEmail)
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -102,7 +99,7 @@ createBrigUserSAML uref (Id buid) teamid uname managedBy = do
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = Just (SSOIdentity (urefToUserSSOId uref) Nothing Nothing),
+            newUserIdentity = Just (SSOIdentity (UserSSOId uref) Nothing Nothing),
             newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
             newUserManagedBy = Just managedBy
           }

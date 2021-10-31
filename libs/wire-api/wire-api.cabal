@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4ba12caf3f3efd379bd7183a7661ac527d4da4072b7d92dd240af982bdab27de
+-- hash: 2d17ec32d1990b4f59c918291cd7a1286d20e5c54ad921ecd5eb9d01b4b9f1c8
 
 name:           wire-api
 version:        0.1.0
@@ -50,6 +50,7 @@ library
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
       Wire.API.Routes.Internal.Brig
+      Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
@@ -113,6 +114,7 @@ library
     , cassandra-util
     , cassava >=0.5
     , cereal
+    , comonad
     , containers >=0.5
     , cookie
     , cryptonite
@@ -123,6 +125,7 @@ library
     , errors
     , extended
     , extra
+    , filepath
     , generic-random >=1.2
     , generics-sop
     , ghc-prim
@@ -412,7 +415,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ConvIdsPage
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
-      Test.Wire.API.Golden.Manual.ListConversationsV2
+      Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserIdList
@@ -444,6 +447,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , filepath
     , hscim
     , imports
     , iso3166-country-codes
@@ -453,6 +457,7 @@ test-suite wire-api-tests
     , pem
     , pretty
     , proto-lens
+    , saml2-web-sso
     , servant-swagger-ui
     , string-conversions
     , swagger2

@@ -29,7 +29,6 @@ module Spar.Error
     SparCustomError (..),
     throwSpar,
     sparToServerErrorWithLogging,
-    renderSparErrorWithLogging,
     rethrow,
     parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
@@ -100,6 +99,12 @@ data SparCustomError
   | SparIdPIssuerInUse
   | SparProvisioningMoreThanOneIdP LT
   | SparProvisioningTokenLimitReached
+  | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
+    -- "Spar.Sem.SAML2.Library"), for an error that immediately gets caught.
+    -- Instead, we could just use an IO exception, and catch it with
+    -- 'catchErrors' (see "Spar.Run"). Maybe we want to remove this case
+    -- altogether? Not sure.
+    SparInternalError LT
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
   deriving (Eq, Show)
@@ -125,12 +130,6 @@ waiToServant waierr@(Wai.Error status label _ _) =
       errBody = encode waierr,
       errHeaders = []
     }
-
-renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServerError Wai.Error)
-renderSparErrorWithLogging logger err = do
-  let errPossiblyWai = renderSparError err
-  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
-  pure errPossiblyWai
 
 renderSparError :: SparError -> Either ServerError Wai.Error
 renderSparError (SAML.CustomError SparNoSuchRequest) = Right $ Wai.mkError status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."
@@ -184,6 +183,7 @@ renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right 
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err
+renderSparError (SAML.CustomError (SparInternalError err)) = Right $ Wai.mkError status500 "server-error" ("Internal error: " <> err)
 -- Other
 renderSparError (SAML.CustomServant err) = Left err
 

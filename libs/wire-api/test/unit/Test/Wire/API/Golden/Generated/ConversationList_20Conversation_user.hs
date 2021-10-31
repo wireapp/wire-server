@@ -27,15 +27,18 @@ import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (parseRoleName)
 
+domain :: Domain
+domain = Domain "golden.example.com"
+
 testObject_ConversationList_20Conversation_user_1 :: ConversationList Conversation
 testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvMetadata =
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+              cnvMetadata =
                 ConversationMetadata
-                  { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
-                    cnvmType = RegularConv,
+                  { cnvmType = RegularConv,
                     cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
                     cnvmAccess = [],
                     cnvmAccessRole = PrivateAccessRole,
@@ -48,7 +51,7 @@ testObject_ConversationList_20Conversation_user_1 =
                 ConvMembers
                   { cmSelf =
                       Member
-                        { memId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
+                        { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
                           memService = Nothing,
                           memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}),
                           memOtrMutedRef = Just "",

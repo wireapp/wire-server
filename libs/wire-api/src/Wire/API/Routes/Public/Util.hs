@@ -20,8 +20,8 @@
 
 module Wire.API.Routes.Public.Util where
 
+import Control.Comonad
 import Data.SOP (I (..), NS (..))
-import Imports
 import Servant
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Routes.MultiVerb
@@ -44,6 +44,13 @@ data ResponseForExistedCreated a
   = Existed !a
   | Created !a
   deriving (Functor)
+
+instance Comonad ResponseForExistedCreated where
+  extract (Existed x) = x
+  extract (Created x) = x
+
+  duplicate r@(Existed _) = Existed r
+  duplicate r@(Created _) = Created r
 
 type ResponsesForExistedCreated eDesc cDesc a =
   '[ Respond 200 eDesc a,

@@ -1,5 +1,67 @@
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
+# [2021-10-29]
+
+## Release notes
+
+* Upgrade SFT to 2.1.15 (#1849)
+* Upgrade team settings to Release: [v4.2.0](https://github.com/wireapp/wire-team-settings/releases/tag/v4.2.0) and image tag: 4.2.0-v0.28.28-1e2ef7 (#1856)
+* Upgrade Webapp to image tag: 20021-10-28-federation-m1 (#1856)
+
+## API changes
+
+* Remove `POST /list-conversations` endpoint. (#1840)
+* The member.self ID in conversation endpoints is qualified and available as
+  "qualified_id". The old unqualified "id" is still available. (#1866)
+
+## Features
+
+* Allow configuring nginz so it serve the deeplink for apps to discover the backend (#1889)
+* SFT: allow using TURN discovery using 'turnDiscoveryEnabled' (#1519)
+
+## Bug fixes and other updates
+
+* Fix an issue related to installing the SFT helm chart as a sub chart to the wire-server chart. (#1677)
+* SAML columns (Issuer, NameID) in CSV files with team members. (#1828)
+
+## Internal changes
+
+* Add a 'make flake-PATTERN' target to run a subset of tests multiple times to trigger a failure case in flaky tests (#1875)
+* Avoid a flaky test to fail related to phone updates and improve failure output. (#1874)
+* Brig: Delete deprecated `GET /i/users/connections-status` endpoint. (#1842)
+* Replace shell.nix with direnv + nixpkgs.buildEnv based setup (#1876)
+* Make connection DB functions work with Qualified IDs (#1819)
+* Fix more Swagger validation errors. (#1841)
+* Turn `Galley` into a polysemy monad stack. (#1881)
+* Internal CI tooling improvement: decrease integration setup time by using helmfile. (#1805)
+* Depend on hs-certificate master instead of our fork (#1822)
+* Add internal endpoint to insert or update a 1-1 conversation. This is to be used by brig when updating the status of a connection. (#1825)
+* Update helm to 3.6.3 in developer tooling (nix-shell) (#1862)
+* Improve the `Qualified` abstraction and make local/remote tagging safer (#1839)
+* Add some new Spar effects, completely isolating us from saml2-web-sso interface (#1827)
+* Convert legacy POST conversations/:cnv/members endpoint to Servant (#1838)
+* Simplify mock federator interface by removing unnecessary arguments. (#1870)
+* Replace the `Spar` newtype, instead using `Sem` directly. (#1833)
+
+## Federation changes
+
+* Remove remote guests as well as local ones when "Guests and services" is disabled in a group conversation, and propagate removal to remote members. (#1854)
+* Check connections when adding remote users to a local conversation and local users to remote conversations. (#1842)
+* Check connections when creating group and team conversations with remote members. (#1870)
+* Server certificates without the "serverAuth" extended usage flag are now rejected when connecting to a remote federator. (#1855)
+* Close GRPC client after making a request to a remote federator. (#1865)
+* Support deleting conversations with federated users (#1861)
+* Ensure that the conversation creator is included only once in notifications sent to remote users (#1879)
+* Allow connecting to remote users. One to one conversations are not created yet. (#1824)
+* Make federator's default log level Info (#1882)
+* The creator of a conversation now appears as a member when the conversation is fetched from a remote backend (#1842)
+* Include remote connections in the response to `POST /list-connections` (#1826)
+* When a user gets deleted, notify remotes about conversations and connections in chunks of 1000 (#1872, #1883)
+* Make federated requests to multiple backends in parallel. (#1860)
+* Make conversation ID of `RemoteConversation` unqualified and move it out of the metadata record. (#1839)
+* Make the conversation creator field in the `on-conversation-created` RPC unqualified. (#1858)
+* Update One2One conversation when connection status changes (#1850)
+
 # [2021-10-01]
 
 ## Release notes

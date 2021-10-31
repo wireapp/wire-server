@@ -27,10 +27,6 @@ module Spar.Intra.BrigApp
     veidFromUserSSOId,
     mkUserName,
     renderValidExternalId,
-    emailFromSAML,
-    emailToSAML,
-    emailToSAMLNameID,
-    emailFromSAMLNameID,
     HavePendingInvitations (..),
     getBrigUser,
     getBrigUserTeam,
@@ -38,6 +34,12 @@ module Spar.Intra.BrigApp
     authorizeScimTokenManagement,
     parseResponse,
     giveDefaultHandle,
+
+    -- * re-exports, mostly for historical reasons and lazyness
+    emailFromSAML,
+    emailToSAML,
+    emailToSAMLNameID,
+    emailFromSAMLNameID,
   )
 where
 
@@ -55,7 +57,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Error
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
@@ -66,23 +67,16 @@ import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
 
 ----------------------------------------------------------------------
 
+-- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
-
-urefToUserSSOId :: SAML.UserRef -> UserSSOId
-urefToUserSSOId (SAML.UserRef t s) = UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s)
+veidToUserSSOId = runValidExternalId UserSSOId (UserScimExternalId . fromEmail)
 
 veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
-  UserSSOId tenant subject ->
-    case (SAML.decodeElem $ cs tenant, SAML.decodeElem $ cs subject) of
-      (Right t, Right s) -> do
-        let uref = SAML.UserRef t s
-        case urefToEmail uref of
-          Nothing -> pure $ UrefOnly uref
-          Just email -> pure $ EmailAndUref email uref
-      (Left msg, _) -> throwError msg
-      (_, Left msg) -> throwError msg
+  UserSSOId uref ->
+    case urefToEmail uref of
+      Nothing -> pure $ UrefOnly uref
+      Just email -> pure $ EmailAndUref email uref
   UserScimExternalId email ->
     maybe
       (throwError "externalId not an email and no issuer")
@@ -124,22 +118,6 @@ mkUserName Nothing =
 
 renderValidExternalId :: ValidExternalId -> Maybe Text
 renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
-
-emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
-emailFromSAML = fromJust . parseEmail . SAMLEmail.render
-
-emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
-emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
-
--- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
--- function total without all that praying and hoping.
-emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
-emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
-
-emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
-emailFromSAMLNameID nid = case nid ^. SAML.nameID of
-  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
-  _ -> Nothing
 
 ----------------------------------------------------------------------
 

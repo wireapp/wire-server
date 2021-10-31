@@ -67,7 +67,8 @@ tests s =
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled
+      test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
+      test s "SelfDeletingMessages" $ testSelfDeletingMessages
     ]
 
 testSSO :: TestM ()
@@ -377,6 +378,47 @@ testSimpleFlag defaultValue = do
   setFlagInternal defaultValue
   getFlag defaultValue
 
+testSelfDeletingMessages :: TestM ()
+testSelfDeletingMessages = do
+  -- personal users
+  let setting :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages
+      setting stat tout =
+        Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
+          stat
+          (Public.TeamFeatureSelfDeletingMessagesConfig tout)
+
+  personalUser <- Util.randomUser
+  Util.getFeatureConfig Public.TeamFeatureSelfDeletingMessages personalUser
+    !!! responseJsonEither === const (Right $ setting TeamFeatureEnabled 0)
+
+  -- team users
+  galley <- view tsGalley
+  (owner, tid, []) <- Util.createBindingTeamWithNMembers 0
+
+  let checkSet :: TeamFeatureStatusValue -> Int32 -> TestM ()
+      checkSet stat tout = do
+        Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSelfDeletingMessages
+          galley
+          tid
+          (setting stat tout)
+
+      -- internal, public (/team/:tid/features), and team-agnostic (/feature-configs).
+      checkGet :: HasCallStack => TeamFeatureStatusValue -> Int32 -> TestM ()
+      checkGet stat tout = do
+        let expected = setting stat tout
+        forM_
+          [ Util.getTeamFeatureFlagInternal Public.TeamFeatureSelfDeletingMessages tid,
+            Util.getTeamFeatureFlagWithGalley Public.TeamFeatureSelfDeletingMessages galley owner tid,
+            Util.getFeatureConfig Public.TeamFeatureSelfDeletingMessages owner
+          ]
+          (!!! responseJsonEither === const (Right expected))
+
+  checkGet TeamFeatureEnabled 0
+  checkSet TeamFeatureDisabled 0
+  checkGet TeamFeatureDisabled 0
+  checkSet TeamFeatureEnabled 30
+  checkGet TeamFeatureEnabled 30
+
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
 testAllFeatures :: TestM ()
@@ -411,7 +453,12 @@ testAllFeatures = do
               TeamFeatureEnabled
               (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
           toS TeamFeatureConferenceCalling
-            .= Public.TeamFeatureStatusNoConfig confCalling
+            .= Public.TeamFeatureStatusNoConfig confCalling,
+          toS TeamFeatureSelfDeletingMessages
+            .= ( Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
+                   TeamFeatureEnabled
+                   (Public.TeamFeatureSelfDeletingMessagesConfig 0)
+               )
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'

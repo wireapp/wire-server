@@ -30,7 +30,7 @@ import Control.Monad.Catch
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
-import Galley.API.Util (viewFederationDomain)
+import Galley.API.Util (qualifyLocal)
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Types (convId)
@@ -46,10 +46,10 @@ import Wire.API.Federation.API.Galley
 -- | View for a given user of a stored conversation.
 --
 -- Throws "bad-state" when the user is not part of the conversation.
-conversationView :: UserId -> Data.Conversation -> Galley Conversation
+conversationView :: UserId -> Data.Conversation -> Galley r Conversation
 conversationView uid conv = do
-  localDomain <- viewFederationDomain
-  let mbConv = conversationViewMaybe localDomain uid conv
+  luid <- qualifyLocal uid
+  let mbConv = conversationViewMaybe luid conv
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
@@ -64,17 +64,18 @@ conversationView uid conv = do
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Domain -> UserId -> Data.Conversation -> Maybe Conversation
-conversationViewMaybe localDomain uid conv = do
-  let (selfs, lothers) = partition ((uid ==) . lmId) (Data.convLocalMembers conv)
+conversationViewMaybe :: Local UserId -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe luid conv = do
+  let (selfs, lothers) = partition ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
       rothers = Data.convRemoteMembers conv
-  self <- localMemberToSelf <$> listToMaybe selfs
+  self <- localMemberToSelf luid <$> listToMaybe selfs
   let others =
-        map (localMemberToOther localDomain) lothers
+        map (localMemberToOther (tDomain luid)) lothers
           <> map remoteMemberToOther rothers
   pure $
     Conversation
-      (Data.convMetadata localDomain conv)
+      (qUntagged . qualifyAs luid . convId $ conv)
+      (Data.convMetadata conv)
       (ConvMembers self others)
 
 -- | View for a local user of a remote conversation.
@@ -83,22 +84,23 @@ conversationViewMaybe localDomain uid conv = do
 -- discard the conversation altogether. This should only happen if the remote
 -- backend is misbehaving.
 remoteConversationView ::
-  UserId ->
+  Local UserId ->
   MemberStatus ->
-  RemoteConversation ->
+  Remote RemoteConversation ->
   Maybe Conversation
-remoteConversationView uid status rconv = do
+remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
   let mems = rcnvMembers rconv
       others = rcmOthers mems
       self =
         localMemberToSelf
+          uid
           LocalMember
-            { lmId = uid,
+            { lmId = tUnqualified uid,
               lmService = Nothing,
               lmStatus = status,
               lmConvRoleName = rcmSelfRole mems
             }
-  pure $ Conversation (rcnvMetadata rconv) (ConvMembers self others)
+  pure $ Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
 
 -- | Convert a local conversation to a structure to be returned to a remote
 -- backend.
@@ -118,7 +120,8 @@ conversationToRemote localDomain ruid conv = do
           <> map remoteMemberToOther rothers
   pure $
     RemoteConversation
-      { rcnvMetadata = Data.convMetadata localDomain conv,
+      { rcnvId = Data.convId conv,
+        rcnvMetadata = Data.convMetadata conv,
         rcnvMembers =
           RemoteConvMembers
             { rcmSelfRole = selfRole,
@@ -128,10 +131,10 @@ conversationToRemote localDomain ruid conv = do
 
 -- | Convert a local conversation member (as stored in the DB) to a publicly
 -- facing 'Member' structure.
-localMemberToSelf :: LocalMember -> Member
-localMemberToSelf lm =
+localMemberToSelf :: Local x -> LocalMember -> Member
+localMemberToSelf loc lm =
   Member
-    { memId = lmId lm,
+    { memId = qUntagged . qualifyAs loc . lmId $ lm,
       memService = lmService lm,
       memOtrMutedStatus = msOtrMutedStatus st,
       memOtrMutedRef = msOtrMutedRef st,

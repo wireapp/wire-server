@@ -50,7 +50,7 @@ testObject_ConvMembers_user_1 =
   ConvMembers
     { cmSelf =
         Member
-          { memId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
+          { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
             memService =
               Just
                 ( ServiceRef
@@ -92,7 +92,7 @@ testObject_ConvMembers_user_2 =
   ConvMembers
     { cmSelf =
         Member
-          { memId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
+          { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) domain,
             memService =
               Just
                 ( ServiceRef

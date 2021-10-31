@@ -234,7 +234,7 @@ libzauth:
 .PHONY: hie.yaml
 hie.yaml: stack-dev.yaml
 	stack build implicit-hie
-	stack exec gen-hie | nix-shell --command 'yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml'
+	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
 
 .PHONY: stack-dev.yaml
 stack-dev.yaml:
@@ -311,7 +311,7 @@ release-chart-%:
 .PHONY: guard-tag
 guard-tag:
 	@if [ "${DOCKER_TAG}" = "${USER}" ]; then \
-	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>. Try using 'make latest-brig-tag' for latest develop docker image tag";\
+	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>. Try using 'make latest-tag' for latest develop docker image tag";\
 	    exit 1; \
 	fi
 
@@ -403,6 +403,7 @@ kind-reset: kind-delete kind-cluster
 .local/kind-kubeconfig:
 	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
+	chmod 0600 $(CURDIR)/.local/kind-kubeconfig
 
 # This guard is a fail-early way to save needing to debug nginz container not
 # starting up in the second namespace of the kind cluster in some cases. Error
@@ -429,11 +430,11 @@ guard-inotify:
 
 .PHONY: kind-integration-setup
 kind-integration-setup: guard-inotify .local/kind-kubeconfig
-	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
+	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
 kind-integration-test: .local/kind-kubeconfig
-	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
+	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
 
 kind-integration-e2e: .local/kind-kubeconfig
 	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)

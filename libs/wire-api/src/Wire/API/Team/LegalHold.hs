@@ -350,7 +350,7 @@ data LegalholdProtectee
   | -- | add UserId here if you want to protect bots as well (or just remove and use
     -- 'ProtectedUser', but then you'll loose the user type information).
     UnprotectedBot
-  | -- | FUTUREWORK: protection against legalhold when looking up prekeys accross federated
+  | -- | FUTUREWORK: protection against legalhold when looking up prekeys across federated
     -- instances.
     LegalholdPlusFederationNotImplemented
   deriving (Show, Eq, Ord, Generic)

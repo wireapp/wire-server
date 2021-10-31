@@ -23,7 +23,7 @@ import Brig.Types
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified
 import Imports
 import System.Logger.Class
 
@@ -44,7 +44,7 @@ data UserEvent
     -- has been restored.
     UserResumed !UserId
   | -- | The user account has been deleted.
-    UserDeleted !UserId
+    UserDeleted !(Qualified UserId)
   | UserUpdated !UserUpdatedData
   | UserIdentityUpdated !UserIdentityUpdatedData
   | UserIdentityRemoved !UserIdentityRemovedData
@@ -162,19 +162,6 @@ emptyUserUpdatedData u =
 connEventUserId :: ConnectionEvent -> UserId
 connEventUserId ConnectionUpdated {..} = ucFrom ucConn
 
-userEventUserId :: UserEvent -> UserId
-userEventUserId (UserCreated u) = userId u
-userEventUserId (UserActivated u) = userId u
-userEventUserId (UserSuspended u) = u
-userEventUserId (UserResumed u) = u
-userEventUserId (UserDeleted u) = u
-userEventUserId (UserUpdated u) = eupId u
-userEventUserId (UserIdentityUpdated u) = eiuId u
-userEventUserId (UserIdentityRemoved u) = eirId u
-userEventUserId (UserLegalHoldDisabled uid) = uid
-userEventUserId (UserLegalHoldEnabled uid) = uid
-userEventUserId (LegalHoldClientRequested dat) = lhcTargetUser dat
-
 propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet u _ _) = u
 propEventUserId (PropertyDeleted u _) = u
@@ -198,16 +185,16 @@ instance ToBytes Event where
   bytes (ClientEvent e) = bytes e
 
 instance ToBytes UserEvent where
-  bytes e@UserCreated {} = val "user.new: " +++ toByteString (userEventUserId e)
-  bytes e@UserActivated {} = val "user.activate: " +++ toByteString (userEventUserId e)
-  bytes e@UserUpdated {} = val "user.update: " +++ toByteString (userEventUserId e)
-  bytes e@UserIdentityUpdated {} = val "user.update: " +++ toByteString (userEventUserId e)
-  bytes e@UserIdentityRemoved {} = val "user.identity-remove: " +++ toByteString (userEventUserId e)
-  bytes e@UserSuspended {} = val "user.suspend: " +++ toByteString (userEventUserId e)
-  bytes e@UserResumed {} = val "user.resume: " +++ toByteString (userEventUserId e)
-  bytes e@UserDeleted {} = val "user.delete: " +++ toByteString (userEventUserId e)
-  bytes e@UserLegalHoldDisabled {} = val "user.legalhold-disable: " +++ toByteString (userEventUserId e)
-  bytes e@UserLegalHoldEnabled {} = val "user.legalhold-enable: " +++ toByteString (userEventUserId e)
+  bytes (UserCreated u) = val "user.new: " +++ toByteString (userId u)
+  bytes (UserActivated u) = val "user.activate: " +++ toByteString (userId u)
+  bytes (UserUpdated u) = val "user.update: " +++ toByteString (eupId u)
+  bytes (UserIdentityUpdated u) = val "user.update: " +++ toByteString (eiuId u)
+  bytes (UserIdentityRemoved u) = val "user.identity-remove: " +++ toByteString (eirId u)
+  bytes (UserSuspended u) = val "user.suspend: " +++ toByteString u
+  bytes (UserResumed u) = val "user.resume: " +++ toByteString u
+  bytes (UserDeleted u) = val "user.delete: " +++ toByteString (qUnqualified u) +++ val "@" +++ toByteString (qDomain u)
+  bytes (UserLegalHoldDisabled u) = val "user.legalhold-disable: " +++ toByteString u
+  bytes (UserLegalHoldEnabled u) = val "user.legalhold-enable: " +++ toByteString u
   bytes (LegalHoldClientRequested payload) = val "user.legalhold-request: " +++ show payload
 
 instance ToBytes ConnectionEvent where

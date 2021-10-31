@@ -117,7 +117,6 @@ data Api routes = Api
     -- - MemberLeave event to members for all conversations the user was in (via galley)
     deleteSelf ::
       routes
-        -- TODO: Add custom AsUnion
         :- Summary "Initiate account deletion."
         :> Description
              "if the account has a verified identity, a verification \

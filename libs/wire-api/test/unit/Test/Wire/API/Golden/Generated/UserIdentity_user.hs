@@ -25,6 +25,7 @@ import Wire.API.User
     UserIdentity (..),
     UserSSOId (UserSSOId, UserScimExternalId),
   )
+import Wire.API.User.Identity (mkSimpleSampleUref)
 
 testObject_UserIdentity_user_1 :: UserIdentity
 testObject_UserIdentity_user_1 =
@@ -56,7 +57,7 @@ testObject_UserIdentity_user_4 =
 
 testObject_UserIdentity_user_5 :: UserIdentity
 testObject_UserIdentity_user_5 =
-  SSOIdentity (UserSSOId ">\1096855\1107590\1043074" "\1001776") Nothing (Just (Phone {fromPhone = "+49198172826"}))
+  SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing (Just (Phone {fromPhone = "+49198172826"}))
 
 testObject_UserIdentity_user_6 :: UserIdentity
 testObject_UserIdentity_user_6 = PhoneIdentity (Phone {fromPhone = "+03038459796465"})
@@ -65,7 +66,7 @@ testObject_UserIdentity_user_7 :: UserIdentity
 testObject_UserIdentity_user_7 = PhoneIdentity (Phone {fromPhone = "+805676294"})
 
 testObject_UserIdentity_user_8 :: UserIdentity
-testObject_UserIdentity_user_8 = SSOIdentity (UserSSOId "" "") Nothing (Just (Phone {fromPhone = "+149548802116267"}))
+testObject_UserIdentity_user_8 = SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing (Just (Phone {fromPhone = "+149548802116267"}))
 
 testObject_UserIdentity_user_9 :: UserIdentity
 testObject_UserIdentity_user_9 =
@@ -114,7 +115,7 @@ testObject_UserIdentity_user_15 = PhoneIdentity (Phone {fromPhone = "+0923809422
 testObject_UserIdentity_user_16 :: UserIdentity
 testObject_UserIdentity_user_16 =
   SSOIdentity
-    (UserSSOId "a\FS" "\DC3\FS")
+    (UserSSOId mkSimpleSampleUref)
     (Just (Email {emailLocal = "%x\DC3\1049873\EOT.", emailDomain = "G\48751t.6"}))
     (Just (Phone {fromPhone = "+298116118047"}))
 

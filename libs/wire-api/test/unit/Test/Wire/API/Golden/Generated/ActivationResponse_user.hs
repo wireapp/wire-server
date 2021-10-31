@@ -31,13 +31,14 @@ import Wire.API.User
     UserSSOId (UserSSOId, UserScimExternalId),
   )
 import Wire.API.User.Activation (ActivationResponse (..))
+import Wire.API.User.Identity (mkSimpleSampleUref)
 
 testObject_ActivationResponse_user_1 :: ActivationResponse
 testObject_ActivationResponse_user_1 =
   ActivationResponse
     { activatedIdentity =
         SSOIdentity
-          (UserSSOId "" "\RS")
+          (UserSSOId mkSimpleSampleUref)
           (Just (Email {emailLocal = "\165918\rZ\a\ESC", emailDomain = "p\131777\62344"}))
           Nothing,
       activatedFirst = False
@@ -169,7 +170,7 @@ testObject_ActivationResponse_user_18 =
 testObject_ActivationResponse_user_19 :: ActivationResponse
 testObject_ActivationResponse_user_19 =
   ActivationResponse
-    { activatedIdentity = SSOIdentity (UserSSOId "" "") (Just (Email {emailLocal = "R", emailDomain = "K"})) Nothing,
+    { activatedIdentity = SSOIdentity (UserSSOId mkSimpleSampleUref) (Just (Email {emailLocal = "R", emailDomain = "K"})) Nothing,
       activatedFirst = False
     }
 
