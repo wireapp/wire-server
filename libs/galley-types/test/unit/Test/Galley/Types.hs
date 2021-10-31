@@ -96,3 +96,4 @@ instance Arbitrary FeatureFlags where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
+      <*> arbitrary

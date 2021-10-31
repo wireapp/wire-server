@@ -206,7 +206,7 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
-schemaVersion = 53
+schemaVersion = 54
 
 -- | Insert a conversation code
 insertCode :: Code -> Galley r ()

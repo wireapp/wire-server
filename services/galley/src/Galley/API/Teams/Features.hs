@@ -38,6 +38,8 @@ module Galley.API.Teams.Features
     setFileSharingInternal,
     getConferenceCallingInternal,
     setConferenceCallingInternal,
+    getSelfDeletingMessagesInternal,
+    setSelfDeletingMessagesInternal,
     DoAuth (..),
     GetFeatureInternalParam,
   )
@@ -162,7 +164,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
+        getStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
       ]
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley r Response
@@ -181,7 +184,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
+        getStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
       ]
   where
     getStatus ::
@@ -403,6 +407,19 @@ setConferenceCallingInternal ::
   Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
 setConferenceCallingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
+
+getSelfDeletingMessagesInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
+getSelfDeletingMessagesInternal = \case
+  Left _ -> pure Public.defaultSelfDeletingMessagesStatus
+  Right tid ->
+    TeamFeatures.getSelfDeletingMessagesStatus tid
+      <&> maybe Public.defaultSelfDeletingMessagesStatus id
+
+setSelfDeletingMessagesInternal ::
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
+setSelfDeletingMessagesInternal = TeamFeatures.setSelfDeletingMessagesStatus
 
 pushFeatureConfigEvent :: Member GundeckAccess r => TeamId -> Event.Event -> Galley r ()
 pushFeatureConfigEvent tid event = do
