@@ -79,7 +79,13 @@ import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import qualified System.Logger.Class as Log
 import Util.Options (Endpoint, epHost, epPort)
-import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
+import Wire.API.Event.FeatureConfig
+  ( EventData
+      ( EdFeatureApplockChanged,
+        EdFeatureSelfDeletingMessagesChanged,
+        EdFeatureWithoutConfigChanged
+      ),
+  )
 import qualified Wire.API.Event.FeatureConfig as Event
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
@@ -439,14 +445,17 @@ getAppLockInternal mbtid = do
   pure $ fromMaybe defaultStatus status
 
 setAppLockInternal ::
-  Member TeamFeatureStore r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
     throwM inactivityTimeoutTooLow
-  liftSem $ TeamFeatures.setApplockFeatureStatus tid status
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event Event.Update Public.TeamFeatureAppLock (EdFeatureApplockChanged status)
+  (liftSem $ TeamFeatures.setApplockFeatureStatus tid status) <* pushEvent
 
 getClassifiedDomainsInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
 getClassifiedDomainsInternal _mbtid = do
@@ -488,13 +497,15 @@ getSelfDeletingMessagesInternal = \case
         <&> maybe Public.defaultSelfDeletingMessagesStatus id
 
 setSelfDeletingMessagesInternal ::
-  Member TeamFeatureStore r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
-setSelfDeletingMessagesInternal tid value =
-  liftSem $
-    TeamFeatures.setSelfDeletingMessagesStatus tid value
+setSelfDeletingMessagesInternal tid st = do
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
+  (liftSem $ TeamFeatures.setSelfDeletingMessagesStatus tid st) <* pushEvent
 
 pushFeatureConfigEvent ::
   Members '[GundeckAccess, TeamStore] r =>
