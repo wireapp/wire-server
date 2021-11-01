@@ -88,42 +88,27 @@ tests s =
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
-  bobQ <- randomQualifiedUser
-  let bob = qUnqualified bobQ
-      lBob = toLocalUnsafe (qDomain bobQ) (qUnqualified bobQ)
-  (rAlice, cnv1Id) <- generateRemoteAndConvId True lBob
-  let aliceQ = qUntagged rAlice
+  bob <- randomUser
+
+  -- create & get group conv
+  aliceQ <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
   carlQ <- randomQualifiedUser
 
   connectUsers bob (singleton (qUnqualified carlQ))
   connectWithRemoteUser bob aliceQ
 
-  -- create & get group conv
   cnv2 <-
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
         defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
-  -- create a one-to-one conversation between bob and alice
-  do
-    let createO2O =
-          UpsertOne2OneConversationRequest
-            { uooLocalUser = lBob,
-              uooRemoteUser = rAlice,
-              uooActor = LocalActor,
-              uooActorDesiredMembership = Included,
-              uooConvId = Just cnv1Id
-            }
-    UpsertOne2OneConversationResponse cnv1IdReturned <-
-      responseJsonError
-        =<< iUpsertOne2OneConversation createO2O
-    liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
-
-  getConvs bob (Just . Left . fmap qUnqualified $ [cnv1Id, cnvQualifiedId cnv2]) Nothing !!! do
+  getConvs bob (Just $ Left [qUnqualified (cnvQualifiedId cnv2)]) Nothing !!! do
     const 200 === statusCode
-    const (Just . Just . sort $ [cnv1Id, cnvQualifiedId cnv2])
-      === fmap (fmap (sort . map cnvQualifiedId . convList)) . responseJsonMaybe
+    const (Just (Just [cnvQualifiedId cnv2]))
+      === fmap (fmap (map cnvQualifiedId . convList)) . responseJsonMaybe
+
+  -- FUTUREWORK: also create a one2one conversation
 
   -- get conversations
 
@@ -134,7 +119,7 @@ getConversationsAllFound = do
       (qDomain aliceQ)
       ( GetConversationsRequest
           (qUnqualified aliceQ)
-          (map qUnqualified [cnv1Id, cnvQualifiedId cnv2])
+          (map (qUnqualified . cnvQualifiedId) [cnv2])
       )
 
   let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . rcnvId) convs
