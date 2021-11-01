@@ -55,6 +55,7 @@ module Galley.Effects
     ConversationStore,
     MemberStore,
     TeamStore,
+    TeamMemberStore,
 
     -- * Paging effects
     ListItems,
@@ -72,6 +73,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import Imports
 import Polysemy
@@ -124,8 +126,10 @@ type GalleyEffects1 =
      ConversationStore,
      MemberStore,
      TeamStore,
+     TeamMemberStore InternalPaging,
      ListItems CassandraPaging ConvId,
      ListItems CassandraPaging (Remote ConvId),
      ListItems LegacyPaging ConvId,
-     ListItems LegacyPaging TeamId
+     ListItems LegacyPaging TeamId,
+     ListItems InternalPaging TeamId
    ]

@@ -63,6 +63,7 @@ import Galley.Cassandra.Paging
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import Galley.Effects.Paging
 import Galley.Effects.TeamStore
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush, push1)
 import Galley.Options
@@ -320,19 +321,23 @@ getLegalholdStatusInternal (Right tid) = do
     False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
 setLegalholdStatusInternal ::
-  Members
-    '[ BotAccess,
-       BrigAccess,
-       ConversationStore,
-       ExternalAccess,
-       FederatorAccess,
-       FireAndForget,
-       GundeckAccess,
-       ListItems LegacyPaging ConvId,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
+  ( Paging p,
+    Bounded (PagingBounds p TeamMember),
+    Members
+      '[ BotAccess,
+         BrigAccess,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         FireAndForget,
+         GundeckAccess,
+         ListItems LegacyPaging ConvId,
+         MemberStore,
+         TeamStore,
+         TeamMemberStore p
+       ]
+      r
+  ) =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)

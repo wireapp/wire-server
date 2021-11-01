@@ -15,7 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Team where
+module Galley.Cassandra.Team
+  ( interpretTeamStoreToCassandra,
+    interpretTeamMemberStoreToCassandra,
+    interpretTeamListToCassandra,
+    interpretInternalTeamListToCassandra,
+  )
+where
 
 import Cassandra
 import Cassandra.Util
@@ -38,6 +44,7 @@ import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.ResultSet
 import Galley.Effects.ListItems
+import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Types.Teams hiding
   ( DeleteTeam,
@@ -90,6 +97,29 @@ interpretTeamListToCassandra ::
   Sem r a
 interpretTeamListToCassandra = interpret $ \case
   ListItems uid ps lim -> embedClient $ teamIdsFrom uid ps lim
+
+interpretInternalTeamListToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (ListItems InternalPaging TeamId ': r) a ->
+  Sem r a
+interpretInternalTeamListToCassandra = interpret $ \case
+  ListItems uid mps lim -> embedClient $ case mps of
+    Nothing -> do
+      page <- teamIdsForPagination uid Nothing lim
+      mkInternalPage page pure
+    Just ps -> ipNext ps
+
+interpretTeamMemberStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  FeatureLegalHold ->
+  Sem (TeamMemberStore InternalPaging ': r) a ->
+  Sem r a
+interpretTeamMemberStoreToCassandra lh = interpret $ \case
+  ListTeamMembers tid mps lim -> embedClient $ case mps of
+    Nothing -> do
+      page <- teamMembersForPagination tid Nothing lim
+      mkInternalPage page (newTeamMember' lh tid)
+    Just ps -> ipNext ps
 
 createTeam ::
   Maybe TeamId ->

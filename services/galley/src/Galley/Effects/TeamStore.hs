@@ -32,6 +32,7 @@ module Galley.Effects.TeamStore
     getTeamConversation,
     getTeamConversations,
     getTeamCreationTime,
+    listTeams,
     selectTeams,
     getUserTeams,
     getUsersTeams,
@@ -67,6 +68,8 @@ where
 
 import Data.Id
 import Data.Range
+import Galley.Effects.ListItems
+import Galley.Effects.Paging
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
@@ -106,3 +109,11 @@ data TeamStore m a where
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
 
 makeSem ''TeamStore
+
+listTeams ::
+  Member (ListItems p TeamId) r =>
+  UserId ->
+  Maybe (PagingState p TeamId) ->
+  PagingBounds p TeamId ->
+  Sem r (Page p TeamId)
+listTeams = listItems

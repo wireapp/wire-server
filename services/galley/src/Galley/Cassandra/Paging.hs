@@ -18,6 +18,11 @@
 module Galley.Cassandra.Paging
   ( CassandraPaging,
     LegacyPaging,
+    InternalPaging,
+    InternalPage (..),
+    InternalPagingState (..),
+    mkInternalPage,
+    ipNext,
   )
 where
 
@@ -28,6 +33,7 @@ import Data.Range
 import Galley.Data.ResultSet
 import qualified Galley.Effects.Paging as E
 import Imports
+import Wire.API.Team.Member (HardTruncationLimit, TeamMember)
 
 -- | This paging system uses Cassandra's 'PagingState' to keep track of state,
 -- and does not rely on ordering. This is the preferred way of paging across
@@ -56,3 +62,36 @@ type instance E.Page LegacyPaging a = ResultSet a
 type instance E.PagingBounds LegacyPaging ConvId = Range 1 1000 Int32
 
 type instance E.PagingBounds LegacyPaging TeamId = Range 1 100 Int32
+
+data InternalPaging
+
+data InternalPagingState a = forall s. InternalPagingState (Page s, s -> Client a)
+
+deriving instance (Functor InternalPagingState)
+
+data InternalPage a = forall s. InternalPage (Page s, s -> Client a, [a])
+
+deriving instance (Functor InternalPage)
+
+mkInternalPage :: Page s -> (s -> Client a) -> Client (InternalPage a)
+mkInternalPage p f = do
+  items <- traverse f (result p)
+  pure $ InternalPage (p, f, items)
+
+ipNext :: InternalPagingState a -> Client (InternalPage a)
+ipNext (InternalPagingState (p, f)) = do
+  p' <- nextPage p
+  mkInternalPage p' f
+
+type instance E.PagingState InternalPaging a = InternalPagingState a
+
+type instance E.Page InternalPaging a = InternalPage a
+
+type instance E.PagingBounds InternalPaging TeamMember = Range 1 HardTruncationLimit Int32
+
+type instance E.PagingBounds InternalPaging TeamId = Range 1 100 Int32
+
+instance E.Paging InternalPaging where
+  pageItems (InternalPage (_, _, items)) = items
+  pageHasMore (InternalPage (p, _, _)) = hasMore p
+  pageState (InternalPage (p, f, _)) = InternalPagingState (p, f)

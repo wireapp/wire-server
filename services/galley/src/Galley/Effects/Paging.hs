@@ -20,6 +20,10 @@ module Galley.Effects.Paging
     Page,
     PagingState,
     PagingBounds,
+    Paging (..),
+
+    -- * Utilities
+    withChunks,
 
     -- * Simple paging
     SimplePaging,
@@ -28,11 +32,16 @@ where
 
 import Imports
 
-type family Page p a :: (page :: *) | page -> p
+type family Page p a :: (page :: *) | page -> p a
 
 type family PagingState p a = (ps :: *)
 
 type family PagingBounds p a :: *
+
+class Paging p where
+  pageItems :: Page p a -> [a]
+  pageHasMore :: Page p a -> Bool
+  pageState :: Page p a -> PagingState p a
 
 data SimplePaging
 
@@ -41,3 +50,23 @@ type instance Page SimplePaging a = [a]
 type instance PagingState SimplePaging a = ()
 
 type instance PagingBounds SimplePaging a = Int32
+
+instance Paging SimplePaging where
+  pageItems = id
+  pageHasMore _ = False
+  pageState _ = ()
+
+withChunks ::
+  (Paging p, Monad m) =>
+  (Maybe (PagingState p i) -> m (Page p i)) ->
+  ([i] -> m ()) ->
+  m ()
+withChunks pager action = do
+  page <- pager Nothing
+  go page
+  where
+    go page = do
+      action (pageItems page)
+      when (pageHasMore page) $ do
+        page' <- pager (Just (pageState page))
+        go page'

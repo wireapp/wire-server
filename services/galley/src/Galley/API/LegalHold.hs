@@ -53,12 +53,13 @@ import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
-import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import Galley.Effects.Paging
+import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
@@ -160,7 +161,8 @@ removeSettingsH ::
        GundeckAccess,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamMemberStore InternalPaging
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
@@ -171,19 +173,23 @@ removeSettingsH (zusr ::: tid ::: req ::: _) = do
   pure noContent
 
 removeSettings ::
-  Members
-    '[ BotAccess,
-       BrigAccess,
-       ConversationStore,
-       ExternalAccess,
-       FederatorAccess,
-       FireAndForget,
-       GundeckAccess,
-       ListItems LegacyPaging ConvId,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
+  ( Paging p,
+    Bounded (PagingBounds p TeamMember),
+    Members
+      '[ BotAccess,
+         BrigAccess,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         FireAndForget,
+         GundeckAccess,
+         ListItems LegacyPaging ConvId,
+         MemberStore,
+         TeamStore,
+         TeamMemberStore p
+       ]
+      r
+  ) =>
   UserId ->
   TeamId ->
   Public.RemoveLegalHoldSettingsRequest ->
@@ -210,26 +216,30 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
-  forall r.
-  Members
-    '[ BotAccess,
-       BrigAccess,
-       ConversationStore,
-       ExternalAccess,
-       FederatorAccess,
-       FireAndForget,
-       GundeckAccess,
-       ListItems LegacyPaging ConvId,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
+  forall p r.
+  ( Paging p,
+    Bounded (PagingBounds p TeamMember),
+    Members
+      '[ BotAccess,
+         BrigAccess,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         FireAndForget,
+         GundeckAccess,
+         ListItems LegacyPaging ConvId,
+         MemberStore,
+         TeamStore,
+         TeamMemberStore p
+       ]
+      r
+  ) =>
   TeamId ->
   Galley r ()
-removeSettings' tid = do
-  -- Loop through team members and run this action.
-  Data.withTeamMembersWithChunks tid action
-  LegalHoldData.removeSettings tid
+removeSettings' tid =
+  withChunks
+    (\mps -> liftSem (listTeamMembers tid mps maxBound))
+    action
   where
     action :: [TeamMember] -> Galley r ()
     action membs = do

@@ -25,7 +25,6 @@ module Galley.API.Internal
   )
 where
 
-import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except (runExceptT)
@@ -59,6 +58,8 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
+import Galley.Effects.Paging
+import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types
@@ -479,16 +480,18 @@ sitemap = do
     capture "tid"
 
 rmUser ::
-  forall p r.
-  ( p ~ CassandraPaging,
+  forall p1 p2 r.
+  ( p1 ~ CassandraPaging,
+    p2 ~ InternalPaging,
     Members
       '[ BrigAccess,
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
-         ListItems p ConvId,
-         ListItems p (Remote ConvId),
+         ListItems p1 ConvId,
+         ListItems p1 (Remote ConvId),
+         ListItems p2 TeamId,
          MemberStore,
          TeamStore
        ]
@@ -498,9 +501,8 @@ rmUser ::
   Maybe ConnId ->
   Galley r ()
 rmUser user conn = do
-  let n = toRange (Proxy @100) :: Range 1 100 Int32
-      nRange1000 = rcast n :: Range 1 1000 Int32
-  tids <- Data.teamIdsForPagination user Nothing n
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  tids <- liftSem $ listTeams user Nothing maxBound
   leaveTeams tids
   allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
   lusr <- qualifyLocal user
@@ -519,10 +521,11 @@ rmUser user conn = do
         newCids <- Query.conversationIdsPageFrom usr nextQuery
         goConvPages lusr range newCids
 
-    leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
+    leaveTeams page = for_ (pageItems page) $ \tid -> do
       mems <- getTeamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
-      leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
+      page' <- liftSem $ listTeams user (Just (pageState page)) maxBound
+      leaveTeams page'
 
     -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()

@@ -97,6 +97,8 @@ import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
+import qualified Galley.Effects.Paging as E
+import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
@@ -478,7 +480,7 @@ getTeamMembers zusr tid maxResults = do
       pure (mems, withPerms)
 
 getTeamMembersCSVH ::
-  Members '[BrigAccess, TeamStore] r =>
+  (Members '[BrigAccess, TeamStore] r) =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
@@ -491,6 +493,8 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
   -- the response will not contain a correct error message, but rather be an
   -- http error such as 'InvalidChunkHeaders'. The exception however still
   -- reaches the middleware and is being tracked in logging and metrics.
+  --
+  -- FUTUREWORK: rewrite this using some streaming primitive (e.g. polysemy's Input)
   pure $
     responseStream
       status200
@@ -502,20 +506,24 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         writeString headerLine
         flush
         evalGalley env $ do
-          Data.withTeamMembersWithChunks tid $ \members -> do
-            inviters <- lookupInviterHandle members
-            users <- lookupUser <$> lookupActivatedUsers (fmap (view userId) members)
-            richInfos <- lookupRichInfo <$> getRichInfoMultiUser (fmap (view userId) members)
-            liftIO $ do
-              writeString
-                ( encodeDefaultOrderedByNameWith
-                    defaultEncodeOptions
-                    (mapMaybe (teamExportUser users inviters richInfos) members)
-                )
-              flush
+          E.withChunks pager $
+            \members -> do
+              inviters <- lookupInviterHandle members
+              users <- lookupUser <$> lookupActivatedUsers (fmap (view userId) members)
+              richInfos <- lookupRichInfo <$> getRichInfoMultiUser (fmap (view userId) members)
+              liftIO $ do
+                writeString
+                  ( encodeDefaultOrderedByNameWith
+                      defaultEncodeOptions
+                      (mapMaybe (teamExportUser users inviters richInfos) members)
+                  )
+                flush
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
+
+    pager :: Maybe (InternalPagingState TeamMember) -> Galley GalleyEffects (InternalPage TeamMember)
+    pager mps = liftSem $ E.listTeamMembers tid mps maxBound
 
     defaultEncodeOptions :: EncodeOptions
     defaultEncodeOptions =

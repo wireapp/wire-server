@@ -21,27 +21,20 @@ module Galley.Effects.TeamMemberStore
 
     -- * Team member pagination
     listTeamMembers,
-    listTeamMemberIds,
   )
 where
 
 import Data.Id
-import Data.Range
 import Galley.Effects.Paging
 import Galley.Types.Teams
 import Imports
 import Polysemy
 
-data TeamMemberStore p limit m a where
+data TeamMemberStore p m a where
   ListTeamMembers ::
     TeamId ->
-    PagingState p UserId ->
-    Range 1 limit Int32 ->
-    TeamMemberStore p limit m (Page p TeamMember)
-  ListTeamMemberIds ::
-    TeamId ->
-    PagingState p UserId ->
-    Range 1 limit Int32 ->
-    TeamMemberStore p limit m (Page p UserId)
+    Maybe (PagingState p TeamMember) ->
+    PagingBounds p TeamMember ->
+    TeamMemberStore p m (Page p TeamMember)
 
 makeSem ''TeamMemberStore

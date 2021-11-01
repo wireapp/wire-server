@@ -343,22 +343,25 @@ toServantHandler env galley = do
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
 
-interpretTeamStoreToCassandraWithEnv ::
-  Members '[Embed IO, P.Reader ClientState, P.Reader Env] r =>
-  Sem (TeamStore ': r) a ->
+withLH ::
+  Member (P.Reader Env) r =>
+  (Teams.FeatureLegalHold -> Sem (eff ': r) a -> Sem r a) ->
+  Sem (eff ': r) a ->
   Sem r a
-interpretTeamStoreToCassandraWithEnv action = do
+withLH f action = do
   lh <- P.asks (view (options . optSettings . setFeatureFlags . Teams.flagLegalHold))
-  interpretTeamStoreToCassandra lh action
+  f lh action
 
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 =
   Galley
+    . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
     . interpretRemoteConversationListToCassandra
     . interpretConversationListToCassandra
-    . interpretTeamStoreToCassandraWithEnv
+    . withLH interpretTeamMemberStoreToCassandra
+    . withLH interpretTeamStoreToCassandra
     . interpretMemberStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretFireAndForget
