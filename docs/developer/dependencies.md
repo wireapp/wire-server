@@ -63,7 +63,13 @@ sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_heade
 
 Please refer to [Stack's installation instructions](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 
-When you're done, ensure `stack --version` is recent, ideally the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
+When you're done, ensure `stack --version` is the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
+
+If you have to, you can downgrade stack with this command:
+
+```bash
+stack upgrade --binary-version <version>
+```
 
 ### Ubuntu / Debian
 _Note_: The packaged versions of `haskell-stack` are too old. It is recommended to follow the generic instructions or to use stack to update stack (`stack upgrade`).
