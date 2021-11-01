@@ -1,1 +1,0 @@
-Replace shell.nix with direnv + nixpkgs.buildEnv based setup
