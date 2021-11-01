@@ -1,1 +1,0 @@
-When a user gets deleted, notify remotes about conversations and connections in chunks of 1000 (#1872, #1883)
