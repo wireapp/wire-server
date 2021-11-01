@@ -24,9 +24,9 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Effects
+import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import qualified Galley.External as External
@@ -209,6 +209,7 @@ postQualifiedOtrMessage ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
@@ -257,7 +258,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
     lift $
       if isInternal
         then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-        else Data.lookupClients localMemberIds
+        else liftSem $ getClients localMemberIds
   let qualifiedLocalClients =
         Map.mapKeys (localDomain,)
           . makeUserMap (Set.fromList (map lmId localMembers))

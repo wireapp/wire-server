@@ -315,6 +315,7 @@ sendMessage ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        FederatorAccess,
        GundeckAccess,

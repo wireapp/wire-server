@@ -98,6 +98,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
+import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
@@ -1084,6 +1085,7 @@ postBotMessageH ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
@@ -1103,6 +1105,7 @@ postBotMessage ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
@@ -1123,6 +1126,7 @@ postProteusMessage ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
@@ -1147,6 +1151,7 @@ postOtrMessageUnqualified ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        FederatorAccess,
        GundeckAccess,
@@ -1189,7 +1194,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
     <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH ::
-  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON ->
   Galley r Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1198,7 +1203,7 @@ postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH ::
-  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ->
   Galley r Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
@@ -1207,7 +1212,7 @@ postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast ::
-  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
   UserId ->
   ConnId ->
   Public.OtrFilterMissing ->
@@ -1227,7 +1232,7 @@ allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrep
 
 -- | bots are not supported on broadcast
 postNewOtrBroadcast ::
-  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
   UserId ->
   Maybe ConnId ->
   OtrFilterMissing ->
@@ -1247,6 +1252,7 @@ postNewOtrMessage ::
   Members
     '[ BotAccess,
        BrigAccess,
+       ClientStore,
        ConversationStore,
        ExternalAccess,
        GundeckAccess,
@@ -1426,7 +1432,8 @@ rmServiceH req = do
 
 addBotH ::
   Members
-    '[ ConversationStore,
+    '[ ClientStore,
+       ConversationStore,
        ExternalAccess,
        GundeckAccess,
        TeamStore
@@ -1441,7 +1448,8 @@ addBotH (zusr ::: zcon ::: req) = do
 addBot ::
   forall r.
   Members
-    '[ ConversationStore,
+    '[ ClientStore,
+       ConversationStore,
        ExternalAccess,
        GundeckAccess,
        TeamStore
@@ -1460,7 +1468,7 @@ addBot zusr zcon b = do
   for_ (Data.convTeam c) $ teamConvChecks (b ^. addBotConv)
   (bots, users) <- regularConvChecks lusr c
   t <- liftIO getCurrentTime
-  Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
+  liftSem $ createClient (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember (qUntagged lusr) (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
@@ -1484,7 +1492,7 @@ addBot zusr zcon b = do
         throwM noAddToManaged
 
 rmBotH ::
-  Members '[ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
+  Members '[ClientStore, ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
   UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
   Galley r Response
 rmBotH (zusr ::: zcon ::: req) = do
@@ -1492,7 +1500,7 @@ rmBotH (zusr ::: zcon ::: req) = do
   handleUpdateResult <$> rmBot zusr zcon bot
 
 rmBot ::
-  Members '[ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
+  Members '[ClientStore, ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
   RemoveBot ->
@@ -1516,7 +1524,7 @@ rmBot zusr zcon b = do
       for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       liftSem $ deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
-      Data.eraseClients (botUserId (b ^. rmBotId))
+      liftSem $ deleteClients (botUserId (b ^. rmBotId))
       External.deliverAsync (bots `zip` repeat e)
       pure $ Updated e
 
@@ -1551,7 +1559,7 @@ data CheckedOtrRecipients
 
 -- | bots are not supported on broadcast
 withValidOtrBroadcastRecipients ::
-  Members '[BrigAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, TeamStore] r =>
   UserId ->
   ClientId ->
   OtrRecipients ->
@@ -1577,7 +1585,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
   clts <-
     if isInternal
       then Clients.fromUserClients <$> Intra.lookupClients users
-      else Data.lookupClients users
+      else liftSem $ getClients users
   let membs = newMember <$> users
   handleOtrResponse User usr clt rcps membs clts val now go
   where
@@ -1596,7 +1604,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  Members '[BrigAccess, ConversationStore, MemberStore, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, ConversationStore, MemberStore, TeamStore] r =>
   UserType ->
   UserId ->
   ClientId ->
@@ -1619,7 +1627,7 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
       clts <-
         if isInternal
           then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-          else Data.lookupClients localMemberIds
+          else liftSem $ getClients localMemberIds
       handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::

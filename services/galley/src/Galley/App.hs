@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -88,6 +87,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
+import Galley.Cassandra.Client
 import Galley.Cassandra.Conversation
 import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.ConversationList
@@ -364,6 +364,7 @@ interpretGalleyToGalley0 =
     . withLH interpretTeamStoreToCassandra
     . interpretMemberStoreToCassandra
     . interpretConversationStoreToCassandra
+    . interpretClientStoreToCassandra
     . interpretFireAndForget
     . interpretIntra
     . interpretBot

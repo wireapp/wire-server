@@ -52,6 +52,7 @@ module Galley.Effects
     interpretFireAndForget,
 
     -- * Store effects
+    ClientStore,
     ConversationStore,
     MemberStore,
     TeamStore,
@@ -69,6 +70,7 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.Cassandra.Paging
+import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
 import Galley.Effects.ListItems
@@ -123,6 +125,7 @@ type GalleyEffects1 =
      BotAccess,
      Intra,
      FireAndForget,
+     ClientStore,
      ConversationStore,
      MemberStore,
      TeamStore,

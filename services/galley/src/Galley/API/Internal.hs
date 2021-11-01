@@ -53,9 +53,9 @@ import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
-import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.Paging
@@ -485,6 +485,7 @@ rmUser ::
     p2 ~ InternalPaging,
     Members
       '[ BrigAccess,
+         ClientStore,
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
@@ -507,7 +508,8 @@ rmUser user conn = do
   allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
   lusr <- qualifyLocal user
   goConvPages lusr nRange1000 allConvIds
-  Data.eraseClients user
+
+  liftSem $ deleteClients user
   where
     goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
     goConvPages lusr range page = do
