@@ -87,9 +87,9 @@ import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
-import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import qualified Galley.Data.LegalHold as Data
+import qualified Galley.Data.ResultSet as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures

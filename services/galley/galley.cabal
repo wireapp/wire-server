@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c2d7d561f622d7840a187818b94c695954d150a41b6731efff3fd0755c843f6c
+-- hash: dc34370a02320432a6a8741b025ec2bbfba0dae6eff8b1761db542dbd1bf04c6
 
 name:           galley
 version:        0.83.0
@@ -45,6 +45,7 @@ library
       Galley.API.Util
       Galley.App
       Galley.Aws
+      Galley.Cassandra
       Galley.Cassandra.Client
       Galley.Cassandra.Code
       Galley.Cassandra.Conversation
@@ -54,7 +55,6 @@ library
       Galley.Cassandra.Paging
       Galley.Cassandra.Store
       Galley.Cassandra.Team
-      Galley.Data
       Galley.Data.Access
       Galley.Data.Conversation
       Galley.Data.Conversation.Types

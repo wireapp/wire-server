@@ -52,7 +52,7 @@ import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
-import qualified Galley.Data as Data
+import Galley.Data.ResultSet
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
@@ -253,8 +253,8 @@ conversationIdsPageFromUnqualified zusr start msize = liftSem $ do
   ids <- E.listItems zusr start size
   pure $
     Public.ConversationList
-      (Data.resultSetResult ids)
-      (Data.resultSetType ids == Data.ResultSetTruncated)
+      (resultSetResult ids)
+      (resultSetType ids == ResultSetTruncated)
 
 -- | Lists conversation ids for the logged in user in a paginated way.
 --
@@ -309,8 +309,8 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
         . fmap (qUntagged @'QRemote)
         <$> E.listItems zusr pagingState size
 
-    pageToConvIdPage :: Public.LocalOrRemoteTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
-    pageToConvIdPage table page@Data.PageWithState {..} =
+    pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
+    pageToConvIdPage table page@C.PageWithState {..} =
       Public.MultiTablePage
         { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
@@ -358,8 +358,8 @@ getConversationsInternal user mids mstart msize = do
           (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
       r <- E.listItems user mstart (rcast size)
-      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
-      pure (hasMore, Data.resultSetResult r)
+      let hasMore = resultSetType r == ResultSetTruncated
+      pure (hasMore, resultSetResult r)
 
     removeDeleted ::
       Member ConversationStore r =>

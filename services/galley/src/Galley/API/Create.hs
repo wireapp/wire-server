@@ -39,7 +39,7 @@ import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
+import Galley.Data.Access
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
@@ -496,11 +496,11 @@ toUUIDs a b = do
   return (a', b')
 
 accessRole :: NewConv -> AccessRole
-accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
+accessRole b = fromMaybe defRole (newConvAccessRole b)
 
 access :: NewConv -> [Access]
 access a = case Set.toList (newConvAccess a) of
-  [] -> Data.defRegularConvAccess
+  [] -> defRegularConvAccess
   (x : xs) -> x : xs
 
 newConvMembers :: Local x -> NewConv -> UserList UserId
