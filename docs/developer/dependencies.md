@@ -11,6 +11,30 @@ In addition to the information below, you can also consult the Dockerfiles for A
 
 ## General package dependencies (needed to compile Haskell services)
 
+### Nix + Direnv
+
+Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
+dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
+
+If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
+You can then run all the builds, and the native dependencies will be automatically present.
+
+1. Install [Nix](https://nixos.org/download.html)
+   * MacOS users with a recent Mac might need to follow [these
+   instructions](https://nixos.org/nix/manual/#sect-macos-installation)
+   * Debian users can use their distro's `nix` package, and should remember
+   
+   to add their user to the `nix-users` group in /etc/group, and re-start
+   their login session.
+2. Install [Direnv](https://direnv.net/).
+   * On debian, you can install the `direnv` package. On MacOS use `brew install direnv`.
+   * On NixOS with home-manager, you can set `programs.direnv.enable = true;`.
+   * Make sure direnv is hooked into your shell via it's appripriate `rc` file.
+     Add `eval "$(direnv hook bash|zsh|fish)"` to your ~/.(bash|zsh|fish)rc .
+   * When successfully installed and hooked, direnv should ask you to `direnv allow`
+     the current `.envrc` when you cd to this repository.
+     See the [Installation documentation](https://direnv.net/docs/installation.html) for further details.
+
 ### Fedora:
 
 ```bash
@@ -179,14 +203,6 @@ docker login --username=<MY_DOCKER_USERNAME>
 
 * [Install docker](https://docker.com)
 * [Install docker-compose](https://docs.docker.com/compose/install/)
-
-## Nix + Direnv
-
-Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
-dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
-
-If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
-You can then run all the builds, and the native dependencies will be automatically present.
 
 ## Telepresence
 
