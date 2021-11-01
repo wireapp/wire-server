@@ -40,12 +40,12 @@ import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
 import Galley.App
-import qualified Galley.Data as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
+import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
@@ -585,10 +585,13 @@ pushConversationEvent conn e users bots = do
     push1 $ p & set pushConn conn
   External.deliverAsync (toList bots `zip` repeat e)
 
-verifyReusableCode :: ConversationCode -> Galley r DataTypes.Code
+verifyReusableCode ::
+  Member CodeStore r =>
+  ConversationCode ->
+  Galley r DataTypes.Code
 verifyReusableCode convCode = do
   c <-
-    Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode
+    liftSem (getCode (conversationKey convCode) DataTypes.ReusableCode)
       >>= ifNothing (errorDescriptionTypeToWai @CodeNotFound)
   unless (DataTypes.codeValue c == conversationCode convCode) $
     throwM (errorDescriptionTypeToWai @CodeNotFound)

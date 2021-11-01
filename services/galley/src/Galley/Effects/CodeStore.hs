@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,30 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data
-  ( ResultSet,
-    ResultSetType (..),
-    PageWithState (..),
-    mkResultSet,
-    resultSetType,
-    resultSetResult,
-    schemaVersion,
+module Galley.Effects.CodeStore
+  ( -- * Code store effect
+    CodeStore (..),
 
-    -- * Utilities
-    localOne2OneConvId,
+    -- * Create code
+    createCode,
 
-    -- * Defaults
-    defRole,
-    defRegularConvAccess,
+    -- * Read code,
+    getCode,
+
+    -- * Delete code,
+    deleteCode,
   )
 where
 
-import Cassandra
-import Galley.Data.Access
-import Galley.Data.Conversation
-import Galley.Data.Instances ()
-import Galley.Data.ResultSet
-import Imports hiding (Set, max)
+import Brig.Types.Code
+import Galley.Data.Types
+import Imports
+import Polysemy
 
-schemaVersion :: Int32
-schemaVersion = 54
+data CodeStore m a where
+  CreateCode :: Code -> CodeStore m ()
+  GetCode :: Key -> Scope -> CodeStore m (Maybe Code)
+  DeleteCode :: Key -> Scope -> CodeStore m ()
+
+makeSem ''CodeStore

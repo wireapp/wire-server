@@ -486,7 +486,7 @@ getConversationMeta cnv = liftSem $ do
       pure Nothing
 
 getConversationByReusableCode ::
-  Members '[ConversationStore, BrigAccess, TeamStore] r =>
+  Members '[CodeStore, ConversationStore, BrigAccess, TeamStore] r =>
   UserId ->
   Key ->
   Value ->

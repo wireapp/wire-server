@@ -154,6 +154,7 @@ removeSettingsH ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -178,6 +179,7 @@ removeSettings ::
     Members
       '[ BotAccess,
          BrigAccess,
+         CodeStore,
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
@@ -222,6 +224,7 @@ removeSettings' ::
     Members
       '[ BotAccess,
          BrigAccess,
+         CodeStore,
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
@@ -295,6 +298,7 @@ grantConsentH ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -320,6 +324,7 @@ grantConsent ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -351,6 +356,7 @@ requestDeviceH ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -377,6 +383,7 @@ requestDevice ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -436,6 +443,7 @@ approveDeviceH ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -457,6 +465,7 @@ approveDevice ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -515,6 +524,7 @@ disableForUserH ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -542,6 +552,7 @@ disableForUser ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -588,6 +599,7 @@ changeLegalholdStatus ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,
@@ -715,6 +727,7 @@ handleGroupConvPolicyConflicts ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,

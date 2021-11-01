@@ -53,6 +53,7 @@ module Galley.Effects
 
     -- * Store effects
     ClientStore,
+    CodeStore,
     ConversationStore,
     MemberStore,
     TeamStore,
@@ -71,6 +72,7 @@ import Data.Id
 import Data.Qualified
 import Galley.Cassandra.Paging
 import Galley.Effects.ClientStore
+import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
 import Galley.Effects.ListItems
@@ -126,6 +128,7 @@ type GalleyEffects1 =
      Intra,
      FireAndForget,
      ClientStore,
+     CodeStore,
      ConversationStore,
      MemberStore,
      TeamStore,

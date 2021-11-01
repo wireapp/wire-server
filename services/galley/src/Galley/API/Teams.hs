@@ -981,6 +981,7 @@ deleteTeamConversation ::
   Members
     '[ BotAccess,
        BrigAccess,
+       CodeStore,
        ConversationStore,
        ExternalAccess,
        FederatorAccess,

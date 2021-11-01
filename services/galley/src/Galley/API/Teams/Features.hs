@@ -326,6 +326,7 @@ setLegalholdStatusInternal ::
     Members
       '[ BotAccess,
          BrigAccess,
+         CodeStore,
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
