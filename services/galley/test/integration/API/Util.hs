@@ -685,8 +685,8 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  FederatedBrig.Api (AsServerT Handler) ->
-  FederatedGalley.Api (AsServerT Handler) ->
+  (Domain -> FederatedBrig.Api (AsServerT Handler)) ->
+  (Domain -> FederatedGalley.Api (AsServerT Handler)) ->
   TestM (ResponseLBS, Mock.ReceivedRequests)
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
@@ -2252,19 +2252,22 @@ withTempMockFederator' resp action = do
 
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  FederatedBrig.Api (AsServerT Handler) ->
-  FederatedGalley.Api (AsServerT Handler) ->
+  (Domain -> FederatedBrig.Api (AsServerT Handler)) ->
+  (Domain -> FederatedGalley.Api (AsServerT Handler)) ->
   Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
 withTempServantMockFederator brigApi galleyApi originDomain =
   withTempMockFederator' mock
   where
-    server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
-    server = genericServerT brigApi :<|> genericServerT galleyApi
+    server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
+    server d = genericServerT (brigApi d) :<|> genericServerT (galleyApi d)
 
     mock :: F.FederatedRequest -> IO F.OutwardResponse
-    mock = makeFedRequestToServant @(ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) originDomain server
+    mock req =
+      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (Domain (F.domain req))) req
+
+type CombinedBrigAndGalleyAPI = ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api
 
 makeFedRequestToServant ::
   forall (api :: *).
@@ -2462,9 +2465,20 @@ fedRequestsForDomain domain component =
             && fmap F.component (F.request req) == Just component
       )
 
+parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
+parseFedRequest fr =
+  case F.request fr of
+    Just r ->
+      (eitherDecode . cs) (F.body r)
+    Nothing -> Left "No request"
+
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
+assertJust (Just a) = pure a
+assertJust Nothing = liftIO $ assertFailure "Expected Just, got Nothing"
 
 iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM ResponseLBS
 iUpsertOne2OneConversation req = do
