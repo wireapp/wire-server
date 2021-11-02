@@ -2503,10 +2503,13 @@ createOne2OneConvWithRemote localUser remoteUser = do
     !!! const 200 === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
-generateRemoteAndConvId shouldBeLocal lUserId = do
-  other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")
+
+generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
+generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
+  other <- Qualified <$> randomId <*> pure remoteDomain
   let convId = one2OneConvId (qUntagged lUserId) other
       isLocal = tDomain lUserId == qDomain convId
   if shouldBeLocal == isLocal
     then pure (qTagUnsafe other, convId)
-    else generateRemoteAndConvId shouldBeLocal lUserId
+    else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
