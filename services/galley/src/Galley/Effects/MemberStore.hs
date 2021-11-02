@@ -23,6 +23,7 @@ module Galley.Effects.MemberStore
     createMember,
     createMembers,
     createMembersInRemoteConversation,
+    createBotMember,
 
     -- * Read members
     getLocalMember,
@@ -42,6 +43,8 @@ where
 
 import Data.Id
 import Data.Qualified
+import Galley.Data.Services
+import Galley.Types.Bot
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
@@ -52,6 +55,7 @@ import Wire.API.Conversation.Member hiding (Member)
 data MemberStore m a where
   CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
   CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
+  CreateBotMember :: ServiceRef -> BotId -> ConvId -> MemberStore m BotMember
   GetLocalMember :: ConvId -> UserId -> MemberStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> MemberStore m [LocalMember]
   GetRemoteMembers :: ConvId -> MemberStore m [RemoteMember]

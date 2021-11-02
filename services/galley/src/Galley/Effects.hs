@@ -56,6 +56,7 @@ module Galley.Effects
     CodeStore,
     ConversationStore,
     MemberStore,
+    ServiceStore,
     TeamStore,
     TeamMemberStore,
 
@@ -77,6 +78,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.ServiceStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import Imports
@@ -131,6 +133,7 @@ type GalleyEffects1 =
      CodeStore,
      ConversationStore,
      MemberStore,
+     ServiceStore,
      TeamStore,
      TeamMemberStore InternalPaging,
      ListItems CassandraPaging ConvId,

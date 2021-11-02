@@ -34,6 +34,7 @@ import qualified Data.List.Extra as List
 import qualified Data.Map as Map
 import Data.Monoid
 import Data.Qualified
+import Galley.Cassandra.Services
 import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
@@ -346,6 +347,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   CreateMembers cid ul -> embedClient $ addMembers cid ul
   CreateMembersInRemoteConversation rcid uids ->
     embedClient $ addLocalMembersToRemoteConv rcid uids
+  CreateBotMember sr bid cid -> embedClient $ addBotMember sr bid cid
   GetLocalMember cid uid -> embedClient $ member cid uid
   GetLocalMembers cid -> embedClient $ members cid
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid

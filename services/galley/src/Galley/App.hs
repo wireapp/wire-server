@@ -92,6 +92,7 @@ import Galley.Cassandra.Code
 import Galley.Cassandra.Conversation
 import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.ConversationList
+import Galley.Cassandra.Services
 import Galley.Cassandra.Team
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
@@ -363,6 +364,7 @@ interpretGalleyToGalley0 =
     . interpretConversationListToCassandra
     . withLH interpretTeamMemberStoreToCassandra
     . withLH interpretTeamStoreToCassandra
+    . interpretServiceStoreToCassandra
     . interpretMemberStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretCodeStoreToCassandra

@@ -92,6 +92,7 @@ import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Services
 import qualified Galley.Data.Access as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
@@ -1427,12 +1428,12 @@ isTyping zusr zcon cnv typingData = do
 
 addServiceH :: JsonRequest Service -> Galley r Response
 addServiceH req = do
-  Data.insertService =<< fromJsonBody req
+  insertService =<< fromJsonBody req
   return empty
 
 rmServiceH :: JsonRequest ServiceRef -> Galley r Response
 rmServiceH req = do
-  Data.deleteService =<< fromJsonBody req
+  deleteService =<< fromJsonBody req
   return empty
 
 addBotH ::
@@ -1441,6 +1442,7 @@ addBotH ::
        ConversationStore,
        ExternalAccess,
        GundeckAccess,
+       MemberStore,
        TeamStore
      ]
     r =>
@@ -1457,6 +1459,7 @@ addBot ::
        ConversationStore,
        ExternalAccess,
        GundeckAccess,
+       MemberStore,
        TeamStore
      ]
     r =>
@@ -1474,7 +1477,21 @@ addBot zusr zcon b = do
   (bots, users) <- regularConvChecks lusr c
   t <- liftIO getCurrentTime
   liftSem $ E.createClient (botUserId (b ^. addBotId)) (b ^. addBotClient)
-  (e, bm) <- Data.addBotMember (qUntagged lusr) (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
+  bm <- liftSem $ E.createBotMember (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv)
+  let e =
+        Event
+          MemberJoin
+          (qUntagged (qualifyAs lusr (b ^. addBotConv)))
+          (qUntagged lusr)
+          t
+          ( EdMembersJoin
+              ( SimpleMembers
+                  [ SimpleMember
+                      (qUntagged (qualifyAs lusr (botUserId (botMemId bm))))
+                      roleNameWireAdmin
+                  ]
+              )
+          )
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   External.deliverAsync ((bm : bots) `zip` repeat e)
