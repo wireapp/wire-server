@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0288be53c0e2448eda9a34b6b6647916892e60b409b27b6132e12e238184073c
+-- hash: aaed6006a10580d11a903fa32d0d6d09234867ab992f293833616eb68c7071bb
 
 name:           galley
 version:        0.83.0
@@ -77,6 +77,7 @@ library
       Galley.Effects.CodeStore
       Galley.Effects.ConversationStore
       Galley.Effects.ExternalAccess
+      Galley.Effects.FederatorAccess
       Galley.Effects.FireAndForget
       Galley.Effects.GundeckAccess
       Galley.Effects.ListItems
@@ -93,6 +94,8 @@ library
       Galley.External.LegalHoldService.Types
       Galley.Intra.Client
       Galley.Intra.Effects
+      Galley.Intra.Federator
+      Galley.Intra.Federator.Types
       Galley.Intra.Journal
       Galley.Intra.Push
       Galley.Intra.Push.Internal
@@ -171,6 +174,7 @@ library
     , saml2-web-sso >=0.18
     , servant
     , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
     , servant-swagger-ui

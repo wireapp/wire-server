@@ -25,14 +25,12 @@ module Galley.Effects
     FederatorAccess,
     GundeckAccess,
     SparAccess,
-    interpretFederator,
 
     -- * External services
     ExternalAccess,
 
     -- * Fire-and-forget async
     FireAndForget,
-    interpretFireAndForget,
 
     -- * Store effects
     ClientStore,
@@ -61,6 +59,7 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
+import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.GundeckAccess
 import Galley.Effects.ListItems
@@ -69,13 +68,7 @@ import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
-import Imports
 import Polysemy
-
-data FederatorAccess m a
-
-interpretFederator :: Sem (FederatorAccess ': r) a -> Sem r a
-interpretFederator = interpret $ \case
 
 -- All the possible high-level effects.
 type GalleyEffects1 =

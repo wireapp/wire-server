@@ -94,10 +94,12 @@ import Galley.Cassandra.ConversationList
 import Galley.Cassandra.Services
 import Galley.Cassandra.Team
 import Galley.Effects
+import Galley.Effects.FireAndForget (interpretFireAndForget)
 import qualified Galley.Effects.FireAndForget as E
 import Galley.Env
 import Galley.External
 import Galley.Intra.Effects
+import Galley.Intra.Federator
 import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
@@ -338,7 +340,7 @@ interpretGalleyToGalley0 =
     . interpretClientStoreToCassandra
     . interpretFireAndForget
     . interpretBotAccess
-    . interpretFederator
+    . interpretFederatorAccess
     . interpretExternalAccess
     . interpretSparAccess
     . interpretGundeckAccess

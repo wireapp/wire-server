@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -49,6 +50,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
+import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
@@ -64,16 +66,11 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import UnliftIO.Async (pooledForConcurrentlyN)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
-import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
-import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
-import Wire.API.Federation.GRPC.Types (Component (..))
-import qualified Wire.API.User as User
+import Wire.API.Federation.Error (federationNotImplemented)
 
 type JSON = Media "application" "json"
 
@@ -631,76 +628,6 @@ viewFederationDomain = view (options . optSettings . setFederationDomain)
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
-checkRemoteUsersExist ::
-  (Member FederatorAccess r, Functor f, Foldable f) =>
-  f (Remote UserId) ->
-  Galley r ()
-checkRemoteUsersExist =
-  -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
-  traverse_ checkRemotesFor . bucketRemote
-
-checkRemotesFor :: Member FederatorAccess r => Remote [UserId] -> Galley r ()
-checkRemotesFor (qUntagged -> Qualified uids domain) = do
-  let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-  users <- runFederatedBrig domain rpc
-  let uids' =
-        map
-          (qUnqualified . User.profileQualifiedId)
-          (filter (not . User.profileDeleted) users)
-  unless (Set.fromList uids == Set.fromList uids') $
-    throwM unknownRemoteUser
-
-type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley0) a
-
-runFederated0 ::
-  forall (c :: Component) a.
-  Domain ->
-  FederatedGalleyRPC c a ->
-  Galley0 a
-runFederated0 remoteDomain rpc = do
-  runExceptT (executeFederated remoteDomain rpc)
-    >>= either (throwM . federationErrorToWai) pure
-
-runFederatedGalley ::
-  Member FederatorAccess r =>
-  Domain ->
-  FederatedGalleyRPC 'Galley a ->
-  Galley r a
-runFederatedGalley = runFederated
-
-runFederatedBrig ::
-  Member FederatorAccess r =>
-  Domain ->
-  FederatedGalleyRPC 'Brig a ->
-  Galley r a
-runFederatedBrig = runFederated
-
-runFederated ::
-  forall (c :: Component) r a.
-  Member FederatorAccess r =>
-  Domain ->
-  FederatedGalleyRPC c a ->
-  Galley r a
-runFederated remoteDomain = liftGalley0 . runFederated0 remoteDomain
-
-runFederatedConcurrently ::
-  Member FederatorAccess r =>
-  (Foldable f, Functor f) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatedGalleyRPC c b) ->
-  Galley r [Remote b]
-runFederatedConcurrently xs rpc = liftGalley0 $
-  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
-    qualifyAs r <$> runFederated0 (tDomain r) (rpc r)
-
-runFederatedConcurrently_ ::
-  Member FederatorAccess r =>
-  (Foldable f, Functor f) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatedGalleyRPC c ()) ->
-  Galley r ()
-runFederatedConcurrently_ xs = void . runFederatedConcurrently xs
-
 -- | Convert an internal conversation representation 'Data.Conversation' to
 -- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
@@ -810,7 +737,7 @@ registerRemoteConversationMemberships ::
   Domain ->
   Data.Conversation ->
   Galley r ()
-registerRemoteConversationMemberships now localDomain c = do
+registerRemoteConversationMemberships now localDomain c = liftSem $ do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->

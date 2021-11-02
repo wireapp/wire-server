@@ -104,6 +104,7 @@ import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.ExternalAccess as E
+import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
@@ -1029,10 +1030,10 @@ removeMemberFromRemoteConv ::
   Maybe ConnId ->
   Qualified UserId ->
   Galley r RemoveFromConversationResponse
-removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
+removeMemberFromRemoteConv cnv lusr _ victim
   | qUntagged lusr == victim =
     do
-      let lc = FederatedGalley.LeaveConversationRequest (qUnqualified qcnv) (qUnqualified victim)
+      let lc = FederatedGalley.LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
       let rpc =
             FederatedGalley.leaveConversation
               FederatedGalley.clientRoutes
@@ -1040,9 +1041,11 @@ removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
               lc
       t <- liftIO getCurrentTime
       let successEvent =
-            Event MemberLeave qcnv (qUntagged lusr) t $
+            Event MemberLeave (qUntagged cnv) (qUntagged lusr) t $
               EdMembersLeave (QualifiedUserIdList [victim])
-      mapRight (const successEvent) . FederatedGalley.leaveResponse <$> runFederated (qDomain qcnv) rpc
+      liftSem $
+        mapRight (const successEvent) . FederatedGalley.leaveResponse
+          <$> E.runFederated cnv rpc
   | otherwise = pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
 performRemoveMemberAction ::
@@ -1148,11 +1151,12 @@ postProteusMessage ::
   RawProto Public.QualifiedNewOtrMessage ->
   Galley r (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
-  localDomain <- viewFederationDomain
-  let sender = Qualified zusr localDomain
-  if localDomain /= qDomain conv
-    then postRemoteOtrMessage sender conv (rpRaw msg)
-    else postQualifiedOtrMessage User sender (Just zcon) (qUnqualified conv) (rpValue msg)
+  sender <- qualifyLocal zusr
+  foldQualified
+    sender
+    (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) (tUnqualified c) (rpValue msg))
+    (\c -> postRemoteOtrMessage (qUntagged sender) c (rpRaw msg))
+    conv
 
 postOtrMessageUnqualified ::
   Members
@@ -1388,9 +1392,10 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   let e = conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
-  runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-    FederatedGalley.onConversationUpdated FederatedGalley.clientRoutes localDomain $
-      FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) (tUnqualified ruids) action
+  liftSem $
+    E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
+      FederatedGalley.onConversationUpdated FederatedGalley.clientRoutes localDomain $
+        FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots
   pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
