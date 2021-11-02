@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 503d71d65ade51f149de711b6c0b958b0d7de6c3472c4831fc5549c20410b37a
+-- hash: 1b185cc3a9afe5d7a6c21c93d6c031963a5eb924885b6314ffc92ce96c6b545d
 
 name:           galley
 version:        0.83.0
@@ -45,18 +45,44 @@ library
       Galley.API.Util
       Galley.App
       Galley.Aws
-      Galley.Data
+      Galley.Cassandra
+      Galley.Cassandra.Client
+      Galley.Cassandra.Code
+      Galley.Cassandra.Conversation
+      Galley.Cassandra.Conversation.Members
+      Galley.Cassandra.ConversationList
+      Galley.Cassandra.LegalHold
+      Galley.Cassandra.Paging
+      Galley.Cassandra.Services
+      Galley.Cassandra.Store
+      Galley.Cassandra.Team
+      Galley.Data.Access
+      Galley.Data.Conversation
+      Galley.Data.Conversation.Types
       Galley.Data.CustomBackend
       Galley.Data.Instances
       Galley.Data.LegalHold
       Galley.Data.Queries
+      Galley.Data.ResultSet
+      Galley.Data.Scope
       Galley.Data.SearchVisibility
       Galley.Data.Services
       Galley.Data.TeamFeatures
       Galley.Data.TeamNotifications
       Galley.Data.Types
       Galley.Effects
+      Galley.Effects.ClientStore
+      Galley.Effects.CodeStore
+      Galley.Effects.ConversationStore
       Galley.Effects.FireAndForget
+      Galley.Effects.ListItems
+      Galley.Effects.MemberStore
+      Galley.Effects.Paging
+      Galley.Effects.RemoteConversationListStore
+      Galley.Effects.ServiceStore
+      Galley.Effects.TeamMemberStore
+      Galley.Effects.TeamStore
+      Galley.Env
       Galley.External
       Galley.External.LegalHoldService
       Galley.Intra.Client
@@ -70,6 +96,7 @@ library
       Galley.Queue
       Galley.Run
       Galley.Types.Clients
+      Galley.Types.ToUserRole
       Galley.Types.UserList
       Galley.Validation
       Main
@@ -78,7 +105,7 @@ library
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fplugin=Polysemy.Plugin
   build-depends:
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
@@ -124,6 +151,8 @@ library
     , optparse-applicative >=0.10
     , pem
     , polysemy
+    , polysemy-plugin
+    , polysemy-wire-zoo
     , proto-lens >=0.2
     , protobuf >=0.2
     , raw-strings-qq >=1.0

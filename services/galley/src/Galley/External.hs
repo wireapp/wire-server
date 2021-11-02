@@ -30,8 +30,8 @@ import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
 import Galley.App
+import Galley.Cassandra.Services
 import Galley.Data.Services (BotMember, botMemId, botMemService)
-import qualified Galley.Data.Services as Data
 import Galley.Effects
 import Galley.Intra.User
 import Galley.Types (Event)
@@ -75,7 +75,7 @@ deliver0 pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
     exec :: (BotMember, Event) -> Galley0 Bool
     exec (b, e) =
-      Data.lookupService (botMemService b) >>= \case
+      lookupService (botMemService b) >>= \case
         Nothing -> return False
         Just s -> do
           deliver1 s b e

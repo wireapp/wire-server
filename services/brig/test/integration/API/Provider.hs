@@ -580,15 +580,9 @@ testBadFingerprint config db brig galley _cannon = do
 
 testAddRemoveBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
-  (u1, u2, h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
-  let (uid1, uid2) = (userId u1, userId u2)
-      quid1 = userQualifiedId u1
+  (u1, u2, h, _, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+  let quid1 = userQualifiedId u1
       localDomain = qDomain quid1
-  -- Ensure cannot add bots to managed conversations
-  cidFail <- Team.createManagedConv galley tid uid1 [uid2] Nothing
-  addBot brig uid1 pid sid cidFail !!! do
-    const 403 === statusCode
-    const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
   testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
 testBotTeamOnlyConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()

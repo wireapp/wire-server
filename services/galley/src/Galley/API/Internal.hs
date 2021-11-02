@@ -25,7 +25,6 @@ module Galley.API.Internal
   )
 where
 
-import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except (runExceptT)
@@ -51,10 +50,16 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
+import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
+import Galley.Cassandra.Paging
+import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.ClientStore
+import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
+import Galley.Effects.Paging
+import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types
@@ -64,6 +69,7 @@ import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), 
 import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
+import Galley.Types.UserList
 import Imports hiding (head)
 import Network.HTTP.Types (status200)
 import Network.Wai
@@ -296,7 +302,7 @@ servantSitemap =
 
 iGetTeamFeature ::
   forall a r.
-  Public.KnownTeamFeatureName a =>
+  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
   (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley r (Public.TeamFeatureStatus a)
@@ -304,7 +310,7 @@ iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a r.
-  Public.KnownTeamFeatureName a =>
+  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
   (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -474,20 +480,36 @@ sitemap = do
     capture "tid"
 
 rmUser ::
-  forall r.
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, GundeckAccess] r =>
+  forall p1 p2 r.
+  ( p1 ~ CassandraPaging,
+    p2 ~ InternalPaging,
+    Members
+      '[ BrigAccess,
+         ClientStore,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         ListItems p1 ConvId,
+         ListItems p1 (Remote ConvId),
+         ListItems p2 TeamId,
+         MemberStore,
+         TeamStore
+       ]
+      r
+  ) =>
   UserId ->
   Maybe ConnId ->
   Galley r ()
 rmUser user conn = do
-  let n = toRange (Proxy @100) :: Range 1 100 Int32
-      nRange1000 = rcast n :: Range 1 1000 Int32
-  tids <- Data.teamIdsForPagination user Nothing n
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  tids <- liftSem $ listTeams user Nothing maxBound
   leaveTeams tids
   allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
   lusr <- qualifyLocal user
   goConvPages lusr nRange1000 allConvIds
-  Data.eraseClients user
+
+  liftSem $ deleteClients user
   where
     goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
     goConvPages lusr range page = do
@@ -501,23 +523,24 @@ rmUser user conn = do
         newCids <- Query.conversationIdsPageFrom usr nextQuery
         goConvPages lusr range newCids
 
-    leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
-      mems <- Data.teamMembersForFanout tid
+    leaveTeams page = for_ (pageItems page) $ \tid -> do
+      mems <- getTeamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
-      leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
+      page' <- liftSem $ listTeams user (Just (pageState page)) maxBound
+      leaveTeams page'
 
     -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
-    leaveLocalConversations :: [ConvId] -> Galley r ()
+    leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
-      cc <- Data.localConversations ids
+      cc <- liftSem $ getConversations ids
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
-        ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
+        One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
+        ConnectConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
-            Data.removeLocalMembersFromLocalConv (Data.convId c) (pure user)
+            liftSem $ deleteMembers (Data.convId c) (UserList [user] [])
             now <- liftIO getCurrentTime
             let e =
                   Event
@@ -578,7 +601,7 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamStore] r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do

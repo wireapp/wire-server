@@ -39,10 +39,13 @@ import Galley.API.Update (notifyConversationMetadataUpdate)
 import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.MemberStore as E
 import Galley.Intra.User (getConnections)
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
+import Galley.Types.UserList
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
@@ -86,7 +89,7 @@ federationSitemap =
       }
 
 onConversationCreated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
   NewRemoteConversation ConvId ->
   Galley r ()
@@ -124,15 +127,17 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
 
 getConversations ::
+  Member ConversationStore r =>
   Domain ->
   GetConversationsRequest ->
   Galley r GetConversationsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   localDomain <- viewFederationDomain
-  GetConversationsResponse
-    . mapMaybe (Mapping.conversationToRemote localDomain ruid)
-    <$> Data.localConversations cids
+  liftSem $
+    GetConversationsResponse
+      . mapMaybe (Mapping.conversationToRemote localDomain ruid)
+      <$> E.getConversations cids
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
@@ -140,7 +145,7 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
   ConversationUpdate ->
   Galley r ()
@@ -153,7 +158,9 @@ onConversationUpdated requestingDomain cu = do
   -- Note: we generally do not send notifications to users that are not part of
   -- the conversation (from our point of view), to prevent spam from the remote
   -- backend. See also the comment below.
-  (presentUsers, allUsersArePresent) <- Data.filterRemoteConvMembers (cuAlreadyPresentUsers cu) qconvId
+  (presentUsers, allUsersArePresent) <-
+    liftSem $
+      E.selectRemoteMembers (cuAlreadyPresentUsers cu) rconvId
 
   -- Perform action, and determine extra notification targets.
   --
@@ -171,17 +178,17 @@ onConversationUpdated requestingDomain cu = do
       case allAddedUsers of
         [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
         (u : us) -> pure (Just $ ConversationActionAddMembers (u :| us) role, addedLocalUsers)
-    ConversationActionRemoveMembers toRemove -> do
+    ConversationActionRemoveMembers toRemove -> liftSem $ do
       let localUsers = getLocalUsers localDomain toRemove
-      Data.removeLocalMembersFromRemoteConv rconvId localUsers
+      E.deleteMembersInRemoteConversation rconvId localUsers
       pure (Just $ cuAction cu, [])
     ConversationActionRename _ -> pure (Just $ cuAction cu, [])
     ConversationActionMessageTimerUpdate _ -> pure (Just $ cuAction cu, [])
     ConversationActionMemberUpdate _ _ -> pure (Just $ cuAction cu, [])
     ConversationActionReceiptModeUpdate _ -> pure (Just $ cuAction cu, [])
     ConversationActionAccessUpdate _ -> pure (Just $ cuAction cu, [])
-    ConversationActionDelete -> do
-      Data.removeLocalMembersFromRemoteConv rconvId presentUsers
+    ConversationActionDelete -> liftSem $ do
+      E.deleteMembersInRemoteConversation rconvId presentUsers
       pure (Just $ cuAction cu, [])
 
   unless allUsersArePresent $
@@ -203,7 +210,7 @@ onConversationUpdated requestingDomain cu = do
     pushConversationEvent Nothing event targets []
 
 addLocalUsersToRemoteConv ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, MemberStore] r =>
   Remote ConvId ->
   Qualified UserId ->
   [UserId] ->
@@ -225,12 +232,24 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  Data.addLocalMembersToRemoteConv remoteConvId connectedList
+  liftSem $ E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       CodeStore,
+       ConversationStore,
+       ExternalAccess,
+       FederatorAccess,
+       FireAndForget,
+       GundeckAccess,
+       MemberStore,
+       TeamStore
+     ]
+    r =>
   Domain ->
   LeaveConversationRequest ->
   Galley r LeaveConversationResponse
@@ -251,7 +270,7 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
 onMessageSent ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
   RemoteMessage ConvId ->
   Galley r ()
@@ -267,7 +286,9 @@ onMessageSent domain rmUnqualified = do
           }
       recipientMap = userClientMap $ rmRecipients rm
       msgs = toMapOf (itraversed <.> itraversed) recipientMap
-  (members, allMembers) <- Data.filterRemoteConvMembers (Map.keys recipientMap) convId
+  (members, allMembers) <-
+    liftSem $
+      E.selectRemoteMembers (Map.keys recipientMap) (rmConversation rm)
   unless allMembers $
     Log.warn $
       Log.field "conversation" (toByteString' (qUnqualified convId))
@@ -292,7 +313,18 @@ onMessageSent domain rmUnqualified = do
           }
 
 sendMessage ::
-  Members '[BotAccess, BrigAccess, FederatorAccess, GundeckAccess, ExternalAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ClientStore,
+       ConversationStore,
+       FederatorAccess,
+       GundeckAccess,
+       ExternalAccess,
+       MemberStore,
+       TeamStore
+     ]
+    r =>
   Domain ->
   MessageSendRequest ->
   Galley r MessageSendResponse
@@ -304,7 +336,15 @@ sendMessage originDomain msr = do
     err = throwM . invalidPayload . LT.pack
 
 onUserDeleted ::
-  Members '[FederatorAccess, FireAndForget, ExternalAccess, GundeckAccess] r =>
+  Members
+    '[ ConversationStore,
+       FederatorAccess,
+       FireAndForget,
+       ExternalAccess,
+       GundeckAccess,
+       MemberStore
+     ]
+    r =>
   Domain ->
   UserDeletedConversationsNotification ->
   Galley r EmptyResponse
@@ -316,8 +356,8 @@ onUserDeleted origDomain udcn = do
   spawnMany $
     fromRange convIds <&> \c -> do
       lc <- qualifyLocal c
-      mconv <- Data.conversation c
-      Data.removeRemoteMembersFromLocalConv c (pure deletedUser)
+      mconv <- liftSem $ E.getConversation c
+      liftSem $ E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
         when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $
           case Data.convType conv of
@@ -331,6 +371,7 @@ onUserDeleted origDomain udcn = do
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
               let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
+
                   botsAndMembers = convBotsAndMembers conv
               void $ notifyConversationMetadataUpdate untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse

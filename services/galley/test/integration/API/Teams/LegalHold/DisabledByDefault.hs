@@ -59,7 +59,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Galley.App as Galley
-import qualified Galley.Data as Data
+import Galley.Cassandra.Client
 import qualified Galley.Data.LegalHold as LegalHoldData
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.Options (optSettings, setFeatureFlags)
@@ -256,7 +256,7 @@ testApproveLegalHoldDevice = do
         renewToken authToken
       cassState <- view tsCass
       liftIO $ do
-        clients' <- Cql.runClient cassState $ Data.lookupClients' [member]
+        clients' <- Cql.runClient cassState $ lookupClients [member]
         assertBool "Expect clientId to be saved on the user" $
           Clients.contains member someClientId clients'
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid

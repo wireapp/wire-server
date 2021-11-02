@@ -51,13 +51,36 @@ module Galley.Effects
     FireAndForget,
     interpretFireAndForget,
 
+    -- * Store effects
+    ClientStore,
+    CodeStore,
+    ConversationStore,
+    MemberStore,
+    ServiceStore,
+    TeamStore,
+    TeamMemberStore,
+
+    -- * Paging effects
+    ListItems,
+
     -- * Polysemy re-exports
     Member,
     Members,
   )
 where
 
+import Data.Id
+import Data.Qualified
+import Galley.Cassandra.Paging
+import Galley.Effects.ClientStore
+import Galley.Effects.CodeStore
+import Galley.Effects.ConversationStore
 import Galley.Effects.FireAndForget
+import Galley.Effects.ListItems
+import Galley.Effects.MemberStore
+import Galley.Effects.ServiceStore
+import Galley.Effects.TeamMemberStore
+import Galley.Effects.TeamStore
 import Imports
 import Polysemy
 
@@ -105,5 +128,17 @@ type GalleyEffects1 =
      FederatorAccess,
      BotAccess,
      Intra,
-     FireAndForget
+     FireAndForget,
+     ClientStore,
+     CodeStore,
+     ConversationStore,
+     MemberStore,
+     ServiceStore,
+     TeamStore,
+     TeamMemberStore InternalPaging,
+     ListItems CassandraPaging ConvId,
+     ListItems CassandraPaging (Remote ConvId),
+     ListItems LegacyPaging ConvId,
+     ListItems LegacyPaging TeamId,
+     ListItems InternalPaging TeamId
    ]

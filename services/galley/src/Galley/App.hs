@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -77,10 +76,8 @@ import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
-import Data.Id (ConnId, TeamId, UserId)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint, Rsa)
 import qualified Data.ProtocolBuffers as Proto
 import Data.Proxy (Proxy (..))
 import Data.Range
@@ -90,8 +87,16 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
+import Galley.Cassandra.Client
+import Galley.Cassandra.Code
+import Galley.Cassandra.Conversation
+import Galley.Cassandra.Conversation.Members
+import Galley.Cassandra.ConversationList
+import Galley.Cassandra.Services
+import Galley.Cassandra.Team
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
+import Galley.Env
 import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
@@ -111,45 +116,18 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
 import Polysemy.Internal (Append)
 import qualified Polysemy.Reader as P
+import qualified Polysemy.TinyLog as P
 import qualified Servant
 import Ssl.Util
-import System.Logger.Class hiding (Error, info)
+import System.Logger.Class
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Federation.Client (HasFederatorConfig (..))
 
-data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
-  deriving (Eq, Ord, Show)
-
--- | Main application environment.
-data Env = Env
-  { _reqId :: RequestId,
-    _monitor :: Metrics,
-    _options :: Opts,
-    _applog :: Logger,
-    _manager :: Manager,
-    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
-    _brig :: Endpoint, -- FUTUREWORK: see _federator
-    _cstate :: ClientState,
-    _deleteQueue :: Q.Queue DeleteItem,
-    _extEnv :: ExtEnv,
-    _aEnv :: Maybe Aws.Env
-  }
-
--- | Environment specific to the communication with external
--- service providers.
-data ExtEnv = ExtEnv
-  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
-  }
-
-makeLenses ''Env
-
-makeLenses ''ExtEnv
-
 -- MTL-style effects derived from the old implementation of the Galley monad.
 -- They will disappear as we introduce more high-level effects into Galley.
-type GalleyEffects0 = '[P.Reader ClientState, P.Reader Env, Embed IO, Final IO]
+type GalleyEffects0 = '[P.TinyLog, P.Reader ClientState, P.Reader Env, Embed IO, Final IO]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
@@ -198,7 +176,7 @@ currentFanoutLimit o = do
   unsafeRange (min maxTeamSize optFanoutLimit)
 
 -- Define some invariants for the options used
-validateOptions :: Logger.Logger -> Opts -> IO ()
+validateOptions :: Logger -> Opts -> IO ()
 validateOptions l o = do
   let settings = view optSettings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
@@ -221,9 +199,7 @@ validateOptions l o = do
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
 instance MonadLogger (Galley r) where
-  log l m = do
-    e <- ask
-    Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
+  log l m = Galley $ P.polylog l m
 
 instance MonadHttp (Galley r) where
   handleRequestWithCont req handler = do
@@ -314,6 +290,15 @@ evalGalley0 e =
     . embedToFinal @IO
     . P.runReader e
     . P.runReader (e ^. cstate)
+    . interpretTinyLog e
+
+interpretTinyLog ::
+  Members '[Embed IO] r =>
+  Env ->
+  Sem (P.TinyLog ': r) a ->
+  Sem r a
+interpretTinyLog e = interpret $ \case
+  P.Polylog l m -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
 
 evalGalley :: Env -> Galley GalleyEffects a -> IO a
 evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
@@ -321,7 +306,7 @@ evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
-reqIdMsg :: RequestId -> Msg -> Msg
+reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
@@ -360,6 +345,40 @@ toServantHandler env galley = do
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
 
+withLH ::
+  Member (P.Reader Env) r =>
+  (Teams.FeatureLegalHold -> Sem (eff ': r) a -> Sem r a) ->
+  Sem (eff ': r) a ->
+  Sem r a
+withLH f action = do
+  lh <- P.asks (view (options . optSettings . setFeatureFlags . Teams.flagLegalHold))
+  f lh action
+
+interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
+interpretGalleyToGalley0 =
+  Galley
+    . interpretInternalTeamListToCassandra
+    . interpretTeamListToCassandra
+    . interpretLegacyConversationListToCassandra
+    . interpretRemoteConversationListToCassandra
+    . interpretConversationListToCassandra
+    . withLH interpretTeamMemberStoreToCassandra
+    . withLH interpretTeamStoreToCassandra
+    . interpretServiceStoreToCassandra
+    . interpretMemberStoreToCassandra
+    . interpretConversationStoreToCassandra
+    . interpretCodeStoreToCassandra
+    . interpretClientStoreToCassandra
+    . interpretFireAndForget
+    . interpretIntra
+    . interpretBot
+    . interpretFederator
+    . interpretExternal
+    . interpretSpar
+    . interpretGundeck
+    . interpretBrig
+    . unGalley
+
 ----------------------------------------------------------------------------------
 ---- temporary MonadUnliftIO support code for the polysemy refactoring
 
@@ -393,16 +412,3 @@ liftGalley0 (Galley m) = Galley $ subsume_ m
 
 liftSem :: Sem r a -> Galley r a
 liftSem m = Galley m
-
-interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
-interpretGalleyToGalley0 =
-  Galley
-    . interpretFireAndForget
-    . interpretIntra
-    . interpretBot
-    . interpretFederator
-    . interpretExternal
-    . interpretSpar
-    . interpretGundeck
-    . interpretBrig
-    . unGalley
