@@ -71,7 +71,7 @@ import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types
 import qualified Galley.Types as Conv
-import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
+import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
@@ -2484,6 +2484,23 @@ iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM Response
 iUpsertOne2OneConversation req = do
   galley <- view tsGalley
   post (galley . path "/i/conversations/one2one/upsert" . Bilge.json req)
+
+createOne2OneConvWithRemote :: HasCallStack => Local UserId -> Remote UserId -> TestM ()
+createOne2OneConvWithRemote localUser remoteUser = do
+  let mkRequest actor mConvId =
+        UpsertOne2OneConversationRequest
+          { uooLocalUser = localUser,
+            uooRemoteUser = remoteUser,
+            uooActor = actor,
+            uooActorDesiredMembership = Included,
+            uooConvId = mConvId
+          }
+  ooConvId <-
+    fmap uuorConvId . responseJsonError
+      =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
+      <!! const 200 === statusCode
+  iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
+    !!! const 200 === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvId shouldBeLocal lUserId = do

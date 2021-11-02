@@ -42,7 +42,6 @@ import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Galley.Types
-import Galley.Types.Conversations.Intra
 import Gundeck.Types.Notification
 import Imports
 import Test.QuickCheck (arbitrary, generate)
@@ -872,24 +871,7 @@ onUserDeleted = do
   connectWithRemoteUser (tUnqualified alice) eve
 
   -- create 1-1 conversation between alice and bob
-  iUpsertOne2OneConversation
-    UpsertOne2OneConversationRequest
-      { uooLocalUser = alice,
-        uooRemoteUser = bob,
-        uooActor = LocalActor,
-        uooActorDesiredMembership = Included,
-        uooConvId = Nothing
-      }
-    !!! const 200 === statusCode
-  iUpsertOne2OneConversation
-    UpsertOne2OneConversationRequest
-      { uooLocalUser = alice,
-        uooRemoteUser = bob,
-        uooActor = RemoteActor,
-        uooActorDesiredMembership = Included,
-        uooConvId = Just ooConvId
-      }
-    !!! const 200 === statusCode
+  createOne2OneConvWithRemote alice bob
 
   -- create group conversation with everybody
   groupConvId <-
@@ -905,10 +887,9 @@ onUserDeleted = do
 
   -- conversation without bob
   noBobConvId <-
-    decodeQualifiedConvId
-      <$> ( postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [charlie]}
-              <!! const 201 === statusCode
-          )
+    fmap decodeQualifiedConvId $
+      postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [charlie]}
+        <!! const 201 === statusCode
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified charlie) $ \(wsAlice, wsCharlie) -> do
     (resp, rpcCalls) <- withTempMockFederator (const ()) $ do
