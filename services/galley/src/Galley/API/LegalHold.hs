@@ -58,12 +58,11 @@ import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.Paging
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import qualified Galley.External.LegalHoldService as LHService
-import qualified Galley.Intra.Client as Client
-import Galley.Intra.User (getConnectionsUnqualified, putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
@@ -255,7 +254,7 @@ removeSettings' tid =
     removeLHForUser :: TeamMember -> Galley r ()
     removeLHForUser member = do
       let uid = member ^. Team.userId
-      Client.removeLegalHoldClientFromUser uid
+      liftSem $ removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
       changeLegalholdStatus tid uid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
@@ -425,7 +424,7 @@ requestDevice zusr tid uid = do
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
       changeLegalholdStatus tid uid userLHStatus UserLegalHoldPending
-      Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
+      liftSem $ notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
 
     requestDeviceFromService :: Galley r (LastPrekey, [Prekey])
     requestDeviceFromService = do
@@ -500,13 +499,13 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
       Log.info $ Log.msg @Text "No prekeys found"
       throwM noLegalHoldDeviceAllocated
     Just keys -> pure keys
-  clientId <- Client.addLegalHoldClientToUser uid connId prekeys lastPrekey'
+  clientId <- liftSem $ addLegalHoldClientToUser uid connId prekeys lastPrekey'
   -- Note: teamId could be passed in the getLegalHoldAuthToken request instead of lookup up again
-  -- Note: both 'Client.getLegalHoldToken' and 'ensureReAuthorized' check the password
-  -- Note: both 'Client.getLegalHoldToken' and this function in 'assertOnTeam' above
+  -- Note: both 'getLegalHoldToken' and 'ensureReAuthorized' check the password
+  -- Note: both 'getLegalHoldToken' and this function in 'assertOnTeam' above
   --       checks that the user is part of a binding team
   -- FUTUREWORK: reduce double checks
-  legalHoldAuthToken <- Client.getLegalHoldAuthToken uid mPassword
+  legalHoldAuthToken <- liftSem $ getLegalHoldAuthToken uid mPassword
   LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
@@ -585,7 +584,7 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
     disableLH :: UserLegalHoldStatus -> Galley r ()
     disableLH userLHStatus = do
       ensureReAuthorised zusr mPassword
-      Client.removeLegalHoldClientFromUser uid
+      liftSem $ removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
@@ -642,7 +641,7 @@ changeLegalholdStatus tid uid old new = do
       UserLegalHoldNoConsent -> noop
   where
     update = LegalHoldData.setUserLegalHoldStatus tid uid new
-    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+    removeblocks = void . liftSem $ putConnectionInternal (RemoveLHBlocksInvolving uid)
     addblocks = do
       blockNonConsentingConnections uid
       handleGroupConvPolicyConflicts uid new
@@ -656,7 +655,7 @@ blockNonConsentingConnections ::
   UserId ->
   Galley r ()
 blockNonConsentingConnections uid = do
-  conns <- getConnectionsUnqualified [uid] Nothing Nothing
+  conns <- liftSem $ getConnectionsUnqualified [uid] Nothing Nothing
   errmsgs <- do
     conflicts <- mconcat <$> findConflicts conns
     blockConflicts uid conflicts
@@ -677,7 +676,7 @@ blockNonConsentingConnections uid = do
     blockConflicts :: UserId -> [UserId] -> Galley r [String]
     blockConflicts _ [] = pure []
     blockConflicts userLegalhold othersToBlock@(_ : _) = do
-      status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
+      status <- liftSem $ putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
 setTeamLegalholdWhitelisted :: TeamId -> Galley r ()

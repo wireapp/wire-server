@@ -45,6 +45,9 @@ import System.Logger.Class
 class HasRequestId m where
   getRequestId :: m RequestId
 
+instance Monad m => HasRequestId (ReaderT RequestId m) where
+  getRequestId = ask
+
 data RPCException = RPCException
   { rpceRemote :: !LText,
     rpceRequest :: !Request,

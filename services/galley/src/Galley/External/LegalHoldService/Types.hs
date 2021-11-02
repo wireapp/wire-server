@@ -1,6 +1,8 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,24 +17,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Team where
+module Galley.External.LegalHoldService.Types
+  ( OpaqueAuthToken (..),
+  )
+where
 
-import Bilge
-import Bilge.RPC
-import Brig.Types.Team
-import Data.ByteString.Conversion
-import Data.Id
-import Galley.Intra.Util
+import Data.Aeson
+import Data.ByteString.Conversion.To
 import Imports
-import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
 
-getSize :: TeamId -> IntraM TeamSize
-getSize tid = do
-  r <-
-    call Brig $
-      method GET
-        . paths ["/i/teams", toByteString' tid, "size"]
-        . expect2xx
-  parseResponse (mkError status502 "server-error") r
+-- | When receiving tokens from other services which are 'just passing through'
+-- it's error-prone useless extra work to parse and render them from JSON over and over again.
+-- We'll just wrap them with this to give some level of typesafety and a reasonable JSON
+-- instance
+newtype OpaqueAuthToken = OpaqueAuthToken
+  { opaqueAuthTokenToText :: Text
+  }
+  deriving newtype (Eq, Show, FromJSON, ToJSON, ToByteString)

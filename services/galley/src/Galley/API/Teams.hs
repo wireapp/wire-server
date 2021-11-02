@@ -94,18 +94,17 @@ import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Paging as E
+import qualified Galley.Effects.SparAccess as Spar
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
-import qualified Galley.Intra.Spar as Spar
-import qualified Galley.Intra.Team as BrigTeam
-import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
@@ -269,7 +268,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
       -- This is also very difficult to test, so is not tested.
-      (TeamSize possiblyStaleSize) <- BrigTeam.getSize tid
+      (TeamSize possiblyStaleSize) <- liftSem $ E.getSize tid
       let size =
             if possiblyStaleSize == 0
               then 1
@@ -379,7 +378,7 @@ uncheckedDeleteTeam ::
 uncheckedDeleteTeam zusr zcon tid = do
   team <- liftSem $ E.getTeam tid
   when (isJust team) $ do
-    Spar.deleteTeam tid
+    liftSem $ Spar.deleteTeam tid
     now <- liftIO getCurrentTime
     convs <-
       liftSem $
@@ -398,7 +397,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     -- every bot user can only be in a single conversation. Just
     -- deleting conversations from the database is not enough.
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
-      mapM_ (deleteUser . view userId) membs
+      liftSem $ mapM_ (E.deleteUser . view userId) membs
       Journal.teamDelete tid
     Data.unsetTeamLegalholdWhitelisted tid
     liftSem $ E.deleteTeam tid
@@ -509,8 +508,12 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           E.withChunks pager $
             \members -> do
               inviters <- lookupInviterHandle members
-              users <- lookupUser <$> lookupActivatedUsers (fmap (view userId) members)
-              richInfos <- lookupRichInfo <$> getRichInfoMultiUser (fmap (view userId) members)
+              users <-
+                liftSem $
+                  lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
+              richInfos <-
+                liftSem $
+                  lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
               liftIO $ do
                 writeString
                   ( encodeDefaultOrderedByNameWith
@@ -564,7 +567,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       let inviterIds :: [UserId]
           inviterIds = nub $ catMaybes $ fmap fst . view invitation <$> members
 
-      userList :: [User] <- accountUser <$$> getUsers inviterIds
+      userList :: [User] <- liftSem $ accountUser <$$> E.getUsers inviterIds
 
       let userMap :: M.Map UserId Handle.Handle
           userMap = M.fromList . catMaybes $ extract <$> userList
@@ -710,7 +713,7 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
-  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
@@ -732,7 +735,7 @@ uncheckedAddTeamMember ::
   Galley r ()
 uncheckedAddTeamMember tid nmem = do
   mems <- getTeamMembersForFanout tid
-  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
@@ -800,7 +803,7 @@ updateTeamMember zusr zcon tid targetMember = do
     updateJournal :: Team -> TeamMemberList -> Galley r ()
     updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
-        (TeamSize size) <- BrigTeam.getSize tid
+        (TeamSize size) <- liftSem $ E.getSize tid
         billingUserIds <- Journal.getBillingUserIds tid $ Just mems
         Journal.teamUpdate tid size billingUserIds
 
@@ -874,7 +877,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
-      (TeamSize sizeBeforeDelete) <- BrigTeam.getSize tid
+      (TeamSize sizeBeforeDelete) <- liftSem $ E.getSize tid
       -- TeamSize is 'Natural' and subtracting from  0 is an error
       -- TeamSize could be reported as 0 if team members are added and removed very quickly,
       -- which happens in tests
@@ -882,7 +885,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
             if sizeBeforeDelete == 0
               then 0
               else sizeBeforeDelete - 1
-      deleteUser remove
+      liftSem $ E.deleteUser remove
       billingUsers <- Journal.getBillingUserIds tid (Just mems)
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
       pure TeamMemberDeleteAccepted
@@ -1081,7 +1084,7 @@ ensureNotElevated targetPermissions member =
 ensureNotTooLarge :: Member BrigAccess r => TeamId -> Galley r TeamSize
 ensureNotTooLarge tid = do
   o <- view options
-  (TeamSize size) <- BrigTeam.getSize tid
+  (TeamSize size) <- liftSem $ E.getSize tid
   unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
     throwM tooManyTeamMembers
   return $ TeamSize size
@@ -1103,7 +1106,7 @@ ensureNotTooLargeForLegalHold tid teamSize = do
 
 ensureNotTooLargeToActivateLegalHold :: Members '[BrigAccess] r => TeamId -> Galley r ()
 ensureNotTooLargeToActivateLegalHold tid = do
-  (TeamSize teamSize) <- BrigTeam.getSize tid
+  (TeamSize teamSize) <- liftSem $ E.getSize tid
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $ do
     throwM cannotEnableLegalHoldServiceLargeTeam
 
@@ -1226,7 +1229,7 @@ canUserJoinTeam :: Member BrigAccess r => TeamId -> Galley r ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
-    (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+    (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
     ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)

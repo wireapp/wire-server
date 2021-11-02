@@ -30,9 +30,8 @@ import qualified Data.Set as Set
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.TeamStore
-import qualified Galley.Intra.Client as Intra
-import Galley.Intra.User (getUser)
 import Galley.Options
 import Galley.Types.Teams hiding (self)
 import Imports
@@ -90,7 +89,7 @@ guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
       otherUids = nub $ Map.keys . userClients $ otherClients
 
   when (nub otherUids /= [self {- if all other clients belong to us, there can be no conflict -}]) $ do
-    allClients :: UserClientsFull <- lift $ Intra.lookupClientsFull (nub $ self : otherUids)
+    allClients :: UserClientsFull <- lift . liftSem $ lookupClientsFull (nub $ self : otherUids)
 
     let selfClients :: [Client.Client] =
           allClients
@@ -126,11 +125,11 @@ guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
                 . Client.clientCapabilities
 
         checkConsentMissing :: Galley r Bool
-        checkConsentMissing = do
+        checkConsentMissing = liftSem $ do
           -- (we could also get the profile from brig.  would make the code slightly more
           -- concise, but not really help with the rpc back-and-forth, so, like, why?)
           mbUser <- accountUser <$$> getUser self
-          mbTeamMember <- liftSem $ join <$> for (mbUser >>= userTeam) (`getTeamMember` self)
+          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`getTeamMember` self)
           let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
           pure (lhStatus == UserLegalHoldNoConsent)
 

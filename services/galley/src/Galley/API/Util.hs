@@ -45,13 +45,13 @@ import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import qualified Galley.External as External
 import Galley.Intra.Push
-import Galley.Intra.User
 import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
@@ -63,7 +63,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import UnliftIO.Async (concurrently, pooledForConcurrentlyN)
+import UnliftIO.Async (pooledForConcurrentlyN)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
@@ -83,7 +83,7 @@ ensureAccessRole role users = case role of
     when (any (isNothing . snd) users) $
       throwErrorDescriptionType @NotATeamMember
   ActivatedAccessRole -> do
-    activated <- lookupActivatedUsers $ map fst users
+    activated <- liftSem $ lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
       throwErrorDescriptionType @ConvAccessDenied
   NonActivatedAccessRole -> return ()
@@ -122,23 +122,25 @@ ensureConnected self others = do
 
 ensureConnectedToLocals :: Member BrigAccess r => UserId -> [UserId] -> Galley r ()
 ensureConnectedToLocals _ [] = pure ()
-ensureConnectedToLocals u uids = liftGalley0 $ do
+ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnectionsUnqualified0 [u] (Just uids) (Just Accepted)
-      `concurrently` getConnectionsUnqualified0 uids (Just [u]) (Just Accepted)
+    liftSem $
+      getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwErrorDescriptionType @NotConnected
 
 ensureConnectedToRemotes :: Member BrigAccess r => Local UserId -> [Remote UserId] -> Galley r ()
 ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
-  acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
+  acceptedConns <-
+    liftSem $
+      getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
     throwErrorDescriptionType @NotConnected
 
 ensureReAuthorised :: Member BrigAccess r => UserId -> Maybe PlainTextPassword -> Galley r ()
 ensureReAuthorised u secret = do
-  reAuthed <- reAuthUser u (ReAuthUser secret)
+  reAuthed <- liftSem $ reauthUser u (ReAuthUser secret)
   unless reAuthed $
     throwM reAuthFailed
 

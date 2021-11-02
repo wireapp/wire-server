@@ -52,7 +52,7 @@ import Galley.API.Error
 import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
-import Galley.Intra.User as Intra
+import Galley.Effects.BrigAccess as Intra
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
@@ -67,7 +67,7 @@ getTeamNotifications ::
   Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
   tid :: TeamId <- do
-    mtid <- (userTeam . accountUser =<<) <$> Intra.getUser zusr
+    mtid <- liftSem $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
     let err = throwM teamNotFound
     maybe err pure mtid
   page <- DataTeamQueue.fetch tid since size

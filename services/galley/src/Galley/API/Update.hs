@@ -98,15 +98,15 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
+import qualified Galley.Effects.BotAccess as E
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.External as External
-import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
-import Galley.Intra.User (deleteBot, getContactList, lookupActivatedUsers)
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
@@ -301,16 +301,16 @@ performAccessUpdateAction qusr conv target = do
       liftSem $ E.deleteCode key ReusableCode
 
   -- Determine bots and members to be removed
-  let filterBotsAndMembers = filterActivated >=> (liftSem . filterTeammates)
+  let filterBotsAndMembers = filterActivated >=> filterTeammates
   let current = convBotsAndMembers conv -- initial bots and members
-  desired <- lift $ filterBotsAndMembers current -- desired bots and members
+  desired <- lift . liftSem $ filterBotsAndMembers current -- desired bots and members
   let toRemove = bmDiff current desired -- bots and members to be removed
 
   -- Update Cassandra
   lift . liftSem $ E.setConversationAccess (tUnqualified lcnv) target
   lift . fireAndForget $ do
     -- Remove bots
-    traverse_ (deleteBot (tUnqualified lcnv)) (map botMemId (toList (bmBots toRemove)))
+    traverse_ (liftSem . E.deleteBot (tUnqualified lcnv) . botMemId) (bmBots toRemove)
 
     -- Update current bots and members
     let current' = current {bmBots = bmBots desired}
@@ -321,12 +321,12 @@ performAccessUpdateAction qusr conv target = do
       void . runMaybeT $ performAction qusr conv action
       notifyConversationMetadataUpdate qusr Nothing lcnv current' action
   where
-    filterActivated :: BotsAndMembers -> Galley r BotsAndMembers
+    filterActivated :: BotsAndMembers -> Sem r BotsAndMembers
     filterActivated bm
       | ( Data.convAccessRole conv > ActivatedAccessRole
             && cupAccessRole target <= ActivatedAccessRole
         ) = do
-        activated <- map User.userId <$> lookupActivatedUsers (toList (bmLocals bm))
+        activated <- map User.userId <$> E.lookupActivatedUsers (toList (bmLocals bm))
         -- FUTUREWORK: should we also remove non-activated remote users?
         pure $ bm {bmLocals = Set.fromList activated}
       | otherwise = pure bm
@@ -1601,13 +1601,14 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
     fmap (view userId) <$> case val of
       OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
       _ -> maybeFetchAllMembersInTeam tid
-  contacts <- getContactList usr
+  contacts <- liftSem $ E.getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
-    if isInternal
-      then Clients.fromUserClients <$> Intra.lookupClients users
-      else liftSem $ E.getClients users
+    liftSem $
+      if isInternal
+        then Clients.fromUserClients <$> E.lookupClients users
+        else E.getClients users
   let membs = newMember <$> users
   handleOtrResponse User usr clt rcps membs clts val now go
   where
@@ -1647,9 +1648,10 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
       let localMemberIds = lmId <$> localMembers
       isInternal <- view $ options . optSettings . setIntraListing
       clts <-
-        if isInternal
-          then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-          else liftSem $ E.getClients localMemberIds
+        liftSem $
+          if isInternal
+            then Clients.fromUserClients <$> E.lookupClients localMemberIds
+            else E.getClients localMemberIds
       handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::

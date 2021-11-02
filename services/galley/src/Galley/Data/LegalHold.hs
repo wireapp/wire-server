@@ -36,10 +36,10 @@ import Cassandra
 import Control.Lens (unsnoc, view)
 import Data.Id
 import Data.LegalHold
-import Galley.App (Env, options)
 import qualified Galley.Cassandra.LegalHold as C
 import Galley.Data.Instances ()
 import Galley.Data.Queries as Q
+import Galley.Env
 import qualified Galley.Options as Opts
 import Galley.Types.Teams (flagLegalHold)
 import Imports

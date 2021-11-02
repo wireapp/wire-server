@@ -15,24 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Team where
+module Galley.Effects.BotAccess where
 
-import Bilge
-import Bilge.RPC
-import Brig.Types.Team
-import Data.ByteString.Conversion
 import Data.Id
-import Galley.Intra.Util
-import Imports
-import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
+import Polysemy
 
-getSize :: TeamId -> IntraM TeamSize
-getSize tid = do
-  r <-
-    call Brig $
-      method GET
-        . paths ["/i/teams", toByteString' tid, "size"]
-        . expect2xx
-  parseResponse (mkError status502 "server-error") r
+data BotAccess m a where
+  DeleteBot :: ConvId -> BotId -> BotAccess m ()
+
+makeSem ''BotAccess

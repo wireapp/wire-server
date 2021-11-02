@@ -34,6 +34,7 @@ import Galley.Cassandra.Services
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
 import Galley.Intra.User
+import Galley.Intra.Util
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Imports
@@ -60,7 +61,7 @@ deliverAndDeleteAsync ::
   Galley r ()
 deliverAndDeleteAsync cnv pushes = liftGalley0 . void . forkIO $ do
   gone <- liftGalley0 $ deliver0 pushes
-  mapM_ (deleteBot0 cnv . botMemId) gone
+  liftGalley0 . liftSem . embedIntra $ mapM_ (deleteBot cnv . botMemId) gone
 
 -- | Deliver events to external (bot) services.
 --

@@ -50,7 +50,6 @@ module Galley.App
     fromJsonBody,
     fromOptionalJsonBody,
     fromProtoBody,
-    initExtEnv,
     fanoutLimit,
     currentFanoutLimit,
 
@@ -97,6 +96,7 @@ import Galley.Cassandra.Team
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
 import Galley.Env
+import Galley.Intra.Effects
 import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
@@ -110,7 +110,6 @@ import Network.Wai
 import Network.Wai.Utilities hiding (Error)
 import qualified Network.Wai.Utilities as WaiError
 import qualified Network.Wai.Utilities.Server as Server
-import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
@@ -256,29 +255,6 @@ initHttpManager o = do
         managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
       }
 
--- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: IO ExtEnv
-initExtEnv = do
-  ctx <- Ssl.context
-  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
-  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
-  Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextLoadSystemCerts ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx))
-        { managerResponseTimeout = responseTimeoutMicro 10000000,
-          managerConnCount = 100
-        }
-  Just sha <- getDigestByName "SHA256"
-  return $ ExtEnv (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
-
 runGalley :: Env -> Request -> Galley GalleyEffects a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
@@ -371,12 +347,12 @@ interpretGalleyToGalley0 =
     . interpretClientStoreToCassandra
     . interpretFireAndForget
     . interpretIntra
-    . interpretBot
+    . interpretBotAccess
     . interpretFederator
     . interpretExternal
-    . interpretSpar
+    . interpretSparAccess
     . interpretGundeck
-    . interpretBrig
+    . interpretBrigAccess
     . unGalley
 
 ----------------------------------------------------------------------------------

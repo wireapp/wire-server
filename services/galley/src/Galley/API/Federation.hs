@@ -41,9 +41,9 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.MemberStore as E
-import Galley.Intra.User (getConnections)
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Galley.Types.UserList
 import Imports
@@ -216,7 +216,7 @@ addLocalUsersToRemoteConv ::
   [UserId] ->
   Galley r (Set UserId)
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
-  connStatus <- getConnections localUsers (Just [qAdder]) (Just Accepted)
+  connStatus <- liftSem $ E.getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
       connected = Set.fromList $ fmap csv2From connStatus
       unconnected = Set.difference localUserIdsSet connected

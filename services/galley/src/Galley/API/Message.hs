@@ -26,11 +26,11 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data.Services as Data
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import qualified Galley.External as External
-import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
 import Galley.Options (optSettings, setIntraListing)
 import qualified Galley.Types.Clients as Clients
@@ -255,10 +255,10 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 
   -- get local clients
   localClients <-
-    lift $
+    lift . liftSem $
       if isInternal
-        then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-        else liftSem $ getClients localMemberIds
+        then Clients.fromUserClients <$> lookupClients localMemberIds
+        else getClients localMemberIds
   let qualifiedLocalClients =
         Map.mapKeys (localDomain,)
           . makeUserMap (Set.fromList (map lmId localMembers))
