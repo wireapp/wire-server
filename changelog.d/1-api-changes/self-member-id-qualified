@@ -1,2 +1,0 @@
-The member.self ID in conversation endpoints is qualified and available as
-"qualified_id". The old unqualified "id" is still available.
