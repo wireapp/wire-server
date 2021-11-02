@@ -48,10 +48,10 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
@@ -586,7 +586,7 @@ pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
   for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
     liftSem $ push1 $ p & set pushConn conn
-  External.deliverAsync (toList bots `zip` repeat e)
+  liftSem $ deliverAsync (toList bots `zip` repeat e)
 
 verifyReusableCode ::
   Member CodeStore r =>

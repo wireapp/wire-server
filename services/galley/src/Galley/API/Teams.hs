@@ -96,6 +96,7 @@ import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.ExternalAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
@@ -103,7 +104,6 @@ import qualified Galley.Effects.Paging as E
 import qualified Galley.Effects.SparAccess as Spar
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
-import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
@@ -393,7 +393,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
     pushDeleteEvents membs e ue
-    External.deliverAsync be
+    liftSem $ E.deliverAsync be
     -- TODO: we don't delete bots here, but we should do that, since
     -- every bot user can only be in a single conversation. Just
     -- deleting conversations from the database is not enough.
@@ -954,7 +954,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPushLocal (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         liftSem . E.push1 $ p & pushConn .~ zcon
-      External.deliverAsync (bots `zip` repeat y)
+      liftSem $ E.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
   Member TeamStore r =>

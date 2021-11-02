@@ -20,18 +20,15 @@ module Galley.Effects
     GalleyEffects1,
 
     -- * Effects to access the Intra API
+    BotAccess,
     BrigAccess,
     FederatorAccess,
-    SparAccess,
     GundeckAccess,
+    SparAccess,
     interpretFederator,
 
     -- * External services
     ExternalAccess,
-    interpretExternal,
-
-    -- * Bot API
-    BotAccess,
 
     -- * Fire-and-forget async
     FireAndForget,
@@ -63,6 +60,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.GundeckAccess
 import Galley.Effects.ListItems
@@ -73,11 +71,6 @@ import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import Imports
 import Polysemy
-
-data ExternalAccess m a
-
-interpretExternal :: Sem (ExternalAccess ': r) a -> Sem r a
-interpretExternal = interpret $ \case
 
 data FederatorAccess m a
 

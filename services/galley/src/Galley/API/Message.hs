@@ -29,9 +29,9 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
 import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Effects.MemberStore
-import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Options (optSettings, setIntraListing)
 import qualified Galley.Types.Clients as Clients
@@ -454,7 +454,7 @@ runMessagePush cnv mp = do
       if localDomain /= qDomain cnv
         then unless (null pushes) $ do
           Log.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show cnv)
-        else External.deliverAndDeleteAsync (qUnqualified cnv) pushes
+        else liftSem $ deliverAndDeleteAsync (qUnqualified cnv) pushes
 
 newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
 newMessageEvent convId sender senderClient dat time receiverClient cipherText =

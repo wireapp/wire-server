@@ -96,6 +96,7 @@ import Galley.Cassandra.Team
 import Galley.Effects
 import qualified Galley.Effects.FireAndForget as E
 import Galley.Env
+import Galley.External
 import Galley.Intra.Effects
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -338,7 +339,7 @@ interpretGalleyToGalley0 =
     . interpretFireAndForget
     . interpretBotAccess
     . interpretFederator
-    . interpretExternal
+    . interpretExternalAccess
     . interpretSparAccess
     . interpretGundeckAccess
     . interpretBrigAccess

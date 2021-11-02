@@ -29,7 +29,8 @@ where
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens (view, (^.))
+import Cassandra (MonadClient (..), runClient)
+import Control.Lens (locally, view, (^.))
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Lazy as LB
@@ -97,6 +98,12 @@ newtype IntraM a = IntraM {unIntraM :: ReaderT Env Http a}
 
 instance HasRequestId IntraM where
   getRequestId = IntraM $ view reqId
+
+instance MonadClient IntraM where
+  liftClient m = do
+    cs <- view cstate
+    liftIO $ runClient cs m
+  localState f = locally cstate f
 
 instance LC.MonadLogger IntraM where
   log lvl m = do
