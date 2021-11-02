@@ -42,6 +42,7 @@ import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Galley.Types
+import Galley.Types.Conversations.Intra
 import Gundeck.Types.Notification
 import Imports
 import Test.QuickCheck (arbitrary, generate)
