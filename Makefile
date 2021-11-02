@@ -54,12 +54,12 @@ services: init install
 # Build haddocks
 .PHONY: haddock
 haddock:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal" make fast
 
 # Build haddocks only for wire-server
 .PHONY: haddock-shallow
 haddock-shallow:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal --no-haddock-deps" make fast
 
 # formats all Haskell files (which don't contain CPP)
 .PHONY: format
