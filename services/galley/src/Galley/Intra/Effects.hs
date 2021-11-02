@@ -19,14 +19,17 @@ module Galley.Intra.Effects
   ( interpretBrigAccess,
     interpretSparAccess,
     interpretBotAccess,
+    interpretGundeckAccess,
   )
 where
 
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
+import Galley.Effects.GundeckAccess (GundeckAccess (..))
 import Galley.Effects.SparAccess (SparAccess (..))
 import Galley.Env
 import Galley.Intra.Client
+import qualified Galley.Intra.Push.Internal as G
 import Galley.Intra.Spar
 import Galley.Intra.Team
 import Galley.Intra.User
@@ -83,3 +86,10 @@ interpretBotAccess ::
   Sem r a
 interpretBotAccess = interpret $ \case
   DeleteBot cid bid -> embedIntra $ deleteBot cid bid
+
+interpretGundeckAccess ::
+  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Sem (GundeckAccess ': r) a ->
+  Sem r a
+interpretGundeckAccess = interpret $ \case
+  Push ps -> embedIntra $ G.push ps

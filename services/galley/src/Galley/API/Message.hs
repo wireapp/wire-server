@@ -29,6 +29,7 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Effects.MemberStore
 import qualified Galley.External as External
 import Galley.Intra.Push
@@ -444,7 +445,7 @@ runMessagePush ::
   MessagePush ->
   Galley r ()
 runMessagePush cnv mp = do
-  pushSome (userPushes mp)
+  liftSem $ push (userPushes mp)
   pushToBots (botPushes mp)
   where
     pushToBots :: [(BotMember, Event)] -> Galley r ()

@@ -96,6 +96,7 @@ import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Paging as E
@@ -312,7 +313,7 @@ updateTeam zusr zcon tid updateData = do
   memList <- getTeamMembersForFanout tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
-  push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
+  liftSem . E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH ::
   Members '[BrigAccess, TeamStore] r =>
@@ -409,16 +410,18 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
-      forM_ chunks $ \chunk -> case chunk of
-        [] -> return ()
-        -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
-        -- push module to never fan this out to more than the limit
-        x : xs -> push1 (newPushLocal1 ListComplete zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+      liftSem $
+        forM_ chunks $ \chunk -> case chunk of
+          [] -> return ()
+          -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
+          -- push module to never fan this out to more than the limit
+          x : xs -> E.push1 (newPushLocal1 ListComplete zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
+      -- FUTUREWORK: make this behaviour part of the GundeckAccess effect
       let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
       forM_ ue $ \event -> do
         -- push ConversationDelete events
-        push1 event
+        liftSem $ E.push1 event
         threadDelay delay
     createConvDeleteEvents ::
       UTCTime ->
@@ -819,7 +822,7 @@ updateTeamMember zusr zcon tid targetMember = do
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
-      for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
+      liftSem $ for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH ::
   Members
@@ -922,7 +925,8 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
-      push1 $ newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
+      liftSem . E.push1 $
+        newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
     removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Galley r ()
     removeFromConvsAndPushConvLeaveEvent now = do
@@ -949,7 +953,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPushLocal (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
-        push1 $ p & pushConn .~ zcon
+        liftSem . E.push1 $ p & pushConn .~ zcon
       External.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
@@ -1142,7 +1146,8 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
     luid <- qualifyLocal (new ^. userId)
     liftSem $ E.createMember lcid luid
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
-  push1 $ newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  liftSem . E.push1 $
+    newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
   return sizeBeforeAdd
   where
@@ -1198,7 +1203,7 @@ finishCreateTeam team owner others zcon = do
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
-  push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+  liftSem . E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 withBindingTeam :: Member TeamStore r => UserId -> (TeamId -> Galley r b) -> Galley r b
 withBindingTeam zusr callback = do

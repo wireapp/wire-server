@@ -103,6 +103,7 @@ import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.External as External
@@ -1252,7 +1253,7 @@ postNewOtrBroadcast usr con val msg = do
   now <- liftIO getCurrentTime
   withValidOtrBroadcastRecipients usr sender recvrs val now $ \rs -> do
     let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
-    pushSome (catMaybes toUsers)
+    liftSem $ E.push (catMaybes toUsers)
 
 postNewOtrMessage ::
   Members
@@ -1282,7 +1283,7 @@ postNewOtrMessage utype usr con cnv val msg = do
   now <- liftIO getCurrentTime
   withValidOtrRecipients utype usr sender cnv recvrs val now $ \rs -> do
     let (toBots, toUsers) = foldr (newMessage qusr con (Just qcnv) msg now) ([], []) rs
-    pushSome (catMaybes toUsers)
+    liftSem $ E.push (catMaybes toUsers)
     External.deliverAndDeleteAsync cnv toBots
 
 newMessage ::
@@ -1420,7 +1421,7 @@ isTyping zusr zcon cnv typingData = do
   now <- liftIO getCurrentTime
   let e = Event Typing qcnv qusr now (EdTyping typingData)
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
-    push1 $
+    liftSem . E.push1 $
       p
         & pushConn ?~ zcon
         & pushRoute .~ RouteDirect
@@ -1493,7 +1494,7 @@ addBot zusr zcon b = do
               )
           )
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
-    push1 $ p & pushConn ?~ zcon
+    liftSem . E.push1 $ p & pushConn ?~ zcon
   External.deliverAsync ((bm : bots) `zip` repeat e)
   pure e
   where
@@ -1544,7 +1545,7 @@ rmBot zusr zcon b = do
       let evd = EdMembersLeave (QualifiedUserIdList [Qualified (botUserId (b ^. rmBotId)) localDomain])
       let e = Event MemberLeave qcnv qusr t evd
       for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn .~ zcon
+        liftSem . E.push1 $ p & pushConn .~ zcon
       liftSem $ E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
       liftSem $ E.deleteClients (botUserId (b ^. rmBotId))
       External.deliverAsync (bots `zip` repeat e)

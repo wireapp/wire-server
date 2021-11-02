@@ -168,12 +168,6 @@ instance HasFederatorConfig (Galley r) where
 fanoutLimit :: Galley r (Range 1 Teams.HardTruncationLimit Int32)
 fanoutLimit = view options >>= return . currentFanoutLimit
 
-currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
-currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. optSettings ^. setMaxFanoutSize)
-  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
-  unsafeRange (min maxTeamSize optFanoutLimit)
-
 -- Define some invariants for the options used
 validateOptions :: Logger -> Opts -> IO ()
 validateOptions l o = do
@@ -282,10 +276,6 @@ evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
-reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
-reqIdMsg = ("request" .=) . unRequestId
-{-# INLINE reqIdMsg #-}
-
 fromJsonBody :: FromJSON a => JsonRequest a -> Galley r a
 fromJsonBody r = exceptT (throwM . invalidPayload) return (parseBody r)
 {-# INLINE fromJsonBody #-}
@@ -350,7 +340,7 @@ interpretGalleyToGalley0 =
     . interpretFederator
     . interpretExternal
     . interpretSparAccess
-    . interpretGundeck
+    . interpretGundeckAccess
     . interpretBrigAccess
     . unGalley
 

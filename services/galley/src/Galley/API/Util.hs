@@ -48,6 +48,7 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import qualified Galley.External as External
@@ -298,7 +299,7 @@ acceptOne2One usr conv conn = do
         conv' <- if isJust (find ((usr /=) . lmId) mems) then liftSem promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
-          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+          liftSem $ push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
     _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
@@ -584,7 +585,7 @@ pushConversationEvent ::
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
   for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
-    push1 $ p & set pushConn conn
+    liftSem $ push1 $ p & set pushConn conn
   External.deliverAsync (toList bots `zip` repeat e)
 
 verifyReusableCode ::

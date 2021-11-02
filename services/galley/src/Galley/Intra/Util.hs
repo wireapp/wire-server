@@ -22,6 +22,7 @@ module Galley.Intra.Util
     IntraM,
     embedIntra,
     call,
+    asyncCall,
   )
 where
 
@@ -35,13 +36,14 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
-import Galley.Effects
 import Galley.Env
 import Galley.Options
-import Imports
+import Imports hiding (log)
 import Network.HTTP.Types
 import Polysemy
 import qualified Polysemy.Reader as P
+import System.Logger
+import qualified System.Logger.Class as LC
 import Util.Options
 
 data IntraComponent = Brig | Spar | Gundeck
@@ -65,6 +67,11 @@ componentRequest Gundeck o =
     . method POST
     . path "/i/push/v2"
     . expect2xx
+
+componentRetryPolicy :: IntraComponent -> RetryPolicy
+componentRetryPolicy Brig = x1
+componentRetryPolicy Spar = x1
+componentRetryPolicy Gundeck = x3
 
 embedIntra ::
   Members '[Embed IO, P.Reader Env] r =>
@@ -91,6 +98,11 @@ newtype IntraM a = IntraM {unIntraM :: ReaderT Env Http a}
 instance HasRequestId IntraM where
   getRequestId = IntraM $ view reqId
 
+instance LC.MonadLogger IntraM where
+  log lvl m = do
+    env <- ask
+    log (env ^. applog) lvl (reqIdMsg (env ^. reqId) . m)
+
 call ::
   IntraComponent ->
   (Request -> Request) ->
@@ -99,7 +111,20 @@ call comp r = do
   o <- view options
   let r0 = componentRequest comp o
   let n = LT.pack (componentName comp)
-  recovering x1 rpcHandlers (const (rpc n (r . r0)))
+  recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
+
+asyncCall :: IntraComponent -> (Request -> Request) -> IntraM ()
+asyncCall comp req = void $ do
+  let n = LT.pack (componentName comp)
+  forkIO $ catches (void (call comp req)) (handlers n)
+  where
+    handlers n =
+      [ Handler $ \(x :: RPCException) -> LC.err (rpcExceptionMsg x),
+        Handler $ \(x :: SomeException) -> LC.err $ "remote" .= n ~~ msg (show x)
+      ]
 
 x1 :: RetryPolicy
 x1 = limitRetries 1
+
+x3 :: RetryPolicy
+x3 = limitRetries 3 <> exponentialBackoff 100000

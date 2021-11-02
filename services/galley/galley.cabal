@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 38ac7f6aba3a32570b8ba7cee173570f8bbe29c53084b8aac249f9b809e49d86
+-- hash: 3bd7e34f83220a77974f10753932ac7b2173378ff547bd97176857a87c3d2d4b
 
 name:           galley
 version:        0.83.0
@@ -77,6 +77,7 @@ library
       Galley.Effects.CodeStore
       Galley.Effects.ConversationStore
       Galley.Effects.FireAndForget
+      Galley.Effects.GundeckAccess
       Galley.Effects.ListItems
       Galley.Effects.MemberStore
       Galley.Effects.Paging
@@ -93,6 +94,7 @@ library
       Galley.Intra.Effects
       Galley.Intra.Journal
       Galley.Intra.Push
+      Galley.Intra.Push.Internal
       Galley.Intra.Spar
       Galley.Intra.Team
       Galley.Intra.User
