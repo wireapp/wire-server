@@ -346,7 +346,6 @@ interpretGalleyToGalley0 =
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra
     . interpretFireAndForget
-    . interpretIntra
     . interpretBotAccess
     . interpretFederator
     . interpretExternal

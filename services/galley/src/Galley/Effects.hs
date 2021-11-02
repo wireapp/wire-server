@@ -19,10 +19,6 @@ module Galley.Effects
   ( -- * Effects needed in Galley
     GalleyEffects1,
 
-    -- * Internal services
-    Intra,
-    interpretIntra,
-
     -- * Brig
     BrigAccess,
 
@@ -84,11 +80,6 @@ import Galley.Effects.TeamStore
 import Imports
 import Polysemy
 
-data Intra m a
-
-interpretIntra :: Sem (Intra ': r) a -> Sem r a
-interpretIntra = interpret $ \case
-
 data GundeckAccess m a
 
 interpretGundeck :: Sem (GundeckAccess ': r) a -> Sem r a
@@ -112,7 +103,6 @@ type GalleyEffects1 =
      ExternalAccess,
      FederatorAccess,
      BotAccess,
-     Intra,
      FireAndForget,
      ClientStore,
      CodeStore,
