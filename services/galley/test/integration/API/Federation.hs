@@ -22,7 +22,7 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens hiding ((#))
-import Data.Aeson (FromJSON, ToJSON (..), eitherDecode)
+import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
@@ -976,10 +976,3 @@ onUserDeleted = do
       FedGalley.cuConvId eveDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers eveDomainRPCReq @?= [qUnqualified eve]
       FedGalley.cuAction eveDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
-  where
-    parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
-    parseFedRequest fr =
-      case F.request fr of
-        Just r ->
-          (eitherDecode . cs) (F.body r)
-        Nothing -> Left "No request"
