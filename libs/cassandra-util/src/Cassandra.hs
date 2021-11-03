@@ -38,6 +38,7 @@ import Cassandra.CQL as C
     Set (Set),
     Tagged (Tagged),
     TimeUuid (TimeUuid),
+    Tuple (),
     Value (CqlAscii, CqlBigInt, CqlBlob, CqlBoolean, CqlDouble, CqlInt, CqlList, CqlText, CqlUdt),
     Version (V4),
     W,
