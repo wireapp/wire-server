@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3f6cdbdd5b65f096b8f3e838b1009c4a1a0dd5e295304d123a4ad90ebcdf2057
+-- hash: 67fbb228d01b995595cb10594e0e80b0ca794cb9ecabcd5ed8f5a894c8881de7
 
 name:           brig
 version:        1.35.0
@@ -324,7 +324,6 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
-    , cql-io
     , data-timeout
     , email-validate
     , exceptions
