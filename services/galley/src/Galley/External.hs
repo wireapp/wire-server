@@ -17,6 +17,8 @@
 
 module Galley.External
   ( deliver,
+    deliverAndDeleteAsync,
+    deliverAsync,
   )
 where
 
@@ -25,10 +27,13 @@ import Bilge.Retry (httpHandlers)
 import Control.Lens
 import Control.Retry
 import Data.ByteString.Conversion.To
+import Data.Id
 import Data.Misc
 import Galley.App
+import Galley.Cassandra.Services
 import Galley.Data.Services (BotMember, botMemId, botMemService)
-import qualified Galley.Data.Services as Data
+import Galley.Effects
+import Galley.Intra.User
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Imports
@@ -41,22 +46,41 @@ import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 
+-- | Like deliver, but ignore orphaned bots and return immediately.
+--
+-- FUTUREWORK: Check if this can be removed.
+deliverAsync :: Member ExternalAccess r => [(BotMember, Event)] -> Galley r ()
+deliverAsync = liftGalley0 . void . forkIO . void . deliver0
+
+-- | Like deliver, but remove orphaned bots and return immediately.
+deliverAndDeleteAsync ::
+  Members '[ExternalAccess, BotAccess] r =>
+  ConvId ->
+  [(BotMember, Event)] ->
+  Galley r ()
+deliverAndDeleteAsync cnv pushes = liftGalley0 . void . forkIO $ do
+  gone <- liftGalley0 $ deliver0 pushes
+  mapM_ (deleteBot0 cnv . botMemId) gone
+
 -- | Deliver events to external (bot) services.
 --
 -- Returns those bots which are found to be orphaned by the external
 -- service, e.g. when the service tells us that it no longer knows about the
 -- bot.
-deliver :: [(BotMember, Event)] -> Galley [BotMember]
-deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
+deliver :: Member ExternalAccess r => [(BotMember, Event)] -> Galley r [BotMember]
+deliver = liftGalley0 . deliver0
+
+deliver0 :: [(BotMember, Event)] -> Galley0 [BotMember]
+deliver0 pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> Galley Bool
+    exec :: (BotMember, Event) -> Galley0 Bool
     exec (b, e) =
-      Data.lookupService (botMemService b) >>= \case
+      lookupService (botMemService b) >>= \case
         Nothing -> return False
         Just s -> do
           deliver1 s b e
           return True
-    eval :: [BotMember] -> (BotMember, Async Bool) -> Galley [BotMember]
+    eval :: [BotMember] -> (BotMember, Async Bool) -> Galley r [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
       r <- waitCatch a
@@ -95,7 +119,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> Galley ()
+deliver1 :: Service -> BotMember -> Event -> Galley0 ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
     let t = toByteString' (s ^. serviceToken)
@@ -125,7 +149,7 @@ urlPort (HttpsUrl u) = do
   p <- a ^. authorityPortL
   return (fromIntegral (p ^. portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley ()
+sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley r ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->

@@ -33,7 +33,7 @@ import Bilge.IO
 import Bilge.Request
 import Bilge.Response
 import Control.Error hiding (err)
-import Control.Monad.Catch (MonadThrow (..))
+import Control.Monad.Catch (MonadCatch, MonadThrow (..), try)
 import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
@@ -41,7 +41,6 @@ import Data.Text.Lazy (pack)
 import Imports hiding (log)
 import qualified Network.HTTP.Client as HTTP
 import System.Logger.Class
-import UnliftIO.Exception (try)
 
 class HasRequestId m where
   getRequestId :: m RequestId
@@ -69,7 +68,7 @@ instance Show RPCException where
       . showString "}"
 
 rpc ::
-  (MonadUnliftIO m, MonadHttp m, HasRequestId m, MonadLogger m, MonadThrow m) =>
+  (MonadIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
   LText ->
   (Request -> Request) ->
   m (Response (Maybe LByteString))
@@ -81,7 +80,7 @@ rpc sys = rpc' sys empty
 -- Note: 'syncIO' is wrapped around the IO action performing the request
 --       and any exceptions caught are re-thrown in an 'RPCException'.
 rpc' ::
-  (MonadUnliftIO m, MonadHttp m, HasRequestId m, MonadThrow m) =>
+  (MonadIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
   -- | A label for the remote system in case of 'RPCException's.
   LText ->
   Request ->

@@ -109,8 +109,9 @@ data Api routes = Api
       routes
         :- "federation"
         :> "on-user-deleted"
+        :> "conversations"
         :> OriginDomainHeader
-        :> ReqBody '[JSON] UserDeletedNotification
+        :> ReqBody '[JSON] UserDeletedConversationsNotification
         :> Post '[JSON] EmptyResponse
   }
   deriving (Generic)
@@ -262,15 +263,17 @@ newtype LeaveConversationResponse = LeaveConversationResponse
     (ToJSON, FromJSON)
     via (Either (CustomEncoded RemoveFromConversationError) ())
 
-data UserDeletedNotification = UserDeletedNotification
+type UserDeletedNotificationMaxConvs = 1000
+
+data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   { -- | This is qualified implicitly by the origin domain
-    udnUser :: UserId,
+    udcnUser :: UserId,
     -- | These are qualified implicitly by the target domain
-    udnConversations :: Range 1 1000 [ConvId]
+    udcnConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserDeletedNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedNotification)
+  deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
+  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

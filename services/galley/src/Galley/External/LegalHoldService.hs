@@ -67,7 +67,7 @@ import URI.ByteString (uriPath)
 -- api
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
-checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
+checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley r ()
 checkLegalHoldServiceStatus fpr url = do
   resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
   if
@@ -83,7 +83,7 @@ checkLegalHoldServiceStatus fpr url = do
         . Bilge.expect2xx
 
 -- | @POST /initiate@.
-requestNewDevice :: TeamId -> UserId -> Galley NewLegalHoldClient
+requestNewDevice :: TeamId -> UserId -> Galley r NewLegalHoldClient
 requestNewDevice tid uid = do
   resp <- makeLegalHoldServiceRequest tid reqParams
   case eitherDecode (responseBody resp) of
@@ -107,7 +107,7 @@ confirmLegalHold ::
   UserId ->
   -- | TODO: Replace with 'LegalHold' token type
   OpaqueAuthToken ->
-  Galley ()
+  Galley r ()
 confirmLegalHold clientId tid uid legalHoldAuthToken = do
   void $ makeLegalHoldServiceRequest tid reqParams
   where
@@ -123,7 +123,7 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
 removeLegalHold ::
   TeamId ->
   UserId ->
-  Galley ()
+  Galley r ()
 removeLegalHold tid uid = do
   void $ makeLegalHoldServiceRequest tid reqParams
   where
@@ -140,7 +140,7 @@ removeLegalHold tid uid = do
 -- | Lookup legal hold service settings for a team and make a request to the service.  Pins
 -- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
 -- authenticate the request.
-makeLegalHoldServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeLegalHoldServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
 makeLegalHoldServiceRequest tid reqBuilder = do
   maybeLHSettings <- LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
@@ -157,7 +157,7 @@ makeLegalHoldServiceRequest tid reqBuilder = do
       reqBuilder
         . Bilge.header "Authorization" ("Bearer " <> toByteString' token)
 
-makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
   (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
@@ -166,23 +166,24 @@ makeVerifiedRequest fpr url reqBuilder = do
 --   We should really _only_ use it in `checkLegalHoldServiceStatus` for the time being because
 --   this is where we check for signatures, etc. If we reuse the manager, we are likely to reuse
 --   an existing connection which will _not_ cause the new public key to be verified.
-makeVerifiedRequestFreshManager :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequestFreshManager :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
 makeVerifiedRequestFreshManager fpr url reqBuilder = do
   ExtEnv (mgr, verifyFingerprints) <- liftIO initExtEnv
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
-makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
 makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
   let verified = verifyFingerprints [fpr]
-  extHandleAll errHandler $ do
-    recovering x3 httpHandlers $
-      const $
-        liftIO $
-          withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
-            \req ->
-              Http.httpLbs req mgr
+  liftGalley0 $
+    extHandleAll errHandler $ do
+      recovering x3 httpHandlers $
+        const $
+          liftIO $
+            withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
+              \req ->
+                Http.httpLbs req mgr
   where
     reqBuilderMods =
       maybe id Bilge.host (Bilge.extHost url)

@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -39,10 +37,11 @@ import Control.Lens (unsnoc, view)
 import Data.Id
 import Data.LegalHold
 import Galley.App (Env, options)
+import qualified Galley.Cassandra.LegalHold as C
 import Galley.Data.Instances ()
 import Galley.Data.Queries as Q
 import qualified Galley.Options as Opts
-import Galley.Types.Teams (FeatureLegalHold (..), flagLegalHold)
+import Galley.Types.Teams (flagLegalHold)
 import Imports
 
 -- | Returns 'False' if legal hold is not enabled for this team
@@ -99,8 +98,5 @@ unsetTeamLegalholdWhitelisted tid =
 
 isTeamLegalholdWhitelisted :: (MonadReader Env m, MonadClient m) => TeamId -> m Bool
 isTeamLegalholdWhitelisted tid = do
-  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
-    FeatureLegalHoldDisabledPermanently -> pure False
-    FeatureLegalHoldDisabledByDefault -> pure False
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))
+  lhFlag <- view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold)
+  liftClient $ C.isTeamLegalholdWhitelisted lhFlag tid

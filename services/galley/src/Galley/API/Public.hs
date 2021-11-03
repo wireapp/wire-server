@@ -72,7 +72,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
-servantSitemap :: ServerT GalleyAPI.ServantAPI Galley
+servantSitemap :: ServerT GalleyAPI.ServantAPI (Galley GalleyEffects)
 servantSitemap =
   genericServerT $
     GalleyAPI.Api
@@ -162,6 +162,12 @@ servantSitemap =
         GalleyAPI.teamFeatureStatusConferenceCallingGet =
           getFeatureStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
             . DoAuth,
+        GalleyAPI.teamFeatureStatusSelfDeletingMessagesGet =
+          getFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSelfDeletingMessagesPut =
+          setFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal
+            . DoAuth,
         GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
         GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
@@ -171,10 +177,11 @@ servantSitemap =
         GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
-        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
       }
 
-sitemap :: Routes ApiBuilder Galley ()
+sitemap :: Routes ApiBuilder (Galley GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
 
@@ -731,7 +738,7 @@ sitemap = do
     errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
-apiDocs :: Routes ApiBuilder Galley ()
+apiDocs :: Routes ApiBuilder (Galley r) ()
 apiDocs =
   get "/conversations/api-docs" (continue docs) $
     accept "application" "json"
@@ -739,7 +746,7 @@ apiDocs =
 
 type JSON = Media "application" "json"
 
-docs :: JSON ::: ByteString -> Galley Response
+docs :: JSON ::: ByteString -> Galley r Response
 docs (_ ::: url) = do
   let models = Public.Swagger.models
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap

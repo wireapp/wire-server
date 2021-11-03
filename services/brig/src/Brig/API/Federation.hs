@@ -123,10 +123,10 @@ searchUsers (SearchRequest searchTerm) = do
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
-onUserDeleted :: Domain -> UserDeletedNotification -> Handler EmptyResponse
-onUserDeleted origDomain udn = lift $ do
-  let deletedUser = toRemoteUnsafe origDomain (udnUser udn)
-      connections = udnConnections udn
+onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> Handler EmptyResponse
+onUserDeleted origDomain udcn = lift $ do
+  let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
+      connections = udcnConnections udcn
       event = pure . UserEvent $ UserDeleted (qUntagged deletedUser)
   acceptedLocals <-
     map csv2From
