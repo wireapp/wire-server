@@ -62,9 +62,10 @@ import Wire.API.User.Saml as Types
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
+  let cassOpts = Types.cassandra opts
   connectString <-
     maybe
-      (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
+      (Cas.initialContactsPlain (cassOpts ^. casEndpoint . epHost))
       (Cas.initialContactsDisco "cassandra_spar")
       (cs <$> Types.discoUrl opts)
   cas <-
@@ -72,25 +73,17 @@ initCassandra opts lgr = do
       Cas.defSettings
         & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
         & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-        & Cas.setPortNumber (fromIntegral $ Types.cassandra opts ^. casEndpoint . epPort)
-        & Cas.setKeyspace (Keyspace $ Types.cassandra opts ^. casKeyspace)
+        & Cas.setPortNumber (fromIntegral $ cassOpts ^. casEndpoint . epPort)
+        & Cas.setKeyspace (Keyspace $ cassOpts ^. casKeyspace)
         & Cas.setMaxConnections 4
         & Cas.setMaxStreams 128
         & Cas.setPoolStripes 4
         & Cas.setSendTimeout 3
         & Cas.setResponseTimeout 10
         & Cas.setProtocolVersion V4
-        & Cas.setPolicy policy
+        & Cas.setPolicy (Cas.dcFilterPolicyIfConfigured lgr (cassOpts ^. casFilterNodesByDatacentre))
   runClient cas $ Cas.versionCheck Data.schemaVersion
   pure cas
-  where
-    -- Use FilterNodesByDatacentre if set, otherwise use all available nodes
-    -- TODO: Discuss whether to fail startup of service here if datacentre doesn't exist.
-    policy :: IO Cas.Policy
-    policy = do
-      let filterOptions = Types.cassandra opts ^. casFilterNodesByDatacentre
-      Log.info lgr $ Log.msg ("Using the following cassandra load balancing options:" :: Text) . Log.field "filter_datacentre" (show filterOptions)
-      maybe Cas.random Cas.dcAwareRandomPolicy filterOptions
 
 ----------------------------------------------------------------------
 -- servant / wai / warp

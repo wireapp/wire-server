@@ -24,7 +24,7 @@ module Cassandra.Settings
     initialContactsDisco,
     initialContactsPlain,
     dcAwareRandomPolicy,
-    dcAwareSettings,
+    dcFilterPolicyIfConfigured,
   )
 where
 
@@ -36,6 +36,7 @@ import Database.CQL.IO as C hiding (values)
 import Database.CQL.IO.Tinylog as C (mkLogger)
 import Imports
 import Network.Wreq
+import qualified System.Logger as Log
 
 -- | This function is likely only useful at Wire, as it is Wire-infra specific.
 -- Given a server name and a url returning a wire-custom "disco" json (AWS describe-instances-like json), e.g.
@@ -65,10 +66,20 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
 initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
 initialContactsPlain address = pure $ unpack address :| []
 
+-- | Use dcAwareRandomPolicy if config option filterNodesByDatacentre is set,
+-- otherwise use all available nodes with the default random policy.
+--
+-- This is only useful during a cassandra datacentre migration.
+dcFilterPolicyIfConfigured :: Log.Logger -> Maybe Text -> IO Policy
+dcFilterPolicyIfConfigured lgr mDatacentre = do
+  Log.info lgr $
+    Log.msg ("Using the following cassandra load balancing options ('Policy'):" :: Text)
+      . Log.field "filter_datacentre" (show mDatacentre)
+  maybe random dcAwareRandomPolicy mDatacentre
+
 -- | Return hosts in random order for a given DC.
 --
--- TODO: validate/guard against invalid datacentre names at service startup time
--- TODO: do we want to protect against a misconfigured datacentre during runtime while a datacentre migration is ongoing? Maybe not?
+-- This is only useful during a cassandra datacentre migration.
 dcAwareRandomPolicy :: Text -> IO Policy
 dcAwareRandomPolicy dc = do
   randomPolicy <- C.random
@@ -76,6 +87,3 @@ dcAwareRandomPolicy dc = do
   where
     dcAcceptable :: Host -> IO Bool
     dcAcceptable host = pure $ (host ^. dataCentre) == dc
-
-dcAwareSettings :: Text -> Settings
-dcAwareSettings dc = setPolicy (dcAwareRandomPolicy dc) defSettings
