@@ -1,3 +1,5 @@
+.. _release-notes:
+
 ****************************
 Release notes of helm charts
 ****************************

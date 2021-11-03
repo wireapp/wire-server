@@ -38,7 +38,68 @@ From a user's perspective:
 From the administrator's (your) perspective:
 --------------------------------------------
 
-If you're using minio installed using the ansible code from `wire-server-deploy <https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/>`__, then the `minio ansible playbook <https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/minio.yml#L75-L88>`__ (make sure to override these variables) creates a json and a html file in the right format, and makes it accessible at ``https://assets.<domain>/public/deeplink.json`` and at ``https://assets.<domain>/public/deeplink.html``
+You need to host two static files, then let your users know how to connect. There are three options listed (in order of recommendation) for hosting the static files.
+
+Note on the meaning of the URLs used below:
+
+``backendURL``
+   Use the backend API entrypoint URL, by convention ``https://nginz-https.<domain>``
+
+``backendWSURL``
+   Use the backend Websocket API entrypoint URL, by convention ``https://nginz-ssl.<domain>``
+
+``teamsURL``
+   Use the URL to the team settings part of the webapp, by convention ``https://teams.<domain>``
+
+``accountsURL``
+   Use the URL to the account pages part of the webapp, by convention ``https://account.<domain>``
+
+``blackListURL``
+   is used to disable old versions of Wire clients (mobile apps). It's a prefix URL to which e.g. `/ios` or `/android` is appended. Example URL for the wire.com production servers: ``https://clientblacklist.wire.com/prod`` and example json files: `android <https://clientblacklist.wire.com/prod/android>`_ and `iPhone <https://clientblacklist.wire.com/prod/ios>`_ .
+
+``websiteURL``
+   Is used as a basis for a few links within the app pointing to FAQs and troubleshooting pages for end users. You can leave this as ``https://wire.com`` or host your own alternative pages and point this to your own website with the equivalent pages references from within the app.
+
+``title``
+   Arbitrary string that may show up in a few places in the app. Should be used as an identifier of the backend servers in question.
+
+Host a deeplink together with your Wire installation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As of release ``2.117.0`` from ``2021-10-29`` (see `release notes<release-notes>`), you can configure your deeplink endpoints to match your installation and DNS records (see explanations above)
+
+.. code:: yaml
+
+    # override values for wire-server
+    # (e.g. under ./helm_vars/wire-server/values.yaml)
+    nginz:
+      nginx_conf:
+        deeplink:
+          endpoints:
+            backendURL: "https://nginz-https.example.com"
+            backendWSURL: "https://nginz-ssl.example.com"
+            teamsURL: "https://teams.example.com"
+            accountsURL: "https://account.example.com"
+            blackListURL: "https://clientblacklist.wire.com/prod"
+            websiteURL: "https://wire.com"
+          title: "My Custom Wire Backend"
+
+(As with any configuration changes, you need to apply them following your usual way of updating configuration (e.g. 'helm upgrade...'))
+
+Now both static files should become accessible at the backend domain under ``/deeplink.json`` and ``deeplink.html``:
+
+* ``https://nginz-https.<domain>/deeplink.json``
+* ``https://nginz-https.<domain>/deeplink.html``
+
+Host a deeplink using minio (deprecated)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+*If possible, prefer the option in the subsection above or below. This subsection is kept for backwards compatibility.*
+
+**If you're using minio** installed using the ansible code from `wire-server-deploy <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/>`__, then the `minio ansible playbook <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/minio.yml#L75-L88>`__ (make sure to override these variables) creates a json and a html file in the right format, and makes it accessible at ``https://assets.<domain>/public/deeplink.json`` and at ``https://assets.<domain>/public/deeplink.html``
+
+Host a deeplink file using your own web server
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Otherwise you need to create a ``.json`` file, and host it somewhere users can get to. This ``.json`` file needs to specify the URLs of your backend. For the production wire server that we host, the JSON would look like:
 
@@ -71,4 +132,7 @@ You now need to get a link referring to that ``.json`` file to your users, prepe
      </body>
    </html>
 
-Now, you can email a link to ``https://example.com/wire.html`` to your users, and they can follow the above procedure, by clicking on ``link``.
+Next steps
+----------
+
+Now, you can e.g. email or otherwise provide a link to the deeplink HTML page to your users on their mobile devices, and they can follow the above procedure, by clicking on ``link``.
