@@ -65,6 +65,8 @@ Copy the example hosts file::
    lines declaring a ``restund`` node (lines in the ``[all]`` section
    beginning with restund), replace the ``ansible_host`` values (``X.X.X.X``)
    with the IPs of the nodes that you can connect to via SSH.
+-  Edit the minio variables in ``[minio:vars]`` (``prefix``, ``domain`` and ``deeplink_title``)
+   by replacing ``example.com`` with your own domain.
 
 There are more settings in this file that we will set in later steps.
 
