@@ -56,6 +56,7 @@ import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import qualified OpenSSL.Session as SSL
 import Polysemy
+import Polysemy.Error
 import Ssl.Util
 import qualified Ssl.Util as SSL
 import qualified System.Logger.Class as Log
@@ -65,14 +66,14 @@ import URI.ByteString (uriPath)
 -- api
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
-checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley r ()
+checkLegalHoldServiceStatus :: Member WaiError r => Fingerprint Rsa -> HttpsUrl -> Galley r ()
 checkLegalHoldServiceStatus fpr url = do
   resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
   if
       | Bilge.statusCode resp < 400 -> pure ()
       | otherwise -> do
         Log.info . Log.msg $ showResponse resp
-        throwM legalHoldServiceBadResponse
+        liftSem $ throw legalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder =
@@ -82,7 +83,7 @@ checkLegalHoldServiceStatus fpr url = do
 
 -- | @POST /initiate@.
 requestNewDevice ::
-  Member LegalHoldStore r =>
+  Members '[LegalHoldStore, WaiError] r =>
   TeamId ->
   UserId ->
   Galley r NewLegalHoldClient
@@ -91,7 +92,7 @@ requestNewDevice tid uid = do
   case eitherDecode (responseBody resp) of
     Left e -> do
       Log.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
-      throwM legalHoldServiceBadResponse
+      liftSem $ throw legalHoldServiceBadResponse
     Right client -> pure client
   where
     reqParams =
@@ -104,7 +105,7 @@ requestNewDevice tid uid = do
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
-  Member LegalHoldStore r =>
+  Members '[LegalHoldStore, WaiError] r =>
   ClientId ->
   TeamId ->
   UserId ->
@@ -124,7 +125,7 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
-  Member LegalHoldStore r =>
+  Members '[LegalHoldStore, WaiError] r =>
   TeamId ->
   UserId ->
   Galley r ()
@@ -145,14 +146,14 @@ removeLegalHold tid uid = do
 -- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
 -- authenticate the request.
 makeLegalHoldServiceRequest ::
-  Member LegalHoldStore r =>
+  Members '[LegalHoldStore, WaiError] r =>
   TeamId ->
   (Http.Request -> Http.Request) ->
   Galley r (Http.Response LC8.ByteString)
 makeLegalHoldServiceRequest tid reqBuilder = do
   maybeLHSettings <- liftSem $ LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
-    Nothing -> throwM legalHoldServiceNotRegistered
+    Nothing -> liftSem $ throw legalHoldServiceNotRegistered
     Just lhSettings -> pure lhSettings
   let LegalHoldService
         { legalHoldServiceUrl = baseUrl,

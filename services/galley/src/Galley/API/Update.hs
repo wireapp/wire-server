@@ -71,7 +71,6 @@ where
 
 import qualified Brig.Types.User as User
 import Control.Lens
-import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Data.Code
@@ -125,6 +124,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Error
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import qualified Wire.API.Conversation.Code as Public
@@ -149,14 +149,14 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
 
 acceptConvH ::
-  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore, WaiError] r =>
   UserId ::: Maybe ConnId ::: ConvId ->
   Galley r Response
 acceptConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> acceptConv usr conn cnv
 
 acceptConv ::
-  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore, WaiError] r =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
@@ -169,14 +169,14 @@ acceptConv usr conn cnv = do
   conversationView usr conv'
 
 blockConvH ::
-  Members '[ConversationStore, MemberStore] r =>
+  Members '[ConversationStore, MemberStore, WaiError] r =>
   UserId ::: ConvId ->
   Galley r Response
 blockConvH (zusr ::: cnv) =
   empty <$ blockConv zusr cnv
 
 blockConv ::
-  Members '[ConversationStore, MemberStore] r =>
+  Members '[ConversationStore, MemberStore, WaiError] r =>
   UserId ->
   ConvId ->
   Galley r ()
@@ -185,21 +185,21 @@ blockConv zusr cnv = do
     liftSem (E.getConversation cnv)
       >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
-    throwM $
+    liftSem . throw $
       invalidOp "block: invalid conversation type"
   let mems = Data.convLocalMembers conv
   when (zusr `isMember` mems) . liftSem $
     E.deleteMembers cnv (UserList [zusr] [])
 
 unblockConvH ::
-  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore, WaiError] r =>
   UserId ::: Maybe ConnId ::: ConvId ->
   Galley r Response
 unblockConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> unblockConv usr conn cnv
 
 unblockConv ::
-  Members '[ConversationStore, GundeckAccess, MemberStore] r =>
+  Members '[ConversationStore, GundeckAccess, MemberStore, WaiError] r =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
@@ -209,7 +209,7 @@ unblockConv usr conn cnv = do
     liftSem (E.getConversation cnv)
       >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
-    throwM $
+    liftSem . throw $
       invalidOp "unblock: invalid conversation type"
   conv' <- acceptOne2One usr conv conn
   conversationView usr conv'
@@ -263,12 +263,13 @@ updateLocalConversationAccess lcnv lusr con target =
     $ target
 
 updateRemoteConversationAccess ::
+  Member WaiError r =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
   Public.ConversationAccessData ->
   Galley r (UpdateResult Event)
-updateRemoteConversationAccess _ _ _ _ = throwM federationNotImplemented
+updateRemoteConversationAccess _ _ _ _ = liftSem $ throw federationNotImplemented
 
 performAccessUpdateAction ::
   forall r.
@@ -283,7 +284,8 @@ performAccessUpdateAction ::
        GundeckAccess,
        LegalHoldStore,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   Qualified UserId ->
@@ -389,12 +391,13 @@ updateLocalConversationReceiptMode lcnv lusr con update =
       ConversationActionReceiptModeUpdate update
 
 updateRemoteConversationReceiptMode ::
+  Member WaiError r =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
   Public.ConversationReceiptModeUpdate ->
   Galley r (UpdateResult Event)
-updateRemoteConversationReceiptMode _ _ _ _ = throwM federationNotImplemented
+updateRemoteConversationReceiptMode _ _ _ _ = liftSem $ throw federationNotImplemented
 
 updateConversationMessageTimerUnqualified ::
   Members UpdateConversationActions r =>
@@ -409,7 +412,7 @@ updateConversationMessageTimerUnqualified usr zcon cnv update = do
   updateLocalConversationMessageTimer lusr zcon lcnv update
 
 updateConversationMessageTimer ::
-  (Member ConversationStore r, Members UpdateConversationActions r) =>
+  Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
   Qualified ConvId ->
@@ -420,7 +423,7 @@ updateConversationMessageTimer usr zcon qcnv update = do
   foldQualified
     lusr
     (updateLocalConversationMessageTimer lusr zcon)
-    (\_ _ -> throwM federationNotImplemented)
+    (\_ _ -> liftSem (throw federationNotImplemented))
     qcnv
     update
 
@@ -459,7 +462,8 @@ type UpdateConversationActions =
      ConversationStore,
      LegalHoldStore,
      MemberStore,
-     TeamStore
+     TeamStore,
+     WaiError
    ]
 
 -- | Update a local conversation, and notify all local and remote members.
@@ -511,9 +515,9 @@ performAction qusr conv action = case action of
   ConversationActionRemoveMembers members -> do
     performRemoveMemberAction conv (toList members)
     pure (mempty, action)
-  ConversationActionRename rename -> lift $ do
+  ConversationActionRename rename -> lift . liftSem $ do
     cn <- rangeChecked (cupName rename)
-    liftSem $ E.setConversationName (Data.convId conv) cn
+    E.setConversationName (Data.convId conv) cn
     pure (mempty, action)
   ConversationActionMessageTimerUpdate update -> do
     guard $ Data.convMessageTimer conv /= cupMessageTimer update
@@ -541,7 +545,7 @@ performAction qusr conv action = case action of
     pure (mempty, action)
 
 addCodeH ::
-  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess, WaiError] r =>
   UserId ::: ConnId ::: ConvId ->
   Galley r Response
 addCodeH (usr ::: zcon ::: cnv) =
@@ -555,7 +559,7 @@ data AddCodeResult
 
 addCode ::
   forall r.
-  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess, WaiError] r =>
   UserId ->
   ConnId ->
   ConvId ->
@@ -591,14 +595,14 @@ addCode usr zcon cnv = do
       return $ mkConversationCode (codeKey code) (codeValue code) urlPrefix
 
 rmCodeH ::
-  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess, WaiError] r =>
   UserId ::: ConnId ::: ConvId ->
   Galley r Response
 rmCodeH (usr ::: zcon ::: cnv) =
   setStatus status200 . json <$> rmCode usr zcon cnv
 
 rmCode ::
-  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
+  Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess, WaiError] r =>
   UserId ->
   ConnId ->
   ConvId ->
@@ -621,14 +625,14 @@ rmCode usr zcon cnv = do
   pure event
 
 getCodeH ::
-  Members '[CodeStore, ConversationStore] r =>
+  Members '[CodeStore, ConversationStore, WaiError] r =>
   UserId ::: ConvId ->
   Galley r Response
 getCodeH (usr ::: cnv) =
   setStatus status200 . json <$> getCode usr cnv
 
 getCode ::
-  Members '[CodeStore, ConversationStore] r =>
+  Members '[CodeStore, ConversationStore, WaiError] r =>
   UserId ->
   ConvId ->
   Galley r Public.ConversationCode
@@ -649,13 +653,19 @@ returnCode c = do
   urlPrefix <- view $ options . optSettings . setConversationCodeURI
   pure $ Public.mkConversationCode (codeKey c) (codeValue c) urlPrefix
 
-checkReusableCodeH :: Member CodeStore r => JsonRequest Public.ConversationCode -> Galley r Response
+checkReusableCodeH ::
+  Members '[CodeStore, WaiError] r =>
+  JsonRequest Public.ConversationCode ->
+  Galley r Response
 checkReusableCodeH req = do
   convCode <- fromJsonBody req
   checkReusableCode convCode
   pure empty
 
-checkReusableCode :: Member CodeStore r => Public.ConversationCode -> Galley r ()
+checkReusableCode ::
+  Members '[CodeStore, WaiError] r =>
+  Public.ConversationCode ->
+  Galley r ()
 checkReusableCode convCode =
   void $ verifyReusableCode convCode
 
@@ -668,7 +678,8 @@ joinConversationByReusableCodeH ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.ConversationCode ->
@@ -686,7 +697,8 @@ joinConversationByReusableCode ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ->
@@ -705,7 +717,8 @@ joinConversationByIdH ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JSON ->
@@ -721,7 +734,8 @@ joinConversationById ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ->
@@ -739,7 +753,8 @@ joinConversation ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ->
@@ -811,8 +826,8 @@ performAddMemberAction qusr conv invited role = do
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- liftSem $ E.getTeamConversation tid (tUnqualified lcnv)
-      when (maybe True (view managedConversation) tcv) $
-        throwM noAddToManaged
+      liftSem . when (maybe True (view managedConversation) tcv) $
+        throw noAddToManaged
       ensureConnectedOrSameTeam qusr newUsers
     checkLocals _ Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
@@ -824,14 +839,14 @@ performAddMemberAction qusr conv invited role = do
       -- remote members to the database
       unless (null remotes) $ do
         endpoint <- federatorEndpoint
-        when (isNothing endpoint) $
-          throwM federationNotConfigured
+        liftSem . when (isNothing endpoint) $
+          throw federationNotConfigured
 
       loc <- qualifyLocal ()
       foldQualified
         loc
         ensureConnectedToRemotes
-        (\_ _ -> throwM federationNotImplemented)
+        (\_ _ -> liftSem (throw federationNotImplemented))
         qusr
         remotes
 
@@ -897,7 +912,7 @@ addMembers zusr zcon cnv (Public.InviteQualified users role) = do
       ConversationActionAddMembers users role
 
 updateSelfMember ::
-  Members '[ConversationStore, GundeckAccess, ExternalAccess, MemberStore] r =>
+  Members '[ConversationStore, GundeckAccess, ExternalAccess, MemberStore, WaiError] r =>
   UserId ->
   ConnId ->
   Qualified ConvId ->
@@ -979,7 +994,7 @@ updateOtherMember zusr zcon qcnv qvictim update = do
   doUpdate qcnv lusr zcon qvictim update
 
 updateOtherMemberLocalConv ::
-  Members UpdateConversationActions r =>
+  (Members UpdateConversationActions r) =>
   Local ConvId ->
   Local UserId ->
   ConnId ->
@@ -987,19 +1002,20 @@ updateOtherMemberLocalConv ::
   Public.OtherMemberUpdate ->
   Galley r ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult $ do
-  when (qUntagged lusr == qvictim) $
-    throwM invalidTargetUserOp
+  lift . liftSem . when (qUntagged lusr == qvictim) $
+    throw invalidTargetUserOp
   updateLocalConversation lcnv (qUntagged lusr) (Just con) $
     ConversationActionMemberUpdate qvictim update
 
 updateOtherMemberRemoteConv ::
+  Member WaiError r =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
   Galley r ()
-updateOtherMemberRemoteConv _ _ _ _ _ = throwM federationNotImplemented
+updateOtherMemberRemoteConv _ _ _ _ _ = liftSem $ throw federationNotImplemented
 
 removeMemberUnqualified ::
   Members UpdateConversationActions r =>
@@ -1085,7 +1101,7 @@ data OtrResult
   | OtrUnknownClient !Public.UnknownClient
   | OtrConversationNotFound !Public.ConvNotFound
 
-handleOtrResult :: OtrResult -> Galley r Response
+handleOtrResult :: Member WaiError r => OtrResult -> Galley r Response
 handleOtrResult = \case
   OtrSent m -> pure $ json m & setStatus status201
   OtrMissingRecipients m -> pure $ json m & setStatus status412
@@ -1102,7 +1118,8 @@ postBotMessageH ::
        GundeckAccess,
        ExternalAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
@@ -1122,7 +1139,8 @@ postBotMessage ::
        GundeckAccess,
        ExternalAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   BotId ->
@@ -1143,7 +1161,8 @@ postProteusMessage ::
        GundeckAccess,
        ExternalAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ->
@@ -1169,7 +1188,8 @@ postOtrMessageUnqualified ::
        GundeckAccess,
        ExternalAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ->
@@ -1206,7 +1226,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
     <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH ::
-  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore, WaiError] r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON ->
   Galley r Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1215,7 +1235,7 @@ postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH ::
-  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore, WaiError] r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ->
   Galley r Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
@@ -1224,7 +1244,7 @@ postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast ::
-  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore, WaiError] r =>
   UserId ->
   ConnId ->
   Public.OtrFilterMissing ->
@@ -1244,7 +1264,7 @@ allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrep
 
 -- | bots are not supported on broadcast
 postNewOtrBroadcast ::
-  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, GundeckAccess, TeamStore, WaiError] r =>
   UserId ->
   Maybe ConnId ->
   OtrFilterMissing ->
@@ -1269,7 +1289,8 @@ postNewOtrMessage ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserType ->
@@ -1338,7 +1359,7 @@ updateConversationName zusr zcon qcnv convRename = do
   foldQualified
     lusr
     (updateLocalConversationName lusr zcon)
-    (\_ _ -> throwM federationNotImplemented)
+    (\_ _ -> liftSem (throw federationNotImplemented))
     qcnv
     convRename
 
@@ -1402,7 +1423,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
 
 isTypingH ::
-  Members '[GundeckAccess, MemberStore] r =>
+  Members '[GundeckAccess, MemberStore, WaiError] r =>
   UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData ->
   Galley r Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
@@ -1411,7 +1432,7 @@ isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   pure empty
 
 isTyping ::
-  Members '[GundeckAccess, MemberStore] r =>
+  Members '[GundeckAccess, MemberStore, WaiError] r =>
   UserId ->
   ConnId ->
   ConvId ->
@@ -1433,12 +1454,12 @@ isTyping zusr zcon cnv typingData = do
         & pushRoute .~ RouteDirect
         & pushTransient .~ True
 
-addServiceH :: Member ServiceStore r => JsonRequest Service -> Galley r Response
+addServiceH :: Members '[ServiceStore, WaiError] r => JsonRequest Service -> Galley r Response
 addServiceH req = do
   liftSem . E.createService =<< fromJsonBody req
   return empty
 
-rmServiceH :: Member ServiceStore r => JsonRequest ServiceRef -> Galley r Response
+rmServiceH :: Members '[ServiceStore, WaiError] r => JsonRequest ServiceRef -> Galley r Response
 rmServiceH req = do
   liftSem . E.deleteService =<< fromJsonBody req
   return empty
@@ -1450,7 +1471,8 @@ addBotH ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest AddBot ->
@@ -1467,7 +1489,8 @@ addBot ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   UserId ->
@@ -1517,11 +1540,12 @@ addBot zusr zcon b = do
     teamConvChecks :: ConvId -> TeamId -> Galley r ()
     teamConvChecks cid tid = do
       tcv <- liftSem $ E.getTeamConversation tid cid
-      when (maybe True (view managedConversation) tcv) $
-        throwM noAddToManaged
+      liftSem $
+        when (maybe True (view managedConversation) tcv) $
+          throw noAddToManaged
 
 rmBotH ::
-  Members '[ClientStore, ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
+  Members '[ClientStore, ConversationStore, ExternalAccess, GundeckAccess, MemberStore, WaiError] r =>
   UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
   Galley r Response
 rmBotH (zusr ::: zcon ::: req) = do
@@ -1529,7 +1553,15 @@ rmBotH (zusr ::: zcon ::: req) = do
   handleUpdateResult <$> rmBot zusr zcon bot
 
 rmBot ::
-  Members '[ClientStore, ConversationStore, ExternalAccess, GundeckAccess, MemberStore] r =>
+  Members
+    '[ ClientStore,
+       ConversationStore,
+       ExternalAccess,
+       GundeckAccess,
+       MemberStore,
+       WaiError
+     ]
+    r =>
   UserId ->
   Maybe ConnId ->
   RemoveBot ->
@@ -1561,14 +1593,14 @@ rmBot zusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-ensureMemberLimit :: Foldable f => [LocalMember] -> f a -> Galley r ()
+ensureMemberLimit :: (Foldable f, Member WaiError r) => [LocalMember] -> f a -> Galley r ()
 ensureMemberLimit old new = do
   o <- view options
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
-  when (length old + length new > maxSize) $
-    throwM tooManyMembers
+  liftSem . when (length old + length new > maxSize) $
+    throw tooManyMembers
 
-ensureConvMember :: [LocalMember] -> UserId -> Galley r ()
+ensureConvMember :: Member WaiError r => [LocalMember] -> UserId -> Galley r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $
     throwErrorDescriptionType @ConvNotFound
@@ -1589,7 +1621,8 @@ data CheckedOtrRecipients
 
 -- | bots are not supported on broadcast
 withValidOtrBroadcastRecipients ::
-  Members '[BrigAccess, ClientStore, TeamStore] r =>
+  forall r.
+  Members '[BrigAccess, ClientStore, TeamStore, WaiError] r =>
   UserId ->
   ClientId ->
   OtrRecipients ->
@@ -1600,8 +1633,8 @@ withValidOtrBroadcastRecipients ::
 withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
-  unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
-    throwM broadcastLimitExceeded
+  liftSem . unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
+    throw broadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
@@ -1625,17 +1658,18 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       let localUserIdsInFilter = toList uListInFilter
       let localUserIdsInRcps = Map.keys $ userClientMap (otrRecipientsMap rcps)
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
-      unless (length localUserIdsToLookup <= limit) $
-        throwM broadcastLimitExceeded
+      liftSem . unless (length localUserIdsToLookup <= limit) $
+        throw broadcastLimitExceeded
       liftSem $ E.selectTeamMembers tid localUserIdsToLookup
+    maybeFetchAllMembersInTeam :: TeamId -> Galley r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
       mems <- getTeamMembersForFanout tid
-      when (mems ^. teamMemberListType == ListTruncated) $
-        throwM broadcastLimitExceeded
+      liftSem . when (mems ^. teamMemberListType == ListTruncated) $
+        throw broadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  Members '[BrigAccess, ClientStore, ConversationStore, MemberStore, TeamStore] r =>
+  Members '[BrigAccess, ClientStore, ConversationStore, MemberStore, TeamStore, WaiError] r =>
   UserType ->
   UserId ->
   ClientId ->
@@ -1663,7 +1697,7 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
       handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::
-  Members '[BrigAccess, TeamStore] r =>
+  Members '[BrigAccess, TeamStore, WaiError] r =>
   -- | Type of proposed sender (user / bot)
   UserType ->
   -- | Proposed sender (user)
@@ -1775,10 +1809,10 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
 
 -- Copied from 'Galley.API.Team' to break import cycles
-withBindingTeam :: Member TeamStore r => UserId -> (TeamId -> Galley r b) -> Galley r b
+withBindingTeam :: Members '[TeamStore, WaiError] r => UserId -> (TeamId -> Galley r b) -> Galley r b
 withBindingTeam zusr callback = do
   tid <- liftSem (E.getOneUserTeam zusr) >>= ifNothing teamNotFound
   binding <- liftSem (E.getTeamBinding tid) >>= ifNothing teamNotFound
   case binding of
     Binding -> callback tid
-    NonBinding -> throwM nonBindingTeam
+    NonBinding -> liftSem $ throw nonBindingTeam

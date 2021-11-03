@@ -17,7 +17,6 @@
 
 module Galley.API.Error where
 
-import Control.Monad.Catch (MonadThrow (..))
 import Data.Domain (Domain, domainText)
 import Data.Proxy
 import Data.String.Conversions (cs)
@@ -48,23 +47,6 @@ errorDescriptionTypeToWai ::
   ) =>
   Error
 errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
-
-throwErrorDescription ::
-  (KnownStatus code, KnownSymbol lbl, MonadThrow m) =>
-  ErrorDescription code lbl desc ->
-  m a
-throwErrorDescription = throwM . errorDescriptionToWai
-
-throwErrorDescriptionType ::
-  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol) m a.
-  ( KnownStatus code,
-    KnownSymbol lbl,
-    KnownSymbol desc,
-    MonadThrow m,
-    e ~ ErrorDescription code lbl desc
-  ) =>
-  m a
-throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
 
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"

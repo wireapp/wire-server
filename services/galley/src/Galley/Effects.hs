@@ -78,7 +78,9 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
+import qualified Network.Wai.Utilities as Wai
 import Polysemy
+import Polysemy.Error
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -105,5 +107,6 @@ type GalleyEffects1 =
      ListItems CassandraPaging (Remote ConvId),
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
-     ListItems InternalPaging TeamId
+     ListItems InternalPaging TeamId,
+     Error (Wai.Error)
    ]

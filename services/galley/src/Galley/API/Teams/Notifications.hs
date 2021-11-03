@@ -59,18 +59,16 @@ import Gundeck.Types.Notification
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities
+import Polysemy.Error
 
 getTeamNotifications ::
-  Members '[BrigAccess, TeamNotificationStore] r =>
+  Members '[BrigAccess, TeamNotificationStore, WaiError] r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
   Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid :: TeamId <- do
-    mtid <- liftSem $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
-    let err = throwM teamNotFound
-    maybe err pure mtid
+  tid <- liftSem . (note teamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
   page <- liftSem $ E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
@@ -80,11 +78,11 @@ getTeamNotifications zusr since size = do
 
 pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Galley r ()
 pushTeamEvent tid evt = do
-  nid <- mkNotificationId
+  nid <- liftIO mkNotificationId
   liftSem $ E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)
 
 -- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
-mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
+mkNotificationId :: IO NotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
   maybe (throwM err) return ni

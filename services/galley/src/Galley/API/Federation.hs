@@ -18,7 +18,6 @@ module Galley.API.Federation where
 
 import Brig.Types.Connection (Relation (Accepted))
 import Control.Lens (itraversed, (<.>))
-import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
@@ -47,6 +46,7 @@ import qualified Galley.Effects.MemberStore as E
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Galley.Types.UserList
 import Imports
+import Polysemy.Error
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
@@ -248,7 +248,8 @@ leaveConversation ::
        GundeckAccess,
        LegalHoldStore,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   Domain ->
@@ -323,7 +324,8 @@ sendMessage ::
        GundeckAccess,
        ExternalAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiError
      ]
     r =>
   Domain ->
@@ -334,7 +336,7 @@ sendMessage originDomain msr = do
   msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
   MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
   where
-    err = throwM . invalidPayload . LT.pack
+    err = liftSem . throw . invalidPayload . LT.pack
 
 onUserDeleted ::
   Members

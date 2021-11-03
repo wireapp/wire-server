@@ -38,7 +38,6 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (throwErrorDescriptionType)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.One2One as One2One
@@ -303,7 +302,7 @@ servantSitemap =
 
 iGetTeamFeature ::
   forall a r.
-  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
+  (Public.KnownTeamFeatureName a, Members '[TeamStore, WaiError] r) =>
   (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley r (Public.TeamFeatureStatus a)
@@ -311,7 +310,7 @@ iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a r.
-  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
+  (Public.KnownTeamFeatureName a, Members '[TeamStore, WaiError] r) =>
   (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -629,7 +628,7 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Members '[BrigAccess, TeamStore] r =>
+  Members '[BrigAccess, TeamStore, WaiError] r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
