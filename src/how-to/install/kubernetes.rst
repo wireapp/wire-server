@@ -52,6 +52,12 @@ Open hosts.ini and replace `X.X.X.X` with the IP address of your virtual machine
 
   sed -i 's/X.X.X.X/1.2.3.4/g' inventory/demo/hosts.ini
 
+Minio setup
+-----------
+
+In the ``inventory/demo/hosts.ini`` file, edit the minio variables in ``[minio:vars]`` (``prefix``, ``domain`` and ``deeplink_title``)
+by replacing ``example.com`` with your own domain.
+
 How to install kubernetes
 --------------------------
 
