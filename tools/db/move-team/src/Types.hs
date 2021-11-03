@@ -36,7 +36,6 @@ import Data.Id
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
 import qualified Data.Vector as V
-import Database.CQL.Protocol (ColumnType (VarCharColumn))
 import Galley.Data.Instances ()
 import Imports
 import System.Logger (Logger)
