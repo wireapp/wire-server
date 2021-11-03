@@ -17,19 +17,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.CustomBackend
-  ( getCustomBackend,
-    setCustomBackend,
-    deleteCustomBackend,
-  )
-where
+module Galley.Cassandra.CustomBackend (interpretCustomBackendStoreToCassandra) where
 
 import Cassandra
 import Data.Domain (Domain)
+import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
+import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Galley.Types
 import Imports
+import Polysemy
+import qualified Polysemy.Reader as P
+
+interpretCustomBackendStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (CustomBackendStore ': r) a ->
+  Sem r a
+interpretCustomBackendStoreToCassandra = interpret $ \case
+  GetCustomBackend dom -> embedClient $ getCustomBackend dom
+  SetCustomBackend dom b -> embedClient $ setCustomBackend dom b
+  DeleteCustomBackend dom -> embedClient $ deleteCustomBackend dom
 
 getCustomBackend :: MonadClient m => Domain -> m (Maybe CustomBackend)
 getCustomBackend domain =

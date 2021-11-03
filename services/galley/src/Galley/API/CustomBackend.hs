@@ -27,37 +27,41 @@ import Data.Domain (Domain)
 import Galley.API.Error
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.CustomBackend as Data
+import Galley.Effects.CustomBackendStore
 import Galley.Types
 import Imports hiding ((\\))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Polysemy
 import qualified Wire.API.CustomBackend as Public
 
 -- PUBLIC ---------------------------------------------------------------------
 
-getCustomBackendByDomainH :: Domain ::: JSON -> Galley r Response
+getCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Galley r Response
 getCustomBackendByDomainH (domain ::: _) =
   json <$> getCustomBackendByDomain domain
 
-getCustomBackendByDomain :: Domain -> Galley r Public.CustomBackend
+getCustomBackendByDomain :: Member CustomBackendStore r => Domain -> Galley r Public.CustomBackend
 getCustomBackendByDomain domain =
-  Data.getCustomBackend domain >>= \case
+  liftSem (getCustomBackend domain) >>= \case
     Nothing -> throwM (customBackendNotFound domain)
     Just customBackend -> pure customBackend
 
 -- INTERNAL -------------------------------------------------------------------
 
-internalPutCustomBackendByDomainH :: Domain ::: JsonRequest CustomBackend -> Galley r Response
+internalPutCustomBackendByDomainH ::
+  Member CustomBackendStore r =>
+  Domain ::: JsonRequest CustomBackend ->
+  Galley r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do
   customBackend <- fromJsonBody req
   -- simple enough to not need a separate function
-  Data.setCustomBackend domain customBackend
+  liftSem $ setCustomBackend domain customBackend
   pure (empty & setStatus status201)
 
-internalDeleteCustomBackendByDomainH :: Domain ::: JSON -> Galley r Response
+internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Galley r Response
 internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  Data.deleteCustomBackend domain
+  liftSem $ deleteCustomBackend domain
   pure (empty & setStatus status200)

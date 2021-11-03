@@ -88,20 +88,20 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
-import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.ResultSet as Data
-import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
-import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.ExternalAccess as E
 import qualified Galley.Effects.GundeckAccess as E
+import qualified Galley.Effects.LegalHoldStore as Data
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Paging as E
+import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import qualified Galley.Effects.SparAccess as Spar
+import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.Intra.Journal as Journal
@@ -367,6 +367,7 @@ uncheckedDeleteTeam ::
     '[ BrigAccess,
        ExternalAccess,
        GundeckAccess,
+       LegalHoldStore,
        MemberStore,
        SparAccess,
        TeamStore
@@ -400,7 +401,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
       liftSem $ mapM_ (E.deleteUser . view userId) membs
       Journal.teamDelete tid
-    Data.unsetTeamLegalholdWhitelisted tid
+    liftSem $ Data.unsetTeamLegalholdWhitelisted tid
     liftSem $ E.deleteTeam tid
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley r ()
@@ -687,7 +688,16 @@ uncheckedGetTeamMembers ::
 uncheckedGetTeamMembers tid maxResults = liftSem $ E.getTeamMembersWithLimit tid maxResults
 
 addTeamMemberH ::
-  Members '[BrigAccess, GundeckAccess, MemberStore, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       LegalHoldStore,
+       MemberStore,
+       TeamFeatureStore,
+       TeamNotificationStore,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
   Galley r Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -696,7 +706,16 @@ addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   pure empty
 
 addTeamMember ::
-  Members '[BrigAccess, GundeckAccess, MemberStore, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       LegalHoldStore,
+       MemberStore,
+       TeamFeatureStore,
+       TeamNotificationStore,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -723,7 +742,16 @@ addTeamMember zusr zcon tid nmem = do
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH ::
-  Members '[BrigAccess, GundeckAccess, MemberStore, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       MemberStore,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore,
+       TeamNotificationStore
+     ]
+    r =>
   TeamId ::: JsonRequest NewTeamMember ::: JSON ->
   Galley r Response
 uncheckedAddTeamMemberH (tid ::: req ::: _) = do
@@ -732,7 +760,16 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
   return empty
 
 uncheckedAddTeamMember ::
-  Members '[BrigAccess, GundeckAccess, MemberStore, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       MemberStore,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore,
+       TeamNotificationStore
+     ]
+    r =>
   TeamId ->
   NewTeamMember ->
   Galley r ()
@@ -994,6 +1031,7 @@ deleteTeamConversation ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       LegalHoldStore,
        MemberStore,
        TeamStore
      ]
@@ -1009,7 +1047,7 @@ deleteTeamConversation zusr zcon _tid cid = do
   void $ API.deleteLocalConversation lusr zcon lconv
 
 getSearchVisibilityH ::
-  Member TeamStore r =>
+  Members '[SearchVisibilityStore, TeamStore] r =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getSearchVisibilityH (uid ::: tid ::: _) = do
@@ -1018,7 +1056,7 @@ getSearchVisibilityH (uid ::: tid ::: _) = do
   json <$> getSearchVisibilityInternal tid
 
 setSearchVisibilityH ::
-  Member TeamStore r =>
+  Members '[SearchVisibilityStore, TeamStore, TeamFeatureStore] r =>
   UserId ::: TeamId ::: JsonRequest Public.TeamSearchVisibilityView ::: JSON ->
   Galley r Response
 setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
@@ -1102,7 +1140,11 @@ ensureNotTooLarge tid = do
 -- size unlimited, because we make the assumption that these teams won't turn
 -- LegalHold off after activation.
 --  FUTUREWORK: Find a way around the fanout limit.
-ensureNotTooLargeForLegalHold :: Member BrigAccess r => TeamId -> Int -> Galley r ()
+ensureNotTooLargeForLegalHold ::
+  Members '[BrigAccess, LegalHoldStore, TeamFeatureStore] r =>
+  TeamId ->
+  Int ->
+  Galley r ()
 ensureNotTooLargeForLegalHold tid teamSize = do
   whenM (isLegalHoldEnabledForTeam tid) $ do
     unlessM (teamSizeBelowLimit teamSize) $ do
@@ -1126,7 +1168,7 @@ teamSizeBelowLimit teamSize = do
       pure True
 
 addTeamMemberInternal ::
-  Members '[BrigAccess, GundeckAccess, MemberStore, TeamStore] r =>
+  Members '[BrigAccess, GundeckAccess, MemberStore, TeamNotificationStore, TeamStore] r =>
   TeamId ->
   Maybe UserId ->
   Maybe ConnId ->
@@ -1164,7 +1206,7 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
 -- less warped.  This is a work-around because we cannot send events to all of a large team.
 -- See haddocks of module "Galley.API.TeamNotifications" for details.
 getTeamNotificationsH ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamNotificationStore] r =>
   UserId
     ::: Maybe ByteString {- NotificationId -}
     ::: Range 1 10000 Int32
@@ -1226,18 +1268,24 @@ getBindingTeamMembers :: Member TeamStore r => UserId -> Galley r TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
   getTeamMembersForFanout tid
 
-canUserJoinTeamH :: Member BrigAccess r => TeamId -> Galley r Response
+canUserJoinTeamH ::
+  Members '[BrigAccess, LegalHoldStore, TeamFeatureStore] r =>
+  TeamId ->
+  Galley r Response
 canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 
 -- This could be extended for more checks, for now we test only legalhold
-canUserJoinTeam :: Member BrigAccess r => TeamId -> Galley r ()
+canUserJoinTeam :: Members '[BrigAccess, LegalHoldStore, TeamFeatureStore] r => TeamId -> Galley r ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
     (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
     ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
-getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+getTeamSearchVisibilityAvailableInternal ::
+  Member TeamFeatureStore r =>
+  TeamId ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
   defConfig <- do
@@ -1246,28 +1294,44 @@ getTeamSearchVisibilityAvailableInternal tid = do
       FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
       FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
-  fromMaybe defConfig
-    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
+  liftSem $
+    fromMaybe defConfig
+      <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
-getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley r Response
+getSearchVisibilityInternalH ::
+  Member SearchVisibilityStore r =>
+  TeamId ::: JSON ->
+  Galley r Response
 getSearchVisibilityInternalH (tid ::: _) =
   json <$> getSearchVisibilityInternal tid
 
-getSearchVisibilityInternal :: TeamId -> Galley r TeamSearchVisibilityView
-getSearchVisibilityInternal = fmap TeamSearchVisibilityView . SearchVisibilityData.getSearchVisibility
+getSearchVisibilityInternal ::
+  Member SearchVisibilityStore r =>
+  TeamId ->
+  Galley r TeamSearchVisibilityView
+getSearchVisibilityInternal =
+  fmap TeamSearchVisibilityView . liftSem
+    . SearchVisibilityData.getSearchVisibility
 
-setSearchVisibilityInternalH :: TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON -> Galley r Response
+setSearchVisibilityInternalH ::
+  Members '[SearchVisibilityStore, TeamFeatureStore] r =>
+  TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON ->
+  Galley r Response
 setSearchVisibilityInternalH (tid ::: req ::: _) = do
   setSearchVisibilityInternal tid =<< fromJsonBody req
   pure noContent
 
-setSearchVisibilityInternal :: TeamId -> TeamSearchVisibilityView -> Galley r ()
+setSearchVisibilityInternal ::
+  Members '[SearchVisibilityStore, TeamFeatureStore] r =>
+  TeamId ->
+  TeamSearchVisibilityView ->
+  Galley r ()
 setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
   status <- getTeamSearchVisibilityAvailableInternal tid
   unless (Public.tfwoStatus status == Public.TeamFeatureEnabled) $
     throwM teamSearchVisibilityNotEnabled
-  SearchVisibilityData.setSearchVisibility tid searchVisibility
+  liftSem $ SearchVisibilityData.setSearchVisibility tid searchVisibility
 
 userIsTeamOwnerH :: Member TeamStore r => TeamId ::: UserId ::: JSON -> Galley r Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

@@ -1,9 +1,60 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+-- | See also: "Galley.API.TeamNotifications".
+--
+-- This module is a clone of "Gundeck.Notification.Data".
+--
+-- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
+-- We should really use a scalable message queue instead.
+module Galley.Cassandra.TeamNotifications
+  ( interpretTeamNotificationStoreToCassandra,
+  )
+where
+
+import Cassandra
+import qualified Data.Aeson as JSON
+import Data.Id
+import Data.List1 (List1)
+import Data.Range (Range, fromRange)
+import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
+import qualified Data.Sequence as Seq
+import Galley.Cassandra.Store
+import Galley.Data.TeamNotifications
+import Galley.Effects.TeamNotificationStore
+import Gundeck.Types.Notification
+import Imports
+import Polysemy
+import qualified Polysemy.Reader as P
+
+interpretTeamNotificationStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (TeamNotificationStore ': r) a ->
+  Sem r a
+interpretTeamNotificationStoreToCassandra = interpret $ \case
+  CreateTeamNotification tid nid objs -> embedClient $ add tid nid objs
+  GetTeamNotifications tid mnid lim -> embedClient $ fetch tid mnid lim
+
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::
   TeamId ->
   NotificationId ->
   List1 JSON.Object ->
-  Galley r ()
+  Client ()
 add tid nid (Blob . JSON.encode -> payload) =
   write cqlInsert (params LocalQuorum (tid, nid, payload, notificationTTLSeconds)) & retry x5
   where
@@ -17,7 +68,7 @@ add tid nid (Blob . JSON.encode -> payload) =
 notificationTTLSeconds :: Int32
 notificationTTLSeconds = 24192200
 
-fetch :: TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> Galley r ResultPage
+fetch :: TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> Client ResultPage
 fetch tid since (fromRange -> size) = do
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
@@ -42,7 +93,7 @@ fetch tid since (fromRange -> size) = do
       Seq QueuedNotification ->
       Int ->
       Page (TimeUuid, Blob) ->
-      Galley r (Seq QueuedNotification, Bool)
+      Client (Seq QueuedNotification, Bool)
     collect acc num page =
       let ns = splitAt num $ foldr toNotif [] (result page)
           nseq = Seq.fromList (fst ns)

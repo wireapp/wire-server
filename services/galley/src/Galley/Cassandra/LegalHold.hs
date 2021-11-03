@@ -15,31 +15,65 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted) where
+module Galley.Cassandra.LegalHold
+  ( interpretLegalHoldStoreToCassandra,
+    isTeamLegalholdWhitelisted,
 
+    -- * Used by tests
+    selectPendingPrekeys,
+  )
+where
+
+import Brig.Types.Client.Prekey
+import Brig.Types.Instances ()
+import Brig.Types.Team.LegalHold
 import Cassandra
+import Control.Lens (unsnoc)
 import Data.Id
-import Galley.Data.Queries as Q
+import Data.LegalHold
+import Galley.Cassandra.Store
+import Galley.Data.Instances ()
+import qualified Galley.Data.Queries as Q
+import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
 import Galley.Types.Teams
 import Imports
+import Polysemy
+import qualified Polysemy.Reader as P
+
+interpretLegalHoldStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  FeatureLegalHold ->
+  Sem (LegalHoldStore ': r) a ->
+  Sem r a
+interpretLegalHoldStoreToCassandra lh = interpret $ \case
+  CreateSettings s -> embedClient $ createSettings s
+  GetSettings tid -> embedClient $ getSettings tid
+  RemoveSettings tid -> embedClient $ removeSettings tid
+  InsertPendingPrekeys uid pkeys -> embedClient $ insertPendingPrekeys uid pkeys
+  SelectPendingPrekeys uid -> embedClient $ selectPendingPrekeys uid
+  DropPendingPrekeys uid -> embedClient $ dropPendingPrekeys uid
+  SetUserLegalHoldStatus tid uid st -> embedClient $ setUserLegalHoldStatus tid uid st
+  SetTeamLegalholdWhitelisted tid -> embedClient $ setTeamLegalholdWhitelisted tid
+  UnsetTeamLegalholdWhitelisted tid -> embedClient $ unsetTeamLegalholdWhitelisted tid
+  IsTeamLegalholdWhitelisted tid -> embedClient $ isTeamLegalholdWhitelisted lh tid
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team
 createSettings :: MonadClient m => LegalHoldService -> m ()
 createSettings (LegalHoldService tid url fpr tok key) = do
-  retry x1 $ write insertLegalHoldSettings (params LocalQuorum (url, fpr, tok, key, tid))
+  retry x1 $ write Q.insertLegalHoldSettings (params LocalQuorum (url, fpr, tok, key, tid))
 
 -- | Returns 'Nothing' if no settings are saved
 -- The Caller is responsible for checking whether legal hold is enabled for this team
 getSettings :: MonadClient m => TeamId -> m (Maybe LegalHoldService)
 getSettings tid =
   fmap toLegalHoldService <$> do
-    retry x1 $ query1 selectLegalHoldSettings (params LocalQuorum (Identity tid))
+    retry x1 $ query1 Q.selectLegalHoldSettings (params LocalQuorum (Identity tid))
   where
     toLegalHoldService (httpsUrl, fingerprint, tok, key) = LegalHoldService tid httpsUrl fingerprint tok key
 
 removeSettings :: MonadClient m => TeamId -> m ()
-removeSettings tid = retry x5 (write removeLegalHoldSettings (params LocalQuorum (Identity tid)))
+removeSettings tid = retry x5 (write Q.removeLegalHoldSettings (params LocalQuorum (Identity tid)))
 
 insertPendingPrekeys :: MonadClient m => UserId -> [Prekey] -> m ()
 insertPendingPrekeys uid keys = retry x5 . batch $
@@ -74,11 +108,6 @@ setTeamLegalholdWhitelisted tid =
 unsetTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
 unsetTeamLegalholdWhitelisted tid =
   retry x5 (write Q.removeLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
-
-isTeamLegalholdWhitelisted :: (MonadReader Env m, MonadClient m) => TeamId -> m Bool
-isTeamLegalholdWhitelisted tid = do
-  lhFlag <- view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold)
-  liftClient $ C.isTeamLegalholdWhitelisted lhFlag tid
 
 isTeamLegalholdWhitelisted :: FeatureLegalHold -> TeamId -> Client Bool
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False

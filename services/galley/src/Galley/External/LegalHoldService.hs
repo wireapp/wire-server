@@ -44,7 +44,7 @@ import Data.Id
 import Data.Misc
 import Galley.API.Error
 import Galley.App
-import qualified Galley.Data.LegalHold as LegalHoldData
+import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.Env
 import Galley.External.LegalHoldService.Types
 import Imports
@@ -55,6 +55,7 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import qualified OpenSSL.Session as SSL
+import Polysemy
 import Ssl.Util
 import qualified Ssl.Util as SSL
 import qualified System.Logger.Class as Log
@@ -80,7 +81,11 @@ checkLegalHoldServiceStatus fpr url = do
         . Bilge.expect2xx
 
 -- | @POST /initiate@.
-requestNewDevice :: TeamId -> UserId -> Galley r NewLegalHoldClient
+requestNewDevice ::
+  Member LegalHoldStore r =>
+  TeamId ->
+  UserId ->
+  Galley r NewLegalHoldClient
 requestNewDevice tid uid = do
   resp <- makeLegalHoldServiceRequest tid reqParams
   case eitherDecode (responseBody resp) of
@@ -99,6 +104,7 @@ requestNewDevice tid uid = do
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
+  Member LegalHoldStore r =>
   ClientId ->
   TeamId ->
   UserId ->
@@ -118,6 +124,7 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
+  Member LegalHoldStore r =>
   TeamId ->
   UserId ->
   Galley r ()
@@ -137,9 +144,13 @@ removeLegalHold tid uid = do
 -- | Lookup legal hold service settings for a team and make a request to the service.  Pins
 -- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
 -- authenticate the request.
-makeLegalHoldServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
+makeLegalHoldServiceRequest ::
+  Member LegalHoldStore r =>
+  TeamId ->
+  (Http.Request -> Http.Request) ->
+  Galley r (Http.Response LC8.ByteString)
 makeLegalHoldServiceRequest tid reqBuilder = do
-  maybeLHSettings <- LegalHoldData.getSettings tid
+  maybeLHSettings <- liftSem $ LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
     Nothing -> throwM legalHoldServiceNotRegistered
     Just lhSettings -> pure lhSettings

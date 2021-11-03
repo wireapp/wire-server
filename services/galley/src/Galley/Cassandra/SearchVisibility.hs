@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,19 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.SearchVisibility
-  ( setSearchVisibility,
-    getSearchVisibility,
-    resetSearchVisibility,
-  )
-where
+module Galley.Cassandra.SearchVisibility (interpretSearchVisibilityStoreToCassandra) where
 
 import Cassandra
 import Data.Id
+import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import Galley.Data.Queries
+import Galley.Effects.SearchVisibilityStore (SearchVisibilityStore (..))
 import Galley.Types.Teams.SearchVisibility
 import Imports
+import Polysemy
+import qualified Polysemy.Reader as P
+
+interpretSearchVisibilityStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (SearchVisibilityStore ': r) a ->
+  Sem r a
+interpretSearchVisibilityStoreToCassandra = interpret $ \case
+  GetSearchVisibility tid -> embedClient $ getSearchVisibility tid
+  SetSearchVisibility tid value -> embedClient $ setSearchVisibility tid value
+  ResetSearchVisibility tid -> embedClient $ resetSearchVisibility tid
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility

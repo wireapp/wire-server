@@ -66,7 +66,7 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Clock as Time
 import qualified Galley.App as Galley
 import Galley.Cassandra.Client
-import qualified Galley.Data.LegalHold as LegalHoldData
+import qualified Galley.Cassandra.LegalHold as LegalHoldData
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients

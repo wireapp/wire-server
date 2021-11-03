@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,29 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.TeamFeatures
-  ( getFeatureStatusNoConfig,
-    setFeatureStatusNoConfig,
-    getApplockFeatureStatus,
-    setApplockFeatureStatus,
-    getSelfDeletingMessagesStatus,
-    setSelfDeletingMessagesStatus,
-    HasStatusCol (..),
-  )
-where
+module Galley.Data.TeamFeatures (HasStatusCol (..)) where
 
-import Cassandra
-import Data.Id
-import Galley.Data.Instances ()
 import Imports
 import Wire.API.Team.Feature
-  ( TeamFeatureName (..),
-    TeamFeatureStatus,
-    TeamFeatureStatusNoConfig (..),
-    TeamFeatureStatusValue (..),
-    TeamFeatureStatusWithConfig (..),
-  )
-import qualified Wire.API.Team.Feature as Public
 
 -- | Because not all so called team features are actually team-level features,
 -- not all of them have a corresponding column in the database. Therefore,

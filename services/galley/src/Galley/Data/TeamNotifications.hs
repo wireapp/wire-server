@@ -23,21 +23,9 @@
 --
 -- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
 -- We should really use a scalable message queue instead.
-module Galley.Data.TeamNotifications
-  ( ResultPage (..),
-    add,
-    fetch,
-  )
-where
+module Galley.Data.TeamNotifications (ResultPage (..)) where
 
-import Cassandra as C
-import qualified Data.Aeson as JSON
-import Data.Id
-import Data.List1 (List1)
-import Data.Range (Range, fromRange)
-import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
-import qualified Data.Sequence as Seq
-import Galley.App
+import Data.Sequence (Seq)
 import Gundeck.Types.Notification
 import Imports
 
