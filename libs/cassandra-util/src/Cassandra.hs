@@ -27,7 +27,7 @@ import Cassandra.CQL as C
     BatchType (BatchLogged, BatchUnLogged),
     Blob (Blob),
     ColumnType (AsciiColumn, BigIntColumn, BlobColumn, BooleanColumn, DoubleColumn, IntColumn, ListColumn, MaybeColumn, TextColumn, TimestampColumn, UdtColumn, UuidColumn),
-    Consistency (All, LocalQuorum, One),
+    Consistency (All, LocalQuorum, One), -- DO NOT EXPORT 'Quorum' here (until a DC migration is complete)
     Cql,
     Keyspace (Keyspace),
     PagingState (..),
