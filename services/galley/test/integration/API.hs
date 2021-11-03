@@ -3200,17 +3200,19 @@ removeUser = do
   let [alice', alexDel', amy'] = qUnqualified <$> [alice, alexDel, amy]
   let bDomain = Domain "b.example.com"
   bart <- randomQualifiedId bDomain
+  berta <- randomQualifiedId bDomain
   let cDomain = Domain "c.example.com"
   carl <- randomQualifiedId cDomain
 
   connectUsers alice' (list1 alexDel' [amy'])
   connectWithRemoteUser alice' bart
+  connectWithRemoteUser alice' berta
   connectWithRemoteUser alexDel' bart
   connectWithRemoteUser alice' carl
   connectWithRemoteUser alexDel' carl
 
   convA1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
-  convA2 <- decodeConvId <$> postConv alice' [alexDel', amy'] (Just "gossip2") [] Nothing Nothing
+  convA2 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, amy, berta]}
   convA3 <- decodeConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
   convA4 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, bart, carl]}
   convB1 <- randomId -- a remote conversation at 'bDomain' that Alice, AlexDel and Bart will be in
@@ -3253,10 +3255,10 @@ removeUser = do
         deleteUser alexDel' !!! const 200 === statusCode
 
     liftIO $ do
-      assertEqual ("expect exactly 4 federated requests in : " <> show fedRequests) 4 (length fedRequests)
+      assertEqual ("expect exactly 5 federated requests in : " <> show fedRequests) 5 (length fedRequests)
 
     liftIO $ do
-      bReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain && fmap F.path (F.request req) == Just "/federation/on-user-deleted/conversations") fedRequests
+      bReq <- assertOne $ filter (matchFedRequest bDomain "/federation/on-user-deleted/conversations") fedRequests
       fmap F.component (F.request bReq) @?= Just F.Galley
       fmap F.path (F.request bReq) @?= Just "/federation/on-user-deleted/conversations"
       Just (Right udcnB) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bReq)
@@ -3264,7 +3266,7 @@ removeUser = do
       FederatedGalley.udcnUser udcnB @?= qUnqualified alexDel
 
     liftIO $ do
-      cReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain && fmap F.path (F.request req) == Just "/federation/on-user-deleted/conversations") fedRequests
+      cReq <- assertOne $ filter (matchFedRequest cDomain "/federation/on-user-deleted/conversations") fedRequests
       fmap F.component (F.request cReq) @?= Just F.Galley
       fmap F.path (F.request cReq) @?= Just "/federation/on-user-deleted/conversations"
       Just (Right udcnC) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cReq)
@@ -3278,19 +3280,21 @@ removeUser = do
         wsAssertMembersLeave qconvA2 alexDel [alexDel]
 
     liftIO $ do
-      bLeaveReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain && fmap F.path (F.request req) == Just "/federation/on-conversation-updated") fedRequests
-      fmap F.component (F.request bLeaveReq) @?= Just F.Galley
-      fmap F.path (F.request bLeaveReq) @?= Just "/federation/on-conversation-updated"
-      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bLeaveReq)
-      cuConvId convUpdate @?= convA4
-      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
-      cuAlreadyPresentUsers convUpdate @?= [qUnqualified bart]
+      let bConvUpdateRPCs = filter (matchFedRequest bDomain "/federation/on-conversation-updated") fedRequests
+      bConvUpdatesEither :: [Either String ConversationUpdate] <- eitherDecode . LBS.fromStrict . F.body <$$> mapM (assertJust . F.request) bConvUpdateRPCs
+      bConvUpdates <- mapM assertRight bConvUpdatesEither
+
+      bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
+      cuAction bConvUpdatesA2 @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
+
+      bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
+      cuAction bConvUpdatesA4 @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
 
     liftIO $ do
-      cLeaveReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain && fmap F.path (F.request req) == Just "/federation/on-conversation-updated") fedRequests
-      fmap F.component (F.request cLeaveReq) @?= Just F.Galley
-      fmap F.path (F.request cLeaveReq) @?= Just "/federation/on-conversation-updated"
-      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cLeaveReq)
+      cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "/federation/on-conversation-updated") fedRequests
+      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cConvUpdateRPC)
       cuConvId convUpdate @?= convA4
       cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
