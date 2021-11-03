@@ -73,7 +73,7 @@ To enable the wire charts helm repository:
 
    helm repo add wire https://s3-eu-west-1.amazonaws.com/public.wire.com/charts
 
-(You can see available helm charts by running ``helm search wire/``. To see
+(You can see available helm charts by running ``helm search repo wire/``. To see
 new versions as time passes, you may need to run ``helm repo update``)
 
 Great! Now you can start installing.
