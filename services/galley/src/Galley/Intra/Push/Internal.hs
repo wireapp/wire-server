@@ -26,7 +26,7 @@ import Data.Domain
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
-import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
@@ -81,25 +81,18 @@ type Push = PushTo UserId
 
 push :: Foldable f => f Push -> IntraM ()
 push ps = do
-  let (localPushes, remotePushes) = foldMap (bimap toList toList . splitPush) ps
-  traverse_ (pushLocal . List1) (nonEmpty localPushes)
-  traverse_ (pushRemote . List1) (nonEmpty remotePushes)
+  let pushes = foldMap (toList . mkPushTo) ps
+  traverse_ pushLocal (nonEmpty pushes)
   where
-    splitPush :: Push -> (Maybe (PushTo UserId), Maybe (PushTo UserId))
-    splitPush p =
-      (mkPushTo localRecipients p, mkPushTo remoteRecipients p)
-      where
-        localRecipients = toList $ _pushRecipients p
-        remoteRecipients = [] -- FUTUREWORK: deal with remote sending
-    mkPushTo :: [RecipientBy a] -> PushTo b -> Maybe (PushTo a)
-    mkPushTo recipients p =
-      nonEmpty recipients <&> \nonEmptyRecipients ->
+    mkPushTo :: PushTo a -> Maybe (PushTo a)
+    mkPushTo p =
+      nonEmpty (toList (_pushRecipients p)) <&> \nonEmptyRecipients ->
         p {_pushRecipients = List1 nonEmptyRecipients}
 
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: List1 (PushTo UserId) -> IntraM ()
+pushLocal :: NonEmpty (PushTo UserId) -> IntraM ()
 pushLocal ps = do
   opts <- view options
   let limit = currentFanoutLimit opts
@@ -138,12 +131,6 @@ pushLocal ps = do
             (pushRecipientListType p == Teams.ListComplete)
               && (length (_pushRecipients p) <= (fromIntegral $ fromRange limit))
         )
-
--- instead of IdMapping, we could also just take qualified IDs
-pushRemote :: List1 (PushTo UserId) -> IntraM ()
-pushRemote _ps = do
-  -- FUTUREWORK(federation, #1261): send these to the other backends
-  pure ()
 
 recipient :: LocalMember -> Recipient
 recipient = userRecipient . lmId
