@@ -22,7 +22,6 @@ import Conduit
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Conduit.Combinators as C
-import Database.CQL.Protocol (Tuple)
 import Imports
 import System.IO
 
