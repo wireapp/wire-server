@@ -277,6 +277,10 @@ kube-integration-test:
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown-federation.sh
 
+.PHONY: kube-integration-e2e-telepresence
+kube-integration-e2e-telepresence:
+	./services/brig/federation-tests.sh $(NAMESPACE)
+
 .PHONY: kube-integration-setup-sans-federation
 kube-integration-setup-sans-federation: guard-tag charts-integration
 	# by default "test-<your computer username> is used as namespace
