@@ -47,7 +47,7 @@ claimHandle uid oldHandle newHandle =
           runAppT env $
             do
               -- Record ownership
-              retry x5 $ write handleInsert (params Quorum (newHandle, uid))
+              retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))
               -- Update profile
               result <- User.updateHandle uid newHandle
               -- Free old handle (if it changed)
@@ -58,13 +58,13 @@ claimHandle uid oldHandle newHandle =
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: UserId -> Handle -> AppIO ()
 freeHandle uid h = do
-  retry x5 $ write handleDelete (params Quorum (Identity h))
+  retry x5 $ write handleDelete (params LocalQuorum (Identity h))
   let key = "@" <> fromHandle h
   deleteClaim uid key (30 # Minute)
 
 -- | Lookup the current owner of a 'Handle'.
 lookupHandle :: Handle -> AppIO (Maybe UserId)
-lookupHandle = lookupHandleWithPolicy Quorum
+lookupHandle = lookupHandleWithPolicy LocalQuorum
 
 -- | A weaker version of 'lookupHandle' that trades availability
 -- (and potentially speed) for the possibility of returning stale data.

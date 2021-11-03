@@ -38,7 +38,7 @@ insertCookie u ck ttl =
       l = cookieLabel ck
       s = cookieSucc ck
       o = fromMaybe (TTL (round (diffUTCTime x c))) ttl
-   in retry x5 $ write cql (params Quorum (u, x, i, t, c, l, s, o))
+   in retry x5 $ write cql (params LocalQuorum (u, x, i, t, c, l, s, o))
   where
     cql :: PrepQuery W (UserId, UTCTime, CookieId, CookieType, UTCTime, Maybe CookieLabel, Maybe CookieId, TTL) ()
     cql =
@@ -47,7 +47,7 @@ insertCookie u ck ttl =
 
 lookupCookie :: MonadClient m => UserId -> UTCTime -> CookieId -> m (Maybe (Cookie ()))
 lookupCookie u t c =
-  fmap mkCookie <$> retry x1 (query1 cql (params Quorum (u, t, c)))
+  fmap mkCookie <$> retry x1 (query1 cql (params LocalQuorum (u, t, c)))
   where
     mkCookie (typ, created, label, csucc) =
       Cookie
@@ -67,7 +67,7 @@ lookupCookie u t c =
 
 listCookies :: MonadClient m => UserId -> m [Cookie ()]
 listCookies u =
-  map toCookie <$> retry x1 (query cql (params Quorum (Identity u)))
+  map toCookie <$> retry x1 (query cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery R (Identity UserId) (CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId)
     cql =
@@ -90,14 +90,14 @@ listCookies u =
 deleteCookies :: MonadClient m => UserId -> [Cookie a] -> m ()
 deleteCookies u cs = retry x5 . batch $ do
   setType BatchUnLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   for_ cs $ \c -> addPrepQuery cql (u, cookieExpires c, cookieId c)
   where
     cql :: PrepQuery W (UserId, UTCTime, CookieId) ()
     cql = "DELETE FROM user_cookies WHERE user = ? AND expires = ? AND id = ?"
 
 deleteAllCookies :: MonadClient m => UserId -> m ()
-deleteAllCookies u = retry x5 (write cql (params Quorum (Identity u)))
+deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"

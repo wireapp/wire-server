@@ -27,7 +27,7 @@ import Cassandra.CQL as C
     BatchType (BatchLogged, BatchUnLogged),
     Blob (Blob),
     ColumnType (AsciiColumn, BigIntColumn, BlobColumn, BooleanColumn, DoubleColumn, IntColumn, ListColumn, MaybeColumn, TextColumn, TimestampColumn, UdtColumn, UuidColumn),
-    Consistency (All, One, Quorum),
+    Consistency (All, One, LocalQuorum),
     Cql,
     Keyspace (Keyspace),
     PagingState (..),

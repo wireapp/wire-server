@@ -131,7 +131,7 @@ createTeam ::
   Client Team
 createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
   tid <- maybe (Id <$> liftIO nextRandom) return t
-  retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
+  retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
   pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
   where
     initialStatus Binding = PendingActive -- Team becomes Active after User account activation
@@ -140,40 +140,40 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
 listBillingTeamMembers :: TeamId -> Client [UserId]
 listBillingTeamMembers tid =
   fmap runIdentity
-    <$> retry x1 (query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
+    <$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
 
 getTeamName :: TeamId -> Client (Maybe Text)
 getTeamName tid =
   fmap runIdentity
-    <$> retry x1 (query1 Cql.selectTeamName (params Quorum (Identity tid)))
+    <$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
 
 teamConversation :: TeamId -> ConvId -> Client (Maybe TeamConversation)
 teamConversation t c =
   fmap (newTeamConversation c . runIdentity)
-    <$> retry x1 (query1 Cql.selectTeamConv (params Quorum (t, c)))
+    <$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
 
 getTeamConversations :: TeamId -> Client [TeamConversation]
 getTeamConversations t =
   map (uncurry newTeamConversation)
-    <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
+    <$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
 
 teamIdsFrom :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (ResultSet TeamId)
 teamIdsFrom usr range (fromRange -> max) =
   mkResultSet . fmap runIdentity . strip <$> case range of
-    Just c -> paginate Cql.selectUserTeamsFrom (paramsP Quorum (usr, c) (max + 1))
-    Nothing -> paginate Cql.selectUserTeams (paramsP Quorum (Identity usr) (max + 1))
+    Just c -> paginate Cql.selectUserTeamsFrom (paramsP LocalQuorum (usr, c) (max + 1))
+    Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
 teamIdsForPagination :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (Page TeamId)
 teamIdsForPagination usr range (fromRange -> max) =
   fmap runIdentity <$> case range of
-    Just c -> paginate Cql.selectUserTeamsFrom (paramsP Quorum (usr, c) max)
-    Nothing -> paginate Cql.selectUserTeams (paramsP Quorum (Identity usr) max)
+    Just c -> paginate Cql.selectUserTeamsFrom (paramsP LocalQuorum (usr, c) max)
+    Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) max)
 
 teamMember :: FeatureLegalHold -> TeamId -> UserId -> Client (Maybe TeamMember)
 teamMember lh t u =
-  newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+  newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params LocalQuorum (t, u)))
   where
     newTeamMember'' ::
       UserId ->
@@ -187,7 +187,7 @@ addTeamMember :: TeamId -> TeamMember -> Client ()
 addTeamMember t m =
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery
       Cql.insertTeamMember
       ( t,
@@ -211,7 +211,7 @@ updateTeamMember ::
 updateTeamMember oldPerms tid uid newPerms = do
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
 
     when (SetBilling `Set.member` acquiredPerms) $
@@ -228,14 +228,14 @@ removeTeamMember :: TeamId -> UserId -> Client ()
 removeTeamMember t m =
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery Cql.deleteTeamMember (t, m)
     addPrepQuery Cql.deleteUserTeam (m, t)
     addPrepQuery Cql.deleteBillingTeamMember (t, m)
 
 team :: TeamId -> Client (Maybe TeamData)
 team tid =
-  fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params Quorum (Identity tid)))
+  fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
   where
     toTeam (u, n, i, k, d, s, st, b) =
       let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
@@ -244,7 +244,7 @@ team tid =
 
 teamIdsOf :: UserId -> [TeamId] -> Client [TeamId]
 teamIdsOf usr tids =
-  map runIdentity <$> retry x1 (query Cql.selectUserTeamsIn (params Quorum (usr, toList tids)))
+  map runIdentity <$> retry x1 (query Cql.selectUserTeamsIn (params LocalQuorum (usr, toList tids)))
 
 teamMembersWithLimit ::
   FeatureLegalHold ->
@@ -253,7 +253,7 @@ teamMembersWithLimit ::
   Client TeamMemberList
 teamMembersWithLimit lh t (fromRange -> limit) = do
   -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
-  pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
+  pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity t) (limit + 1)))
   ms <- mapM (newTeamMember' lh t) . take (fromIntegral limit) $ result pageTuple
   pure $
     if hasMore pageTuple
@@ -279,12 +279,12 @@ teamMembersCollectedWithPagination lh tid = do
 teamMembersLimited :: FeatureLegalHold -> TeamId -> [UserId] -> Client [TeamMember]
 teamMembersLimited lh t u =
   mapM (newTeamMember' lh t)
-    =<< retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
+    =<< retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
 
 userTeams :: UserId -> Client [TeamId]
 userTeams u =
   map runIdentity
-    <$> retry x1 (query Cql.selectUserTeams (params Quorum (Identity u)))
+    <$> retry x1 (query Cql.selectUserTeams (params LocalQuorum (Identity u)))
 
 usersTeams :: [UserId] -> Client (Map UserId TeamId)
 usersTeams uids = do
@@ -296,12 +296,12 @@ usersTeams uids = do
 oneUserTeam :: UserId -> Client (Maybe TeamId)
 oneUserTeam u =
   fmap runIdentity
-    <$> retry x1 (query1 Cql.selectOneUserTeam (params Quorum (Identity u)))
+    <$> retry x1 (query1 Cql.selectOneUserTeam (params LocalQuorum (Identity u)))
 
 teamCreationTime :: TeamId -> Client (Maybe TeamCreationTime)
 teamCreationTime t =
   checkCreation . fmap runIdentity
-    <$> retry x1 (query1 Cql.selectTeamBindingWritetime (params Quorum (Identity t)))
+    <$> retry x1 (query1 Cql.selectTeamBindingWritetime (params LocalQuorum (Identity t)))
   where
     checkCreation (Just (Just ts)) = Just $ TeamCreationTime ts
     checkCreation _ = Nothing
@@ -309,7 +309,7 @@ teamCreationTime t =
 getTeamBinding :: TeamId -> Client (Maybe TeamBinding)
 getTeamBinding t =
   fmap (fromMaybe NonBinding . runIdentity)
-    <$> retry x1 (query1 Cql.selectTeamBinding (params Quorum (Identity t)))
+    <$> retry x1 (query1 Cql.selectTeamBinding (params LocalQuorum (Identity t)))
 
 getTeamsBindings :: [TeamId] -> Client [TeamBinding]
 getTeamsBindings =
@@ -319,12 +319,12 @@ getTeamsBindings =
 deleteTeam :: TeamId -> Client ()
 deleteTeam tid = do
   -- TODO: delete service_whitelist records that mention this team
-  retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
+  retry x5 $ write Cql.markTeamDeleted (params LocalQuorum (PendingDelete, tid))
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   removeTeamMembers mems
   cnvs <- teamConversationsForPagination tid Nothing (unsafeRange 2000)
   removeConvs cnvs
-  retry x5 $ write Cql.deleteTeam (params Quorum (Deleted, tid))
+  retry x5 $ write Cql.deleteTeam (params LocalQuorum (Deleted, tid))
   where
     removeConvs :: Page TeamConversation -> Client ()
     removeConvs cnvs = do
@@ -350,18 +350,18 @@ removeTeamConv :: TeamId -> ConvId -> Client ()
 removeTeamConv tid cid = liftClient $ do
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery Cql.markConvDeleted (Identity cid)
     addPrepQuery Cql.deleteTeamConv (tid, cid)
   C.deleteConversation cid
 
 updateTeamStatus :: TeamId -> TeamStatus -> Client ()
-updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params Quorum (s, t))
+updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params LocalQuorum (s, t))
 
 updateTeam :: TeamId -> TeamUpdateData -> Client ()
 updateTeam tid u = retry x5 . batch $ do
   setType BatchLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   for_ (u ^. nameUpdate) $ \n ->
     addPrepQuery Cql.updateTeamName (fromRange n, tid)
   for_ (u ^. iconUpdate) $ \i ->
@@ -407,8 +407,8 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
 teamConversationsForPagination :: TeamId -> Maybe ConvId -> Range 1 HardTruncationLimit Int32 -> Client (Page TeamConversation)
 teamConversationsForPagination tid start (fromRange -> max) =
   fmap (uncurry newTeamConversation) <$> case start of
-    Just c -> paginate Cql.selectTeamConvsFrom (paramsP Quorum (tid, c) max)
-    Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) max)
+    Just c -> paginate Cql.selectTeamConvsFrom (paramsP LocalQuorum (tid, c) max)
+    Nothing -> paginate Cql.selectTeamConvs (paramsP LocalQuorum (Identity tid) max)
 
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
 
@@ -419,5 +419,5 @@ type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Ma
 teamMembersForPagination :: TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> Client (Page RawTeamMember)
 teamMembersForPagination tid start (fromRange -> max) =
   case start of
-    Just u -> paginate Cql.selectTeamMembersFrom (paramsP Quorum (tid, u) max)
-    Nothing -> paginate Cql.selectTeamMembers (paramsP Quorum (Identity tid) max)
+    Just u -> paginate Cql.selectTeamMembersFrom (paramsP LocalQuorum (tid, u) max)
+    Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)

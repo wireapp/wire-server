@@ -38,15 +38,15 @@ import Imports
 -- UserKey blacklisting
 
 insert :: MonadClient m => UserKey -> m ()
-insert uk = retry x5 $ write keyInsert (params Quorum (Identity $ keyText uk))
+insert uk = retry x5 $ write keyInsert (params LocalQuorum (Identity $ keyText uk))
 
 exists :: MonadClient m => UserKey -> m Bool
 exists uk =
   return . isJust =<< fmap runIdentity
-    <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText uk)))
+    <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText uk)))
 
 delete :: MonadClient m => UserKey -> m ()
-delete uk = retry x5 $ write keyDelete (params Quorum (Identity $ keyText uk))
+delete uk = retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText uk))
 
 keyInsert :: PrepQuery W (Identity Text) ()
 keyInsert = "INSERT INTO blacklist (key) VALUES (?)"
@@ -61,13 +61,13 @@ keyDelete = "DELETE FROM blacklist WHERE key = ?"
 -- Excluded phone prefixes
 
 insertPrefix :: MonadClient m => ExcludedPrefix -> m ()
-insertPrefix prefix = retry x5 $ write ins (params Quorum (phonePrefix prefix, comment prefix))
+insertPrefix prefix = retry x5 $ write ins (params LocalQuorum (phonePrefix prefix, comment prefix))
   where
     ins :: PrepQuery W (PhonePrefix, Text) ()
     ins = "INSERT INTO excluded_phones (prefix, comment) VALUES (?, ?)"
 
 deletePrefix :: MonadClient m => PhonePrefix -> m ()
-deletePrefix prefix = retry x5 $ write del (params Quorum (Identity prefix))
+deletePrefix prefix = retry x5 $ write del (params LocalQuorum (Identity prefix))
   where
     del :: PrepQuery W (Identity PhonePrefix) ()
     del = "DELETE FROM excluded_phones WHERE prefix = ?"
@@ -84,7 +84,7 @@ existsAnyPrefix phone = do
 
 selectPrefixes :: MonadClient m => [Text] -> m [ExcludedPrefix]
 selectPrefixes prefixes = do
-  results <- retry x1 (query sel (params Quorum (Identity $ prefixes)))
+  results <- retry x1 (query sel (params LocalQuorum (Identity $ prefixes)))
   return $ (\(p, c) -> ExcludedPrefix p c) <$> results
   where
     sel :: PrepQuery R (Identity [Text]) (PhonePrefix, Text)

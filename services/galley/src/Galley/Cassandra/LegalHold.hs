@@ -27,4 +27,4 @@ isTeamLegalholdWhitelisted :: FeatureLegalHold -> TeamId -> Client Bool
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
-  isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))
+  isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))

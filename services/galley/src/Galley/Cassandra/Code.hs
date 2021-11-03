@@ -47,12 +47,12 @@ insertCode c = do
   let cnv = codeConversation c
   let t = round (codeTTL c)
   let s = codeScope c
-  retry x5 (write Cql.insertCode (params Quorum (k, v, cnv, s, t)))
+  retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, s, t)))
 
 -- | Lookup a conversation by code.
 lookupCode :: Key -> Scope -> Client (Maybe Code)
-lookupCode k s = fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params Quorum (k, s)))
+lookupCode k s = fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (k, s)))
 
 -- | Delete a code associated with the given conversation key
 deleteCode :: Key -> Scope -> Client ()
-deleteCode k s = retry x5 $ write Cql.deleteCode (params Quorum (k, s))
+deleteCode k s = retry x5 $ write Cql.deleteCode (params LocalQuorum (k, s))

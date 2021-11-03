@@ -141,7 +141,7 @@ newActivation uk timeout u = do
   where
     insert t k c = do
       key <- liftIO $ mkActivationKey uk
-      retry x5 . write keyInsert $ params Quorum (key, t, k, c, u, maxAttempts, round timeout)
+      retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, maxAttempts, round timeout)
       return $ Activation key c
     genCode =
       ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
@@ -151,7 +151,7 @@ newActivation uk timeout u = do
 lookupActivationCode :: UserKey -> AppIO (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
-    >>= retry x1 . query1 codeSelect . params Quorum . Identity
+    >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
 
 -- | Verify an activation code.
 verifyCode ::
@@ -159,7 +159,7 @@ verifyCode ::
   ActivationCode ->
   ExceptT ActivationError AppIO (UserKey, Maybe UserId)
 verifyCode key code = do
-  s <- lift . retry x1 . query1 keySelect $ params Quorum (Identity key)
+  s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
@@ -175,7 +175,7 @@ verifyCode key code = do
       Just p -> return (userPhoneKey p, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
-    countdown = lift . retry x5 . write keyInsert . params Quorum
+    countdown = lift . retry x5 . write keyInsert . params LocalQuorum
     revoke = lift $ deleteActivationPair key
 
 mkActivationKey :: UserKey -> IO ActivationKey
@@ -186,7 +186,7 @@ mkActivationKey k = do
   return . ActivationKey $ Ascii.encodeBase64Url bs
 
 deleteActivationPair :: ActivationKey -> AppIO ()
-deleteActivationPair = write keyDelete . params Quorum . Identity
+deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError
 invalidUser = InvalidActivationCode "User does not exist."

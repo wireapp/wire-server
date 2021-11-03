@@ -59,7 +59,7 @@ createLoginCode u = do
 
 verifyLoginCode :: UserId -> LoginCode -> AppIO Bool
 verifyLoginCode u c = do
-  code <- retry x1 (query1 codeSelect (params Quorum (Identity u)))
+  code <- retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
   now <- liftIO =<< view currentTime
   case code of
     Just (c', _, t) | c == c' && t >= now -> deleteLoginCode u >> return True
@@ -70,7 +70,7 @@ verifyLoginCode u c = do
 lookupLoginCode :: UserId -> AppIO (Maybe PendingLoginCode)
 lookupLoginCode u = do
   now <- liftIO =<< view currentTime
-  validate now =<< retry x1 (query1 codeSelect (params Quorum (Identity u)))
+  validate now =<< retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
   where
     validate now (Just (c, _, t)) | now < t = return (Just (pending c now t))
     validate _ _ = return Nothing
@@ -78,10 +78,10 @@ lookupLoginCode u = do
     timeout now t = Timeout (t `diffUTCTime` now)
 
 deleteLoginCode :: UserId -> AppIO ()
-deleteLoginCode u = retry x5 . write codeDelete $ params Quorum (Identity u)
+deleteLoginCode u = retry x5 . write codeDelete $ params LocalQuorum (Identity u)
 
 insertLoginCode :: UserId -> LoginCode -> Int32 -> UTCTime -> AppIO ()
-insertLoginCode u c n t = retry x5 . write codeInsert $ params Quorum (u, c, n, t, round ttl)
+insertLoginCode u c n t = retry x5 . write codeInsert $ params LocalQuorum (u, c, n, t, round ttl)
 
 -- Queries
 

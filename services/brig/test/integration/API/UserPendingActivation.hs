@@ -132,7 +132,7 @@ waitUserExpiration opts' = do
 
 userExists :: MonadClient m => UserId -> m Bool
 userExists uid = do
-  x <- retry x1 (query1 usersSelect (params Quorum (Identity uid)))
+  x <- retry x1 (query1 usersSelect (params LocalQuorum (Identity uid)))
   pure $
     case x of
       Nothing -> False

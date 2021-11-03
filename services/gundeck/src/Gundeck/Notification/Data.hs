@@ -62,7 +62,7 @@ add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
   pooledForConcurrentlyN_ 32 tgts $ \tgt ->
     let u = tgt ^. targetUser
         cs = C.Set (tgt ^. targetClients)
-     in write cqlInsert (params Quorum (u, n, p, cs, fromIntegral t)) & retry x5
+     in write cqlInsert (params LocalQuorum (u, n, p, cs, fromIntegral t)) & retry x5
   where
     cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
     cqlInsert =
@@ -74,7 +74,7 @@ add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
 fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchId u n c =
   listToMaybe . foldr' (toNotif c) []
-    <$> query cqlById (params Quorum (u, n)) & retry x1
+    <$> query cqlById (params LocalQuorum (u, n)) & retry x1
   where
     cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlById =
@@ -84,12 +84,12 @@ fetchId u n c =
 
 fetchLast :: MonadClient m => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchLast u c = do
-  ls <- query cqlLast (params Quorum (Identity u)) & retry x1
+  ls <- query cqlLast (params LocalQuorum (Identity u)) & retry x1
   case ls of
     [] -> return Nothing
     ns@(n : _) ->
       ns `getFirstOrElse` do
-        p <- paginate cqlSeek (paramsP Quorum (u, n ^. _1) 100) & retry x1
+        p <- paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) 100) & retry x1
         seek p
   where
     seek p =
@@ -120,8 +120,8 @@ fetch u c since (fromRange -> size) = do
   -- report whether there are more results.
   let size' = bool (+ 1) (+ 2) (isJust since) size
   page1 <- case TimeUuid . toUUID <$> since of
-    Nothing -> paginate cqlStart (paramsP Quorum (Identity u) size') & retry x1
-    Just s -> paginate cqlSince (paramsP Quorum (u, s) size') & retry x1
+    Nothing -> paginate cqlStart (paramsP LocalQuorum (Identity u) size') & retry x1
+    Just s -> paginate cqlSince (paramsP LocalQuorum (u, s) size') & retry x1
   -- Collect results, requesting more pages until we run out of data
   -- or have found size + 1 notifications (not including the 'since').
   let isize = fromIntegral size' :: Int
@@ -164,7 +164,7 @@ fetch u c since (fromRange -> size) = do
       \ORDER BY id ASC"
 
 deleteAll :: MonadClient m => UserId -> m ()
-deleteAll u = write cql (params Quorum (Identity u)) & retry x5
+deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM notifications WHERE user = ?"

@@ -129,7 +129,7 @@ withEndpoint ev f = do
   e <- Aws.execute v (Aws.lookupEndpoint (ev ^. evEndpoint))
   for_ e $ \ep -> do
     let us = Set.toList (ep ^. endpointUsers)
-    as <- concat <$> mapM (`Push.lookup` Push.Quorum) us
+    as <- concat <$> mapM (`Push.lookup` Push.LocalQuorum) us
     case filter ((== (ev ^. evEndpoint)) . view addrEndpoint) as of
       [] -> do
         logEvent ev $

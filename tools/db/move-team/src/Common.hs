@@ -44,5 +44,5 @@ sinkTableRows insertQuery = go
       case mbTuple of
         Nothing -> pure ()
         Just tuple -> do
-          lift $ write insertQuery (params Quorum tuple)
+          lift $ write insertQuery (params LocalQuorum tuple)
           go
