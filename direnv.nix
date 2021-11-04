@@ -105,14 +105,15 @@ let
 in pkgs.buildEnv {
   name = "wire-server-direnv";
   paths = [
+    pkgs.cfssl
     pkgs.docker-compose
     pkgs.gnumake
-    pkgs.haskell-language-server
-    pkgs.telepresence
-    pkgs.jq
     pkgs.grpcurl
+    pkgs.haskell-language-server
+    pkgs.jq
+    pkgs.ormolu
+    pkgs.telepresence
     pkgs.wget
-    pkgs.cfssl
     pkgs.yq
 
     # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf

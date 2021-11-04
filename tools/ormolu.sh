@@ -4,13 +4,6 @@ set -e
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
-command -v grep >/dev/null 2>&1 || { echo >&2 "grep is not installed, aborting."; exit 1; }
-command -v sed  >/dev/null 2>&1 || { echo >&2 "sed is not installed, aborting."; exit 1; }
-
-ORMOLU_VERSION=$(sed -n '/^extra-deps:/,$ { s/^- ormolu-//p }' < stack.yaml)
-( ormolu -v 2>/dev/null | grep -q $ORMOLU_VERSION ) || ( echo "please install ormolu $ORMOLU_VERSION (eg., run 'stack install ormolu' and ensure ormolu is on your PATH.)"; exit 1 )
-echo "ormolu version: $ORMOLU_VERSION"
-
 ARG_ALLOW_DIRTY_WC="0"
 ARG_ORMOLU_MODE="inplace"
 
