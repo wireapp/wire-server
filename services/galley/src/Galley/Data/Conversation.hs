@@ -28,10 +28,16 @@ module Galley.Data.Conversation
     selfConv,
     localOne2OneConvId,
     convMetadata,
+    convAccessData,
+    defRole,
+    maybeRole,
+    privateRole,
+    defRegularConvAccess,
   )
 where
 
 import Data.Id
+import qualified Data.Set as Set
 import qualified Data.UUID.Tagged as U
 import Galley.Data.Conversation.Types
 import Galley.Data.Instances ()
@@ -71,3 +77,25 @@ convMetadata c =
     (convTeam c)
     (convMessageTimer c)
     (convReceiptMode c)
+
+convAccessData :: Conversation -> ConversationAccessData
+convAccessData conv =
+  ConversationAccessData
+    (Set.fromList (convAccess conv))
+    (convAccessRole conv)
+
+defRole :: AccessRole
+defRole = ActivatedAccessRole
+
+maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
+maybeRole SelfConv _ = privateRole
+maybeRole ConnectConv _ = privateRole
+maybeRole One2OneConv _ = privateRole
+maybeRole RegularConv Nothing = defRole
+maybeRole RegularConv (Just r) = r
+
+privateRole :: AccessRole
+privateRole = PrivateAccessRole
+
+defRegularConvAccess :: [Access]
+defRegularConvAccess = [InviteAccess]

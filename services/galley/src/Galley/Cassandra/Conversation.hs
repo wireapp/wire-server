@@ -32,9 +32,9 @@ import Data.Qualified
 import Data.Range
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
+import Galley.Cassandra.Access
 import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.Store
-import Galley.Data.Access
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
 import qualified Galley.Data.Queries as Cql

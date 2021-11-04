@@ -92,7 +92,6 @@ import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Access as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
