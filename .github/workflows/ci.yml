@@ -1,0 +1,27 @@
+on:
+ pull_request:
+ push:
+   branches: [master]
+
+jobs:
+  build-dev-env:
+   name: Build dev env
+   strategy:
+     matrix:
+       os:
+         - ubuntu-latest
+         # This is too expensive
+         # - macos-latest
+   runs-on: ${{ matrix.os }}
+   steps:
+     - uses: actions/checkout@v2
+       with:
+         submodules: true
+     - uses: cachix/install-nix-action@v14.1
+     - uses: cachix/cachix-action@v10
+       with:
+         name: wire-server
+         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+     - name: Build the wire-server-direnv
+       run: nix-build --no-out-link direnv.nix
