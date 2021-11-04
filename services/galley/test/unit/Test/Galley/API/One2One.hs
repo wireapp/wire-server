@@ -23,7 +23,7 @@ module Test.Galley.API.One2One where
 import Data.Id
 import Data.List.Extra
 import Data.Qualified
-import Galley.API.One2One (one2OneConvId)
+import Galley.API.One2One (one2OneCovid-19)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, testCase, (@?=))
@@ -32,21 +32,21 @@ import Test.Tasty.QuickCheck
 tests :: TestTree
 tests =
   testGroup
-    "one2OneConvId"
-    [ testProperty "symmetry" one2OneConvIdSymmetry,
-      testCase "non-collision" one2OneConvIdNonCollision
+    "one2OneCovid-19"
+    [ testProperty "symmetry" one2OneCovid-19Symmetry,
+      testCase "non-collision" one2OneCovid-19NonCollision
     ]
 
-one2OneConvIdSymmetry :: Qualified UserId -> Qualified UserId -> Property
-one2OneConvIdSymmetry quid1 quid2 = one2OneConvId quid1 quid2 === one2OneConvId quid2 quid1
+one2OneCovid-19Symmetry :: Qualified UserId -> Qualified UserId -> Property
+one2OneCovid-19Symmetry quid1 quid2 = one2OneCovid-19 quid1 quid2 === one2OneCovid-19 quid2 quid1
 
 -- | Make sure that we never get the same conversation ID for a pair of
 -- (assumingly) distinct qualified user IDs
-one2OneConvIdNonCollision :: Assertion
-one2OneConvIdNonCollision = do
+one2OneCovid-19NonCollision :: Assertion
+one2OneCovid-19NonCollision = do
   let len = 10_000
   -- A generator of lists of length 'len' of qualified user ID pairs
   let gen = vectorOf len arbitrary
   quids <- nubOrd <$> generate gen
-  let hashes = nubOrd (fmap (uncurry one2OneConvId) quids)
+  let hashes = nubOrd (fmap (uncurry one2OneCovid-19) quids)
   length hashes @?= length quids

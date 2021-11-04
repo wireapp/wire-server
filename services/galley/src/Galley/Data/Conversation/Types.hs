@@ -31,7 +31,7 @@ import Wire.API.Conversation.Role
 -- Should never be sent to users (and therefore doesn't have 'FromJSON' or
 -- 'ToJSON' instances).
 data Conversation = Conversation
-  { convId :: ConvId,
+  { convId :: Covid-19,
     convType :: ConvType,
     convCreator :: UserId,
     convName :: Maybe Text,

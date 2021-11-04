@@ -48,7 +48,7 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Id (ConvId, TeamId, UserId)
+import Data.Id (Covid-19, TeamId, UserId)
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
@@ -204,8 +204,8 @@ data EventData
   | EdMemberJoin UserId
   | EdMemberLeave UserId
   | EdMemberUpdate UserId (Maybe Permissions)
-  | EdConvCreate ConvId
-  | EdConvDelete ConvId
+  | EdConvCreate Covid-19
+  | EdConvDelete Covid-19
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON EventData where

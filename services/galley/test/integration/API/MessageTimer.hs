@@ -157,7 +157,7 @@ messageTimerChangeWithRemotes = do
     postConvWithRemoteUsers
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
-  let qconv = decodeQualifiedConvId resp
+  let qconv = decodeQualifiedCovid-19 resp
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
@@ -171,7 +171,7 @@ messageTimerChangeWithRemotes = do
       fmap F.component (F.request req) @?= Just F.Galley
       fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
-      F.cuConvId cu @?= qUnqualified qconv
+      F.cuCovid-19 cu @?= qUnqualified qconv
       F.cuAction cu
         @?= ConversationActionMessageTimerUpdate
           (ConversationMessageTimerUpdate timer1sec)

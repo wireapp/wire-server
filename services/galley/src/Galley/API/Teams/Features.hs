@@ -333,7 +333,7 @@ setLegalholdStatusInternal ::
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
-         ListItems LegacyPaging ConvId,
+         ListItems LegacyPaging Covid-19,
          MemberStore,
          TeamStore,
          TeamMemberStore p

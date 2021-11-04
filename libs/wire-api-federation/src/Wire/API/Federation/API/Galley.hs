@@ -19,7 +19,7 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Id (ClientId, ConvId, UserId)
+import Data.Id (ClientId, Covid-19, UserId)
 import Data.Json.Util (Base64ByteString)
 import Data.Misc (Milliseconds)
 import Data.Qualified
@@ -62,7 +62,7 @@ data Api routes = Api
         :> Summary "Register users to be in a new remote conversation"
         :> "on-conversation-created"
         :> OriginDomainHeader
-        :> ReqBody '[JSON] (NewRemoteConversation ConvId)
+        :> ReqBody '[JSON] (NewRemoteConversation Covid-19)
         :> Post '[JSON] (),
     getConversations ::
       routes
@@ -94,7 +94,7 @@ data Api routes = Api
         :- "federation"
         :> "on-message-sent"
         :> OriginDomainHeader
-        :> ReqBody '[JSON] (RemoteMessage ConvId)
+        :> ReqBody '[JSON] (RemoteMessage Covid-19)
         :> Post '[JSON] (),
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
@@ -118,7 +118,7 @@ data Api routes = Api
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
-    gcrConvIds :: [ConvId]
+    gcrCovid-19s :: [Covid-19]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
@@ -139,7 +139,7 @@ data RemoteConvMembers = RemoteConvMembers
 data RemoteConversation = RemoteConversation
   { -- | Id of the conversation, implicitly qualified with the domain of the
     -- backend that created this value.
-    rcnvId :: ConvId,
+    rcnvId :: Covid-19,
     rcnvMetadata :: ConversationMetadata,
     rcnvMembers :: RemoteConvMembers
   }
@@ -181,7 +181,7 @@ data NewRemoteConversation conv = NewRemoteConversation
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
 
-rcRemoteOrigUserId :: NewRemoteConversation (Remote ConvId) -> Remote UserId
+rcRemoteOrigUserId :: NewRemoteConversation (Remote Covid-19) -> Remote UserId
 rcRemoteOrigUserId rc = qualifyAs (rcCnvId rc) (rcOrigUserId rc)
 
 data ConversationUpdate = ConversationUpdate
@@ -190,7 +190,7 @@ data ConversationUpdate = ConversationUpdate
     -- | The unqualified ID of the conversation where the update is happening.
     -- The ID is local to prevent putting arbitrary domain that is different
     -- than that of the backend making a conversation membership update request.
-    cuConvId :: ConvId,
+    cuCovid-19 :: Covid-19,
     -- | A list of users from a remote backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
     -- non-conversation owning backend to have an indexed mapping of
@@ -206,7 +206,7 @@ data ConversationUpdate = ConversationUpdate
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which
     -- allows us to protect against relay attacks
-    lcConvId :: ConvId,
+    lcCovid-19 :: Covid-19,
     -- | The leaver is assumed to be owned by the origin domain, which allows us
     -- to protect against spoofing attacks
     lcLeaver :: UserId
@@ -236,7 +236,7 @@ data RemoteMessage conv = RemoteMessage
 data MessageSendRequest = MessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
-    msrConvId :: ConvId,
+    msrCovid-19 :: Covid-19,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
     msrSender :: UserId,
@@ -269,7 +269,7 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   { -- | This is qualified implicitly by the origin domain
     udcnUser :: UserId,
     -- | These are qualified implicitly by the target domain
-    udcnConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
+    udcnConversations :: Range 1 UserDeletedNotificationMaxConvs [Covid-19]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)

@@ -53,20 +53,20 @@ import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
 
 data MemberStore m a where
-  CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
-  CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
-  CreateBotMember :: ServiceRef -> BotId -> ConvId -> MemberStore m BotMember
-  GetLocalMember :: ConvId -> UserId -> MemberStore m (Maybe LocalMember)
-  GetLocalMembers :: ConvId -> MemberStore m [LocalMember]
-  GetRemoteMembers :: ConvId -> MemberStore m [RemoteMember]
-  SelectRemoteMembers :: [UserId] -> Remote ConvId -> MemberStore m ([UserId], Bool)
-  SetSelfMember :: Qualified ConvId -> Local UserId -> MemberUpdate -> MemberStore m ()
-  SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()
-  DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
-  DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
+  CreateMembers :: ToUserRole u => Covid-19 -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
+  CreateMembersInRemoteConversation :: Remote Covid-19 -> [UserId] -> MemberStore m ()
+  CreateBotMember :: ServiceRef -> BotId -> Covid-19 -> MemberStore m BotMember
+  GetLocalMember :: Covid-19 -> UserId -> MemberStore m (Maybe LocalMember)
+  GetLocalMembers :: Covid-19 -> MemberStore m [LocalMember]
+  GetRemoteMembers :: Covid-19 -> MemberStore m [RemoteMember]
+  SelectRemoteMembers :: [UserId] -> Remote Covid-19 -> MemberStore m ([UserId], Bool)
+  SetSelfMember :: Qualified Covid-19 -> Local UserId -> MemberUpdate -> MemberStore m ()
+  SetOtherMember :: Local Covid-19 -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()
+  DeleteMembers :: Covid-19 -> UserList UserId -> MemberStore m ()
+  DeleteMembersInRemoteConversation :: Remote Covid-19 -> [UserId] -> MemberStore m ()
 
 makeSem ''MemberStore
 
 -- | Add a member to a local conversation, as an admin.
-createMember :: Member MemberStore r => Local ConvId -> Local UserId -> Sem r [LocalMember]
+createMember :: Member MemberStore r => Local Covid-19 -> Local UserId -> Sem r [LocalMember]
 createMember c u = fst <$> createMembers (tUnqualified c) (UserList [tUnqualified u] [])

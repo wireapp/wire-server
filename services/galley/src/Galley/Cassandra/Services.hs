@@ -32,7 +32,7 @@ import Polysemy
 import qualified Polysemy.Reader as P
 
 -- FUTUREWORK: support adding bots to a remote conversation
-addBotMember :: ServiceRef -> BotId -> ConvId -> Client BotMember
+addBotMember :: ServiceRef -> BotId -> Covid-19 -> Client BotMember
 addBotMember s bot cnv = do
   retry x5 . batch $ do
     setType BatchLogged

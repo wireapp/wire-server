@@ -107,7 +107,7 @@ import Wire.API.User (QualifiedUserIdList (..))
 
 data Event = Event
   { evtType :: EventType,
-    evtConv :: Qualified ConvId,
+    evtConv :: Qualified Covid-19,
     evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
     evtData :: EventData

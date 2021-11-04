@@ -30,7 +30,7 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
-import Data.Id (ClientId, ConvId)
+import Data.Id (ClientId, Covid-19)
 import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 as List1
@@ -394,7 +394,7 @@ testQualifiedGetConversation ::
   -- | The other user in the conversation
   User ->
   -- | A qualified conversation ID
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Http ()
 testQualifiedGetConversation galley msg alice bob qconvId = do
   res <- getConvQualified galley (userId alice) qconvId <!! (const 200 === statusCode)
@@ -440,8 +440,8 @@ testListConversations brig1 brig2 galley1 galley2 = do
   -- From Alice's point of view
   -- both conversations should show her as the self member and bob as Othermember.
   let expected = cnv1
-  rs <- listConvIdsFirstPage galley1 (userId alice) <!! (const 200 === statusCode)
-  (page :: ConvIdsPage) <- responseJsonError rs
+  rs <- listCovid-19sFirstPage galley1 (userId alice) <!! (const 200 === statusCode)
+  (page :: Covid-19sPage) <- responseJsonError rs
   liftIO $ assertBool "conversations should fit in a single page" (not (mtpHasMore page))
   cids <- liftIO $ case checked (mtpResults page) of
     Nothing -> assertFailure "too many conversations"

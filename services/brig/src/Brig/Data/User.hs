@@ -213,7 +213,7 @@ insertAccount ::
   UserAccount ->
   -- | If a bot: conversation and team
   --   (if a team conversation)
-  Maybe (ConvId, Maybe TeamId) ->
+  Maybe (Covid-19, Maybe TeamId) ->
   Maybe Password ->
   -- | Whether the user is activated
   Bool ->
@@ -251,11 +251,11 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
     for_ mbTid $ \tid ->
       addPrepQuery cqlServiceTeam (pid, sid, BotId (userId u), cid, tid)
   where
-    cqlServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
+    cqlServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, Covid-19, Maybe TeamId) ()
     cqlServiceUser =
       "INSERT INTO service_user (provider, service, user, conv, team) \
       \VALUES (?, ?, ?, ?, ?)"
-    cqlServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
+    cqlServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, Covid-19, TeamId) ()
     cqlServiceTeam =
       "INSERT INTO service_team (provider, service, user, conv, team) \
       \VALUES (?, ?, ?, ?, ?)"
@@ -430,10 +430,10 @@ lookupAccounts usrs = do
   domain <- viewFederationDomain
   fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
-lookupServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO (Maybe (ConvId, Maybe TeamId))
+lookupServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO (Maybe (Covid-19, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
   where
-    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
+    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (Covid-19, Maybe TeamId)
     cql =
       "SELECT conv, team FROM service_user \
       \WHERE provider = ? AND service = ? AND user = ?"
@@ -442,11 +442,11 @@ lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, s
 lookupServiceUsers ::
   ProviderId ->
   ServiceId ->
-  ConduitM () [(BotId, ConvId, Maybe TeamId)] AppIO ()
+  ConduitM () [(BotId, Covid-19, Maybe TeamId)] AppIO ()
 lookupServiceUsers pid sid =
   paginateC cql (paramsP LocalQuorum (pid, sid) 100) x1
   where
-    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
+    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, Covid-19, Maybe TeamId)
     cql =
       "SELECT user, conv, team FROM service_user \
       \WHERE provider = ? AND service = ?"
@@ -455,11 +455,11 @@ lookupServiceUsersForTeam ::
   ProviderId ->
   ServiceId ->
   TeamId ->
-  ConduitM () [(BotId, ConvId)] AppIO ()
+  ConduitM () [(BotId, Covid-19)] AppIO ()
 lookupServiceUsersForTeam pid sid tid =
   paginateC cql (paramsP LocalQuorum (pid, sid, tid) 100) x1
   where
-    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
+    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, Covid-19)
     cql =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"

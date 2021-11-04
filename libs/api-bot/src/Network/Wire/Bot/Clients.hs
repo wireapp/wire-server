@@ -32,7 +32,7 @@ import Imports
 import System.CryptoBox (Session)
 
 data Clients = Clients
-  { members :: TVar (Map ConvId (Set UserId)),
+  { members :: TVar (Map Covid-19 (Set UserId)),
     sessions :: TVar Sessions
   }
 
@@ -49,13 +49,13 @@ addSession self u d =
     f Nothing = Just d
     f (Just m) = Just $ m `Map.union` d
 
-addMembers :: MonadIO m => Clients -> ConvId -> [UserId] -> m ()
+addMembers :: MonadIO m => Clients -> Covid-19 -> [UserId] -> m ()
 addMembers self c uu =
   liftIO . atomically $
     modifyTVar' (members self) (Map.insertWith Set.union c (Set.fromList uu))
 
 -- TODO: Move / inline to Network.Wire.Bot.Crypto and remove this module
-foldSessions :: MonadIO m => Clients -> ConvId -> a -> (UserId -> ClientId -> Session -> a -> m a) -> m a
+foldSessions :: MonadIO m => Clients -> Covid-19 -> a -> (UserId -> ClientId -> Session -> a -> m a) -> m a
 foldSessions self c a f =
   foldrM fun a =<< Map.findWithDefault Set.empty c <$> liftIO (readTVarIO (members self))
   where

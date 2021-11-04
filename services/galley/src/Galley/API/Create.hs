@@ -294,7 +294,7 @@ createLegacyOne2OneConversationUnchecked ::
   Local UserId ->
   Galley r ConversationResponse
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
-  lcnv <- localOne2OneConvId self other
+  lcnv <- localOne2OneCovid-19 self other
   mc <- liftSem $ E.getConversation (tUnqualified lcnv)
   case mc of
     Just c -> conversationExisted (tUnqualified self) c
@@ -318,11 +318,11 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
           self
           createOne2OneConversationLocally
           createOne2OneConversationRemotely
-  create (one2OneConvId (qUntagged self) other) self zcon name mtid other
+  create (one2OneCovid-19 (qUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
   Members '[ConversationStore, FederatorAccess, GundeckAccess] r =>
-  Local ConvId ->
+  Local Covid-19 ->
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -339,7 +339,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
       conversationCreated (tUnqualified self) c
 
 createOne2OneConversationRemotely ::
-  Remote ConvId ->
+  Remote Covid-19 ->
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -381,7 +381,7 @@ createLegacyConnectConversation ::
 createLegacyConnectConversation lusr conn lrecipient j = do
   (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
-  conv <- liftSem $ E.getConversation (Data.localOne2OneConvId x y)
+  conv <- liftSem $ E.getConversation (Data.localOne2OneCovid-19 x y)
   maybe (create x y n) (update n) conv
   where
     create x y n = do
@@ -485,10 +485,10 @@ notifyCreatedConversation dtime usr conn c = do
           & pushConn .~ conn
           & pushRoute .~ route
 
-localOne2OneConvId :: Local UserId -> Local UserId -> Galley r (Local ConvId)
-localOne2OneConvId self other = do
+localOne2OneCovid-19 :: Local UserId -> Local UserId -> Galley r (Local Covid-19)
+localOne2OneCovid-19 self other = do
   (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
-  pure . qualifyAs self $ Data.localOne2OneConvId x y
+  pure . qualifyAs self $ Data.localOne2OneCovid-19 x y
 
 toUUIDs :: UserId -> UserId -> Galley r (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do

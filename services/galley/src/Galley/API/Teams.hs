@@ -973,7 +973,7 @@ getTeamConversation ::
   Member TeamStore r =>
   UserId ->
   TeamId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Public.TeamConversation
 getTeamConversation zusr tid cid = do
   tm <-
@@ -1001,7 +1001,7 @@ deleteTeamConversation ::
   UserId ->
   ConnId ->
   TeamId ->
-  ConvId ->
+  Covid-19 ->
   Galley r ()
 deleteTeamConversation zusr zcon _tid cid = do
   lusr <- qualifyLocal zusr

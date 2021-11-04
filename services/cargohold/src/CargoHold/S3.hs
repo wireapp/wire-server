@@ -766,7 +766,7 @@ execCatch req = do
 plainKey :: AssetId -> S3AssetKey
 plainKey a = S3AssetKey $ Text.pack (show a)
 
-otrKey :: ConvId -> AssetId -> S3AssetKey
+otrKey :: Covid-19 -> AssetId -> S3AssetKey
 otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show a)
 
 getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
@@ -779,7 +779,7 @@ getMetadata ast = do
       maybe False (Text.isInfixOf "public=true" . Text.toLower)
         . lookupCI "zasset"
 
-getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
+getOtrMetadata :: Covid-19 -> AssetId -> ExceptT Error App (Maybe UserId)
 getOtrMetadata cnv ast = do
   let S3AssetKey key = otrKey cnv ast
   r <- execCatch (req key)

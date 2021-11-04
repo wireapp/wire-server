@@ -21,6 +21,6 @@ import Data.Id
 import Polysemy
 
 data BotAccess m a where
-  DeleteBot :: ConvId -> BotId -> BotAccess m ()
+  DeleteBot :: Covid-19 -> BotId -> BotAccess m ()
 
 makeSem ''BotAccess

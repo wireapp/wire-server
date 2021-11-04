@@ -551,7 +551,7 @@ sitemap = do
   get "/bot/conversation" (continue Query.getBotConversationH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. zauthConvId
+      .&. zauthCovid-19
       .&. accept "application" "json"
 
   -- This endpoint can lead to the following events being sent:
@@ -559,7 +559,7 @@ sitemap = do
   post "/bot/messages" (continue Update.postBotMessageH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. zauthConvId
+      .&. zauthCovid-19
       .&. def Public.OtrReportAllMissing filterMissing
       .&. jsonRequest @Public.NewOtrMessage
       .&. accept "application" "json"

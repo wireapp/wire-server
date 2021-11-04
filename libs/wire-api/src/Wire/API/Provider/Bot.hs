@@ -23,7 +23,7 @@ module Wire.API.Provider.Bot
   ( -- * Bot Views
     BotConvView,
     botConvView,
-    botConvId,
+    botCovid-19,
     botConvName,
     botConvMembers,
     BotUserView (..),
@@ -45,20 +45,20 @@ import Wire.API.User.Profile (ColourId, Name)
 
 -- | A conversation as seen by a bot.
 data BotConvView = BotConvView
-  { _botConvId :: ConvId,
+  { _botCovid-19 :: Covid-19,
     _botConvName :: Maybe Text,
     _botConvMembers :: [OtherMember]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BotConvView)
 
-botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
+botConvView :: Covid-19 -> Maybe Text -> [OtherMember] -> BotConvView
 botConvView = BotConvView
 
 instance ToJSON BotConvView where
   toJSON c =
     object $
-      "id" .= _botConvId c
+      "id" .= _botCovid-19 c
         # "name" .= _botConvName c
         # "members" .= _botConvMembers c
         # []

@@ -72,7 +72,7 @@ insertConnection ::
   Local UserId ->
   Qualified UserId ->
   RelationWithHistory ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   AppIO UserConnection
 insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
@@ -89,7 +89,7 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
         ucTo = target,
         ucStatus = relationDropHistory rel,
         ucLastUpdate = now,
-        ucConvId = Just qcnv
+        ucCovid-19 = Just qcnv
       }
 
 updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
@@ -134,7 +134,7 @@ lookupConnection self target = runMaybeT $ do
         ucTo = target,
         ucStatus = relationDropHistory rel,
         ucLastUpdate = time,
-        ucConvId = mqcnv
+        ucCovid-19 = mqcnv
       }
 
 -- | 'lookupConnection' with more 'Relation' info.
@@ -294,13 +294,13 @@ deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRa
 
 -- Queries
 
-connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, ConvId) ()
+connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, Covid-19) ()
 connectionInsert = "INSERT INTO connection (left, right, status, last_update, conv) VALUES (?, ?, ?, ?, ?)"
 
 connectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, UserId) ()
 connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
 
-connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
+connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Covid-19)
 connectionSelect = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right = ?"
 
 relationSelect :: PrepQuery R (UserId, UserId) (Identity RelationWithHistory)
@@ -325,10 +325,10 @@ connectionStatusSelect' = "SELECT left, right, status FROM connection WHERE left
 contactsSelect :: PrepQuery R (Identity UserId) (UserId, RelationWithHistory)
 contactsSelect = "SELECT right, status FROM connection WHERE left = ?"
 
-connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
+connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Covid-19)
 connectionsSelect = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? ORDER BY right ASC"
 
-connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
+connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Covid-19)
 connectionsSelectFrom = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
 
 connectionDelete :: PrepQuery W (UserId, UserId) ()
@@ -339,13 +339,13 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 
 -- Remote connections
 
-remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ()
+remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, Covid-19) ()
 remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update, conv_domain, conv_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
 
-remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId)
+remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, Covid-19)
 remoteConnectionSelect = "SELECT right_domain, right_user, status, last_update, conv_domain, conv_id FROM connection_remote where left = ?"
 
-remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, UTCTimeMillis, Domain, ConvId)
+remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, UTCTimeMillis, Domain, Covid-19)
 remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) ()
@@ -373,14 +373,14 @@ remoteConnectionsSelectUsers = "SELECT right_domain, right_user FROM connection_
 
 toLocalUserConnection ::
   Local x ->
-  (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) ->
+  (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Covid-19) ->
   UserConnection
 toLocalUserConnection loc (l, r, relationDropHistory -> rel, time, cid) =
   UserConnection l (qUntagged (qualifyAs loc r)) rel time (fmap (qUntagged . qualifyAs loc) cid)
 
 toRemoteUserConnection ::
   Local UserId ->
-  (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ->
+  (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, Covid-19) ->
   UserConnection
 toRemoteUserConnection l (rDomain, r, relationDropHistory -> rel, time, cDomain, cid) =
   UserConnection (tUnqualified l) (Qualified r rDomain) rel time (Just $ Qualified cid cDomain)

@@ -61,27 +61,27 @@ pageSize = 1000
 -- Queries
 
 -- | Get users from Galley
-getUsers :: ConduitM () [(Maybe ProviderId, Maybe ServiceId, BotId, ConvId)] Client ()
+getUsers :: ConduitM () [(Maybe ProviderId, Maybe ServiceId, BotId, Covid-19)] Client ()
 getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
-    cql :: PrepQuery R () (Maybe ProviderId, Maybe ServiceId, BotId, ConvId)
+    cql :: PrepQuery R () (Maybe ProviderId, Maybe ServiceId, BotId, Covid-19)
     cql = "SELECT provider, service, user, conv FROM member"
 
 -- | Get bot info from Galley
 resolveBot ::
-  (Maybe ProviderId, Maybe ServiceId, BotId, ConvId) ->
-  Client (Maybe (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId))
+  (Maybe ProviderId, Maybe ServiceId, BotId, Covid-19) ->
+  Client (Maybe (ProviderId, ServiceId, BotId, Covid-19, Maybe TeamId))
 resolveBot (Just pid, Just sid, bid, cid) = do
   tid <- retry x5 $ query1 teamSelect (params LocalQuorum (Identity cid))
   pure (Just (pid, sid, bid, cid, join (fmap runIdentity tid)))
   where
-    teamSelect :: PrepQuery R (Identity ConvId) (Identity (Maybe TeamId))
+    teamSelect :: PrepQuery R (Identity Covid-19) (Identity (Maybe TeamId))
     teamSelect = "SELECT team FROM conversation WHERE conv = ?"
 resolveBot _ = pure Nothing
 
 -- | Write users to Brig
 writeBots ::
-  [(ProviderId, ServiceId, BotId, ConvId, Maybe TeamId)] ->
+  [(ProviderId, ServiceId, BotId, Covid-19, Maybe TeamId)] ->
   Client ()
 writeBots [] = pure ()
 writeBots xs = retry x5 . batch $ do
@@ -92,7 +92,7 @@ writeBots xs = retry x5 . batch $ do
     forM_ mbTid $ \tid ->
       addPrepQuery writeTeam (pid, sid, bid, cid, tid)
   where
-    writeUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
+    writeUser :: PrepQuery W (ProviderId, ServiceId, BotId, Covid-19, Maybe TeamId) ()
     writeUser = "INSERT INTO service_user (provider, service, user, conv, team) VALUES(?,?,?,?,?)"
-    writeTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
+    writeTeam :: PrepQuery W (ProviderId, ServiceId, BotId, Covid-19, TeamId) ()
     writeTeam = "INSERT INTO service_team (provider, service, user, conv, team) VALUES(?,?,?,?,?)"

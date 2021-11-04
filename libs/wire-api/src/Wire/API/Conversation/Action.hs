@@ -52,7 +52,7 @@ data ConversationAction
 conversationActionToEvent ::
   UTCTime ->
   Qualified UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   ConversationAction ->
   Event
 conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers role) =

@@ -64,7 +64,7 @@ testAllConversationRoles = do
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
   let role = roleNameWireAdmin
-  c <- decodeConvId <$> postConvWithRole alice [bob] (Just "gossip") [] Nothing Nothing role
+  c <- decodeCovid-19 <$> postConvWithRole alice [bob] (Just "gossip") [] Nothing Nothing role
   g <- view tsGalley
   get
     ( g
@@ -94,7 +94,7 @@ handleConversationRoleAdmin = do
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
     void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
-    let cid = decodeConvId rsp
+    let cid = decodeCovid-19 rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
     postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
@@ -136,7 +136,7 @@ handleConversationRoleMember = do
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
     void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
-    let cid = decodeConvId rsp
+    let cid = decodeCovid-19 rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
     postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
@@ -171,7 +171,7 @@ roleUpdateRemoteMember = do
     postConvWithRemoteUsers
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
-  let qconv = decodeQualifiedConvId resp
+  let qconv = decodeQualifiedCovid-19 resp
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
@@ -200,7 +200,7 @@ roleUpdateRemoteMember = do
       fmap F.component (F.request req) @?= Just F.Galley
       fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
-      F.cuConvId cu @?= qUnqualified qconv
+      F.cuCovid-19 cu @?= qUnqualified qconv
       F.cuAction cu
         @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember))
       sort (F.cuAlreadyPresentUsers cu) @?= sort [qUnqualified qalice, qUnqualified qcharlie]
@@ -240,7 +240,7 @@ roleUpdateWithRemotes = do
     postConvWithRemoteUsers
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
-  let qconv = decodeQualifiedConvId resp
+  let qconv = decodeQualifiedCovid-19 resp
 
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
@@ -269,7 +269,7 @@ roleUpdateWithRemotes = do
       fmap F.component (F.request req) @?= Just F.Galley
       fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
-      F.cuConvId cu @?= qUnqualified qconv
+      F.cuCovid-19 cu @?= qUnqualified qconv
       F.cuAction cu
         @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin))
       F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
@@ -298,7 +298,7 @@ accessUpdateWithRemotes = do
     postConvWithRemoteUsers
       bob
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
-  let qconv = decodeQualifiedConvId resp
+  let qconv = decodeQualifiedCovid-19 resp
 
   let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
@@ -313,7 +313,7 @@ accessUpdateWithRemotes = do
       fmap F.component (F.request req) @?= Just F.Galley
       fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
-      F.cuConvId cu @?= qUnqualified qconv
+      F.cuCovid-19 cu @?= qUnqualified qconv
       F.cuAction cu @?= ConversationActionAccessUpdate access
       F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
 
@@ -328,7 +328,7 @@ accessUpdateWithRemotes = do
 -- | Given an admin, another admin and a member run all
 --   the necessary checks targeting the admin
 wireAdminChecks ::
-  ConvId ->
+  Covid-19 ->
   UserId ->
   UserId ->
   UserId ->
@@ -374,7 +374,7 @@ wireAdminChecks cid admin otherAdmin mem = do
 -- | Given a member, admin and otherMem, run all the necessary checks
 --   targeting mem
 wireMemberChecks ::
-  ConvId ->
+  Covid-19 ->
   UserId ->
   UserId ->
   UserId ->

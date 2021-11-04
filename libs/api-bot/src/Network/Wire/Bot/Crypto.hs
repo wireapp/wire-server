@@ -111,7 +111,7 @@ initSessionFromMsg cl m = do
   liftIO $ CBox.copyBytes x
 
 -- | Encrypt an OTR message for all other clients in a given conversation.
-encrypt :: BotClient -> ConvId -> ByteString -> BotSession OtrRecipients
+encrypt :: BotClient -> Covid-19 -> ByteString -> BotSession OtrRecipients
 encrypt cl cnv val = fmap (OtrRecipients . UserClientMap)
   . foldSessions (botClientSessions cl) cnv Map.empty
   $ \u c s rcps ->
@@ -132,7 +132,7 @@ decrypt clt usr sid msg = do
 -----------------------------------------------------------------------------
 -- High-Level Operations
 
-encryptMessage :: BotClient -> ConvId -> Plaintext -> BotSession NewOtrMessage
+encryptMessage :: BotClient -> Covid-19 -> Plaintext -> BotSession NewOtrMessage
 encryptMessage clt cnv msg =
   NewOtrMessage (botClientId clt)
     <$> encrypt clt cnv msg

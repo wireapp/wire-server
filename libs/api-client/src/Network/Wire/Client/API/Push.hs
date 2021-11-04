@@ -198,7 +198,7 @@ instance Show Event where
 
 -- | An event in a 'Conversation'.
 data ConvEvent a = ConvEvent
-  { convEvtConv :: !ConvId,
+  { convEvtConv :: !Covid-19,
     convEvtFrom :: !UserId,
     convEvtTime :: !UTCTime,
     convEvtData :: !a

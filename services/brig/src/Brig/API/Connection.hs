@@ -147,7 +147,7 @@ createConnectionToLocalUser self conn target = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Accepting connection")
-      cnv <- lift $ for (ucConvId s2o) $ Intra.acceptConnectConv self (Just conn)
+      cnv <- lift $ for (ucCovid-19 s2o) $ Intra.acceptConnectConv self (Just conn)
       s2o' <- lift $ Data.updateConnection s2o AcceptedWithHistory
       o2s' <-
         lift $
@@ -286,7 +286,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Accepting connection")
-      cnv <- lift $ traverse (Intra.acceptConnectConv self conn) (ucConvId s2o)
+      cnv <- lift $ traverse (Intra.acceptConnectConv self conn) (ucCovid-19 s2o)
       -- Note: The check for @Pending@ accounts for situations in which both
       --       sides are pending, which can occur due to rare race conditions
       --       when sending mutual connection requests, combined with untimely
@@ -307,7 +307,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      traverse_ (Intra.blockConv self conn) (ucConvId s2o)
+      traverse_ (Intra.blockConv self conn) (ucCovid-19 s2o)
       Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError AppIO (Maybe UserConnection)
@@ -318,7 +318,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
-      cnv <- lift $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
+      cnv <- lift $ traverse (Intra.unblockConv self conn) (ucCovid-19 s2o)
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
           if (cnvType <$> cnv) /= Just ConnectConv
@@ -337,7 +337,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
-      lift $ traverse_ (Intra.blockConv lfrom conn) (ucConvId s2o)
+      lift $ traverse_ (Intra.blockConv lfrom conn) (ucCovid-19 s2o)
       o2s' <- lift $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ Intra.onConnectionEvent (tUnqualified self) conn e2o
@@ -403,7 +403,7 @@ updateConnectionInternal = \case
         o2s <- localConnection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
-          traverse_ (Intra.blockConv lfrom Nothing) (ucConvId uconn)
+          traverse_ (Intra.blockConv lfrom Nothing) (ucCovid-19 uconn)
           uconn' <- Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent (tUnqualified self) Nothing ev
@@ -440,7 +440,7 @@ updateConnectionInternal = \case
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ()
         unblockDirected uconn uconnRev = do
           lfrom <- qualifyLocal (ucFrom uconnRev)
-          void . lift . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
+          void . lift . for (ucCovid-19 uconn) $ Intra.unblockConv lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
           connName <- lift $ Data.lookupName (tUnqualified lfrom)

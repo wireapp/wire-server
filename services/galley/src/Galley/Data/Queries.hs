@@ -51,13 +51,13 @@ selectTeamBinding = "select binding from team where team = ?"
 selectTeamBindingWritetime :: PrepQuery R (Identity TeamId) (Identity (Maybe Int64))
 selectTeamBindingWritetime = "select writetime(binding) from team where team = ?"
 
-selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity Bool)
+selectTeamConv :: PrepQuery R (TeamId, Covid-19) (Identity Bool)
 selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 
-selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
+selectTeamConvs :: PrepQuery R (Identity TeamId) (Covid-19, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
-selectTeamConvsFrom :: PrepQuery R (TeamId, ConvId) (ConvId, Bool)
+selectTeamConvsFrom :: PrepQuery R (TeamId, Covid-19) (Covid-19, Bool)
 selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
 
 selectTeamMember ::
@@ -138,10 +138,10 @@ selectUserTeamsFrom = "select team from user_team where user = ? and team > ? or
 insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 
-insertTeamConv :: PrepQuery W (TeamId, ConvId, Bool) ()
+insertTeamConv :: PrepQuery W (TeamId, Covid-19, Bool) ()
 insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"
 
-deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
+deleteTeamConv :: PrepQuery W (TeamId, Covid-19) ()
 deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
 
 insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) ()
@@ -188,48 +188,48 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
+selectConv :: PrepQuery R (Identity Covid-19) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
 selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer, receipt_mode from conversation where conv = ?"
 
-selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
+selectConvs :: PrepQuery R (Identity [Covid-19]) (Covid-19, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
 selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer, receipt_mode from conversation where conv in ?"
 
-selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
+selectReceiptMode :: PrepQuery R (Identity Covid-19) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
-isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
+isConvDeleted :: PrepQuery R (Identity Covid-19) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode) ()
+insertConv :: PrepQuery W (Covid-19, ConvType, UserId, C.Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team, message_timer, receipt_mode) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-updateConvAccess :: PrepQuery W (C.Set Access, AccessRole, ConvId) ()
+updateConvAccess :: PrepQuery W (C.Set Access, AccessRole, Covid-19) ()
 updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"
 
-updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()
+updateConvReceiptMode :: PrepQuery W (ReceiptMode, Covid-19) ()
 updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ?"
 
-updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
+updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, Covid-19) ()
 updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"
 
-updateConvName :: PrepQuery W (Text, ConvId) ()
+updateConvName :: PrepQuery W (Text, Covid-19) ()
 updateConvName = "update conversation set name = ? where conv = ?"
 
-updateConvType :: PrepQuery W (ConvType, ConvId) ()
+updateConvType :: PrepQuery W (ConvType, Covid-19) ()
 updateConvType = "update conversation set type = ? where conv = ?"
 
-deleteConv :: PrepQuery W (Identity ConvId) ()
+deleteConv :: PrepQuery W (Identity Covid-19) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 
-markConvDeleted :: PrepQuery W (Identity ConvId) ()
+markConvDeleted :: PrepQuery W (Identity Covid-19) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 
-insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
+insertCode :: PrepQuery W (Key, Value, Covid-19, Scope, Int32) ()
 insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId)
+lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, Covid-19)
 lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ? AND scope = ?"
 
 deleteCode :: PrepQuery W (Key, Scope) ()
@@ -237,47 +237,47 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 
-selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
+selectUserConvs :: PrepQuery R (Identity UserId) (Identity Covid-19)
 selectUserConvs = "select conv from user where user = ? order by conv"
 
-selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
+selectUserConvsIn :: PrepQuery R (UserId, [Covid-19]) (Identity Covid-19)
 selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
 
-selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
+selectUserConvsFrom :: PrepQuery R (UserId, Covid-19) (Identity Covid-19)
 selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
 
-insertUserConv :: PrepQuery W (UserId, ConvId) ()
+insertUserConv :: PrepQuery W (UserId, Covid-19) ()
 insertUserConv = "insert into user (user, conv) values (?, ?)"
 
-deleteUserConv :: PrepQuery W (UserId, ConvId) ()
+deleteUserConv :: PrepQuery W (UserId, Covid-19) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
 
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMember :: PrepQuery R (Covid-19, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMembers :: PrepQuery R (Identity [Covid-19]) (Covid-19, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMembers = "select conv, user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
 
-insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
+insertMember :: PrepQuery W (Covid-19, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
-removeMember :: PrepQuery W (ConvId, UserId) ()
+removeMember :: PrepQuery W (Covid-19, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
-updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
+updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Covid-19, UserId) ()
 updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
-updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
+updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Covid-19, UserId) ()
 updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
 
-updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
+updateMemberHidden :: PrepQuery W (Bool, Maybe Text, Covid-19, UserId) ()
 updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
 
-updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
+updateMemberConvRoleName :: PrepQuery W (RoleName, Covid-19, UserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Federated conversations -----------------------------------------------------
@@ -286,47 +286,47 @@ updateMemberConvRoleName = "update member set conversation_role = ? where conv =
 
 -- local conversation with remote members
 
-insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId, RoleName) ()
+insertRemoteMember :: PrepQuery W (Covid-19, Domain, UserId, RoleName) ()
 insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role) values (?, ?, ?, ?)"
 
-removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
+removeRemoteMember :: PrepQuery W (Covid-19, Domain, UserId) ()
 removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
-selectRemoteMembers :: PrepQuery R (Identity [ConvId]) (ConvId, Domain, UserId, RoleName)
+selectRemoteMembers :: PrepQuery R (Identity [Covid-19]) (Covid-19, Domain, UserId, RoleName)
 selectRemoteMembers = "select conv, user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv in ?"
 
-updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
+updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, Covid-19, Domain, UserId) ()
 updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
 -- local user with remote conversations
 
-insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
+insertUserRemoteConv :: PrepQuery W (UserId, Domain, Covid-19) ()
 insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
 
-selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
+selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, Covid-19)
 selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
 
-selectRemoteConvMemberStatuses :: PrepQuery R (UserId, Domain, [ConvId]) (ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectRemoteConvMemberStatuses :: PrepQuery R (UserId, Domain, [Covid-19]) (Covid-19, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectRemoteConvMemberStatuses = "select conv_remote_id, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id in ?"
 
-selectRemoteConvMembers :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
+selectRemoteConvMembers :: PrepQuery R (UserId, Domain, Covid-19) (Identity UserId)
 selectRemoteConvMembers = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
 
-deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
+deleteUserRemoteConv :: PrepQuery W (UserId, Domain, Covid-19) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
 
 -- remote conversation status for local user
 
-updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) ()
+updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, Covid-19, UserId) ()
 updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
-updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
+updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, Covid-19, UserId) ()
 updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
-updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
+updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, Covid-19, UserId) ()
 updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
-selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectRemoteMemberStatus :: PrepQuery R (Domain, Covid-19, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
@@ -360,7 +360,7 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 -- Bots ---------------------------------------------------------------------
 
-insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
+insertBot :: PrepQuery W (Covid-19, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
 
 -- LegalHold ----------------------------------------------------------------

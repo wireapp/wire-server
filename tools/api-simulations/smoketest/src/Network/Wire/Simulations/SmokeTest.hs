@@ -26,7 +26,7 @@ where
 
 import qualified Codec.MIME.Type as MIME
 import qualified Data.ByteString.Lazy as LBS
-import Data.Id (ConvId)
+import Data.Id (Covid-19)
 import Data.List1
 import Data.Qualified (Qualified (..), qUnqualified)
 import Data.Range
@@ -59,7 +59,7 @@ mainBotNet n = do
   goons <- for [1 .. n -3] $ \i ->
     newBot (fromString ("Goon" <> show i))
   -- Set up a connection from Ally to someone
-  let allyConnectTo :: Bot -> BotSession ConvId
+  let allyConnectTo :: Bot -> BotSession Covid-19
       allyConnectTo user = do
         conn <-
           connectTo
@@ -68,7 +68,7 @@ mainBotNet n = do
                 crName = unsafeRange $ fromMaybe "" (botEmail ally)
               }
         assertConnectRequested ally user
-        requireMaybe (qUnqualified <$> ucConvId conn) "conv_id not set after connection request"
+        requireMaybe (qUnqualified <$> ucCovid-19 conn) "conv_id not set after connection request"
   info $ msg "Setting up connections between Ally and the rest of the gang"
   (a2b, a2c, a2goons) <- runBotSession ally $ do
     a2b <- allyConnectTo bill
@@ -128,7 +128,7 @@ mainBotNet n = do
   let allyWithPhone = (ally, allyPhone)
   let billWithPC = (bill, billPC)
   let carlWithTablet = (carl, carlTablet)
-  let people :: [(Bot, ConvId, BotClient)] -- everyone except for Ally
+  let people :: [(Bot, Covid-19, BotClient)] -- everyone except for Ally
       people =
         (bill, a2b, billPC) :
         (carl, a2c, carlTablet) :
@@ -241,13 +241,13 @@ mainBotNet n = do
   info $ msg "Waiting for event & assertion timeouts (if any)"
   void $ mapConcurrently drainBot (ally : bill : carl : goons)
 
-postOtrTextMsg :: BotClient -> ConvId -> Text -> BotSession ClientMismatch
+postOtrTextMsg :: BotClient -> Covid-19 -> Text -> BotSession ClientMismatch
 postOtrTextMsg cl cnv m = postOtrMsg cl cnv (encode (BotTextMessage m))
 
-postOtrMsg :: BotClient -> ConvId -> ByteString -> BotSession ClientMismatch
+postOtrMsg :: BotClient -> Covid-19 -> ByteString -> BotSession ClientMismatch
 postOtrMsg cl cnv m = encryptMessage cl cnv m >>= postOtrMessage cnv
 
-awaitOtrMsg :: ConvId -> (Bot, BotClient) -> (Bot, BotClient) -> BotSession (ConvEvent OtrMessage)
+awaitOtrMsg :: Covid-19 -> (Bot, BotClient) -> (Bot, BotClient) -> BotSession (ConvEvent OtrMessage)
 awaitOtrMsg cnv from to = do
   m <- awaitOtrMessage cnv from to
   requireMaybe m "Missing OTR message"

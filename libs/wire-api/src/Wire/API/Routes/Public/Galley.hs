@@ -22,7 +22,7 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
-import Data.Id (ConvId, TeamId, UserId)
+import Data.Id (Covid-19, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import qualified Data.Swagger as Swagger
@@ -46,14 +46,14 @@ import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 
-instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
+instance AsHeaders '[Header "Location" Covid-19] Conversation Conversation where
   -- FUTUREWORK: use addHeader
   toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
   fromHeaders = getResponse
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 
-type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
+type ConversationHeaders = '[DescHeader "Location" "Conversation ID" Covid-19]
 
 type ConversationVerb =
   MultiVerb
@@ -80,21 +80,21 @@ data Api routes = Api
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
-        :> Capture "cnv" ConvId
+        :> Capture "cnv" Covid-19
         :> Get '[Servant.JSON] Conversation,
     getConversation ::
       routes
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
-        :> QualifiedCapture "cnv" ConvId
+        :> QualifiedCapture "cnv" Covid-19
         :> Get '[Servant.JSON] Conversation,
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
         :> ZUser
         :> "conversations"
-        :> Capture "cnv" ConvId
+        :> Capture "cnv" Covid-19
         :> "roles"
         :> Get '[Servant.JSON] ConversationRolesList,
     listConversationIdsUnqualified ::
@@ -110,7 +110,7 @@ data Api routes = Api
                Description "Conversation ID to start from (exclusive)"
              ]
              "start"
-             ConvId
+             Covid-19
         :> QueryParam'
              [ Optional,
                Strict,
@@ -118,7 +118,7 @@ data Api routes = Api
              ]
              "size"
              (Range 1 1000 Int32)
-        :> Get '[Servant.JSON] (ConversationList ConvId),
+        :> Get '[Servant.JSON] (ConversationList Covid-19),
     listConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
@@ -137,7 +137,7 @@ data Api routes = Api
           :> "conversations"
           :> "list-ids"
           :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
-          :> Post '[Servant.JSON] ConvIdsPage,
+          :> Post '[Servant.JSON] Covid-19sPage,
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."
@@ -153,14 +153,14 @@ data Api routes = Api
                Description "Mutually exclusive with 'start' (at most 32 IDs per request)"
              ]
              "ids"
-             (Range 1 32 (CommaSeparatedList ConvId))
+             (Range 1 32 (CommaSeparatedList Covid-19))
         :> QueryParam'
              [ Optional,
                Strict,
                Description "Conversation ID to start from (exclusive)"
              ]
              "start"
-             ConvId
+             Covid-19
         :> QueryParam'
              [ Optional,
                Strict,
@@ -236,7 +236,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture "cnv" ConvId
+        :> Capture "cnv" Covid-19
         :> "members"
         :> ReqBody '[JSON] Invite
         :> MultiVerb 'POST '[JSON] ConvUpdateResponses (UpdateResult Event),
@@ -246,7 +246,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture "cnv" ConvId
+        :> Capture "cnv" Covid-19
         :> "members"
         :> "v2"
         :> ReqBody '[Servant.JSON] InviteQualified
@@ -259,7 +259,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "members"
         :> Capture' '[Description "Target User ID"] "usr" UserId
         :> MultiVerb
@@ -275,7 +275,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "members"
         :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
         :> MultiVerb
@@ -295,7 +295,7 @@ data Api routes = Api
         :> CanThrow ConvMemberNotFound
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "members"
         :> Capture' '[Description "Target User ID"] "usr" UserId
         :> ReqBody '[JSON] OtherMemberUpdate
@@ -314,7 +314,7 @@ data Api routes = Api
         :> CanThrow ConvMemberNotFound
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "members"
         :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
         :> ReqBody '[JSON] OtherMemberUpdate
@@ -332,7 +332,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> ReqBody '[JSON] ConversationRename
         :> MultiVerb
              'PUT
@@ -348,7 +348,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "name"
         :> ReqBody '[JSON] ConversationRename
         :> MultiVerb
@@ -364,7 +364,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "name"
         :> ReqBody '[JSON] ConversationRename
         :> MultiVerb
@@ -386,7 +386,7 @@ data Api routes = Api
         :> CanThrow ConvNotFound
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "message-timer"
         :> ReqBody '[JSON] ConversationMessageTimerUpdate
         :> MultiVerb
@@ -403,7 +403,7 @@ data Api routes = Api
         :> CanThrow ConvNotFound
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "message-timer"
         :> ReqBody '[JSON] ConversationMessageTimerUpdate
         :> MultiVerb
@@ -422,7 +422,7 @@ data Api routes = Api
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "receipt-mode"
         :> ReqBody '[JSON] ConversationReceiptModeUpdate
         :> MultiVerb
@@ -438,7 +438,7 @@ data Api routes = Api
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "receipt-mode"
         :> ReqBody '[JSON] ConversationReceiptModeUpdate
         :> MultiVerb
@@ -459,7 +459,7 @@ data Api routes = Api
         :> CanThrow ConvNotFound
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "access"
         :> ReqBody '[JSON] ConversationAccessData
         :> MultiVerb
@@ -476,7 +476,7 @@ data Api routes = Api
         :> CanThrow ConvNotFound
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "access"
         :> ReqBody '[JSON] ConversationAccessData
         :> MultiVerb
@@ -489,7 +489,7 @@ data Api routes = Api
         :- Summary "Get self membership properties (deprecated)"
         :> ZUser
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "self"
         :> Get '[JSON] (Maybe Member),
     updateConversationSelfUnqualified ::
@@ -500,7 +500,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> Capture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "self"
         :> ReqBody '[JSON] MemberUpdate
         :> MultiVerb
@@ -516,7 +516,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" Covid-19
         :> "self"
         :> ReqBody '[JSON] MemberUpdate
         :> MultiVerb
@@ -553,7 +553,7 @@ data Api routes = Api
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
-        :> Capture "cid" ConvId
+        :> Capture "cid" Covid-19
         :> Get '[Servant.JSON] TeamConversation,
     deleteTeamConversation ::
       routes
@@ -565,7 +565,7 @@ data Api routes = Api
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
-        :> Capture "cid" ConvId
+        :> Capture "cid" Covid-19
         :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Conversation deleted"] (),
     postOtrMessageUnqualified ::
       routes
@@ -574,7 +574,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture "cnv" ConvId
+        :> Capture "cnv" Covid-19
         :> QueryParam "ignore_missing" IgnoreMissing
         :> QueryParam "report_missing" ReportMissing
         :> "otr"
@@ -592,7 +592,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> QualifiedCapture "cnv" ConvId
+        :> QualifiedCapture "cnv" Covid-19
         :> "proteus"
         :> "messages"
         :> ReqBody '[Proto] (RawProto QualifiedNewOtrMessage)

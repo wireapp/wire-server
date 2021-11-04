@@ -65,7 +65,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Galley.Types.Conversations.One2One (one2OneConvId)
+import Galley.Types.Conversations.One2One (one2OneCovid-19)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
@@ -158,16 +158,16 @@ localAndRemoteUser brig = do
   quid2 <- fakeRemoteUser
   pure (uid1, quid2)
 
-localAndRemoteUserWithConvId ::
+localAndRemoteUserWithCovid-19 ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   Brig ->
   Bool ->
-  m (UserId, Qualified UserId, Qualified ConvId)
-localAndRemoteUserWithConvId brig shouldBeLocal = do
+  m (UserId, Qualified UserId, Qualified Covid-19)
+localAndRemoteUserWithCovid-19 brig shouldBeLocal = do
   quid <- userQualifiedId <$> randomUser brig
   let go = do
         other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
-        let convId = one2OneConvId quid other
+        let convId = one2OneCovid-19 quid other
             isLocal = qDomain quid == qDomain convId
         if shouldBeLocal == isLocal
           then pure (qUnqualified quid, other, convId)
@@ -606,14 +606,14 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ConvId -> m ResponseLBS
+getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Covid-19 -> m ResponseLBS
 getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
       . zAuthAccess usr "conn"
 
-getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
+getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified Covid-19 -> m ResponseLBS
 getConversationQualified galley usr cnv =
   get $
     galley
@@ -630,8 +630,8 @@ createConversation galley zusr usersToAdd = do
       . zConn "conn"
       . json conv
 
-listConvIdsFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
-listConvIdsFirstPage galley zusr = do
+listCovid-19sFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listCovid-19sFirstPage galley zusr = do
   let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
   post $
     galley
@@ -644,7 +644,7 @@ listConvs ::
   (MonadIO m, MonadHttp m) =>
   Galley ->
   UserId ->
-  Range 1 1000 [Qualified ConvId] ->
+  Range 1 1000 [Qualified Covid-19] ->
   m ResponseLBS
 listConvs galley zusr convs = do
   post $
@@ -654,7 +654,7 @@ listConvs galley zusr convs = do
       . zConn "conn"
       . json (ListConversations convs)
 
-isMember :: Galley -> Local UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
+isMember :: Galley -> Local UserId -> Covid-19 -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
   res <-
     get $

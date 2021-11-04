@@ -83,7 +83,7 @@ import qualified Wire.API.Routes.MultiTablePaging as Public
 
 getBotConversationH ::
   Member ConversationStore r =>
-  BotId ::: ConvId ::: JSON ->
+  BotId ::: Covid-19 ::: JSON ->
   Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot zcnv
@@ -91,7 +91,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 getBotConversation ::
   Member ConversationStore r =>
   BotId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Public.BotConvView
 getBotConversation zbot zcnv = do
   (c, _) <- getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
@@ -109,7 +109,7 @@ getBotConversation zbot zcnv = do
 getUnqualifiedConversation ::
   Member ConversationStore r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Public.Conversation
 getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
@@ -119,7 +119,7 @@ getConversation ::
   forall r.
   Member ConversationStore r =>
   UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Galley r Public.Conversation
 getConversation zusr cnv = do
   lusr <- qualifyLocal zusr
@@ -129,9 +129,9 @@ getConversation zusr cnv = do
     getRemoteConversation
     cnv
   where
-    getRemoteConversation :: Remote ConvId -> Galley r Public.Conversation
-    getRemoteConversation remoteConvId = do
-      conversations <- getRemoteConversations zusr [remoteConvId]
+    getRemoteConversation :: Remote Covid-19 -> Galley r Public.Conversation
+    getRemoteConversation remoteCovid-19 = do
+      conversations <- getRemoteConversations zusr [remoteCovid-19]
       case conversations of
         [] -> throwErrorDescriptionType @ConvNotFound
         [conv] -> pure conv
@@ -140,7 +140,7 @@ getConversation zusr cnv = do
 getRemoteConversations ::
   Member ConversationStore r =>
   UserId ->
-  [Remote ConvId] ->
+  [Remote Covid-19] ->
   Galley r [Public.Conversation]
 getRemoteConversations zusr remoteConvs =
   getRemoteConversationsWithFailures zusr remoteConvs >>= \case
@@ -158,24 +158,24 @@ fgcrError (FailedGetConversationRemotely e) = federationErrorToWai e
 
 data FailedGetConversation
   = FailedGetConversation
-      [Qualified ConvId]
+      [Qualified Covid-19]
       FailedGetConversationReason
 
 fgcError :: FailedGetConversation -> Wai.Error
 fgcError (FailedGetConversation _ r) = fgcrError r
 
 failedGetConversationRemotely ::
-  [Remote ConvId] -> FederationError -> FailedGetConversation
+  [Remote Covid-19] -> FederationError -> FailedGetConversation
 failedGetConversationRemotely qconvs =
   FailedGetConversation (map qUntagged qconvs) . FailedGetConversationRemotely
 
 failedGetConversationLocally ::
-  [Qualified ConvId] -> FailedGetConversation
+  [Qualified Covid-19] -> FailedGetConversation
 failedGetConversationLocally qconvs =
   FailedGetConversation qconvs FailedGetConversationLocally
 
 partitionGetConversationFailures ::
-  [FailedGetConversation] -> ([Qualified ConvId], [Qualified ConvId])
+  [FailedGetConversation] -> ([Qualified Covid-19], [Qualified Covid-19])
 partitionGetConversationFailures = bimap concat concat . partitionEithers . map split
   where
     split (FailedGetConversation convs FailedGetConversationLocally) = Left convs
@@ -184,7 +184,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 getRemoteConversationsWithFailures ::
   Member ConversationStore r =>
   UserId ->
-  [Remote ConvId] ->
+  [Remote Covid-19] ->
   Galley r ([FailedGetConversation], [Public.Conversation])
 getRemoteConversationsWithFailures zusr convs = do
   localDomain <- viewFederationDomain
@@ -219,7 +219,7 @@ getRemoteConversationsWithFailures zusr convs = do
         pure $ mapMaybe (remoteView . qualifyAs someConvs) rconvs
   where
     handleFailures ::
-      [Remote ConvId] ->
+      [Remote Covid-19] ->
       ExceptT FederationError Galley0 a ->
       Galley0 (Either FailedGetConversation a)
     handleFailures rconvs action = runExceptT
@@ -234,7 +234,7 @@ getRemoteConversationsWithFailures zusr convs = do
 getConversationRoles ::
   Member ConversationStore r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Public.ConversationRolesList
 getConversationRoles zusr cnv = do
   void $ getConversationAndCheckMembership zusr cnv
@@ -243,11 +243,11 @@ getConversationRoles zusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Member (ListItems LegacyPaging ConvId) r =>
+  Member (ListItems LegacyPaging Covid-19) r =>
   UserId ->
-  Maybe ConvId ->
+  Maybe Covid-19 ->
   Maybe (Range 1 1000 Int32) ->
-  Galley r (Public.ConversationList ConvId)
+  Galley r (Public.ConversationList Covid-19)
 conversationIdsPageFromUnqualified zusr start msize = liftSem $ do
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems zusr start size
@@ -267,11 +267,11 @@ conversationIdsPageFromUnqualified zusr start msize = liftSem $ do
 conversationIdsPageFrom ::
   forall p r.
   ( p ~ CassandraPaging,
-    Members '[ListItems p ConvId, ListItems p (Remote ConvId)] r
+    Members '[ListItems p Covid-19, ListItems p (Remote Covid-19)] r
   ) =>
   UserId ->
   Public.GetPaginatedConversationIds ->
-  Galley r Public.ConvIdsPage
+  Galley r Public.Covid-19sPage
 conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
   localDomain <- viewFederationDomain
   liftSem $ case gmtprState of
@@ -286,10 +286,10 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
       Domain ->
       Maybe C.PagingState ->
       Range 1 1000 Int32 ->
-      Sem r Public.ConvIdsPage
+      Sem r Public.Covid-19sPage
     localsAndRemotes localDomain pagingState size = do
       localPage <-
-        pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain)
+        pageToCovid-19Page Public.PagingLocals . fmap (`Qualified` localDomain)
           <$> E.listItems zusr pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
@@ -300,17 +300,17 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
           pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
     remotesOnly ::
-      Members '[ListItems p (Remote ConvId)] r =>
+      Members '[ListItems p (Remote Covid-19)] r =>
       Maybe C.PagingState ->
       Range 1 1000 Int32 ->
-      Sem r Public.ConvIdsPage
+      Sem r Public.Covid-19sPage
     remotesOnly pagingState size =
-      pageToConvIdPage Public.PagingRemotes
+      pageToCovid-19Page Public.PagingRemotes
         . fmap (qUntagged @'QRemote)
         <$> E.listItems zusr pagingState size
 
-    pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
-    pageToConvIdPage table page@C.PageWithState {..} =
+    pageToCovid-19Page :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified Covid-19) -> Public.Covid-19sPage
+    pageToCovid-19Page table page@C.PageWithState {..} =
       Public.MultiTablePage
         { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
@@ -318,10 +318,10 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
-  Members '[ListItems LegacyPaging ConvId, ConversationStore] r =>
+  Members '[ListItems LegacyPaging Covid-19, ConversationStore] r =>
   UserId ->
-  Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
-  Maybe ConvId ->
+  Maybe (Range 1 32 (CommaSeparatedList Covid-19)) ->
+  Maybe Covid-19 ->
   Maybe (Range 1 500 Int32) ->
   Galley r (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do
@@ -329,17 +329,17 @@ getConversations user mids mstart msize = do
   flip ConversationList more <$> mapM (Mapping.conversationView user) cs
 
 getConversationsInternal ::
-  Members '[ConversationStore, ListItems LegacyPaging ConvId] r =>
+  Members '[ConversationStore, ListItems LegacyPaging Covid-19] r =>
   UserId ->
-  Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
-  Maybe ConvId ->
+  Maybe (Range 1 32 (CommaSeparatedList Covid-19)) ->
+  Maybe Covid-19 ->
   Maybe (Range 1 500 Int32) ->
   Galley r (Public.ConversationList Data.Conversation)
 getConversationsInternal user mids mstart msize = do
   (more, ids) <- liftSem $ getIds mids
-  let localConvIds = ids
+  let localCovid-19s = ids
   cs <-
-    liftSem (E.getConversations localConvIds)
+    liftSem (E.getConversations localCovid-19s)
       >>= filterM (liftSem . removeDeleted)
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   pure $ Public.ConversationList cs more
@@ -348,9 +348,9 @@ getConversationsInternal user mids mstart msize = do
 
     -- get ids and has_more flag
     getIds ::
-      Members '[ConversationStore, ListItems LegacyPaging ConvId] r =>
-      Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
-      Sem r (Bool, [ConvId])
+      Members '[ConversationStore, ListItems LegacyPaging Covid-19] r =>
+      Maybe (Range 1 32 (CommaSeparatedList Covid-19)) ->
+      Sem r (Bool, [Covid-19])
     getIds (Just ids) =
       (False,)
         <$> E.selectConversations
@@ -426,7 +426,7 @@ listConversations user (Public.ListConversations ids) = do
       pure (founds, notFounds)
 
 iterateConversations ::
-  Members '[ListItems LegacyPaging ConvId, ConversationStore] r =>
+  Members '[ListItems LegacyPaging Covid-19, ConversationStore] r =>
   UserId ->
   Range 1 500 Int32 ->
   ([Data.Conversation] -> Galley r a) ->
@@ -446,7 +446,7 @@ iterateConversations uid pageSize handleConvs = go Nothing
 
 internalGetMemberH ::
   Members '[ConversationStore, MemberStore] r =>
-  ConvId ::: UserId ->
+  Covid-19 ::: UserId ->
   Galley r Response
 internalGetMemberH (cnv ::: usr) = do
   json <$> getLocalSelf usr cnv
@@ -454,7 +454,7 @@ internalGetMemberH (cnv ::: usr) = do
 getLocalSelf ::
   Members '[ConversationStore, MemberStore] r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Galley r (Maybe Public.Member)
 getLocalSelf usr cnv = do
   lusr <- qualifyLocal usr
@@ -466,7 +466,7 @@ getLocalSelf usr cnv = do
 
 getConversationMetaH ::
   Member ConversationStore r =>
-  ConvId ->
+  Covid-19 ->
   Galley r Response
 getConversationMetaH cnv = do
   getConversationMeta cnv <&> \case
@@ -475,7 +475,7 @@ getConversationMetaH cnv = do
 
 getConversationMeta ::
   Member ConversationStore r =>
-  ConvId ->
+  Covid-19 ->
   Galley r (Maybe ConversationMetadata)
 getConversationMeta cnv = liftSem $ do
   alive <- E.isConversationAlive cnv
@@ -499,6 +499,6 @@ getConversationByReusableCode zusr key value = do
     coverView :: Data.Conversation -> ConversationCoverView
     coverView conv =
       ConversationCoverView
-        { cnvCoverConvId = Data.convId conv,
+        { cnvCoverCovid-19 = Data.convId conv,
           cnvCoverName = Data.convName conv
         }

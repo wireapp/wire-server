@@ -19,7 +19,7 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
-import Data.Id (ConvId)
+import Data.Id (Covid-19)
 import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
 import qualified Test.Tasty as T
@@ -102,7 +102,7 @@ tests =
       testRoundTrip @Conversation.Conversation,
       testRoundTrip @Conversation.NewConvUnmanaged,
       testRoundTrip @Conversation.NewConvManaged,
-      testRoundTrip @(Conversation.ConversationList ConvId),
+      testRoundTrip @(Conversation.ConversationList Covid-19),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
       testRoundTrip @Conversation.AccessRole,

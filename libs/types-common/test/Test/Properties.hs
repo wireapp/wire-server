@@ -186,9 +186,9 @@ tests =
             \t (x :: AssetId) -> roundtrip t x === Right x
         ],
       testGroup
-        "ConvId"
+        "Covid-19"
         [ testProperty "decode . encode = id" $
-            \t (x :: ConvId) -> roundtrip t x === Right x
+            \t (x :: Covid-19) -> roundtrip t x === Right x
         ],
       testGroup
         "InvitationId"

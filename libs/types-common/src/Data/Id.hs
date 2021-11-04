@@ -30,7 +30,7 @@ module Data.Id
     randomId,
     AssetId,
     InvitationId,
-    ConvId,
+    Covid-19,
     UserId,
     ProviderId,
     ServiceId,
@@ -120,7 +120,7 @@ type AssetId = Id 'A
 type InvitationId = Id 'I
 
 -- | A local conversation ID
-type ConvId = Id 'C
+type Covid-19 = Id 'C
 
 -- | A local user ID
 type UserId = Id 'U

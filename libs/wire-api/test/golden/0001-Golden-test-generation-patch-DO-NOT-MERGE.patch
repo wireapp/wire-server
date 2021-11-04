@@ -480,7 +480,7 @@ index 496db23a6..6cb182b0a 100644
 +instance Show BotConvView where
 +  show (BotConvView i n m) = "(botConvView (" <> show i <> ") (" <> show n <> ") (" <> show m <> "))"
 +
- botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
+ botConvView :: Covid-19 -> Maybe Text -> [OtherMember] -> BotConvView
  botConvView = BotConvView
  
 diff --git a/libs/wire-api/src/Wire/API/Push/V2/Token.hs b/libs/wire-api/src/Wire/API/Push/V2/Token.hs
@@ -524,7 +524,7 @@ index 8cce5edec..c3d2d64b5 100644
 --- a/libs/wire-api/src/Wire/API/Team/Conversation.hs
 +++ b/libs/wire-api/src/Wire/API/Team/Conversation.hs
 @@ -52,9 +52,12 @@ data TeamConversation = TeamConversation
-   { _conversationId :: ConvId,
+   { _conversationId :: Covid-19,
      _managedConversation :: Bool
    }
 -  deriving stock (Eq, Show, Generic)
@@ -534,7 +534,7 @@ index 8cce5edec..c3d2d64b5 100644
 +instance Show TeamConversation where
 +  show (TeamConversation cid man) = "(newTeamConversation (" <> show cid <> ") (" <> show man <> "))"
 +
- newTeamConversation :: ConvId -> Bool -> TeamConversation
+ newTeamConversation :: Covid-19 -> Bool -> TeamConversation
  newTeamConversation = TeamConversation
  
 @@ -83,9 +86,12 @@ instance FromJSON TeamConversation where

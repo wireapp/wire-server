@@ -18,19 +18,19 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user where
 
-import Data.Id (ConvId, Id (Id))
+import Data.Id (Covid-19, Id (Id))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False), fromJust)
 import Wire.API.Conversation (ConversationList (..))
 
-testObject_ConversationList_20_28Id_20_2a_20C_29_user_1 :: ConversationList ConvId
+testObject_ConversationList_20_28Id_20_2a_20C_29_user_1 :: ConversationList Covid-19
 testObject_ConversationList_20_28Id_20_2a_20C_29_user_1 =
   ConversationList
     { convList = [Id (fromJust (UUID.fromString "0000002e-0000-002d-0000-00410000001e"))],
       convHasMore = False
     }
 
-testObject_ConversationList_20_28Id_20_2a_20C_29_user_2 :: ConversationList ConvId
+testObject_ConversationList_20_28Id_20_2a_20C_29_user_2 :: ConversationList Covid-19
 testObject_ConversationList_20_28Id_20_2a_20C_29_user_2 =
   ConversationList
     { convList = [],

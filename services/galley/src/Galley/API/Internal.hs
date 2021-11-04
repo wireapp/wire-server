@@ -86,7 +86,7 @@ import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
-import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
+import Wire.API.Conversation (Covid-19sPage, pattern GetPaginatedConversationIds)
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
 import Wire.API.Federation.API.Galley (UserDeletedConversationsNotification (UserDeletedConversationsNotification))
 import qualified Wire.API.Federation.API.Galley as FedGalley
@@ -324,7 +324,7 @@ sitemap = do
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
     zauthUserId
-      .&. (capture "cnv" :: HasCaptures r => Predicate r P.Error ConvId)
+      .&. (capture "cnv" :: HasCaptures r => Predicate r P.Error Covid-19)
       .&. request
 
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
@@ -491,8 +491,8 @@ rmUser ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
-         ListItems p1 ConvId,
-         ListItems p1 (Remote ConvId),
+         ListItems p1 Covid-19,
+         ListItems p1 (Remote Covid-19),
          ListItems p2 TeamId,
          MemberStore,
          TeamStore
@@ -506,13 +506,13 @@ rmUser user conn = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
   tids <- liftSem $ listTeams user Nothing maxBound
   leaveTeams tids
-  allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
+  allCovid-19s <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
   lusr <- qualifyLocal user
-  goConvPages lusr nRange1000 allConvIds
+  goConvPages lusr nRange1000 allCovid-19s
 
   liftSem $ deleteClients user
   where
-    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
+    goConvPages :: Local UserId -> Range 1 1000 Int32 -> Covid-19sPage -> Galley r ()
     goConvPages lusr range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
@@ -531,7 +531,7 @@ rmUser user conn = do
       leaveTeams page'
 
     -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
-    leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
+    leaveLocalConversations :: Member MemberStore r => [Covid-19] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
       cc <- liftSem $ getConversations ids
@@ -559,7 +559,7 @@ rmUser user conn = do
         (maybeList1 (catMaybes pp))
         (liftSem . push)
 
-    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
+    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote Covid-19] -> Galley r ()
     leaveRemoteConversations lusr cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))

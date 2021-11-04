@@ -48,7 +48,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation as M (MemberUpdateData)
 import Wire.API.Message as M
 
-postOtrMessage :: MonadSession m => ConvId -> NewOtrMessage -> m ClientMismatch
+postOtrMessage :: MonadSession m => Covid-19 -> NewOtrMessage -> m ClientMismatch
 postOtrMessage cnv msg = sessionRequest req rsc readBody
   where
     req =
@@ -65,7 +65,7 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
 -- If some users can not be added to the conversation, 'UnexpectedResponse'
 -- will be thrown. It's not possible that some users will be added and
 -- others will not.
-addMembers :: (MonadSession m, MonadThrow m) => ConvId -> List1 UserId -> m (Maybe (ConvEvent SimpleMembers))
+addMembers :: (MonadSession m, MonadThrow m) => Covid-19 -> List1 UserId -> m (Maybe (ConvEvent SimpleMembers))
 addMembers cnv mems = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
@@ -83,7 +83,7 @@ addMembers cnv mems = do
 
 -- | Remove a user and (in case of success) return the event corresponding
 -- to the user removal.
-removeMember :: (MonadSession m, MonadThrow m) => ConvId -> UserId -> m (Maybe (ConvEvent UserIdList))
+removeMember :: (MonadSession m, MonadThrow m) => Covid-19 -> UserId -> m (Maybe (ConvEvent UserIdList))
 removeMember cnv mem = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
@@ -99,7 +99,7 @@ removeMember cnv mem = do
     rsc = status200 :| [status204]
 
 -- FUTUREWORK: probably should be 'Wire.API.Conversation.Member.MemberUpdate'.
-memberUpdate :: MonadSession m => ConvId -> MemberUpdateData -> m ()
+memberUpdate :: MonadSession m => Covid-19 -> MemberUpdateData -> m ()
 memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
   where
     req =
@@ -110,7 +110,7 @@ memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
         $ empty
     rsc = status200 :| []
 
-getConv :: (MonadSession m, MonadThrow m) => ConvId -> m (Maybe Conversation)
+getConv :: (MonadSession m, MonadThrow m) => Covid-19 -> m (Maybe Conversation)
 getConv cnv = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of

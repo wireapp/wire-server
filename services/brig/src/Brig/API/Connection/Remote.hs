@@ -36,7 +36,7 @@ import Control.Error.Util ((??))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
-import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
+import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorCovid-19))
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection (relationWithHistory)
@@ -105,20 +105,20 @@ updateOne2OneConv ::
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
-  Maybe (Qualified ConvId) ->
+  Maybe (Qualified Covid-19) ->
   Relation ->
   Actor ->
-  AppIO (Qualified ConvId)
-updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
+  AppIO (Qualified Covid-19)
+updateOne2OneConv lUsr _mbConn remoteUser mbCovid-19 rel actor = do
   let request =
         UpsertOne2OneConversationRequest
           { uooLocalUser = lUsr,
             uooRemoteUser = remoteUser,
             uooActor = actor,
             uooActorDesiredMembership = desiredMembership actor rel,
-            uooConvId = mbConvId
+            uooCovid-19 = mbCovid-19
           }
-  uuorConvId <$> Intra.upsertOne2OneConversation request
+  uuorCovid-19 <$> Intra.upsertOne2OneConversation request
   where
     desiredMembership :: Actor -> Relation -> DesiredMembership
     desiredMembership a r =
@@ -171,7 +171,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
 transitionTo _self _zcon _other (Just connection) Nothing _actor = pure (Existed connection, False)
 transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   -- update 1-1 conversation
-  void $ updateOne2OneConv self Nothing other (ucConvId connection) rel actor
+  void $ updateOne2OneConv self Nothing other (ucCovid-19 connection) rel actor
 
   -- update connection
   connection' <- Data.updateConnection connection (relationWithHistory rel)

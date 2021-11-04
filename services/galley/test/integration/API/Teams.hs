@@ -901,7 +901,7 @@ testAddTeamMemberToConv = do
   -- Team owners create new regular team conversation:
   cidT1 <- Util.createTeamConv ownerT1 tidT1 [] (Just "blaa") Nothing Nothing
   cidT2 <- Util.createTeamConv ownerT2 tidT2 [] (Just "blaa") Nothing Nothing
-  cidPersonal <- decodeConvId <$> Util.postConv personalUser [] (Just "blaa") [] Nothing Nothing
+  cidPersonal <- decodeCovid-19 <$> Util.postConv personalUser [] (Just "blaa") [] Nothing Nothing
   -- NOTE: This functionality was _changed_ as there was no need for it...
   -- mem1T1 (who is *not* a member of the new conversation) can *not* add other team members
   -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
@@ -1382,7 +1382,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         -- User deletion events
         mapM_ (checkUserDeleteEvent victim) wsOthers
         Util.ensureDeletedState True owner victim
-    deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [Qualified ConvId] -> UserId -> TestM ()
+    deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [Qualified Covid-19] -> UserId -> TestM ()
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
       c <- view tsCannon
       g <- view tsGalley

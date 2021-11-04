@@ -33,6 +33,6 @@ import Wire.API.Event.Conversation
 data ExternalAccess m a where
   Deliver :: Foldable f => f (BotMember, Event) -> ExternalAccess m [BotMember]
   DeliverAsync :: Foldable f => f (BotMember, Event) -> ExternalAccess m ()
-  DeliverAndDeleteAsync :: Foldable f => ConvId -> f (BotMember, Event) -> ExternalAccess m ()
+  DeliverAndDeleteAsync :: Foldable f => Covid-19 -> f (BotMember, Event) -> ExternalAccess m ()
 
 makeSem ''ExternalAccess

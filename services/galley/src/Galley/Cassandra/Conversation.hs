@@ -85,7 +85,7 @@ createConnectConversation ::
   Maybe (Range 1 256 Text) ->
   Client Conversation
 createConnectConversation a b name = do
-  let conv = localOne2OneConvId a b
+  let conv = localOne2OneCovid-19 a b
       a' = Id . U.unpack $ a
   retry x5 $
     write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
@@ -109,7 +109,7 @@ createConnectConversation a b name = do
       }
 
 createConnectConversationWithRemote ::
-  ConvId ->
+  Covid-19 ->
   UserId ->
   UserList UserId ->
   Client Conversation
@@ -143,7 +143,7 @@ createLegacyOne2OneConversation ::
   Maybe TeamId ->
   Client Conversation
 createLegacyOne2OneConversation loc a b name ti = do
-  let conv = localOne2OneConvId a b
+  let conv = localOne2OneCovid-19 a b
       a' = Id (U.unpack a)
       b' = Id (U.unpack b)
   createOne2OneConversation
@@ -154,7 +154,7 @@ createLegacyOne2OneConversation loc a b name ti = do
     ti
 
 createOne2OneConversation ::
-  ConvId ->
+  Covid-19 ->
   Local UserId ->
   Qualified UserId ->
   Maybe (Range 1 256 Text) ->
@@ -209,7 +209,7 @@ createSelfConversation lusr name = do
         convReceiptMode = Nothing
       }
 
-deleteConversation :: ConvId -> Client ()
+deleteConversation :: Covid-19 -> Client ()
 deleteConversation cid = do
   retry x5 $ write Cql.markConvDeleted (params LocalQuorum (Identity cid))
 
@@ -221,7 +221,7 @@ deleteConversation cid = do
 
   retry x5 $ write Cql.deleteConv (params LocalQuorum (Identity cid))
 
-conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
+conversationMeta :: Covid-19 -> Client (Maybe ConversationMetadata)
 conversationMeta conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
@@ -229,7 +229,7 @@ conversationMeta conv =
     toConvMeta (t, c, a, r, n, i, _, mt, rm) =
       ConversationMetadata t c (defAccess t a) (maybeRole t r) n i mt rm
 
-isConvAlive :: ConvId -> Client Bool
+isConvAlive :: Covid-19 -> Client Bool
 isConvAlive cid = do
   result <- retry x1 (query1 Cql.isConvDeleted (params LocalQuorum (Identity cid)))
   case runIdentity <$> result of
@@ -238,26 +238,26 @@ isConvAlive cid = do
     Just (Just True) -> pure False
     Just (Just False) -> pure True
 
-updateConvType :: ConvId -> ConvType -> Client ()
+updateConvType :: Covid-19 -> ConvType -> Client ()
 updateConvType cid ty =
   retry x5 $
     write Cql.updateConvType (params LocalQuorum (ty, cid))
 
-updateConvName :: ConvId -> Range 1 256 Text -> Client ()
+updateConvName :: Covid-19 -> Range 1 256 Text -> Client ()
 updateConvName cid name = retry x5 $ write Cql.updateConvName (params LocalQuorum (fromRange name, cid))
 
-updateConvAccess :: ConvId -> ConversationAccessData -> Client ()
+updateConvAccess :: Covid-19 -> ConversationAccessData -> Client ()
 updateConvAccess cid (ConversationAccessData acc role) =
   retry x5 $
     write Cql.updateConvAccess (params LocalQuorum (Set (toList acc), role, cid))
 
-updateConvReceiptMode :: ConvId -> ReceiptMode -> Client ()
+updateConvReceiptMode :: Covid-19 -> ReceiptMode -> Client ()
 updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params LocalQuorum (receiptMode, cid))
 
-updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
+updateConvMessageTimer :: Covid-19 -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
-getConversation :: ConvId -> Client (Maybe Conversation)
+getConversation :: Covid-19 -> Client (Maybe Conversation)
 getConversation conv = do
   cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   remoteMems <- UnliftIO.async $ lookupRemoteMembers conv
@@ -281,7 +281,7 @@ conversationGC conv = case join (convDeleted <$> conv) of
 
 localConversations ::
   (Members '[Embed IO, P.Reader ClientState, TinyLog] r) =>
-  [ConvId] ->
+  [Covid-19] ->
   Sem r [Conversation]
 localConversations [] = return []
 localConversations ids = do
@@ -307,7 +307,7 @@ localConversations ids = do
 
 -- | Takes a list of conversation ids and returns those found for the given
 -- user.
-localConversationIdsOf :: UserId -> [ConvId] -> Client [ConvId]
+localConversationIdsOf :: UserId -> [Covid-19] -> Client [Covid-19]
 localConversationIdsOf usr cids = do
   runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params LocalQuorum (usr, cids)))
 
@@ -315,14 +315,14 @@ localConversationIdsOf usr cids = do
 -- for the given user
 remoteConversationStatus ::
   UserId ->
-  [Remote ConvId] ->
-  Client (Map (Remote ConvId) MemberStatus)
+  [Remote Covid-19] ->
+  Client (Map (Remote Covid-19) MemberStatus)
 remoteConversationStatus uid =
   fmap mconcat
     . UnliftIO.pooledMapConcurrentlyN 8 (remoteConversationStatusOnDomain uid)
     . bucketRemote
 
-remoteConversationStatusOnDomain :: UserId -> Remote [ConvId] -> Client (Map (Remote ConvId) MemberStatus)
+remoteConversationStatusOnDomain :: UserId -> Remote [Covid-19] -> Client (Map (Remote Covid-19) MemberStatus)
 remoteConversationStatusOnDomain uid rconvs =
   Map.fromList . map toPair
     <$> query Cql.selectRemoteConvMemberStatuses (params LocalQuorum (uid, tDomain rconvs, tUnqualified rconvs))

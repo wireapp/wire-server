@@ -25,7 +25,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Control.Monad.Catch as Ex
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
-import Data.Id (ConvId)
+import Data.Id (Covid-19)
 import qualified Data.Metrics as Metrics
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -186,7 +186,7 @@ runBot ls s@BotState {..} = do
 data BotState = BotState
   { botClient :: !BotClient, -- "main" client (sends messages, etc)
     botOtherClients :: ![BotClient], -- other clients (just sit around)
-    botConv :: !ConvId,
+    botConv :: !Covid-19,
     botConvMembers :: [Bot],
     messagesLeft :: !Int,
     assetsLeft :: !Int

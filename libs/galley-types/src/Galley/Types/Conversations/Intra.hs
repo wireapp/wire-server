@@ -25,7 +25,7 @@ where
 
 import qualified Data.Aeson as A
 import Data.Aeson.Types (FromJSON, ToJSON)
-import Data.Id (ConvId, UserId)
+import Data.Id (Covid-19, UserId)
 import Data.Qualified
 import Data.Schema
 import Imports
@@ -59,7 +59,7 @@ data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
     uooRemoteUser :: Remote UserId,
     uooActor :: Actor,
     uooActorDesiredMembership :: DesiredMembership,
-    uooConvId :: Maybe (Qualified ConvId)
+    uooCovid-19 :: Maybe (Qualified Covid-19)
   }
   deriving (Show, Generic)
   deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationRequest
@@ -72,10 +72,10 @@ instance ToSchema UpsertOne2OneConversationRequest where
         <*> (qUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)
         <*> uooActor .= field "actor" schema
         <*> uooActorDesiredMembership .= field "actor_desired_membership" schema
-        <*> uooConvId .= field "conversation_id" (optWithDefault A.Null schema)
+        <*> uooCovid-19 .= field "conversation_id" (optWithDefault A.Null schema)
 
 newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
-  { uuorConvId :: Qualified ConvId
+  { uuorCovid-19 :: Qualified Covid-19
   }
   deriving (Show, Generic)
   deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationResponse
@@ -84,4 +84,4 @@ instance ToSchema UpsertOne2OneConversationResponse where
   schema =
     object "UpsertOne2OneConversationResponse" $
       UpsertOne2OneConversationResponse
-        <$> uuorConvId .= field "conversation_id" schema
+        <$> uuorCovid-19 .= field "conversation_id" schema

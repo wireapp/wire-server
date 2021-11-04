@@ -205,7 +205,7 @@ updatePermissions from tid (to, perm) galley =
   where
     changeMember = Team.newNewTeamMember to perm Nothing
 
-createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http Covid-19
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid False
   let conv =
@@ -227,7 +227,7 @@ createTeamConv g tid u us mtimer = do
       getHeader' "Location" r
 
 -- See Note [managed conversations]
-createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http Covid-19
 createManagedConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid True
   let conv =
@@ -248,7 +248,7 @@ createManagedConv g tid u us mtimer = do
     fromByteString $
       getHeader' "Location" r
 
-deleteTeamConv :: HasCallStack => Galley -> TeamId -> ConvId -> UserId -> Http ()
+deleteTeamConv :: HasCallStack => Galley -> TeamId -> Covid-19 -> UserId -> Http ()
 deleteTeamConv g tid cid u = do
   delete
     ( g

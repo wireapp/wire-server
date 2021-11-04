@@ -61,7 +61,7 @@ deliverAsync :: [(BotMember, Event)] -> IntraM ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
-deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> IntraM ()
+deliverAndDeleteAsync :: Covid-19 -> [(BotMember, Event)] -> IntraM ()
 deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone

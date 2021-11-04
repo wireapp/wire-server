@@ -1226,7 +1226,7 @@ addBot ::
   UserId ->
   ProviderId ->
   ServiceId ->
-  ConvId ->
+  Covid-19 ->
   Http ResponseLBS
 addBot brig uid pid sid cid =
   post $
@@ -1241,7 +1241,7 @@ addBot brig uid pid sid cid =
 removeBot ::
   Brig ->
   UserId ->
-  ConvId ->
+  Covid-19 ->
   BotId ->
   Http ResponseLBS
 removeBot brig uid cid bid =
@@ -1273,7 +1273,7 @@ postMessage ::
   Galley ->
   UserId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   [(UserId, ClientId, Text)] ->
   Http ResponseLBS
 postMessage galley fromu fromc cid rcps =
@@ -1290,7 +1290,7 @@ postBotMessage ::
   Galley ->
   BotId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   [(UserId, ClientId, Text)] ->
   Http ResponseLBS
 postBotMessage galley fromb fromc cid rcps =
@@ -1307,7 +1307,7 @@ postBotMessage galley fromb fromc cid rcps =
 getBotConv ::
   Galley ->
   BotId ->
-  ConvId ->
+  Covid-19 ->
   Http ResponseLBS
 getBotConv galley bid cid =
   get $
@@ -1320,7 +1320,7 @@ getBotConv galley bid cid =
 updateConversationAccess ::
   Galley ->
   UserId ->
-  ConvId ->
+  Covid-19 ->
   [Access] ->
   AccessRole ->
   Http ResponseLBS
@@ -1662,7 +1662,7 @@ defServiceApp buf =
           writeChan buf (TestBotMessage ev)
           k $ responseLBS status200 [] "success"
 
-wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
+wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> Qualified Covid-19 -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberJoin ws conv usr new = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1674,7 +1674,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
-wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
+wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified Covid-19 -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1686,7 +1686,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersLeave (QualifiedUserIdList old)
 
-wsAssertConvDelete :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
+wsAssertConvDelete :: MonadIO m => WS.WebSocket -> Qualified Covid-19 -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1698,7 +1698,7 @@ wsAssertConvDelete ws conv from = void $
         evtFrom e @?= from
         evtData e @?= EdConvDelete
 
-wsAssertMessage :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
+wsAssertMessage :: MonadIO m => WS.WebSocket -> Qualified Covid-19 -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1710,7 +1710,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
         evtFrom e @?= fromu
         evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
-svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
+svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified Covid-19 -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1722,7 +1722,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
-svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
+svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified Covid-19 -> m ()
 svcAssertMemberLeave buf usr gone cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1734,7 +1734,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
-svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessData -> Qualified ConvId -> m ()
+svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessData -> Qualified Covid-19 -> m ()
 svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1747,7 +1747,7 @@ svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
       assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
 
-svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
+svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified Covid-19 -> m ()
 svcAssertConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1758,19 +1758,19 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
       assertEqual "event data" EdConvDelete (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
-svcAssertBotCreated :: MonadIO m => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
+svcAssertBotCreated :: MonadIO m => Chan TestBotEvent -> BotId -> Covid-19 -> m TestBot
 svcAssertBotCreated buf bid cid = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotCreated b) -> do
       assertEqual "bot ID" bid (testBotId b)
-      assertEqual "conv" cid (testBotConv b ^. Ext.botConvId)
+      assertEqual "conv" cid (testBotConv b ^. Ext.botCovid-19)
       -- TODO: Verify the conversation name
       -- TODO: Verify the list of members
       return b
     _ -> throwM $ HUnitFailure Nothing "Event timeout (TestBotCreated)"
 
-svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
+svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified Covid-19 -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1781,7 +1781,7 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
-svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
+svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified Covid-19 -> m ()
 svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1844,7 +1844,7 @@ testAddRemoveBotUtil ::
   Domain ->
   ProviderId ->
   ServiceId ->
-  ConvId ->
+  Covid-19 ->
   User ->
   User ->
   Text ->
@@ -1922,7 +1922,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 testMessageBotUtil ::
   Qualified UserId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   ProviderId ->
   ServiceId ->
   ServiceRef ->
@@ -1948,7 +1948,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   _rs <- getBotConv galley bid cid <!! const 200 === statusCode
   let Just bcnv = responseJsonMaybe _rs
   liftIO $ do
-    assertEqual "id" cid (bcnv ^. Ext.botConvId)
+    assertEqual "id" cid (bcnv ^. Ext.botCovid-19)
     assertEqual "members" [OtherMember quid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
   mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
@@ -1980,7 +1980,7 @@ prepareBotUsersTeam ::
   Brig ->
   Galley ->
   ServiceRef ->
-  Http (User, User, Text, TeamId, ConvId, ProviderId, ServiceId)
+  Http (User, User, Text, TeamId, Covid-19, ProviderId, ServiceId)
 prepareBotUsersTeam brig galley sref = do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
@@ -2004,7 +2004,7 @@ addBotConv ::
   WS.Cannon ->
   UserId ->
   UserId ->
-  ConvId ->
+  Covid-19 ->
   ProviderId ->
   ServiceId ->
   Chan TestBotEvent ->

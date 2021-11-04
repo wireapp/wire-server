@@ -719,7 +719,7 @@ getUserConversations uid = do
       if (not . null) batch && (convHasMore userConversationList)
         then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
         else return (batch ++ xs)
-    fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
+    fetchBatch :: Maybe Covid-19 -> Handler (ConversationList Conversation)
     fetchBatch start = do
       b <- view galley
       r <-

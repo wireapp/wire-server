@@ -51,12 +51,12 @@ data Code = Code
   { codeKey :: !Key,
     codeValue :: !Value,
     codeTTL :: !Timeout,
-    codeConversation :: !ConvId,
+    codeConversation :: !Covid-19,
     codeScope :: !Scope
   }
   deriving (Eq, Show, Generic)
 
-toCode :: Key -> Scope -> (Value, Int32, ConvId) -> Code
+toCode :: Key -> Scope -> (Value, Int32, Covid-19) -> Code
 toCode k s (val, ttl, cnv) =
   Code
     { codeKey = k,
@@ -73,7 +73,7 @@ toCode k s (val, ttl, cnv) =
 -- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
 -- The 'value' is a base64 encoded, 120-bit random value (changing on each generation)
 
-generate :: MonadIO m => ConvId -> Scope -> Timeout -> m Code
+generate :: MonadIO m => Covid-19 -> Scope -> Timeout -> m Code
 generate cnv s t = do
   key <- mkKey cnv
   val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
@@ -86,7 +86,7 @@ generate cnv s t = do
         codeScope = s
       }
 
-mkKey :: MonadIO m => ConvId -> m Key
+mkKey :: MonadIO m => Covid-19 -> m Key
 mkKey cnv = do
   sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
   return $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)

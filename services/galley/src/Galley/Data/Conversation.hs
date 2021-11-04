@@ -27,7 +27,7 @@ module Galley.Data.Conversation
     isConvDeleted,
     selfConv,
     toConv,
-    localOne2OneConvId,
+    localOne2OneCovid-19,
     convMetadata,
   )
 where
@@ -55,11 +55,11 @@ isTeamConv = isJust . convTeam
 isConvDeleted :: Conversation -> Bool
 isConvDeleted = fromMaybe False . convDeleted
 
-selfConv :: UserId -> ConvId
+selfConv :: UserId -> Covid-19
 selfConv uid = Id (toUUID uid)
 
 toConv ::
-  ConvId ->
+  Covid-19 ->
   [LocalMember] ->
   [RemoteMember] ->
   Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
@@ -73,8 +73,8 @@ toConv cid mms remoteMems conv =
 -- together pairwise, and then setting the version bits (v4) and variant bits
 -- (variant 2). This means that we always know what the UUID is for a
 -- one-to-one conversation which hopefully makes them unique.
-localOne2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
-localOne2OneConvId a b = Id . U.unpack $ U.addv4 a b
+localOne2OneCovid-19 :: U.UUID U.V4 -> U.UUID U.V4 -> Covid-19
+localOne2OneCovid-19 a b = Id . U.unpack $ U.addv4 a b
 
 convMetadata :: Conversation -> ConversationMetadata
 convMetadata c =

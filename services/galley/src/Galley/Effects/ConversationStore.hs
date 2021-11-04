@@ -68,7 +68,7 @@ data ConversationStore m a where
     Maybe (Range 1 256 Text) ->
     ConversationStore m Conversation
   CreateConnectConversationWithRemote ::
-    ConvId ->
+    Covid-19 ->
     UserId ->
     UserList UserId ->
     ConversationStore m Conversation
@@ -80,7 +80,7 @@ data ConversationStore m a where
     Maybe TeamId ->
     ConversationStore m Conversation
   CreateOne2OneConversation ::
-    ConvId ->
+    Covid-19 ->
     Local UserId ->
     Qualified UserId ->
     Maybe (Range 1 256 Text) ->
@@ -90,23 +90,23 @@ data ConversationStore m a where
     Local UserId ->
     Maybe (Range 1 256 Text) ->
     ConversationStore m Conversation
-  DeleteConversation :: ConvId -> ConversationStore m ()
-  GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
-  GetConversations :: [ConvId] -> ConversationStore m [Conversation]
-  GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
-  IsConversationAlive :: ConvId -> ConversationStore m Bool
+  DeleteConversation :: Covid-19 -> ConversationStore m ()
+  GetConversation :: Covid-19 -> ConversationStore m (Maybe Conversation)
+  GetConversations :: [Covid-19] -> ConversationStore m [Conversation]
+  GetConversationMetadata :: Covid-19 -> ConversationStore m (Maybe ConversationMetadata)
+  IsConversationAlive :: Covid-19 -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->
-    [Remote ConvId] ->
-    ConversationStore m (Map (Remote ConvId) MemberStatus)
-  SelectConversations :: UserId -> [ConvId] -> ConversationStore m [ConvId]
-  SetConversationType :: ConvId -> ConvType -> ConversationStore m ()
-  SetConversationName :: ConvId -> Range 1 256 Text -> ConversationStore m ()
-  SetConversationAccess :: ConvId -> ConversationAccessData -> ConversationStore m ()
-  SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
-  SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
+    [Remote Covid-19] ->
+    ConversationStore m (Map (Remote Covid-19) MemberStatus)
+  SelectConversations :: UserId -> [Covid-19] -> ConversationStore m [Covid-19]
+  SetConversationType :: Covid-19 -> ConvType -> ConversationStore m ()
+  SetConversationName :: Covid-19 -> Range 1 256 Text -> ConversationStore m ()
+  SetConversationAccess :: Covid-19 -> ConversationAccessData -> ConversationStore m ()
+  SetConversationReceiptMode :: Covid-19 -> ReceiptMode -> ConversationStore m ()
+  SetConversationMessageTimer :: Covid-19 -> Maybe Milliseconds -> ConversationStore m ()
 
 makeSem ''ConversationStore
 
-acceptConnectConversation :: Member ConversationStore r => ConvId -> Sem r ()
+acceptConnectConversation :: Member ConversationStore r => Covid-19 -> Sem r ()
 acceptConnectConversation cid = setConversationType cid One2OneConv

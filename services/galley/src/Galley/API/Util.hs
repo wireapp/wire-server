@@ -257,7 +257,7 @@ assertOnTeam uid tid = do
 permissionCheckTeamConv ::
   Members '[ConversationStore, TeamStore] r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Perm ->
   Galley r ()
 permissionCheckTeamConv zusr cnv perm =
@@ -312,7 +312,7 @@ acceptOne2One usr conv conn = do
 
 memberJoinEvent ::
   Local UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   UTCTime ->
   [LocalMember] ->
   [RemoteMember] ->
@@ -525,7 +525,7 @@ getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 getConversationAndCheckMembership ::
   Member ConversationStore r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Data.Conversation
 getConversationAndCheckMembership uid cnv = do
   (conv, _) <-
@@ -539,7 +539,7 @@ getConversationAndMemberWithError ::
   (Member ConversationStore r, IsConvMemberId uid mem) =>
   Error ->
   uid ->
-  ConvId ->
+  Covid-19 ->
   Galley r (Data.Conversation, mem)
 getConversationAndMemberWithError ex usr convId = do
   c <-
@@ -600,7 +600,7 @@ verifyReusableCode convCode = do
 ensureConversationAccess ::
   Members '[BrigAccess, ConversationStore, TeamStore] r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Access ->
   Galley r Data.Conversation
 ensureConversationAccess zusr cnv access = do
@@ -643,7 +643,7 @@ toNewRemoteConversation ::
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
-  NewRemoteConversation ConvId
+  NewRemoteConversation Covid-19
 toNewRemoteConversation now localDomain Data.Conversation {..} =
   NewRemoteConversation
     { rcTime = now,
@@ -674,7 +674,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
 -- conversation.
 fromNewRemoteConversation ::
   Local x ->
-  NewRemoteConversation (Remote ConvId) ->
+  NewRemoteConversation (Remote Covid-19) ->
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcNonCreatorMembers

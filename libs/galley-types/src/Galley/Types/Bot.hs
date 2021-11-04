@@ -34,7 +34,7 @@ module Galley.Types.Bot
     module Service,
     BotConvView,
     botConvView,
-    botConvId,
+    botCovid-19,
     botConvName,
     botConvMembers,
   )
@@ -45,20 +45,20 @@ import Data.Aeson
 import Data.Id
 import Galley.Types.Bot.Service as Service
 import Imports
-import Wire.API.Provider.Bot (BotConvView, botConvId, botConvMembers, botConvName, botConvView)
+import Wire.API.Provider.Bot (BotConvView, botCovid-19, botConvMembers, botConvName, botConvView)
 
 -- AddBot ----------------------------------------------------------------------
 
 data AddBot = AddBot
   { _addBotService :: !ServiceRef,
-    _addBotConv :: !ConvId,
+    _addBotConv :: !Covid-19,
     _addBotId :: !BotId,
     _addBotClient :: !ClientId
   }
 
 makeLenses ''AddBot
 
-addBot :: ServiceRef -> ConvId -> BotId -> ClientId -> AddBot
+addBot :: ServiceRef -> Covid-19 -> BotId -> ClientId -> AddBot
 addBot = AddBot
 
 instance FromJSON AddBot where
@@ -80,13 +80,13 @@ instance ToJSON AddBot where
 -- RemoveBot ------------------------------------------------------------------
 
 data RemoveBot = RemoveBot
-  { _rmBotConv :: !ConvId,
+  { _rmBotConv :: !Covid-19,
     _rmBotId :: !BotId
   }
 
 makeLenses ''RemoveBot
 
-removeBot :: ConvId -> BotId -> RemoveBot
+removeBot :: Covid-19 -> BotId -> RemoveBot
 removeBot = RemoveBot
 
 instance FromJSON RemoveBot where

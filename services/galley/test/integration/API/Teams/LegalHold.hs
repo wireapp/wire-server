@@ -782,7 +782,7 @@ testOldClientsBlockDeviceHandshake = do
     connectUsers peer (List1.list1 legalholder [legalholder2])
 
     convId <-
-      decodeConvId
+      decodeCovid-19
         <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
                 <!! const 201 === statusCode
             )
@@ -884,7 +884,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         -- peer can't send message to legalhodler. the conversation appears gone.
         peerClient <- randomClient peer (someLastPrekeys !! 2)
-        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
+        for_ ((,) <$> (mbConn >>= Conn.ucCovid-19) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
           postOtrMessage
             id
             peer
@@ -917,7 +917,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
               _ -> assertBool "wrong event type" False
 
         -- conversation reappears. peer can send message to legalholder again
-        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
+        for_ ((,) <$> (mbConn >>= Conn.ucCovid-19) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
           postOtrMessage
             id
             peer

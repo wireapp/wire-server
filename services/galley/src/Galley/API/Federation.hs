@@ -23,7 +23,7 @@ import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
-import Data.Id (ConvId, UserId)
+import Data.Id (Covid-19, UserId)
 import Data.Json.Util (Base64ByteString (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
@@ -91,7 +91,7 @@ federationSitemap =
 onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
-  NewRemoteConversation ConvId ->
+  NewRemoteConversation Covid-19 ->
   Galley r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
@@ -152,7 +152,7 @@ onConversationUpdated ::
 onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
   loc <- qualifyLocal ()
-  let rconvId = toRemoteUnsafe requestingDomain (cuConvId cu)
+  let rconvId = toRemoteUnsafe requestingDomain (cuCovid-19 cu)
       qconvId = qUntagged rconvId
 
   -- Note: we generally do not send notifications to users that are not part of
@@ -193,7 +193,7 @@ onConversationUpdated requestingDomain cu = do
 
   unless allUsersArePresent $
     Log.warn $
-      Log.field "conversation" (toByteString' (cuConvId cu))
+      Log.field "conversation" (toByteString' (cuCovid-19 cu))
         . Log.field "domain" (toByteString' requestingDomain)
         . Log.msg
           ( "Attempt to send notification about conversation update \
@@ -211,11 +211,11 @@ onConversationUpdated requestingDomain cu = do
 
 addLocalUsersToRemoteConv ::
   Members '[BrigAccess, MemberStore] r =>
-  Remote ConvId ->
+  Remote Covid-19 ->
   Qualified UserId ->
   [UserId] ->
   Galley r (Set UserId)
-addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
+addLocalUsersToRemoteConv remoteCovid-19 qAdder localUsers = do
   connStatus <- liftSem $ E.getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
       connected = Set.fromList $ fmap csv2From connStatus
@@ -232,7 +232,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  liftSem $ E.createMembersInRemoteConversation remoteConvId connectedList
+  liftSem $ E.createMembersInRemoteConversation remoteCovid-19 connectedList
   pure connected
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
@@ -255,7 +255,7 @@ leaveConversation ::
   Galley r LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (lcLeaver lc) requestingDomain
-  lcnv <- qualifyLocal (lcConvId lc)
+  lcnv <- qualifyLocal (lcCovid-19 lc)
   fmap
     ( LeaveConversationResponse
         . maybe (Left RemoveFromConversationErrorUnchanged) Right
@@ -272,7 +272,7 @@ leaveConversation requestingDomain lc = do
 onMessageSent ::
   Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
-  RemoteMessage ConvId ->
+  RemoteMessage Covid-19 ->
   Galley r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
@@ -331,7 +331,7 @@ sendMessage ::
 sendMessage originDomain msr = do
   let sender = Qualified (msrSender msr) originDomain
   msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
-  MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
+  MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrCovid-19 msr) msg
   where
     err = throwM . invalidPayload . LT.pack
 

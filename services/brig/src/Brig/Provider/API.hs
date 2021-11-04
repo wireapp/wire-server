@@ -275,7 +275,7 @@ routesPublic = do
   delete "/bot/self" (continue botDeleteSelfH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. zauthConvId
+      .&. zauthCovid-19
 
   get "/bot/client/prekeys" (continue botListPrekeysH) $
     accept "application" "json"
@@ -797,11 +797,11 @@ updateServiceWhitelist uid con tid upd = do
       DB.deleteServiceWhitelist (Just tid) pid sid
       return UpdateServiceWhitelistRespChanged
 
-addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> Handler Response
+addBotH :: UserId ::: ConnId ::: Covid-19 ::: JsonRequest Public.AddBot -> Handler Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
   setStatus status201 . json <$> (addBot zuid zcon cid =<< parseJsonBody req)
 
-addBot :: UserId -> ConnId -> ConvId -> Public.AddBot -> Handler Public.AddBotResponse
+addBot :: UserId -> ConnId -> Covid-19 -> Public.AddBot -> Handler Public.AddBotResponse
 addBot zuid zcon cid add = do
   zusr <- lift (User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
@@ -879,11 +879,11 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBotH :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
+removeBotH :: UserId ::: ConnId ::: Covid-19 ::: BotId -> Handler Response
 removeBotH (zusr ::: zcon ::: cid ::: bid) = do
   maybe (setStatus status204 empty) json <$> removeBot zusr zcon cid bid
 
-removeBot :: UserId -> ConnId -> ConvId -> BotId -> Handler (Maybe Public.RemoveBotResponse)
+removeBot :: UserId -> ConnId -> Covid-19 -> BotId -> Handler (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   -- Get the conversation and check preconditions
   cnv <- lift (RPC.getConv zusr cid) >>= maybeConvNotFound
@@ -971,11 +971,11 @@ botGetUserClients uid = do
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
-botDeleteSelfH :: BotId ::: ConvId -> Handler Response
+botDeleteSelfH :: BotId ::: Covid-19 -> Handler Response
 botDeleteSelfH (bid ::: cid) = do
   empty <$ botDeleteSelf bid cid
 
-botDeleteSelf :: BotId -> ConvId -> Handler ()
+botDeleteSelf :: BotId -> Covid-19 -> Handler ()
 botDeleteSelf bid cid = do
   bot <- lift $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
@@ -996,7 +996,7 @@ activate pid old new = do
     throwStd emailExists
   DB.insertKey pid (mkEmailKey <$> old) emailKey
 
-deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> AppIO (Maybe Public.Event)
+deleteBot :: UserId -> Maybe ConnId -> BotId -> Covid-19 -> AppIO (Maybe Public.Event)
 deleteBot zusr zcon bid cid = do
   -- Remove the bot from the conversation
   ev <- RPC.removeBotMember zusr zcon cid bid

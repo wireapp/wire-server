@@ -90,7 +90,7 @@ data TeamStore m a where
   GetBillingTeamMembers :: TeamId -> TeamStore m [UserId]
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
-  GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe TeamConversation)
+  GetTeamConversation :: TeamId -> Covid-19 -> TeamStore m (Maybe TeamConversation)
   GetTeamConversations :: TeamId -> TeamStore m [TeamConversation]
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
   GetTeamMember :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
@@ -104,7 +104,7 @@ data TeamStore m a where
   GetTeamBinding :: TeamId -> TeamStore m (Maybe TeamBinding)
   GetTeamCreationTime :: TeamId -> TeamStore m (Maybe TeamCreationTime)
   DeleteTeam :: TeamId -> TeamStore m ()
-  DeleteTeamConversation :: TeamId -> ConvId -> TeamStore m ()
+  DeleteTeamConversation :: TeamId -> Covid-19 -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
 

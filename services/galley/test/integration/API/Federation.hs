@@ -27,7 +27,7 @@ import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
-import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
+import Data.Id (Covid-19, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util (Base64ByteString (..), toBase64Text)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
@@ -91,7 +91,7 @@ getConversationsAllFound = do
   bobQ <- randomQualifiedUser
   let bob = qUnqualified bobQ
       lBob = toLocalUnsafe (qDomain bobQ) (qUnqualified bobQ)
-  (rAlice, cnv1Id) <- generateRemoteAndConvId True lBob
+  (rAlice, cnv1Id) <- generateRemoteAndCovid-19 True lBob
   let aliceQ = qUntagged rAlice
   carlQ <- randomQualifiedUser
 
@@ -113,7 +113,7 @@ getConversationsAllFound = do
               uooRemoteUser = rAlice,
               uooActor = LocalActor,
               uooActorDesiredMembership = Included,
-              uooConvId = Just cnv1Id
+              uooCovid-19 = Just cnv1Id
             }
     UpsertOne2OneConversationResponse cnv1IdReturned <-
       responseJsonError
@@ -227,7 +227,7 @@ addLocalUser = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
+            FedGalley.cuCovid-19 = conv,
             FedGalley.cuAlreadyPresentUsers = [charlie],
             FedGalley.cuAction =
               ConversationActionAddMembers (qalice :| [qdee]) roleNameWireMember
@@ -281,7 +281,7 @@ addUnconnectedUsersOnly = do
           FedGalley.ConversationUpdate
             { FedGalley.cuTime = now,
               FedGalley.cuOrigUserId = qBob,
-              FedGalley.cuConvId = conv,
+              FedGalley.cuCovid-19 = conv,
               FedGalley.cuAlreadyPresentUsers = [alice],
               FedGalley.cuAction =
                 ConversationActionAddMembers (qCharlie :| []) roleNameWireMember
@@ -315,7 +315,7 @@ removeLocalUser = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qBob,
-            FedGalley.cuConvId = conv,
+            FedGalley.cuCovid-19 = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
               ConversationActionAddMembers (pure qAlice) roleNameWireMember
@@ -324,7 +324,7 @@ removeLocalUser = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
             FedGalley.cuOrigUserId = qBob,
-            FedGalley.cuConvId = conv,
+            FedGalley.cuCovid-19 = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
               ConversationActionRemoveMembers (pure qAlice)
@@ -388,7 +388,7 @@ removeRemoteUser = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
             FedGalley.cuOrigUserId = qBob,
-            FedGalley.cuConvId = conv,
+            FedGalley.cuCovid-19 = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
               ConversationActionRemoveMembers (pure user)
@@ -441,7 +441,7 @@ notifyUpdate extras action etype edata = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
+            FedGalley.cuCovid-19 = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie],
             FedGalley.cuAction = action
           }
@@ -542,7 +542,7 @@ notifyDeletedConversation = do
           FedGalley.ConversationUpdate
             { FedGalley.cuTime = now,
               FedGalley.cuOrigUserId = qbob,
-              FedGalley.cuConvId = qUnqualified qconv,
+              FedGalley.cuCovid-19 = qUnqualified qconv,
               FedGalley.cuAlreadyPresentUsers = [alice],
               FedGalley.cuAction = ConversationActionDelete
             }
@@ -598,7 +598,7 @@ addRemoteUser = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = qUnqualified qconv,
+            FedGalley.cuCovid-19 = qUnqualified qconv,
             FedGalley.cuAlreadyPresentUsers = map qUnqualified [qalice, qcharlie],
             FedGalley.cuAction =
               ConversationActionAddMembers (qdee :| [qeve, qflo]) roleNameWireMember
@@ -642,7 +642,7 @@ leaveConversationSuccess = do
 
   (convId, _) <-
     withTempMockFederator' mockedResponse $
-      decodeConvId
+      decodeCovid-19
         <$> postConvQualified
           alice
           defNewConv
@@ -702,7 +702,7 @@ onMessageSent = do
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
+            FedGalley.cuCovid-19 = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
               ConversationActionAddMembers (pure qalice) roleNameWireMember
@@ -788,7 +788,7 @@ sendMessage = do
         | otherwise = toJSON ()
   (convId, requests1) <-
     withTempMockFederator responses1 $
-      fmap decodeConvId $
+      fmap decodeCovid-19 $
         postConvQualified
           aliceId
           defNewConv
@@ -814,7 +814,7 @@ sendMessage = do
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
       msr =
         FedGalley.MessageSendRequest
-          { FedGalley.msrConvId = convId,
+          { FedGalley.msrCovid-19 = convId,
             FedGalley.msrSender = bobId,
             FedGalley.msrRawMessage =
               Base64ByteString
@@ -864,7 +864,7 @@ sendMessage = do
     fmap F.path (F.request receiveReq) @?= Just "/federation/on-message-sent"
     rm <- case A.decode . LBS.fromStrict . F.body =<< F.request receiveReq of
       Nothing -> assertFailure "invalid federated request body"
-      Just x -> pure (x :: FedGalley.RemoteMessage ConvId)
+      Just x -> pure (x :: FedGalley.RemoteMessage Covid-19)
     FedGalley.rmSender rm @?= bob
     Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
       @?= Set.singleton chadId
@@ -876,15 +876,15 @@ sendMessage = do
 -- - Backend C has Carl
 --
 -- Bob is in these convs:
--- - One2One Conv with Alice (ooConvId)
--- - Group conv with all users (groupConvId)
+-- - One2One Conv with Alice (ooCovid-19)
+-- - Group conv with all users (groupCovid-19)
 --
 -- When bob gets deleted, backend A gets an RPC from bDomain stating that bob is
 -- deleted and they would like bob to leave these converstaions:
--- - ooConvId -> Causes Alice to be notified
--- - groupConvId -> Causes Alice and Alex to be notified
--- - extraConvId -> Ignored
--- - noBobConvId -> Ignored
+-- - ooCovid-19 -> Causes Alice to be notified
+-- - groupCovid-19 -> Causes Alice and Alex to be notified
+-- - extraCovid-19 -> Ignored
+-- - noBobCovid-19 -> Ignored
 onUserDeleted :: TestM ()
 onUserDeleted = do
   cannon <- view tsCannon
@@ -893,7 +893,7 @@ onUserDeleted = do
 
   alice <- qTagUnsafe <$> randomQualifiedUser
   alex <- randomQualifiedUser
-  (bob, ooConvId) <- generateRemoteAndConvIdWithDomain bDomain True alice
+  (bob, ooCovid-19) <- generateRemoteAndCovid-19WithDomain bDomain True alice
   bart <- randomQualifiedId bDomain
   carl <- randomQualifiedId cDomain
 
@@ -906,8 +906,8 @@ onUserDeleted = do
   createOne2OneConvWithRemote alice bob
 
   -- create group conversation with everybody
-  groupConvId <-
-    decodeQualifiedConvId
+  groupCovid-19 <-
+    decodeQualifiedCovid-19
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
               defNewConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
@@ -915,11 +915,11 @@ onUserDeleted = do
           )
 
   -- extraneous conversation
-  extraConvId <- randomId
+  extraCovid-19 <- randomId
 
   -- conversation without bob
-  noBobConvId <-
-    fmap decodeQualifiedConvId $
+  noBobCovid-19 <-
+    fmap decodeQualifiedCovid-19 $
       postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [alex]}
         <!! const 201 === statusCode
 
@@ -930,10 +930,10 @@ onUserDeleted = do
               { FedGalley.udcnUser = tUnqualified bob,
                 FedGalley.udcnConversations =
                   unsafeRange
-                    [ qUnqualified ooConvId,
-                      qUnqualified groupConvId,
-                      extraConvId,
-                      qUnqualified noBobConvId
+                    [ qUnqualified ooCovid-19,
+                      qUnqualified groupCovid-19,
+                      extraCovid-19,
+                      qUnqualified noBobCovid-19
                     ]
               }
       g <- viewGalley
@@ -947,8 +947,8 @@ onUserDeleted = do
           )
         <!! const 200 === statusCode
 
-    ooConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) ooConvId <!! const 200 === statusCode
-    groupConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) groupConvId <!! const 200 === statusCode
+    ooConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) ooCovid-19 <!! const 200 === statusCode
+    groupConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) groupCovid-19 <!! const 200 === statusCode
 
     liftIO $ do
       resp @?= EmptyResponse
@@ -960,9 +960,9 @@ onUserDeleted = do
       -- Assert that local user's get notifications only for the conversation
       -- bob was part of and it wasn't a One2OneConv
       void . WS.assertMatch (3 # Second) wsAlice $
-        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+        wsAssertMembersLeave groupCovid-19 (qUntagged bob) [qUntagged bob]
       void . WS.assertMatch (3 # Second) wsAlex $
-        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+        wsAssertMembersLeave groupCovid-19 (qUntagged bob) [qUntagged bob]
       -- Alice shouldn't get any other notifications because we don't notify
       -- on One2One convs.
       --
@@ -970,7 +970,7 @@ onUserDeleted = do
       -- not part of any other conversations with bob.
       WS.assertNoEvent (1 # Second) [wsAlice, wsAlex]
 
-      -- There should be only 2 RPC calls made only for groupConvId: 1 for bob's
+      -- There should be only 2 RPC calls made only for groupCovid-19: 1 for bob's
       -- domain and 1 for eve's domain
       assertEqual ("Expected 2 RPC calls, got: " <> show rpcCalls) 2 (length rpcCalls)
 
@@ -978,7 +978,7 @@ onUserDeleted = do
       bobDomainRPC <- assertOne $ filter (\c -> F.domain c == domainText bDomain) rpcCalls
       bobDomainRPCReq <- assertRight $ parseFedRequest bobDomainRPC
       FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
-      FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
+      FedGalley.cuCovid-19 bobDomainRPCReq @?= qUnqualified groupCovid-19
       sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
       FedGalley.cuAction bobDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
 
@@ -986,6 +986,6 @@ onUserDeleted = do
       cDomainRPC <- assertOne $ filter (\c -> F.domain c == domainText cDomain) rpcCalls
       cDomainRPCReq <- assertRight $ parseFedRequest cDomainRPC
       FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
-      FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
+      FedGalley.cuCovid-19 cDomainRPCReq @?= qUnqualified groupCovid-19
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
       FedGalley.cuAction cDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)

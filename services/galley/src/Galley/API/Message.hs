@@ -7,7 +7,7 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
-import Data.Id (ClientId, ConnId, ConvId, UserId)
+import Data.Id (ClientId, ConnId, Covid-19, UserId)
 import Data.Json.Util
   ( Base64ByteString (..),
     UTCTimeMillis,
@@ -195,13 +195,13 @@ getRemoteClients remoteMembers =
 postRemoteOtrMessage ::
   Members '[ConversationStore, FederatorAccess] r =>
   Qualified UserId ->
-  Remote ConvId ->
+  Remote Covid-19 ->
   LByteString ->
   Galley r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         FederatedGalley.MessageSendRequest
-          { FederatedGalley.msrConvId = tUnqualified conv,
+          { FederatedGalley.msrCovid-19 = tUnqualified conv,
             FederatedGalley.msrSender = qUnqualified sender,
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
@@ -224,7 +224,7 @@ postQualifiedOtrMessage ::
   UserType ->
   Qualified UserId ->
   Maybe ConnId ->
-  ConvId ->
+  Covid-19 ->
   QualifiedNewOtrMessage ->
   Galley r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
@@ -321,7 +321,7 @@ sendMessages ::
   Qualified UserId ->
   ClientId ->
   Maybe ConnId ->
-  ConvId ->
+  Covid-19 ->
   Map UserId LocalMember ->
   MessageMetadata ->
   Map (Domain, UserId, ClientId) ByteString ->
@@ -349,7 +349,7 @@ sendLocalMessages ::
   Qualified UserId ->
   ClientId ->
   Maybe ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Map UserId LocalMember ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
@@ -377,7 +377,7 @@ sendRemoteMessages ::
   UTCTime ->
   Qualified UserId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
   Galley r (Set (UserId, ClientId))
@@ -446,7 +446,7 @@ newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
 runMessagePush ::
   forall r.
   Members '[BotAccess, GundeckAccess, ExternalAccess] r =>
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   MessagePush ->
   Galley r ()
 runMessagePush cnv mp = do
@@ -461,7 +461,7 @@ runMessagePush cnv mp = do
           Log.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show cnv)
         else liftSem $ deliverAndDeleteAsync (qUnqualified cnv) pushes
 
-newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
+newMessageEvent :: Qualified Covid-19 -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
 newMessageEvent convId sender senderClient dat time receiverClient cipherText =
   Event OtrMessageAdd convId sender time . EdOtrMessage $
     OtrMessage

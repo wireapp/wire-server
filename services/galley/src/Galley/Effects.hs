@@ -86,9 +86,9 @@ type GalleyEffects1 =
      ServiceStore,
      TeamStore,
      TeamMemberStore InternalPaging,
-     ListItems CassandraPaging ConvId,
-     ListItems CassandraPaging (Remote ConvId),
-     ListItems LegacyPaging ConvId,
+     ListItems CassandraPaging Covid-19,
+     ListItems CassandraPaging (Remote Covid-19),
+     ListItems LegacyPaging Covid-19,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId
    ]

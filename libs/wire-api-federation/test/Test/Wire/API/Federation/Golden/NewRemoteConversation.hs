@@ -12,7 +12,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.Provider.Service
 
-testObject_NewRemoteConversation1 :: NewRemoteConversation ConvId
+testObject_NewRemoteConversation1 :: NewRemoteConversation Covid-19
 testObject_NewRemoteConversation1 =
   NewRemoteConversation
     { rcTime = read "1864-04-12 12:22:43.673 UTC",
@@ -51,7 +51,7 @@ testObject_NewRemoteConversation1 =
       rcReceiptMode = Just (ReceiptMode 42)
     }
 
-testObject_NewRemoteConversation2 :: NewRemoteConversation ConvId
+testObject_NewRemoteConversation2 :: NewRemoteConversation Covid-19
 testObject_NewRemoteConversation2 =
   NewRemoteConversation
     { rcTime = read "1864-04-12 12:22:43.673 UTC",

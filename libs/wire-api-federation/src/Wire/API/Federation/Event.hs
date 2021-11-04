@@ -52,7 +52,7 @@ data AnyEvent
 -- of event it is, e.g. @ConversationEvent MemberJoin@.
 -- To represent possiblity of multiple different event types, use a sum type around it.
 data ConversationEvent a = ConversationEvent
-  { eventConversation :: Qualified ConvId,
+  { eventConversation :: Qualified Covid-19,
     eventFrom :: Qualified UserId,
     eventTime :: UTCTime,
     eventData :: a

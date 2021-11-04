@@ -29,7 +29,7 @@ import Data.Id
 import Imports
 import URI.ByteString
 
-download :: UserId -> ConvId -> AssetId -> Handler (Maybe URI)
+download :: UserId -> Covid-19 -> AssetId -> Handler (Maybe URI)
 download _ _ ast = S3.getMetadata ast >>= maybe notFound found
   where
     notFound = return Nothing
@@ -40,7 +40,7 @@ download _ _ ast = S3.getMetadata ast >>= maybe notFound found
           url <- genSignedURL (S3.plainKey ast)
           return $! Just $! url
 
-downloadOtr :: UserId -> ConvId -> AssetId -> Handler (Maybe URI)
+downloadOtr :: UserId -> Covid-19 -> AssetId -> Handler (Maybe URI)
 downloadOtr _ cnv ast = S3.getOtrMetadata cnv ast >>= maybe notFound found
   where
     notFound = return Nothing

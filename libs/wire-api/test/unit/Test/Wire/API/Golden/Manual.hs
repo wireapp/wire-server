@@ -21,7 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
-import Test.Wire.API.Golden.Manual.ConvIdsPage
+import Test.Wire.API.Golden.Manual.Covid-19sPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
@@ -71,10 +71,10 @@ tests =
             (testObject_ConversationPagingState_3, "testObject_ConversationPagingState_3.json"),
             (testObject_ConversationPagingState_4, "testObject_ConversationPagingState_4.json")
           ],
-      testGroup "ConvIdsPage" $
+      testGroup "Covid-19sPage" $
         testObjects
-          [ (testObject_ConvIdsPage_1, "testObject_ConvIdsPage_1.json"),
-            (testObject_ConvIdsPage_2, "testObject_ConvIdsPage_2.json")
+          [ (testObject_Covid-19sPage_1, "testObject_Covid-19sPage_1.json"),
+            (testObject_Covid-19sPage_2, "testObject_Covid-19sPage_2.json")
           ],
       testGroup "ClientCapability" $
         testObjects

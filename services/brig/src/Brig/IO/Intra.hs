@@ -594,7 +594,7 @@ createLocalConnectConv ::
   Local UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  AppIO ConvId
+  AppIO Covid-19
 createLocalConnectConv from to cname conn = do
   debug $
     logConnection (tUnqualified from) (qUntagged to)
@@ -617,7 +617,7 @@ createConnectConv ::
   Qualified UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  AppIO (Qualified ConvId)
+  AppIO (Qualified Covid-19)
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
@@ -630,7 +630,7 @@ createConnectConv from to cname conn = do
       foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> Covid-19 -> AppIO Conversation
 acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
@@ -644,7 +644,7 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified Covid-19 -> AppIO Conversation
 acceptConnectConv from conn =
   foldQualified
     from
@@ -652,7 +652,7 @@ acceptConnectConv from conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.
-blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO ()
+blockLocalConv :: Local UserId -> Maybe ConnId -> Covid-19 -> AppIO ()
 blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -666,7 +666,7 @@ blockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO ()
+blockConv :: Local UserId -> Maybe ConnId -> Qualified Covid-19 -> AppIO ()
 blockConv lusr conn =
   foldQualified
     lusr
@@ -674,7 +674,7 @@ blockConv lusr conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+unblockLocalConv :: Local UserId -> Maybe ConnId -> Covid-19 -> AppIO Conversation
 unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -688,7 +688,7 @@ unblockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+unblockConv :: Local UserId -> Maybe ConnId -> Qualified Covid-19 -> AppIO Conversation
 unblockConv luid conn =
   foldQualified
     luid
@@ -696,7 +696,7 @@ unblockConv luid conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
-getConv :: UserId -> ConvId -> AppIO (Maybe Conversation)
+getConv :: UserId -> Covid-19 -> AppIO (Maybe Conversation)
 getConv usr cnv = do
   debug $
     remote "galley"
@@ -725,7 +725,7 @@ upsertOne2OneConversation urequest = do
         . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
-getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
+getTeamConv :: UserId -> TeamId -> Covid-19 -> AppIO (Maybe Team.TeamConversation)
 getTeamConv usr tid cnv = do
   debug $
     remote "galley"

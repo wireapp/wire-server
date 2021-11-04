@@ -717,7 +717,7 @@ testOldClientsBlockDeviceHandshake = do
     connectUsers peer (List1.list1 legalholder [legalholder2])
 
     convId <-
-      decodeConvId
+      decodeCovid-19
         <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
                 <!! const 201 === statusCode
             )

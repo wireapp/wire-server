@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Conversations.One2One (one2OneConvId) where
+module Galley.Types.Conversations.One2One (one2OneCovid-19) where
 
 import Control.Error (atMay)
 import qualified Crypto.Hash as Crypto
@@ -88,9 +88,9 @@ quidToByteString (Qualified uid domain) = toByteString' uid <> toByteString' dom
 -- the most significant bit of the octet at index 16) is 0, and B otherwise.
 -- This is well-defined, because we assumed the number of bits of x to be
 -- strictly larger than 128.
-one2OneConvId :: Qualified UserId -> Qualified UserId -> Qualified ConvId
-one2OneConvId a b = case compareDomains a b of
-  GT -> one2OneConvId b a
+one2OneCovid-19 :: Qualified UserId -> Qualified UserId -> Qualified Covid-19
+one2OneCovid-19 a b = case compareDomains a b of
+  GT -> one2OneCovid-19 b a
   _ ->
     let c =
           mconcat

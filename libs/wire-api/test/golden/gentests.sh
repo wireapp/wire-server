@@ -164,7 +164,7 @@ stack build --fast --test --bench --no-run-benchmarks wire-api |
             "$fun"
             sed -r -e 's/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/(Id (fromJust (UUID.fromString "\1")))/g' \
                 -e 's/:: Scheme/:: CallConfig.Scheme/' \
-                -e 's/Id \* C/ConvId/g' \
+                -e 's/Id \* C/Covid-19/g' \
                 -e 's/mimeType = ([^ ]*)/mimeType = MIME.\1/g' \
                 -e 's/newConvAccess = fromList/newConvAccess = Set.fromList/g' \
                 -e 's/Number ([-0-9.e]+)/Number (\1)/g' \

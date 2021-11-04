@@ -412,7 +412,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ConversationCoverView
       Test.Wire.API.Golden.Manual.ConversationPagingState
       Test.Wire.API.Golden.Manual.ConversationsResponse
-      Test.Wire.API.Golden.Manual.ConvIdsPage
+      Test.Wire.API.Golden.Manual.Covid-19sPage
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
       Test.Wire.API.Golden.Manual.ListConversations

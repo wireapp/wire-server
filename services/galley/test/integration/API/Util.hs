@@ -72,7 +72,7 @@ import qualified Galley.Run as Run
 import Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Intra
-import Galley.Types.Conversations.One2One (one2OneConvId)
+import Galley.Types.Conversations.One2One (one2OneCovid-19)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
@@ -479,7 +479,7 @@ getInvitationCode t ref = do
 -- and therefore cannot be unset. However, given that this is to test the legacy
 -- API (i.e., no roles) it's fine to hardcode the JSON object in the test since
 -- it clearly shows the API that old(er) clients use.
-createTeamConvLegacy :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> TestM ConvId
+createTeamConvLegacy :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> TestM Covid-19
 createTeamConvLegacy u tid us name = do
   g <- view tsGalley
   let tinfo = ConvTeamInfo tid False
@@ -499,13 +499,13 @@ createTeamConvLegacy u tid us name = do
     )
     >>= \r -> fromBS (getHeader' "Location" r)
 
-createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
+createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM Covid-19
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
 
-createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
+createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM Covid-19
 createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM Covid-19
 createTeamConvAccess u tid us name acc role mtimer convRole = do
   r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
   fromBS (getHeader' "Location" r)
@@ -526,7 +526,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
         . json conv
     )
 
-updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
+updateTeamConv :: UserId -> Covid-19 -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
   g <- view tsGalley
   put
@@ -588,7 +588,7 @@ postTeamConv tid u us name a r mtimer = do
   let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid False)) mtimer Nothing roleNameWireAdmin
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
-deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
+deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> Covid-19 -> UserId -> m ResponseLBS
 deleteTeamConv tid convId zusr = do
   g <- viewGalley
   delete
@@ -640,7 +640,7 @@ postConnectConv a b name msg email = do
       . zType "access"
       . json (Connect qb (Just msg) (Just name) email)
 
-putConvAccept :: UserId -> ConvId -> TestM ResponseLBS
+putConvAccept :: UserId -> Covid-19 -> TestM ResponseLBS
 putConvAccept invited cid = do
   g <- view tsGalley
   put $
@@ -654,7 +654,7 @@ postOtrMessage ::
   (Request -> Request) ->
   UserId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   [(UserId, ClientId, Text)] ->
   TestM ResponseLBS
 postOtrMessage = postOtrMessage' Nothing
@@ -664,7 +664,7 @@ postOtrMessage' ::
   (Request -> Request) ->
   UserId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   [(UserId, ClientId, Text)] ->
   TestM ResponseLBS
 postOtrMessage' reportMissing f u d c rec = do
@@ -681,7 +681,7 @@ postOtrMessage' reportMissing f u d c rec = do
 postProteusMessageQualifiedWithMockFederator ::
   UserId ->
   ClientId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
@@ -697,7 +697,7 @@ postProteusMessageQualified ::
   (MonadIO m, HasGalley m, MonadHttp m) =>
   UserId ->
   ClientId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
@@ -747,10 +747,10 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn :: (FromByteString a, ToByteString a) => a -> Text
     fn = fromJust . fromByteString . toByteString'
 
-postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrMessage :: UserId -> ClientId -> Covid-19 -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage = postProtoOtrMessage' Nothing id
 
-postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> Covid-19 -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
   g <- view tsGalley
   let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
@@ -790,7 +790,7 @@ mkOtrProtoMessage sender rec reportMissing =
         & Proto.newOtrMessageData ?~ "data"
         & Proto.newOtrMessageReportMissing .~ rmis
 
-getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
+getConvs :: UserId -> Maybe (Either [Covid-19] Covid-19) -> Maybe Int32 -> TestM ResponseLBS
 getConvs u r s = do
   g <- view tsGalley
   get $
@@ -812,7 +812,7 @@ listConvs u req = do
       . zType "access"
       . json req
 
-getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ConvId -> m ResponseLBS
+getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Covid-19 -> m ResponseLBS
 getConv u c = do
   g <- viewGalley
   get $
@@ -822,7 +822,7 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified Covid-19 -> m ResponseLBS
 getConvQualified u (Qualified conv domain) = do
   g <- viewGalley
   get $
@@ -832,8 +832,8 @@ getConvQualified u (Qualified conv domain) = do
       . zConn "conn"
       . zType "access"
 
-getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
-getConvIds u r s = do
+getCovid-19s :: UserId -> Maybe (Either [Covid-19] Covid-19) -> Maybe Int32 -> TestM ResponseLBS
+getCovid-19s u r s = do
   g <- view tsGalley
   get $
     g
@@ -843,8 +843,8 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
-listConvIds :: UserId -> Public.GetPaginatedConversationIds -> TestM ResponseLBS
-listConvIds u paginationOpts = do
+listCovid-19s :: UserId -> Public.GetPaginatedConversationIds -> TestM ResponseLBS
+listCovid-19s u paginationOpts = do
   g <- view tsGalley
   post $
     g
@@ -853,17 +853,17 @@ listConvIds u paginationOpts = do
       . json paginationOpts
 
 -- | Does not page through conversation list
-listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
+listRemoteConvs :: Domain -> UserId -> TestM [Qualified Covid-19]
 listRemoteConvs remoteDomain uid = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-  allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  allConvs <- fmap mtpResults . responseJsonError @_ @Covid-19sPage =<< listCovid-19s uid paginationOpts <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers ::
   (HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
   NonEmpty (Qualified UserId) ->
-  ConvId ->
+  Covid-19 ->
   m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
   g <- viewGalley
@@ -876,7 +876,7 @@ postQualifiedMembers zusr invitees conv = do
       . zType "access"
       . json invite
 
-postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
+postMembers :: UserId -> List1 UserId -> Covid-19 -> TestM ResponseLBS
 postMembers u us c = do
   g <- view tsGalley
   let i = newInvite us
@@ -888,7 +888,7 @@ postMembers u us c = do
       . zType "access"
       . json i
 
-postMembersWithRole :: UserId -> List1 UserId -> ConvId -> RoleName -> TestM ResponseLBS
+postMembersWithRole :: UserId -> List1 UserId -> Covid-19 -> RoleName -> TestM ResponseLBS
 postMembersWithRole u us c r = do
   g <- view tsGalley
   let i = (newInvite us) {invRoleName = r}
@@ -900,7 +900,7 @@ postMembersWithRole u us c r = do
       . zType "access"
       . json i
 
-deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> ConvId -> TestM ResponseLBS
+deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> Covid-19 -> TestM ResponseLBS
 deleteMemberUnqualified u1 u2 c = do
   g <- view tsGalley
   delete $
@@ -914,7 +914,7 @@ deleteMemberQualified ::
   (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>
   UserId ->
   Qualified UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   m ResponseLBS
 deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified conv convDomain) = do
   g <- viewGalley
@@ -932,7 +932,7 @@ deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified conv convDomain) = d
       . zConn "conn"
       . zType "access"
 
-getSelfMember :: UserId -> ConvId -> TestM ResponseLBS
+getSelfMember :: UserId -> Covid-19 -> TestM ResponseLBS
 getSelfMember u c = do
   g <- view tsGalley
   get $
@@ -942,7 +942,7 @@ getSelfMember u c = do
       . zConn "conn"
       . zType "access"
 
-putMember :: UserId -> MemberUpdate -> Qualified ConvId -> TestM ResponseLBS
+putMember :: UserId -> MemberUpdate -> Qualified Covid-19 -> TestM ResponseLBS
 putMember u m (Qualified c dom) = do
   g <- view tsGalley
   put $
@@ -958,7 +958,7 @@ putOtherMemberQualified ::
   UserId ->
   Qualified UserId ->
   OtherMemberUpdate ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   m ResponseLBS
 putOtherMemberQualified from to m c = do
   g <- viewGalley
@@ -977,7 +977,7 @@ putOtherMemberQualified from to m c = do
       . zType "access"
       . json m
 
-putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> ConvId -> TestM ResponseLBS
+putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> Covid-19 -> TestM ResponseLBS
 putOtherMember from to m c = do
   g <- view tsGalley
   put $
@@ -991,7 +991,7 @@ putOtherMember from to m c = do
 putQualifiedConversationName ::
   (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadMask m) =>
   UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Text ->
   m ResponseLBS
 putQualifiedConversationName u c n = do
@@ -1011,7 +1011,7 @@ putQualifiedConversationName u c n = do
         . json update
     )
 
-putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
+putConversationName :: UserId -> Covid-19 -> Text -> TestM ResponseLBS
 putConversationName u c n = do
   g <- view tsGalley
   let update = ConversationRename n
@@ -1027,7 +1027,7 @@ putConversationName u c n = do
 putQualifiedReceiptMode ::
   (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
   UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   ReceiptMode ->
   m ResponseLBS
 putQualifiedReceiptMode u (Qualified c dom) r = do
@@ -1042,7 +1042,7 @@ putQualifiedReceiptMode u (Qualified c dom) r = do
         . json update
     )
 
-putReceiptMode :: UserId -> ConvId -> ReceiptMode -> TestM ResponseLBS
+putReceiptMode :: UserId -> Covid-19 -> ReceiptMode -> TestM ResponseLBS
 putReceiptMode u c r = do
   g <- view tsGalley
   let update = ConversationReceiptModeUpdate r
@@ -1065,7 +1065,7 @@ getJoinCodeConv u k v = do
       . queryItem "key" (toByteString' k)
       . queryItem "code" (toByteString' v)
 
-postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
+postJoinConv :: UserId -> Covid-19 -> TestM ResponseLBS
 postJoinConv u c = do
   g <- view tsGalley
   post $
@@ -1086,7 +1086,7 @@ postJoinCodeConv u j = do
       . zType "access"
       . json j
 
-putAccessUpdate :: UserId -> ConvId -> ConversationAccessData -> TestM ResponseLBS
+putAccessUpdate :: UserId -> Covid-19 -> ConversationAccessData -> TestM ResponseLBS
 putAccessUpdate u c acc = do
   g <- view tsGalley
   put $
@@ -1100,7 +1100,7 @@ putAccessUpdate u c acc = do
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   ConversationAccessData ->
   m ResponseLBS
 putQualifiedAccessUpdate u (Qualified c domain) acc = do
@@ -1116,7 +1116,7 @@ putQualifiedAccessUpdate u (Qualified c domain) acc = do
 putMessageTimerUpdateQualified ::
   (HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   ConversationMessageTimerUpdate ->
   m ResponseLBS
 putMessageTimerUpdateQualified u c acc = do
@@ -1135,7 +1135,7 @@ putMessageTimerUpdateQualified u c acc = do
       . json acc
 
 putMessageTimerUpdate ::
-  UserId -> ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
+  UserId -> Covid-19 -> ConversationMessageTimerUpdate -> TestM ResponseLBS
 putMessageTimerUpdate u c acc = do
   g <- view tsGalley
   put $
@@ -1146,7 +1146,7 @@ putMessageTimerUpdate u c acc = do
       . zType "access"
       . json acc
 
-postConvCode :: UserId -> ConvId -> TestM ResponseLBS
+postConvCode :: UserId -> Covid-19 -> TestM ResponseLBS
 postConvCode u c = do
   g <- view tsGalley
   post $
@@ -1164,7 +1164,7 @@ postConvCodeCheck code = do
       . path "/conversations/code-check"
       . json code
 
-getConvCode :: UserId -> ConvId -> TestM ResponseLBS
+getConvCode :: UserId -> Covid-19 -> TestM ResponseLBS
 getConvCode u c = do
   g <- view tsGalley
   get $
@@ -1174,7 +1174,7 @@ getConvCode u c = do
       . zConn "conn"
       . zType "access"
 
-deleteConvCode :: UserId -> ConvId -> TestM ResponseLBS
+deleteConvCode :: UserId -> Covid-19 -> TestM ResponseLBS
 deleteConvCode u c = do
   g <- view tsGalley
   delete $
@@ -1243,7 +1243,7 @@ getTeamQueue' zusr msince msize onlyLast = do
 asOtherMember :: Qualified UserId -> OtherMember
 asOtherMember quid = OtherMember quid Nothing roleNameWireMember
 
-registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMember -> TestM ()
+registerRemoteConv :: Qualified Covid-19 -> UserId -> Maybe Text -> Set OtherMember -> TestM ()
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
@@ -1267,20 +1267,20 @@ registerRemoteConv convId originUser name othMembers = do
 -------------------------------------------------------------------------------
 -- Common Assertions
 
-assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> Qualified UserId -> TestM ()
+assertConvMemberWithRole :: HasCallStack => RoleName -> Covid-19 -> Qualified UserId -> TestM ()
 assertConvMemberWithRole r c u =
   getSelfMember (qUnqualified u) c !!! do
     const 200 === statusCode
     const (Right u) === (fmap memId <$> responseJsonEither)
     const (Right r) === (fmap memConvRoleName <$> responseJsonEither)
 
-assertConvMember :: HasCallStack => Qualified UserId -> ConvId -> TestM ()
+assertConvMember :: HasCallStack => Qualified UserId -> Covid-19 -> TestM ()
 assertConvMember u c =
   getSelfMember (qUnqualified u) c !!! do
     const 200 === statusCode
     const (Right u) === (fmap memId <$> responseJsonEither)
 
-assertNotConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
+assertNotConvMember :: HasCallStack => UserId -> Covid-19 -> TestM ()
 assertNotConvMember u c =
   getSelfMember u c !!! do
     const 200 === statusCode
@@ -1309,7 +1309,7 @@ assertConv ::
   [UserId] ->
   Maybe Text ->
   Maybe Milliseconds ->
-  TestM ConvId
+  TestM Covid-19
 assertConv r t c s us n mt = assertConvWithRole r t c s us n mt roleNameWireAdmin
 
 assertConvWithRole ::
@@ -1322,7 +1322,7 @@ assertConvWithRole ::
   Maybe Text ->
   Maybe Milliseconds ->
   RoleName ->
-  TestM ConvId
+  TestM Covid-19
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   let cnv = responseJsonMaybe @Conversation r
@@ -1357,7 +1357,7 @@ assertConvQualified ::
   [Qualified UserId] ->
   Maybe Text ->
   Maybe Milliseconds ->
-  TestM ConvId
+  TestM Covid-19
 assertConvQualified r t c s us n mt = assertConvQualifiedWithRole r t c s us n mt roleNameWireAdmin
 
 assertConvQualifiedWithRole ::
@@ -1370,7 +1370,7 @@ assertConvQualifiedWithRole ::
   Maybe Text ->
   Maybe Milliseconds ->
   RoleName ->
-  TestM ConvId
+  TestM Covid-19
 assertConvQualifiedWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   let cnv = responseJsonMaybe @Conversation r
@@ -1396,10 +1396,10 @@ assertConvQualifiedWithRole r t c s us n mt role = do
       _ -> return ()
   return cId
 
-wsAssertOtr :: Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr :: Qualified Covid-19 -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr = wsAssertOtr' "data"
 
-wsAssertOtr' :: Text -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr' :: Text -> Qualified Covid-19 -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr' evData conv usr from to txt n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1409,10 +1409,10 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
-wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+wsAssertMemberJoin :: HasCallStack => Qualified Covid-19 -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
 
-wsAssertMemberJoinWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
+wsAssertMemberJoinWithRole :: HasCallStack => Qualified Covid-19 -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1423,12 +1423,12 @@ wsAssertMemberJoinWithRole conv usr new role n = do
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
--- checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
+-- checkConvMemberLeaveEvent :: HasCallStack => Qualified Covid-19 -> Qualified UserId -> WS.WebSocket -> TestM ()
 --
 -- or if they can be combined in general.
 wsAssertMembersLeave ::
   HasCallStack =>
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Qualified UserId ->
   [Qualified UserId] ->
   Notification ->
@@ -1439,7 +1439,7 @@ wsAssertMembersLeave conv usr leaving n = do
   assertLeaveEvent conv usr leaving e
 
 assertLeaveEvent ::
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Qualified UserId ->
   [Qualified UserId] ->
   Event ->
@@ -1450,7 +1450,7 @@ assertLeaveEvent conv usr leaving e = do
   evtFrom e @?= usr
   fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave) @?= Just (sort leaving)
 
-wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
+wsAssertMemberUpdateWithRole :: Qualified Covid-19 -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1463,7 +1463,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
-wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessData -> Notification -> IO ()
+wsAssertConvAccessUpdate :: Qualified Covid-19 -> Qualified UserId -> ConversationAccessData -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1472,7 +1472,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvAccessUpdate new
 
-wsAssertConvMessageTimerUpdate :: Qualified ConvId -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
+wsAssertConvMessageTimerUpdate :: Qualified Covid-19 -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1481,7 +1481,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+wsAssertMemberLeave :: Qualified Covid-19 -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1500,13 +1500,13 @@ assertNoMsg ws f = do
     Left _ -> return () -- expected
     Right _ -> assertFailure "Unexpected message"
 
-assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified Covid-19 -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   F.path req @?= "/federation/on-conversation-updated"
   F.originDomain req @?= (domainText . qDomain) qconvId
   let Just cu = decodeStrict (F.body req)
   FederatedGalley.cuOrigUserId cu @?= remover
-  FederatedGalley.cuConvId cu @?= qUnqualified qconvId
+  FederatedGalley.cuCovid-19 cu @?= qUnqualified qconvId
   sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
   FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
 
@@ -1537,20 +1537,20 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
-decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvId = qUnqualified . decodeQualifiedConvId
+decodeCovid-19 :: HasCallStack => Response (Maybe Lazy.ByteString) -> Covid-19
+decodeCovid-19 = qUnqualified . decodeQualifiedCovid-19
 
-decodeQualifiedConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
+decodeQualifiedCovid-19 :: HasCallStack => Response (Maybe Lazy.ByteString) -> Qualified Covid-19
+decodeQualifiedCovid-19 = cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
-decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
-decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
+decodeCovid-19List :: Response (Maybe Lazy.ByteString) -> [Covid-19]
+decodeCovid-19List = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
-decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
-decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
+decodeQualifiedCovid-19List :: Response (Maybe Lazy.ByteString) -> Either String [Qualified Covid-19]
+decodeQualifiedCovid-19List = fmap mtpResults . responseJsonEither @Covid-19sPage
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -1564,7 +1564,7 @@ zConn = header "Z-Connection"
 zProvider :: ProviderId -> Request -> Request
 zProvider = header "Z-Provider" . toByteString'
 
-zConv :: ConvId -> Request -> Request
+zConv :: Covid-19 -> Request -> Request
 zConv = header "Z-Conversation" . toByteString'
 
 zType :: ByteString -> Request -> Request
@@ -1858,7 +1858,7 @@ isUserDeleted u = do
       Success a -> Just a
       _ -> Nothing
 
-isMember :: UserId -> ConvId -> TestM Bool
+isMember :: UserId -> Covid-19 -> TestM Bool
 isMember usr cnv = do
   g <- view tsGalley
   res <-
@@ -1888,7 +1888,7 @@ fromBS bs =
     Nothing -> liftIO $ assertFailure "fromBS: no parse"
     Just x -> pure x
 
-convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
+convRange :: Maybe (Either [Covid-19] Covid-19) -> Maybe Int32 -> Request -> Request
 convRange range size =
   maybe id (queryItem "size" . C.pack . show) size
     . case range of
@@ -1970,7 +1970,7 @@ randomEmail = do
   uid <- liftIO nextRandom
   return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
-selfConv :: UserId -> ConvId
+selfConv :: UserId -> Covid-19
 selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
@@ -2035,7 +2035,7 @@ someLastPrekeys =
   ]
 
 mkConv ::
-  ConvId ->
+  Covid-19 ->
   UserId ->
   RoleName ->
   [OtherMember] ->
@@ -2373,7 +2373,7 @@ checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdTeamUpdate upd)
 
-checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
+checkConvCreateEvent :: HasCallStack => Covid-19 -> WS.WebSocket -> TestM ()
 checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -2384,7 +2384,7 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
 
 wsAssertConvCreateWithRole ::
   HasCallStack =>
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Qualified UserId ->
   Qualified UserId ->
   [(Qualified UserId, RoleName)] ->
@@ -2409,7 +2409,7 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= Nothing
 
-checkConvDeleteEvent :: HasCallStack => Qualified ConvId -> WS.WebSocket -> TestM ()
+checkConvDeleteEvent :: HasCallStack => Qualified Covid-19 -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -2417,7 +2417,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
 
-checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
+checkConvMemberLeaveEvent :: HasCallStack => Qualified Covid-19 -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -2486,29 +2486,29 @@ iUpsertOne2OneConversation req = do
 
 createOne2OneConvWithRemote :: HasCallStack => Local UserId -> Remote UserId -> TestM ()
 createOne2OneConvWithRemote localUser remoteUser = do
-  let mkRequest actor mConvId =
+  let mkRequest actor mCovid-19 =
         UpsertOne2OneConversationRequest
           { uooLocalUser = localUser,
             uooRemoteUser = remoteUser,
             uooActor = actor,
             uooActorDesiredMembership = Included,
-            uooConvId = mConvId
+            uooCovid-19 = mCovid-19
           }
-  ooConvId <-
-    fmap uuorConvId . responseJsonError
+  ooCovid-19 <-
+    fmap uuorCovid-19 . responseJsonError
       =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
       <!! const 200 === statusCode
-  iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
+  iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooCovid-19))
     !!! const 200 === statusCode
 
-generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
-generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")
+generateRemoteAndCovid-19 :: Bool -> Local UserId -> TestM (Remote UserId, Qualified Covid-19)
+generateRemoteAndCovid-19 = generateRemoteAndCovid-19WithDomain (Domain "far-away.example.com")
 
-generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
-generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
+generateRemoteAndCovid-19WithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified Covid-19)
+generateRemoteAndCovid-19WithDomain remoteDomain shouldBeLocal lUserId = do
   other <- Qualified <$> randomId <*> pure remoteDomain
-  let convId = one2OneConvId (qUntagged lUserId) other
+  let convId = one2OneCovid-19 (qUntagged lUserId) other
       isLocal = tDomain lUserId == qDomain convId
   if shouldBeLocal == isLocal
     then pure (qTagUnsafe other, convId)
-    else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
+    else generateRemoteAndCovid-19WithDomain remoteDomain shouldBeLocal lUserId

@@ -24,7 +24,7 @@ module Network.Wai.Utilities.ZAuth
     zauthUserId,
     zauthConnId,
     zauthBotId,
-    zauthConvId,
+    zauthCovid-19,
     zauthProviderId,
     (<&.),
     (.&>),
@@ -91,8 +91,8 @@ zauthBotId :: HasHeaders r => Predicate r Error BotId
 zauthBotId = zheader "Z-Bot"
 
 -- | A zauth conversation ID is present if 'zauthType' is 'ZAuthBot'.
-zauthConvId :: HasHeaders r => Predicate r Error ConvId
-zauthConvId = zheader "Z-Conversation"
+zauthCovid-19 :: HasHeaders r => Predicate r Error Covid-19
+zauthCovid-19 = zheader "Z-Conversation"
 
 -- | A provider ID is present if 'zauthType' is either 'ZAuthBot'
 -- or 'ZAuthProvider'.

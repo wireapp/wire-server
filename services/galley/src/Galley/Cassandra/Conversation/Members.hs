@@ -56,7 +56,7 @@ import Wire.API.Provider.Service
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembers ::
   ToUserRole a =>
-  ConvId ->
+  Covid-19 ->
   UserList a ->
   Client ([LocalMember], [RemoteMember])
 addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
@@ -91,13 +91,13 @@ addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
 
   pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
 
-removeMembersFromLocalConv :: ConvId -> UserList UserId -> Client ()
+removeMembersFromLocalConv :: Covid-19 -> UserList UserId -> Client ()
 removeMembersFromLocalConv cnv victims = void $ do
   UnliftIO.concurrently
     (removeLocalMembersFromLocalConv cnv (ulLocals victims))
     (removeRemoteMembersFromLocalConv cnv (ulRemotes victims))
 
-removeLocalMembersFromLocalConv :: ConvId -> [UserId] -> Client ()
+removeLocalMembersFromLocalConv :: Covid-19 -> [UserId] -> Client ()
 removeLocalMembersFromLocalConv _ [] = pure ()
 removeLocalMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
@@ -107,7 +107,7 @@ removeLocalMembersFromLocalConv cnv victims = do
       addPrepQuery Cql.removeMember (cnv, victim)
       addPrepQuery Cql.deleteUserConv (victim, cnv)
 
-removeRemoteMembersFromLocalConv :: ConvId -> [Remote UserId] -> Client ()
+removeRemoteMembersFromLocalConv :: Covid-19 -> [Remote UserId] -> Client ()
 removeRemoteMembersFromLocalConv _ [] = pure ()
 removeRemoteMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
@@ -116,7 +116,7 @@ removeRemoteMembersFromLocalConv cnv victims = do
     for_ victims $ \(qUntagged -> Qualified uid domain) ->
       addPrepQuery Cql.removeRemoteMember (cnv, domain, uid)
 
-memberLists :: [ConvId] -> Client [[LocalMember]]
+memberLists :: [Covid-19] -> Client [[LocalMember]]
 memberLists convs = do
   mems <- retry x1 $ query Cql.selectMembers (params LocalQuorum (Identity convs))
   let convMembers = foldr (\m acc -> insert (mkMem m) acc) mempty mems
@@ -129,7 +129,7 @@ memberLists convs = do
     mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
       (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn))
 
-members :: ConvId -> Client [LocalMember]
+members :: Covid-19 -> Client [LocalMember]
 members = fmap concat . memberLists . pure
 
 toMemberStatus ::
@@ -192,7 +192,7 @@ newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
       rmConvRoleName = r
     }
 
-remoteMemberLists :: [ConvId] -> Client [[RemoteMember]]
+remoteMemberLists :: [Covid-19] -> Client [[RemoteMember]]
 remoteMemberLists convs = do
   mems <- retry x1 $ query Cql.selectRemoteMembers (params LocalQuorum (Identity convs))
   let convMembers = foldr (insert . mkMem) Map.empty mems
@@ -203,11 +203,11 @@ remoteMemberLists convs = do
        in Map.alter f conv acc
     mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
 
-lookupRemoteMembers :: ConvId -> Client [RemoteMember]
+lookupRemoteMembers :: Covid-19 -> Client [RemoteMember]
 lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
 
 member ::
-  ConvId ->
+  Covid-19 ->
   UserId ->
   Client (Maybe LocalMember)
 member cnv usr =
@@ -217,7 +217,7 @@ member cnv usr =
 -- | Set local users as belonging to a remote conversation. This is invoked by a
 -- remote galley when users from the current backend are added to conversations
 -- on the remote end.
-addLocalMembersToRemoteConv :: Remote ConvId -> [UserId] -> Client ()
+addLocalMembersToRemoteConv :: Remote Covid-19 -> [UserId] -> Client ()
 addLocalMembersToRemoteConv _ [] = pure ()
 addLocalMembersToRemoteConv rconv users = do
   -- FUTUREWORK: consider using pooledMapConcurrentlyN
@@ -231,7 +231,7 @@ addLocalMembersToRemoteConv rconv users = do
           (u, tDomain rconv, tUnqualified rconv)
 
 updateSelfMember ::
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Local UserId ->
   MemberUpdate ->
   Client ()
@@ -244,7 +244,7 @@ updateSelfMember qcnv lusr =
     lusr
 
 updateSelfMemberLocalConv ::
-  Local ConvId ->
+  Local Covid-19 ->
   Local UserId ->
   MemberUpdate ->
   Client ()
@@ -266,7 +266,7 @@ updateSelfMemberLocalConv lcid luid mup = do
         (h, mupHiddenRef mup, tUnqualified lcid, tUnqualified luid)
 
 updateSelfMemberRemoteConv ::
-  Remote ConvId ->
+  Remote Covid-19 ->
   Local UserId ->
   MemberUpdate ->
   Client ()
@@ -288,7 +288,7 @@ updateSelfMemberRemoteConv (qUntagged -> Qualified cid domain) luid mup = do
         (h, mupHiddenRef mup, domain, cid, tUnqualified luid)
 
 updateOtherMemberLocalConv ::
-  Local ConvId ->
+  Local Covid-19 ->
   Qualified UserId ->
   OtherMemberUpdate ->
   Client ()
@@ -313,7 +313,7 @@ updateOtherMemberLocalConv lcid quid omu =
 -- users are members.
 filterRemoteConvMembers ::
   [UserId] ->
-  Remote ConvId ->
+  Remote Covid-19 ->
   Client ([UserId], Bool)
 filterRemoteConvMembers users (qUntagged -> Qualified conv dom) =
   fmap Data.Monoid.getAll
@@ -328,7 +328,7 @@ filterRemoteConvMembers users (qUntagged -> Qualified conv dom) =
 
 removeLocalMembersFromRemoteConv ::
   -- | The conversation to remove members from
-  Remote ConvId ->
+  Remote Covid-19 ->
   -- | Members to remove local to this backend
   [UserId] ->
   Client ()

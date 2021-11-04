@@ -34,7 +34,7 @@ testObject_UserConnection_user_1 =
       ucTo = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000300000002"))) (Domain "farway.golden.example.com"),
       ucStatus = Pending,
       ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-07T21:52:21.955Z"),
-      ucConvId = Nothing
+      ucCovid-19 = Nothing
     }
 
 testObject_UserConnection_user_2 :: UserConnection
@@ -44,5 +44,5 @@ testObject_UserConnection_user_2 =
       ucTo = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000100000000"))) (Domain "faraway.golden.example.com"),
       ucStatus = Cancelled,
       ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-11T10:43:38.227Z"),
-      ucConvId = Just $ Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004"))) (Domain "nice-and-close-to-home.golden.example.com")
+      ucCovid-19 = Just $ Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004"))) (Domain "nice-and-close-to-home.golden.example.com")
     }

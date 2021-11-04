@@ -47,7 +47,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Id (ConvId, UserId)
+import Data.Id (Covid-19, UserId)
 import qualified Data.Map.Strict as Map
 import Data.Qualified (qUnqualified)
 import Data.Range
@@ -68,12 +68,12 @@ import Network.Wire.Client.API.User hiding (Asset (..))
 
 -- | Set up a conversation between a given list of bots. The first bot will
 -- connect to everybody else and then create a conversation.
-prepareConv :: [Bot] -> BotNet ConvId
+prepareConv :: [Bot] -> BotNet Covid-19
 prepareConv [] = error "prepareConv: at least two bots required"
 prepareConv [_] = error "prepareConv: at least two bots required"
 prepareConv [a, b] = do
   connectIfNeeded a b
-  conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
+  conv <- (>>= ucCovid-19) <$> runBotSession a (getConnection (botId b))
   requireMaybe (qUnqualified <$> conv) $
     "Missing 1-1 conversation between: "
       <> Text.concat (Text.pack . show . botId <$> [a, b])

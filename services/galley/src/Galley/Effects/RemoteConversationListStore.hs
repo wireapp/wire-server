@@ -32,12 +32,12 @@ import Polysemy
 data RemoteConversationListStore p m a where
   ListRemoteConversations ::
     UserId ->
-    Maybe (PagingState p (Remote ConvId)) ->
+    Maybe (PagingState p (Remote Covid-19)) ->
     Int32 ->
-    RemoteConversationListStore p m (Page p (Remote ConvId))
+    RemoteConversationListStore p m (Page p (Remote Covid-19))
   GetRemoteConversationStatus ::
     UserId ->
-    [Remote ConvId] ->
-    RemoteConversationListStore p m (Map (Remote ConvId) MemberStatus)
+    [Remote Covid-19] ->
+    RemoteConversationListStore p m (Map (Remote Covid-19) MemberStatus)
 
 makeSem ''RemoteConversationListStore

@@ -39,7 +39,7 @@ where
 
 import Control.Lens (At (at), makeLenses, over, (?~))
 import Data.Aeson hiding (fieldLabelModifier)
-import Data.Id (ConvId)
+import Data.Id (Covid-19)
 import Data.Proxy
 import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
@@ -50,7 +50,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- TeamConversation
 
 data TeamConversation = TeamConversation
-  { _conversationId :: ConvId,
+  { _conversationId :: Covid-19,
     _managedConversation :: Bool
   }
   deriving stock (Eq, Show, Generic)
@@ -58,7 +58,7 @@ data TeamConversation = TeamConversation
 
 instance ToSchema TeamConversation where
   declareNamedSchema _ = do
-    idSchema <- declareSchemaRef (Proxy @ConvId)
+    idSchema <- declareSchemaRef (Proxy @Covid-19)
     let managed =
           toSchema (Proxy @Bool)
             & description ?~ "Indicates if this is a managed team conversation."
@@ -72,7 +72,7 @@ instance ToSchema TeamConversation where
                 . (at "conversation" ?~ idSchema)
             )
 
-newTeamConversation :: ConvId -> Bool -> TeamConversation
+newTeamConversation :: Covid-19 -> Bool -> TeamConversation
 newTeamConversation = TeamConversation
 
 modelTeamConversation :: Doc.Model

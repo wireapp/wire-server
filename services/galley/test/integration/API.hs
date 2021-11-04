@@ -128,12 +128,12 @@ tests s =
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations" getConvsFailMaxSize,
-          test s "get conversation ids" getConvIdsOk,
-          test s "get conversation ids v2" listConvIdsOk,
-          test s "paginate through conversation ids" paginateConvIds,
+          test s "get conversation ids" getCovid-19sOk,
+          test s "get conversation ids v2" listCovid-19sOk,
+          test s "paginate through conversation ids" paginateCovid-19s,
           test s "paginate through /conversations/list-ids" paginateConvListIds,
           test s "paginate through /conversations/list-ids - page ending at locals and remote domain" paginateConvListIdsPageEndingAtLocalsAndDomain,
-          test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
+          test s "fail to get >1000 conversation ids" getCovid-19sFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
@@ -385,7 +385,7 @@ postCryptoMessage1 = do
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
   connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   let qalice = Qualified alice localDomain
       qconv = Qualified conv localDomain
   -- WS receive timeout
@@ -468,7 +468,7 @@ postCryptoMessage2 = do
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
   connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let m = [(bob, bc, toBase64Text "hello bob")]
   r1 <-
@@ -493,7 +493,7 @@ postCryptoMessage3 = do
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
   connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, [(bc, ciphertext)])]
@@ -520,7 +520,7 @@ postCryptoMessage4 = do
   bob <- randomUser
   bc <- randomClient bob (someLastPrekeys !! 0)
   connectUsers alice (list1 bob [])
-  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   -- Unknown client ID => 403
   let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, [(bc, ciphertext)])]
@@ -536,7 +536,7 @@ postCryptoMessage5 = do
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 3)
   connectUsers alice (list1 bob [chad, eve])
-  conv <- decodeConvId <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let msgMissingChadAndEve = [(bob, bc, toBase64Text "hello bob")]
   let m' = otrRecipients [(bob, [(bc, toBase64Text "hello bob")])]
@@ -622,7 +622,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     postConvWithRemoteUsers
       aliceU
       defNewConv {newConvQualifiedUsers = [alex, amy, bob, bart, carl]}
-  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  let convId = (`Qualified` owningDomain) . decodeCovid-19 $ resp
 
   WS.bracketAsClientRN cannon [(alexU, alexClient), (alexU, alexClient2), (amyU, amyClient)] $ \[wsAlex1, wsAlex2, wsAmy] -> do
     let message =
@@ -749,7 +749,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
     postConvWithRemoteUsers
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
-  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  let convId = (`Qualified` owningDomain) . decodeCovid-19 $ resp
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
@@ -819,7 +819,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
     postConvWithRemoteUsers
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
-  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  let convId = (`Qualified` owningDomain) . decodeCovid-19 $ resp
 
   WS.bracketR3 cannon bobUnqualified chadUnqualified nonMemberUnqualified $ \(wsBob, wsChad, wsNonMember) -> do
     let message =
@@ -910,7 +910,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postConvWithRemoteUsers
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
-  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  let convId = (`Qualified` owningDomain) . decodeCovid-19 $ resp
 
   let brigApi _ =
         emptyFederatedBrig
@@ -1035,7 +1035,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
     postConvWithRemoteUsers
       aliceUnqualified
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
-  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  let convId = (`Qualified` owningDomain) . decodeCovid-19 $ resp
 
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     let message =
@@ -1142,7 +1142,7 @@ postJoinConvOk = do
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
-  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [InviteAccess, LinkAccess] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [] (Just "gossip") [InviteAccess, LinkAccess] Nothing Nothing
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     postJoinConv bob conv !!! const 200 === statusCode
@@ -1156,7 +1156,7 @@ testJoinCodeConv = do
   let convName = "gossip"
 
   alice <- randomUser
-  convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  convId <- decodeCovid-19 <$> postConv alice [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode alice convId
 
   qbob <- randomQualifiedUser
@@ -1177,7 +1177,7 @@ postJoinCodeConvOk = do
   let bob = qUnqualified qbob
   eve <- ephemeralUser
   dave <- ephemeralUser
-  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just ActivatedAccessRole) Nothing
+  conv <- decodeCovid-19 <$> postConv alice [] (Just "gossip") [CodeAccess] (Just ActivatedAccessRole) Nothing
   let qconv = Qualified conv (qDomain qbob)
   cCode <- decodeConvCodeEvent <$> postConvCode alice conv
   -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
@@ -1213,7 +1213,7 @@ postConvertCodeConv = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
-  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [InviteAccess] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [] (Just "gossip") [InviteAccess] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
   -- Cannot do code operations if conversation not in code access
   postConvCode alice conv !!! const 403 === statusCode
@@ -1365,7 +1365,7 @@ postJoinConvFail :: TestM ()
 postJoinConvFail = do
   alice <- randomUser
   bob <- randomUser
-  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   void $ postJoinConv bob conv !!! const 403 === statusCode
 
 getConvsOk :: TestM ()
@@ -1416,20 +1416,20 @@ getConvsFailMaxSize = do
   getConvs usr Nothing (Just 501)
     !!! const 400 === statusCode
 
-getConvIdsOk :: TestM ()
-getConvIdsOk = do
+getCovid-19sOk :: TestM ()
+getCovid-19sOk = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
-  getConvIds alice Nothing Nothing !!! do
+  getCovid-19s alice Nothing Nothing !!! do
     const 200 === statusCode
-    const 2 === length . decodeConvIdList
-  getConvIds bob Nothing Nothing !!! do
+    const 2 === length . decodeCovid-19List
+  getCovid-19s bob Nothing Nothing !!! do
     const 200 === statusCode
-    const 2 === length . decodeConvIdList
+    const 2 === length . decodeCovid-19List
 
-paginateConvIds :: TestM ()
-paginateConvIds = do
+paginateCovid-19s :: TestM ()
+paginateCovid-19s = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
@@ -1440,7 +1440,7 @@ paginateConvIds = do
   foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
-      resp <- getConvIds alice start (Just size) <!! const 200 === statusCode
+      resp <- getCovid-19s alice start (Just size) <!! const 200 === statusCode
       let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
       liftIO $ do
         -- This is because of the way this test is setup, we always get 16
@@ -1456,24 +1456,24 @@ paginateConvIds = do
 
       return (Just (Right (last (convList c))))
 
-getConvIdsFailMaxSize :: TestM ()
-getConvIdsFailMaxSize = do
+getCovid-19sFailMaxSize :: TestM ()
+getCovid-19sFailMaxSize = do
   usr <- randomUser
-  getConvIds usr Nothing (Just 1001)
+  getCovid-19s usr Nothing (Just 1001)
     !!! const 400 === statusCode
 
-listConvIdsOk :: TestM ()
-listConvIdsOk = do
+listCovid-19sOk :: TestM ()
+listCovid-19sOk = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
-  listConvIds alice paginationOpts !!! do
+  listCovid-19s alice paginationOpts !!! do
     const 200 === statusCode
-    const (Right 2) === fmap length . decodeQualifiedConvIdList
-  listConvIds bob paginationOpts !!! do
+    const (Right 2) === fmap length . decodeQualifiedCovid-19List
+  listCovid-19s bob paginationOpts !!! do
     const 200 === statusCode
-    const (Right 2) === fmap length . decodeQualifiedConvIdList
+    const (Right 2) === fmap length . decodeQualifiedCovid-19List
 
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
@@ -1498,7 +1498,7 @@ paginateConvListIds = do
           FederatedGalley.ConversationUpdate
             { FederatedGalley.cuTime = now,
               FederatedGalley.cuOrigUserId = qChad,
-              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuCovid-19 = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
               FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
@@ -1514,7 +1514,7 @@ paginateConvListIds = do
           FederatedGalley.ConversationUpdate
             { FederatedGalley.cuTime = now,
               FederatedGalley.cuOrigUserId = qDee,
-              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuCovid-19 = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
               FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
@@ -1559,7 +1559,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
           FederatedGalley.ConversationUpdate
             { FederatedGalley.cuTime = now,
               FederatedGalley.cuOrigUserId = qChad,
-              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuCovid-19 = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
               FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
@@ -1577,7 +1577,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
           FederatedGalley.ConversationUpdate
             { FederatedGalley.cuTime = now,
               FederatedGalley.cuOrigUserId = qDee,
-              FederatedGalley.cuConvId = conv,
+              FederatedGalley.cuCovid-19 = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
               FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
@@ -1593,8 +1593,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
 getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
 getChunkedConvs size lastSize alice pagingState n = do
   let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
-  resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
-  let c = responseJsonUnsafeWithMsg @ConvIdsPage "failed to parse ConvIdsPage" resp
+  resp <- listCovid-19s alice paginationOpts <!! const 200 === statusCode
+  let c = responseJsonUnsafeWithMsg @Covid-19sPage "failed to parse Covid-19sPage" resp
   liftIO $ do
     if n > 0
       then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (mtpResults c))
@@ -1617,15 +1617,15 @@ getConvsPagingOk = do
   where
     walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
-    next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
+    next :: UserId -> Int32 -> Maybe Covid-19 -> Int -> TestM (Maybe Covid-19)
     next u step start n = do
-      r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
+      r1 <- getCovid-19s u (Right <$> start) (Just step) <!! const 200 === statusCode
       let ids1 = convList <$> responseJsonUnsafe r1
-      liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
+      liftIO $ assertEqual "unexpected length (getCovid-19s)" (Just n) (length <$> ids1)
       r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
       let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
-      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
+      liftIO $ assertBool "getCovid-19s /= getConvs" (ids1 == ids3)
       return $ ids1 >>= listToMaybe . reverse
 
 postConvFailNotConnected :: TestM ()
@@ -1811,8 +1811,8 @@ postConnectConvOk2 :: TestM ()
 postConnectConvOk2 = do
   alice <- randomUser
   bob <- randomUser
-  m <- decodeConvId <$> req alice bob
-  n <- decodeConvId <$> req alice bob
+  m <- decodeCovid-19 <$> req alice bob
+  n <- decodeCovid-19 <$> req alice bob
   liftIO $ m @=? n
   where
     req alice bob =
@@ -1822,7 +1822,7 @@ putConvAcceptOk :: TestM ()
 putConvAcceptOk = do
   alice <- randomUser
   bob <- randomUser
-  cnv <- decodeConvId <$> postConnectConv alice bob "Alice" "come to zeta!" Nothing
+  cnv <- decodeCovid-19 <$> postConnectConv alice bob "Alice" "come to zeta!" Nothing
   putConvAccept bob cnv !!! const 200 === statusCode
   getConv alice cnv !!! do
     const 200 === statusCode
@@ -1836,7 +1836,7 @@ putConvAcceptRetry = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
-  cnv <- decodeConvId <$> postO2OConv alice bob (Just "chat")
+  cnv <- decodeCovid-19 <$> postO2OConv alice bob (Just "chat")
   -- If the conversation type is already One2One, everything is 200 OK
   putConvAccept bob cnv !!! const 200 === statusCode
 
@@ -1949,7 +1949,7 @@ getConvOk = do
   bob <- randomUser
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
-  conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   getConv alice conv !!! const 200 === statusCode
   getConv bob conv !!! const 200 === statusCode
   getConv chuck conv !!! const 200 === statusCode
@@ -1961,7 +1961,7 @@ getConvQualifiedOk = do
   chuck <- randomQualifiedUser
   connectLocalQualifiedUsers alice (list1 bob [chuck])
   conv <-
-    decodeConvId
+    decodeCovid-19
       <$> postConvQualified
         alice
         defNewConv
@@ -1979,7 +1979,7 @@ accessConvMeta = do
   bob <- randomUser
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
-  conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let meta =
         ConversationMetadata
           RegularConv
@@ -2010,7 +2010,7 @@ testAddRemoteMember = do
   bobId <- randomId
   let remoteDomain = Domain "far-away.example.com"
       remoteBob = Qualified bobId remoteDomain
-  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  convId <- decodeCovid-19 <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
 
   postQualifiedMembers alice (remoteBob :| []) convId !!! do
@@ -2057,7 +2057,7 @@ testDeleteTeamConversationWithRemoteMembers = do
   let remoteDomain = Domain "far-away.example.com"
       remoteBob = Qualified bobId remoteDomain
 
-  convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
+  convId <- decodeCovid-19 <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
   let _qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
@@ -2087,7 +2087,7 @@ testDeleteTeamConversationWithRemoteMembers = do
 testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
   alice <- randomUser
-  convId <- decodeQualifiedConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  convId <- decodeQualifiedCovid-19 <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   conv :: Conversation <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
   liftIO $ do
     assertEqual "conversation id" convId (cnvQualifiedId conv)
@@ -2106,7 +2106,7 @@ testGetQualifiedLocalConvNotParticipating :: TestM ()
 testGetQualifiedLocalConvNotParticipating = do
   alice <- randomUser
   bob <- randomUser
-  convId <- decodeQualifiedConvId <$> postConv bob [] (Just "gossip about alice") [] Nothing Nothing
+  convId <- decodeQualifiedCovid-19 <$> postConv bob [] (Just "gossip about alice") [] Nothing Nothing
   getConvQualified alice convId !!! do
     const 403 === statusCode
     const (Just "access-denied") === view (at "label") . responseJsonUnsafe @Object
@@ -2120,27 +2120,27 @@ testGetQualifiedRemoteConv = do
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
       bobQ = Qualified bobId remoteDomain
-      remoteConvId = Qualified convId remoteDomain
+      remoteCovid-19 = Qualified convId remoteDomain
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       aliceAsLocal = LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
       aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
 
   connectWithRemoteUser aliceId bobQ
-  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteCovid-19 bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   let mockConversation = mkConv convId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
       expected =
         Conversation
-          remoteConvId
+          remoteCovid-19
           (rcnvMetadata mockConversation)
           (ConvMembers aliceAsSelfMember (rcmOthers (rcnvMembers mockConversation)))
 
   (respAll, _) <-
     withTempMockFederator
       (const remoteConversationResponse)
-      (getConvQualified aliceId remoteConvId)
+      (getConvQualified aliceId remoteCovid-19)
 
   conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do assertEqual "conversation metadata" expected conv
@@ -2149,9 +2149,9 @@ testGetQualifiedRemoteConvNotFound :: TestM ()
 testGetQualifiedRemoteConvNotFound = do
   aliceId <- randomUser
   let remoteDomain = Domain "far-away.example.com"
-  remoteConvId <- (`Qualified` remoteDomain) <$> randomId
+  remoteCovid-19 <- (`Qualified` remoteDomain) <$> randomId
   -- No need to mock federator as we don't expect a call to be made
-  getConvQualified aliceId remoteConvId !!! do
+  getConvQualified aliceId remoteCovid-19 !!! do
     const 404 === statusCode
     const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
 
@@ -2162,13 +2162,13 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
-      remoteConvId = Qualified convId remoteDomain
+      remoteCovid-19 = Qualified convId remoteDomain
       aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
 
-  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteCovid-19 bobId Nothing (Set.fromList [aliceAsOtherMember])
 
   void . withTempMockFederator (const (GetConversationsResponse [])) $ do
-    getConvQualified aliceId remoteConvId !!! do
+    getConvQualified aliceId remoteCovid-19 !!! do
       const 404 === statusCode
       const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
 
@@ -2214,38 +2214,38 @@ testBulkGetQualifiedConvs = do
   connectWithRemoteUser alice deeQ
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  let localConvId = cnvQualifiedId localConv
+  let localCovid-19 = cnvQualifiedId localConv
 
-  remoteConvIdA <- randomQualifiedId remoteDomainA
-  remoteConvIdB <- randomQualifiedId remoteDomainB
-  remoteConvIdALocallyNotFound <- randomQualifiedId remoteDomainA
-  remoteConvIdBNotFoundOnRemote <- randomQualifiedId remoteDomainB
-  localConvIdNotFound <- randomQualifiedId localDomain
-  remoteConvIdCFailure <- randomQualifiedId remoteDomainC
+  remoteCovid-19A <- randomQualifiedId remoteDomainA
+  remoteCovid-19B <- randomQualifiedId remoteDomainB
+  remoteCovid-19ALocallyNotFound <- randomQualifiedId remoteDomainA
+  remoteCovid-19BNotFoundOnRemote <- randomQualifiedId remoteDomainB
+  localCovid-19NotFound <- randomQualifiedId localDomain
+  remoteCovid-19CFailure <- randomQualifiedId remoteDomainC
 
   eve <- randomQualifiedUser
-  localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
+  localCovid-19NotParticipating <- decodeQualifiedCovid-19 <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-  registerRemoteConv remoteConvIdA bobId Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdB carlId Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdBNotFoundOnRemote carlId Nothing (Set.fromList [aliceAsOtherMember])
-  registerRemoteConv remoteConvIdCFailure deeId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteCovid-19A bobId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteCovid-19B carlId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteCovid-19BNotFoundOnRemote carlId Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteCovid-19CFailure deeId Nothing (Set.fromList [aliceAsOtherMember])
 
   let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
-      mockConversationA = mkConv (qUnqualified remoteConvIdA) bobId roleNameWireAdmin [bobAsOtherMember]
-      mockConversationB = mkConv (qUnqualified remoteConvIdB) carlId roleNameWireAdmin [carlAsOtherMember]
+      mockConversationA = mkConv (qUnqualified remoteCovid-19A) bobId roleNameWireAdmin [bobAsOtherMember]
+      mockConversationB = mkConv (qUnqualified remoteCovid-19B) carlId roleNameWireAdmin [carlAsOtherMember]
       req =
         ListConversations . unsafeRange $
-          [ localConvId,
-            remoteConvIdA,
-            remoteConvIdB,
-            remoteConvIdALocallyNotFound,
-            localConvIdNotFound,
-            localConvIdNotParticipating,
-            remoteConvIdBNotFoundOnRemote,
-            remoteConvIdCFailure
+          [ localCovid-19,
+            remoteCovid-19A,
+            remoteCovid-19B,
+            remoteCovid-19ALocallyNotFound,
+            localCovid-19NotFound,
+            localCovid-19NotParticipating,
+            remoteCovid-19BNotFoundOnRemote,
+            remoteCovid-19CFailure
           ]
   (respAll, receivedRequests) <-
     withTempMockFederator'
@@ -2271,24 +2271,24 @@ testBulkGetQualifiedConvs = do
     assertEqual "found conversations" expectedFound actualFound
 
     -- Assumes only one request is made
-    let requestedConvIdsA =
-          fmap FederatedGalley.gcrConvIds
+    let requestedCovid-19sA =
+          fmap FederatedGalley.gcrCovid-19s
             . decode @FederatedGalley.GetConversationsRequest
             =<< fmap (LBS.fromStrict . F.body) . F.request
             =<< find ((== domainText remoteDomainA) . F.domain) receivedRequests
-    assertEqual "only locally found conversations should be queried" (Just [qUnqualified remoteConvIdA]) requestedConvIdsA
+    assertEqual "only locally found conversations should be queried" (Just [qUnqualified remoteCovid-19A]) requestedCovid-19sA
 
-    let expectedNotFound = sort [localConvIdNotFound, localConvIdNotParticipating, remoteConvIdALocallyNotFound, remoteConvIdBNotFoundOnRemote]
+    let expectedNotFound = sort [localCovid-19NotFound, localCovid-19NotParticipating, remoteCovid-19ALocallyNotFound, remoteCovid-19BNotFoundOnRemote]
         actualNotFound = sort $ crNotFound convs
     assertEqual "not founds" expectedNotFound actualNotFound
-    assertEqual "failures" [remoteConvIdCFailure] (crFailed convs)
+    assertEqual "failures" [remoteCovid-19CFailure] (crFailed convs)
 
 testAddRemoteMemberInvalidDomain :: TestM ()
 testAddRemoteMemberInvalidDomain = do
   alice <- randomUser
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "invalid.example.com")
-  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  convId <- decodeCovid-19 <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
 
   connectWithRemoteUser alice remoteBob
 
@@ -2306,7 +2306,7 @@ testAddRemoteMemberFederationDisabled :: TestM ()
 testAddRemoteMemberFederationDisabled = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
-  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  convId <- decodeCovid-19 <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
   opts <- view tsGConf
@@ -2326,7 +2326,7 @@ testAddRemoteMemberFederationUnavailable :: TestM ()
 testAddRemoteMemberFederationUnavailable = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
-  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  convId <- decodeCovid-19 <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
   opts <- view tsGConf
@@ -2355,7 +2355,7 @@ postMembersOk = do
   let eve = qUnqualified qeve
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
-  conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
   e <- responseJsonError =<< postMembers alice (singleton eve) conv <!! const 200 === statusCode
   liftIO $ do
@@ -2375,7 +2375,7 @@ postMembersOk2 = do
   chuck <- randomQualifiedUser
   connectUsers alice (list1 bob [qUnqualified chuck])
   connectUsers bob (singleton . qUnqualified $ chuck)
-  conv <- decodeConvId <$> postConv alice [bob, qUnqualified chuck] Nothing [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, qUnqualified chuck] Nothing [] Nothing Nothing
   postMembers bob (singleton . qUnqualified $ chuck) conv !!! do
     const 204 === statusCode
     const Nothing === responseBody
@@ -2389,7 +2389,7 @@ postMembersOk3 = do
   bob <- randomUser
   eve <- randomUser
   connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Bob leaves
   deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
   -- Fetch bob
@@ -2408,7 +2408,7 @@ postMembersFail = do
   eve <- randomUser
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
-  conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   postMembers eve (singleton bob) conv !!! const 404 === statusCode
   postMembers alice (singleton eve) conv !!! const 200 === statusCode
   -- Not connected but already there
@@ -2427,7 +2427,7 @@ postTooManyMembersFail = do
   bob <- randomUser
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
-  conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   x : xs <- randomUsers (n - 2)
   postMembers chuck (list1 x xs) conv !!! do
     const 403 === statusCode
@@ -2439,7 +2439,7 @@ deleteMembersUnqualifiedOk = do
   bob <- randomUser
   eve <- randomUser
   connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
   deleteMemberUnqualified bob bob conv !!! const 404 === statusCode
   -- if conversation still exists, don't respond with 404, but with 403.
@@ -2460,7 +2460,7 @@ deleteMembersConvLocalQualifiedOk = do
   let [qAlice, qBob, qEve] = (`Qualified` localDomain) <$> [alice, bob, eve]
   connectUsers alice (list1 bob [eve])
   conv <-
-    decodeConvId
+    decodeCovid-19
       <$> postConvQualified
         alice
         defNewConv
@@ -2494,7 +2494,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
   connectUsers alice (singleton bob)
   connectWithRemoteUser alice qEve
   convId <-
-    decodeConvId
+    decodeCovid-19
       <$> postConvWithRemoteUsers
         alice
         defNewConv {newConvQualifiedUsers = [qBob, qEve]}
@@ -2552,7 +2552,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
 
   (convId, _) <-
     withTempMockFederator' mockedResponse $
-      fmap decodeConvId $
+      fmap decodeCovid-19 $
         postConvQualified
           alice
           defNewConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
@@ -2613,7 +2613,7 @@ leaveRemoteConvQualifiedOk = do
     case responseJsonEither resp of
       Left err -> assertFailure err
       Right e -> assertLeaveEvent qconv qAlice [qAlice] e
-    FederatedGalley.lcConvId leaveRequest @?= conv
+    FederatedGalley.lcCovid-19 leaveRequest @?= conv
     FederatedGalley.lcLeaver leaveRequest @?= alice
 
 -- Alice, a user remote to the conversation, tries to remove someone on her own
@@ -2652,7 +2652,7 @@ removeRemoteMemberConvQualifiedFail = do
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do
   alice <- randomUser
-  self <- decodeConvId <$> postSelfConv alice
+  self <- decodeCovid-19 <$> postSelfConv alice
   deleteMemberUnqualified alice alice self !!! const 403 === statusCode
 
 deleteMembersUnqualifiedFailO2O :: TestM ()
@@ -2660,7 +2660,7 @@ deleteMembersUnqualifiedFailO2O = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
-  o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
+  o2o <- decodeCovid-19 <$> postO2OConv alice bob (Just "foo")
   deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
 
 putQualifiedConvRenameFailure :: TestM ()
@@ -2680,7 +2680,7 @@ putQualifiedConvRenameOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeCovid-19 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
@@ -2707,7 +2707,7 @@ putQualifiedConvRenameWithRemotesOk = do
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
       <!! const 201 === statusCode
-  let qconv = decodeQualifiedConvId resp
+  let qconv = decodeQualifiedCovid-19 resp
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
@@ -2720,7 +2720,7 @@ putQualifiedConvRenameWithRemotesOk = do
       fmap F.component (F.request req) @?= Just F.Galley
       fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
-      FederatedGalley.cuConvId cu @?= qUnqualified qconv
+      FederatedGalley.cuCovid-19 cu @?= qUnqualified qconv
       FederatedGalley.cuAction cu @?= ConversationActionRename (ConversationRename "gossip++")
 
     void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
@@ -2739,7 +2739,7 @@ putConvDeprecatedRenameOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeCovid-19 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     -- This endpoint is deprecated but clients still use it
@@ -2768,7 +2768,7 @@ putConvRenameOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeCovid-19 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
@@ -2788,7 +2788,7 @@ putQualifiedOtherMemberOk = do
   let bob = qUnqualified qbob
       alice = qUnqualified qalice
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qbob)
       expectedMemberUpdateData =
         MemberUpdateData
@@ -2822,7 +2822,7 @@ putOtherMemberOk = do
   let alice = qUnqualified qalice
       bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  conv <- decodeCovid-19 <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qbob)
       expectedMemberUpdateData =
         MemberUpdateData
@@ -2911,7 +2911,7 @@ putMemberOk update = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeCovid-19 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   getConv alice conv !!! const 200 === statusCode
   -- Expected member state
@@ -2977,7 +2977,7 @@ putRemoteConvMemberOk update = do
         FederatedGalley.ConversationUpdate
           { cuTime = now,
             cuOrigUserId = qbob,
-            cuConvId = qUnqualified qconv,
+            cuCovid-19 = qUnqualified qconv,
             cuAlreadyPresentUsers = [],
             cuAction =
               ConversationActionAddMembers (pure qalice) roleNameWireMember
@@ -3052,7 +3052,7 @@ putReceiptModeOk = do
   bob <- randomUser
   jane <- randomUser
   connectUsers alice (list1 bob [jane])
-  cnv <- decodeConvId <$> postConv alice [bob, jane] (Just "gossip") [] Nothing Nothing
+  cnv <- decodeCovid-19 <$> postConv alice [bob, jane] (Just "gossip") [] Nothing Nothing
   let qcnv = Qualified cnv (qDomain qalice)
   WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
     -- By default, nothing is set
@@ -3074,7 +3074,7 @@ putReceiptModeOk = do
     getConv alice cnv !!! do
       const 200 === statusCode
       const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . responseJsonUnsafe
-  cnv' <- decodeConvId <$> postConvWithReceipt alice [bob, jane] (Just "gossip") [] Nothing Nothing (ReceiptMode 0)
+  cnv' <- decodeCovid-19 <$> postConvWithReceipt alice [bob, jane] (Just "gossip") [] Nothing Nothing (ReceiptMode 0)
   getConv alice cnv' !!! do
     const 200 === statusCode
     const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . responseJsonUnsafe
@@ -3104,7 +3104,7 @@ putReceiptModeWithRemotesOk = do
     postConvWithRemoteUsers
       bob
       defNewConv {newConvQualifiedUsers = [qalice]}
-  let qconv = decodeQualifiedConvId resp
+  let qconv = decodeQualifiedCovid-19 resp
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
@@ -3117,7 +3117,7 @@ putReceiptModeWithRemotesOk = do
       fmap F.component (F.request req) @?= Just F.Galley
       fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
-      FederatedGalley.cuConvId cu @?= qUnqualified qconv
+      FederatedGalley.cuCovid-19 cu @?= qUnqualified qconv
       FederatedGalley.cuAction cu
         @?= ConversationActionReceiptModeUpdate
           (ConversationReceiptModeUpdate (ReceiptMode 43))
@@ -3138,7 +3138,7 @@ postTypingIndicators = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob Nothing
+  conv <- decodeCovid-19 <$> postO2OConv alice bob Nothing
   post
     ( g
         . paths ["conversations", toByteString' conv, "typing"]
@@ -3166,9 +3166,9 @@ removeUserNoFederation = do
 
   connectUsers alice' (list1 bob' [carl'])
 
-  conv1 <- decodeConvId <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice' [carl'] (Just "gossip3") [] Nothing Nothing
+  conv1 <- decodeCovid-19 <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
+  conv2 <- decodeCovid-19 <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing
+  conv3 <- decodeCovid-19 <$> postConv alice' [carl'] (Just "gossip3") [] Nothing Nothing
   let qconv1 = Qualified conv1 (qDomain bob)
       qconv2 = Qualified conv2 (qDomain bob)
 
@@ -3209,10 +3209,10 @@ removeUser = do
   connectWithRemoteUser alice' carl
   connectWithRemoteUser alexDel' carl
 
-  convA1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
-  convA2 <- decodeConvId <$> postConv alice' [alexDel', amy'] (Just "gossip2") [] Nothing Nothing
-  convA3 <- decodeConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
-  convA4 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, bart, carl]}
+  convA1 <- decodeCovid-19 <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
+  convA2 <- decodeCovid-19 <$> postConv alice' [alexDel', amy'] (Just "gossip2") [] Nothing Nothing
+  convA3 <- decodeCovid-19 <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
+  convA4 <- decodeCovid-19 <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, bart, carl]}
   convB1 <- randomId -- a remote conversation at 'bDomain' that Alice, AlexDel and Bart will be in
   convB2 <- randomId -- a remote conversation at 'bDomain' that AlexDel and Bart will be in
   convC1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Carl will be in
@@ -3299,16 +3299,16 @@ testAllOne2OneConversationRequests = do
 testOne2OneConversationRequest :: Bool -> Actor -> DesiredMembership -> TestM ()
 testOne2OneConversationRequest shouldBeLocal actor desired = do
   alice <- qTagUnsafe <$> randomQualifiedUser
-  (bob, expectedConvId) <- generateRemoteAndConvId shouldBeLocal alice
+  (bob, expectedCovid-19) <- generateRemoteAndCovid-19 shouldBeLocal alice
 
   convId <- do
     let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
     res <-
       iUpsertOne2OneConversation req
         <!! statusCode === const 200
-    uuorConvId <$> responseJsonError res
+    uuorCovid-19 <$> responseJsonError res
 
-  liftIO $ convId @?= expectedConvId
+  liftIO $ convId @?= expectedCovid-19
 
   case shouldBeLocal of
     True -> do
@@ -3326,7 +3326,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
               (tDomain bob)
               FederatedGalley.GetConversationsRequest
                 { FederatedGalley.gcrUserId = tUnqualified bob,
-                  FederatedGalley.gcrConvIds = [qUnqualified convId]
+                  FederatedGalley.gcrCovid-19s = [qUnqualified convId]
                 }
           pure
             . fmap (map omQualifiedId . rcmOthers . rcnvMembers)

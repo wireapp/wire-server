@@ -332,8 +332,8 @@ location = addHeader "Location" . toByteString'
 --------------------------------------------------------------------------------
 -- Legacy
 
-legacyDownloadPlain :: UserId ::: ConvId ::: AssetId -> Handler Response
+legacyDownloadPlain :: UserId ::: Covid-19 ::: AssetId -> Handler Response
 legacyDownloadPlain (usr ::: cnv ::: ast) = LegacyAPI.download usr cnv ast >>= redirect
 
-legacyDownloadOtr :: UserId ::: ConvId ::: AssetId -> Handler Response
+legacyDownloadOtr :: UserId ::: Covid-19 ::: AssetId -> Handler Response
 legacyDownloadOtr (usr ::: cnv ::: ast) = LegacyAPI.downloadOtr usr cnv ast >>= redirect

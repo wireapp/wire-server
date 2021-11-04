@@ -20,7 +20,7 @@
 
 module Network.Wire.Bot.Assert where
 
-import Data.Id (ConvId, UserId)
+import Data.Id (Covid-19, UserId)
 import Data.Qualified (Local, QualifiedWithTag (qUntagged), qUnqualified, qualifyAs)
 import qualified Data.Set as Set
 import Imports
@@ -31,7 +31,7 @@ import Network.Wire.Client.API.User
 
 assertConvCreated ::
   (HasCallStack, MonadBotNet m) =>
-  Local ConvId ->
+  Local Covid-19 ->
   -- | The creator of the conversation.
   Bot ->
   -- | The other users in the conversation.
@@ -57,7 +57,7 @@ assertConvCreated c b bs = do
 
 awaitOtrMessage ::
   MonadBotNet m =>
-  ConvId ->
+  Covid-19 ->
   (Bot, BotClient) -> -- Sender
   (Bot, BotClient) -> -- Recipient
   m (Maybe (ConvEvent OtrMessage))

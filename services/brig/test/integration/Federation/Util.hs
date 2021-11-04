@@ -109,7 +109,7 @@ generateClientPrekeys brig prekeys = do
 assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
 assertRightT = assertRight <=< runExceptT
 
-getConvQualified :: Galley -> UserId -> Qualified ConvId -> Http ResponseLBS
+getConvQualified :: Galley -> UserId -> Qualified Covid-19 -> Http ResponseLBS
 getConvQualified g u (Qualified cnvId domain) =
   get $
     g

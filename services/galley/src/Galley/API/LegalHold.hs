@@ -159,7 +159,7 @@ removeSettingsH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore,
        TeamMemberStore InternalPaging
@@ -184,7 +184,7 @@ removeSettings ::
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
-         ListItems LegacyPaging ConvId,
+         ListItems LegacyPaging Covid-19,
          MemberStore,
          TeamStore,
          TeamMemberStore p
@@ -229,7 +229,7 @@ removeSettings' ::
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
-         ListItems LegacyPaging ConvId,
+         ListItems LegacyPaging Covid-19,
          MemberStore,
          TeamStore,
          TeamMemberStore p
@@ -303,7 +303,7 @@ grantConsentH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -329,7 +329,7 @@ grantConsent ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -361,7 +361,7 @@ requestDeviceH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -388,7 +388,7 @@ requestDevice ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -448,7 +448,7 @@ approveDeviceH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -470,7 +470,7 @@ approveDevice ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -529,7 +529,7 @@ disableForUserH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -557,7 +557,7 @@ disableForUser ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -604,7 +604,7 @@ changeLegalholdStatus ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]
@@ -732,7 +732,7 @@ handleGroupConvPolicyConflicts ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       ListItems LegacyPaging ConvId,
+       ListItems LegacyPaging Covid-19,
        MemberStore,
        TeamStore
      ]

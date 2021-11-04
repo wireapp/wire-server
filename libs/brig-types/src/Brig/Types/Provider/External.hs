@@ -22,7 +22,7 @@ module Brig.Types.Provider.External
     BotUserView (..),
     BotConvView,
     botConvView,
-    botConvId,
+    botCovid-19,
     botConvName,
     botConvMembers,
   )

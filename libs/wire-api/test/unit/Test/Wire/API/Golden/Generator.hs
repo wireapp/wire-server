@@ -157,7 +157,7 @@ generateTestModule = do
   generateBindingModule @Conversation.Conversation "user" ref
   generateBindingModule @Conversation.NewConvUnmanaged "user" ref
   generateBindingModule @Conversation.NewConvManaged "user" ref
-  generateBindingModule @(Conversation.ConversationList ConvId) "user" ref
+  generateBindingModule @(Conversation.ConversationList Covid-19) "user" ref
   generateBindingModule @(Conversation.ConversationList Conversation.Conversation) "user" ref
   generateBindingModule @Conversation.Access "user" ref
   generateBindingModule @Conversation.AccessRole "user" ref

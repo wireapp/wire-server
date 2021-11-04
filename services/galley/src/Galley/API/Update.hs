@@ -151,7 +151,7 @@ import Wire.API.User.Client
 
 acceptConvH ::
   Members '[ConversationStore, GundeckAccess, MemberStore] r =>
-  UserId ::: Maybe ConnId ::: ConvId ->
+  UserId ::: Maybe ConnId ::: Covid-19 ->
   Galley r Response
 acceptConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> acceptConv usr conn cnv
@@ -160,7 +160,7 @@ acceptConv ::
   Members '[ConversationStore, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Conversation
 acceptConv usr conn cnv = do
   conv <-
@@ -171,7 +171,7 @@ acceptConv usr conn cnv = do
 
 blockConvH ::
   Members '[ConversationStore, MemberStore] r =>
-  UserId ::: ConvId ->
+  UserId ::: Covid-19 ->
   Galley r Response
 blockConvH (zusr ::: cnv) =
   empty <$ blockConv zusr cnv
@@ -179,7 +179,7 @@ blockConvH (zusr ::: cnv) =
 blockConv ::
   Members '[ConversationStore, MemberStore] r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Galley r ()
 blockConv zusr cnv = do
   conv <-
@@ -194,7 +194,7 @@ blockConv zusr cnv = do
 
 unblockConvH ::
   Members '[ConversationStore, GundeckAccess, MemberStore] r =>
-  UserId ::: Maybe ConnId ::: ConvId ->
+  UserId ::: Maybe ConnId ::: Covid-19 ->
   Galley r Response
 unblockConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> unblockConv usr conn cnv
@@ -203,7 +203,7 @@ unblockConv ::
   Members '[ConversationStore, GundeckAccess, MemberStore] r =>
   UserId ->
   Maybe ConnId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Conversation
 unblockConv usr conn cnv = do
   conv <-
@@ -226,7 +226,7 @@ updateConversationAccess ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Public.ConversationAccessData ->
   Galley r (UpdateResult Event)
 updateConversationAccess usr con qcnv update = do
@@ -242,7 +242,7 @@ updateConversationAccessUnqualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.ConversationAccessData ->
   Galley r (UpdateResult Event)
 updateConversationAccessUnqualified usr zcon cnv update = do
@@ -252,7 +252,7 @@ updateConversationAccessUnqualified usr zcon cnv update = do
 
 updateLocalConversationAccess ::
   Members UpdateConversationActions r =>
-  Local ConvId ->
+  Local Covid-19 ->
   Local UserId ->
   ConnId ->
   Public.ConversationAccessData ->
@@ -264,7 +264,7 @@ updateLocalConversationAccess lcnv lusr con target =
     $ target
 
 updateRemoteConversationAccess ::
-  Remote ConvId ->
+  Remote Covid-19 ->
   Local UserId ->
   ConnId ->
   Public.ConversationAccessData ->
@@ -352,7 +352,7 @@ updateConversationReceiptMode ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Public.ConversationReceiptModeUpdate ->
   Galley r (UpdateResult Event)
 updateConversationReceiptMode usr zcon qcnv update = do
@@ -368,7 +368,7 @@ updateConversationReceiptModeUnqualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.ConversationReceiptModeUpdate ->
   Galley r (UpdateResult Event)
 updateConversationReceiptModeUnqualified usr zcon cnv update = do
@@ -378,7 +378,7 @@ updateConversationReceiptModeUnqualified usr zcon cnv update = do
 
 updateLocalConversationReceiptMode ::
   Members UpdateConversationActions r =>
-  Local ConvId ->
+  Local Covid-19 ->
   Local UserId ->
   ConnId ->
   Public.ConversationReceiptModeUpdate ->
@@ -389,7 +389,7 @@ updateLocalConversationReceiptMode lcnv lusr con update =
       ConversationActionReceiptModeUpdate update
 
 updateRemoteConversationReceiptMode ::
-  Remote ConvId ->
+  Remote Covid-19 ->
   Local UserId ->
   ConnId ->
   Public.ConversationReceiptModeUpdate ->
@@ -400,7 +400,7 @@ updateConversationMessageTimerUnqualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.ConversationMessageTimerUpdate ->
   Galley r (UpdateResult Event)
 updateConversationMessageTimerUnqualified usr zcon cnv update = do
@@ -412,7 +412,7 @@ updateConversationMessageTimer ::
   (Member ConversationStore r, Members UpdateConversationActions r) =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Public.ConversationMessageTimerUpdate ->
   Galley r (UpdateResult Event)
 updateConversationMessageTimer usr zcon qcnv update = do
@@ -428,7 +428,7 @@ updateLocalConversationMessageTimer ::
   Members UpdateConversationActions r =>
   Local UserId ->
   ConnId ->
-  Local ConvId ->
+  Local Covid-19 ->
   Public.ConversationMessageTimerUpdate ->
   Galley r (UpdateResult Event)
 updateLocalConversationMessageTimer lusr con lcnv update =
@@ -440,7 +440,7 @@ deleteLocalConversation ::
   Members UpdateConversationActions r =>
   Local UserId ->
   ConnId ->
-  Local ConvId ->
+  Local Covid-19 ->
   Galley r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
   getUpdateResult $
@@ -464,7 +464,7 @@ type UpdateConversationActions =
 -- | Update a local conversation, and notify all local and remote members.
 updateLocalConversation ::
   Members UpdateConversationActions r =>
-  Local ConvId ->
+  Local Covid-19 ->
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction ->
@@ -541,7 +541,7 @@ performAction qusr conv action = case action of
 
 addCodeH ::
   Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
-  UserId ::: ConnId ::: ConvId ->
+  UserId ::: ConnId ::: Covid-19 ->
   Galley r Response
 addCodeH (usr ::: zcon ::: cnv) =
   addCode usr zcon cnv <&> \case
@@ -557,7 +557,7 @@ addCode ::
   Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Galley r AddCodeResult
 addCode usr zcon cnv = do
   localDomain <- viewFederationDomain
@@ -591,7 +591,7 @@ addCode usr zcon cnv = do
 
 rmCodeH ::
   Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
-  UserId ::: ConnId ::: ConvId ->
+  UserId ::: ConnId ::: Covid-19 ->
   Galley r Response
 rmCodeH (usr ::: zcon ::: cnv) =
   setStatus status200 . json <$> rmCode usr zcon cnv
@@ -600,7 +600,7 @@ rmCode ::
   Members '[CodeStore, ConversationStore, ExternalAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Public.Event
 rmCode usr zcon cnv = do
   localDomain <- viewFederationDomain
@@ -621,7 +621,7 @@ rmCode usr zcon cnv = do
 
 getCodeH ::
   Members '[CodeStore, ConversationStore] r =>
-  UserId ::: ConvId ->
+  UserId ::: Covid-19 ->
   Galley r Response
 getCodeH (usr ::: cnv) =
   setStatus status200 . json <$> getCode usr cnv
@@ -629,7 +629,7 @@ getCodeH (usr ::: cnv) =
 getCode ::
   Members '[CodeStore, ConversationStore] r =>
   UserId ->
-  ConvId ->
+  Covid-19 ->
   Galley r Public.ConversationCode
 getCode usr cnv = do
   conv <-
@@ -707,7 +707,7 @@ joinConversationByIdH ::
        TeamStore
      ]
     r =>
-  UserId ::: ConnId ::: ConvId ::: JSON ->
+  UserId ::: ConnId ::: Covid-19 ::: JSON ->
   Galley r Response
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
   handleUpdateResult <$> joinConversationById zusr zcon cnv
@@ -725,7 +725,7 @@ joinConversationById ::
     r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Galley r (UpdateResult Event)
 joinConversationById zusr zcon cnv =
   joinConversation zusr zcon cnv LinkAccess
@@ -743,7 +743,7 @@ joinConversation ::
     r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Access ->
   Galley r (UpdateResult Event)
 joinConversation zusr zcon cnv access = do
@@ -772,7 +772,7 @@ joinConversation zusr zcon cnv access = do
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
   Members '[MemberStore] r =>
-  Local ConvId ->
+  Local Covid-19 ->
   UserList UserId ->
   RoleName ->
   MaybeT (Galley r) (BotsAndMembers, ConversationAction)
@@ -804,7 +804,7 @@ performAddMemberAction qusr conv invited role = do
   where
     userIsMember u = (^. userId . to (== u))
 
-    checkLocals :: Local ConvId -> Maybe TeamId -> [UserId] -> Galley r ()
+    checkLocals :: Local Covid-19 -> Maybe TeamId -> [UserId] -> Galley r ()
     checkLocals lcnv (Just tid) newUsers = do
       tms <- liftSem $ E.selectTeamMembers tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
@@ -834,7 +834,7 @@ performAddMemberAction qusr conv invited role = do
         qusr
         remotes
 
-    checkLHPolicyConflictsLocal :: Local ConvId -> [UserId] -> Galley r ()
+    checkLHPolicyConflictsLocal :: Local Covid-19 -> [UserId] -> Galley r ()
     checkLHPolicyConflictsLocal lcnv newUsers = do
       let convUsers = Data.convLocalMembers conv
 
@@ -874,7 +874,7 @@ addMembersUnqualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.Invite ->
   Galley r (UpdateResult Event)
 addMembersUnqualified zusr zcon cnv (Public.Invite users role) = do
@@ -885,7 +885,7 @@ addMembers ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.InviteQualified ->
   Galley r (UpdateResult Event)
 addMembers zusr zcon cnv (Public.InviteQualified users role) = do
@@ -899,7 +899,7 @@ updateSelfMember ::
   Members '[ConversationStore, GundeckAccess, ExternalAccess, MemberStore] r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Public.MemberUpdate ->
   Galley r ()
 updateSelfMember zusr zcon qcnv update = do
@@ -913,7 +913,7 @@ updateSelfMember zusr zcon qcnv update = do
   where
     checkLocalMembership ::
       Members '[MemberStore] r =>
-      Local ConvId ->
+      Local Covid-19 ->
       Local UserId ->
       Sem r Bool
     checkLocalMembership lcnv lusr =
@@ -921,7 +921,7 @@ updateSelfMember zusr zcon qcnv update = do
         <$> E.getLocalMembers (tUnqualified lcnv)
     checkRemoteMembership ::
       Members '[ConversationStore] r =>
-      Remote ConvId ->
+      Remote Covid-19 ->
       Local UserId ->
       Sem r Bool
     checkRemoteMembership rcnv lusr =
@@ -943,7 +943,7 @@ updateUnqualifiedSelfMember ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.MemberUpdate ->
   Galley r ()
 updateUnqualifiedSelfMember zusr zcon cnv update = do
@@ -954,7 +954,7 @@ updateOtherMemberUnqualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   UserId ->
   Public.OtherMemberUpdate ->
   Galley r ()
@@ -968,7 +968,7 @@ updateOtherMember ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
   Galley r ()
@@ -979,7 +979,7 @@ updateOtherMember zusr zcon qcnv qvictim update = do
 
 updateOtherMemberLocalConv ::
   Members UpdateConversationActions r =>
-  Local ConvId ->
+  Local Covid-19 ->
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -992,7 +992,7 @@ updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult
     ConversationActionMemberUpdate qvictim update
 
 updateOtherMemberRemoteConv ::
-  Remote ConvId ->
+  Remote Covid-19 ->
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1004,7 +1004,7 @@ removeMemberUnqualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   UserId ->
   Galley r RemoveFromConversationResponse
 removeMemberUnqualified zusr con cnv victim = do
@@ -1016,7 +1016,7 @@ removeMemberQualified ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Qualified UserId ->
   Galley r RemoveFromConversationResponse
 removeMemberQualified zusr con qcnv victim = do
@@ -1025,7 +1025,7 @@ removeMemberQualified zusr con qcnv victim = do
 
 removeMemberFromRemoteConv ::
   Member FederatorAccess r =>
-  Remote ConvId ->
+  Remote Covid-19 ->
   Local UserId ->
   Maybe ConnId ->
   Qualified UserId ->
@@ -1062,7 +1062,7 @@ performRemoveMemberAction conv victims = do
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
   Members UpdateConversationActions r =>
-  Local ConvId ->
+  Local Covid-19 ->
   Local UserId ->
   Maybe ConnId ->
   Qualified UserId ->
@@ -1104,7 +1104,7 @@ postBotMessageH ::
        TeamStore
      ]
     r =>
-  BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
+  BotId ::: Covid-19 ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
   Galley r Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
@@ -1125,7 +1125,7 @@ postBotMessage ::
      ]
     r =>
   BotId ->
-  ConvId ->
+  Covid-19 ->
   Public.OtrFilterMissing ->
   Public.NewOtrMessage ->
   Galley r OtrResult
@@ -1147,7 +1147,7 @@ postProteusMessage ::
     r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   RawProto Public.QualifiedNewOtrMessage ->
   Galley r (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
@@ -1173,7 +1173,7 @@ postOtrMessageUnqualified ::
     r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Maybe Public.IgnoreMissing ->
   Maybe Public.ReportMissing ->
   Public.NewOtrMessage ->
@@ -1274,7 +1274,7 @@ postNewOtrMessage ::
   UserType ->
   UserId ->
   Maybe ConnId ->
-  ConvId ->
+  Covid-19 ->
   OtrFilterMissing ->
   NewOtrMessage ->
   Galley r OtrResult
@@ -1294,7 +1294,7 @@ newMessage ::
   Qualified UserId ->
   Maybe ConnId ->
   -- | Conversation Id (if Nothing, recipient's self conversation is used)
-  Maybe (Qualified ConvId) ->
+  Maybe (Qualified Covid-19) ->
   NewOtrMessage ->
   UTCTime ->
   (LocalMember, ClientId, Text) ->
@@ -1329,7 +1329,7 @@ updateConversationName ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   Public.ConversationRename ->
   Galley r (Maybe Public.Event)
 updateConversationName zusr zcon qcnv convRename = do
@@ -1345,7 +1345,7 @@ updateUnqualifiedConversationName ::
   Members UpdateConversationActions r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.ConversationRename ->
   Galley r (Maybe Public.Event)
 updateUnqualifiedConversationName zusr zcon cnv rename = do
@@ -1357,7 +1357,7 @@ updateLocalConversationName ::
   Members UpdateConversationActions r =>
   Local UserId ->
   ConnId ->
-  Local ConvId ->
+  Local Covid-19 ->
   Public.ConversationRename ->
   Galley r (Maybe Public.Event)
 updateLocalConversationName lusr zcon lcnv convRename = do
@@ -1370,7 +1370,7 @@ updateLiveLocalConversationName ::
   Members UpdateConversationActions r =>
   Local UserId ->
   ConnId ->
-  Local ConvId ->
+  Local Covid-19 ->
   Public.ConversationRename ->
   Galley r (Maybe Public.Event)
 updateLiveLocalConversationName lusr con lcnv rename =
@@ -1382,7 +1382,7 @@ notifyConversationMetadataUpdate ::
   Members '[FederatorAccess, ExternalAccess, GundeckAccess] r =>
   Qualified UserId ->
   Maybe ConnId ->
-  Local ConvId ->
+  Local Covid-19 ->
   BotsAndMembers ->
   ConversationAction ->
   Galley r Event
@@ -1402,7 +1402,7 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
 
 isTypingH ::
   Members '[GundeckAccess, MemberStore] r =>
-  UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData ->
+  UserId ::: ConnId ::: Covid-19 ::: JsonRequest Public.TypingData ->
   Galley r Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   typingData <- fromJsonBody req
@@ -1413,7 +1413,7 @@ isTyping ::
   Members '[GundeckAccess, MemberStore] r =>
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   Public.TypingData ->
   Galley r ()
 isTyping zusr zcon cnv typingData = do
@@ -1513,7 +1513,7 @@ addBot zusr zcon b = do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
       return (bots, users)
-    teamConvChecks :: ConvId -> TeamId -> Galley r ()
+    teamConvChecks :: Covid-19 -> TeamId -> Galley r ()
     teamConvChecks cid tid = do
       tcv <- liftSem $ E.getTeamConversation tid cid
       when (maybe True (view managedConversation) tcv) $
@@ -1638,7 +1638,7 @@ withValidOtrRecipients ::
   UserType ->
   UserId ->
   ClientId ->
-  ConvId ->
+  Covid-19 ->
   OtrRecipients ->
   OtrFilterMissing ->
   UTCTime ->

@@ -174,7 +174,7 @@ removeServiceConn pid sid = do
 addBotMember ::
   UserId ->
   ConnId ->
-  ConvId ->
+  Covid-19 ->
   BotId ->
   ClientId ->
   ProviderId ->
@@ -203,7 +203,7 @@ addBotMember zusr zcon conv bot clt pid sid = do
 removeBotMember ::
   UserId ->
   Maybe ConnId ->
-  ConvId ->
+  Covid-19 ->
   BotId ->
   AppIO (Maybe Event)
 removeBotMember zusr zcon conv bot = do

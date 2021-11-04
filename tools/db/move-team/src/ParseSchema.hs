@@ -391,7 +391,7 @@ main = do
                        mkChunkUsers "galley" "clients",
                        -- galley.conversation
                        --   PRIMARY KEY (conv)
-                       mkChunk' "galley" "conversation" "[ConvId]" "cids" "conv in ?",
+                       mkChunk' "galley" "conversation" "[Covid-19]" "cids" "conv in ?",
                        -- galley.conversation_codes
                        -- galley.custom_backend
                        -- galley.data_migration
@@ -401,7 +401,7 @@ main = do
                        -- galley.legalhold_service,
                        -- galley.member
                        --   PRIMARY KEY (conv, user)
-                       mkChunk' "galley" "member" "[ConvId]" "cids" "conv in ?",
+                       mkChunk' "galley" "member" "[Covid-19]" "cids" "conv in ?",
                        -- galley.meta
                        -- galley.service
                        -- galley.team

@@ -44,9 +44,9 @@ type instance E.PagingState CassandraPaging a = PagingState
 
 type instance E.Page CassandraPaging a = PageWithState a
 
-type instance E.PagingBounds CassandraPaging ConvId = Range 1 1000 Int32
+type instance E.PagingBounds CassandraPaging Covid-19 = Range 1 1000 Int32
 
-type instance E.PagingBounds CassandraPaging (Remote ConvId) = Range 1 1000 Int32
+type instance E.PagingBounds CassandraPaging (Remote Covid-19) = Range 1 1000 Int32
 
 type instance E.PagingBounds CassandraPaging TeamId = Range 1 100 Int32
 
@@ -59,7 +59,7 @@ type instance E.PagingState LegacyPaging a = a
 
 type instance E.Page LegacyPaging a = ResultSet a
 
-type instance E.PagingBounds LegacyPaging ConvId = Range 1 1000 Int32
+type instance E.PagingBounds LegacyPaging Covid-19 = Range 1 1000 Int32
 
 type instance E.PagingBounds LegacyPaging TeamId = Range 1 100 Int32
 

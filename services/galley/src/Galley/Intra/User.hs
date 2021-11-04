@@ -107,7 +107,7 @@ putConnectionInternal updateConn = do
   pure $ responseStatus response
 
 deleteBot ::
-  ConvId ->
+  Covid-19 ->
   BotId ->
   IntraM ()
 deleteBot cid bot = do

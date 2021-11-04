@@ -53,7 +53,7 @@ testObject_ConversationUpdate1 =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
-      cuConvId =
+      cuCovid-19 =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [],
       cuAction = ConversationActionAddMembers (qAlice :| [qBob]) roleNameWireAdmin
@@ -67,7 +67,7 @@ testObject_ConversationUpdate2 =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
-      cuConvId =
+      cuCovid-19 =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],
       cuAction = ConversationActionRemoveMembers (pure qAlice)

@@ -38,8 +38,8 @@ module Wire.API.Conversation
     ListConversations (..),
     GetPaginatedConversationIds,
     pattern GetPaginatedConversationIds,
-    ConvIdsPage,
-    pattern ConvIdsPage,
+    Covid-19sPage,
+    pattern Covid-19sPage,
     ConversationPagingState,
     pattern ConversationPagingState,
     ConversationsResponse (..),
@@ -172,7 +172,7 @@ instance ToSchema ConversationMetadata where
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
   { -- | A qualified conversation ID
-    cnvQualifiedId :: Qualified ConvId,
+    cnvQualifiedId :: Qualified Covid-19,
     cnvMetadata :: ConversationMetadata,
     cnvMembers :: ConvMembers
   }
@@ -181,7 +181,7 @@ data Conversation = Conversation
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Conversation
 
 mkConversation ::
-  Qualified ConvId ->
+  Qualified Covid-19 ->
   ConvType ->
   UserId ->
   [Access] ->
@@ -250,7 +250,7 @@ modelConversation = Doc.defineModel "Conversation" $ do
   Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
     Doc.description "Per-conversation message timer (can be null)"
 
--- | This is used to describe a @ConversationList ConvId@.
+-- | This is used to describe a @ConversationList Covid-19@.
 --
 -- FUTUREWORK: Create a new ConversationIdList type instead.
 modelConversationIds :: Doc.Model
@@ -271,7 +271,7 @@ modelConversations = Doc.defineModel "Conversations" $ do
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
-  { cnvCoverConvId :: ConvId,
+  { cnvCoverCovid-19 :: Covid-19,
     cnvCoverName :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
@@ -286,7 +286,7 @@ instance ToSchema ConversationCoverView where
       "ConversationCoverView"
       (description ?~ "Limited view of Conversation.")
       $ ConversationCoverView
-        <$> cnvCoverConvId .= field "id" schema
+        <$> cnvCoverCovid-19 .= field "id" schema
         <*> cnvCoverName .= lax (field "name" (optWithDefault A.Null schema))
 
 data ConversationList a = ConversationList
@@ -299,13 +299,13 @@ data ConversationList a = ConversationList
 class ConversationListItem a where
   convListItemName :: Proxy a -> Text
 
-instance ConversationListItem ConvId where
+instance ConversationListItem Covid-19 where
   convListItemName _ = "conversation IDs"
 
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
-instance ConversationListItem (Qualified ConvId) where
+instance ConversationListItem (Qualified Covid-19) where
   convListItemName _ = "qualified Conversation IDs"
 
 instance (ConversationListItem a, S.ToSchema a) => S.ToSchema (ConversationList a) where
@@ -337,17 +337,17 @@ instance FromJSON a => FromJSON (ConversationList a) where
 
 type ConversationPagingName = "ConversationIds"
 
-type ConvIdPagingKey = "qualified_conversations"
+type Covid-19PagingKey = "qualified_conversations"
 
 type ConversationPagingState = MultiTablePagingState ConversationPagingName LocalOrRemoteTable
 
 pattern ConversationPagingState :: tables -> Maybe ByteString -> MultiTablePagingState name tables
 pattern ConversationPagingState table state = MultiTablePagingState table state
 
-type ConvIdsPage = MultiTablePage ConversationPagingName ConvIdPagingKey LocalOrRemoteTable (Qualified ConvId)
+type Covid-19sPage = MultiTablePage ConversationPagingName Covid-19PagingKey LocalOrRemoteTable (Qualified Covid-19)
 
-pattern ConvIdsPage :: [a] -> Bool -> MultiTablePagingState name tables -> MultiTablePage name resultsKey tables a
-pattern ConvIdsPage ids hasMore state = MultiTablePage ids hasMore state
+pattern Covid-19sPage :: [a] -> Bool -> MultiTablePagingState name tables -> MultiTablePage name resultsKey tables a
+pattern Covid-19sPage ids hasMore state = MultiTablePage ids hasMore state
 
 type GetPaginatedConversationIds = GetMultiTablePageRequest ConversationPagingName LocalOrRemoteTable 1000 1000
 
@@ -356,7 +356,7 @@ pattern GetPaginatedConversationIds state size = GetMultiTablePageRequest size s
 
 -- | Used on the POST /conversations/list/v2 endpoint
 newtype ListConversations = ListConversations
-  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
+  { lcQualifiedIds :: Range 1 1000 [Qualified Covid-19]
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversations
@@ -371,8 +371,8 @@ instance ToSchema ListConversations where
 
 data ConversationsResponse = ConversationsResponse
   { crFound :: [Conversation],
-    crNotFound :: [Qualified ConvId],
-    crFailed :: [Qualified ConvId]
+    crNotFound :: [Qualified Covid-19],
+    crFailed :: [Qualified Covid-19]
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse

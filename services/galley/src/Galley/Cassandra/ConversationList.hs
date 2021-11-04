@@ -39,9 +39,9 @@ import qualified Polysemy.Reader as P
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
   UserId ->
-  Maybe ConvId ->
+  Maybe Covid-19 ->
   Range 1 1000 Int32 ->
-  Client (ResultSet ConvId)
+  Client (ResultSet Covid-19)
 conversationIdsFrom usr start (fromRange -> max) =
   mkResultSet . strip . fmap runIdentity <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP LocalQuorum (usr, c) (max + 1))
@@ -53,7 +53,7 @@ localConversationIdsPageFrom ::
   UserId ->
   Maybe PagingState ->
   Range 1 1000 Int32 ->
-  Client (PageWithState ConvId)
+  Client (PageWithState Covid-19)
 localConversationIdsPageFrom usr pagingState (fromRange -> max) =
   fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
 
@@ -61,27 +61,27 @@ remoteConversationIdsPageFrom ::
   UserId ->
   Maybe PagingState ->
   Int32 ->
-  Client (PageWithState (Remote ConvId))
+  Client (PageWithState (Remote Covid-19))
 remoteConversationIdsPageFrom usr pagingState max =
   uncurry toRemoteUnsafe <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
 
 interpretConversationListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>
-  Sem (ListItems CassandraPaging ConvId ': r) a ->
+  Sem (ListItems CassandraPaging Covid-19 ': r) a ->
   Sem r a
 interpretConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> embedClient $ localConversationIdsPageFrom uid ps max
 
 interpretRemoteConversationListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>
-  Sem (ListItems CassandraPaging (Remote ConvId) ': r) a ->
+  Sem (ListItems CassandraPaging (Remote Covid-19) ': r) a ->
   Sem r a
 interpretRemoteConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> embedClient $ remoteConversationIdsPageFrom uid ps (fromRange max)
 
 interpretLegacyConversationListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>
-  Sem (ListItems LegacyPaging ConvId ': r) a ->
+  Sem (ListItems LegacyPaging Covid-19 ': r) a ->
   Sem r a
 interpretLegacyConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> embedClient $ conversationIdsFrom uid ps max

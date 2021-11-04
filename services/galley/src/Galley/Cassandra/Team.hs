@@ -147,7 +147,7 @@ getTeamName tid =
   fmap runIdentity
     <$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
 
-teamConversation :: TeamId -> ConvId -> Client (Maybe TeamConversation)
+teamConversation :: TeamId -> Covid-19 -> Client (Maybe TeamConversation)
 teamConversation t c =
   fmap (newTeamConversation c . runIdentity)
     <$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
@@ -346,7 +346,7 @@ deleteTeam tid = do
       unless (null $ result mems) $
         removeTeamMembers =<< liftClient (nextPage mems)
 
-removeTeamConv :: TeamId -> ConvId -> Client ()
+removeTeamConv :: TeamId -> Covid-19 -> Client ()
 removeTeamConv tid cid = liftClient $ do
   retry x5 . batch $ do
     setType BatchLogged
@@ -404,7 +404,7 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
     mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
-teamConversationsForPagination :: TeamId -> Maybe ConvId -> Range 1 HardTruncationLimit Int32 -> Client (Page TeamConversation)
+teamConversationsForPagination :: TeamId -> Maybe Covid-19 -> Range 1 HardTruncationLimit Int32 -> Client (Page TeamConversation)
 teamConversationsForPagination tid start (fromRange -> max) =
   fmap (uncurry newTeamConversation) <$> case start of
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP LocalQuorum (tid, c) max)

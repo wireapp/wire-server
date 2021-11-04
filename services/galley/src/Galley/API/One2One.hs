@@ -17,7 +17,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.One2One
-  ( one2OneConvId,
+  ( one2OneCovid-19,
     iUpsertOne2OneConversation,
   )
 where
@@ -29,7 +29,7 @@ import Galley.Data.Conversation
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
-import Galley.Types.Conversations.One2One (one2OneConvId)
+import Galley.Types.Conversations.One2One (one2OneCovid-19)
 import Galley.Types.UserList (UserList (..))
 import Imports
 import Polysemy
@@ -40,9 +40,9 @@ iUpsertOne2OneConversation ::
   UpsertOne2OneConversationRequest ->
   Galley r UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = liftSem $ do
-  let convId = fromMaybe (one2OneConvId (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooConvId
+  let convId = fromMaybe (one2OneCovid-19 (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooCovid-19
 
-  let dolocal :: Local ConvId -> Sem r ()
+  let dolocal :: Local Covid-19 -> Sem r ()
       dolocal lconvId = do
         mbConv <- getConversation (tUnqualified lconvId)
         case mbConv of
@@ -76,7 +76,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = liftSem $ do
                 deleteMembers
                   (tUnqualified lconvId)
                   (UserList [] [uooRemoteUser])
-      doremote :: Remote ConvId -> Sem r ()
+      doremote :: Remote Covid-19 -> Sem r ()
       doremote rconvId =
         case (uooActor, uooActorDesiredMembership) of
           (LocalActor, Included) -> do

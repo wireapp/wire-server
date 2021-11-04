@@ -165,7 +165,7 @@ testCreateMutualConnections brig galley = do
   rsp <- postConnection brig uid2 uid1 <!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
-  case responseJsonMaybe rsp >>= ucConvId of
+  case responseJsonMaybe rsp >>= ucCovid-19 of
     Nothing -> liftIO $ assertFailure "incomplete connection"
     Just (Qualified cnv _) -> do
       getConversation galley uid1 cnv !!! do
@@ -187,7 +187,7 @@ testCreateMutualConnectionsQualified brig galley = do
   assertConnectionQualified brig uid2 quid1 Accepted
   assertConnectionQualified brig uid1 quid2 Accepted
 
-  case responseJsonMaybe rsp >>= ucConvId of
+  case responseJsonMaybe rsp >>= ucCovid-19 of
     Nothing -> liftIO $ assertFailure "incomplete connection"
     Just cnv -> do
       getConversationQualified galley uid1 cnv !!! do
@@ -293,7 +293,7 @@ testCancelConnection2 brig galley = do
   rsp <- putConnection brig uid1 uid2 Cancelled <!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
-  let Just (Qualified cnv _) = ucConvId =<< responseJsonMaybe rsp
+  let Just (Qualified cnv _) = ucCovid-19 =<< responseJsonMaybe rsp
   -- A cannot see the conversation (due to cancelling)
   getConversation galley uid1 cnv !!! do
     const 403 === statusCode
@@ -330,7 +330,7 @@ testCancelConnectionQualified2 brig galley = do
   rsp <- putConnectionQualified brig uid1 quid2 Cancelled <!! const 200 === statusCode
   assertConnectionQualified brig uid1 quid2 Cancelled
   assertConnectionQualified brig uid2 quid1 Cancelled
-  let Just cnv = ucConvId =<< responseJsonMaybe rsp
+  let Just cnv = ucCovid-19 =<< responseJsonMaybe rsp
   -- A cannot see the conversation (due to cancelling)
   getConversationQualified galley uid1 cnv !!! do
     const 403 === statusCode
@@ -472,7 +472,7 @@ testBlockAndResendConnection brig galley = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
   -- B never accepted and thus does not see the conversation
-  let Just (Qualified cnv _) = ucConvId =<< responseJsonMaybe rsp
+  let Just (Qualified cnv _) = ucCovid-19 =<< responseJsonMaybe rsp
   getConversation galley uid2 cnv !!! const 403 === statusCode
   -- A can see the conversation and is a current member
   getConversation galley uid1 cnv !!! do
@@ -497,7 +497,7 @@ testBlockAndResendConnectionQualified brig galley = do
   assertConnectionQualified brig uid1 quid2 Accepted
   assertConnectionQualified brig uid2 quid1 Blocked
   -- B never accepted and thus does not see the conversation
-  let Just cnv = ucConvId =<< responseJsonMaybe rsp
+  let Just cnv = ucCovid-19 =<< responseJsonMaybe rsp
   getConversationQualified galley uid2 cnv !!! const 403 === statusCode
   -- A can see the conversation and is a current member
   getConversationQualified galley uid1 cnv !!! do
@@ -716,7 +716,7 @@ testConnectFederationNotAvailable brig = do
 testConnectOK :: Brig -> Galley -> FedBrigClient -> Http ()
 testConnectOK brig galley fedBrigClient = do
   let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+  (uid1, quid2, convId) <- localAndRemoteUserWithCovid-19 brig convIsLocal
   receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending
 
   -- The conversation exists uid1 is not a participant however
@@ -740,7 +740,7 @@ testConnectFromAnon brig = do
 testConnectMutualLocalActionThenRemoteAction :: Opt.Opts -> Brig -> Galley -> FedBrigClient -> Http ()
 testConnectMutualLocalActionThenRemoteAction opts brig galley fedBrigClient = do
   let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+  (uid1, quid2, convId) <- localAndRemoteUserWithCovid-19 brig convIsLocal
 
   -- First create a connection request from local to remote user, as this test
   -- aims to test the behaviour of recieving a mutual request from remote
@@ -769,7 +769,7 @@ testConnectMutualLocalActionThenRemoteAction opts brig galley fedBrigClient = do
 testConnectMutualRemoteActionThenLocalAction :: Opt.Opts -> Brig -> FedBrigClient -> FedGalleyClient -> Http ()
 testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyClient = do
   let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+  (uid1, quid2, convId) <- localAndRemoteUserWithCovid-19 brig convIsLocal
 
   -- First create a connection request from remote to local user, as this test
   -- aims to test the behaviour of sending a mutual request to remote
@@ -778,7 +778,7 @@ testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyCl
   let request =
         GetConversationsRequest
           { gcrUserId = qUnqualified quid2,
-            gcrConvIds = [qUnqualified convId]
+            gcrCovid-19s = [qUnqualified convId]
           }
 
   res <- F.getConversations fedGalleyClient (qDomain quid2) request
@@ -829,7 +829,7 @@ testSentFromIgnored opts brig fedBrigClient = do
 testConnectFromBlocked :: Opt.Opts -> Brig -> Galley -> FedBrigClient -> Http ()
 testConnectFromBlocked opts brig galley fedBrigClient = do
   let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
+  (uid1, quid2, convId) <- localAndRemoteUserWithCovid-19 brig convIsLocal
 
   -- set up an initial 'Blocked' state
   receiveConnectionAction brig fedBrigClient uid1 quid2 F.RemoteConnect Nothing Pending

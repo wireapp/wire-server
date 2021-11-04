@@ -330,7 +330,7 @@ renewAccessToken' old = liftZAuth $ do
       let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
        in ZC.renewToken ttl old
 
-newBotToken :: MonadZAuth m => ProviderId -> BotId -> ConvId -> m BotToken
+newBotToken :: MonadZAuth m => ProviderId -> BotId -> Covid-19 -> m BotToken
 newBotToken pid bid cid = liftZAuth $ do
   z <- ask
   liftIO $
