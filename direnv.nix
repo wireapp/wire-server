@@ -6,14 +6,17 @@ let
 
       src =
         if pkgs.stdenv.isDarwin
-        then pkgs.fetchurl {
-          url = darwinAmd64Url;
-          sha256 = darwinAmd64Sha256;
-        }
-        else pkgs.fetchurl {
-          url = linuxAmd64Url;
-          sha256 = linuxAmd64Sha256;
-        };
+        then
+          pkgs.fetchurl
+            {
+              url = darwinAmd64Url;
+              sha256 = darwinAmd64Sha256;
+            }
+        else
+          pkgs.fetchurl {
+            url = linuxAmd64Url;
+            sha256 = linuxAmd64Sha256;
+          };
 
       installPhase = ''
         mkdir -p $out/bin
@@ -21,28 +24,31 @@ let
       '';
     };
 
-    staticBinary = { pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
-      pkgs.stdenv.mkDerivation {
-        inherit pname version;
+  staticBinary = { pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
+    pkgs.stdenv.mkDerivation {
+      inherit pname version;
 
-        src =
-          if pkgs.stdenv.isDarwin
-          then pkgs.fetchurl {
-            url = darwinAmd64Url;
-            sha256 = darwinAmd64Sha256;
-          }
-          else pkgs.fetchurl {
+      src =
+        if pkgs.stdenv.isDarwin
+        then
+          pkgs.fetchurl
+            {
+              url = darwinAmd64Url;
+              sha256 = darwinAmd64Sha256;
+            }
+        else
+          pkgs.fetchurl {
             url = linuxAmd64Url;
             sha256 = linuxAmd64Sha256;
           };
-        phases = ["installPhase" "patchPhase"];
+      phases = [ "installPhase" "patchPhase" ];
 
-        installPhase = ''
-          mkdir -p $out/bin
-          cp $src $out/bin/${binPath}
-          chmod +x $out/bin/${binPath}
-        '';
-      };
+      installPhase = ''
+        mkdir -p $out/bin
+        cp $src $out/bin/${binPath}
+        chmod +x $out/bin/${binPath}
+      '';
+    };
 
   pinned = {
     stack = staticBinaryInTarball {
@@ -102,17 +108,19 @@ let
       linuxAmd64Sha256 = "949f81b3c30ca03a3d4effdecda04f100fa3edc07a28b19400f72ede7c5f0491";
     };
   };
-in pkgs.buildEnv {
+in
+pkgs.buildEnv {
   name = "wire-server-direnv";
   paths = [
+    pkgs.cfssl
     pkgs.docker-compose
     pkgs.gnumake
-    pkgs.haskell-language-server
-    pkgs.telepresence
-    pkgs.jq
     pkgs.grpcurl
+    pkgs.haskell-language-server
+    pkgs.jq
+    pkgs.ormolu
+    pkgs.telepresence
     pkgs.wget
-    pkgs.cfssl
     pkgs.yq
 
     # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
@@ -125,4 +133,3 @@ in pkgs.buildEnv {
     pinned.kind
   ];
 }
-
