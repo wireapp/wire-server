@@ -23,7 +23,7 @@ import Cassandra
 import Data.Domain (Domain)
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Galley.Types
 import Imports

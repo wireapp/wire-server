@@ -27,7 +27,7 @@ import Data.IP (IP)
 import Data.Id
 import Data.Time
 import Data.UUID
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Imports
 import System.FilePath.Posix ((</>))
 import Types

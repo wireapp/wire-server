@@ -21,7 +21,7 @@ import Cassandra
 import Data.Id
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Galley.Effects.SearchVisibilityStore (SearchVisibilityStore (..))
 import Galley.Types.Teams.SearchVisibility
 import Imports

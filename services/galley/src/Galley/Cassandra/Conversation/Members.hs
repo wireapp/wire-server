@@ -37,7 +37,7 @@ import Data.Qualified
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Services
 import Galley.Cassandra.Store
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole

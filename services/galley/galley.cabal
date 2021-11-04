@@ -65,7 +65,7 @@ library
       Galley.Cassandra.TeamNotifications
       Galley.Data.Conversation
       Galley.Data.Conversation.Types
-      Galley.Data.Instances
+      Galley.Cassandra.Instances
       Galley.Data.Scope
       Galley.Data.Services
       Galley.Data.TeamFeatures

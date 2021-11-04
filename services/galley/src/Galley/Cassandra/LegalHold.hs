@@ -33,7 +33,7 @@ import Data.Id
 import Data.LegalHold
 import qualified Galley.Cassandra.Queries as Q
 import Galley.Cassandra.Store
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
 import Galley.Types.Teams
 import Imports

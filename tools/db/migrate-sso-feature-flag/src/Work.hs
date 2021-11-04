@@ -31,7 +31,7 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Misc
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
