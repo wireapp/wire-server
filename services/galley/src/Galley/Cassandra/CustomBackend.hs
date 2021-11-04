@@ -21,9 +21,9 @@ module Galley.Cassandra.CustomBackend (interpretCustomBackendStoreToCassandra) w
 
 import Cassandra
 import Data.Domain (Domain)
+import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Instances ()
-import qualified Galley.Data.Queries as Cql
 import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Galley.Types
 import Imports

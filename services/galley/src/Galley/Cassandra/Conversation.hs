@@ -37,7 +37,7 @@ import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.Store
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
-import qualified Galley.Data.Queries as Cql
+import qualified Galley.Cassandra.Queries as Cql
 import Galley.Effects.ConversationStore (ConversationStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList

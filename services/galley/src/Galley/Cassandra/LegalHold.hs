@@ -31,9 +31,9 @@ import Cassandra
 import Control.Lens (unsnoc)
 import Data.Id
 import Data.LegalHold
+import qualified Galley.Cassandra.Queries as Q
 import Galley.Cassandra.Store
 import Galley.Data.Instances ()
-import qualified Galley.Data.Queries as Q
 import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
 import Galley.Types.Teams
 import Imports

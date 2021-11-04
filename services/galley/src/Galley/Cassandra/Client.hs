@@ -26,7 +26,7 @@ import Control.Arrow
 import Data.Id
 import Data.List.Split (chunksOf)
 import Galley.Cassandra.Store
-import qualified Galley.Data.Queries as Cql
+import qualified Galley.Cassandra.Queries as Cql
 import Galley.Effects.ClientStore (ClientStore (..))
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients

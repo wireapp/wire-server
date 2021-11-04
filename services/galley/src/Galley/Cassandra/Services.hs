@@ -21,7 +21,7 @@ import Cassandra
 import Control.Lens
 import Data.Id
 import Galley.Cassandra.Store
-import Galley.Data.Queries
+import Galley.Cassandra.Queries
 import Galley.Data.Services
 import Galley.Effects.ServiceStore (ServiceStore (..))
 import Galley.Types hiding (Conversation)
