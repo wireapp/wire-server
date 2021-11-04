@@ -98,15 +98,17 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
+import qualified Galley.Effects.BotAccess as E
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.ExternalAccess as E
+import qualified Galley.Effects.FederatorAccess as E
+import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
-import qualified Galley.External as External
-import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
-import Galley.Intra.User (deleteBot, getContactList, lookupActivatedUsers)
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
@@ -301,16 +303,16 @@ performAccessUpdateAction qusr conv target = do
       liftSem $ E.deleteCode key ReusableCode
 
   -- Determine bots and members to be removed
-  let filterBotsAndMembers = filterActivated >=> (liftSem . filterTeammates)
+  let filterBotsAndMembers = filterActivated >=> filterTeammates
   let current = convBotsAndMembers conv -- initial bots and members
-  desired <- lift $ filterBotsAndMembers current -- desired bots and members
+  desired <- lift . liftSem $ filterBotsAndMembers current -- desired bots and members
   let toRemove = bmDiff current desired -- bots and members to be removed
 
   -- Update Cassandra
   lift . liftSem $ E.setConversationAccess (tUnqualified lcnv) target
   lift . fireAndForget $ do
     -- Remove bots
-    traverse_ (deleteBot (tUnqualified lcnv)) (map botMemId (toList (bmBots toRemove)))
+    traverse_ (liftSem . E.deleteBot (tUnqualified lcnv) . botMemId) (bmBots toRemove)
 
     -- Update current bots and members
     let current' = current {bmBots = bmBots desired}
@@ -321,12 +323,12 @@ performAccessUpdateAction qusr conv target = do
       void . runMaybeT $ performAction qusr conv action
       notifyConversationMetadataUpdate qusr Nothing lcnv current' action
   where
-    filterActivated :: BotsAndMembers -> Galley r BotsAndMembers
+    filterActivated :: BotsAndMembers -> Sem r BotsAndMembers
     filterActivated bm
       | ( Data.convAccessRole conv > ActivatedAccessRole
             && cupAccessRole target <= ActivatedAccessRole
         ) = do
-        activated <- map User.userId <$> lookupActivatedUsers (toList (bmLocals bm))
+        activated <- map User.userId <$> E.lookupActivatedUsers (toList (bmLocals bm))
         -- FUTUREWORK: should we also remove non-activated remote users?
         pure $ bm {bmLocals = Set.fromList activated}
       | otherwise = pure bm
@@ -1028,10 +1030,10 @@ removeMemberFromRemoteConv ::
   Maybe ConnId ->
   Qualified UserId ->
   Galley r RemoveFromConversationResponse
-removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
+removeMemberFromRemoteConv cnv lusr _ victim
   | qUntagged lusr == victim =
     do
-      let lc = FederatedGalley.LeaveConversationRequest (qUnqualified qcnv) (qUnqualified victim)
+      let lc = FederatedGalley.LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
       let rpc =
             FederatedGalley.leaveConversation
               FederatedGalley.clientRoutes
@@ -1039,9 +1041,11 @@ removeMemberFromRemoteConv (qUntagged -> qcnv) lusr _ victim
               lc
       t <- liftIO getCurrentTime
       let successEvent =
-            Event MemberLeave qcnv (qUntagged lusr) t $
+            Event MemberLeave (qUntagged cnv) (qUntagged lusr) t $
               EdMembersLeave (QualifiedUserIdList [victim])
-      mapRight (const successEvent) . FederatedGalley.leaveResponse <$> runFederated (qDomain qcnv) rpc
+      liftSem $
+        mapRight (const successEvent) . FederatedGalley.leaveResponse
+          <$> E.runFederated cnv rpc
   | otherwise = pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
 performRemoveMemberAction ::
@@ -1147,11 +1151,12 @@ postProteusMessage ::
   RawProto Public.QualifiedNewOtrMessage ->
   Galley r (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
-  localDomain <- viewFederationDomain
-  let sender = Qualified zusr localDomain
-  if localDomain /= qDomain conv
-    then postRemoteOtrMessage sender conv (rpRaw msg)
-    else postQualifiedOtrMessage User sender (Just zcon) (qUnqualified conv) (rpValue msg)
+  sender <- qualifyLocal zusr
+  foldQualified
+    sender
+    (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) (tUnqualified c) (rpValue msg))
+    (\c -> postRemoteOtrMessage (qUntagged sender) c (rpRaw msg))
+    conv
 
 postOtrMessageUnqualified ::
   Members
@@ -1252,7 +1257,7 @@ postNewOtrBroadcast usr con val msg = do
   now <- liftIO getCurrentTime
   withValidOtrBroadcastRecipients usr sender recvrs val now $ \rs -> do
     let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
-    pushSome (catMaybes toUsers)
+    liftSem $ E.push (catMaybes toUsers)
 
 postNewOtrMessage ::
   Members
@@ -1280,10 +1285,10 @@ postNewOtrMessage utype usr con cnv val msg = do
       sender = newOtrSender msg
       recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
-  withValidOtrRecipients utype usr sender cnv recvrs val now $ \rs -> do
+  withValidOtrRecipients utype usr sender cnv recvrs val now $ \rs -> liftSem $ do
     let (toBots, toUsers) = foldr (newMessage qusr con (Just qcnv) msg now) ([], []) rs
-    pushSome (catMaybes toUsers)
-    External.deliverAndDeleteAsync cnv toBots
+    E.push (catMaybes toUsers)
+    E.deliverAndDeleteAsync cnv toBots
 
 newMessage ::
   Qualified UserId ->
@@ -1387,9 +1392,10 @@ notifyConversationMetadataUpdate quid con (qUntagged -> qcnv) targets action = d
   let e = conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
-  runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-    FederatedGalley.onConversationUpdated FederatedGalley.clientRoutes localDomain $
-      FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) (tUnqualified ruids) action
+  liftSem $
+    E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
+      FederatedGalley.onConversationUpdated FederatedGalley.clientRoutes localDomain $
+        FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots
   pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
@@ -1420,7 +1426,7 @@ isTyping zusr zcon cnv typingData = do
   now <- liftIO getCurrentTime
   let e = Event Typing qcnv qusr now (EdTyping typingData)
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
-    push1 $
+    liftSem . E.push1 $
       p
         & pushConn ?~ zcon
         & pushRoute .~ RouteDirect
@@ -1493,8 +1499,8 @@ addBot zusr zcon b = do
               )
           )
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
-    push1 $ p & pushConn ?~ zcon
-  External.deliverAsync ((bm : bots) `zip` repeat e)
+    liftSem . E.push1 $ p & pushConn ?~ zcon
+  liftSem $ E.deliverAsync ((bm : bots) `zip` repeat e)
   pure e
   where
     regularConvChecks lusr c = do
@@ -1541,14 +1547,15 @@ rmBot zusr zcon b = do
     then pure Unchanged
     else do
       t <- liftIO getCurrentTime
-      let evd = EdMembersLeave (QualifiedUserIdList [Qualified (botUserId (b ^. rmBotId)) localDomain])
-      let e = Event MemberLeave qcnv qusr t evd
-      for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn .~ zcon
-      liftSem $ E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
-      liftSem $ E.deleteClients (botUserId (b ^. rmBotId))
-      External.deliverAsync (bots `zip` repeat e)
-      pure $ Updated e
+      liftSem $ do
+        let evd = EdMembersLeave (QualifiedUserIdList [Qualified (botUserId (b ^. rmBotId)) localDomain])
+        let e = Event MemberLeave qcnv qusr t evd
+        for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+          E.push1 $ p & pushConn .~ zcon
+        E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
+        E.deleteClients (botUserId (b ^. rmBotId))
+        E.deliverAsync (bots `zip` repeat e)
+        pure $ Updated e
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1601,13 +1608,14 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
     fmap (view userId) <$> case val of
       OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
       _ -> maybeFetchAllMembersInTeam tid
-  contacts <- getContactList usr
+  contacts <- liftSem $ E.getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
-    if isInternal
-      then Clients.fromUserClients <$> Intra.lookupClients users
-      else liftSem $ E.getClients users
+    liftSem $
+      if isInternal
+        then Clients.fromUserClients <$> E.lookupClients users
+        else E.getClients users
   let membs = newMember <$> users
   handleOtrResponse User usr clt rcps membs clts val now go
   where
@@ -1647,9 +1655,10 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
       let localMemberIds = lmId <$> localMembers
       isInternal <- view $ options . optSettings . setIntraListing
       clts <-
-        if isInternal
-          then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-          else liftSem $ E.getClients localMemberIds
+        liftSem $
+          if isInternal
+            then Clients.fromUserClients <$> E.lookupClients localMemberIds
+            else E.getClients localMemberIds
       handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::

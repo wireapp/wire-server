@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1b185cc3a9afe5d7a6c21c93d6c031963a5eb924885b6314ffc92ce96c6b545d
+-- hash: aaed6006a10580d11a903fa32d0d6d09234867ab992f293833616eb68c7071bb
 
 name:           galley
 version:        0.83.0
@@ -71,23 +71,34 @@ library
       Galley.Data.TeamNotifications
       Galley.Data.Types
       Galley.Effects
+      Galley.Effects.BotAccess
+      Galley.Effects.BrigAccess
       Galley.Effects.ClientStore
       Galley.Effects.CodeStore
       Galley.Effects.ConversationStore
+      Galley.Effects.ExternalAccess
+      Galley.Effects.FederatorAccess
       Galley.Effects.FireAndForget
+      Galley.Effects.GundeckAccess
       Galley.Effects.ListItems
       Galley.Effects.MemberStore
       Galley.Effects.Paging
       Galley.Effects.RemoteConversationListStore
       Galley.Effects.ServiceStore
+      Galley.Effects.SparAccess
       Galley.Effects.TeamMemberStore
       Galley.Effects.TeamStore
       Galley.Env
       Galley.External
       Galley.External.LegalHoldService
+      Galley.External.LegalHoldService.Types
       Galley.Intra.Client
+      Galley.Intra.Effects
+      Galley.Intra.Federator
+      Galley.Intra.Federator.Types
       Galley.Intra.Journal
       Galley.Intra.Push
+      Galley.Intra.Push.Internal
       Galley.Intra.Spar
       Galley.Intra.Team
       Galley.Intra.User
@@ -163,6 +174,7 @@ library
     , saml2-web-sso >=0.18
     , servant
     , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
     , servant-swagger-ui

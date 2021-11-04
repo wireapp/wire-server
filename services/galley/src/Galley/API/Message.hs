@@ -26,11 +26,13 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data.Services as Data
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
+import Galley.Effects.FederatorAccess
+import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Effects.MemberStore
-import qualified Galley.External as External
-import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
 import Galley.Options (optSettings, setIntraListing)
 import qualified Galley.Types.Clients as Clients
@@ -41,7 +43,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationError, executeFederated)
+import Wire.API.Federation.Client (FederationError)
 import Wire.API.Federation.Error (federationErrorToWai)
 import Wire.API.Message
 import Wire.API.Team.LegalHold
@@ -182,8 +184,9 @@ getRemoteClients ::
   Galley r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
-  mconcat . map tUnqualified
-    <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
+  liftSem $
+    mconcat . map tUnqualified
+      <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
   where
     getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
@@ -192,18 +195,18 @@ getRemoteClients remoteMembers =
 postRemoteOtrMessage ::
   Members '[ConversationStore, FederatorAccess] r =>
   Qualified UserId ->
-  Qualified ConvId ->
+  Remote ConvId ->
   LByteString ->
   Galley r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         FederatedGalley.MessageSendRequest
-          { FederatedGalley.msrConvId = qUnqualified conv,
+          { FederatedGalley.msrConvId = tUnqualified conv,
             FederatedGalley.msrSender = qUnqualified sender,
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
-  FederatedGalley.msResponse <$> runFederatedGalley (qDomain conv) rpc
+  liftSem $ FederatedGalley.msResponse <$> runFederated conv rpc
 
 postQualifiedOtrMessage ::
   Members
@@ -255,10 +258,10 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 
   -- get local clients
   localClients <-
-    lift $
+    lift . liftSem $
       if isInternal
-        then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-        else liftSem $ getClients localMemberIds
+        then Clients.fromUserClients <$> lookupClients localMemberIds
+        else getClients localMemberIds
   let qualifiedLocalClients =
         Map.mapKeys (localDomain,)
           . makeUserMap (Set.fromList (map lmId localMembers))
@@ -313,7 +316,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 -- | Send both local and remote messages, return the set of clients for which
 -- sending has failed.
 sendMessages ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess] r =>
+  Members '[BotAccess, GundeckAccess, ExternalAccess, FederatorAccess] r =>
   UTCTime ->
   Qualified UserId ->
   ClientId ->
@@ -330,7 +333,8 @@ sendMessages now sender senderClient mconn conv localMemberMap metadata messages
         | localDomain == dom =
           sendLocalMessages now sender senderClient mconn (Qualified conv localDomain) localMemberMap metadata
         | otherwise =
-          sendRemoteMessages dom now sender senderClient conv metadata
+          sendRemoteMessages (toRemoteUnsafe dom ()) now sender senderClient conv metadata
+
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
   where
     byDomain :: Map (Domain, UserId, ClientId) a -> Map Domain (Map (UserId, ClientId) a)
@@ -367,7 +371,9 @@ sendLocalMessages now sender senderClient mconn conv localMemberMap metadata loc
   pure mempty
 
 sendRemoteMessages ::
-  Domain ->
+  forall r x.
+  Member FederatorAccess r =>
+  Remote x ->
   UTCTime ->
   Qualified UserId ->
   ClientId ->
@@ -375,7 +381,7 @@ sendRemoteMessages ::
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
   Galley r (Set (UserId, ClientId))
-sendRemoteMessages domain now sender senderClient conv metadata messages = handle <=< runExceptT $ do
+sendRemoteMessages domain now sender senderClient conv metadata messages = (handle =<<) $ do
   let rcpts =
         foldr
           (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c t))
@@ -397,14 +403,14 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = handl
   -- backend has only one domain so we just pick it from the environment.
   originDomain <- viewFederationDomain
   let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes originDomain rm
-  executeFederated domain rpc
+  liftSem $ runFederatedEither domain rpc
   where
     handle :: Either FederationError a -> Galley r (Set (UserId, ClientId))
     handle (Right _) = pure mempty
     handle (Left e) = do
       Log.warn $
         Log.field "conversation" (toByteString' conv)
-          Log.~~ Log.field "domain" (toByteString' domain)
+          Log.~~ Log.field "domain" (toByteString' (tDomain domain))
           Log.~~ Log.field "exception" (encode (federationErrorToWai e))
           Log.~~ Log.msg ("Remote message sending failed" :: Text)
       pure (Map.keysSet messages)
@@ -444,7 +450,7 @@ runMessagePush ::
   MessagePush ->
   Galley r ()
 runMessagePush cnv mp = do
-  pushSome (userPushes mp)
+  liftSem $ push (userPushes mp)
   pushToBots (botPushes mp)
   where
     pushToBots :: [(BotMember, Event)] -> Galley r ()
@@ -453,7 +459,7 @@ runMessagePush cnv mp = do
       if localDomain /= qDomain cnv
         then unless (null pushes) $ do
           Log.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show cnv)
-        else External.deliverAndDeleteAsync (qUnqualified cnv) pushes
+        else liftSem $ deliverAndDeleteAsync (qUnqualified cnv) pushes
 
 newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
 newMessageEvent convId sender senderClient dat time receiverClient cipherText =

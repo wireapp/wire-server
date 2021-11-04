@@ -76,6 +76,7 @@ library:
   - retry >=0.5
   - safe-exceptions >=0.1
   - servant
+  - servant-client-core
   - servant-server
   - servant-swagger
   - servant-swagger-ui

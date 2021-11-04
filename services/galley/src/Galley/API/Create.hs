@@ -44,6 +44,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
@@ -390,7 +391,7 @@ createLegacyConnectConversation lusr conn lrecipient j = do
           e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing (tUnqualified lusr) conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
-        push1 $
+        liftSem . E.push1 $
           p
             & pushRoute .~ RouteDirect
             & pushConn .~ conn
@@ -431,7 +432,7 @@ createLegacyConnectConversation lusr conn lrecipient j = do
         t <- liftIO getCurrentTime
         let e = Event ConvConnect qconv (qUntagged lusr) t (EdConnect j)
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
-          push1 $
+          liftSem . E.push1 $
             p
               & pushRoute .~ RouteDirect
               & pushConn .~ conn
@@ -469,7 +470,7 @@ notifyCreatedConversation dtime usr conn c = do
   -- of being added to a conversation
   registerRemoteConversationMemberships now localDomain c
   -- Notify local users
-  pushSome =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
+  liftSem . E.push =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny

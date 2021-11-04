@@ -19,37 +19,18 @@ module Galley.Effects
   ( -- * Effects needed in Galley
     GalleyEffects1,
 
-    -- * Internal services
-    Intra,
-    interpretIntra,
-
-    -- * Brig
+    -- * Effects to access the Intra API
+    BotAccess,
     BrigAccess,
-    interpretBrig,
-
-    -- * Federator
     FederatorAccess,
-    interpretFederator,
-
-    -- * Spar
-    SparAccess,
-    interpretSpar,
-
-    -- * Gundeck
     GundeckAccess,
-    interpretGundeck,
+    SparAccess,
 
     -- * External services
     ExternalAccess,
-    interpretExternal,
-
-    -- * Bot API
-    BotAccess,
-    interpretBot,
 
     -- * Fire-and-forget async
     FireAndForget,
-    interpretFireAndForget,
 
     -- * Store effects
     ClientStore,
@@ -72,52 +53,22 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.Cassandra.Paging
+import Galley.Effects.BotAccess
+import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
+import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
+import Galley.Effects.GundeckAccess
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
 import Galley.Effects.ServiceStore
+import Galley.Effects.SparAccess
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
-import Imports
 import Polysemy
-
-data Intra m a
-
-interpretIntra :: Sem (Intra ': r) a -> Sem r a
-interpretIntra = interpret $ \case
-
-data BrigAccess m a
-
-interpretBrig :: Sem (BrigAccess ': r) a -> Sem r a
-interpretBrig = interpret $ \case
-
-data GundeckAccess m a
-
-interpretGundeck :: Sem (GundeckAccess ': r) a -> Sem r a
-interpretGundeck = interpret $ \case
-
-data ExternalAccess m a
-
-interpretExternal :: Sem (ExternalAccess ': r) a -> Sem r a
-interpretExternal = interpret $ \case
-
-data FederatorAccess m a
-
-interpretFederator :: Sem (FederatorAccess ': r) a -> Sem r a
-interpretFederator = interpret $ \case
-
-data SparAccess m a
-
-interpretSpar :: Sem (SparAccess ': r) a -> Sem r a
-interpretSpar = interpret $ \case
-
-data BotAccess m a
-
-interpretBot :: Sem (BotAccess ': r) a -> Sem r a
-interpretBot = interpret $ \case
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -127,7 +78,6 @@ type GalleyEffects1 =
      ExternalAccess,
      FederatorAccess,
      BotAccess,
-     Intra,
      FireAndForget,
      ClientStore,
      CodeStore,

@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,36 +17,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Push
-  ( -- * Push
-    Push,
-    newPush,
-    newPushLocal,
-    newConversationEventPush,
-    newPush1,
-    newPushLocal1,
-    PushEvent (..),
-
-    -- * Push Configuration
-    pushConn,
-    pushTransient,
-    pushRoute,
-    pushNativePriority,
-    pushAsync,
-    pushRecipients,
-
-    -- * Push Recipients
-    Recipient,
-    recipient,
-    userRecipient,
-    recipientUserId,
-    recipientClients,
-
-    -- * Re-Exports
-    Gundeck.Route (..),
-    Gundeck.Priority (..),
+module Galley.External.LegalHoldService.Types
+  ( OpaqueAuthToken (..),
   )
 where
 
-import Galley.Intra.Push.Internal
-import qualified Gundeck.Types.Push.V2 as Gundeck
+import Data.Aeson
+import Data.ByteString.Conversion.To
+import Imports
+
+-- | When receiving tokens from other services which are 'just passing through'
+-- it's error-prone useless extra work to parse and render them from JSON over and over again.
+-- We'll just wrap them with this to give some level of typesafety and a reasonable JSON
+-- instance
+newtype OpaqueAuthToken = OpaqueAuthToken
+  { opaqueAuthTokenToText :: Text
+  }
+  deriving newtype (Eq, Show, FromJSON, ToJSON, ToByteString)
