@@ -67,6 +67,11 @@ if [ -t 1 ]; then
     : ${ORMOLU_CONDENSE_OUTPUT:=1}
 fi
 
+# https://github.com/tweag/ormolu/issues/38
+# https://gitlab.haskell.org/ghc/ghc/-/issues/17755
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+
 for hsfile in $(git ls-files | grep '\.hsc\?$'); do
     FAILED=0
 
