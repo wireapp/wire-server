@@ -39,10 +39,10 @@ import Data.UUID.V4 (nextRandom)
 import qualified Galley.Cassandra.Conversation as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Paging
+import Galley.Cassandra.ResultSet
 import Galley.Cassandra.Store
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
-import Galley.Data.ResultSet
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))

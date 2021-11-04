@@ -88,7 +88,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
-import qualified Galley.Data.ResultSet as Data
 import Galley.Data.Services (BotMember)
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
@@ -1089,10 +1088,10 @@ withTeamIds ::
 withTeamIds usr range size k = case range of
   Nothing -> do
     r <- liftSem $ E.listItems usr Nothing (rcast size)
-    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
+    k (resultSetType r == ResultSetTruncated) (resultSetResult r)
   Just (Right c) -> do
     r <- liftSem $ E.listItems usr (Just c) (rcast size)
-    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
+    k (resultSetType r == ResultSetTruncated) (resultSetResult r)
   Just (Left (fromRange -> cc)) -> do
     ids <- liftSem $ E.selectTeams usr (Data.ByteString.Conversion.fromList cc)
     k False ids
