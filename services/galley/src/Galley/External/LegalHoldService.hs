@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -26,9 +24,6 @@ module Galley.External.LegalHoldService
 
     -- * helpers
     validateServiceKey,
-
-    -- * types
-    OpaqueAuthToken (..),
   )
 where
 
@@ -50,6 +45,8 @@ import Data.Misc
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data.LegalHold as LegalHoldData
+import Galley.Env
+import Galley.External.LegalHoldService.Types
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types
@@ -237,14 +234,3 @@ validateServiceKey pem =
         (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
     minRsaKeySize :: Int
     minRsaKeySize = 256 -- Bytes (= 2048 bits)
-
--- Types
-
--- | When receiving tokens from other services which are 'just passing through'
--- it's error-prone useless extra work to parse and render them from JSON over and over again.
--- We'll just wrap them with this to give some level of typesafety and a reasonable JSON
--- instance
-newtype OpaqueAuthToken = OpaqueAuthToken
-  { opaqueAuthTokenToText :: Text
-  }
-  deriving newtype (Eq, Show, FromJSON, ToJSON, ToByteString)

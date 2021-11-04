@@ -57,6 +57,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.Paging
 import Galley.Effects.TeamStore
@@ -556,7 +557,7 @@ rmUser user conn = do
           | otherwise -> return Nothing
       for_
         (maybeList1 (catMaybes pp))
-        Intra.push
+        (liftSem . push)
 
     leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
     leaveRemoteConversations lusr cids = do

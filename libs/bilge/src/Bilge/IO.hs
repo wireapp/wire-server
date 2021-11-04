@@ -91,7 +91,7 @@ data Debug
     Full
   deriving (Eq, Ord, Show, Enum)
 
-type Http a = HttpT IO a
+type Http = HttpT IO
 
 newtype HttpT m a = HttpT
   { unwrap :: ReaderT Manager m a

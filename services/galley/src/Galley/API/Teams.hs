@@ -94,18 +94,18 @@ import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.ExternalAccess as E
+import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Paging as E
+import qualified Galley.Effects.SparAccess as Spar
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
-import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
-import qualified Galley.Intra.Spar as Spar
-import qualified Galley.Intra.Team as BrigTeam
-import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
@@ -269,7 +269,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
       -- This is also very difficult to test, so is not tested.
-      (TeamSize possiblyStaleSize) <- BrigTeam.getSize tid
+      (TeamSize possiblyStaleSize) <- liftSem $ E.getSize tid
       let size =
             if possiblyStaleSize == 0
               then 1
@@ -313,7 +313,7 @@ updateTeam zusr zcon tid updateData = do
   memList <- getTeamMembersForFanout tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
-  push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
+  liftSem . E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH ::
   Members '[BrigAccess, TeamStore] r =>
@@ -379,7 +379,7 @@ uncheckedDeleteTeam ::
 uncheckedDeleteTeam zusr zcon tid = do
   team <- liftSem $ E.getTeam tid
   when (isJust team) $ do
-    Spar.deleteTeam tid
+    liftSem $ Spar.deleteTeam tid
     now <- liftIO getCurrentTime
     convs <-
       liftSem $
@@ -393,12 +393,12 @@ uncheckedDeleteTeam zusr zcon tid = do
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
     pushDeleteEvents membs e ue
-    External.deliverAsync be
+    liftSem $ E.deliverAsync be
     -- TODO: we don't delete bots here, but we should do that, since
     -- every bot user can only be in a single conversation. Just
     -- deleting conversations from the database is not enough.
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
-      mapM_ (deleteUser . view userId) membs
+      liftSem $ mapM_ (E.deleteUser . view userId) membs
       Journal.teamDelete tid
     Data.unsetTeamLegalholdWhitelisted tid
     liftSem $ E.deleteTeam tid
@@ -410,16 +410,18 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
-      forM_ chunks $ \chunk -> case chunk of
-        [] -> return ()
-        -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
-        -- push module to never fan this out to more than the limit
-        x : xs -> push1 (newPushLocal1 ListComplete zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+      liftSem $
+        forM_ chunks $ \chunk -> case chunk of
+          [] -> return ()
+          -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
+          -- push module to never fan this out to more than the limit
+          x : xs -> E.push1 (newPushLocal1 ListComplete zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
+      -- FUTUREWORK: make this behaviour part of the GundeckAccess effect
       let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
       forM_ ue $ \event -> do
         -- push ConversationDelete events
-        push1 event
+        liftSem $ E.push1 event
         threadDelay delay
     createConvDeleteEvents ::
       UTCTime ->
@@ -509,8 +511,12 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           E.withChunks pager $
             \members -> do
               inviters <- lookupInviterHandle members
-              users <- lookupUser <$> lookupActivatedUsers (fmap (view userId) members)
-              richInfos <- lookupRichInfo <$> getRichInfoMultiUser (fmap (view userId) members)
+              users <-
+                liftSem $
+                  lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
+              richInfos <-
+                liftSem $
+                  lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
               liftIO $ do
                 writeString
                   ( encodeDefaultOrderedByNameWith
@@ -564,7 +570,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       let inviterIds :: [UserId]
           inviterIds = nub $ catMaybes $ fmap fst . view invitation <$> members
 
-      userList :: [User] <- accountUser <$$> getUsers inviterIds
+      userList :: [User] <- liftSem $ accountUser <$$> E.getUsers inviterIds
 
       let userMap :: M.Map UserId Handle.Handle
           userMap = M.fromList . catMaybes $ extract <$> userList
@@ -710,7 +716,7 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
-  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
@@ -732,7 +738,7 @@ uncheckedAddTeamMember ::
   Galley r ()
 uncheckedAddTeamMember tid nmem = do
   mems <- getTeamMembersForFanout tid
-  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
@@ -800,7 +806,7 @@ updateTeamMember zusr zcon tid targetMember = do
     updateJournal :: Team -> TeamMemberList -> Galley r ()
     updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
-        (TeamSize size) <- BrigTeam.getSize tid
+        (TeamSize size) <- liftSem $ E.getSize tid
         billingUserIds <- Journal.getBillingUserIds tid $ Just mems
         Journal.teamUpdate tid size billingUserIds
 
@@ -816,7 +822,7 @@ updateTeamMember zusr zcon tid targetMember = do
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
-      for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
+      liftSem $ for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH ::
   Members
@@ -874,7 +880,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
-      (TeamSize sizeBeforeDelete) <- BrigTeam.getSize tid
+      (TeamSize sizeBeforeDelete) <- liftSem $ E.getSize tid
       -- TeamSize is 'Natural' and subtracting from  0 is an error
       -- TeamSize could be reported as 0 if team members are added and removed very quickly,
       -- which happens in tests
@@ -882,7 +888,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
             if sizeBeforeDelete == 0
               then 0
               else sizeBeforeDelete - 1
-      deleteUser remove
+      liftSem $ E.deleteUser remove
       billingUsers <- Journal.getBillingUserIds tid (Just mems)
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
       pure TeamMemberDeleteAccepted
@@ -919,7 +925,8 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
-      push1 $ newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
+      liftSem . E.push1 $
+        newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
     removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Galley r ()
     removeFromConvsAndPushConvLeaveEvent now = do
@@ -946,8 +953,8 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPushLocal (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
-        push1 $ p & pushConn .~ zcon
-      External.deliverAsync (bots `zip` repeat y)
+        liftSem . E.push1 $ p & pushConn .~ zcon
+      liftSem $ E.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
   Member TeamStore r =>
@@ -1081,7 +1088,7 @@ ensureNotElevated targetPermissions member =
 ensureNotTooLarge :: Member BrigAccess r => TeamId -> Galley r TeamSize
 ensureNotTooLarge tid = do
   o <- view options
-  (TeamSize size) <- BrigTeam.getSize tid
+  (TeamSize size) <- liftSem $ E.getSize tid
   unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
     throwM tooManyTeamMembers
   return $ TeamSize size
@@ -1103,7 +1110,7 @@ ensureNotTooLargeForLegalHold tid teamSize = do
 
 ensureNotTooLargeToActivateLegalHold :: Members '[BrigAccess] r => TeamId -> Galley r ()
 ensureNotTooLargeToActivateLegalHold tid = do
-  (TeamSize teamSize) <- BrigTeam.getSize tid
+  (TeamSize teamSize) <- liftSem $ E.getSize tid
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $ do
     throwM cannotEnableLegalHoldServiceLargeTeam
 
@@ -1139,7 +1146,8 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
     luid <- qualifyLocal (new ^. userId)
     liftSem $ E.createMember lcid luid
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
-  push1 $ newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  liftSem . E.push1 $
+    newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
   return sizeBeforeAdd
   where
@@ -1195,7 +1203,7 @@ finishCreateTeam team owner others zcon = do
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
-  push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+  liftSem . E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 withBindingTeam :: Member TeamStore r => UserId -> (TeamId -> Galley r b) -> Galley r b
 withBindingTeam zusr callback = do
@@ -1226,7 +1234,7 @@ canUserJoinTeam :: Member BrigAccess r => TeamId -> Galley r ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
-    (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+    (TeamSize sizeBeforeJoin) <- liftSem $ E.getSize tid
     ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)

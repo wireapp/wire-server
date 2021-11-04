@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -45,13 +46,15 @@ import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
+import Galley.Effects.FederatorAccess
+import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import qualified Galley.External as External
 import Galley.Intra.Push
-import Galley.Intra.User
 import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
@@ -63,16 +66,11 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import UnliftIO.Async (concurrently, pooledForConcurrentlyN)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
-import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
-import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
-import Wire.API.Federation.GRPC.Types (Component (..))
-import qualified Wire.API.User as User
+import Wire.API.Federation.Error (federationNotImplemented)
 
 type JSON = Media "application" "json"
 
@@ -83,7 +81,7 @@ ensureAccessRole role users = case role of
     when (any (isNothing . snd) users) $
       throwErrorDescriptionType @NotATeamMember
   ActivatedAccessRole -> do
-    activated <- lookupActivatedUsers $ map fst users
+    activated <- liftSem $ lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
       throwErrorDescriptionType @ConvAccessDenied
   NonActivatedAccessRole -> return ()
@@ -122,23 +120,25 @@ ensureConnected self others = do
 
 ensureConnectedToLocals :: Member BrigAccess r => UserId -> [UserId] -> Galley r ()
 ensureConnectedToLocals _ [] = pure ()
-ensureConnectedToLocals u uids = liftGalley0 $ do
+ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnectionsUnqualified0 [u] (Just uids) (Just Accepted)
-      `concurrently` getConnectionsUnqualified0 uids (Just [u]) (Just Accepted)
+    liftSem $
+      getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwErrorDescriptionType @NotConnected
 
 ensureConnectedToRemotes :: Member BrigAccess r => Local UserId -> [Remote UserId] -> Galley r ()
 ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
-  acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
+  acceptedConns <-
+    liftSem $
+      getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
     throwErrorDescriptionType @NotConnected
 
 ensureReAuthorised :: Member BrigAccess r => UserId -> Maybe PlainTextPassword -> Galley r ()
 ensureReAuthorised u secret = do
-  reAuthed <- reAuthUser u (ReAuthUser secret)
+  reAuthed <- liftSem $ reauthUser u (ReAuthUser secret)
   unless reAuthed $
     throwM reAuthFailed
 
@@ -296,7 +296,7 @@ acceptOne2One usr conv conn = do
         conv' <- if isJust (find ((usr /=) . lmId) mems) then liftSem promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
-          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+          liftSem $ push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
     _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
@@ -582,8 +582,8 @@ pushConversationEvent ::
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
   for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
-    push1 $ p & set pushConn conn
-  External.deliverAsync (toList bots `zip` repeat e)
+    liftSem $ push1 $ p & set pushConn conn
+  liftSem $ deliverAsync (toList bots `zip` repeat e)
 
 verifyReusableCode ::
   Member CodeStore r =>
@@ -627,76 +627,6 @@ viewFederationDomain = view (options . optSettings . setFederationDomain)
 
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
-
-checkRemoteUsersExist ::
-  (Member FederatorAccess r, Functor f, Foldable f) =>
-  f (Remote UserId) ->
-  Galley r ()
-checkRemoteUsersExist =
-  -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
-  traverse_ checkRemotesFor . bucketRemote
-
-checkRemotesFor :: Member FederatorAccess r => Remote [UserId] -> Galley r ()
-checkRemotesFor (qUntagged -> Qualified uids domain) = do
-  let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-  users <- runFederatedBrig domain rpc
-  let uids' =
-        map
-          (qUnqualified . User.profileQualifiedId)
-          (filter (not . User.profileDeleted) users)
-  unless (Set.fromList uids == Set.fromList uids') $
-    throwM unknownRemoteUser
-
-type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley0) a
-
-runFederated0 ::
-  forall (c :: Component) a.
-  Domain ->
-  FederatedGalleyRPC c a ->
-  Galley0 a
-runFederated0 remoteDomain rpc = do
-  runExceptT (executeFederated remoteDomain rpc)
-    >>= either (throwM . federationErrorToWai) pure
-
-runFederatedGalley ::
-  Member FederatorAccess r =>
-  Domain ->
-  FederatedGalleyRPC 'Galley a ->
-  Galley r a
-runFederatedGalley = runFederated
-
-runFederatedBrig ::
-  Member FederatorAccess r =>
-  Domain ->
-  FederatedGalleyRPC 'Brig a ->
-  Galley r a
-runFederatedBrig = runFederated
-
-runFederated ::
-  forall (c :: Component) r a.
-  Member FederatorAccess r =>
-  Domain ->
-  FederatedGalleyRPC c a ->
-  Galley r a
-runFederated remoteDomain = liftGalley0 . runFederated0 remoteDomain
-
-runFederatedConcurrently ::
-  Member FederatorAccess r =>
-  (Foldable f, Functor f) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatedGalleyRPC c b) ->
-  Galley r [Remote b]
-runFederatedConcurrently xs rpc = liftGalley0 $
-  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
-    qualifyAs r <$> runFederated0 (tDomain r) (rpc r)
-
-runFederatedConcurrently_ ::
-  Member FederatorAccess r =>
-  (Foldable f, Functor f) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatedGalleyRPC c ()) ->
-  Galley r ()
-runFederatedConcurrently_ xs = void . runFederatedConcurrently xs
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
 -- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
@@ -807,7 +737,7 @@ registerRemoteConversationMemberships ::
   Domain ->
   Data.Conversation ->
   Galley r ()
-registerRemoteConversationMemberships now localDomain c = do
+registerRemoteConversationMemberships now localDomain c = liftSem $ do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->

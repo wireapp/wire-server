@@ -26,8 +26,8 @@ import Control.Lens (view)
 import Data.Id
 import Galley.App
 import Galley.Effects
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
-import qualified Galley.Intra.Client as Intra
 import Galley.Options
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
@@ -49,9 +49,10 @@ getClients ::
 getClients usr = do
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
-    if isInternal
-      then fromUserClients <$> Intra.lookupClients [usr]
-      else liftSem $ E.getClients [usr]
+    liftSem $
+      if isInternal
+        then fromUserClients <$> E.lookupClients [usr]
+        else E.getClients [usr]
   return $ clientIds usr clts
 
 addClientH ::

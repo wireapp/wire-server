@@ -38,24 +38,26 @@ import Data.Misc
 import qualified Data.Set as Set
 import Data.Text.Encoding
 import Galley.API.Error
-import Galley.App
 import Galley.Effects
-import Galley.External.LegalHoldService
+import Galley.Env
+import Galley.External.LegalHoldService.Types
 import Galley.Intra.Util
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Polysemy
+import qualified Polysemy.Reader as P
+import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
-lookupClients :: Member BrigAccess r => [UserId] -> Galley r UserClients
+lookupClients :: [UserId] -> IntraM UserClients
 lookupClients uids = do
-  (brigHost, brigPort) <- brigReq
   r <-
-    callBrig $
-      method POST . host brigHost . port brigPort
+    call Brig $
+      method POST
         . path "/i/clients"
         . json (UserSet $ Set.fromList uids)
         . expect2xx
@@ -64,14 +66,12 @@ lookupClients uids = do
 
 -- | Calls 'Brig.API.internalListClientsFullH'.
 lookupClientsFull ::
-  Member BrigAccess r =>
   [UserId] ->
-  Galley r UserClientsFull
+  IntraM UserClientsFull
 lookupClientsFull uids = do
-  (brigHost, brigPort) <- brigReq
   r <-
-    callBrig $
-      method POST . host brigHost . port brigPort
+    call Brig $
+      method POST
         . path "/i/clients/full"
         . json (UserSet $ Set.fromList uids)
         . expect2xx
@@ -80,52 +80,44 @@ lookupClientsFull uids = do
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest ::
-  Member BrigAccess r =>
   UserId ->
   UserId ->
   LastPrekey ->
-  Galley r ()
+  IntraM ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
-  (brigHost, brigPort) <- brigReq
-  void . callBrig $
+  void . call Brig $
     method POST
-      . host brigHost
-      . port brigPort
       . paths ["i", "clients", "legalhold", toByteString' targetUid, "request"]
       . json (LegalHoldClientRequest requesterUid lastPrekey')
       . expect2xx
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
-  Member BrigAccess r =>
+  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
   UserId ->
   Maybe PlainTextPassword ->
-  Galley r OpaqueAuthToken
+  Sem r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
-  (brigHost, brigPort) <- brigReq
   r <-
-    callBrig $
+    embedIntra . call Brig $
       method POST
-        . host brigHost
-        . port brigPort
         . path "/i/legalhold-login"
         . queryItem "persist" "true"
         . json (LegalHoldLogin uid pw Nothing)
         . expect2xx
   case getCookieValue "zuid" r of
     Nothing -> do
-      Logger.warn $ Logger.msg @Text "Response from login missing auth cookie"
-      throwM internalError
+      P.warn $ Logger.msg @Text "Response from login missing auth cookie"
+      embed $ throwM internalError
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
 -- | Calls 'Brig.API.addClientInternalH'.
 addLegalHoldClientToUser ::
-  Member BrigAccess r =>
   UserId ->
   ConnId ->
   [Prekey] ->
   LastPrekey ->
-  Galley r ClientId
+  IntraM ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
   clientId <$> brigAddClient uid connId lhClient
   where
@@ -143,28 +135,21 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser ::
-  Member BrigAccess r =>
   UserId ->
-  Galley r ()
+  IntraM ()
 removeLegalHoldClientFromUser targetUid = do
-  (brigHost, brigPort) <- brigReq
-  void . callBrig $
+  void . call Brig $
     method DELETE
-      . host brigHost
-      . port brigPort
       . paths ["i", "clients", "legalhold", toByteString' targetUid]
       . contentJson
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: Member BrigAccess r => UserId -> ConnId -> NewClient -> Galley r Client
+brigAddClient :: UserId -> ConnId -> NewClient -> IntraM Client
 brigAddClient uid connId client = do
-  (brigHost, brigPort) <- brigReq
   r <-
-    callBrig $
+    call Brig $
       method POST
-        . host brigHost
-        . port brigPort
         . header "Z-Connection" (toByteString' connId)
         . paths ["i", "clients", toByteString' uid]
         . contentJson

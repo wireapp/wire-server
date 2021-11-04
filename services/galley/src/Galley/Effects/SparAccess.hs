@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,36 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Push
-  ( -- * Push
-    Push,
-    newPush,
-    newPushLocal,
-    newConversationEventPush,
-    newPush1,
-    newPushLocal1,
-    PushEvent (..),
+module Galley.Effects.SparAccess where
 
-    -- * Push Configuration
-    pushConn,
-    pushTransient,
-    pushRoute,
-    pushNativePriority,
-    pushAsync,
-    pushRecipients,
+import Data.Id
+import Polysemy
 
-    -- * Push Recipients
-    Recipient,
-    recipient,
-    userRecipient,
-    recipientUserId,
-    recipientClients,
+data SparAccess m a where
+  DeleteTeam :: TeamId -> SparAccess m ()
 
-    -- * Re-Exports
-    Gundeck.Route (..),
-    Gundeck.Priority (..),
-  )
-where
-
-import Galley.Intra.Push.Internal
-import qualified Gundeck.Types.Push.V2 as Gundeck
+makeSem ''SparAccess

@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,36 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Push
-  ( -- * Push
-    Push,
-    newPush,
-    newPushLocal,
-    newConversationEventPush,
-    newPush1,
-    newPushLocal1,
-    PushEvent (..),
-
-    -- * Push Configuration
-    pushConn,
-    pushTransient,
-    pushRoute,
-    pushNativePriority,
-    pushAsync,
-    pushRecipients,
-
-    -- * Push Recipients
-    Recipient,
-    recipient,
-    userRecipient,
-    recipientUserId,
-    recipientClients,
-
-    -- * Re-Exports
-    Gundeck.Route (..),
-    Gundeck.Priority (..),
+module Galley.Effects.ExternalAccess
+  ( -- * External access effect
+    ExternalAccess (..),
+    deliver,
+    deliverAsync,
+    deliverAndDeleteAsync,
   )
 where
 
-import Galley.Intra.Push.Internal
-import qualified Gundeck.Types.Push.V2 as Gundeck
+import Data.Id
+import Galley.Data.Services
+import Imports
+import Polysemy
+import Wire.API.Event.Conversation
+
+data ExternalAccess m a where
+  Deliver :: Foldable f => f (BotMember, Event) -> ExternalAccess m [BotMember]
+  DeliverAsync :: Foldable f => f (BotMember, Event) -> ExternalAccess m ()
+  DeliverAndDeleteAsync :: Foldable f => ConvId -> f (BotMember, Event) -> ExternalAccess m ()
+
+makeSem ''ExternalAccess

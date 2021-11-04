@@ -63,9 +63,10 @@ import Galley.Cassandra.Paging
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import Galley.Effects
+import Galley.Effects.GundeckAccess
 import Galley.Effects.Paging
 import Galley.Effects.TeamStore
-import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush, push1)
+import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
@@ -459,7 +460,7 @@ pushFeatureConfigEvent tid event = do
   let recipients = membersToRecipients Nothing (memList ^. teamMembers)
   for_
     (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
-    push1
+    (liftSem . push1)
 
 -- | (Currently, we only have 'Public.TeamFeatureConferenceCalling' here, but we may have to
 -- extend this in the future.)

@@ -18,16 +18,23 @@
 module Galley.Env where
 
 import Cassandra
-import Control.Lens
+import Control.Lens hiding ((.=))
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
+import Data.Range
 import qualified Galley.Aws as Aws
 import Galley.Options
 import qualified Galley.Queue as Q
+import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client
+import Network.HTTP.Client.OpenSSL
+import OpenSSL.EVP.Digest
 import OpenSSL.Session as Ssl
+import qualified OpenSSL.X509.SystemStore as Ssl
+import Ssl.Util
 import System.Logger
 import Util.Options
 
@@ -58,3 +65,36 @@ data ExtEnv = ExtEnv
 makeLenses ''Env
 
 makeLenses ''ExtEnv
+
+-- TODO: somewhat duplicates Brig.App.initExtGetManager
+initExtEnv :: IO ExtEnv
+initExtEnv = do
+  ctx <- Ssl.context
+  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+  Ssl.contextSetCiphers ctx rsaCiphers
+  Ssl.contextLoadSystemCerts ctx
+  mgr <-
+    newManager
+      (opensslManagerSettings (pure ctx))
+        { managerResponseTimeout = responseTimeoutMicro 10000000,
+          managerConnCount = 100
+        }
+  Just sha <- getDigestByName "SHA256"
+  return $ ExtEnv (mgr, mkVerify sha)
+  where
+    mkVerify sha fprs =
+      let pinset = map toByteString' fprs
+       in verifyRsaFingerprint sha pinset
+
+reqIdMsg :: RequestId -> Msg -> Msg
+reqIdMsg = ("request" .=) . unRequestId
+{-# INLINE reqIdMsg #-}
+
+currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
+currentFanoutLimit o = do
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. optSettings ^. setMaxFanoutSize)
+  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
+  unsafeRange (min maxTeamSize optFanoutLimit)

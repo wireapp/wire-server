@@ -15,12 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.External
-  ( deliver,
-    deliverAndDeleteAsync,
-    deliverAsync,
-  )
-where
+module Galley.External (interpretExternalAccess) where
 
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
@@ -29,58 +24,59 @@ import Control.Retry
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
-import Galley.App
 import Galley.Cassandra.Services
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
+import Galley.Effects.ExternalAccess (ExternalAccess (..))
+import Galley.Env
 import Galley.Intra.User
+import Galley.Intra.Util
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
+import Polysemy
+import qualified Polysemy.Reader as P
 import Ssl.Util (withVerifiedSslConnection)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 
+interpretExternalAccess ::
+  Members '[Embed IO, P.Reader Env] r =>
+  Sem (ExternalAccess ': r) a ->
+  Sem r a
+interpretExternalAccess = interpret $ \case
+  Deliver pp -> embedIntra $ deliver (toList pp)
+  DeliverAsync pp -> embedIntra $ deliverAsync (toList pp)
+  DeliverAndDeleteAsync cid pp -> embedIntra $ deliverAndDeleteAsync cid (toList pp)
+
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: Member ExternalAccess r => [(BotMember, Event)] -> Galley r ()
-deliverAsync = liftGalley0 . void . forkIO . void . deliver0
+deliverAsync :: [(BotMember, Event)] -> IntraM ()
+deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
-deliverAndDeleteAsync ::
-  Members '[ExternalAccess, BotAccess] r =>
-  ConvId ->
-  [(BotMember, Event)] ->
-  Galley r ()
-deliverAndDeleteAsync cnv pushes = liftGalley0 . void . forkIO $ do
-  gone <- liftGalley0 $ deliver0 pushes
-  mapM_ (deleteBot0 cnv . botMemId) gone
+deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> IntraM ()
+deliverAndDeleteAsync cnv pushes = void . forkIO $ do
+  gone <- deliver pushes
+  mapM_ (deleteBot cnv . botMemId) gone
 
--- | Deliver events to external (bot) services.
---
--- Returns those bots which are found to be orphaned by the external
--- service, e.g. when the service tells us that it no longer knows about the
--- bot.
-deliver :: Member ExternalAccess r => [(BotMember, Event)] -> Galley r [BotMember]
-deliver = liftGalley0 . deliver0
-
-deliver0 :: [(BotMember, Event)] -> Galley0 [BotMember]
-deliver0 pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
+deliver :: [(BotMember, Event)] -> IntraM [BotMember]
+deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> Galley0 Bool
+    exec :: (BotMember, Event) -> IntraM Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
         Nothing -> return False
         Just s -> do
           deliver1 s b e
           return True
-    eval :: [BotMember] -> (BotMember, Async Bool) -> Galley r [BotMember]
+    eval :: [BotMember] -> (BotMember, Async Bool) -> IntraM [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
       r <- waitCatch a
@@ -119,7 +115,7 @@ deliver0 pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> Galley0 ()
+deliver1 :: Service -> BotMember -> Event -> IntraM ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
     let t = toByteString' (s ^. serviceToken)
@@ -149,7 +145,7 @@ urlPort (HttpsUrl u) = do
   p <- a ^. authorityPortL
   return (fromIntegral (p ^. portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley r ()
+sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> IntraM ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
