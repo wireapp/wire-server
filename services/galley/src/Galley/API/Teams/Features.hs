@@ -87,6 +87,7 @@ import Wire.API.Event.FeatureConfig
       ),
   )
 import qualified Wire.API.Event.FeatureConfig as Event
+import Wire.API.Federation.Client
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
@@ -368,6 +369,7 @@ setLegalholdStatusInternal ::
          ConversationStore,
          Error ActionError,
          Error ConversationError,
+         Error FederationError,
          Error TeamError,
          ExternalAccess,
          FederatorAccess,

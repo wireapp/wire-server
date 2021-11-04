@@ -125,6 +125,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (ConvNotFound, NotATeamMember, operationDenied)
+import Wire.API.Federation.Client
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
@@ -1041,8 +1042,9 @@ deleteTeamConversation ::
        BrigAccess,
        CodeStore,
        ConversationStore,
-       Error ConversationError,
        Error ActionError,
+       Error ConversationError,
+       Error FederationError,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,

@@ -47,9 +47,11 @@ data ActionError
   = InvalidAction
   | CustomRolesNotSupported
   | InvalidTargetAccess
+  | InvalidTargetUserOp
   | ActionDenied Action
   | InvalidOp ConvType
   | NotConnected
+  | InvalidRange LText
 
 instance APIError ActionError where
   toWai InvalidAction = invalidActions
@@ -61,14 +63,20 @@ instance APIError ActionError where
   toWai (InvalidOp One2OneConv) = invalidOne2OneOp
   toWai (InvalidOp ConnectConv) = invalidConnectOp
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
+  toWai (InvalidRange t) = invalidRange t
+  toWai InvalidTargetUserOp = invalidTargetUserOp
 
 data ConversationError
   = ConvAccessDenied
   | ConvNotFound
+  | TooManyMembers
+  | ConvMemberNotFound
 
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
   toWai ConvNotFound = errorDescriptionTypeToWai @ConvNotFound
+  toWai TooManyMembers = tooManyMembers
+  toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
 
 data TeamError = NotATeamMember
 
@@ -78,15 +86,27 @@ instance APIError TeamError where
 instance APIError FederationError where
   toWai = federationErrorToWai
 
+data LegalHoldError
+  = MissingLegalholdConsent
+
+instance APIError LegalHoldError where
+  toWai MissingLegalholdConsent = errorDescriptionTypeToWai @MissingLegalholdConsent
+
 type AllErrorEffects =
   '[ P.Error ActionError,
      P.Error ConversationError,
+     P.Error LegalHoldError,
      P.Error TeamError,
      P.Error FederationError
    ]
 
 mapAllErrors :: Member (P.Error Error) r => Sem (Append AllErrorEffects r) a -> Sem r a
-mapAllErrors = P.mapError toWai . P.mapError toWai . P.mapError toWai . P.mapError toWai
+mapAllErrors =
+  P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
 
 ----------------------------------------------------------------------------
 -- Error description integration

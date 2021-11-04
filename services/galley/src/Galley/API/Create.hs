@@ -407,7 +407,15 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
     throw federationNotImplemented
 
 createConnectConversation ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess, MemberStore, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       FederatorAccess,
+       GundeckAccess,
+       MemberStore,
+       WaiError
+     ]
+    r =>
   UserId ->
   Maybe ConnId ->
   Connect ->
@@ -431,7 +439,15 @@ createConnectConversationWithRemote _ _ _ =
     throw federationNotImplemented
 
 createLegacyConnectConversation ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess, MemberStore, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       FederatorAccess,
+       GundeckAccess,
+       MemberStore,
+       WaiError
+     ]
+    r =>
   Local UserId ->
   Maybe ConnId ->
   Local UserId ->

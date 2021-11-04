@@ -81,19 +81,19 @@ import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
 getBotConversationH ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   BotId ::: ConvId ::: JSON ->
   Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot zcnv
 
 getBotConversation ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   BotId ->
   ConvId ->
   Galley r Public.BotConvView
 getBotConversation zbot zcnv = do
-  (c, _) <- getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
+  (c, _) <- getConversationAndMemberWithError ConvNotFound (botUserId zbot) zcnv
   domain <- viewFederationDomain
   let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
@@ -106,7 +106,7 @@ getBotConversation zbot zcnv = do
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError, WaiError] r =>
   UserId ->
   ConvId ->
   Galley r Public.Conversation
@@ -116,7 +116,7 @@ getUnqualifiedConversation zusr cnv = do
 
 getConversation ::
   forall r.
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError, WaiError] r =>
   UserId ->
   Qualified ConvId ->
   Galley r Public.Conversation
@@ -231,7 +231,7 @@ getRemoteConversationsWithFailures zusr convs = do
         throwE e
 
 getConversationRoles ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   UserId ->
   ConvId ->
   Galley r Public.ConversationRolesList
@@ -491,6 +491,7 @@ getConversationByReusableCode ::
        ConversationStore,
        Error ActionError,
        Error ConversationError,
+       Error FederationError,
        Error TeamError,
        TeamStore,
        WaiError

@@ -55,7 +55,7 @@ import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
-import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
+import Galley.Options
 import Galley.Types
 import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
@@ -69,10 +69,9 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import qualified Wire.API.Conversation as Public
-import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Client
 
 type JSON = Media "application" "json"
 
@@ -168,62 +167,6 @@ ensureActionAllowed action self = liftSem $ case isActionAllowed action (convMem
   -- Actually, this will "never" happen due to the
   -- fact that there can be no custom roles at the moment
   Nothing -> throw CustomRolesNotSupported
-
--- | Comprehensive permission check, taking action-specific logic into account.
-ensureConversationActionAllowed ::
-  (IsConvMember mem, Members '[Error ActionError, TeamStore, WaiError] r) =>
-  ConversationAction ->
-  Data.Conversation ->
-  mem ->
-  Galley r ()
-ensureConversationActionAllowed action conv self = do
-  loc <- qualifyLocal ()
-  let tag = conversationActionTag (convMemberId loc self) action
-  -- general action check
-  ensureActionAllowed tag self
-  -- check if it is a group conversation (except for rename actions)
-  liftSem . mapError toWai . when (tag /= ModifyConversationName) $
-    ensureGroupConversation conv
-  -- extra action-specific checks
-  case action of
-    ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
-    ConversationActionDelete -> do
-      case Data.convTeam conv of
-        Just tid -> do
-          foldQualified
-            loc
-            ( \lusr -> do
-                void $
-                  liftSem (getTeamMember tid (tUnqualified lusr))
-                    >>= ifNothing (errorDescriptionTypeToWai @NotATeamMember)
-            )
-            (\_ -> liftSem (throw federationNotImplemented))
-            (convMemberId loc self)
-        Nothing -> pure ()
-    ConversationActionAccessUpdate target -> do
-      -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
-      -- so on; users are not supposed to be able to make other conversations
-      -- have 'PrivateAccessRole'
-      liftSem
-        . when
-          ( PrivateAccess `elem` Public.cupAccess target
-              || PrivateAccessRole == Public.cupAccessRole target
-          )
-        $ throwErrorDescriptionType @InvalidTargetAccess
-      -- Team conversations incur another round of checks
-      case Data.convTeam conv of
-        Just tid -> do
-          -- Access mode change for managed conversation is not allowed
-          tcv <- liftSem $ getTeamConversation tid (Data.convId conv)
-          liftSem . when (maybe False (view managedConversation) tcv) $
-            throw invalidManagedConvOp
-          -- Access mode change might result in members being removed from the
-          -- conversation, so the user must have the necessary permission flag
-          ensureActionAllowed RemoveConversationMember self
-        Nothing ->
-          when (Public.cupAccessRole target == TeamAccessRole) $
-            liftSem $ throwErrorDescriptionType @InvalidTargetAccess
-    _ -> pure ()
 
 ensureGroupConversation :: Member (Error ActionError) r => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
@@ -507,16 +450,15 @@ getSelfMemberFromLocalsLegacy usr lmems =
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
 ensureOtherMember ::
-  Member WaiError r =>
+  Member (Error ConversationError) r =>
   Local a ->
   Qualified UserId ->
   Data.Conversation ->
-  Galley r (Either LocalMember RemoteMember)
+  Sem r (Either LocalMember RemoteMember)
 ensureOtherMember loc quid conv =
-  liftSem
-    . maybe (throwErrorDescriptionType @ConvMemberNotFound) pure
-    $ (Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv))
-      <|> (Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv))
+  note ConvMemberNotFound $
+    Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv)
+      <|> Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv)
 
 getSelfMemberFromRemotesLegacy ::
   (Foldable t, Member WaiError r) =>
@@ -557,31 +499,29 @@ getMember ::
 getMember p ex u = hoistEither . Control.Error.note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   UserId ->
   ConvId ->
   Galley r Data.Conversation
 getConversationAndCheckMembership uid cnv = do
   (conv, _) <-
     getConversationAndMemberWithError
-      (errorDescriptionTypeToWai @ConvAccessDenied)
+      ConvAccessDenied
       uid
       cnv
   pure conv
 
 getConversationAndMemberWithError ::
-  (Members '[ConversationStore, WaiError] r, IsConvMemberId uid mem) =>
-  Wai.Error ->
+  (Members '[ConversationStore, Error ConversationError] r, IsConvMemberId uid mem) =>
+  ConversationError ->
   uid ->
   ConvId ->
   Galley r (Data.Conversation, mem)
 getConversationAndMemberWithError ex usr convId = do
-  c <-
-    liftSem (getConversation convId)
-      >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+  c <- liftSem $ getConversation convId >>= note ConvNotFound
   liftSem . when (DataTypes.isConvDeleted c) $ do
     deleteConversation convId
-    throwErrorDescriptionType @ConvNotFound
+    throw ConvNotFound
   loc <- qualifyLocal ()
   member <- liftSem . note ex $ getConvMember loc c usr
   pure (c, member)
@@ -635,9 +575,9 @@ ensureConversationAccess ::
        ConversationStore,
        Error ActionError,
        Error ConversationError,
+       Error FederationError,
        Error TeamError,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -647,21 +587,25 @@ ensureConversationAccess ::
 ensureConversationAccess zusr cnv access = do
   conv <-
     liftSem $
-      getConversation cnv >>= note (errorDescriptionTypeToWai @ConvNotFound)
-  ensureAccess conv access
+      getConversation cnv >>= note ConvNotFound
+  liftSem $ ensureAccess conv access
   zusrMembership <-
     liftSem $
       maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   pure conv
 
-ensureAccess :: Member WaiError r => Data.Conversation -> Access -> Galley r ()
+ensureAccess ::
+  Member (Error ConversationError) r =>
+  Data.Conversation ->
+  Access ->
+  Sem r ()
 ensureAccess conv access =
-  liftSem . unless (access `elem` Data.convAccess conv) $
-    throwErrorDescriptionType @ConvAccessDenied
+  unless (access `elem` Data.convAccess conv) $
+    throw ConvAccessDenied
 
-ensureLocal :: Member WaiError r => Local x -> Qualified a -> Sem r (Local a)
-ensureLocal loc = foldQualified loc pure (\_ -> throw federationNotImplemented)
+ensureLocal :: Member (Error FederationError) r => Local x -> Qualified a -> Sem r (Local a)
+ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
 
 --------------------------------------------------------------------------------
 -- Federation
@@ -877,3 +821,10 @@ getTeamMembersForFanout :: Member TeamStore r => TeamId -> Galley r TeamMemberLi
 getTeamMembersForFanout tid = do
   lim <- fanoutLimit
   liftSem $ getTeamMembersWithLimit tid lim
+
+ensureMemberLimit :: (Foldable f, Member (Error ConversationError) r) => [LocalMember] -> f a -> Galley r ()
+ensureMemberLimit old new = do
+  o <- view options
+  let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
+  liftSem . when (length old + length new > maxSize) $
+    throw TooManyMembers

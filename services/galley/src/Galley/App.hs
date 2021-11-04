@@ -56,11 +56,12 @@ module Galley.App
     throwErrorDescription,
     throwErrorDescriptionType,
 
-    -- * MonadUnliftIO / Sem compatibility
+    -- * Temporary compatibility functions
     fireAndForget,
     spawnMany,
     liftGalley0,
     liftSem,
+    unGalley,
     interpretGalleyToGalley0,
   )
 where

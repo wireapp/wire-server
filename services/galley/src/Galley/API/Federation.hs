@@ -31,11 +31,10 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
+import Galley.API.Action
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
-import Galley.API.Update (notifyConversationMetadataUpdate)
-import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -70,6 +69,7 @@ import Wire.API.Federation.API.Galley
     UserDeletedConversationsNotification,
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.Federation.Client
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
 import Wire.API.ServantProto (FromProto (..))
@@ -244,6 +244,7 @@ leaveConversation ::
        ConversationStore,
        Error ActionError,
        Error ConversationError,
+       Error FederationError,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -267,8 +268,8 @@ leaveConversation requestingDomain lc = do
     )
     . runMaybeT
     . void
-    . API.updateLocalConversation lcnv leaver Nothing
-    . ConversationActionRemoveMembers
+    . updateLocalConversation lcnv leaver Nothing
+    . ConversationLeave
     . pure
     $ leaver
 
@@ -379,5 +380,5 @@ onUserDeleted origDomain udcn = do
               let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
 
                   botsAndMembers = convBotsAndMembers conv
-              void $ notifyConversationMetadataUpdate untaggedDeletedUser Nothing lc botsAndMembers action
+              void $ notifyConversationAction untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse
