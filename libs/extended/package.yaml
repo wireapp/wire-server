@@ -21,8 +21,8 @@ dependencies:
 - imports
 - optparse-applicative
 - tinylog
-- cql-io
 - exceptions
+- cassandra-util
 
 # for servant's 'ReqBodyCustomError' type defined here.
 - errors

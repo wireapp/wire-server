@@ -95,7 +95,7 @@ insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName 
   let inv = Invitation t role iid now minviter email inviteeName phone
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, inviteeName, phone, round timeout)
     addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     addPrepQuery cqlInvitationByEmail (email, t, iid, code, round timeout)
@@ -112,7 +112,7 @@ insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r =
   fmap toInvitation
-    <$> retry x1 (query1 cqlInvitation (params Quorum (t, r)))
+    <$> retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
   where
     cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
     cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? AND id = ?"
@@ -126,13 +126,13 @@ lookupInvitationByCode i =
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
 lookupInvitationCode t r =
   fmap runIdentity
-    <$> retry x1 (query1 cqlInvitationCode (params Quorum (t, r)))
+    <$> retry x1 (query1 cqlInvitationCode (params LocalQuorum (t, r)))
   where
     cqlInvitationCode :: PrepQuery R (TeamId, InvitationId) (Identity InvitationCode)
     cqlInvitationCode = "SELECT code FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationCodeEmail :: MonadClient m => TeamId -> InvitationId -> m (Maybe (InvitationCode, Email))
-lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params Quorum (t, r)))
+lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params LocalQuorum (t, r)))
   where
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, Email)
     cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
@@ -140,8 +140,8 @@ lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params 
 lookupInvitations :: MonadClient m => TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> m (ResultPage Invitation)
 lookupInvitations team start (fromRange -> size) = do
   page <- case start of
-    Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP Quorum (team, ref) (size + 1))
-    Nothing -> retry x1 $ paginate cqlSelect (paramsP Quorum (Identity team) (size + 1))
+    Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
+    Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
   return $ toResult (hasMore page) $ map toInvitation (trim page)
   where
     trim p = take (fromIntegral size) (result p)
@@ -162,12 +162,12 @@ deleteInvitation t i = do
   case codeEmail of
     Just (invCode, invEmail) -> retry x5 . batch $ do
       setType BatchLogged
-      setConsistency Quorum
+      setConsistency LocalQuorum
       addPrepQuery cqlInvitation (t, i)
       addPrepQuery cqlInvitationInfo (Identity invCode)
       addPrepQuery cqlInvitationEmail (invEmail, t)
     Nothing ->
-      retry x5 $ write cqlInvitation (params Quorum (t, i))
+      retry x5 $ write cqlInvitation (params LocalQuorum (t, i))
   where
     cqlInvitation :: PrepQuery W (TeamId, InvitationId) ()
     cqlInvitation = "DELETE FROM team_invitation where team = ? AND id = ?"
@@ -180,7 +180,7 @@ deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
 deleteInvitations t =
   liftClient $
     runConduit $
-      paginateC cqlSelect (paramsP Quorum (Identity t) 100) x1
+      paginateC cqlSelect (paramsP LocalQuorum (Identity t) 100) x1
         .| C.mapM_ (pooledMapConcurrentlyN_ 16 (deleteInvitation t . runIdentity))
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
@@ -191,7 +191,7 @@ lookupInvitationInfo ic@(InvitationCode c)
   | c == mempty = return Nothing
   | otherwise =
     fmap (toInvitationInfo ic)
-      <$> retry x1 (query1 cqlInvitationInfo (params Quorum (Identity ic)))
+      <$> retry x1 (query1 cqlInvitationInfo (params LocalQuorum (Identity ic)))
   where
     toInvitationInfo i (t, r) = InvitationInfo i t r
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
@@ -205,7 +205,7 @@ lookupInvitationByEmail e =
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
 lookupInvitationInfoByEmail email = do
-  res <- retry x1 (query cqlInvitationEmail (params Quorum (Identity email)))
+  res <- retry x1 (query cqlInvitationEmail (params LocalQuorum (Identity email)))
   case res of
     [] -> return InvitationByEmailNotFound
     (tid, invId, code) : [] ->
@@ -224,7 +224,7 @@ lookupInvitationInfoByEmail email = do
 countInvitations :: MonadClient m => TeamId -> m Int64
 countInvitations t =
   fromMaybe 0 . fmap runIdentity
-    <$> retry x1 (query1 cqlSelect (params Quorum (Identity t)))
+    <$> retry x1 (query1 cqlSelect (params LocalQuorum (Identity t)))
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"

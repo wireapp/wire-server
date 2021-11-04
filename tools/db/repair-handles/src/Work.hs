@@ -60,7 +60,7 @@ type HandleMap = Map UserId [Handle]
 readHandleMap :: Env -> IO HandleMap
 readHandleMap Env {..} =
   runConduit $
-    (transPipe (runClient envBrig) $ paginateC selectUserHandle (paramsP Quorum () envPageSize) x1)
+    (transPipe (runClient envBrig) $ paginateC selectUserHandle (paramsP LocalQuorum () envPageSize) x1)
       .| (C.foldM insertAndLog (Map.empty, 0) <&> fst)
   where
     selectUserHandle :: PrepQuery R () (Maybe UserId, Maybe Handle)
@@ -121,7 +121,7 @@ decideAction uid (Just currentHandle) handles =
 sourceActions :: Env -> HandleMap -> ConduitM () ActionResult IO ()
 sourceActions Env {..} hmap =
   ( transPipe (runClient envGalley) $
-      paginateC selectTeam (paramsP Quorum (pure envTeam) envPageSize) x5
+      paginateC selectTeam (paramsP LocalQuorum (pure envTeam) envPageSize) x5
         .| C.map (fmap runIdentity)
   )
     .| C.mapM readUsersPage
@@ -137,7 +137,7 @@ sourceActions Env {..} hmap =
     readUsersPage :: [UserId] -> IO [(UserId, Maybe Handle)]
     readUsersPage uids =
       runClient envBrig $
-        query selectUsers (params Quorum (pure uids))
+        query selectUsers (params LocalQuorum (pure uids))
 
     selectUsers :: PrepQuery R (Identity [UserId]) (UserId, Maybe Handle)
     selectUsers = "SELECT id, handle FROM user WHERE id in ?"
@@ -154,7 +154,7 @@ executeAction env = \case
     setUserHandle :: Env -> UserId -> Handle -> IO ()
     setUserHandle Env {..} uid handle =
       runClient envBrig $
-        Cas.write updateHandle $ params Quorum (handle, uid)
+        Cas.write updateHandle $ params LocalQuorum (handle, uid)
       where
         updateHandle :: PrepQuery W (Handle, UserId) ()
         updateHandle = "UPDATE user SET handle = ? WHERE id = ?"
@@ -162,7 +162,7 @@ executeAction env = \case
     removeHandle :: Env -> Handle -> IO ()
     removeHandle Env {..} handle =
       runClient envBrig $
-        Cas.write deleteHandle $ params Quorum (pure handle)
+        Cas.write deleteHandle $ params LocalQuorum (pure handle)
       where
         deleteHandle :: PrepQuery W (Identity Handle) ()
         deleteHandle = "DELETE FROM user_handle WHERE handle = ?"

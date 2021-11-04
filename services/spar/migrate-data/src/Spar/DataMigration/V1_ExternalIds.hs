@@ -142,7 +142,7 @@ readLegacyExternalIds :: (HasSpar env, HasMigEnv env) => ConduitM () [LegacyExte
 readLegacyExternalIds = do
   pSize <- lift $ pageSize <$> askMigEnv
   transPipe runSpar $
-    paginateC select (paramsP Quorum () pSize) x5
+    paginateC select (paramsP LocalQuorum () pSize) x5
   where
     select :: PrepQuery R () LegacyExternalId
     select = "SELECT external, user FROM scim_external_ids"
@@ -160,7 +160,7 @@ resolveTeam (page, exts) = do
     readUserTeam :: HasBrig env => [UserId] -> RIO env [UserTeam]
     readUserTeam uids =
       runBrig $ do
-        query select (params Quorum (Identity uids))
+        query select (params LocalQuorum (Identity uids))
       where
         select :: PrepQuery R (Identity [UserId]) UserTeam
         select = "SELECT id, team FROM user where id in ?"
@@ -190,7 +190,7 @@ sink = go
                 DryRun -> pure ()
                 NoDryRun ->
                   runSpar $
-                    write insert (params Quorum (tid, extid, uid))
+                    write insert (params LocalQuorum (tid, extid, uid))
         go
     insert :: PrepQuery W (TeamId, Text, UserId) ()
     insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"

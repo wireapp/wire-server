@@ -105,7 +105,7 @@ extractScrollId :: MonadThrow m => ES.SearchResult a -> m ES.ScrollId
 extractScrollId res = maybe (throwM NoScrollId) pure (ES.scrollId res)
 
 usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]
-usersInCassandra users = retry x1 $ query cql (params Quorum (Identity users))
+usersInCassandra users = retry x1 $ query cql (params LocalQuorum (Identity users))
   where
     cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus, Maybe (Writetime ()))
     cql = "SELECT id, status, writetime(status) from user where id in ?"

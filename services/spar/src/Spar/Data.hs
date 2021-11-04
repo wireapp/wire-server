@@ -179,7 +179,7 @@ storeAReqID ::
 storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
   env <- ask
   TTL ttl <- mkTTLAuthnRequests env endOfLife
-  retry x5 . write ins $ params Quorum (rid, ttl)
+  retry x5 . write ins $ params LocalQuorum (rid, ttl)
   where
     ins :: PrepQuery W (SAML.XmlText, Int32) ()
     ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
@@ -188,7 +188,7 @@ unStoreAReqID ::
   (HasCallStack, MonadClient m) =>
   AReqId ->
   m ()
-unStoreAReqID (SAML.ID rid) = retry x5 . write del . params Quorum $ Identity rid
+unStoreAReqID (SAML.ID rid) = retry x5 . write del . params LocalQuorum $ Identity rid
   where
     del :: PrepQuery W (Identity SAML.XmlText) ()
     del = "DELETE FROM authreq WHERE req = ?"
@@ -198,7 +198,7 @@ isAliveAReqID ::
   AReqId ->
   m Bool
 isAliveAReqID (SAML.ID rid) =
-  (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
+  (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity rid)
   where
     sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
@@ -211,7 +211,7 @@ storeAssID ::
 storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
   env <- ask
   TTL ttl <- mkTTLAssertions env endOfLife
-  retry x5 . write ins $ params Quorum (aid, ttl)
+  retry x5 . write ins $ params LocalQuorum (aid, ttl)
   where
     ins :: PrepQuery W (SAML.XmlText, Int32) ()
     ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
@@ -220,7 +220,7 @@ unStoreAssID ::
   (HasCallStack, MonadClient m) =>
   AssId ->
   m ()
-unStoreAssID (SAML.ID aid) = retry x5 . write del . params Quorum $ Identity aid
+unStoreAssID (SAML.ID aid) = retry x5 . write del . params LocalQuorum $ Identity aid
   where
     del :: PrepQuery W (Identity SAML.XmlText) ()
     del = "DELETE FROM authresp WHERE resp = ?"
@@ -230,7 +230,7 @@ isAliveAssID ::
   AssId ->
   m Bool
 isAliveAssID (SAML.ID aid) =
-  (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
+  (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity aid)
   where
     sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"
@@ -249,7 +249,7 @@ storeVerdictFormat ::
   m ()
 storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr)) = do
   let ttl = nominalDiffToSeconds diffTime * 2
-  retry x5 . write cql $ params Quorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
+  retry x5 . write cql $ params LocalQuorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
   where
     cql :: PrepQuery W (AReqId, VerdictFormatCon, Maybe URI, Maybe URI, Int32) ()
     cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error) VALUES (?, ?, ?, ?) USING TTL ?"
@@ -260,7 +260,7 @@ getVerdictFormat ::
   m (Maybe VerdictFormat)
 getVerdictFormat req =
   (>>= toVerdictFormat)
-    <$> (retry x1 . query1 cql $ params Quorum (Identity req))
+    <$> (retry x1 . query1 cql $ params LocalQuorum (Identity req))
   where
     cql :: PrepQuery R (Identity AReqId) VerdictFormatRow
     cql = "SELECT format_con, format_mobile_success, format_mobile_error FROM verdict WHERE req = ?"
@@ -299,7 +299,7 @@ normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, normalizeQualifiedNameId subject, subject, uid)
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params LocalQuorum (tenant, normalizeQualifiedNameId subject, subject, uid)
   where
     ins :: PrepQuery W (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId) ()
     ins = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
@@ -308,7 +308,7 @@ insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params
 getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
 getSAMLAnyUserByIssuer issuer =
   runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum (Identity issuer))
+    <$$> (retry x1 . query1 sel $ params LocalQuorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
     sel = "SELECT uid FROM user_v2 WHERE issuer = ? LIMIT 1"
@@ -318,7 +318,7 @@ getSAMLAnyUserByIssuer issuer =
 getSAMLSomeUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m [(SAML.UserRef, UserId)]
 getSAMLSomeUsersByIssuer issuer =
   (_1 %~ SAML.UserRef issuer)
-    <$$> (retry x1 . query sel $ params Quorum (Identity issuer))
+    <$$> (retry x1 . query sel $ params LocalQuorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
     sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
@@ -338,7 +338,7 @@ getSAMLUser uref = do
     getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
     getSAMLUserNew (SAML.UserRef tenant subject) =
       runIdentity
-        <$$> (retry x1 . query1 sel $ params Quorum (tenant, normalizeQualifiedNameId subject))
+        <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, normalizeQualifiedNameId subject))
       where
         sel :: PrepQuery R (SAML.Issuer, NormalizedUNameID) (Identity UserId)
         sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
@@ -353,13 +353,13 @@ getSAMLUser uref = do
     getSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
     getSAMLUserLegacy (SAML.UserRef tenant subject) =
       runIdentity
-        <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+        <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, subject))
       where
         sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
         sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
 deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
-deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
+deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params LocalQuorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
     del = "DELETE FROM user_v2 WHERE issuer = ?"
@@ -373,12 +373,12 @@ deleteSAMLUser uid uref = do
       deleteSAMLUserNew uref
   where
     deleteSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, normalizeQualifiedNameId subject)
+    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params LocalQuorum (tenant, normalizeQualifiedNameId subject)
       where
         del :: PrepQuery W (SAML.Issuer, NormalizedUNameID) ()
         del = "DELETE FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
     deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-    deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+    deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params LocalQuorum (tenant, subject)
       where
         del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
         del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
@@ -398,7 +398,7 @@ insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
   let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ cky
-  retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
+  retry x5 . write ins $ params LocalQuorum (ckyval, uid, ttlInt32)
   where
     ins :: PrepQuery W (ST, UserId, Int32) ()
     ins = "INSERT INTO bind_cookie (cookie, session_owner) VALUES (?, ?) USING TTL ?"
@@ -407,7 +407,7 @@ insertBindCookie cky uid ttlNDT = do
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
 lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
   runIdentity <$$> do
-    (retry x1 . query1 sel $ params Quorum (Identity ckyval))
+    (retry x1 . query1 sel $ params LocalQuorum (Identity ckyval))
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)
     sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
@@ -427,7 +427,7 @@ storeIdPConfig ::
   m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   addPrepQuery
     ins
     ( idp ^. SAML.idpId,
@@ -470,7 +470,7 @@ setReplacedBy ::
   Replacing ->
   m ()
 setReplacedBy (Replaced old) (Replacing new) = do
-  retry x5 . write ins $ params Quorum (new, old)
+  retry x5 . write ins $ params LocalQuorum (new, old)
   where
     ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = ? WHERE idp = ?"
@@ -481,7 +481,7 @@ clearReplacedBy ::
   Replaced ->
   m ()
 clearReplacedBy (Replaced old) = do
-  retry x5 . write ins $ params Quorum (Identity old)
+  retry x5 . write ins $ params LocalQuorum (Identity old)
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = null WHERE idp = ?"
@@ -492,7 +492,7 @@ getIdPConfig ::
   SAML.IdPId ->
   m (Maybe IdP)
 getIdPConfig idpid =
-  traverse toIdp =<< retry x1 (query1 sel $ params Quorum (Identity idpid))
+  traverse toIdp =<< retry x1 (query1 sel $ params LocalQuorum (Identity idpid))
   where
     toIdp :: IdPConfigRow -> m IdP
     toIdp
@@ -522,9 +522,9 @@ getIdPIdByIssuerWithoutTeam ::
   SAML.Issuer ->
   m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerWithoutTeam issuer = do
-  (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+  (runIdentity <$$> retry x1 (query selv2 $ params LocalQuorum (Identity issuer))) >>= \case
     [] ->
-      (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+      (runIdentity <$$> retry x1 (query1 sel $ params LocalQuorum (Identity issuer))) >>= \case
         Just idpid -> pure $ GetIdPFound idpid
         Nothing -> pure GetIdPNotFound
     [idpid] ->
@@ -544,7 +544,7 @@ getIdPIdByIssuerWithTeam ::
   TeamId ->
   m (Maybe SAML.IdPId)
 getIdPIdByIssuerWithTeam issuer tid = do
-  runIdentity <$$> retry x1 (query1 sel $ params Quorum (issuer, tid))
+  runIdentity <$$> retry x1 (query1 sel $ params LocalQuorum (issuer, tid))
   where
     sel :: PrepQuery R (SAML.Issuer, TeamId) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ? and team = ?"
@@ -554,7 +554,7 @@ getIdPConfigsByTeam ::
   TeamId ->
   m [IdP]
 getIdPConfigsByTeam team = do
-  idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
+  idpids <- runIdentity <$$> retry x1 (query sel $ params LocalQuorum (Identity team))
   catMaybes <$> mapM getIdPConfig idpids
   where
     sel :: PrepQuery R (Identity TeamId) (Identity SAML.IdPId)
@@ -568,7 +568,7 @@ deleteIdPConfig ::
   m ()
 deleteIdPConfig idp issuer team = retry x5 . batch $ do
   setType BatchLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   addPrepQuery delDefaultIdp (Identity idp)
   addPrepQuery delIdp (Identity idp)
   addPrepQuery delIssuerIdp (Identity issuer)
@@ -595,7 +595,7 @@ storeIdPRawMetadata ::
   SAML.IdPId ->
   ST ->
   m ()
-storeIdPRawMetadata idp raw = retry x5 . write ins $ params Quorum (idp, raw)
+storeIdPRawMetadata idp raw = retry x5 . write ins $ params LocalQuorum (idp, raw)
   where
     ins :: PrepQuery W (SAML.IdPId, ST) ()
     ins = "INSERT INTO idp_raw_metadata (id, metadata) VALUES (?, ?)"
@@ -606,7 +606,7 @@ getIdPRawMetadata ::
   m (Maybe ST)
 getIdPRawMetadata idp =
   runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum (Identity idp))
+    <$$> (retry x1 . query1 sel $ params LocalQuorum (Identity idp))
   where
     sel :: PrepQuery R (Identity SAML.IdPId) (Identity ST)
     sel = "SELECT metadata FROM idp_raw_metadata WHERE id = ?"
@@ -615,7 +615,7 @@ deleteIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>
   SAML.IdPId ->
   m ()
-deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
+deleteIdPRawMetadata idp = retry x5 . write del $ params LocalQuorum (Identity idp)
   where
     del :: PrepQuery W (Identity SAML.IdPId) ()
     del = "DELETE FROM idp_raw_metadata WHERE id = ?"
@@ -632,7 +632,7 @@ getDefaultSsoCode ::
   m (Maybe SAML.IdPId)
 getDefaultSsoCode =
   runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum ())
+    <$$> (retry x1 . query1 sel $ params LocalQuorum ())
   where
     sel :: PrepQuery R () (Identity SAML.IdPId)
     sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default' ORDER BY idp LIMIT 1"
@@ -648,7 +648,7 @@ storeDefaultSsoCode idpId = do
   -- `ORDER BY` clause. The others will get removed by `deleteDefaultSsoCode`
   -- the next time this function is called (as it removes all entries).
   deleteDefaultSsoCode
-  retry x5 . write ins $ params Quorum (Identity idpId)
+  retry x5 . write ins $ params LocalQuorum (Identity idpId)
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
     ins = "INSERT INTO default_idp (partition_key_always_default, idp) VALUES ('default', ?)"
@@ -656,7 +656,7 @@ storeDefaultSsoCode idpId = do
 deleteDefaultSsoCode ::
   (HasCallStack, MonadClient m) =>
   m ()
-deleteDefaultSsoCode = retry x5 . write del $ params Quorum ()
+deleteDefaultSsoCode = retry x5 . write del $ params LocalQuorum ()
   where
     del :: PrepQuery W () ()
     del = "DELETE FROM default_idp WHERE partition_key_always_default = 'default'"
@@ -684,7 +684,7 @@ insertScimToken ::
   m ()
 insertScimToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   let tokenHash = hashScimToken token
   addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
   addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
@@ -711,7 +711,7 @@ lookupScimToken ::
   m (Maybe ScimTokenInfo)
 lookupScimToken token = do
   let tokenHash = hashScimToken token
-  rows <- retry x1 . query sel $ params Quorum (tokenHash, token)
+  rows <- retry x1 . query sel $ params LocalQuorum (tokenHash, token)
   case fmap (scimTokenLookupKey &&& Prelude.id) rows of
     [(ScimTokenLookupKeyHashed _, row)] ->
       pure (Just (fromScimTokenRow row))
@@ -743,7 +743,7 @@ connvertPlaintextToken ::
   m ()
 connvertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   let tokenHash = hashScimToken token
   -- enter by new lookup key
   addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
@@ -760,7 +760,7 @@ getScimTokens ::
 getScimTokens team = do
   -- We don't need pagination here because the limit should be pretty low
   -- (e.g. 16). If the limit grows, we might have to introduce pagination.
-  rows <- retry x1 . query sel $ params Quorum (Identity team)
+  rows <- retry x1 . query sel $ params LocalQuorum (Identity team)
   pure $ sortOn stiCreatedAt $ map fromScimTokenRow rows
   where
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
@@ -777,10 +777,10 @@ deleteScimToken ::
   ScimTokenId ->
   m ()
 deleteScimToken team tokenid = do
-  mbToken <- retry x1 . query1 selById $ params Quorum (team, tokenid)
+  mbToken <- retry x1 . query1 selById $ params LocalQuorum (team, tokenid)
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery delById (team, tokenid)
     for_ mbToken $ \(Identity key) ->
       addPrepQuery delByTokenLookup (Identity key)
@@ -812,10 +812,10 @@ deleteTeamScimTokens ::
   TeamId ->
   m ()
 deleteTeamScimTokens team = do
-  tokens <- retry x5 $ query sel $ params Quorum (Identity team)
+  tokens <- retry x5 $ query sel $ params LocalQuorum (Identity team)
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery delByTeam (Identity team)
     mapM_ (addPrepQuery delByTokenLookup) tokens
   where
@@ -834,7 +834,7 @@ writeScimUserTimes :: (HasCallStack, MonadClient m) => WithMeta (WithId UserId a
 writeScimUserTimes (WithMeta meta (WithId uid _)) =
   retry x5 . write ins $
     params
-      Quorum
+      LocalQuorum
       ( uid,
         toUTCTimeMillis $ created meta,
         toUTCTimeMillis $ lastModified meta
@@ -846,7 +846,7 @@ writeScimUserTimes (WithMeta meta (WithId uid _)) =
 -- | Read creation and last-update time from database for a given user id.
 readScimUserTimes :: (HasCallStack, MonadClient m) => UserId -> m (Maybe (UTCTimeMillis, UTCTimeMillis))
 readScimUserTimes uid = do
-  retry x1 . query1 sel $ params Quorum (Identity uid)
+  retry x1 . query1 sel $ params LocalQuorum (Identity uid)
   where
     sel :: PrepQuery R (Identity UserId) (UTCTimeMillis, UTCTimeMillis)
     sel = "SELECT created_at, last_updated_at FROM scim_user_times WHERE uid = ?"
@@ -857,7 +857,7 @@ deleteScimUserTimes ::
   (HasCallStack, MonadClient m) =>
   UserId ->
   m ()
-deleteScimUserTimes uid = retry x5 . write del $ params Quorum (Identity uid)
+deleteScimUserTimes uid = retry x5 . write del $ params LocalQuorum (Identity uid)
   where
     del :: PrepQuery W (Identity UserId) ()
     del = "DELETE FROM scim_user_times WHERE uid = ?"
@@ -869,14 +869,14 @@ deleteScimUserTimes uid = retry x5 . write del $ params Quorum (Identity uid)
 -- as a 'Text'.)
 insertScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> UserId -> m ()
 insertScimExternalId tid (fromEmail -> email) uid =
-  retry x5 . write insert $ params Quorum (tid, email, uid)
+  retry x5 . write insert $ params LocalQuorum (tid, email, uid)
   where
     insert :: PrepQuery W (TeamId, Text, UserId) ()
     insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"
 
 -- | The inverse of 'insertScimExternalId'.
 lookupScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m (Maybe UserId)
-lookupScimExternalId tid (fromEmail -> email) = runIdentity <$$> (retry x1 . query1 sel $ params Quorum (tid, email))
+lookupScimExternalId tid (fromEmail -> email) = runIdentity <$$> (retry x1 . query1 sel $ params LocalQuorum (tid, email))
   where
     sel :: PrepQuery R (TeamId, Text) (Identity UserId)
     sel = "SELECT user FROM scim_external WHERE team = ? and external_id = ?"
@@ -884,7 +884,7 @@ lookupScimExternalId tid (fromEmail -> email) = runIdentity <$$> (retry x1 . que
 -- | The other inverse of 'insertScimExternalId' :).
 deleteScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m ()
 deleteScimExternalId tid (fromEmail -> email) =
-  retry x5 . write delete $ params Quorum (tid, email)
+  retry x5 . write delete $ params LocalQuorum (tid, email)
   where
     delete :: PrepQuery W (TeamId, Text) ()
     delete = "DELETE FROM scim_external WHERE team = ? and external_id = ?"

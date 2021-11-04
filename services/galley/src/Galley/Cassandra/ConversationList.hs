@@ -44,8 +44,8 @@ conversationIdsFrom ::
   Client (ResultSet ConvId)
 conversationIdsFrom usr start (fromRange -> max) =
   mkResultSet . strip . fmap runIdentity <$> case start of
-    Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
-    Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
+    Just c -> paginate Cql.selectUserConvsFrom (paramsP LocalQuorum (usr, c) (max + 1))
+    Nothing -> paginate Cql.selectUserConvs (paramsP LocalQuorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
@@ -55,7 +55,7 @@ localConversationIdsPageFrom ::
   Range 1 1000 Int32 ->
   Client (PageWithState ConvId)
 localConversationIdsPageFrom usr pagingState (fromRange -> max) =
-  fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState Quorum (Identity usr) max pagingState)
+  fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
 
 remoteConversationIdsPageFrom ::
   UserId ->
@@ -63,7 +63,7 @@ remoteConversationIdsPageFrom ::
   Int32 ->
   Client (PageWithState (Remote ConvId))
 remoteConversationIdsPageFrom usr pagingState max =
-  uncurry toRemoteUnsafe <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState Quorum (Identity usr) max pagingState)
+  uncurry toRemoteUnsafe <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
 
 interpretConversationListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>

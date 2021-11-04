@@ -1515,7 +1515,7 @@ specSparUserMigration = do
         let insert :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
             insert = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
         runClient client $
-          retry x5 $ write insert (params Quorum (issuer, subject, memberUid))
+          retry x5 $ write insert (params LocalQuorum (issuer, subject, memberUid))
 
       mbUserId <- do
         authnreq <- negotiateAuthnRequest idp

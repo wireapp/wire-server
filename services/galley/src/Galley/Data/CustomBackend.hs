@@ -34,15 +34,15 @@ import Imports
 getCustomBackend :: MonadClient m => Domain -> m (Maybe CustomBackend)
 getCustomBackend domain =
   fmap toCustomBackend <$> do
-    retry x1 $ query1 Cql.selectCustomBackend (params Quorum (Identity domain))
+    retry x1 $ query1 Cql.selectCustomBackend (params LocalQuorum (Identity domain))
   where
     toCustomBackend (backendConfigJsonUrl, backendWebappWelcomeUrl) =
       CustomBackend {..}
 
 setCustomBackend :: MonadClient m => Domain -> CustomBackend -> m ()
 setCustomBackend domain CustomBackend {..} = do
-  retry x5 $ write Cql.updateCustomBackend (params Quorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
+  retry x5 $ write Cql.updateCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
 
 deleteCustomBackend :: MonadClient m => Domain -> m ()
 deleteCustomBackend domain = do
-  retry x5 $ write Cql.deleteCustomBackend (params Quorum (Identity domain))
+  retry x5 $ write Cql.deleteCustomBackend (params LocalQuorum (Identity domain))

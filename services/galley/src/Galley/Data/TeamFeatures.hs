@@ -79,7 +79,7 @@ getFeatureStatusNoConfig ::
   TeamId ->
   m (Maybe (TeamFeatureStatus a))
 getFeatureStatusNoConfig tid = do
-  let q = query1 select (params Quorum (Identity tid))
+  let q = query1 select (params LocalQuorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
   where
@@ -97,7 +97,7 @@ setFeatureStatusNoConfig ::
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
-  retry x5 $ write insert (params Quorum (tid, flag))
+  retry x5 $ write insert (params LocalQuorum (tid, flag))
   pure status
   where
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
@@ -109,7 +109,7 @@ getApplockFeatureStatus ::
   TeamId ->
   m (Maybe (TeamFeatureStatus 'Public.TeamFeatureAppLock))
 getApplockFeatureStatus tid = do
-  let q = query1 select (params Quorum (Identity tid))
+  let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
@@ -130,7 +130,7 @@ setApplockFeatureStatus tid status = do
   let statusValue = Public.tfwcStatus status
       enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
       timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
-  retry x5 $ write insert (params Quorum (tid, statusValue, enforce, timeout))
+  retry x5 $ write insert (params LocalQuorum (tid, statusValue, enforce, timeout))
   pure status
   where
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue, Public.EnforceAppLock, Int32) ()
@@ -146,7 +146,7 @@ getSelfDeletingMessagesStatus ::
   TeamId ->
   m (Maybe (TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages))
 getSelfDeletingMessagesStatus tid = do
-  let q = query1 select (params Quorum (Identity tid))
+  let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbTimeout) ->
@@ -168,7 +168,7 @@ setSelfDeletingMessagesStatus ::
 setSelfDeletingMessagesStatus tid status = do
   let statusValue = Public.tfwcStatus status
       timeout = Public.sdmEnforcedTimeoutSeconds . Public.tfwcConfig $ status
-  retry x5 $ write insert (params Quorum (tid, statusValue, timeout))
+  retry x5 $ write insert (params LocalQuorum (tid, statusValue, timeout))
   pure status
   where
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue, Int32) ()

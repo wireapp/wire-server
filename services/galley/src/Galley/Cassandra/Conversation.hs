@@ -55,10 +55,10 @@ createConversation (NewConversation ty usr acc arole name mtid mtimer recpt user
   conv <- Id <$> liftIO nextRandom
   retry x5 $ case mtid of
     Nothing ->
-      write Cql.insertConv (params Quorum (conv, ty, usr, Set (toList acc), arole, fmap fromRange name, Nothing, mtimer, recpt))
+      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Set (toList acc), arole, fmap fromRange name, Nothing, mtimer, recpt))
     Just tid -> batch $ do
       setType BatchLogged
-      setConsistency Quorum
+      setConsistency LocalQuorum
       addPrepQuery Cql.insertConv (conv, ty, usr, Set (toList acc), arole, fmap fromRange name, Just tid, mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
   let newUsers = fmap (,role) (fromConvSize users)
@@ -88,7 +88,7 @@ createConnectConversation a b name = do
   let conv = localOne2OneConvId a b
       a' = Id . U.unpack $ a
   retry x5 $
-    write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers conv (UserList [a'] [])
@@ -115,7 +115,7 @@ createConnectConversationWithRemote ::
   Client Conversation
 createConnectConversationWithRemote cid creator m = do
   retry x5 $
-    write Cql.insertConv (params Quorum (cid, ConnectConv, creator, privateOnly, privateRole, Nothing, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, privateRole, Nothing, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers cid m
@@ -162,10 +162,10 @@ createOne2OneConversation ::
   Client Conversation
 createOne2OneConversation conv self other name mtid = do
   retry x5 $ case mtid of
-    Nothing -> write Cql.insertConv (params Quorum (conv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
+    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     Just tid -> batch $ do
       setType BatchLogged
-      setConsistency Quorum
+      setConsistency LocalQuorum
       addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
   (lmems, rmems) <- addMembers conv (toUserList self [qUntagged self, other])
@@ -191,7 +191,7 @@ createSelfConversation lusr name = do
       conv = selfConv usr
       lconv = qualifyAs lusr conv
   retry x5 $
-    write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
   (lmems, rmems) <- addMembers (tUnqualified lconv) (UserList [tUnqualified lusr] [])
   pure
     Conversation
@@ -211,7 +211,7 @@ createSelfConversation lusr name = do
 
 deleteConversation :: ConvId -> Client ()
 deleteConversation cid = do
-  retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
+  retry x5 $ write Cql.markConvDeleted (params LocalQuorum (Identity cid))
 
   localMembers <- members cid
   remoteMembers <- lookupRemoteMembers cid
@@ -219,19 +219,19 @@ deleteConversation cid = do
   removeMembersFromLocalConv cid $
     UserList (lmId <$> localMembers) (rmId <$> remoteMembers)
 
-  retry x5 $ write Cql.deleteConv (params Quorum (Identity cid))
+  retry x5 $ write Cql.deleteConv (params LocalQuorum (Identity cid))
 
 conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
 conversationMeta conv =
   fmap toConvMeta
-    <$> retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
+    <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) =
       ConversationMetadata t c (defAccess t a) (maybeRole t r) n i mt rm
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
-  result <- retry x1 (query1 Cql.isConvDeleted (params Quorum (Identity cid)))
+  result <- retry x1 (query1 Cql.isConvDeleted (params LocalQuorum (Identity cid)))
   case runIdentity <$> result of
     Nothing -> pure False
     Just Nothing -> pure True
@@ -241,25 +241,25 @@ isConvAlive cid = do
 updateConvType :: ConvId -> ConvType -> Client ()
 updateConvType cid ty =
   retry x5 $
-    write Cql.updateConvType (params Quorum (ty, cid))
+    write Cql.updateConvType (params LocalQuorum (ty, cid))
 
 updateConvName :: ConvId -> Range 1 256 Text -> Client ()
-updateConvName cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
+updateConvName cid name = retry x5 $ write Cql.updateConvName (params LocalQuorum (fromRange name, cid))
 
 updateConvAccess :: ConvId -> ConversationAccessData -> Client ()
 updateConvAccess cid (ConversationAccessData acc role) =
   retry x5 $
-    write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
+    write Cql.updateConvAccess (params LocalQuorum (Set (toList acc), role, cid))
 
 updateConvReceiptMode :: ConvId -> ReceiptMode -> Client ()
-updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params Quorum (receiptMode, cid))
+updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params LocalQuorum (receiptMode, cid))
 
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
-updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))
+updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do
-  cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
+  cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   remoteMems <- UnliftIO.async $ lookupRemoteMembers conv
   mbConv <-
     toConv conv
@@ -296,7 +296,7 @@ localConversations ids = do
   foldrM flatten [] (zip ids cs)
   where
     fetchConvs = do
-      cs <- retry x1 $ query Cql.selectConvs (params Quorum (Identity ids))
+      cs <- retry x1 $ query Cql.selectConvs (params LocalQuorum (Identity ids))
       let m = Map.fromList $ map (\(c, t, u, n, a, r, i, d, mt, rm) -> (c, (t, u, n, a, r, i, d, mt, rm))) cs
       return $ map (`Map.lookup` m) ids
     flatten (i, c) cc = case c of
@@ -309,7 +309,7 @@ localConversations ids = do
 -- user.
 localConversationIdsOf :: UserId -> [ConvId] -> Client [ConvId]
 localConversationIdsOf usr cids = do
-  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params LocalQuorum (usr, cids)))
 
 -- | Takes a list of remote conversation ids and fetches member status flags
 -- for the given user
@@ -325,7 +325,7 @@ remoteConversationStatus uid =
 remoteConversationStatusOnDomain :: UserId -> Remote [ConvId] -> Client (Map (Remote ConvId) MemberStatus)
 remoteConversationStatusOnDomain uid rconvs =
   Map.fromList . map toPair
-    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, tDomain rconvs, tUnqualified rconvs))
+    <$> query Cql.selectRemoteConvMemberStatuses (params LocalQuorum (uid, tDomain rconvs, tUnqualified rconvs))
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
       ( qualifyAs rconvs conv,

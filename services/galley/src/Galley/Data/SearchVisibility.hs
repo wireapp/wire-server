@@ -35,7 +35,7 @@ import Imports
 getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility
 getSearchVisibility tid =
   toSearchVisibility <$> do
-    retry x1 $ query1 selectSearchVisibility (params Quorum (Identity tid))
+    retry x1 $ query1 selectSearchVisibility (params LocalQuorum (Identity tid))
   where
     -- The value is either set or we return the default
     toSearchVisibility :: (Maybe (Identity (Maybe TeamSearchVisibility))) -> TeamSearchVisibility
@@ -45,8 +45,8 @@ getSearchVisibility tid =
 -- | Determines whether a given team is allowed to enable/disable sso
 setSearchVisibility :: MonadClient m => TeamId -> TeamSearchVisibility -> m ()
 setSearchVisibility tid visibilityType = do
-  retry x5 $ write updateSearchVisibility (params Quorum (visibilityType, tid))
+  retry x5 $ write updateSearchVisibility (params LocalQuorum (visibilityType, tid))
 
 resetSearchVisibility :: MonadClient m => TeamId -> m ()
 resetSearchVisibility tid = do
-  retry x5 $ write updateSearchVisibility (params Quorum (SearchVisibilityStandard, tid))
+  retry x5 $ write updateSearchVisibility (params LocalQuorum (SearchVisibilityStandard, tid))

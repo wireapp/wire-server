@@ -31,13 +31,13 @@ module System.Logger.Extended
   )
 where
 
+import Cassandra (MonadClient)
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Encoding (list, pair, text)
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import Data.String.Conversions (cs)
-import Database.CQL.IO
 import GHC.Generics
 import Imports
 import System.Logger as Log

@@ -656,7 +656,7 @@ testAllConnectionsPaging b db = do
         DB.retry DB.x5 $
           DB.write remoteConnectionInsert $
             DB.params
-              DB.Quorum
+              DB.LocalQuorum
               (self, remoteDomain, qUnqualified qOther, SentWithHistory, now, qDomain qConv, qUnqualified qConv)
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()

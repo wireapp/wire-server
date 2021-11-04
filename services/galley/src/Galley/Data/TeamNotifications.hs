@@ -57,7 +57,7 @@ add ::
   List1 JSON.Object ->
   Galley r ()
 add tid nid (Blob . JSON.encode -> payload) =
-  write cqlInsert (params Quorum (tid, nid, payload, notificationTTLSeconds)) & retry x5
+  write cqlInsert (params LocalQuorum (tid, nid, payload, notificationTTLSeconds)) & retry x5
   where
     cqlInsert :: PrepQuery W (TeamId, NotificationId, Blob, Int32) ()
     cqlInsert =
@@ -75,8 +75,8 @@ fetch tid since (fromRange -> size) = do
   -- report whether there are more results.
   let size' = bool (+ 1) (+ 2) (isJust since) size
   page1 <- case TimeUuid . toUUID <$> since of
-    Nothing -> paginate cqlStart (paramsP Quorum (Identity tid) size') & retry x1
-    Just s -> paginate cqlSince (paramsP Quorum (tid, s) size') & retry x1
+    Nothing -> paginate cqlStart (paramsP LocalQuorum (Identity tid) size') & retry x1
+    Just s -> paginate cqlSince (paramsP LocalQuorum (tid, s) size') & retry x1
   -- Collect results, requesting more pages until we run out of data
   -- or have found size + 1 notifications (not including the 'since').
   let isize = fromIntegral size' :: Int

@@ -36,7 +36,7 @@ addBotMember :: ServiceRef -> BotId -> ConvId -> Client BotMember
 addBotMember s bot cnv = do
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     addPrepQuery insertUserConv (botUserId bot, cnv)
     addPrepQuery insertBot (cnv, bot, sid, pid)
   pure (BotMember mem)
@@ -64,15 +64,15 @@ insertService s = do
   let url = s ^. serviceUrl
   let fps = Set (s ^. serviceFingerprints)
   let ena = s ^. serviceEnabled
-  retry x5 $ write insertSrv (params Quorum (pid, sid, url, tok, fps, ena))
+  retry x5 $ write insertSrv (params LocalQuorum (pid, sid, url, tok, fps, ena))
 
 lookupService :: MonadClient m => ServiceRef -> m (Maybe Service)
 lookupService s =
   fmap toService
-    <$> retry x1 (query1 selectSrv (params Quorum (s ^. serviceRefProvider, s ^. serviceRefId)))
+    <$> retry x1 (query1 selectSrv (params LocalQuorum (s ^. serviceRefProvider, s ^. serviceRefId)))
   where
     toService (url, tok, Set fps, ena) =
       newService s url tok fps & set serviceEnabled ena
 
 deleteService :: MonadClient m => ServiceRef -> m ()
-deleteService s = retry x5 (write rmSrv (params Quorum (s ^. serviceRefProvider, s ^. serviceRefId)))
+deleteService s = retry x5 (write rmSrv (params LocalQuorum (s ^. serviceRefProvider, s ^. serviceRefId)))

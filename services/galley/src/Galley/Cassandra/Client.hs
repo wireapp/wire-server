@@ -38,7 +38,7 @@ import qualified UnliftIO
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do
   let q = if add then Cql.addMemberClient else Cql.rmMemberClient
-  retry x5 $ write (q cls) (params Quorum (Identity usr))
+  retry x5 $ write (q cls) (params LocalQuorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
 lookupClients :: [UserId] -> Client Clients
@@ -48,10 +48,10 @@ lookupClients users =
   where
     getClients us =
       map (second fromSet)
-        <$> retry x1 (query Cql.selectClients (params Quorum (Identity us)))
+        <$> retry x1 (query Cql.selectClients (params LocalQuorum (Identity us)))
 
 eraseClients :: UserId -> Client ()
-eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)))
+eraseClients user = retry x5 (write Cql.rmClients (params LocalQuorum (Identity user)))
 
 interpretClientStoreToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>

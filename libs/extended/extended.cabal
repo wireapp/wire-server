@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 866e03ca5b340b2470e8f7b376b18824786b15873330f6fd8483de086cfae28d
+-- hash: 18004f2559de4d4ac804d0a36a2d2780d0bbc10d79ebf78f337c9e6ba7a4ff3f
 
 name:           extended
 version:        0.1.0
@@ -36,7 +36,7 @@ library
       aeson
     , base
     , bytestring
-    , cql-io
+    , cassandra-util
     , errors
     , exceptions
     , extra

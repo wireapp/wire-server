@@ -141,7 +141,7 @@ removeUser = do
   deleteUser g user
   ntfs <- listNotifications user Nothing
   liftIO $ do
-    tokens <- Cql.runClient s (Log.runWithLogger logger $ Push.lookup user Push.Quorum)
+    tokens <- Cql.runClient s (Log.runWithLogger logger $ Push.lookup user Push.LocalQuorum)
     null tokens @?= True
     ntfs @?= []
 

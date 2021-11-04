@@ -31,14 +31,14 @@ import Imports
 
 unregister :: UserId -> ClientId -> Gundeck ()
 unregister uid cid = do
-  toks <- filter byClient <$> Push.lookup uid Push.Quorum
+  toks <- filter byClient <$> Push.lookup uid Push.LocalQuorum
   deleteTokens toks Nothing
   where
     byClient = (cid ==) . view addrClient
 
 removeUser :: UserId -> Gundeck ()
 removeUser user = do
-  toks <- Push.lookup user Push.Quorum
+  toks <- Push.lookup user Push.LocalQuorum
   deleteTokens toks Nothing
   Push.erase user
   Notifications.deleteAll user
