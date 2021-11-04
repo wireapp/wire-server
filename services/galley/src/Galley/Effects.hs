@@ -57,6 +57,7 @@ where
 
 import Data.Id
 import Data.Qualified
+import Galley.API.Error
 import Galley.Cassandra.Paging
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
@@ -81,9 +82,9 @@ import Galley.Effects.TeamStore
 import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Internal
 
--- All the possible high-level effects.
-type GalleyEffects1 =
+type NonErrorGalleyEffects1 =
   '[ BrigAccess,
      GundeckAccess,
      SparAccess,
@@ -107,6 +108,11 @@ type GalleyEffects1 =
      ListItems CassandraPaging (Remote ConvId),
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
-     ListItems InternalPaging TeamId,
-     Error (Wai.Error)
+     ListItems InternalPaging TeamId
    ]
+
+-- All the possible high-level effects.
+type GalleyEffects1 =
+  Append
+    NonErrorGalleyEffects1
+    (Append AllErrorEffects '[Error Wai.Error])

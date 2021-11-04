@@ -77,19 +77,19 @@ import Wire.API.Federation.Error (federationNotImplemented)
 type JSON = Media "application" "json"
 
 ensureAccessRole ::
-  Members '[BrigAccess, WaiError] r =>
+  Members '[BrigAccess, Error TeamError, Error ConversationError] r =>
   AccessRole ->
   [(UserId, Maybe TeamMember)] ->
   Galley r ()
 ensureAccessRole role users = liftSem $ case role of
-  PrivateAccessRole -> throwErrorDescriptionType @ConvAccessDenied
+  PrivateAccessRole -> throw ConvAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throwErrorDescriptionType @NotATeamMember
+      throw NotATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
-      throwErrorDescriptionType @ConvAccessDenied
+      throw ConvAccessDenied
   NonActivatedAccessRole -> return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
@@ -98,7 +98,7 @@ ensureAccessRole role users = liftSem $ case role of
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
 ensureConnectedOrSameTeam ::
-  Members '[BrigAccess, TeamStore, WaiError] r =>
+  Members '[BrigAccess, TeamStore, Error ActionError] r =>
   Local UserId ->
   [UserId] ->
   Galley r ()
@@ -117,7 +117,7 @@ ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
 ensureConnected ::
-  Members '[BrigAccess, WaiError] r =>
+  Members '[BrigAccess, Error ActionError] r =>
   Local UserId ->
   UserList UserId ->
   Galley r ()
@@ -125,16 +125,20 @@ ensureConnected self others = do
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
   ensureConnectedToRemotes self (ulRemotes others)
 
-ensureConnectedToLocals :: Members '[BrigAccess, WaiError] r => UserId -> [UserId] -> Galley r ()
+ensureConnectedToLocals ::
+  Members '[BrigAccess, Error ActionError] r =>
+  UserId ->
+  [UserId] ->
+  Galley r ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = liftSem $ do
   (connsFrom, connsTo) <-
     getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwErrorDescriptionType @NotConnected
+    throw NotConnected
 
 ensureConnectedToRemotes ::
-  Members '[BrigAccess, WaiError] r =>
+  Members '[BrigAccess, Error ActionError] r =>
   Local UserId ->
   [Remote UserId] ->
   Galley r ()
@@ -142,7 +146,7 @@ ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = liftSem $ do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
-    throw $ errorDescriptionTypeToWai @NotConnected
+    throw NotConnected
 
 ensureReAuthorised :: Members '[BrigAccess, WaiError] r => UserId -> Maybe PlainTextPassword -> Galley r ()
 ensureReAuthorised u secret = liftSem $ do
@@ -153,17 +157,21 @@ ensureReAuthorised u secret = liftSem $ do
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, throw
 -- 'operationDenied'.
-ensureActionAllowed :: (IsConvMember mem, Member WaiError r) => Action -> mem -> Galley r ()
+ensureActionAllowed ::
+  (IsConvMember mem, Member (Error ActionError) r) =>
+  Action ->
+  mem ->
+  Galley r ()
 ensureActionAllowed action self = liftSem $ case isActionAllowed action (convMemberRole self) of
   Just True -> pure ()
-  Just False -> throwErrorDescription (actionDenied action)
+  Just False -> throw (ActionDenied action)
   -- Actually, this will "never" happen due to the
   -- fact that there can be no custom roles at the moment
-  Nothing -> throw (badRequest "Custom roles not supported")
+  Nothing -> throw CustomRolesNotSupported
 
 -- | Comprehensive permission check, taking action-specific logic into account.
 ensureConversationActionAllowed ::
-  (IsConvMember mem, Members '[TeamStore, WaiError] r) =>
+  (IsConvMember mem, Members '[Error ActionError, TeamStore, WaiError] r) =>
   ConversationAction ->
   Data.Conversation ->
   mem ->
@@ -174,8 +182,8 @@ ensureConversationActionAllowed action conv self = do
   -- general action check
   ensureActionAllowed tag self
   -- check if it is a group conversation (except for rename actions)
-  when (tag /= ModifyConversationName) $
-    ensureGroupConvThrowing conv
+  liftSem . mapError toWai . when (tag /= ModifyConversationName) $
+    ensureGroupConversation conv
   -- extra action-specific checks
   case action of
     ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
@@ -217,19 +225,17 @@ ensureConversationActionAllowed action conv self = do
             liftSem $ throwErrorDescriptionType @InvalidTargetAccess
     _ -> pure ()
 
-ensureGroupConvThrowing :: Member WaiError r => Data.Conversation -> Galley r ()
-ensureGroupConvThrowing conv = liftSem $ case Data.convType conv of
-  SelfConv -> throw invalidSelfOp
-  One2OneConv -> throw invalidOne2OneOp
-  ConnectConv -> throw invalidConnectOp
-  _ -> pure ()
+ensureGroupConversation :: Member (Error ActionError) r => Data.Conversation -> Sem r ()
+ensureGroupConversation conv = do
+  let ty = Data.convType conv
+  when (ty /= RegularConv) $ throw (InvalidOp ty)
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
 ensureConvRoleNotElevated ::
-  (IsConvMember mem, Member WaiError r) =>
+  (IsConvMember mem, Member (Error ActionError) r) =>
   mem ->
   RoleName ->
   Galley r ()
@@ -237,9 +243,9 @@ ensureConvRoleNotElevated origMember targetRole = liftSem $ do
   case (roleNameToActions targetRole, roleNameToActions (convMemberRole origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
-        throw invalidActions
+        throw InvalidAction
     (_, _) ->
-      throw (badRequest "Custom roles not supported")
+      throw CustomRolesNotSupported
 
 -- | If a team member is not given throw 'notATeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
@@ -624,7 +630,16 @@ verifyReusableCode convCode = do
   return c
 
 ensureConversationAccess ::
-  Members '[BrigAccess, ConversationStore, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
+       TeamStore,
+       WaiError
+     ]
+    r =>
   UserId ->
   ConvId ->
   Access ->

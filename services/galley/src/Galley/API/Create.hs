@@ -53,8 +53,8 @@ import Galley.Validation
 import Imports hiding ((\\))
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, setStatus)
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -76,6 +76,9 @@ createGroupConversation ::
   Members
     '[ ConversationStore,
        BrigAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
@@ -98,6 +101,9 @@ internalCreateManagedConversationH ::
   Members
     '[ ConversationStore,
        BrigAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
@@ -115,6 +121,9 @@ internalCreateManagedConversation ::
   Members
     '[ ConversationStore,
        BrigAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
@@ -147,6 +156,7 @@ createRegularGroupConv ::
     '[ ConversationStore,
        BrigAccess,
        FederatorAccess,
+       Error ActionError,
        GundeckAccess,
        LegalHoldStore,
        TeamStore,
@@ -189,6 +199,9 @@ createTeamGroupConv ::
   Members
     '[ ConversationStore,
        BrigAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
@@ -271,6 +284,7 @@ createOne2OneConversation ::
   Members
     '[ BrigAccess,
        ConversationStore,
+       Error ActionError,
        FederatorAccess,
        GundeckAccess,
        TeamStore,

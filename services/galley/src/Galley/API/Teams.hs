@@ -117,8 +117,8 @@ import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (or, result, setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, or, result, setStatus)
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
@@ -195,7 +195,7 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  Members '[GundeckAccess, BrigAccess, TeamStore, WaiError] r =>
+  Members '[BrigAccess, Error ActionError, GundeckAccess, TeamStore, WaiError] r =>
   UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
   Galley r Response
 createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
@@ -204,7 +204,7 @@ createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
   pure (empty & setStatus status201 . location newTeamId)
 
 createNonBindingTeam ::
-  Members '[BrigAccess, GundeckAccess, TeamStore, WaiError] r =>
+  Members '[BrigAccess, Error ActionError, GundeckAccess, TeamStore, WaiError] r =>
   UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
@@ -700,6 +700,7 @@ addTeamMemberH ::
   Members
     '[ BrigAccess,
        GundeckAccess,
+       Error ActionError,
        LegalHoldStore,
        MemberStore,
        TeamFeatureStore,
@@ -719,6 +720,7 @@ addTeamMember ::
   Members
     '[ BrigAccess,
        GundeckAccess,
+       Error ActionError,
        LegalHoldStore,
        MemberStore,
        TeamFeatureStore,
@@ -1039,6 +1041,9 @@ deleteTeamConversation ::
        BrigAccess,
        CodeStore,
        ConversationStore,
+       Error ConversationError,
+       Error ActionError,
+       Error TeamError,
        ExternalAccess,
        FederatorAccess,
        FireAndForget,

@@ -27,8 +27,69 @@ import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Polysemy
+import qualified Polysemy.Error as P
+import Polysemy.Internal (Append)
 import Servant.API.Status (KnownStatus (..))
+import Wire.API.Conversation (ConvType (..))
+import Wire.API.Conversation.Role (Action)
 import Wire.API.ErrorDescription
+import Wire.API.Federation.Client
+import Wire.API.Federation.Error
+
+----------------------------------------------------------------------------
+-- Fine-grained API error types
+
+class APIError e where
+  toWai :: e -> Error
+
+data ActionError
+  = InvalidAction
+  | CustomRolesNotSupported
+  | InvalidTargetAccess
+  | ActionDenied Action
+  | InvalidOp ConvType
+  | NotConnected
+
+instance APIError ActionError where
+  toWai InvalidAction = invalidActions
+  toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
+  toWai InvalidTargetAccess = errorDescriptionTypeToWai @InvalidTargetAccess
+  toWai (ActionDenied action) = errorDescriptionToWai (actionDenied action)
+  toWai (InvalidOp RegularConv) = invalidOp "invalid operation"
+  toWai (InvalidOp SelfConv) = invalidSelfOp
+  toWai (InvalidOp One2OneConv) = invalidOne2OneOp
+  toWai (InvalidOp ConnectConv) = invalidConnectOp
+  toWai NotConnected = errorDescriptionTypeToWai @NotConnected
+
+data ConversationError
+  = ConvAccessDenied
+  | ConvNotFound
+
+instance APIError ConversationError where
+  toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
+  toWai ConvNotFound = errorDescriptionTypeToWai @ConvNotFound
+
+data TeamError = NotATeamMember
+
+instance APIError TeamError where
+  toWai NotATeamMember = errorDescriptionTypeToWai @NotATeamMember
+
+instance APIError FederationError where
+  toWai = federationErrorToWai
+
+type AllErrorEffects =
+  '[ P.Error ActionError,
+     P.Error ConversationError,
+     P.Error TeamError,
+     P.Error FederationError
+   ]
+
+mapAllErrors :: Member (P.Error Error) r => Sem (Append AllErrorEffects r) a -> Sem r a
+mapAllErrors = P.mapError toWai . P.mapError toWai . P.mapError toWai . P.mapError toWai
+
+----------------------------------------------------------------------------
+-- Error description integration
 
 errorDescriptionToWai ::
   forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
@@ -47,6 +108,9 @@ errorDescriptionTypeToWai ::
   ) =>
   Error
 errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
+
+----------------------------------------------------------------------------
+-- Other errors
 
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"

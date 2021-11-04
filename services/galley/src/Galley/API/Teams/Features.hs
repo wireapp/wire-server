@@ -73,7 +73,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Polysemy.Error
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
@@ -366,6 +366,9 @@ setLegalholdStatusInternal ::
          BrigAccess,
          CodeStore,
          ConversationStore,
+         Error ActionError,
+         Error ConversationError,
+         Error TeamError,
          ExternalAccess,
          FederatorAccess,
          FireAndForget,

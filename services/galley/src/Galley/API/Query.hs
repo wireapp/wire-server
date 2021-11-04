@@ -62,8 +62,8 @@ import Galley.Types.Conversations.Roles
 import Imports
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (result, setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, result, setStatus)
+import Network.Wai.Utilities hiding (Error)
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
@@ -485,7 +485,17 @@ getConversationMeta cnv = liftSem $ do
       pure Nothing
 
 getConversationByReusableCode ::
-  Members '[CodeStore, ConversationStore, BrigAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       CodeStore,
+       ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
+       TeamStore,
+       WaiError
+     ]
+    r =>
   UserId ->
   Key ->
   Value ->

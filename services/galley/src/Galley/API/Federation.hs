@@ -31,7 +31,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
-import Galley.API.Error (invalidPayload)
+import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
 import Galley.API.Update (notifyConversationMetadataUpdate)
@@ -242,6 +242,9 @@ leaveConversation ::
        BrigAccess,
        CodeStore,
        ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        ExternalAccess,
        FederatorAccess,
        FireAndForget,

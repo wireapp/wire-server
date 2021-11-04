@@ -355,6 +355,7 @@ interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 =
   Galley
     . interpretErrorToException
+    . mapAllErrors
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra

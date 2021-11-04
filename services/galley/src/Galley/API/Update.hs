@@ -121,8 +121,8 @@ import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, and, failure, setStatus, _1, _2)
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import qualified Wire.API.Conversation as Public
@@ -278,6 +278,9 @@ performAccessUpdateAction ::
        BotAccess,
        CodeStore,
        ConversationStore,
+       Error ConversationError,
+       Error ActionError,
+       Error TeamError,
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
@@ -454,6 +457,9 @@ deleteLocalConversation lusr con lcnv =
 type UpdateConversationActions =
   '[ BotAccess,
      BrigAccess,
+     Error ActionError,
+     Error ConversationError,
+     Error TeamError,
      ExternalAccess,
      FederatorAccess,
      FireAndForget,
@@ -675,6 +681,9 @@ joinConversationByReusableCodeH ::
        CodeStore,
        ConversationStore,
        FederatorAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -693,6 +702,9 @@ joinConversationByReusableCode ::
     '[ BrigAccess,
        CodeStore,
        ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        FederatorAccess,
        ExternalAccess,
        GundeckAccess,
@@ -714,6 +726,9 @@ joinConversationByIdH ::
     '[ BrigAccess,
        ConversationStore,
        FederatorAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -731,6 +746,9 @@ joinConversationById ::
     '[ BrigAccess,
        FederatorAccess,
        ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -750,6 +768,9 @@ joinConversation ::
     '[ BrigAccess,
        ConversationStore,
        FederatorAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -766,7 +787,7 @@ joinConversation zusr zcon cnv access = do
   lusr <- qualifyLocal zusr
   lcnv <- qualifyLocal cnv
   conv <- ensureConversationAccess zusr cnv access
-  ensureGroupConvThrowing conv
+  liftSem . mapError toWai $ ensureGroupConversation conv
   -- FUTUREWORK: remote users?
   ensureMemberLimit (toList $ Data.convLocalMembers conv) [zusr]
   getUpdateResult $ do
@@ -1465,6 +1486,7 @@ addBotH ::
   Members
     '[ ClientStore,
        ConversationStore,
+       Error ActionError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -1483,6 +1505,7 @@ addBot ::
   Members
     '[ ClientStore,
        ConversationStore,
+       Error ActionError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -1528,8 +1551,9 @@ addBot zusr zcon b = do
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
       liftSem . unless (zusr `isMember` users) $
         throwErrorDescriptionType @ConvNotFound
-      ensureGroupConvThrowing c
-      ensureActionAllowed AddConversationMember =<< getSelfMemberFromLocalsLegacy zusr users
+      liftSem . mapError toWai $ ensureGroupConversation c
+      self <- getSelfMemberFromLocalsLegacy zusr users
+      ensureActionAllowed AddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]

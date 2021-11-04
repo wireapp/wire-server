@@ -25,6 +25,7 @@ import Cassandra
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Types
+import qualified Galley.Data.Types as Code
 import Galley.Effects.CodeStore (CodeStore (..))
 import Imports
 import Polysemy
@@ -38,6 +39,8 @@ interpretCodeStoreToCassandra = interpret $ \case
   GetCode k s -> embedClient $ lookupCode k s
   CreateCode code -> embedClient $ insertCode code
   DeleteCode k s -> embedClient $ deleteCode k s
+  MakeKey cid -> Code.mkKey cid
+  GenerateCode cid s t -> Code.generate cid s t
 
 -- | Insert a conversation code
 insertCode :: Code -> Client ()
