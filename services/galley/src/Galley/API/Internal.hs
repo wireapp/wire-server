@@ -634,5 +634,5 @@ guardLegalholdPolicyConflictsH ::
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
+    >>= either (const (liftSem (throwErrorDescriptionType @MissingLegalholdConsent))) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

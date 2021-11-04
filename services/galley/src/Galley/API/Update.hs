@@ -857,11 +857,11 @@ performAddMemberAction qusr conv invited role = do
       allNewUsersGaveConsent <- allLegalholdConsentGiven newUsers
 
       whenM (anyLegalholdActivated (lmId <$> convUsers)) $
-        unless allNewUsersGaveConsent $
+        liftSem . unless allNewUsersGaveConsent $
           throwErrorDescriptionType @MissingLegalholdConsent
 
       whenM (anyLegalholdActivated newUsers) $ do
-        unless allNewUsersGaveConsent $
+        liftSem . unless allNewUsersGaveConsent $
           throwErrorDescriptionType @MissingLegalholdConsent
 
         convUsersLHStatus <- do
@@ -881,7 +881,7 @@ performAddMemberAction qusr conv invited role = do
                 void . runMaybeT $
                   updateLocalConversation lcnv qvictim Nothing $
                     ConversationActionRemoveMembers (pure qvictim)
-          else throwErrorDescriptionType @MissingLegalholdConsent
+          else liftSem $ throwErrorDescriptionType @MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
@@ -921,7 +921,7 @@ updateSelfMember ::
 updateSelfMember zusr zcon qcnv update = do
   lusr <- qualifyLocal zusr
   exists <- liftSem $ foldQualified lusr checkLocalMembership checkRemoteMembership qcnv lusr
-  unless exists (throwErrorDescriptionType @ConvNotFound)
+  liftSem $ unless exists (throwErrorDescriptionType @ConvNotFound)
   liftSem $ E.setSelfMember qcnv lusr update
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
@@ -1102,11 +1102,12 @@ data OtrResult
   | OtrConversationNotFound !Public.ConvNotFound
 
 handleOtrResult :: Member WaiError r => OtrResult -> Galley r Response
-handleOtrResult = \case
-  OtrSent m -> pure $ json m & setStatus status201
-  OtrMissingRecipients m -> pure $ json m & setStatus status412
-  OtrUnknownClient _ -> throwErrorDescriptionType @UnknownClient
-  OtrConversationNotFound _ -> throwErrorDescriptionType @ConvNotFound
+handleOtrResult =
+  liftSem . \case
+    OtrSent m -> pure $ json m & setStatus status201
+    OtrMissingRecipients m -> pure $ json m & setStatus status412
+    OtrUnknownClient _ -> throwErrorDescriptionType @UnknownClient
+    OtrConversationNotFound _ -> throwErrorDescriptionType @ConvNotFound
 
 postBotMessageH ::
   Members
@@ -1443,7 +1444,7 @@ isTyping zusr zcon cnv typingData = do
   let qcnv = Qualified cnv localDomain
       qusr = Qualified zusr localDomain
   mm <- liftSem $ E.getLocalMembers cnv
-  unless (zusr `isMember` mm) $
+  liftSem . unless (zusr `isMember` mm) $
     throwErrorDescriptionType @ConvNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing qcnv qusr now (EdTyping typingData)
@@ -1529,7 +1530,7 @@ addBot zusr zcon b = do
   where
     regularConvChecks lusr c = do
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
-      unless (zusr `isMember` users) $
+      liftSem . unless (zusr `isMember` users) $
         throwErrorDescriptionType @ConvNotFound
       ensureGroupConvThrowing c
       ensureActionAllowed AddConversationMember =<< getSelfMemberFromLocalsLegacy zusr users
@@ -1573,7 +1574,7 @@ rmBot zusr zcon b = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified zusr localDomain
-  unless (zusr `isMember` Data.convLocalMembers c) $
+  liftSem . unless (zusr `isMember` Data.convLocalMembers c) $
     throwErrorDescriptionType @ConvNotFound
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
@@ -1602,8 +1603,9 @@ ensureMemberLimit old new = do
 
 ensureConvMember :: Member WaiError r => [LocalMember] -> UserId -> Galley r ()
 ensureConvMember users usr =
-  unless (usr `isMember` users) $
-    throwErrorDescriptionType @ConvNotFound
+  liftSem $
+    unless (usr `isMember` users) $
+      throwErrorDescriptionType @ConvNotFound
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
@@ -1721,7 +1723,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
-      >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
+      >>= either (const (liftSem (throwErrorDescriptionType @MissingLegalholdConsent))) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound mkErrorDescription
   InvalidOtrSenderClient -> pure $ OtrUnknownClient mkErrorDescription

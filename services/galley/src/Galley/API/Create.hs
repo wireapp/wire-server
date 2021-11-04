@@ -139,7 +139,7 @@ ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      throwErrorDescriptionType @MissingLegalholdConsent
+      liftSem $ throwErrorDescriptionType @MissingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv ::

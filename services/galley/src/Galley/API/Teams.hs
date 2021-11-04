@@ -1010,13 +1010,13 @@ getTeamConversations ::
   UserId ->
   TeamId ->
   Galley r Public.TeamConversationList
-getTeamConversations zusr tid = do
+getTeamConversations zusr tid = liftSem $ do
   tm <-
-    liftSem (E.getTeamMember tid zusr)
-      >>= ifNothing (errorDescriptionTypeToWai @NotATeamMember)
+    E.getTeamMember tid zusr
+      >>= note (errorDescriptionTypeToWai @NotATeamMember)
   unless (tm `hasPermission` GetTeamConversations) $
     throwErrorDescription (operationDenied GetTeamConversations)
-  liftSem $ Public.newTeamConversationList <$> E.getTeamConversations tid
+  Public.newTeamConversationList <$> E.getTeamConversations tid
 
 getTeamConversation ::
   Members '[TeamStore, WaiError] r =>
@@ -1024,14 +1024,14 @@ getTeamConversation ::
   TeamId ->
   ConvId ->
   Galley r Public.TeamConversation
-getTeamConversation zusr tid cid = do
+getTeamConversation zusr tid cid = liftSem $ do
   tm <-
-    liftSem (E.getTeamMember tid zusr)
-      >>= ifNothing (errorDescriptionTypeToWai @NotATeamMember)
+    E.getTeamMember tid zusr
+      >>= note (errorDescriptionTypeToWai @NotATeamMember)
   unless (tm `hasPermission` GetTeamConversations) $
     throwErrorDescription (operationDenied GetTeamConversations)
-  liftSem (E.getTeamConversation tid cid)
-    >>= maybe (throwErrorDescriptionType @ConvNotFound) pure
+  E.getTeamConversation tid cid
+    >>= note (errorDescriptionTypeToWai @ConvNotFound)
 
 deleteTeamConversation ::
   Members

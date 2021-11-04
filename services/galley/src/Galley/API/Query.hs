@@ -131,10 +131,10 @@ getConversation zusr cnv = do
     getRemoteConversation :: Remote ConvId -> Galley r Public.Conversation
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations zusr [remoteConvId]
-      case conversations of
+      liftSem $ case conversations of
         [] -> throwErrorDescriptionType @ConvNotFound
         [conv] -> pure conv
-        _convs -> liftSem $ throw (federationUnexpectedBody "expected one conversation, got multiple")
+        _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
 
 getRemoteConversations ::
   Members '[ConversationStore, WaiError] r =>

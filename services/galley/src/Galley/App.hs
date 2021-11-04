@@ -305,8 +305,8 @@ ifNothing e = maybe (liftSem (throw e)) return
 throwErrorDescription ::
   (KnownStatus code, KnownSymbol lbl, Member WaiError r) =>
   ErrorDescription code lbl desc ->
-  Galley r a
-throwErrorDescription = liftSem . throw . errorDescriptionToWai
+  Sem r a
+throwErrorDescription = throw . errorDescriptionToWai
 
 throwErrorDescriptionType ::
   forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol) r a.
@@ -316,7 +316,7 @@ throwErrorDescriptionType ::
     Member WaiError r,
     e ~ ErrorDescription code lbl desc
   ) =>
-  Galley r a
+  Sem r a
 throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
 
 toServantHandler :: Env -> Galley GalleyEffects a -> Servant.Handler a

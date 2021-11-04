@@ -80,13 +80,13 @@ ensureAccessRole ::
   AccessRole ->
   [(UserId, Maybe TeamMember)] ->
   Galley r ()
-ensureAccessRole role users = case role of
+ensureAccessRole role users = liftSem $ case role of
   PrivateAccessRole -> throwErrorDescriptionType @ConvAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
       throwErrorDescriptionType @NotATeamMember
   ActivatedAccessRole -> do
-    activated <- liftSem $ lookupActivatedUsers $ map fst users
+    activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
       throwErrorDescriptionType @ConvAccessDenied
   NonActivatedAccessRole -> return ()
@@ -129,10 +129,9 @@ ensureConnected self others = do
 
 ensureConnectedToLocals :: Members '[BrigAccess, WaiError] r => UserId -> [UserId] -> Galley r ()
 ensureConnectedToLocals _ [] = pure ()
-ensureConnectedToLocals u uids = do
+ensureConnectedToLocals u uids = liftSem $ do
   (connsFrom, connsTo) <-
-    liftSem $
-      getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
+    getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwErrorDescriptionType @NotConnected
 
@@ -157,12 +156,12 @@ ensureReAuthorised u secret = liftSem $ do
 -- is permitted. If the user does not have the given permission, throw
 -- 'operationDenied'.
 ensureActionAllowed :: (IsConvMember mem, Member WaiError r) => Action -> mem -> Galley r ()
-ensureActionAllowed action self = case isActionAllowed action (convMemberRole self) of
+ensureActionAllowed action self = liftSem $ case isActionAllowed action (convMemberRole self) of
   Just True -> pure ()
   Just False -> throwErrorDescription (actionDenied action)
   -- Actually, this will "never" happen due to the
   -- fact that there can be no custom roles at the moment
-  Nothing -> liftSem $ throw (badRequest "Custom roles not supported")
+  Nothing -> throw (badRequest "Custom roles not supported")
 
 -- | Comprehensive permission check, taking action-specific logic into account.
 ensureConversationActionAllowed ::
@@ -199,10 +198,11 @@ ensureConversationActionAllowed action conv self = do
       -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
       -- so on; users are not supposed to be able to make other conversations
       -- have 'PrivateAccessRole'
-      when
-        ( PrivateAccess `elem` Public.cupAccess target
-            || PrivateAccessRole == Public.cupAccessRole target
-        )
+      liftSem
+        . when
+          ( PrivateAccess `elem` Public.cupAccess target
+              || PrivateAccessRole == Public.cupAccessRole target
+          )
         $ throwErrorDescriptionType @InvalidTargetAccess
       -- Team conversations incur another round of checks
       case Data.convTeam conv of
@@ -216,7 +216,7 @@ ensureConversationActionAllowed action conv self = do
           ensureActionAllowed RemoveConversationMember self
         Nothing ->
           when (Public.cupAccessRole target == TeamAccessRole) $
-            throwErrorDescriptionType @InvalidTargetAccess
+            liftSem $ throwErrorDescriptionType @InvalidTargetAccess
     _ -> pure ()
 
 ensureGroupConvThrowing :: Member WaiError r => Data.Conversation -> Galley r ()
@@ -251,25 +251,27 @@ permissionCheck ::
   perm ->
   Maybe TeamMember ->
   Galley r TeamMember
-permissionCheck p = \case
-  Just m -> do
-    if m `hasPermission` p
-      then pure m
-      else throwErrorDescription (operationDenied p)
-  Nothing -> throwErrorDescriptionType @NotATeamMember
+permissionCheck p =
+  liftSem . \case
+    Just m -> do
+      if m `hasPermission` p
+        then pure m
+        else throwErrorDescription (operationDenied p)
+    Nothing -> throwErrorDescriptionType @NotATeamMember
 
 assertTeamExists :: Members '[TeamStore, WaiError] r => TeamId -> Galley r ()
-assertTeamExists tid = do
-  teamExists <- liftSem $ isJust <$> getTeam tid
+assertTeamExists tid = liftSem $ do
+  teamExists <- isJust <$> getTeam tid
   if teamExists
     then pure ()
-    else liftSem $ throw teamNotFound
+    else throw teamNotFound
 
 assertOnTeam :: Members '[TeamStore, WaiError] r => UserId -> TeamId -> Galley r ()
-assertOnTeam uid tid = do
-  liftSem (getTeamMember tid uid) >>= \case
-    Nothing -> throwErrorDescriptionType @NotATeamMember
-    Just _ -> return ()
+assertOnTeam uid tid =
+  liftSem $
+    getTeamMember tid uid >>= \case
+      Nothing -> throwErrorDescriptionType @NotATeamMember
+      Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
@@ -284,7 +286,7 @@ permissionCheckTeamConv zusr cnv perm =
     Just cnv' -> case Data.convTeam cnv' of
       Just tid -> void $ permissionCheck perm =<< liftSem (getTeamMember tid zusr)
       Nothing -> pure ()
-    Nothing -> throwErrorDescriptionType @ConvNotFound
+    Nothing -> liftSem $ throwErrorDescriptionType @ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
@@ -305,7 +307,7 @@ acceptOne2One usr conv conn = do
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> liftSem promote
-      [_, _] -> throwErrorDescriptionType @ConvNotFound
+      [_, _] -> liftSem $ throwErrorDescriptionType @ConvNotFound
       _ -> do
         when (length mems > 2) $
           liftSem $ throw badConvState
@@ -494,8 +496,9 @@ getSelfMemberFromLocalsLegacy ::
   t LocalMember ->
   Galley r LocalMember
 getSelfMemberFromLocalsLegacy usr lmems =
-  eitherM throwErrorDescription pure . runExceptT $
-    getMember lmId (mkErrorDescription :: ConvNotFound) usr lmems
+  liftSem $
+    eitherM throwErrorDescription pure . runExceptT $
+      getMember lmId (mkErrorDescription :: ConvNotFound) usr lmems
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
@@ -506,8 +509,9 @@ ensureOtherMember ::
   Data.Conversation ->
   Galley r (Either LocalMember RemoteMember)
 ensureOtherMember loc quid conv =
-  maybe (throwErrorDescriptionType @ConvMemberNotFound) pure $
-    (Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv))
+  liftSem
+    . maybe (throwErrorDescriptionType @ConvMemberNotFound) pure
+    $ (Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv))
       <|> (Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv))
 
 getSelfMemberFromRemotesLegacy ::
@@ -516,8 +520,10 @@ getSelfMemberFromRemotesLegacy ::
   t RemoteMember ->
   Galley r RemoteMember
 getSelfMemberFromRemotesLegacy usr rmems =
-  eitherM throwErrorDescription pure . runExceptT $
-    getMember rmId (mkErrorDescription :: ConvNotFound) usr rmems
+  liftSem
+    . eitherM throwErrorDescription pure
+    . runExceptT
+    $ getMember rmId (mkErrorDescription :: ConvNotFound) usr rmems
 
 getQualifiedMember ::
   Monad m =>
@@ -569,8 +575,8 @@ getConversationAndMemberWithError ex usr convId = do
   c <-
     liftSem (getConversation convId)
       >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
-  when (DataTypes.isConvDeleted c) $ do
-    liftSem $ deleteConversation convId
+  liftSem . when (DataTypes.isConvDeleted c) $ do
+    deleteConversation convId
     throwErrorDescriptionType @ConvNotFound
   loc <- qualifyLocal ()
   member <- liftSem . note ex $ getConvMember loc c usr
@@ -627,8 +633,8 @@ ensureConversationAccess ::
   Galley r Data.Conversation
 ensureConversationAccess zusr cnv access = do
   conv <-
-    liftSem (getConversation cnv)
-      >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+    liftSem $
+      getConversation cnv >>= note (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access
   zusrMembership <-
     liftSem $
@@ -638,7 +644,7 @@ ensureConversationAccess zusr cnv access = do
 
 ensureAccess :: Member WaiError r => Data.Conversation -> Access -> Galley r ()
 ensureAccess conv access =
-  unless (access `elem` Data.convAccess conv) $
+  liftSem . unless (access `elem` Data.convAccess conv) $
     throwErrorDescriptionType @ConvAccessDenied
 
 --------------------------------------------------------------------------------
