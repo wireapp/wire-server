@@ -800,7 +800,9 @@ addMembersToLocalConversation lcnv users role = do
 
 performAddMemberAction ::
   forall r.
-  Members UpdateConversationActions r =>
+  ( Members UpdateConversationActions r,
+    Member WaiError r
+  ) =>
   Qualified UserId ->
   Data.Conversation ->
   NonEmpty (Qualified UserId) ->
@@ -808,47 +810,41 @@ performAddMemberAction ::
   MaybeT (Galley r) (BotsAndMembers, ConversationAction)
 performAddMemberAction qusr conv invited role = do
   lcnv <- lift $ qualifyLocal (Data.convId conv)
+  lusr <- lift . liftSem $ ensureLocal lcnv qusr
   let newMembers = ulNewMembers lcnv conv . toUserList lcnv $ invited
   lift $ do
     ensureMemberLimit (toList (Data.convLocalMembers conv)) newMembers
     ensureAccess conv InviteAccess
-    checkLocals lcnv (Data.convTeam conv) (ulLocals newMembers)
-    checkRemotes (ulRemotes newMembers)
+    checkLocals lusr lcnv (Data.convTeam conv) (ulLocals newMembers)
+    checkRemotes lusr (ulRemotes newMembers)
     checkLHPolicyConflictsLocal lcnv (ulLocals newMembers)
     checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   addMembersToLocalConversation lcnv newMembers role
   where
     userIsMember u = (^. userId . to (== u))
 
-    checkLocals :: Local ConvId -> Maybe TeamId -> [UserId] -> Galley r ()
-    checkLocals lcnv (Just tid) newUsers = do
+    checkLocals :: Local UserId -> Local ConvId -> Maybe TeamId -> [UserId] -> Galley r ()
+    checkLocals lusr lcnv (Just tid) newUsers = do
       tms <- liftSem $ E.selectTeamMembers tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- liftSem $ E.getTeamConversation tid (tUnqualified lcnv)
       liftSem . when (maybe True (view managedConversation) tcv) $
         throw noAddToManaged
-      ensureConnectedOrSameTeam qusr newUsers
-    checkLocals _ Nothing newUsers = do
+      ensureConnectedOrSameTeam lusr newUsers
+    checkLocals lusr _ Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
-      ensureConnectedOrSameTeam qusr newUsers
+      ensureConnectedOrSameTeam lusr newUsers
 
-    checkRemotes :: [Remote UserId] -> Galley r ()
-    checkRemotes remotes = do
+    checkRemotes :: Local UserId -> [Remote UserId] -> Galley r ()
+    checkRemotes lusr remotes = do
       -- if federator is not configured, we fail early, so we avoid adding
       -- remote members to the database
       unless (null remotes) $ do
         endpoint <- federatorEndpoint
         liftSem . when (isNothing endpoint) $
           throw federationNotConfigured
-
-      loc <- qualifyLocal ()
-      foldQualified
-        loc
-        ensureConnectedToRemotes
-        (\_ _ -> liftSem (throw federationNotImplemented))
-        qusr
-        remotes
+      ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal :: Local ConvId -> [UserId] -> Galley r ()
     checkLHPolicyConflictsLocal lcnv newUsers = do

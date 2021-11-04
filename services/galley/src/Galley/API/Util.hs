@@ -66,6 +66,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import qualified Network.Wai.Utilities as Wai
+import Polysemy
 import Polysemy.Error
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
@@ -98,20 +99,17 @@ ensureAccessRole role users = liftSem $ case role of
 -- for non-team-members of the _given_ user
 ensureConnectedOrSameTeam ::
   Members '[BrigAccess, TeamStore, WaiError] r =>
-  Qualified UserId ->
+  Local UserId ->
   [UserId] ->
   Galley r ()
 ensureConnectedOrSameTeam _ [] = pure ()
-ensureConnectedOrSameTeam (Qualified u domain) uids = do
-  -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
-  localDomain <- viewFederationDomain
-  when (localDomain == domain) $ do
-    uTeams <- liftSem $ getUserTeams u
-    -- We collect all the relevant uids from same teams as the origin user
-    sameTeamUids <- liftSem . forM uTeams $ \team ->
-      fmap (view userId) <$> selectTeamMembers team uids
-    -- Do not check connections for users that are on the same team
-    ensureConnectedToLocals u (uids \\ join sameTeamUids)
+ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
+  uTeams <- liftSem $ getUserTeams u
+  -- We collect all the relevant uids from same teams as the origin user
+  sameTeamUids <- liftSem . forM uTeams $ \team ->
+    fmap (view userId) <$> selectTeamMembers team uids
+  -- Do not check connections for users that are on the same team
+  ensureConnectedToLocals u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
@@ -646,6 +644,9 @@ ensureAccess :: Member WaiError r => Data.Conversation -> Access -> Galley r ()
 ensureAccess conv access =
   liftSem . unless (access `elem` Data.convAccess conv) $
     throwErrorDescriptionType @ConvAccessDenied
+
+ensureLocal :: Member WaiError r => Local x -> Qualified a -> Sem r (Local a)
+ensureLocal loc = foldQualified loc pure (\_ -> throw federationNotImplemented)
 
 --------------------------------------------------------------------------------
 -- Federation
