@@ -25,7 +25,6 @@ module Wire.API.Conversation
     ConversationMetadata (..),
     Conversation (..),
     mkConversation,
-    cnvQualifiedId,
     cnvType,
     cnvCreator,
     cnvAccess,
@@ -37,7 +36,6 @@ module Wire.API.Conversation
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
-    ListConversationsV2 (..),
     GetPaginatedConversationIds,
     pattern GetPaginatedConversationIds,
     ConvIdsPage,
@@ -117,9 +115,7 @@ import Wire.API.Routes.MultiTablePaging
 -- Conversation
 
 data ConversationMetadata = ConversationMetadata
-  { -- | A qualified conversation ID
-    cnvmQualifiedId :: Qualified ConvId,
-    cnvmType :: ConvType,
+  { cnvmType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
     cnvmCreator :: UserId,
     cnvmAccess :: [Access],
@@ -144,10 +140,7 @@ conversationMetadataObjectSchema ::
     ConversationMetadata
 conversationMetadataObjectSchema =
   ConversationMetadata
-    <$> cnvmQualifiedId .= field "qualified_id" schema
-    <* (qUnqualified . cnvmQualifiedId)
-      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-    <*> cnvmType .= field "type" schema
+    <$> cnvmType .= field "type" schema
     <*> cnvmCreator
       .= fieldWithDocModifier
         "creator"
@@ -178,7 +171,9 @@ instance ToSchema ConversationMetadata where
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
-  { cnvMetadata :: ConversationMetadata,
+  { -- | A qualified conversation ID
+    cnvQualifiedId :: Qualified ConvId,
+    cnvMetadata :: ConversationMetadata,
     cnvMembers :: ConvMembers
   }
   deriving stock (Eq, Show, Generic)
@@ -198,10 +193,7 @@ mkConversation ::
   Maybe ReceiptMode ->
   Conversation
 mkConversation qid ty uid acc role name mems tid ms rm =
-  Conversation (ConversationMetadata qid ty uid acc role name tid ms rm) mems
-
-cnvQualifiedId :: Conversation -> Qualified ConvId
-cnvQualifiedId = cnvmQualifiedId . cnvMetadata
+  Conversation qid (ConversationMetadata ty uid acc role name tid ms rm) mems
 
 cnvType :: Conversation -> ConvType
 cnvType = cnvmType . cnvMetadata
@@ -233,7 +225,10 @@ instance ToSchema Conversation where
       "Conversation"
       (description ?~ "A conversation object as returned from the server")
       $ Conversation
-        <$> cnvMetadata .= conversationMetadataObjectSchema
+        <$> cnvQualifiedId .= field "qualified_id" schema
+        <* (qUnqualified . cnvQualifiedId)
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+        <*> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
 
 modelConversation :: Doc.Model
@@ -359,10 +354,9 @@ type GetPaginatedConversationIds = GetMultiTablePageRequest ConversationPagingNa
 pattern GetPaginatedConversationIds :: Maybe (MultiTablePagingState name tables) -> Range 1 max Int32 -> GetMultiTablePageRequest name tables max def
 pattern GetPaginatedConversationIds state size = GetMultiTablePageRequest size state
 
-data ListConversations = ListConversations
-  { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
-    lStartId :: Maybe (Qualified ConvId),
-    lSize :: Maybe (Range 1 500 Int32)
+-- | Used on the POST /conversations/list/v2 endpoint
+newtype ListConversations = ListConversations
+  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversations
@@ -371,25 +365,8 @@ instance ToSchema ListConversations where
   schema =
     objectWithDocModifier
       "ListConversations"
-      (description ?~ "A request to list some or all of a user's conversations, including remote ones")
-      $ ListConversations
-        <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
-        <*> lStartId .= optField "start_id" Nothing schema
-        <*> lSize .= optField "size" Nothing schema
-
--- | Used on the POST /conversations/list/v2 endpoint
-newtype ListConversationsV2 = ListConversationsV2
-  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversationsV2
-
-instance ToSchema ListConversationsV2 where
-  schema =
-    objectWithDocModifier
-      "ListConversations"
       (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
-      $ ListConversationsV2
+      $ ListConversations
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
 
 data ConversationsResponse = ConversationsResponse
@@ -726,6 +703,18 @@ data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invite)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Invite)
+
+instance ToSchema Invite where
+  schema =
+    object "Invite" $
+      Invite
+        <$> (toNonEmpty . invUsers)
+          .= fmap List1 (field "users" (nonEmptyArray schema))
+        <*> (Just . invRoleName)
+          .= fmap
+            (fromMaybe roleNameWireAdmin)
+            (optField "conversation_role" Nothing schema)
 
 data InviteQualified = InviteQualified
   { invQUsers :: NonEmpty (Qualified UserId),
@@ -741,7 +730,10 @@ instance ToSchema InviteQualified where
     object "InviteQualified" $
       InviteQualified
         <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
-        <*> invQRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
+        <*> (Just . invQRoleName)
+          .= fmap
+            (fromMaybe roleNameWireAdmin)
+            (optField "conversation_role" Nothing schema)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -751,17 +743,6 @@ modelInvite = Doc.defineModel "Invite" $ do
   Doc.description "Add users to a conversation"
   Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "List of user IDs to add to a conversation"
-
-instance ToJSON Invite where
-  toJSON i =
-    A.object
-      [ "users" A..= invUsers i,
-        "conversation_role" A..= invRoleName i
-      ]
-
-instance FromJSON Invite where
-  parseJSON = A.withObject "invite object" $ \o ->
-    Invite <$> o A..: "users" <*> o A..:? "conversation_role" A..!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update

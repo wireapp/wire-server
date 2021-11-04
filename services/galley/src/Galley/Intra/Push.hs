@@ -71,16 +71,18 @@ import qualified Data.Set as Set
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Galley.App
+import Galley.Effects
 import Galley.Options
 import Galley.Types
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
-import UnliftIO (mapConcurrently)
+import UnliftIO.Async (mapConcurrently)
+import UnliftIO.Concurrent (forkIO)
 import Util.Options
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 
@@ -158,14 +160,14 @@ newConversationEventPush localDomain e users =
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
-push1 :: Push -> Galley ()
+push1 :: Member GundeckAccess r => Push -> Galley r ()
 push1 p = push (list1 p [])
 
-pushSome :: [Push] -> Galley ()
+pushSome :: Member GundeckAccess r => [Push] -> Galley r ()
 pushSome [] = return ()
 pushSome (x : xs) = push (list1 x xs)
 
-push :: List1 Push -> Galley ()
+push :: Member GundeckAccess r => List1 Push -> Galley r ()
 push ps = do
   let (localPushes, remotePushes) = foldMap (bimap toList toList . splitPush) (toList ps)
   traverse_ (pushLocal . List1) (nonEmpty localPushes)
@@ -185,13 +187,14 @@ push ps = do
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: List1 (PushTo UserId) -> Galley ()
+pushLocal :: Member GundeckAccess r => List1 (PushTo UserId) -> Galley r ()
 pushLocal ps = do
   limit <- fanoutLimit
+  opts <- view options
   -- Do not fan out for very large teams
-  let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
-  forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
-  void $ mapConcurrently (gundeckReq >=> call "gundeck") (pushes sync)
+  let (asyncs, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
+  forM_ (pushes asyncs) $ callAsync "gundeck" . gundeckReq opts
+  void . liftGalley0 $ mapConcurrently (call0 "gundeck" . gundeckReq opts) (pushes sync)
   return ()
   where
     pushes = fst . foldr chunk ([], 0)
@@ -226,7 +229,7 @@ pushLocal ps = do
         )
 
 -- instead of IdMapping, we could also just take qualified IDs
-pushRemote :: List1 (PushTo UserId) -> Galley ()
+pushRemote :: List1 (PushTo UserId) -> Galley r ()
 pushRemote _ps = do
   -- FUTUREWORK(federation, #1261): send these to the other backends
   pure ()
@@ -234,27 +237,25 @@ pushRemote _ps = do
 -----------------------------------------------------------------------------
 -- Helpers
 
-gundeckReq :: [Gundeck.Push] -> Galley (Request -> Request)
-gundeckReq ps = do
-  o <- view options
-  return $
-    host (encodeUtf8 $ o ^. optGundeck . epHost)
-      . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
-      . method POST
-      . path "/i/push/v2"
-      . json ps
-      . expect2xx
+gundeckReq :: Opts -> [Gundeck.Push] -> Request -> Request
+gundeckReq o ps =
+  host (encodeUtf8 $ o ^. optGundeck . epHost)
+    . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
+    . method POST
+    . path "/i/push/v2"
+    . json ps
+    . expect2xx
 
-callAsync :: LT.Text -> (Request -> Request) -> Galley ()
-callAsync n r = void . forkIO $ void (call n r) `catches` handlers
+callAsync :: Member GundeckAccess r => LT.Text -> (Request -> Request) -> Galley r ()
+callAsync n r = liftGalley0 . void . forkIO $ void (call0 n r) `catches` handlers
   where
     handlers =
       [ Handler $ \(x :: RPCException) -> err (rpcExceptionMsg x),
         Handler $ \(x :: SomeException) -> err $ "remote" .= n ~~ msg (show x)
       ]
 
-call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe LByteString))
-call n r = recovering x3 rpcHandlers (const (rpc n r))
+call0 :: LT.Text -> (Request -> Request) -> Galley0 (Response (Maybe LByteString))
+call0 n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000

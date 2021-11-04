@@ -16,17 +16,22 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.Member_user where
 
+import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
+import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation (Member (..), MutedStatus (MutedStatus, fromMutedStatus))
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
+domain :: Domain
+domain = Domain "golden.example.com"
+
 testObject_Member_user_1 :: Member
 testObject_Member_user_1 =
   Member
-    { memId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000")),
+    { memId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000"))) domain,
       memService =
         Just
           ( ServiceRef
@@ -47,7 +52,7 @@ testObject_Member_user_1 =
 testObject_Member_user_2 :: Member
 testObject_Member_user_2 =
   Member
-    { memId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000002")),
+    { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000002"))) domain,
       memService = Nothing,
       memOtrMutedStatus = Nothing,
       memOtrMutedRef = Nothing,

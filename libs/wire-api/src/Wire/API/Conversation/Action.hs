@@ -38,12 +38,13 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- Used to send notifications to users and to remote backends.
 data ConversationAction
   = ConversationActionAddMembers (NonEmpty (Qualified UserId)) RoleName
-  | ConversationActionRemoveMember (Qualified UserId)
+  | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
   | ConversationActionRename ConversationRename
   | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
   | ConversationActionReceiptModeUpdate ConversationReceiptModeUpdate
   | ConversationActionMemberUpdate (Qualified UserId) OtherMemberUpdate
   | ConversationActionAccessUpdate ConversationAccessData
+  | ConversationActionDelete
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)
@@ -57,9 +58,9 @@ conversationActionToEvent ::
 conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers role) =
   Event MemberJoin qcnv quid now $
     EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
-conversationActionToEvent now quid qcnv (ConversationActionRemoveMember removedMember) =
+conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removedMembers) =
   Event MemberLeave qcnv quid now $
-    EdMembersLeave (QualifiedUserIdList [removedMember])
+    EdMembersLeave (QualifiedUserIdList (toList removedMembers))
 conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
   Event ConvRename qcnv quid now (EdConvRename rename)
 conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
@@ -71,14 +72,17 @@ conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (
    in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
 conversationActionToEvent now quid qcnv (ConversationActionAccessUpdate update) =
   Event ConvAccessUpdate qcnv quid now (EdConvAccessUpdate update)
+conversationActionToEvent now quid qcnv ConversationActionDelete =
+  Event ConvDelete qcnv quid now EdConvDelete
 
 conversationActionTag :: Qualified UserId -> ConversationAction -> Action
 conversationActionTag _ (ConversationActionAddMembers _ _) = AddConversationMember
-conversationActionTag qusr (ConversationActionRemoveMember victim)
-  | qusr == victim = LeaveConversation
+conversationActionTag qusr (ConversationActionRemoveMembers victims)
+  | pure qusr == victims = LeaveConversation
   | otherwise = RemoveConversationMember
 conversationActionTag _ (ConversationActionRename _) = ModifyConversationName
 conversationActionTag _ (ConversationActionMessageTimerUpdate _) = ModifyConversationMessageTimer
 conversationActionTag _ (ConversationActionReceiptModeUpdate _) = ModifyConversationReceiptMode
 conversationActionTag _ (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember
 conversationActionTag _ (ConversationActionAccessUpdate _) = ModifyConversationAccess
+conversationActionTag _ ConversationActionDelete = DeleteConversation

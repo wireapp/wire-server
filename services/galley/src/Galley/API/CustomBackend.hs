@@ -38,11 +38,11 @@ import qualified Wire.API.CustomBackend as Public
 
 -- PUBLIC ---------------------------------------------------------------------
 
-getCustomBackendByDomainH :: Domain ::: JSON -> Galley Response
+getCustomBackendByDomainH :: Domain ::: JSON -> Galley r Response
 getCustomBackendByDomainH (domain ::: _) =
   json <$> getCustomBackendByDomain domain
 
-getCustomBackendByDomain :: Domain -> Galley Public.CustomBackend
+getCustomBackendByDomain :: Domain -> Galley r Public.CustomBackend
 getCustomBackendByDomain domain =
   Data.getCustomBackend domain >>= \case
     Nothing -> throwM (customBackendNotFound domain)
@@ -50,14 +50,14 @@ getCustomBackendByDomain domain =
 
 -- INTERNAL -------------------------------------------------------------------
 
-internalPutCustomBackendByDomainH :: Domain ::: JsonRequest CustomBackend -> Galley Response
+internalPutCustomBackendByDomainH :: Domain ::: JsonRequest CustomBackend -> Galley r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do
   customBackend <- fromJsonBody req
   -- simple enough to not need a separate function
   Data.setCustomBackend domain customBackend
   pure (empty & setStatus status201)
 
-internalDeleteCustomBackendByDomainH :: Domain ::: JSON -> Galley Response
+internalDeleteCustomBackendByDomainH :: Domain ::: JSON -> Galley r Response
 internalDeleteCustomBackendByDomainH (domain ::: _) = do
   Data.deleteCustomBackend domain
   pure (empty & setStatus status200)

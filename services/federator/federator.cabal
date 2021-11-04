@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a181e3a92130220d845ad959ca6e02a217b07a38602513bff4c9376a4ffe145
+-- hash: 9cb4007a4aa28024c1ac5077eb0840c877b7fd3a7afee0b48a9c218a54afc40a
 
 name:           federator
 version:        1.0.0
@@ -25,9 +25,12 @@ extra-source-files:
     test/resources/unit/localhost-dot-key.pem
     test/resources/unit/localhost-dot.pem
     test/resources/unit/localhost-key.pem
+    test/resources/unit/localhost.client-only-key.pem
+    test/resources/unit/localhost.client-only.pem
     test/resources/unit/localhost.example.com-key.pem
     test/resources/unit/localhost.example.com.pem
     test/resources/unit/localhost.pem
+    test/resources/unit/README.md
     test/resources/unit/second-federator.example.com-key.pem
     test/resources/unit/second-federator.example.com.pem
     test/resources/unit/unit-ca-key.pem

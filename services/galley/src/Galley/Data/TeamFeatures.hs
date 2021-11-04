@@ -22,6 +22,8 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
+    getSelfDeletingMessagesStatus,
+    setSelfDeletingMessagesStatus,
     HasStatusCol (..),
   )
 where
@@ -66,6 +68,8 @@ instance HasStatusCol 'TeamFeatureFileSharing where statusCol = "file_sharing"
 
 instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conference_calling"
 
+instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_deleting_messages_status"
+
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
@@ -93,11 +97,11 @@ setFeatureStatusNoConfig ::
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
-  retry x5 $ write update (params Quorum (flag, tid))
+  retry x5 $ write insert (params Quorum (tid, flag))
   pure status
   where
-    update :: PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-    update = fromString $ "update team_features set " <> statusCol @a <> " = ? where team_id = ?"
+    insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
+    insert = fromString $ "insert into team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
 
 getApplockFeatureStatus ::
   forall m.
@@ -126,15 +130,51 @@ setApplockFeatureStatus tid status = do
   let statusValue = Public.tfwcStatus status
       enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
       timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
-  retry x5 $ write update (params Quorum (statusValue, enforce, timeout, tid))
+  retry x5 $ write insert (params Quorum (tid, statusValue, enforce, timeout))
   pure status
   where
-    update :: PrepQuery W (TeamFeatureStatusValue, Public.EnforceAppLock, Int32, TeamId) ()
-    update =
+    insert :: PrepQuery W (TeamId, TeamFeatureStatusValue, Public.EnforceAppLock, Int32) ()
+    insert =
       fromString $
-        "update team_features set "
+        "insert into team_features (team_id, "
           <> statusCol @'Public.TeamFeatureAppLock
-          <> " = ?, "
-          <> "app_lock_enforce = ?, "
-          <> "app_lock_inactivity_timeout_secs = ? "
-          <> "where team_id = ?"
+          <> ", app_lock_enforce, app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
+
+getSelfDeletingMessagesStatus ::
+  forall m.
+  (MonadClient m) =>
+  TeamId ->
+  m (Maybe (TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages))
+getSelfDeletingMessagesStatus tid = do
+  let q = query1 select (params Quorum (Identity tid))
+  mTuple <- retry x1 q
+  pure $
+    mTuple >>= \(mbStatusValue, mbTimeout) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout)
+  where
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Int32)
+    select =
+      fromString $
+        "select "
+          <> statusCol @'Public.TeamFeatureSelfDeletingMessages
+          <> ", self_deleting_messages_ttl "
+          <> "from team_features where team_id = ?"
+
+setSelfDeletingMessagesStatus ::
+  (MonadClient m) =>
+  TeamId ->
+  TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages ->
+  m (TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
+setSelfDeletingMessagesStatus tid status = do
+  let statusValue = Public.tfwcStatus status
+      timeout = Public.sdmEnforcedTimeoutSeconds . Public.tfwcConfig $ status
+  retry x5 $ write insert (params Quorum (tid, statusValue, timeout))
+  pure status
+  where
+    insert :: PrepQuery W (TeamId, TeamFeatureStatusValue, Int32) ()
+    insert =
+      fromString $
+        "insert into team_features (team_id, "
+          <> statusCol @'Public.TeamFeatureSelfDeletingMessages
+          <> ", self_deleting_messages_ttl) "
+          <> "values (?, ?, ?)"

@@ -27,7 +27,7 @@ import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
-import Test.Wire.API.Golden.Manual.ListConversationsV2
+import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
@@ -96,9 +96,9 @@ tests =
           [ (testObject_UserIdList_1, "testObject_UserIdList_1.json"),
             (testObject_UserIdList_2, "testObject_UserIdList_2.json")
           ],
-      testGroup "ListConversationsV2" $
+      testGroup "ListConversations" $
         testObjects
-          [(testObject_ListConversationsV2_1, "testObject_ListConversationsV2_1.json")],
+          [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
       testGroup "ConversationsResponse" $
         testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")]
     ]

@@ -37,8 +37,9 @@ import Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
 import Data.Qualified
+import Data.Range (checked)
 import qualified Data.Set as Set
-import Federation.Util (generateClientPrekeys, getConvQualified)
+import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
 import Gundeck.Types.Notification (ntfTransient)
 import Imports
 import qualified System.Logger as Log
@@ -52,6 +53,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation
 import Wire.API.Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
 import Wire.API.User.Client
 
@@ -213,7 +215,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe Prekey)
       mkClientMap = Map.fromList . map (prekeyClient &&& Just . prekeyData)
       qmap :: Ord a => [(Qualified a, b)] -> Map Domain (Map a b)
-      qmap = fmap Map.fromList . partitionQualified . map (sequenceAOf _1)
+      qmap = fmap Map.fromList . indexQualified . map (sequenceAOf _1)
   c1 <- generateClientPrekeys brig1 prekeys1
   c2 <- generateClientPrekeys brig2 prekeys2
   let uc =
@@ -242,8 +244,8 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 
   let newConv = NewConvUnmanaged $ NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   convId <-
-    cnvQualifiedId . responseJsonUnsafe
-      <$> post
+    fmap cnvQualifiedId . responseJsonError
+      =<< post
         ( galley1
             . path "/conversations"
             . zUser (userId alice)
@@ -251,6 +253,8 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
             . header "Z-Type" "access"
             . json newConv
         )
+
+  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
@@ -285,7 +289,12 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
   let aliceId = userQualifiedId alice
   let bobId = userQualifiedId bob
 
-  convId <- cnvQualifiedId . responseJsonUnsafe <$> createConversation galley1 (userId alice) [bobId]
+  connectUsersEnd2End brig1 brig2 aliceId bobId
+
+  convId <-
+    fmap cnvQualifiedId . responseJsonError
+      =<< createConversation galley1 (userId alice) [bobId]
+      <!! const 201 === statusCode
 
   aliceConvBeforeDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
@@ -322,7 +331,12 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
   let aliceId = userQualifiedId alice
   let bobId = userQualifiedId bob
 
-  convId <- cnvQualifiedId . responseJsonUnsafe <$> createConversation galley1 (userId alice) [bobId]
+  connectUsersEnd2End brig1 brig2 aliceId bobId
+
+  convId <-
+    fmap cnvQualifiedId . responseJsonError
+      =<< createConversation galley1 (userId alice) [bobId]
+      <!! const 201 === statusCode
 
   aliceConvBeforeDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
@@ -358,9 +372,13 @@ testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
 testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
+
+  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
   convId <-
-    cnvQualifiedId . responseJsonUnsafe
-      <$> createConversation galley1 (userId alice) [userQualifiedId bob]
+    fmap cnvQualifiedId . responseJsonError
+      =<< createConversation galley1 (userId alice) [userQualifiedId bob]
+      <!! const 201 === statusCode
+
   -- test GET /conversations/:backend1Domain/:cnv
   testQualifiedGetConversation galley1 "galley1" alice bob convId
   testQualifiedGetConversation galley2 "galley2" bob alice convId
@@ -403,9 +421,17 @@ testListConversations brig1 brig2 galley1 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
+  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
+
   -- create two group conversations with alice & bob, on each of domain1, domain2
-  cnv1 <- responseJsonUnsafe <$> createConversation galley1 (userId alice) [userQualifiedId bob]
-  cnv2 <- responseJsonUnsafe <$> createConversation galley2 (userId bob) [userQualifiedId alice]
+  cnv1 <-
+    responseJsonError
+      =<< createConversation galley1 (userId alice) [userQualifiedId bob]
+      <!! const 201 === statusCode
+  cnv2 <-
+    responseJsonError
+      =<< createConversation galley2 (userId bob) [userQualifiedId alice]
+      <!! const 201 === statusCode
 
   --  Expect both group conversations containing alice and bob
   --  to pop up for alice (on galley1)
@@ -414,10 +440,17 @@ testListConversations brig1 brig2 galley1 galley2 = do
   -- From Alice's point of view
   -- both conversations should show her as the self member and bob as Othermember.
   let expected = cnv1
-  rs <- listAllConvs galley1 (userId alice) <!! (const 200 === statusCode)
-  let cs = convList <$> responseJsonUnsafe rs
-  let c1 = cs >>= find ((== cnvQualifiedId cnv1) . cnvQualifiedId)
-  let c2 = cs >>= find ((== cnvQualifiedId cnv2) . cnvQualifiedId)
+  rs <- listConvIdsFirstPage galley1 (userId alice) <!! (const 200 === statusCode)
+  (page :: ConvIdsPage) <- responseJsonError rs
+  liftIO $ assertBool "conversations should fit in a single page" (not (mtpHasMore page))
+  cids <- liftIO $ case checked (mtpResults page) of
+    Nothing -> assertFailure "too many conversations"
+    Just r -> pure r
+  (cs :: [Conversation]) <-
+    (fmap crFound . responseJsonError)
+      =<< listConvs galley1 (userId alice) cids <!! (const 200 === statusCode)
+  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
+  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
   liftIO . forM_ [c1, c2] $ \actual -> do
     assertEqual
       "self member mismatch"
@@ -455,10 +488,13 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
         (userId bob)
         (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
 
+  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
+
   -- create conversation on domain 2
   convId <-
-    qUnqualified . cnvQualifiedId . responseJsonUnsafe
-      <$> createConversation galley2 (userId bob) [userQualifiedId alice]
+    fmap (qUnqualified . cnvQualifiedId) . responseJsonError
+      =<< createConversation galley2 (userId bob) [userQualifiedId alice]
+      <!! const 201 === statusCode
 
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId bob))
@@ -504,25 +540,24 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   -- create alice user and client on domain 1
   alice <- randomUser brig1
   aliceClient <-
-    clientId . responseJsonUnsafe
-      <$> addClient
-        brig1
-        (userId alice)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+    fmap clientId . responseJsonError
+      =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+      <!! const 201 === statusCode
 
   -- create bob user and client on domain 2
   bob <- randomUser brig2
   bobClient <-
-    clientId . responseJsonUnsafe
-      <$> addClient
-        brig2
-        (userId bob)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+    fmap clientId . responseJsonError
+      =<< addClient brig2 (userId bob) (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+      <!! const 201 === statusCode
+
+  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
   -- create conversation on domain 1
   convId <-
-    qUnqualified . cnvQualifiedId . responseJsonUnsafe
-      <$> createConversation galley1 (userId alice) [userQualifiedId bob]
+    fmap (qUnqualified . cnvQualifiedId) . responseJsonError
+      =<< createConversation galley1 (userId alice) [userQualifiedId bob]
+      <!! const 201 === statusCode
 
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId alice))

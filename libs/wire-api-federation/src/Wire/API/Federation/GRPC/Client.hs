@@ -15,7 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.GRPC.Client where
+module Wire.API.Federation.GRPC.Client
+  ( GrpcClientErr (..),
+    createGrpcClient,
+    grpcClientError,
+  )
+where
 
 import Control.Exception
 import qualified Data.Text as T
@@ -32,11 +37,15 @@ createGrpcClient :: MonadIO m => GrpcClientConfig -> m (Either GrpcClientErr Grp
 createGrpcClient cfg = do
   res <- liftIO $ try @IOException $ setupGrpcClient' cfg
   pure $ case res of
-    Left err -> Left (GrpcClientErr (T.pack (show err <> errorInfo)))
-    Right (Left err) -> Left (GrpcClientErr (T.pack (show err <> errorInfo)))
+    Left err -> Left (grpcClientError (Just cfg) err)
+    Right (Left err) -> Left (grpcClientError (Just cfg) err)
     Right (Right client) -> Right client
-  where
-    errorInfo = addressToErrInfo $ _grpcClientConfigAddress cfg
+
+grpcClientError :: Exception e => Maybe GrpcClientConfig -> e -> GrpcClientErr
+grpcClientError mcfg err =
+  GrpcClientErr . T.pack $
+    displayException err
+      <> maybe "" (\cfg -> " " <> addressToErrInfo (_grpcClientConfigAddress cfg)) mcfg
 
 addressToErrInfo :: Address -> String
 addressToErrInfo = \case

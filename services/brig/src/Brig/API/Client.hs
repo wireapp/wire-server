@@ -45,6 +45,7 @@ module Brig.API.Client
 where
 
 import Brig.API.Types
+import Brig.API.Util
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
@@ -69,19 +70,18 @@ import Data.List.Split (chunksOf)
 import Data.Map.Strict (traverseWithKey)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), partitionQualified, partitionRemoteOrLocalIds)
+import Data.Qualified
 import qualified Data.Set as Set
-import Galley.Types (UserClients (..))
 import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
+import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..), UserClientPrekeyMap, mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
@@ -106,14 +106,14 @@ lookupPubClients qid@(Qualified uid domain) = do
 
 lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError AppIO (QualifiedUserMap (Set PubClient))
 lookupPubClientsBulk qualifiedUids = do
-  domain <- viewFederationDomain
-  let (remoteUsers, localUsers) = partitionRemoteOrLocalIds domain qualifiedUids
+  loc <- qualifyLocal ()
+  let (localUsers, remoteUsers) = partitionQualified loc qualifiedUids
   remoteUserClientMap <-
     traverseWithKey
       (\domain' uids -> getUserClients domain' (GetUserClients uids))
-      (partitionQualified remoteUsers)
+      (indexQualified (fmap qUntagged remoteUsers))
       !>> ClientFederationError
-  localUserClientMap <- Map.singleton domain <$> lookupLocalPubClientsBulk localUsers
+  localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError AppIO (UserMap (Set PubClient))
@@ -126,14 +126,14 @@ addClient u con ip new = do
   acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
-  let caps :: Maybe (Set Client.ClientCapability)
+  let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
         where
           updlhdev =
             if newClientType new == LegalHoldClientType
               then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
               else id
-          lhcaps = Client.ClientSupportsLegalholdImplicitConsent
+          lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc caps !>> ClientDataError
   let usr = accountUser acc
   lift $ do
@@ -186,7 +186,7 @@ claimPrekey protectee u d c = do
 
 claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimLocalPrekey protectee user client = do
-  guardLegalhold protectee (Client.mkUserClients [(user, [client])])
+  guardLegalhold protectee (mkUserClients [(user, [client])])
   lift $ do
     prekey <- Data.claimPrekey user client
     when (isNothing prekey) (noPrekeys user client)
@@ -205,7 +205,7 @@ claimPrekeyBundle protectee domain uid = do
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> Data.lookupClients u
-  guardLegalhold protectee (Client.mkUserClients [(u, clients)])
+  guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
@@ -214,18 +214,33 @@ claimRemotePrekeyBundle quser = do
 
 claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles protectee quc = do
-  localDomain <- viewFederationDomain
-  fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
-    -- FUTUREWORK(federation): parallelise federator requests here
-    . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain (UserClients uc))
-    . Map.assocs
-    . qualifiedUserClients
-    $ quc
+  loc <- qualifyLocal ()
+  let (locals, remotes) =
+        partitionQualifiedAndTag
+          loc
+          ( map
+              (fmap UserClients . uncurry (flip Qualified))
+              (Map.assocs (qualifiedUserClients quc))
+          )
+  localPrekeys <- traverse claimLocal locals
+  remotePrekeys <-
+    traverseConcurrentlyWithErrors
+      claimRemote
+      remotes
+      !>> ClientFederationError
+  pure . qualifiedUserClientPrekeyMapFromList $ localPrekeys <> remotePrekeys
   where
-    claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
-    claim localDomain domain uc
-      | domain == localDomain = claimLocalMultiPrekeyBundles protectee uc
-      | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
+    claimRemote ::
+      Remote UserClients ->
+      ExceptT FederationError AppIO (Qualified UserClientPrekeyMap)
+    claimRemote ruc =
+      qUntagged . qualifyAs ruc
+        <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
+
+    claimLocal :: Local UserClients -> ExceptT ClientError AppIO (Qualified UserClientPrekeyMap)
+    claimLocal luc =
+      qUntagged . qualifyAs luc
+        <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do

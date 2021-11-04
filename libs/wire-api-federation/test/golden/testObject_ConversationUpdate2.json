@@ -9,11 +9,13 @@
     ],
     "time": "1864-04-12T12:22:43.673Z",
     "action": {
-        "tag": "ConversationActionRemoveMember",
-        "contents": {
-            "domain": "golden.example.com",
-            "id": "00000000-0000-0000-0000-000100004007"
-        }
+        "tag": "ConversationActionRemoveMembers",
+        "contents": [
+            {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000100004007"
+            }
+        ]
     },
     "conv_id": "00000000-0000-0000-0000-000100000006"
 }

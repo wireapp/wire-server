@@ -811,15 +811,15 @@ packages:
     subdir: x509-store
     name: x509-store
     version: 1.6.7
-    git: https://github.com/wireapp/hs-certificate
+    git: https://github.com/vincenthz/hs-certificate
     pantry-tree:
       size: 398
-      sha256: 96deca9a5358118057cd145f198b5be06d88019eae46b263bee86c76b2fc574d
-    commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1
+      sha256: bf71c28417dcf76a8aef361fbc74abe78962c80e7e996a2515996fd44b2f6ba6
+    commit: a899bda3d7666d25143be7be8f3105fc076703d9
   original:
     subdir: x509-store
-    git: https://github.com/wireapp/hs-certificate
-    commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1
+    git: https://github.com/vincenthz/hs-certificate
+    commit: a899bda3d7666d25143be7be8f3105fc076703d9
 - completed:
     hackage: polysemy-check-0.6.0.0@sha256:6e8452c9c13d068d008bb8213980111d4a3e99e9250154a80235a458a5abf4e7,2648
     pantry-tree:

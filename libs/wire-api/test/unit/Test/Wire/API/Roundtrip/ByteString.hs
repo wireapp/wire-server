@@ -26,7 +26,6 @@ import qualified Wire.API.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset.V3 as Asset.V3
 import qualified Wire.API.Asset.V3.Resumable as Asset.V3.Resumable
 import qualified Wire.API.Call.Config as Call.Config
-import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Properties as Properties
@@ -58,7 +57,6 @@ tests =
       testRoundTrip @Call.Config.Transport,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.TurnURI,
-      testRoundTrip @Connection.Relation,
       testRoundTrip @Conversation.Code.Key,
       testRoundTrip @Conversation.Code.Value,
       testRoundTrip @Conversation.Role.RoleName,

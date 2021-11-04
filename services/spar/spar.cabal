@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 034f7ce3f0f657c13af2b2e930860b917479561646f64f83318d0756136b9455
+-- hash: a0e25b55baaade0d8e5c5317b255ef5191d861abfde4369ef34ffb6d77bc8e0d
 
 name:           spar
 version:        0.1
@@ -22,6 +22,7 @@ library
   exposed-modules:
       Spar.API
       Spar.App
+      Spar.CanonicalInterpreter
       Spar.Data
       Spar.Data.Instances
       Spar.Error
@@ -52,8 +53,16 @@ library
       Spar.Sem.IdP.Mem
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
+      Spar.Sem.Now
+      Spar.Sem.Now.IO
       Spar.Sem.Random
       Spar.Sem.Random.IO
+      Spar.Sem.Reporter
+      Spar.Sem.Reporter.Wai
+      Spar.Sem.SAML2
+      Spar.Sem.SAML2.Library
+      Spar.Sem.SamlProtocolSettings
+      Spar.Sem.SamlProtocolSettings.Servant
       Spar.Sem.SAMLUserStore
       Spar.Sem.SAMLUserStore.Cassandra
       Spar.Sem.ScimExternalIdStore

@@ -32,11 +32,11 @@ import Galley.App
 import Galley.Options
 import Imports
 
-rangeChecked :: Within a n m => a -> Galley (Range n m a)
+rangeChecked :: Within a n m => a -> Galley r (Range n m a)
 rangeChecked = either throwErr return . checkedEither
 {-# INLINE rangeChecked #-}
 
-rangeCheckedMaybe :: Within a n m => Maybe a -> Galley (Maybe (Range n m a))
+rangeCheckedMaybe :: Within a n m => Maybe a -> Galley r (Maybe (Range n m a))
 rangeCheckedMaybe Nothing = return Nothing
 rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 {-# INLINE rangeCheckedMaybe #-}
@@ -45,7 +45,7 @@ rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)
 
-checkedConvSize :: Foldable f => f a -> Galley (ConvSizeChecked f a)
+checkedConvSize :: Foldable f => f a -> Galley r (ConvSizeChecked f a)
 checkedConvSize x = do
   o <- view options
   let minV :: Integer = 0
@@ -54,5 +54,5 @@ checkedConvSize x = do
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
-throwErr :: String -> Galley a
+throwErr :: String -> Galley r a
 throwErr = throwM . invalidRange . fromString

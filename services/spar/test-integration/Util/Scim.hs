@@ -34,7 +34,6 @@ import Data.UUID.V4 as UUID
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
-import Spar.App (liftSem)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -82,16 +81,15 @@ registerScimToken teamid midpid = do
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runSpar $
-    liftSem $
-      ScimTokenStore.insert
-        tok
-        ScimTokenInfo
-          { stiTeam = teamid,
-            stiId = scimTokenId,
-            stiCreatedAt = now,
-            stiIdP = midpid,
-            stiDescr = "test token"
-          }
+    ScimTokenStore.insert
+      tok
+      ScimTokenInfo
+        { stiTeam = teamid,
+          stiId = scimTokenId,
+          stiCreatedAt = now,
+          stiIdP = midpid,
+          stiDescr = "test token"
+        }
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered
@@ -624,4 +622,6 @@ userShouldMatch u1 u2 = liftIO $ do
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
 whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit
+whatSparReturnsFor idp richInfoSizeLimit =
+  either (Left . show) (Right . synthesizeScimUser)
+    . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit

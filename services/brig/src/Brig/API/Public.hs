@@ -56,7 +56,7 @@ import Brig.User.Phone
 import qualified Cassandra as C
 import qualified Cassandra as Data
 import Control.Error hiding (bool)
-import Control.Lens (view, (%~), (.~), (?~), (^.))
+import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -70,7 +70,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import Data.Qualified
 import Data.Range
 import Data.String.Interpolate as QQ
 import qualified Data.Swagger as S
@@ -98,7 +98,6 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
@@ -134,10 +133,24 @@ swaggerDocsAPI =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
       & S.security %~ nub
+      -- sanitise definitions
       & S.definitions . traverse %~ sanitise
+      -- sanitise general responses
+      & S.responses . traverse . S.schema . _Just . S._Inline %~ sanitise
+      -- sanitise all responses of all paths
+      & S.allOperations . S.responses . S.responses
+        . traverse
+        . S._Inline
+        . S.schema
+        . _Just
+        . S._Inline
+        %~ sanitise
   where
     sanitise :: S.Schema -> S.Schema
-    sanitise = (S.properties . traverse . S._Inline %~ sanitise) . (S.required %~ nubOrd)
+    sanitise =
+      (S.properties . traverse . S._Inline %~ sanitise)
+        . (S.required %~ nubOrd)
+        . (S.enum_ . _Just %~ nub)
     desc =
       Text.pack
         [QQ.i|
@@ -261,7 +274,7 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createLocalConnection,
+        BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
         BrigAPI.createConnection = createConnection,
         BrigAPI.listLocalConnections = listLocalConnections,
         BrigAPI.listConnections = listConnections,
@@ -905,7 +918,9 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
-getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
+getUser self qualifiedUserId = do
+  lself <- qualifyLocal self
+  API.lookupProfile lself qualifiedUserId !>> fedError
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -933,14 +948,14 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 
 listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> Handler [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
+  lself <- qualifyLocal self
   foundUsers <- case q of
     Public.ListUsersByIds us ->
-      byIds us
+      byIds lself us
     Public.ListUsersByHandles hs -> do
-      domain <- viewFederationDomain
-      let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
+      let (localHandles, _) = partitionQualified lself (fromRange hs)
       us <- getIds localHandles
-      Handle.filterHandleResults self =<< byIds us
+      Handle.filterHandleResults lself =<< byIds lself us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
@@ -950,8 +965,8 @@ listUsersByIdsOrHandles self q = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
-    byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
-    byIds uids = API.lookupProfiles self uids !>> fedError
+    byIds :: Local UserId -> [Qualified UserId] -> Handler [Public.UserProfile]
+    byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -1085,69 +1100,85 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createLocalConnection self conn cr = do
-  API.createConnection self cr conn !>> connError
+createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified self conn cr = do
+  lself <- qualifyLocal self
+  target <- qualifyLocal (Public.crUser cr)
+  API.createConnection lself conn (qUntagged target) !>> connError
 
--- | FUTUREWORK: also create remote connections: https://wearezeta.atlassian.net/browse/SQCORE-958
 createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnection self conn (Qualified otherUser otherDomain) = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
-    else throwM federationNotImplemented
+createConnection self conn target = do
+  lself <- qualifyLocal self
+  API.createConnection lself conn target !>> connError
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
-  let newStatus = Public.cuStatus update
-  mc <- API.updateConnection self other newStatus (Just conn) !>> connError
-  return $ maybe Public.Unchanged Public.Updated mc
+  lother <- qualifyLocal other
+  updateConnection self conn (qUntagged lother) update
 
--- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
 updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
-updateConnection self conn (Qualified otherUid otherDomain) update = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then updateLocalConnection self conn otherUid update
-    else throwM federationNotImplemented
+updateConnection self conn other update = do
+  let newStatus = Public.cuStatus update
+  lself <- qualifyLocal self
+  mc <- API.updateConnection lself other newStatus (Just conn) !>> connError
+  return $ maybe Public.Unchanged Public.Updated mc
 
 listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
 listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
--- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
+-- | Lists connection IDs for the logged in user in a paginated way.
+--
+-- Pagination requires an order, in this case the order is defined as:
+--
+-- - First all the local connections are listed ordered by their id
+--
+-- - After local connections, remote connections are listed ordered
+-- - lexicographically by their domain and then by their id.
 listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
-listConnections uid req = do
-  localDomain <- viewFederationDomain
-  let size = Public.gmtprSize req
-  res :: C.PageWithState Data.LocalConnection <- Data.lookupLocalConnectionsPage uid convertedState (rcast size)
-  return (pageToConnectionsPage localDomain Public.PagingLocals res)
+listConnections uid Public.GetMultiTablePageRequest {..} = do
+  self <- qualifyLocal uid
+  case gmtprState of
+    Just (Public.ConnectionPagingState Public.PagingRemotes stateBS) -> remotesOnly self (mkState <$> stateBS) (fromRange gmtprSize)
+    _ -> localsAndRemotes self (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
-    pageToConnectionsPage :: Domain -> Public.LocalOrRemoteTable -> Data.PageWithState Data.LocalConnection -> Public.ConnectionsPage
-    pageToConnectionsPage localDomain table page@Data.PageWithState {..} =
+    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Public.UserConnection -> Public.ConnectionsPage
+    pageToConnectionsPage table page@Data.PageWithState {..} =
       Public.MultiTablePage
-        { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
+        { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
           -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
           -- Is this type actually useless? Or the tests not good enough?
           mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
+
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
-    convertedState :: Maybe C.PagingState
-    convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
+    localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> Handler Public.ConnectionsPage
+    localsAndRemotes self pagingState size = do
+      localPage <- pageToConnectionsPage Public.PagingLocals <$> Data.lookupLocalConnectionsPage self pagingState (rcast size)
+      let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
+      if Public.mtpHasMore localPage || remainingSize <= 0
+        then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
+        else do
+          remotePage <- remotesOnly self Nothing remainingSize
+          pure remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
+
+    remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> Handler Public.ConnectionsPage
+    remotesOnly self pagingState size =
+      pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
-getLocalConnection self other = lift $ API.lookupLocalConnection self other
+getLocalConnection self other = do
+  lother <- qualifyLocal other
+  getConnection self (qUntagged lother)
 
 getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
-getConnection self (Qualified otherUser otherDomain) = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then getLocalConnection self otherUser
-    else throwM federationNotImplemented
+getConnection self other = do
+  lself <- qualifyLocal self
+  lift $ Data.lookupConnection lself other
 
 deleteUser ::
   UserId ->

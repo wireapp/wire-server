@@ -22,6 +22,7 @@ module Brig.API.Util
     logInvitationCode,
     validateHandle,
     logEmail,
+    traverseConcurrentlyWithErrors,
   )
 where
 
@@ -33,7 +34,7 @@ import qualified Brig.Data.User as Data
 import Brig.Types
 import Brig.Types.Intra (accountUser)
 import Control.Monad.Catch (throwM)
-import Control.Monad.Trans.Except (throwE)
+import Control.Monad.Trans.Except
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
@@ -42,6 +43,8 @@ import Data.Text.Ascii (AsciiText (toText))
 import Imports
 import System.Logger (Msg)
 import qualified System.Logger as Log
+import UnliftIO.Async
+import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> Handler [UserProfile]
@@ -73,3 +76,13 @@ logEmail email =
 
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)
+
+-- | Traverse concurrently and fail on first error.
+traverseConcurrentlyWithErrors ::
+  (Traversable t, Exception e) =>
+  (a -> ExceptT e AppIO b) ->
+  t a ->
+  ExceptT e AppIO (t b)
+traverseConcurrentlyWithErrors f =
+  ExceptT . try . (traverse (either throwIO pure) =<<)
+    . pooledMapConcurrentlyN 8 (runExceptT . f)

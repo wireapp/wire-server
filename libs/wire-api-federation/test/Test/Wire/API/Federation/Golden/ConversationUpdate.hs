@@ -70,5 +70,5 @@ testObject_ConversationUpdate2 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],
-      cuAction = ConversationActionRemoveMember (qAlice)
+      cuAction = ConversationActionRemoveMembers (pure qAlice)
     }

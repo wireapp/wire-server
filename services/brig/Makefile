@@ -103,6 +103,19 @@ i-list:
 i-%:
 	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
+
+# Like integration-%, but starts services only once then runs a given test pattern $FLAKE_AMOUNT times until a failure is seen
+FLAKE_FILE    ?= /tmp/flake.sh
+FLAKE_AMOUNT  ?= 1000
+flake-%: fast
+	echo 'set -ex' > $(FLAKE_FILE)
+	chmod +x $(FLAKE_FILE)
+	for i in $$(seq $(FLAKE_AMOUNT)); do \
+		echo "echo $$i" >> $(FLAKE_FILE); \
+		echo '$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)' >> $(FLAKE_FILE); \
+	done
+	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(FLAKE_FILE)
+
 .PHONY: integration
 integration: fast i
 

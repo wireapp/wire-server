@@ -30,7 +30,6 @@ where
 import Data.Domain
 import Data.Id as Id
 import Data.Qualified
-import Data.Tagged
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName)
@@ -46,7 +45,7 @@ data RemoteMember = RemoteMember
 remoteMemberToOther :: RemoteMember -> OtherMember
 remoteMemberToOther x =
   OtherMember
-    { omQualifiedId = unTagged (rmId x),
+    { omQualifiedId = qUntagged (rmId x),
       omService = Nothing,
       omConvRoleName = rmConvRoleName x
     }

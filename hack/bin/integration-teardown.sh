@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOP_LEVEL="$DIR/../.."
 
 NAMESPACE=${NAMESPACE:-test-integration}
+# doesn't matter for destruction but needs to be set
+export FEDERATION_DOMAIN="."
 
 set -ex
 
-echo "NAMESPACE = $NAMESPACE"
-
-helm ls --all --namespace ${NAMESPACE} | grep -v NAME | awk '{print $1}' | xargs -n 1 helm -n "$NAMESPACE" delete
-
-sleep 10
-
-kubectl delete namespace ${NAMESPACE}
+. "$DIR/helm_overrides.sh"
+helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" destroy

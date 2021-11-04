@@ -67,7 +67,7 @@ botMemId = BotId . lmId . fromBotMember
 botMemService :: BotMember -> ServiceRef
 botMemService = fromJust . lmService . fromBotMember
 
-addBotMember :: Qualified UserId -> ServiceRef -> BotId -> ConvId -> UTCTime -> Galley (Event, BotMember)
+addBotMember :: Qualified UserId -> ServiceRef -> BotId -> ConvId -> UTCTime -> Galley r (Event, BotMember)
 addBotMember qorig s bot cnv now = do
   retry x5 . batch $ do
     setType BatchLogged

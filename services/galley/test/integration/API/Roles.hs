@@ -44,7 +44,6 @@ import TestSetup
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Federation.GRPC.Types as F
-import Wire.API.User
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -94,7 +93,7 @@ handleConversationRoleAdmin = do
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice alice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -136,7 +135,7 @@ handleConversationRoleMember = do
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice alice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -167,18 +166,16 @@ roleUpdateRemoteMember = do
   qcharlie <- Qualified <$> randomId <*> pure remoteDomain
   let bob = qUnqualified qbob
 
+  traverse_ (connectWithRemoteUser bob) [qalice, qcharlie]
   resp <-
     postConvWithRemoteUsers
-      remoteDomain
-      [mkProfile qalice (Name "Alice"), mkProfile qcharlie (Name "Charlie")]
       bob
-      [qalice, qcharlie]
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -238,18 +235,16 @@ roleUpdateWithRemotes = do
       charlie = qUnqualified qcharlie
 
   connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
   resp <-
-    postConvWithRemoteUser
-      remoteDomain
-      (mkProfile qalice (Name "Alice"))
+    postConvWithRemoteUsers
       bob
-      [qalice, qcharlie]
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -298,19 +293,17 @@ accessUpdateWithRemotes = do
       charlie = qUnqualified qcharlie
 
   connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
   resp <-
-    postConvWithRemoteUser
-      remoteDomain
-      (mkProfile qalice (Name "Alice"))
+    postConvWithRemoteUsers
       bob
-      [qalice, qcharlie]
+      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  opts <- view tsGConf
   let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator opts remoteDomain (const ()) $
+      withTempMockFederator (const ()) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 

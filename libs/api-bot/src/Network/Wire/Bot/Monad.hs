@@ -88,6 +88,7 @@ module Network.Wire.Bot.Monad
     BotNetException (..),
     BotNetFailure (..),
     try,
+    qualifyLocal,
   )
 where
 
@@ -104,6 +105,7 @@ import Data.Id
 import Data.Metrics (Metrics)
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified (Local, toLocalUnsafe)
 import Data.Text (pack, unpack)
 import Data.Time.Clock
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeOrError)
@@ -524,6 +526,9 @@ withCachedBot t f = do
 
 viewFederationDomain :: MonadBotNet m => m Domain
 viewFederationDomain = liftBotNet . BotNet $ asks botNetDomain
+
+qualifyLocal :: MonadBotNet m => a -> m (Local a)
+qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
 -------------------------------------------------------------------------------
 -- Assertions

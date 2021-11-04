@@ -49,22 +49,22 @@ import qualified System.Logger.Class as Log
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
-teamActivate :: TeamId -> Natural -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
+teamActivate :: TeamId -> Natural -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley r ()
 teamActivate tid teamSize cur time = do
   billingUserIds <- getBillingUserIds tid Nothing
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
-teamUpdate :: TeamId -> Natural -> [UserId] -> Galley ()
+teamUpdate :: TeamId -> Natural -> [UserId] -> Galley r ()
 teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
-teamDelete :: TeamId -> Galley ()
+teamDelete :: TeamId -> Galley r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
-teamSuspend :: TeamId -> Galley ()
+teamSuspend :: TeamId -> Galley r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
-journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Maybe TeamCreationTime -> Galley ()
+journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Maybe TeamCreationTime -> Galley r ()
 journalEvent typ tid dat tim =
   view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
     -- writetime is in microseconds in cassandra 3.11
@@ -90,7 +90,7 @@ evData memberCount billingUserIds cur =
 -- FUTUREWORK: Remove this function and always get billing users ids using
 -- 'Data.listBillingTeamMembers'. This is required only until data is backfilled in the
 -- 'billing_team_user' table.
-getBillingUserIds :: TeamId -> Maybe TeamMemberList -> Galley [UserId]
+getBillingUserIds :: TeamId -> Maybe TeamMemberList -> Galley r [UserId]
 getBillingUserIds tid maybeMemberList = do
   enableIndexedBillingTeamMembers <- view (options . Opts.optSettings . Opts.setEnableIndexedBillingTeamMembers . to (fromMaybe False))
   case maybeMemberList of
@@ -100,14 +100,14 @@ getBillingUserIds tid maybeMemberList = do
         else handleList enableIndexedBillingTeamMembers =<< Data.teamMembersForFanout tid
     Just list -> handleList enableIndexedBillingTeamMembers list
   where
-    fetchFromDB :: Galley [UserId]
+    fetchFromDB :: Galley r [UserId]
     fetchFromDB = Data.listBillingTeamMembers tid
 
-    filterFromMembers :: TeamMemberList -> Galley [UserId]
+    filterFromMembers :: TeamMemberList -> Galley r [UserId]
     filterFromMembers list =
       pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
 
-    handleList :: Bool -> TeamMemberList -> Galley [UserId]
+    handleList :: Bool -> TeamMemberList -> Galley r [UserId]
     handleList enableIndexedBillingTeamMembers list =
       case list ^. teamMemberListType of
         ListTruncated ->

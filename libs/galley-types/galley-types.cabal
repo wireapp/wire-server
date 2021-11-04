@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8d07ea070b6384ec247f4473abb198bbb9639f72543920cbe46f561df96963ca
+-- hash: ccecf8384a3050034fc05928ae9bd039006f4479289f73de11832052791a691f
 
 name:           galley-types
 version:        0.81.0
@@ -22,7 +22,9 @@ library
       Galley.Types
       Galley.Types.Bot
       Galley.Types.Bot.Service
+      Galley.Types.Conversations.Intra
       Galley.Types.Conversations.Members
+      Galley.Types.Conversations.One2One
       Galley.Types.Conversations.Roles
       Galley.Types.Teams
       Galley.Types.Teams.Intra
@@ -37,16 +39,23 @@ library
       QuickCheck
     , aeson >=0.6
     , base >=4 && <5
+    , bytestring
+    , bytestring-conversion
     , containers >=0.5
+    , cryptonite
     , currency-codes >=2.0
+    , errors
     , exceptions >=0.10.0
     , imports
     , lens >=4.12
+    , memory
+    , schema-profunctor
     , string-conversions
     , tagged
     , text >=0.11
     , time >=1.4
     , types-common >=0.16
+    , uuid
     , wire-api
   default-language: Haskell2010
 
