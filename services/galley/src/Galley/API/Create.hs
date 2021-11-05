@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.API.Create
   ( createGroupConversation,
     internalCreateManagedConversationH,
@@ -59,9 +58,8 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation hiding (Conversation, Member)
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription (MissingLegalholdConsent)
 import Wire.API.Event.Conversation hiding (Conversation)
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Client
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -78,12 +76,14 @@ createGroupConversation ::
        BrigAccess,
        Error ActionError,
        Error ConversationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error LegalHoldError,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -103,12 +103,14 @@ internalCreateManagedConversationH ::
        BrigAccess,
        Error ActionError,
        Error ConversationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error LegalHoldError,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
@@ -123,12 +125,14 @@ internalCreateManagedConversation ::
        BrigAccess,
        Error ActionError,
        Error ConversationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error LegalHoldError,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -136,11 +140,11 @@ internalCreateManagedConversation ::
   NewConvManaged ->
   Galley r ConversationResponse
 internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
-  tinfo <- liftSem $ note internalError (newConvTeam body)
+  tinfo <- liftSem $ note CannotCreateManagedConv (newConvTeam body)
   createTeamGroupConv zusr zcon tinfo body
 
 ensureNoLegalholdConflicts ::
-  Members '[LegalHoldStore, TeamStore, WaiError] r =>
+  Members '[Error LegalHoldError, LegalHoldStore, TeamStore] r =>
   [Remote UserId] ->
   [UserId] ->
   Galley r ()
@@ -148,7 +152,7 @@ ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      liftSem $ throwErrorDescriptionType @MissingLegalholdConsent
+      liftSem $ throw MissingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv ::
@@ -157,10 +161,12 @@ createRegularGroupConv ::
        BrigAccess,
        FederatorAccess,
        Error ActionError,
+       Error InternalError,
+       Error InvalidInput,
+       Error LegalHoldError,
        GundeckAccess,
        LegalHoldStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -201,12 +207,14 @@ createTeamGroupConv ::
        BrigAccess,
        Error ActionError,
        Error ConversationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error LegalHoldError,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
        LegalHoldStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -267,7 +275,7 @@ createTeamGroupConv zusr zcon tinfo body = do
 -- Other kinds of conversations
 
 createSelfConversation ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error InternalError] r =>
   UserId ->
   Galley r ConversationResponse
 createSelfConversation zusr = do
@@ -285,10 +293,14 @@ createOne2OneConversation ::
     '[ BrigAccess,
        ConversationStore,
        Error ActionError,
+       Error ConversationError,
+       Error FederationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error TeamError,
        FederatorAccess,
        GundeckAccess,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -300,10 +312,10 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   let allUsers = newConvMembers lusr j
   other <- liftSem $ ensureOne (ulAll lusr allUsers)
   liftSem . when (qUntagged lusr == other) $
-    throw (invalidOp "Cannot create a 1-1 with yourself")
+    throw (InvalidOpGeneral "Cannot create a 1-1 with yourself")
   mtid <- case newConvTeam j of
     Just ti
-      | cnvManaged ti -> liftSem $ throw noManagedTeamConv
+      | cnvManaged ti -> liftSem $ throw NoManagedTeamConv
       | otherwise -> do
         foldQualified
           lusr
@@ -322,9 +334,8 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
     verifyMembership tid u = do
       membership <- liftSem $ E.getTeamMember tid u
       liftSem . when (isNothing membership) $
-        throw noBindingTeamMembers
+        throw NoBindingTeamMembers
     checkBindingTeamPermissions ::
-      Member WaiError r =>
       Local UserId ->
       Local UserId ->
       TeamId ->
@@ -337,11 +348,19 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
           verifyMembership tid (tUnqualified lusr)
           verifyMembership tid (tUnqualified lother)
           pure (Just tid)
-        Just _ -> liftSem $ throw nonBindingTeam
-        Nothing -> liftSem $ throw teamNotFound
+        Just _ -> liftSem $ throw NotABindingTeamMember
+        Nothing -> liftSem $ throw TeamNotFound
 
 createLegacyOne2OneConversationUnchecked ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       Error InternalError,
+       Error InvalidInput,
+       FederatorAccess,
+       GundeckAccess
+     ]
+    r =>
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -360,7 +379,14 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
       conversationCreated (tUnqualified self) c
 
 createOne2OneConversationUnchecked ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error FederationError,
+       Error InternalError,
+       FederatorAccess,
+       GundeckAccess
+     ]
+    r =>
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -376,7 +402,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId (qUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  Members '[ConversationStore, FederatorAccess, GundeckAccess, WaiError] r =>
+  Members '[ConversationStore, Error InternalError, FederatorAccess, GundeckAccess] r =>
   Local ConvId ->
   Local UserId ->
   ConnId ->
@@ -394,7 +420,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
       conversationCreated (tUnqualified self) c
 
 createOne2OneConversationRemotely ::
-  Member WaiError r =>
+  Member (Error FederationError) r =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
@@ -404,16 +430,19 @@ createOne2OneConversationRemotely ::
   Galley r ConversationResponse
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   liftSem $
-    throw federationNotImplemented
+    throw FederationNotImplemented
 
 createConnectConversation ::
   Members
     '[ ConversationStore,
        Error ActionError,
+       Error ConversationError,
+       Error FederationError,
+       Error InternalError,
+       Error InvalidInput,
        FederatorAccess,
        GundeckAccess,
-       MemberStore,
-       WaiError
+       MemberStore
      ]
     r =>
   UserId ->
@@ -429,23 +458,25 @@ createConnectConversation usr conn j = do
     (cRecipient j)
 
 createConnectConversationWithRemote ::
-  Member WaiError r =>
+  Member (Error FederationError) r =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
   Galley r ConversationResponse
 createConnectConversationWithRemote _ _ _ =
   liftSem $
-    throw federationNotImplemented
+    throw FederationNotImplemented
 
 createLegacyConnectConversation ::
   Members
     '[ ConversationStore,
        Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       Error InternalError,
        FederatorAccess,
        GundeckAccess,
-       MemberStore,
-       WaiError
+       MemberStore
      ]
     r =>
   Local UserId ->
@@ -518,14 +549,14 @@ createLegacyConnectConversation lusr conn lrecipient j = do
 -- Helpers
 
 conversationCreated ::
-  Member WaiError r =>
+  Member (Error InternalError) r =>
   UserId ->
   Data.Conversation ->
   Galley r ConversationResponse
 conversationCreated usr cnv = Created <$> conversationView usr cnv
 
 conversationExisted ::
-  Member WaiError r =>
+  Member (Error InternalError) r =>
   UserId ->
   Data.Conversation ->
   Galley r ConversationResponse
@@ -537,7 +568,7 @@ handleConversationResponse = \case
   Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation ::
-  Members '[FederatorAccess, GundeckAccess, WaiError] r =>
+  Members '[Error InternalError, FederatorAccess, GundeckAccess] r =>
   Maybe UTCTime ->
   UserId ->
   Maybe ConnId ->
@@ -569,7 +600,7 @@ notifyCreatedConversation dtime usr conn c = do
           & pushRoute .~ route
 
 localOne2OneConvId ::
-  Member WaiError r =>
+  Member (Error InvalidInput) r =>
   Local UserId ->
   Local UserId ->
   Galley r (Local ConvId)
@@ -578,13 +609,13 @@ localOne2OneConvId self other = do
   pure . qualifyAs self $ Data.localOne2OneConvId x y
 
 toUUIDs ::
-  Member WaiError r =>
+  Member (Error InvalidInput) r =>
   UserId ->
   UserId ->
   Galley r (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do
-  a' <- U.fromUUID (toUUID a) & ifNothing invalidUUID4
-  b' <- U.fromUUID (toUUID b) & ifNothing invalidUUID4
+  a' <- U.fromUUID (toUUID a) & note InvalidUUID4 & liftSem
+  b' <- U.fromUUID (toUUID b) & note InvalidUUID4 & liftSem
   return (a', b')
 
 accessRole :: NewConv -> AccessRole
@@ -600,6 +631,6 @@ newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
 
-ensureOne :: Member WaiError r => [a] -> Sem r a
+ensureOne :: Member (Error InvalidInput) r => [a] -> Sem r a
 ensureOne [x] = pure x
-ensureOne _ = throw (invalidRange "One-to-one conversations can only have a single invited member")
+ensureOne _ = throw (InvalidRange "One-to-one conversations can only have a single invited member")

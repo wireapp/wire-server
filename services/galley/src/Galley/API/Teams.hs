@@ -124,7 +124,6 @@ import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ConvNotFound, NotATeamMember, operationDenied)
 import Wire.API.Federation.Client
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
@@ -140,27 +139,27 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getTeamH (zusr ::: tid ::: _) =
-  maybe (liftSem (throw teamNotFound)) (pure . json) =<< lookupTeam zusr tid
+  maybe (liftSem (throw TeamNotFound)) (pure . json) =<< lookupTeam zusr tid
 
 getTeamInternalH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ::: JSON ->
   Galley r Response
 getTeamInternalH (tid ::: _) =
   liftSem . fmap json $
-    E.getTeam tid >>= note teamNotFound
+    E.getTeam tid >>= note TeamNotFound
 
 getTeamNameInternalH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ::: JSON ->
   Galley r Response
 getTeamNameInternalH (tid ::: _) =
   liftSem . fmap json $
-    getTeamNameInternal tid >>= note teamNotFound
+    getTeamNameInternal tid >>= note TeamNotFound
 
 getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
@@ -196,7 +195,15 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  Members '[BrigAccess, Error ActionError, GundeckAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error InvalidInput,
+       Error TeamError,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
   Galley r Response
 createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
@@ -205,7 +212,14 @@ createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
   pure (empty & setStatus status201 . location newTeamId)
 
 createNonBindingTeam ::
-  Members '[BrigAccess, Error ActionError, GundeckAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error TeamError,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
@@ -235,7 +249,7 @@ createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   pure (team ^. teamId)
 
 createBindingTeamH ::
-  Members '[BrigAccess, GundeckAccess, TeamStore, WaiError] r =>
+  Members '[BrigAccess, Error InvalidInput, GundeckAccess, TeamStore] r =>
   UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON ->
   Galley r Response
 createBindingTeamH (zusr ::: tid ::: req ::: _) = do
@@ -244,7 +258,7 @@ createBindingTeamH (zusr ::: tid ::: req ::: _) = do
   pure (empty & setStatus status201 . location newTeamId)
 
 createBindingTeam ::
-  Members '[BrigAccess, GundeckAccess, TeamStore, WaiError] r =>
+  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
   UserId ->
   TeamId ->
   BindingNewTeam ->
@@ -258,7 +272,14 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   pure tid
 
 updateTeamStatusH ::
-  Members '[BrigAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error InvalidInput,
+       Error TeamError,
+       TeamStore
+     ]
+    r =>
   TeamId ::: JsonRequest TeamStatusUpdate ::: JSON ->
   Galley r Response
 updateTeamStatusH (tid ::: req ::: _) = do
@@ -267,12 +288,12 @@ updateTeamStatusH (tid ::: req ::: _) = do
   return empty
 
 updateTeamStatus ::
-  Members '[BrigAccess, TeamStore, WaiError] r =>
+  Members '[BrigAccess, Error ActionError, Error TeamError, TeamStore] r =>
   TeamId ->
   TeamStatusUpdate ->
   Galley r ()
 updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
-  oldStatus <- tdStatus <$> (liftSem (E.getTeam tid) >>= ifNothing teamNotFound)
+  oldStatus <- tdStatus <$> liftSem (E.getTeam tid >>= note TeamNotFound)
   valid <- validateTransition (oldStatus, newStatus)
   when valid $ do
     journal newStatus cur
@@ -290,18 +311,25 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
               then 1
               else possiblyStaleSize
       Journal.teamActivate tid size c teamCreationTime
-    journal _ _ = liftSem $ throw invalidTeamStatusUpdate
-    validateTransition :: Member WaiError r => (TeamStatus, TeamStatus) -> Galley r Bool
+    journal _ _ = liftSem $ throw InvalidTeamStatusUpdate
+    validateTransition :: Member (Error ActionError) r => (TeamStatus, TeamStatus) -> Galley r Bool
     validateTransition = \case
       (PendingActive, Active) -> return True
       (Active, Active) -> return False
       (Active, Suspended) -> return True
       (Suspended, Active) -> return True
       (Suspended, Suspended) -> return False
-      (_, _) -> liftSem $ throw invalidTeamStatusUpdate
+      (_, _) -> liftSem $ throw InvalidTeamStatusUpdate
 
 updateTeamH ::
-  Members '[GundeckAccess, TeamStore, WaiError] r =>
+  Members
+    '[ Error ActionError,
+       Error InvalidInput,
+       Error TeamError,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.TeamUpdateData ::: JSON ->
   Galley r Response
 updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -310,7 +338,13 @@ updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
   pure empty
 
 updateTeam ::
-  Members '[GundeckAccess, TeamStore, WaiError] r =>
+  Members
+    '[ Error ActionError,
+       Error TeamError,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -331,7 +365,16 @@ updateTeam zusr zcon tid updateData = do
   liftSem . E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH ::
-  Members '[BrigAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error AuthenticationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error TeamError,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON ->
   Galley r Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -341,16 +384,25 @@ deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 -- | 'TeamDeleteData' is only required for binding teams
 deleteTeam ::
-  Members '[BrigAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error AuthenticationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error TeamError,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   TeamId ->
   Maybe Public.TeamDeleteData ->
   Galley r ()
 deleteTeam zusr zcon tid mBody = do
-  team <- liftSem $ E.getTeam tid >>= note teamNotFound
+  team <- liftSem $ E.getTeam tid >>= note TeamNotFound
   case tdStatus team of
-    Deleted -> liftSem $ throw teamNotFound
+    Deleted -> liftSem $ throw TeamNotFound
     PendingDelete ->
       queueTeamDeletion tid zusr (Just zcon)
     _ -> do
@@ -360,22 +412,22 @@ deleteTeam zusr zcon tid mBody = do
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< liftSem (E.getTeamMember tid zusr)
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        body <- mBody & ifNothing (invalidPayload "missing request body")
+        body <- liftSem $ mBody & note (InvalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
 
 -- This can be called by stern
 internalDeleteBindingTeamWithOneMember ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error InternalError, Error TeamError, TeamStore] r =>
   TeamId ->
   Galley r ()
 internalDeleteBindingTeamWithOneMember tid = do
   team <- liftSem (E.getTeam tid)
   liftSem . unless ((view teamBinding . tdTeam <$> team) == Just Binding) $
-    throw noBindingTeam
+    throw NoBindingTeam
   mems <- liftSem $ E.getTeamMembersWithLimit tid (unsafeRange 2)
   case mems ^. teamMembers of
     (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
-    _ -> liftSem $ throw notAOneMemberTeam
+    _ -> liftSem $ throw NotAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
@@ -464,18 +516,18 @@ uncheckedDeleteTeam zusr zcon tid = do
       pure (pp', ee' ++ ee)
 
 getTeamConversationRoles ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ->
   TeamId ->
   Galley r Public.ConversationRolesList
 getTeamConversationRoles zusr tid = do
-  liftSem . void $ E.getTeamMember tid zusr >>= note (errorDescriptionTypeToWai @NotATeamMember)
+  liftSem . void $ E.getTeamMember tid zusr >>= note NotATeamMember
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
 getTeamMembersH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JSON ->
   Galley r Response
 getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
@@ -483,26 +535,26 @@ getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
   pure . json $ teamMemberListJson withPerms memberList
 
 getTeamMembers ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ->
   TeamId ->
   Range 1 Public.HardTruncationLimit Int32 ->
   Galley r (Public.TeamMemberList, Public.TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = liftSem $ do
-  m <- E.getTeamMember tid zusr >>= note (errorDescriptionTypeToWai @NotATeamMember)
+  m <- E.getTeamMember tid zusr >>= note NotATeamMember
   mems <- E.getTeamMembersWithLimit tid maxResults
   let withPerms = (m `canSeePermsOf`)
   pure (mems, withPerms)
 
 getTeamMembersCSVH ::
-  (Members '[BrigAccess, TeamStore, WaiError] r) =>
+  (Members '[BrigAccess, Error ActionError, TeamStore] r) =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
   liftSem $
     E.getTeamMember tid zusr >>= \case
-      Nothing -> throw accessDenied
-      Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throw accessDenied
+      Nothing -> throw AccessDenied
+      Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throw AccessDenied
 
   env <- ask
   -- In case an exception is thrown inside the StreamingBody of responseStream
@@ -612,7 +664,13 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         (UserScimExternalId _) -> Nothing
 
 bulkGetTeamMembersH ::
-  Members '[TeamStore, WaiError] r =>
+  Members
+    '[ Error ActionError,
+       Error InvalidInput,
+       Error TeamError,
+       TeamStore
+     ]
+    r =>
   UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON ->
   Galley r Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
@@ -622,7 +680,7 @@ bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error ActionError, Error InvalidInput, Error TeamError, TeamStore] r =>
   UserId ->
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
@@ -630,15 +688,15 @@ bulkGetTeamMembers ::
   Galley r (TeamMemberList, TeamMember -> Bool)
 bulkGetTeamMembers zusr tid maxResults uids = liftSem $ do
   unless (length uids <= fromIntegral (fromRange maxResults)) $
-    throw bulkGetMemberLimitExceeded
-  m <- E.getTeamMember tid zusr >>= note (errorDescriptionTypeToWai @NotATeamMember)
+    throw BulkGetMemberLimitExceeded
+  m <- E.getTeamMember tid zusr >>= note NotATeamMember
   mems <- E.selectTeamMembers tid uids
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
   pure (newTeamMemberList mems hasMore, withPerms)
 
 getTeamMemberH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
   Galley r Response
 getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
@@ -646,7 +704,7 @@ getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
   pure . json $ teamMemberJson withPerms member
 
 getTeamMember ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ->
   TeamId ->
   UserId ->
@@ -655,13 +713,13 @@ getTeamMember zusr tid uid = do
   m <-
     liftSem $
       E.getTeamMember tid zusr
-        >>= note (errorDescriptionTypeToWai @NotATeamMember)
+        >>= note NotATeamMember
   let withPerms = (m `canSeePermsOf`)
-  member <- liftSem $ E.getTeamMember tid uid >>= note teamMemberNotFound
+  member <- liftSem $ E.getTeamMember tid uid >>= note TeamMemberNotFound
   pure (member, withPerms)
 
 internalDeleteBindingTeamWithOneMemberH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error InternalError, Error TeamError, TeamStore] r =>
   TeamId ->
   Galley r Response
 internalDeleteBindingTeamWithOneMemberH tid = do
@@ -669,19 +727,19 @@ internalDeleteBindingTeamWithOneMemberH tid = do
   pure (empty & setStatus status202)
 
 uncheckedGetTeamMemberH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ::: UserId ::: JSON ->
   Galley r Response
 uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
   json <$> uncheckedGetTeamMember tid uid
 
 uncheckedGetTeamMember ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ->
   UserId ->
   Galley r TeamMember
 uncheckedGetTeamMember tid uid =
-  liftSem (E.getTeamMember tid uid) >>= ifNothing teamMemberNotFound
+  liftSem $ E.getTeamMember tid uid >>= note TeamMemberNotFound
 
 uncheckedGetTeamMembersH ::
   Member TeamStore r =>
@@ -702,12 +760,14 @@ addTeamMemberH ::
     '[ BrigAccess,
        GundeckAccess,
        Error ActionError,
+       Error LegalHoldError,
+       Error InvalidInput,
+       Error TeamError,
        LegalHoldStore,
        MemberStore,
        TeamFeatureStore,
        TeamNotificationStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
@@ -722,12 +782,13 @@ addTeamMember ::
     '[ BrigAccess,
        GundeckAccess,
        Error ActionError,
+       Error LegalHoldError,
+       Error TeamError,
        LegalHoldStore,
        MemberStore,
        TeamFeatureStore,
        TeamNotificationStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -758,13 +819,15 @@ addTeamMember zusr zcon tid nmem = do
 uncheckedAddTeamMemberH ::
   Members
     '[ BrigAccess,
+       Error LegalHoldError,
+       Error InvalidInput,
+       Error TeamError,
        GundeckAccess,
-       MemberStore,
        LegalHoldStore,
+       MemberStore,
        TeamFeatureStore,
        TeamStore,
-       TeamNotificationStore,
-       WaiError
+       TeamNotificationStore
      ]
     r =>
   TeamId ::: JsonRequest NewTeamMember ::: JSON ->
@@ -778,12 +841,13 @@ uncheckedAddTeamMember ::
   Members
     '[ BrigAccess,
        GundeckAccess,
+       Error LegalHoldError,
+       Error TeamError,
        MemberStore,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore,
-       TeamNotificationStore,
-       WaiError
+       TeamNotificationStore
      ]
     r =>
   TeamId ->
@@ -798,7 +862,15 @@ uncheckedAddTeamMember tid nmem = do
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH ::
-  Members '[BrigAccess, GundeckAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error InvalidInput,
+       Error TeamError,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
   Galley r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -809,7 +881,14 @@ updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 updateTeamMember ::
   forall r.
-  Members '[BrigAccess, GundeckAccess, TeamStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error TeamError,
+       GundeckAccess,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -823,7 +902,7 @@ updateTeamMember zusr zcon tid targetMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
 
   -- get the team and verify permissions
-  team <- liftSem . fmap tdTeam $ E.getTeam tid >>= note teamNotFound
+  team <- liftSem . fmap tdTeam $ E.getTeam tid >>= note TeamNotFound
   user <-
     liftSem (E.getTeamMember tid zusr)
       >>= permissionCheck SetMemberPermissions
@@ -831,13 +910,13 @@ updateTeamMember zusr zcon tid targetMember = do
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   previousMember <-
-    liftSem $ E.getTeamMember tid targetId >>= note teamMemberNotFound
+    liftSem $ E.getTeamMember tid targetId >>= note TeamMemberNotFound
   liftSem
     . when
       ( downgradesOwner previousMember targetPermissions
           && not (canDowngradeOwner user previousMember)
       )
-    $ throw accessDenied
+    $ throw AccessDenied
 
   -- update target in Cassandra
   liftSem $ E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
@@ -878,11 +957,14 @@ deleteTeamMemberH ::
   Members
     '[ BrigAccess,
        ConversationStore,
+       Error ActionError,
+       Error AuthenticationError,
+       Error InvalidInput,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
@@ -902,11 +984,14 @@ deleteTeamMember ::
   Members
     '[ BrigAccess,
        ConversationStore,
+       Error ActionError,
+       Error AuthenticationError,
+       Error InvalidInput,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -923,14 +1008,14 @@ deleteTeamMember zusr zcon tid remove mBody = do
   targetMember <- liftSem $ E.getTeamMember tid remove
   void $ permissionCheck RemoveTeamMember zusrMember
   liftSem $ do
-    dm <- note teamMemberNotFound zusrMember
-    tm <- note teamMemberNotFound targetMember
-    unless (canDeleteMember dm tm) $ throw accessDenied
-  team <- tdTeam <$> (liftSem (E.getTeam tid) >>= ifNothing teamNotFound)
+    dm <- note TeamMemberNotFound zusrMember
+    tm <- note TeamMemberNotFound targetMember
+    unless (canDeleteMember dm tm) $ throw AccessDenied
+  team <- tdTeam <$> liftSem (E.getTeam tid >>= note TeamNotFound)
   mems <- getTeamMembersForFanout tid
   if team ^. teamBinding == Binding && isJust targetMember
     then do
-      body <- mBody & ifNothing (invalidPayload "missing request body")
+      body <- liftSem $ mBody & note (InvalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
       (TeamSize sizeBeforeDelete) <- liftSem $ E.getSize tid
       -- TeamSize is 'Natural' and subtracting from  0 is an error
@@ -1009,20 +1094,26 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       liftSem $ E.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error ActionError, Error TeamError, TeamStore] r =>
   UserId ->
   TeamId ->
   Galley r Public.TeamConversationList
 getTeamConversations zusr tid = liftSem $ do
   tm <-
     E.getTeamMember tid zusr
-      >>= note (errorDescriptionTypeToWai @NotATeamMember)
+      >>= note NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
-    throwErrorDescription (operationDenied GetTeamConversations)
+    throw . OperationDenied . show $ GetTeamConversations
   Public.newTeamConversationList <$> E.getTeamConversations tid
 
 getTeamConversation ::
-  Members '[TeamStore, WaiError] r =>
+  Members
+    '[ Error ActionError,
+       Error ConversationError,
+       Error TeamError,
+       TeamStore
+     ]
+    r =>
   UserId ->
   TeamId ->
   ConvId ->
@@ -1030,11 +1121,11 @@ getTeamConversation ::
 getTeamConversation zusr tid cid = liftSem $ do
   tm <-
     E.getTeamMember tid zusr
-      >>= note (errorDescriptionTypeToWai @NotATeamMember)
+      >>= note NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
-    throwErrorDescription (operationDenied GetTeamConversations)
+    throw . OperationDenied . show $ GetTeamConversations
   E.getTeamConversation tid cid
-    >>= note (errorDescriptionTypeToWai @ConvNotFound)
+    >>= note ConvNotFound
 
 deleteTeamConversation ::
   Members
@@ -1045,6 +1136,7 @@ deleteTeamConversation ::
        Error ActionError,
        Error ConversationError,
        Error FederationError,
+       Error InvalidInput,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -1052,8 +1144,7 @@ deleteTeamConversation ::
        GundeckAccess,
        LegalHoldStore,
        MemberStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
@@ -1067,7 +1158,13 @@ deleteTeamConversation zusr zcon _tid cid = do
   void $ API.deleteLocalConversation lusr zcon lconv
 
 getSearchVisibilityH ::
-  Members '[SearchVisibilityStore, TeamStore, WaiError] r =>
+  Members
+    '[ Error ActionError,
+       Error TeamError,
+       SearchVisibilityStore,
+       TeamStore
+     ]
+    r =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getSearchVisibilityH (uid ::: tid ::: _) = do
@@ -1076,7 +1173,15 @@ getSearchVisibilityH (uid ::: tid ::: _) = do
   json <$> getSearchVisibilityInternal tid
 
 setSearchVisibilityH ::
-  Members '[SearchVisibilityStore, TeamStore, TeamFeatureStore, WaiError] r =>
+  Members
+    '[ Error ActionError,
+       Error InvalidInput,
+       Error TeamError,
+       SearchVisibilityStore,
+       TeamStore,
+       TeamFeatureStore
+     ]
+    r =>
   UserId ::: TeamId ::: JsonRequest Public.TeamSearchVisibilityView ::: JSON ->
   Galley r Response
 setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
@@ -1118,38 +1223,38 @@ withTeamIds usr range size k = case range of
     k False ids
 {-# INLINE withTeamIds #-}
 
-ensureUnboundUsers :: Members '[TeamStore, WaiError] r => [UserId] -> Galley r ()
+ensureUnboundUsers :: Members '[Error TeamError, TeamStore] r => [UserId] -> Galley r ()
 ensureUnboundUsers uids = do
   -- We check only 1 team because, by definition, users in binding teams
   -- can only be part of one team.
   teams <- liftSem $ Map.elems <$> E.getUsersTeams uids
   binds <- liftSem $ E.getTeamsBindings teams
   liftSem . when (any (== Binding) binds) $
-    throw userBindingExists
+    throw UserBindingExists
 
-ensureNonBindingTeam :: Members '[TeamStore, WaiError] r => TeamId -> Galley r ()
+ensureNonBindingTeam :: Members '[Error TeamError, TeamStore] r => TeamId -> Galley r ()
 ensureNonBindingTeam tid = do
-  team <- liftSem $ note teamNotFound =<< E.getTeam tid
+  team <- liftSem $ note TeamNotFound =<< E.getTeam tid
   liftSem . when ((tdTeam team) ^. teamBinding == Binding) $
-    throw noAddToBinding
+    throw NoAddToBinding
 
 -- ensure that the permissions are not "greater" than the user's copy permissions
 -- this is used to ensure users cannot "elevate" permissions
-ensureNotElevated :: Member WaiError r => Permissions -> TeamMember -> Galley r ()
+ensureNotElevated :: Member (Error ActionError) r => Permissions -> TeamMember -> Galley r ()
 ensureNotElevated targetPermissions member =
   liftSem
     . unless
       ( (targetPermissions ^. self)
           `Set.isSubsetOf` (member ^. permissions . copy)
       )
-    $ throw invalidPermissions
+    $ throw InvalidPermissions
 
-ensureNotTooLarge :: Members '[BrigAccess, WaiError] r => TeamId -> Galley r TeamSize
+ensureNotTooLarge :: Members '[BrigAccess, Error TeamError] r => TeamId -> Galley r TeamSize
 ensureNotTooLarge tid = do
   o <- view options
   (TeamSize size) <- liftSem $ E.getSize tid
   liftSem . unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
-    throw tooManyTeamMembers
+    throw TooManyTeamMembers
   return $ TeamSize size
 
 -- | Ensure that a team doesn't exceed the member count limit for the LegalHold
@@ -1162,23 +1267,23 @@ ensureNotTooLarge tid = do
 -- LegalHold off after activation.
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
-  Members '[BrigAccess, LegalHoldStore, TeamFeatureStore, WaiError] r =>
+  Members '[BrigAccess, Error LegalHoldError, LegalHoldStore, TeamFeatureStore] r =>
   TeamId ->
   Int ->
   Galley r ()
 ensureNotTooLargeForLegalHold tid teamSize =
   whenM (isLegalHoldEnabledForTeam tid) $
     unlessM (teamSizeBelowLimit teamSize) $
-      liftSem $ throw tooManyTeamMembersOnTeamWithLegalhold
+      liftSem $ throw TooManyTeamMembersOnTeamWithLegalhold
 
 ensureNotTooLargeToActivateLegalHold ::
-  Members '[BrigAccess, WaiError] r =>
+  Members '[BrigAccess, Error TeamError] r =>
   TeamId ->
   Galley r ()
 ensureNotTooLargeToActivateLegalHold tid = do
   (TeamSize teamSize) <- liftSem $ E.getSize tid
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
-    liftSem $ throw cannotEnableLegalHoldServiceLargeTeam
+    liftSem $ throw CannotEnableLegalHoldServiceLargeTeam
 
 teamSizeBelowLimit :: Int -> Galley r Bool
 teamSizeBelowLimit teamSize = do
@@ -1194,11 +1299,11 @@ teamSizeBelowLimit teamSize = do
 addTeamMemberInternal ::
   Members
     '[ BrigAccess,
+       Error TeamError,
        GundeckAccess,
        MemberStore,
        TeamNotificationStore,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   TeamId ->
@@ -1238,7 +1343,13 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
 -- less warped.  This is a work-around because we cannot send events to all of a large team.
 -- See haddocks of module "Galley.API.TeamNotifications" for details.
 getTeamNotificationsH ::
-  Members '[BrigAccess, TeamNotificationStore, WaiError] r =>
+  Members
+    '[ BrigAccess,
+       Error TeamError,
+       Error TeamNotificationError,
+       TeamNotificationStore
+     ]
+    r =>
   UserId
     ::: Maybe ByteString {- NotificationId -}
     ::: Range 1 10000 Int32
@@ -1249,13 +1360,13 @@ getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
   json @Public.QueuedNotificationList
     <$> APITeamQueue.getTeamNotifications zusr since size
   where
-    parseSince :: Member WaiError r => Galley r (Maybe Public.NotificationId)
+    parseSince :: Member (Error TeamNotificationError) r => Galley r (Maybe Public.NotificationId)
     parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
 
-    parseUUID :: Member WaiError r => ByteString -> Galley r Public.NotificationId
+    parseUUID :: Member (Error TeamNotificationError) r => ByteString -> Galley r Public.NotificationId
     parseUUID raw =
       maybe
-        (liftSem (throw invalidTeamNotificationId))
+        (liftSem (throw InvalidTeamNotificationId))
         (pure . Id)
         ((UUID.fromASCIIBytes >=> isV1UUID) raw)
 
@@ -1263,7 +1374,7 @@ getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
 finishCreateTeam ::
-  Members '[GundeckAccess, TeamStore, WaiError] r =>
+  Members '[GundeckAccess, TeamStore] r =>
   Team ->
   TeamMember ->
   [TeamMember] ->
@@ -1281,38 +1392,54 @@ finishCreateTeam team owner others zcon = do
 
 -- FUTUREWORK: Get rid of CPS
 withBindingTeam ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ->
   (TeamId -> Galley r b) ->
   Galley r b
 withBindingTeam zusr callback = do
-  tid <- liftSem $ E.getOneUserTeam zusr >>= note teamNotFound
-  binding <- liftSem $ E.getTeamBinding tid >>= note teamNotFound
+  tid <- liftSem $ E.getOneUserTeam zusr >>= note TeamNotFound
+  binding <- liftSem $ E.getTeamBinding tid >>= note TeamNotFound
   case binding of
     Binding -> callback tid
-    NonBinding -> liftSem $ throw nonBindingTeam
+    NonBinding -> liftSem $ throw NotABindingTeamMember
 
-getBindingTeamIdH :: Members '[TeamStore, WaiError] r => UserId -> Galley r Response
+getBindingTeamIdH :: Members '[Error TeamError, TeamStore] r => UserId -> Galley r Response
 getBindingTeamIdH = fmap json . getBindingTeamId
 
-getBindingTeamId :: Members '[TeamStore, WaiError] r => UserId -> Galley r TeamId
+getBindingTeamId :: Members '[Error TeamError, TeamStore] r => UserId -> Galley r TeamId
 getBindingTeamId zusr = withBindingTeam zusr pure
 
-getBindingTeamMembersH :: Members '[TeamStore, WaiError] r => UserId -> Galley r Response
+getBindingTeamMembersH :: Members '[Error TeamError, TeamStore] r => UserId -> Galley r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
-getBindingTeamMembers :: Members '[TeamStore, WaiError] r => UserId -> Galley r TeamMemberList
+getBindingTeamMembers ::
+  Members
+    '[ Error TeamError,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  Galley r TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
   getTeamMembersForFanout tid
 
 canUserJoinTeamH ::
-  Members '[BrigAccess, LegalHoldStore, TeamFeatureStore, WaiError] r =>
+  Members '[BrigAccess, Error LegalHoldError, LegalHoldStore, TeamFeatureStore] r =>
   TeamId ->
   Galley r Response
 canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 
 -- This could be extended for more checks, for now we test only legalhold
-canUserJoinTeam :: Members '[BrigAccess, LegalHoldStore, TeamFeatureStore, WaiError] r => TeamId -> Galley r ()
+canUserJoinTeam ::
+  Members
+    '[ BrigAccess,
+       Error LegalHoldError,
+       LegalHoldStore,
+       TeamFeatureStore
+     ]
+    r =>
+  TeamId ->
+  Galley r ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
@@ -1352,7 +1479,13 @@ getSearchVisibilityInternal =
     . SearchVisibilityData.getSearchVisibility
 
 setSearchVisibilityInternalH ::
-  Members '[SearchVisibilityStore, TeamFeatureStore, WaiError] r =>
+  Members
+    '[ Error InvalidInput,
+       Error TeamError,
+       SearchVisibilityStore,
+       TeamFeatureStore
+     ]
+    r =>
   TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON ->
   Galley r Response
 setSearchVisibilityInternalH (tid ::: req ::: _) = do
@@ -1360,27 +1493,27 @@ setSearchVisibilityInternalH (tid ::: req ::: _) = do
   pure noContent
 
 setSearchVisibilityInternal ::
-  Members '[SearchVisibilityStore, TeamFeatureStore, WaiError] r =>
+  Members '[Error TeamError, SearchVisibilityStore, TeamFeatureStore] r =>
   TeamId ->
   TeamSearchVisibilityView ->
   Galley r ()
 setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
   status <- getTeamSearchVisibilityAvailableInternal tid
   liftSem . unless (Public.tfwoStatus status == Public.TeamFeatureEnabled) $
-    throw teamSearchVisibilityNotEnabled
+    throw TeamSearchVisibilityNotEnabled
   liftSem $ SearchVisibilityData.setSearchVisibility tid searchVisibility
 
 userIsTeamOwnerH ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error ActionError, Error TeamError, TeamStore] r =>
   TeamId ::: UserId ::: JSON ->
   Galley r Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do
   userIsTeamOwner tid uid >>= \case
     True -> pure empty
-    False -> liftSem $ throw accessDenied
+    False -> liftSem $ throw AccessDenied
 
 userIsTeamOwner ::
-  Members '[TeamStore, WaiError] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ->
   UserId ->
   Galley r Bool
@@ -1390,7 +1523,7 @@ userIsTeamOwner tid uid = do
 
 -- Queues a team for async deletion
 queueTeamDeletion ::
-  Member WaiError r =>
+  Member (Error InternalError) r =>
   TeamId ->
   UserId ->
   Maybe ConnId ->
@@ -1399,4 +1532,4 @@ queueTeamDeletion tid zusr zcon = do
   q <- view deleteQueue
   ok <- Q.tryPush q (TeamItem tid zusr zcon)
   liftSem . unless ok $
-    throw deleteQueueFull
+    throw DeleteQueueFull

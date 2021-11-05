@@ -23,11 +23,8 @@ module Galley.API.Util where
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Arrow (Arrow (second), second)
-import Control.Error (ExceptT, hoistEither)
-import qualified Control.Error
 import Control.Lens (set, view, (.~), (^.))
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Extra (allM, anyM, eitherM)
+import Control.Monad.Extra (allM, anyM)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -37,7 +34,6 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
-import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
 import Galley.App
@@ -69,7 +65,6 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client
 
@@ -147,17 +142,25 @@ ensureConnectedToRemotes u remotes = liftSem $ do
   when (length acceptedConns /= length remotes) $
     throw NotConnected
 
-ensureReAuthorised :: Members '[BrigAccess, WaiError] r => UserId -> Maybe PlainTextPassword -> Galley r ()
+ensureReAuthorised ::
+  Members
+    '[ BrigAccess,
+       Error AuthenticationError
+     ]
+    r =>
+  UserId ->
+  Maybe PlainTextPassword ->
+  Galley r ()
 ensureReAuthorised u secret = liftSem $ do
   reAuthed <- reauthUser u (ReAuthUser secret)
   unless reAuthed $
-    throw reAuthFailed
+    throw ReAuthFailed
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, throw
 -- 'operationDenied'.
 ensureActionAllowed ::
-  (IsConvMember mem, Member (Error ActionError) r) =>
+  (IsConvMember mem, Members '[Error ActionError, Error InvalidInput] r) =>
   Action ->
   mem ->
   Galley r ()
@@ -178,7 +181,7 @@ ensureGroupConversation conv = do
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
 ensureConvRoleNotElevated ::
-  (IsConvMember mem, Member (Error ActionError) r) =>
+  (IsConvMember mem, Members '[Error InvalidInput, Error ActionError] r) =>
   mem ->
   RoleName ->
   Galley r ()
@@ -194,7 +197,7 @@ ensureConvRoleNotElevated origMember targetRole = liftSem $ do
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return the team member.
 permissionCheck ::
-  (IsPerm perm, Show perm, Member WaiError r) =>
+  (IsPerm perm, Show perm, Members '[Error ActionError, Error TeamError] r) =>
   perm ->
   Maybe TeamMember ->
   Galley r TeamMember
@@ -203,27 +206,34 @@ permissionCheck p =
     Just m -> do
       if m `hasPermission` p
         then pure m
-        else throwErrorDescription (operationDenied p)
-    Nothing -> throwErrorDescriptionType @NotATeamMember
+        else throw (OperationDenied (show p))
+    Nothing -> throw NotATeamMember
 
-assertTeamExists :: Members '[TeamStore, WaiError] r => TeamId -> Galley r ()
+assertTeamExists :: Members '[Error TeamError, TeamStore] r => TeamId -> Galley r ()
 assertTeamExists tid = liftSem $ do
   teamExists <- isJust <$> getTeam tid
   if teamExists
     then pure ()
-    else throw teamNotFound
+    else throw TeamNotFound
 
-assertOnTeam :: Members '[TeamStore, WaiError] r => UserId -> TeamId -> Galley r ()
+assertOnTeam :: Members '[Error TeamError, TeamStore] r => UserId -> TeamId -> Galley r ()
 assertOnTeam uid tid =
   liftSem $
     getTeamMember tid uid >>= \case
-      Nothing -> throwErrorDescriptionType @NotATeamMember
+      Nothing -> throw NotATeamMember
       Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
 permissionCheckTeamConv ::
-  Members '[ConversationStore, TeamStore, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error TeamError,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConvId ->
   Perm ->
@@ -233,11 +243,19 @@ permissionCheckTeamConv zusr cnv perm =
     Just cnv' -> case Data.convTeam cnv' of
       Just tid -> void $ permissionCheck perm =<< liftSem (getTeamMember tid zusr)
       Nothing -> pure ()
-    Nothing -> liftSem $ throwErrorDescriptionType @ConvNotFound
+    Nothing -> liftSem $ throw ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
-  Members '[ConversationStore, MemberStore, GundeckAccess, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error InternalError,
+       MemberStore,
+       GundeckAccess
+     ]
+    r =>
   UserId ->
   Data.Conversation ->
   Maybe ConnId ->
@@ -254,10 +272,10 @@ acceptOne2One usr conv conn = do
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> liftSem promote
-      [_, _] -> liftSem $ throwErrorDescriptionType @ConvNotFound
+      [_, _] -> liftSem $ throw ConvNotFound
       _ -> do
         when (length mems > 2) $
-          liftSem $ throw badConvState
+          liftSem . throw . BadConvState $ cid
         now <- liftIO getCurrentTime
         mm <- liftSem $ createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
@@ -266,17 +284,13 @@ acceptOne2One usr conv conn = do
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
           liftSem $ push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
-    _ -> liftSem . throw $ invalidOp "accept: invalid conversation type"
+    x -> liftSem . throw . InvalidOp $ x
   where
     cid = Data.convId conv
     mems = Data.convLocalMembers conv
     promote = do
       acceptConnectConversation cid
       return $ conv {Data.convType = One2OneConv}
-    badConvState =
-      Wai.mkError status500 "bad-state" $
-        "Connect conversation with more than 2 members: "
-          <> LT.pack (show cid)
 
 memberJoinEvent ::
   Local UserId ->
@@ -436,16 +450,13 @@ membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
--- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley r monad.
-getSelfMemberFromLocalsLegacy ::
-  (Foldable t, Member WaiError r) =>
+getSelfMemberFromLocals ::
+  (Foldable t, Member (Error ConversationError) r) =>
   UserId ->
   t LocalMember ->
   Galley r LocalMember
-getSelfMemberFromLocalsLegacy usr lmems =
-  liftSem $
-    eitherM throwErrorDescription pure . runExceptT $
-      getMember lmId (mkErrorDescription :: ConvNotFound) usr lmems
+getSelfMemberFromLocals usr lmems =
+  liftSem $ getMember lmId ConvNotFound usr lmems
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
@@ -460,24 +471,21 @@ ensureOtherMember loc quid conv =
     Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv)
       <|> Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv)
 
-getSelfMemberFromRemotesLegacy ::
-  (Foldable t, Member WaiError r) =>
+getSelfMemberFromRemotes ::
+  (Foldable t, Member (Error ConversationError) r) =>
   Remote UserId ->
   t RemoteMember ->
   Galley r RemoteMember
-getSelfMemberFromRemotesLegacy usr rmems =
-  liftSem
-    . eitherM throwErrorDescription pure
-    . runExceptT
-    $ getMember rmId (mkErrorDescription :: ConvNotFound) usr rmems
+getSelfMemberFromRemotes usr rmems =
+  liftSem $ getMember rmId ConvNotFound usr rmems
 
 getQualifiedMember ::
-  Monad m =>
+  Member (Error e) r =>
   Local x ->
   e ->
   Qualified UserId ->
   Data.Conversation ->
-  ExceptT e m (Either LocalMember RemoteMember)
+  Sem r (Either LocalMember RemoteMember)
 getQualifiedMember loc e qusr conv =
   foldQualified
     loc
@@ -486,7 +494,7 @@ getQualifiedMember loc e qusr conv =
     qusr
 
 getMember ::
-  (Foldable t, Eq userId, Monad m) =>
+  (Foldable t, Eq userId, Member (Error e) r) =>
   -- | A projection from a member type to its user ID
   (mem -> userId) ->
   -- | An error to throw in case the user is not in the list
@@ -495,8 +503,8 @@ getMember ::
   userId ->
   -- | A list of members to search
   t mem ->
-  ExceptT e m mem
-getMember p ex u = hoistEither . Control.Error.note ex . find ((u ==) . p)
+  Sem r mem
+getMember p ex u = note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership ::
   Members '[ConversationStore, Error ConversationError] r =>
@@ -558,15 +566,16 @@ pushConversationEvent conn e users bots = do
   liftSem $ deliverAsync (toList bots `zip` repeat e)
 
 verifyReusableCode ::
-  Members '[CodeStore, WaiError] r =>
+  Members '[CodeStore, Error CodeError] r =>
   ConversationCode ->
   Galley r DataTypes.Code
 verifyReusableCode convCode = do
   c <-
-    liftSem (getCode (conversationKey convCode) DataTypes.ReusableCode)
-      >>= ifNothing (errorDescriptionTypeToWai @CodeNotFound)
+    liftSem $
+      getCode (conversationKey convCode) DataTypes.ReusableCode
+        >>= note CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    liftSem $ throw (errorDescriptionTypeToWai @CodeNotFound)
+    liftSem $ throw CodeNotFound
   return c
 
 ensureConversationAccess ::

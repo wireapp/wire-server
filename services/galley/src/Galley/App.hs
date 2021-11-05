@@ -44,17 +44,13 @@ module Galley.App
     ask,
     DeleteItem (..),
     toServantHandler,
-    WaiError,
 
     -- * Utilities
-    ifNothing,
     fromJsonBody,
     fromOptionalJsonBody,
     fromProtoBody,
     fanoutLimit,
     currentFanoutLimit,
-    throwErrorDescription,
-    throwErrorDescriptionType,
 
     -- * Temporary compatibility functions
     fireAndForget,
@@ -88,7 +84,6 @@ import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import GHC.TypeLits
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Cassandra.Client
@@ -131,13 +126,11 @@ import Polysemy.Internal (Append)
 import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
 import qualified Servant
-import Servant.API.Status (KnownStatus (..))
 import Ssl.Util
 import System.Logger.Class
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
-import Wire.API.ErrorDescription
 import Wire.API.Federation.Client (HasFederatorConfig (..))
 
 -- MTL-style effects derived from the old implementation of the Galley monad.
@@ -147,8 +140,6 @@ type GalleyEffects0 = '[P.TinyLog, P.Reader ClientState, P.Reader Env, Embed IO,
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
 type Galley0 = Galley GalleyEffects0
-
-type WaiError = Error Wai.Error
 
 newtype Galley r a = Galley {unGalley :: Members GalleyEffects0 r => Sem r a}
 
@@ -285,40 +276,24 @@ evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
-fromJsonBody :: (Member WaiError r, FromJSON a) => JsonRequest a -> Galley r a
-fromJsonBody r = exceptT (liftSem . throw @Wai.Error . invalidPayload) return (parseBody r)
+fromJsonBody :: (Member (Error InvalidInput) r, FromJSON a) => JsonRequest a -> Galley r a
+fromJsonBody r = exceptT (liftSem . throw . InvalidPayload) return (parseBody r)
 {-# INLINE fromJsonBody #-}
 
-fromOptionalJsonBody :: (Member WaiError r, FromJSON a) => OptionalJsonRequest a -> Galley r (Maybe a)
-fromOptionalJsonBody r = exceptT (liftSem . throw @Wai.Error . invalidPayload) return (parseOptionalBody r)
+fromOptionalJsonBody ::
+  ( Member (Error InvalidInput) r,
+    FromJSON a
+  ) =>
+  OptionalJsonRequest a ->
+  Galley r (Maybe a)
+fromOptionalJsonBody r = exceptT (liftSem . throw . InvalidPayload) return (parseOptionalBody r)
 {-# INLINE fromOptionalJsonBody #-}
 
-fromProtoBody :: (Member WaiError r, Proto.Decode a) => Request -> Galley r a
+fromProtoBody :: (Member (Error InvalidInput) r, Proto.Decode a) => Request -> Galley r a
 fromProtoBody r = do
   b <- readBody r
-  either (liftSem . throw @Wai.Error . invalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
+  either (liftSem . throw . InvalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
 {-# INLINE fromProtoBody #-}
-
-ifNothing :: Member WaiError r => Wai.Error -> Maybe a -> Galley r a
-ifNothing e = maybe (liftSem (throw e)) return
-{-# INLINE ifNothing #-}
-
-throwErrorDescription ::
-  (KnownStatus code, KnownSymbol lbl, Member WaiError r) =>
-  ErrorDescription code lbl desc ->
-  Sem r a
-throwErrorDescription = throw . errorDescriptionToWai
-
-throwErrorDescriptionType ::
-  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol) r a.
-  ( KnownStatus code,
-    KnownSymbol lbl,
-    KnownSymbol desc,
-    Member WaiError r,
-    e ~ ErrorDescription code lbl desc
-  ) =>
-  Sem r a
-throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
 
 toServantHandler :: Env -> Galley GalleyEffects a -> Servant.Handler a
 toServantHandler env galley = do

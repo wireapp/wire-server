@@ -18,6 +18,7 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
+import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
@@ -43,66 +44,210 @@ import Wire.API.Federation.Error
 class APIError e where
   toWai :: e -> Error
 
+data InternalError
+  = BadConvState ConvId
+  | BadMemberState
+  | NoPrekeyForUser
+  | CannotCreateManagedConv
+  | DeleteQueueFull
+  | InternalErrorWithDescription LText
+
+instance APIError InternalError where
+  toWai (BadConvState convId) = badConvState convId
+  toWai BadMemberState = mkError status500 "bad-state" "Bad internal member state."
+  toWai NoPrekeyForUser = internalError
+  toWai CannotCreateManagedConv = internalError
+  toWai DeleteQueueFull = deleteQueueFull
+  toWai (InternalErrorWithDescription t) = internalErrorWithDescription t
+
 data ActionError
   = InvalidAction
-  | CustomRolesNotSupported
   | InvalidTargetAccess
   | InvalidTargetUserOp
   | ActionDenied Action
+  | AccessDenied
   | InvalidOp ConvType
+  | InvalidOpGeneral LText
+  | OperationDenied String
   | NotConnected
-  | InvalidRange LText
+  | NoAddToManaged
+  | BroadcastLimitExceeded
+  | InvalidTeamStatusUpdate
+  | InvalidPermissions
 
 instance APIError ActionError where
   toWai InvalidAction = invalidActions
-  toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
   toWai InvalidTargetAccess = errorDescriptionTypeToWai @InvalidTargetAccess
   toWai (ActionDenied action) = errorDescriptionToWai (actionDenied action)
+  toWai AccessDenied = accessDenied
   toWai (InvalidOp RegularConv) = invalidOp "invalid operation"
   toWai (InvalidOp SelfConv) = invalidSelfOp
   toWai (InvalidOp One2OneConv) = invalidOne2OneOp
   toWai (InvalidOp ConnectConv) = invalidConnectOp
+  toWai (InvalidOpGeneral t) = invalidOp t
+  toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
-  toWai (InvalidRange t) = invalidRange t
   toWai InvalidTargetUserOp = invalidTargetUserOp
+  toWai NoAddToManaged = noAddToManaged
+  toWai BroadcastLimitExceeded = broadcastLimitExceeded
+  toWai InvalidTeamStatusUpdate = invalidTeamStatusUpdate
+  toWai InvalidPermissions = invalidPermissions
+
+data CustomBackendError = CustomBackendNotFound Domain
+
+instance APIError CustomBackendError where
+  toWai (CustomBackendNotFound d) = customBackendNotFound d
+
+data InvalidInput
+  = CustomRolesNotSupported
+  | InvalidRange LText
+  | InvalidUUID4
+  | BulkGetMemberLimitExceeded
+  | InvalidPayload LText
+
+instance APIError InvalidInput where
+  toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
+  toWai (InvalidRange t) = invalidRange t
+  toWai InvalidUUID4 = invalidUUID4
+  toWai BulkGetMemberLimitExceeded = bulkGetMemberLimitExceeded
+  toWai (InvalidPayload t) = invalidPayload t
+
+data AuthenticationError
+  = ReAuthFailed
+
+instance APIError AuthenticationError where
+  toWai ReAuthFailed = reAuthFailed
 
 data ConversationError
   = ConvAccessDenied
   | ConvNotFound
   | TooManyMembers
   | ConvMemberNotFound
+  | NoBindingTeamMembers
+  | NoManagedTeamConv
 
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
   toWai ConvNotFound = errorDescriptionTypeToWai @ConvNotFound
   toWai TooManyMembers = tooManyMembers
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
+  toWai NoBindingTeamMembers = noBindingTeamMembers
+  toWai NoManagedTeamConv = noManagedTeamConv
 
-data TeamError = NotATeamMember
+data TeamError
+  = NotATeamMember
+  | NoBindingTeam
+  | NoAddToBinding
+  | NotABindingTeamMember
+  | NotAOneMemberTeam
+  | TeamNotFound
+  | TeamMemberNotFound
+  | TeamSearchVisibilityNotEnabled
+  | UserBindingExists
+  | TooManyTeamMembers
+  | CannotEnableLegalHoldServiceLargeTeam
 
 instance APIError TeamError where
   toWai NotATeamMember = errorDescriptionTypeToWai @NotATeamMember
+  toWai NoBindingTeam = noBindingTeam
+  toWai NoAddToBinding = noAddToBinding
+  toWai NotABindingTeamMember = nonBindingTeam
+  toWai NotAOneMemberTeam = notAOneMemberTeam
+  toWai TeamNotFound = teamNotFound
+  toWai TeamMemberNotFound = teamMemberNotFound
+  toWai TeamSearchVisibilityNotEnabled = teamSearchVisibilityNotEnabled
+  toWai UserBindingExists = userBindingExists
+  toWai TooManyTeamMembers = tooManyTeamMembers
+  toWai CannotEnableLegalHoldServiceLargeTeam = cannotEnableLegalHoldServiceLargeTeam
+
+data TeamFeatureError
+  = AppLockinactivityTimeoutTooLow
+  | LegalHoldFeatureFlagNotEnabled
+  | LegalHoldWhitelistedOnly
+  | DisableSsoNotImplemented
+
+instance APIError TeamFeatureError where
+  toWai AppLockinactivityTimeoutTooLow = inactivityTimeoutTooLow
+  toWai LegalHoldFeatureFlagNotEnabled = legalHoldFeatureFlagNotEnabled
+  toWai LegalHoldWhitelistedOnly = legalHoldWhitelistedOnly
+  toWai DisableSsoNotImplemented = disableSsoNotImplemented
+
+data TeamNotificationError
+  = InvalidTeamNotificationId
+
+instance APIError TeamNotificationError where
+  toWai InvalidTeamNotificationId = invalidTeamNotificationId
 
 instance APIError FederationError where
   toWai = federationErrorToWai
 
 data LegalHoldError
   = MissingLegalholdConsent
+  | NoUserLegalHoldConsent
+  | LegalHoldNotEnabled
+  | LegalHoldDisableUnimplemented
+  | LegalHoldServiceInvalidKey
+  | LegalHoldServiceBadResponse
+  | UserLegalHoldAlreadyEnabled
+  | LegalHoldServiceNotRegistered
+  | LegalHoldCouldNotBlockConnections
+  | UserLegalHoldIllegalOperation
+  | TooManyTeamMembersOnTeamWithLegalhold
+  | NoLegalHoldDeviceAllocated
+  | UserLegalHoldNotPending
 
 instance APIError LegalHoldError where
   toWai MissingLegalholdConsent = errorDescriptionTypeToWai @MissingLegalholdConsent
+  toWai NoUserLegalHoldConsent = userLegalHoldNoConsent
+  toWai LegalHoldNotEnabled = legalHoldNotEnabled
+  toWai LegalHoldDisableUnimplemented = legalHoldDisableUnimplemented
+  toWai LegalHoldServiceInvalidKey = legalHoldServiceInvalidKey
+  toWai LegalHoldServiceBadResponse = legalHoldServiceBadResponse
+  toWai UserLegalHoldAlreadyEnabled = userLegalHoldAlreadyEnabled
+  toWai LegalHoldServiceNotRegistered = legalHoldServiceNotRegistered
+  toWai LegalHoldCouldNotBlockConnections = legalHoldCouldNotBlockConnections
+  toWai UserLegalHoldIllegalOperation = userLegalHoldIllegalOperation
+  toWai TooManyTeamMembersOnTeamWithLegalhold = tooManyTeamMembersOnTeamWithLegalhold
+  toWai NoLegalHoldDeviceAllocated = noLegalHoldDeviceAllocated
+  toWai UserLegalHoldNotPending = userLegalHoldNotPending
+
+data CodeError = CodeNotFound
+
+instance APIError CodeError where
+  toWai CodeNotFound = errorDescriptionTypeToWai @CodeNotFound
+
+data ClientError = UnknownClient
+
+instance APIError ClientError where
+  toWai UnknownClient = errorDescriptionTypeToWai @UnknownClient
 
 type AllErrorEffects =
   '[ P.Error ActionError,
+     P.Error AuthenticationError,
+     P.Error ClientError,
+     P.Error CodeError,
      P.Error ConversationError,
+     P.Error CustomBackendError,
+     P.Error FederationError,
+     P.Error InternalError,
+     P.Error InvalidInput,
      P.Error LegalHoldError,
      P.Error TeamError,
-     P.Error FederationError
+     P.Error TeamFeatureError,
+     P.Error TeamNotificationError
    ]
 
 mapAllErrors :: Member (P.Error Error) r => Sem (Append AllErrorEffects r) a -> Sem r a
 mapAllErrors =
   P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
+    . P.mapError toWai
     . P.mapError toWai
     . P.mapError toWai
     . P.mapError toWai
@@ -188,6 +333,12 @@ noBindingTeam = mkError status403 "no-binding-team" "Operation allowed only on b
 
 notAOneMemberTeam :: Error
 notAOneMemberTeam = mkError status403 "not-one-member-team" "Can only delete teams with a single member."
+
+badConvState :: ConvId -> Error
+badConvState cid =
+  mkError status500 "bad-state" $
+    "Connect conversation with more than 2 members: "
+      <> LT.pack (show cid)
 
 bulkGetMemberLimitExceeded :: Error
 bulkGetMemberLimitExceeded =

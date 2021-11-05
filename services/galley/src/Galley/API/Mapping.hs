@@ -29,14 +29,13 @@ where
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
+import Galley.API.Error
 import Galley.API.Util (qualifyLocal)
 import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
 import Galley.Types.Conversations.Members
 import Imports
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
 import Polysemy
 import Polysemy.Error
 import qualified System.Logger.Class as Log
@@ -49,7 +48,7 @@ import Wire.API.Federation.API.Galley
 --
 -- Throws "bad-state" when the user is not part of the conversation.
 conversationView ::
-  Members '[WaiError] r =>
+  Member (Error InternalError) r =>
   UserId ->
   Data.Conversation ->
   Galley r Conversation
@@ -64,8 +63,7 @@ conversationView uid conv = do
           +++ idToText uid
           +++ val " is not a member of conv "
           +++ idToText (convId conv)
-      liftSem $ throw badState
-    badState = mkError status500 "bad-state" "Bad internal member state."
+      liftSem $ throw BadMemberState
 
 -- | View for a given user of a stored conversation.
 --

@@ -58,17 +58,17 @@ import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
 import Network.HTTP.Types
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Polysemy.Error
 
 getTeamNotifications ::
-  Members '[BrigAccess, TeamNotificationStore, WaiError] r =>
+  Members '[BrigAccess, Error TeamError, TeamNotificationStore] r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
   Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid <- liftSem . (note teamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
+  tid <- liftSem . (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
   page <- liftSem $ E.getTeamNotifications tid since size
   pure $
     queuedNotificationList

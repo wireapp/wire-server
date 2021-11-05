@@ -126,6 +126,7 @@ instance IsConversationAction ConversationJoin where
            Error ActionError,
            Error ConversationError,
            Error FederationError,
+           Error InvalidInput,
            Error LegalHoldError,
            Error TeamError,
            ExternalAccess,
@@ -198,6 +199,7 @@ instance IsConversationAction ConversationJoin where
              Error ActionError,
              Error ConversationError,
              Error LegalHoldError,
+             Error InvalidInput,
              ExternalAccess,
              FederatorAccess,
              GundeckAccess,
@@ -289,7 +291,10 @@ instance IsConversationAction ConversationDelete where
     pure (mempty, action)
 
 instance IsConversationAction ConversationRename where
-  type HasConversationActionEffects ConversationRename r = Member (Error ActionError) r
+  type
+    HasConversationActionEffects ConversationRename r =
+      Members '[Error ActionError, Error InvalidInput] r
+
   conversationAction = ConversationActionRename
   conversationActionTag' _ _ = ModifyConversationName
   performAction _ lcnv _ action = lift . liftSem $ do
@@ -323,6 +328,7 @@ instance IsConversationAction ConversationAccessData where
            BrigAccess,
            CodeStore,
            Error ActionError,
+           Error InvalidInput,
            ExternalAccess,
            FederatorAccess,
            FireAndForget,
@@ -417,6 +423,7 @@ updateLocalConversation ::
       '[ ConversationStore,
          Error ActionError,
          Error ConversationError,
+         Error InvalidInput,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess
@@ -457,7 +464,7 @@ ensureConversationActionAllowed ::
   ( IsConvMember mem,
     IsConversationAction a,
     HasConversationActionEffects a r,
-    Member (Error ActionError) r
+    Members '[Error ActionError, Error InvalidInput] r
   ) =>
   Local x ->
   a ->

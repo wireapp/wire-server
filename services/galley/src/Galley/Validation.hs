@@ -32,12 +32,12 @@ import Imports
 import Polysemy
 import Polysemy.Error
 
-rangeChecked :: (Member (Error ActionError) r, Within a n m) => a -> Sem r (Range n m a)
+rangeChecked :: (Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
 rangeChecked = either throwErr return . checkedEither
 {-# INLINE rangeChecked #-}
 
 rangeCheckedMaybe ::
-  (Member (Error ActionError) r, Within a n m) =>
+  (Member (Error InvalidInput) r, Within a n m) =>
   Maybe a ->
   Sem r (Maybe (Range n m a))
 rangeCheckedMaybe Nothing = return Nothing
@@ -49,7 +49,7 @@ newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)
 
 checkedConvSize ::
-  (Member (Error ActionError) r, Foldable f) =>
+  (Member (Error InvalidInput) r, Foldable f) =>
   Opts ->
   f a ->
   Sem r (ConvSizeChecked f a)
@@ -60,5 +60,5 @@ checkedConvSize o x = do
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
-throwErr :: Member (Error ActionError) r => String -> Sem r a
+throwErr :: Member (Error InvalidInput) r => String -> Sem r a
 throwErr = throw . InvalidRange . fromString

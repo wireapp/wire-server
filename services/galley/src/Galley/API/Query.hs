@@ -64,7 +64,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import qualified System.Logger.Class as Logger
@@ -72,11 +71,9 @@ import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ConvNotFound)
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationError, executeFederated)
-import Wire.API.Federation.Error
+import Wire.API.Federation.Client (FederationError (FederationUnexpectedBody), executeFederated)
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
@@ -106,7 +103,7 @@ getBotConversation zbot zcnv = do
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
-  Members '[ConversationStore, Error ConversationError, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError, Error InternalError] r =>
   UserId ->
   ConvId ->
   Galley r Public.Conversation
@@ -116,7 +113,13 @@ getUnqualifiedConversation zusr cnv = do
 
 getConversation ::
   forall r.
-  Members '[ConversationStore, Error ConversationError, WaiError] r =>
+  Members
+    '[ ConversationStore,
+       Error ConversationError,
+       Error FederationError,
+       Error InternalError
+     ]
+    r =>
   UserId ->
   Qualified ConvId ->
   Galley r Public.Conversation
@@ -132,36 +135,40 @@ getConversation zusr cnv = do
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations zusr [remoteConvId]
       liftSem $ case conversations of
-        [] -> throwErrorDescriptionType @ConvNotFound
+        [] -> throw ConvNotFound
         [conv] -> pure conv
-        _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
+        -- _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
+        _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error ConversationError, Error FederationError] r =>
   UserId ->
   [Remote ConvId] ->
   Galley r [Public.Conversation]
 getRemoteConversations zusr remoteConvs =
   getRemoteConversationsWithFailures zusr remoteConvs >>= \case
     -- throw first error
-    (failed : _, _) -> liftSem $ throw (fgcError failed)
+    (failed : _, _) -> liftSem . throwFgcError $ failed
     ([], result) -> pure result
 
 data FailedGetConversationReason
   = FailedGetConversationLocally
   | FailedGetConversationRemotely FederationError
 
-fgcrError :: FailedGetConversationReason -> Wai.Error
-fgcrError FailedGetConversationLocally = errorDescriptionTypeToWai @ConvNotFound
-fgcrError (FailedGetConversationRemotely e) = federationErrorToWai e
+-- fgcrError :: FailedGetConversationReason -> Wai.Error
+throwFgcrError ::
+  Members '[Error ConversationError, Error FederationError] r => FailedGetConversationReason -> Sem r a
+throwFgcrError FailedGetConversationLocally = throw ConvNotFound
+throwFgcrError (FailedGetConversationRemotely e) = throw e
 
 data FailedGetConversation
   = FailedGetConversation
       [Qualified ConvId]
       FailedGetConversationReason
 
-fgcError :: FailedGetConversation -> Wai.Error
-fgcError (FailedGetConversation _ r) = fgcrError r
+throwFgcError ::
+  Members '[Error ConversationError, Error FederationError] r => FailedGetConversation -> Sem r a
+throwFgcError (FailedGetConversation _ r) = throwFgcrError r
 
 failedGetConversationRemotely ::
   [Remote ConvId] -> FederationError -> FailedGetConversation
@@ -299,7 +306,6 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
           pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
     remotesOnly ::
-      Members '[ListItems p (Remote ConvId)] r =>
       Maybe C.PagingState ->
       Range 1 1000 Int32 ->
       Sem r Public.ConvIdsPage
@@ -317,7 +323,7 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
-  Members '[ListItems LegacyPaging ConvId, ConversationStore, WaiError] r =>
+  Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore] r =>
   UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -369,7 +375,7 @@ getConversationsInternal user mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  Members '[ConversationStore, WaiError] r =>
+  Members '[ConversationStore, Error InternalError] r =>
   UserId ->
   Public.ListConversations ->
   Galley r Public.ConversationsResponse
@@ -490,11 +496,11 @@ getConversationByReusableCode ::
        CodeStore,
        ConversationStore,
        Error ActionError,
+       Error CodeError,
        Error ConversationError,
        Error FederationError,
        Error TeamError,
-       TeamStore,
-       WaiError
+       TeamStore
      ]
     r =>
   UserId ->
