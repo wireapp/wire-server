@@ -15,11 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.Access where
+module Galley.Cassandra.Access where
 
 import Cassandra
-import qualified Data.Set as Set
-import Galley.Data.Conversation.Types
+import Galley.Data.Conversation
 import Imports hiding (Set)
 import Wire.API.Conversation hiding (Conversation)
 
@@ -34,27 +33,5 @@ defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
 defAccess RegularConv (Just (Set [])) = defRegularConvAccess
 defAccess _ (Just (Set (x : xs))) = x : xs
 
-defRegularConvAccess :: [Access]
-defRegularConvAccess = [InviteAccess]
-
-maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
-maybeRole SelfConv _ = privateRole
-maybeRole ConnectConv _ = privateRole
-maybeRole One2OneConv _ = privateRole
-maybeRole RegularConv Nothing = defRole
-maybeRole RegularConv (Just r) = r
-
-defRole :: AccessRole
-defRole = ActivatedAccessRole
-
-privateRole :: AccessRole
-privateRole = PrivateAccessRole
-
 privateOnly :: Set Access
 privateOnly = Set [PrivateAccess]
-
-convAccessData :: Conversation -> ConversationAccessData
-convAccessData conv =
-  ConversationAccessData
-    (Set.fromList (convAccess conv))
-    (convAccessRole conv)

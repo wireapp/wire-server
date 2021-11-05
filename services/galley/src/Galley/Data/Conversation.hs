@@ -26,20 +26,21 @@ module Galley.Data.Conversation
     isTeamConv,
     isConvDeleted,
     selfConv,
-    toConv,
     localOne2OneConvId,
     convMetadata,
+    convAccessData,
+    defRole,
+    maybeRole,
+    privateRole,
+    defRegularConvAccess,
   )
 where
 
-import Cassandra
 import Data.Id
-import Data.Misc
+import qualified Data.Set as Set
 import qualified Data.UUID.Tagged as U
-import Galley.Data.Access
+import Galley.Cassandra.Instances ()
 import Galley.Data.Conversation.Types
-import Galley.Data.Instances ()
-import Galley.Types.Conversations.Members
 import Imports hiding (Set)
 import Wire.API.Conversation hiding (Conversation)
 
@@ -57,17 +58,6 @@ isConvDeleted = fromMaybe False . convDeleted
 
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)
-
-toConv ::
-  ConvId ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
-  Maybe Conversation
-toConv cid mms remoteMems conv =
-  f mms <$> conv
-  where
-    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 -- | We deduce the conversation ID by adding the 4 components of the V4 UUID
 -- together pairwise, and then setting the version bits (v4) and variant bits
@@ -87,3 +77,25 @@ convMetadata c =
     (convTeam c)
     (convMessageTimer c)
     (convReceiptMode c)
+
+convAccessData :: Conversation -> ConversationAccessData
+convAccessData conv =
+  ConversationAccessData
+    (Set.fromList (convAccess conv))
+    (convAccessRole conv)
+
+defRole :: AccessRole
+defRole = ActivatedAccessRole
+
+maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
+maybeRole SelfConv _ = privateRole
+maybeRole ConnectConv _ = privateRole
+maybeRole One2OneConv _ = privateRole
+maybeRole RegularConv Nothing = defRole
+maybeRole RegularConv (Just r) = r
+
+privateRole :: AccessRole
+privateRole = PrivateAccessRole
+
+defRegularConvAccess :: [Access]
+defRegularConvAccess = [InviteAccess]

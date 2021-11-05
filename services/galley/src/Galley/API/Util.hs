@@ -42,7 +42,6 @@ import Data.Time
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data.Conversation as Data
-import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
@@ -52,6 +51,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
@@ -797,7 +797,10 @@ anyLegalholdActivated uids = do
         teamsOfUsers <- liftSem $ getUsersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
-allLegalholdConsentGiven :: Member TeamStore r => [UserId] -> Galley r Bool
+allLegalholdConsentGiven ::
+  Members '[LegalHoldStore, TeamStore] r =>
+  [UserId] ->
+  Galley r Bool
 allLegalholdConsentGiven uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
@@ -811,7 +814,7 @@ allLegalholdConsentGiven uids = do
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsPage <- liftSem $ nub . Map.elems <$> getUsersTeams uidsPage
-        allM isTeamLegalholdWhitelisted teamsPage
+        allM (liftSem . isTeamLegalholdWhitelisted) teamsPage
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::

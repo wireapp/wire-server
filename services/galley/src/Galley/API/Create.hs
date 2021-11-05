@@ -39,7 +39,6 @@ import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Access
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
@@ -73,7 +72,15 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 --
 -- See Note [managed conversations].
 createGroupConversation ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
+  Members
+    '[ ConversationStore,
+       BrigAccess,
+       FederatorAccess,
+       GundeckAccess,
+       LegalHoldStore,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
@@ -86,7 +93,15 @@ createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
 internalCreateManagedConversationH ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
+  Members
+    '[ ConversationStore,
+       BrigAccess,
+       FederatorAccess,
+       GundeckAccess,
+       LegalHoldStore,
+       TeamStore
+     ]
+    r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
   Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
@@ -94,7 +109,15 @@ internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
   handleConversationResponse <$> internalCreateManagedConversation zusr zcon newConv
 
 internalCreateManagedConversation ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
+  Members
+    '[ ConversationStore,
+       BrigAccess,
+       FederatorAccess,
+       GundeckAccess,
+       LegalHoldStore,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   NewConvManaged ->
@@ -105,7 +128,7 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
     Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
 ensureNoLegalholdConflicts ::
-  Member TeamStore r =>
+  Members '[LegalHoldStore, TeamStore] r =>
   [Remote UserId] ->
   [UserId] ->
   Galley r ()
@@ -117,7 +140,15 @@ ensureNoLegalholdConflicts remotes locals = do
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv ::
-  Members '[ConversationStore, BrigAccess, FederatorAccess, GundeckAccess, TeamStore] r =>
+  Members
+    '[ ConversationStore,
+       BrigAccess,
+       FederatorAccess,
+       GundeckAccess,
+       LegalHoldStore,
+       TeamStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   NewConvUnmanaged ->
@@ -155,6 +186,7 @@ createTeamGroupConv ::
        BrigAccess,
        FederatorAccess,
        GundeckAccess,
+       LegalHoldStore,
        TeamStore
      ]
     r =>
@@ -497,11 +529,11 @@ toUUIDs a b = do
   return (a', b')
 
 accessRole :: NewConv -> AccessRole
-accessRole b = fromMaybe defRole (newConvAccessRole b)
+accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
 access :: NewConv -> [Access]
 access a = case Set.toList (newConvAccess a) of
-  [] -> defRegularConvAccess
+  [] -> Data.defRegularConvAccess
   (x : xs) -> x : xs
 
 newConvMembers :: Local x -> NewConv -> UserList UserId

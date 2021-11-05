@@ -22,7 +22,8 @@ module Galley.Cassandra.Conversation
   )
 where
 
-import Cassandra
+import Cassandra hiding (Set)
+import qualified Cassandra as Cql
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.Map as Map
@@ -31,12 +32,12 @@ import Data.Qualified
 import Data.Range
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
+import Galley.Cassandra.Access
 import Galley.Cassandra.Conversation.Members
+import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
-import Galley.Data.Access
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
-import qualified Galley.Data.Queries as Cql
 import Galley.Effects.ConversationStore (ConversationStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
@@ -55,11 +56,11 @@ createConversation (NewConversation ty usr acc arole name mtid mtimer recpt user
   conv <- Id <$> liftIO nextRandom
   retry x5 $ case mtid of
     Nothing ->
-      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Set (toList acc), arole, fmap fromRange name, Nothing, mtimer, recpt))
+      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), arole, fmap fromRange name, Nothing, mtimer, recpt))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, ty, usr, Set (toList acc), arole, fmap fromRange name, Just tid, mtimer, recpt)
+      addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), arole, fmap fromRange name, Just tid, mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
   let newUsers = fmap (,role) (fromConvSize users)
   (lmems, rmems) <- addMembers conv (ulAddLocal (usr, roleNameWireAdmin) newUsers)
@@ -249,7 +250,7 @@ updateConvName cid name = retry x5 $ write Cql.updateConvName (params LocalQuoru
 updateConvAccess :: ConvId -> ConversationAccessData -> Client ()
 updateConvAccess cid (ConversationAccessData acc role) =
   retry x5 $
-    write Cql.updateConvAccess (params LocalQuorum (Set (toList acc), role, cid))
+    write Cql.updateConvAccess (params LocalQuorum (Cql.Set (toList acc), role, cid))
 
 updateConvReceiptMode :: ConvId -> ReceiptMode -> Client ()
 updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params LocalQuorum (receiptMode, cid))
@@ -331,6 +332,17 @@ remoteConversationStatusOnDomain uid rconvs =
       ( qualifyAs rconvs conv,
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
+
+toConv ::
+  ConvId ->
+  [LocalMember] ->
+  [RemoteMember] ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
+  Maybe Conversation
+toConv cid mms remoteMems conv =
+  f mms <$> conv
+  where
+    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, P.Reader ClientState, TinyLog] r =>

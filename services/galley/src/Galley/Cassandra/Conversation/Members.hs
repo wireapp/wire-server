@@ -34,10 +34,10 @@ import qualified Data.List.Extra as List
 import qualified Data.Map as Map
 import Data.Monoid
 import Data.Qualified
+import Galley.Cassandra.Instances ()
+import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Services
 import Galley.Cassandra.Store
-import Galley.Data.Instances ()
-import qualified Galley.Data.Queries as Cql
 import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole

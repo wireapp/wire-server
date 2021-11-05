@@ -91,8 +91,13 @@ import Galley.Cassandra.Code
 import Galley.Cassandra.Conversation
 import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.ConversationList
+import Galley.Cassandra.CustomBackend
+import Galley.Cassandra.LegalHold
+import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Services
 import Galley.Cassandra.Team
+import Galley.Cassandra.TeamFeatures
+import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Effects.FireAndForget (interpretFireAndForget)
 import qualified Galley.Effects.FireAndForget as E
@@ -157,12 +162,6 @@ instance MonadThrow (Galley r) where
 instance MonadReader Env (Galley r) where
   ask = Galley $ P.ask @Env
   local f m = Galley $ P.local f (unGalley m)
-
-instance MonadClient (Galley r) where
-  liftClient m = Galley $ do
-    cs <- P.ask @ClientState
-    embed @IO $ runClient cs m
-  localState f m = Galley $ P.local f (unGalley m)
 
 instance HasFederatorConfig (Galley r) where
   federatorEndpoint = view federator
@@ -333,8 +332,13 @@ interpretGalleyToGalley0 =
     . interpretConversationListToCassandra
     . withLH interpretTeamMemberStoreToCassandra
     . withLH interpretTeamStoreToCassandra
+    . interpretTeamNotificationStoreToCassandra
+    . interpretTeamFeatureStoreToCassandra
     . interpretServiceStoreToCassandra
+    . interpretSearchVisibilityStoreToCassandra
     . interpretMemberStoreToCassandra
+    . withLH interpretLegalHoldStoreToCassandra
+    . interpretCustomBackendStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra

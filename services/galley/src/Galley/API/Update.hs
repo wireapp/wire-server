@@ -92,8 +92,6 @@ import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Util
 import Galley.App
-import Galley.Cassandra.Services
-import qualified Galley.Data.Access as Data
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
@@ -107,6 +105,7 @@ import qualified Galley.Effects.ExternalAccess as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
+import qualified Galley.Effects.ServiceStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Options
@@ -282,6 +281,7 @@ performAccessUpdateAction ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       LegalHoldStore,
        MemberStore,
        TeamStore
      ]
@@ -457,6 +457,7 @@ type UpdateConversationActions =
      GundeckAccess,
      CodeStore,
      ConversationStore,
+     LegalHoldStore,
      MemberStore,
      TeamStore
    ]
@@ -1432,14 +1433,14 @@ isTyping zusr zcon cnv typingData = do
         & pushRoute .~ RouteDirect
         & pushTransient .~ True
 
-addServiceH :: JsonRequest Service -> Galley r Response
+addServiceH :: Member ServiceStore r => JsonRequest Service -> Galley r Response
 addServiceH req = do
-  insertService =<< fromJsonBody req
+  liftSem . E.createService =<< fromJsonBody req
   return empty
 
-rmServiceH :: JsonRequest ServiceRef -> Galley r Response
+rmServiceH :: Member ServiceStore r => JsonRequest ServiceRef -> Galley r Response
 rmServiceH req = do
-  deleteService =<< fromJsonBody req
+  liftSem . E.deleteService =<< fromJsonBody req
   return empty
 
 addBotH ::

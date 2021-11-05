@@ -246,6 +246,7 @@ leaveConversation ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       LegalHoldStore,
        MemberStore,
        TeamStore
      ]

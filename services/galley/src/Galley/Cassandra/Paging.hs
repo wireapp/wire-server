@@ -23,6 +23,12 @@ module Galley.Cassandra.Paging
     InternalPagingState (..),
     mkInternalPage,
     ipNext,
+
+    -- * Re-exports
+    ResultSet,
+    resultSetResult,
+    resultSetType,
+    ResultSetType (..),
   )
 where
 
@@ -30,7 +36,7 @@ import Cassandra
 import Data.Id
 import Data.Qualified
 import Data.Range
-import Galley.Data.ResultSet
+import Galley.Cassandra.ResultSet
 import qualified Galley.Effects.Paging as E
 import Imports
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember)

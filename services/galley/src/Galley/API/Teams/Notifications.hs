@@ -53,6 +53,7 @@ import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
+import qualified Galley.Effects.TeamNotificationStore as E
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
@@ -60,7 +61,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 
 getTeamNotifications ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, TeamNotificationStore] r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
@@ -70,17 +71,17 @@ getTeamNotifications zusr since size = do
     mtid <- liftSem $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
     let err = throwM teamNotFound
     maybe err pure mtid
-  page <- DataTeamQueue.fetch tid since size
+  page <- liftSem $ E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
       (toList (DataTeamQueue.resultSeq page))
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: TeamId -> Event -> Galley r ()
+pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Galley r ()
 pushTeamEvent tid evt = do
   nid <- mkNotificationId
-  DataTeamQueue.add tid nid (List1.singleton $ toJSONObject evt)
+  liftSem $ E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)
 
 -- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
 mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId

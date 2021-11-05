@@ -205,7 +205,7 @@ import Data.Conduit
 import Data.Id
 import Data.Time
 import Data.UUID
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Imports
 import Types
 import Wire.API.Team.Permission

@@ -36,10 +36,15 @@ module Galley.Effects
     ClientStore,
     CodeStore,
     ConversationStore,
+    CustomBackendStore,
+    LegalHoldStore,
     MemberStore,
+    SearchVisibilityStore,
     ServiceStore,
-    TeamStore,
+    TeamFeatureStore,
     TeamMemberStore,
+    TeamNotificationStore,
+    TeamStore,
 
     -- * Paging effects
     ListItems,
@@ -58,15 +63,20 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.CustomBackendStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.GundeckAccess
+import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
+import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
+import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
 import Polysemy
 
@@ -82,8 +92,13 @@ type GalleyEffects1 =
      ClientStore,
      CodeStore,
      ConversationStore,
+     CustomBackendStore,
+     LegalHoldStore,
      MemberStore,
+     SearchVisibilityStore,
      ServiceStore,
+     TeamFeatureStore,
+     TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,
      ListItems CassandraPaging ConvId,

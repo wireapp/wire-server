@@ -38,7 +38,7 @@ import qualified Data.Conduit.List as CL
 import Data.Id
 import qualified Data.Set as Set
 import Data.UUID
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Imports
 import Schema
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitWith)

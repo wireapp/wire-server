@@ -52,7 +52,6 @@ import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
-import Galley.Data.ResultSet
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
