@@ -39,8 +39,8 @@ where
 import Data.Id
 import qualified Data.Set as Set
 import qualified Data.UUID.Tagged as U
-import Galley.Data.Conversation.Types
 import Galley.Cassandra.Instances ()
+import Galley.Data.Conversation.Types
 import Imports hiding (Set)
 import Wire.API.Conversation hiding (Conversation)
 

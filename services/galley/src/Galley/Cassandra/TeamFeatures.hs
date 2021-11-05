@@ -20,8 +20,8 @@ module Galley.Cassandra.TeamFeatures (interpretTeamFeatureStoreToCassandra) wher
 import Cassandra
 import Data.Id
 import Data.Proxy
-import Galley.Cassandra.Store
 import Galley.Cassandra.Instances ()
+import Galley.Cassandra.Store
 import Galley.Data.TeamFeatures
 import Galley.Effects.TeamFeatureStore (TeamFeatureStore (..))
 import Imports

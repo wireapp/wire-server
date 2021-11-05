@@ -22,8 +22,8 @@ where
 
 import Brig.Types.Code
 import Cassandra
-import Galley.Cassandra.Store
 import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Store
 import Galley.Data.Types
 import Galley.Effects.CodeStore (CodeStore (..))
 import Imports

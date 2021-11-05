@@ -26,11 +26,11 @@ import Cassandra
 import Data.Id
 import Data.Qualified
 import Data.Range
+import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Paging
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.ResultSet
 import Galley.Cassandra.Store
-import Galley.Cassandra.Instances ()
 import Galley.Effects.ListItems
 import Imports hiding (max)
 import Polysemy

@@ -34,10 +34,10 @@ import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.Cassandra.Access
 import Galley.Cassandra.Conversation.Members
+import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
-import qualified Galley.Cassandra.Queries as Cql
 import Galley.Effects.ConversationStore (ConversationStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
