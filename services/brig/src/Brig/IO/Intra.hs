@@ -118,7 +118,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Client
-import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
+import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
@@ -278,9 +278,6 @@ notifyUserDeletionRemotes deleted = do
           case eitherFErr of
             Left fErr -> do
               logFederationError (tDomain uids) fErr
-              -- FUTUTREWORK: Do something better here?
-              -- FUTUREWORK: Write test that this happens
-              throwM $ federationErrorToWai fErr
             Right () -> pure ()
 
     logFederationError :: Domain -> FederationError -> AppT IO ()

@@ -136,6 +136,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
       test' aws p "delete with connected remote users" $ testDeleteWithRemotes opts b,
+      test' aws p "delete with connected remote users and failed remote notifcations" $ testDeleteWithRemotesAndFailedNotifications opts b c,
       test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
       testGroup
         "temporary customer extensions"
@@ -1249,6 +1250,56 @@ testDeleteWithRemotes opts brig = do
     remote2Udn <- assertRight $ parseFedRequest remote2Call
     udcnUser remote2Udn @?= userId localUser
     fromRange (udcnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
+  where
+    parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
+    parseFedRequest fr =
+      case F.request fr of
+        Just r ->
+          (eitherDecode . cs) (F.body r)
+        Nothing -> Left "No request"
+
+testDeleteWithRemotesAndFailedNotifications :: Opt.Opts -> Brig -> Cannon -> Http ()
+testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
+  alice <- randomUser brig
+  alex <- randomUser brig
+  let localDomain = qDomain (userQualifiedId alice)
+
+  let bDomain = Domain "b.example.com"
+      cDomain = Domain "c.example.com"
+  bob <- Qualified <$> randomId <*> pure bDomain
+  carl <- Qualified <$> randomId <*> pure cDomain
+
+  postConnection brig (userId alice) (userId alex) !!! const 201 === statusCode
+  putConnection brig (userId alex) (userId alice) Accepted !!! const 200 === statusCode
+  sendConnectionAction brig opts (userId alice) bob (Just FedBrig.RemoteConnect) Accepted
+  sendConnectionAction brig opts (userId alice) carl (Just FedBrig.RemoteConnect) Accepted
+
+  let fedMockResponse req =
+        if Domain (F.domain req) == bDomain
+          then F.OutwardResponseError (F.OutwardError F.ConnectionRefused "mocked connection problem with b domain")
+          else OutwardResponseBody (cs $ Aeson.encode EmptyResponse)
+
+  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
+      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
+        case (requestMethod, requestPath) of
+          (_methodDelete, ["i", "user"]) -> do
+            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
+            pure response
+          _ -> error "not mocked"
+
+  (_, rpcCalls, _galleyCalls) <- WS.bracketR cannon (userId alex) $ \wsAlex -> do
+    let action = withMockedFederatorAndGalley opts localDomain fedMockResponse galleyHandler $ do
+          deleteUser (userId alice) (Just defPassword) brig !!! do
+            const 200 === statusCode
+    liftIO action <* do
+      void . liftIO . WS.assertMatch (5 # Second) wsAlex $ matchDeleteUserNotification (userQualifiedId alice)
+
+  liftIO $ do
+    rRpc <- assertOne $ filter (\c -> F.domain c == domainText cDomain) rpcCalls
+    cUdn <- assertRight $ parseFedRequest rRpc
+    udcnUser cUdn @?= userId alice
+    sort (fromRange (udcnConnections cUdn))
+      @?= sort (map qUnqualified [carl])
   where
     parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
     parseFedRequest fr =
