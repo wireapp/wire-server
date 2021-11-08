@@ -69,7 +69,7 @@ package foo
 
 - Nix integration (`nix: True` in `~/.cabal/config`) is not supported in new-build.
   https://github.com/haskell/cabal/issues/4646
-  That's why you have to enter the environment defined by `cabal-deps.nix` manually (or via direnv) to use cabal.
+  That's why you have to enter the environment defined by `direnv.nix` manually (or via direnv) to use cabal.
 
 - cabal oddity? Specifying `--ghc-options` twice yields different result
 
