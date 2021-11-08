@@ -56,6 +56,7 @@ else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 endif
 
+# Usage: make c package=brig test=1
 .PHONY: c
 c:
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
@@ -66,6 +67,7 @@ endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
 # ci here doesn't refer to continuous integration, but to cabal-integration
+# Usage: make ci package=brig test=1
 .PHONY: ci
 ci: c
 	make -C services/$(package) i-$(pattern)
