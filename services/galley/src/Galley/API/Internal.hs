@@ -33,7 +33,6 @@ import Data.List1 (maybeList1)
 import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
 import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
@@ -87,9 +86,11 @@ import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
+import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
-import Wire.API.Federation.API.Galley (UserDeletedConversationsNotification (UserDeletedConversationsNotification))
+import Wire.API.Federation.API.Galley (ConversationUpdate (..), UserDeletedConversationsNotification (UserDeletedConversationsNotification))
 import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Federation.Client (FederationError)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
@@ -533,7 +534,9 @@ rmUser user conn = do
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
+      let qUser = Qualified user localDomain
       cc <- liftSem $ getConversations ids
+      now <- liftIO getCurrentTime
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
@@ -541,42 +544,67 @@ rmUser user conn = do
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
             liftSem $ deleteMembers (Data.convId c) (UserList [user] [])
-            now <- liftIO getCurrentTime
             let e =
                   Event
                     MemberLeave
                     (Qualified (Data.convId c) localDomain)
                     (Qualified user localDomain)
                     now
-                    (EdMembersLeave (QualifiedUserIdList [Qualified user localDomain]))
-            return $
+                    (EdMembersLeave (QualifiedUserIdList [qUser]))
+            for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+            pure $
               Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
+
       for_
         (maybeList1 (catMaybes pp))
         (liftSem . push)
+
+    -- FUTUREWORK: This could be optimized to reduce the number of RPCs
+    -- made. When a team is deleted the burst of RPCs created here could
+    -- lead to performance issues. We should cover this in a performance
+    -- test.
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Galley r ()
+    notifyRemoteMembers now qUser cid remotes = do
+      localDomain <- viewFederationDomain
+      let convUpdate =
+            ConversationUpdate
+              { cuTime = now,
+                cuOrigUserId = qUser,
+                cuConvId = cid,
+                cuAlreadyPresentUsers = tUnqualified remotes,
+                cuAction = ConversationActionRemoveMembers (pure qUser)
+              }
+      let rpc = FedGalley.onConversationUpdated FedGalley.clientRoutes localDomain convUpdate
+      liftSem (runFederatedEither remotes rpc)
+        >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
     leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
     leaveRemoteConversations lusr cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete
-        res <- liftSem $ runFederatedEither remoteConvs rpc
-        case res of
-          -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
-          -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
-          Left federationError -> do
-            Log.err $
-              Log.msg $
-                T.unwords
-                  [ "Federation error while notifying remote backends of a user deletion (Galley).",
-                    "user_id: " <> (cs . show) lusr,
-                    "details: " <> (cs . show) federationError
-                  ]
-            pure ()
-          Right _ -> pure ()
+        liftSem (runFederatedEither remoteConvs rpc)
+          >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
+
+    -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
+    -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
+    logAndIgnoreError :: Text -> UserId -> Either FederationError a -> Galley r ()
+    logAndIgnoreError message usr res = do
+      case res of
+        Left federationError -> do
+          Log.err
+            ( Log.msg
+                ( "Federation error while notifying remote backends of a user deletion (Galley). "
+                    <> message
+                    <> " "
+                    <> (cs . show $ federationError)
+                )
+                . Log.field "user" (show usr)
+            )
+        Right _ -> pure ()
 
 deleteLoop :: Galley r ()
 deleteLoop = liftGalley0 $ do

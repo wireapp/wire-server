@@ -2512,3 +2512,8 @@ generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
   if shouldBeLocal == isLocal
     then pure (qTagUnsafe other, convId)
     else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
+
+matchFedRequest :: Domain -> ByteString -> FederatedRequest -> Bool
+matchFedRequest domain reqpath req =
+  F.domain req == domainText domain
+    && fmap F.path (F.request req) == Just reqpath
