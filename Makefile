@@ -60,10 +60,12 @@ endif
 c:
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
 ifeq ($(test), 1)
-	./hack/bin/cabal-run-tests.sh $(package)
+	cd $$(find $(CURDIR) -name $(package).cabal | grep -v dist-newstyle | head | xargs -n 1 dirname) \
+	&& $(CURDIR)/hack/bin/cabal-run-tests.sh $(package)
 endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
+# ci here doesn't refer to continuous integration, but to cabal-integration
 .PHONY: ci
 ci: c
 	make -C services/$(package) i-$(pattern)
