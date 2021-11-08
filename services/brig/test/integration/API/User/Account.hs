@@ -1224,7 +1224,7 @@ testDeleteWithRemotes opts brig = do
   sendConnectionAction brig opts (userId localUser) remote2UserBlocked (Just FedBrig.RemoteConnect) Accepted
   void $ putConnectionQualified brig (userId localUser) remote2UserBlocked Blocked
 
-  let fedMockResponse = OutwardResponseBody (cs $ Aeson.encode EmptyResponse)
+  let fedMockResponse = const (OutwardResponseBody (cs $ Aeson.encode EmptyResponse))
   let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
       galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
         case (requestMethod, requestPath) of
