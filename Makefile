@@ -61,8 +61,7 @@ endif
 c:
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
 ifeq ($(test), 1)
-	cd $$(find $(CURDIR) -name $(package).cabal | grep -v dist-newstyle | head | xargs -n 1 dirname) \
-	&& $(CURDIR)/hack/bin/cabal-run-tests.sh $(package)
+	./hack/bin/cabal-run-tests.sh $(package)
 endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
