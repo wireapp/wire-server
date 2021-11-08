@@ -41,8 +41,8 @@ init:
 install: init
 ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal build all
-	cabal test all
-	cabal install --install-method=copy --installdir=dist all
+	./hack/bin/cabal-run-all-tests.sh
+	./hack/bin/cabal-install-all-artefacts.sh
 else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 endif
@@ -62,7 +62,7 @@ c:
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package)
 endif
-	./hack/bin/cabal-install-artifacts.sh $(package)
+	./hack/bin/cabal-install-artefacts.sh $(package)
 
 .PHONY: ci
 ci: c
