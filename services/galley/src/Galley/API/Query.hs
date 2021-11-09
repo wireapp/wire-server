@@ -156,7 +156,6 @@ data FailedGetConversationReason
   = FailedGetConversationLocally
   | FailedGetConversationRemotely FederationError
 
--- fgcrError :: FailedGetConversationReason -> Wai.Error
 throwFgcrError ::
   Members '[Error ConversationError, Error FederationError] r => FailedGetConversationReason -> Sem r a
 throwFgcrError FailedGetConversationLocally = throw ConvNotFound
