@@ -805,6 +805,13 @@ packages:
     git: https://github.com/vincenthz/hs-certificate
     commit: a899bda3d7666d25143be7be8f3105fc076703d9
 - completed:
+    hackage: polysemy-check-0.8.1.0@sha256:5cce3ae162d2f8d8f629397daa28ec5e425f72d357afeb4fe994e102425f2383,2648
+    pantry-tree:
+      size: 1027
+      sha256: bc880fb3405307ed251c02358d604979d8014040b78c2ffe6319076431f93509
+  original:
+    hackage: polysemy-check-0.8.1.0
+- completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:
       size: 74141

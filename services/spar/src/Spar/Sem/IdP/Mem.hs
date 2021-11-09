@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.IdP.Mem (idPToMem) where
+module Spar.Sem.IdP.Mem (idPToMem, IS) where
 
-import Control.Exception (assert)
 import Control.Lens ((%~), (.~), (^.), _1, _2)
 import Data.Id (TeamId)
 import qualified Data.Map as M
@@ -22,11 +21,11 @@ type RawState = Map SAML.IdPId Text
 idPToMem ::
   forall r a.
   Sem (Eff.IdP ': r) a ->
-  Sem r a
+  Sem r (IS, a)
 idPToMem = evState . evEff
   where
-    evState :: Sem (State IS : r) a -> Sem r a
-    evState = evalState mempty
+    evState :: Sem (State IS : r) a -> Sem r (IS, a)
+    evState = runState mempty
 
     evEff :: Sem (Eff.IdP ': r) a -> Sem (State IS ': r) a
     evEff = reinterpret @_ @(State IS) $ \case
@@ -40,8 +39,8 @@ idPToMem = evState . evEff
         gets (getIdByIssuerWithTeam iss team . (^. _1))
       Eff.GetConfigsByTeam team ->
         gets (getConfigsByTeam team . (^. _1))
-      Eff.DeleteConfig i iss team ->
-        modify' (_1 %~ deleteConfig i iss team)
+      Eff.DeleteConfig idp ->
+        modify' (_1 %~ deleteConfig idp)
       Eff.SetReplacedBy (Eff.Replaced replaced) (Eff.Replacing replacing) ->
         modify' (_1 %~ ((updateReplacedBy (Just replacing) replaced) <$>))
       Eff.ClearReplacedBy (Eff.Replaced replaced) ->
@@ -55,14 +54,14 @@ idPToMem = evState . evEff
 
 storeConfig :: IP.IdP -> TypedState -> TypedState
 storeConfig iw =
-  M.filter
-    ( \iw' ->
-        or
-          [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
-            iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
-          ]
-    )
-    . M.insert (iw ^. SAML.idpId) iw
+  M.insert (iw ^. SAML.idpId) iw
+    . M.filter
+      ( \iw' ->
+          or
+            [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
+              iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
+            ]
+      )
 
 getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
 getConfig = M.lookup
@@ -95,17 +94,12 @@ getConfigsByTeam team =
     fl :: IP.IdP -> Bool
     fl idp = idp ^. SAML.idpExtraInfo . IP.wiTeam == team
 
-deleteConfig :: SAML.IdPId -> SAML.Issuer -> TeamId -> TypedState -> TypedState
-deleteConfig i iss team =
+deleteConfig :: IP.IdP -> TypedState -> TypedState
+deleteConfig idp =
   M.filter fl
   where
     fl :: IP.IdP -> Bool
-    fl idp =
-      assert -- calling this function with inconsistent values will crash hard.
-        ( idp ^. SAML.idpMetadata . SAML.edIssuer == iss
-            && idp ^. SAML.idpExtraInfo . IP.wiTeam == team
-        )
-        (idp ^. SAML.idpId /= i)
+    fl idp' = idp' ^. SAML.idpId /= idp ^. SAML.idpId
 
 updateReplacedBy :: Maybe SAML.IdPId -> SAML.IdPId -> IP.IdP -> IP.IdP
 updateReplacedBy mbReplacing replaced idp =

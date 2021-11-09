@@ -200,7 +200,7 @@ spec = do
         do
           midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Just idp
-        () <- runSpar $ IdPEffect.deleteConfig (idp ^. idpId) (idp ^. idpMetadata . edIssuer) teamid
+        () <- runSpar $ IdPEffect.deleteConfig idp
         do
           midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
