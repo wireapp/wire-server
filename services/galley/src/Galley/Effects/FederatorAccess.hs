@@ -55,7 +55,7 @@ data FederatorAccess m a where
     (Foldable f, Functor f) =>
     f (Remote x) ->
     (Remote [x] -> FederatedRPC c a) ->
-    FederatorAccess m [Either FederationError (Remote a)]
+    FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
 
 makeSem ''FederatorAccess
 

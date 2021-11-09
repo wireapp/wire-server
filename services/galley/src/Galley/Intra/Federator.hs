@@ -20,6 +20,7 @@
 module Galley.Intra.Federator (interpretFederatorAccess) where
 
 import Control.Monad.Except
+import Data.Bifunctor
 import Data.Qualified
 import Galley.Effects.FederatorAccess (FederatorAccess (..))
 import Galley.Env
@@ -80,7 +81,7 @@ runFederatedConcurrentlyEither ::
   (Foldable f, Functor f) =>
   f (Remote a) ->
   (Remote [a] -> FederatedRPC c b) ->
-  FederationM [Either FederationError (Remote b)]
+  FederationM [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
-    sequenceA . qualifyAs r <$> runFederatedEither r (rpc r)
+    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)

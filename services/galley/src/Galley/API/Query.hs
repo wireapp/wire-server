@@ -34,8 +34,6 @@ module Galley.API.Query
 where
 
 import qualified Cassandra as C
-import Control.Lens (sequenceAOf)
-import Control.Monad.Trans.Except
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
@@ -54,6 +52,7 @@ import Galley.Cassandra.Paging
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Types
@@ -66,15 +65,15 @@ import Network.Wai.Predicate hiding (Error, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
+import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
-import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationError (FederationUnexpectedBody), executeFederated)
+import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
@@ -118,7 +117,9 @@ getConversation ::
     '[ ConversationStore,
        Error ConversationError,
        Error FederationError,
-       Error InternalError
+       Error InternalError,
+       FederatorAccess,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -142,7 +143,14 @@ getConversation zusr cnv = do
         _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  Members '[ConversationStore, Error ConversationError, Error FederationError] r =>
+  Members
+    '[ ConversationStore,
+       Error ConversationError,
+       Error FederationError,
+       FederatorAccess,
+       P.TinyLog
+     ]
+    r =>
   UserId ->
   [Remote ConvId] ->
   Galley r [Public.Conversation]
@@ -188,7 +196,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, FederatorAccess, P.TinyLog] r =>
   UserId ->
   [Remote ConvId] ->
   Galley r ([FailedGetConversation], [Public.Conversation])
@@ -198,7 +206,7 @@ getRemoteConversationsWithFailures zusr convs = do
 
   -- get self member statuses from the database
   statusMap <- liftSem $ E.getRemoteConversationStatus zusr convs
-  let remoteView :: Remote FederatedGalley.RemoteConversation -> Maybe Conversation
+  let remoteView :: Remote FederatedGalley.RemoteConversation -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
@@ -214,28 +222,25 @@ getRemoteConversationsWithFailures zusr convs = do
         | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  liftGalley0
-    . fmap (bimap (localFailures <>) concat . partitionEithers)
-    . pooledForConcurrentlyN 8 (bucketRemote locallyFound)
-    $ \someConvs -> do
-      let req = FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
-          rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
-      handleFailures (sequenceAOf tUnqualifiedL someConvs) $ do
-        rconvs <- gcresConvs <$> executeFederated (tDomain someConvs) rpc
-        pure $ mapMaybe (remoteView . qualifyAs someConvs) rconvs
+  let rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain
+  resp <-
+    liftSem $
+      E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
+        rpc $ FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
+  bimap (localFailures <>) (map remoteView . concat)
+    . partitionEithers
+    <$> traverse handleFailure resp
   where
-    handleFailures ::
-      [Remote ConvId] ->
-      ExceptT FederationError Galley0 a ->
-      Galley0 (Either FailedGetConversation a)
-    handleFailures rconvs action = runExceptT
-      . withExceptT (failedGetConversationRemotely rconvs)
-      . catchE action
-      $ \e -> do
-        lift . Logger.warn $
-          Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
-            . Logger.field "error" (show e)
-        throwE e
+    handleFailure ::
+      Members '[P.TinyLog] r =>
+      Either (Remote [ConvId], FederationError) (Remote FederatedGalley.GetConversationsResponse) ->
+      Galley r (Either FailedGetConversation [Remote FederatedGalley.RemoteConversation])
+    handleFailure (Left (rcids, e)) = liftSem $ do
+      P.warn $
+        Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
+          . Logger.field "error" (show e)
+      pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
+    handleFailure (Right c) = pure . Right . traverse gcresConvs $ c
 
 getConversationRoles ::
   Members '[ConversationStore, Error ConversationError] r =>
@@ -375,7 +380,7 @@ getConversationsInternal user mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  Members '[ConversationStore, Error InternalError] r =>
+  Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r =>
   UserId ->
   Public.ListConversations ->
   Galley r Public.ConversationsResponse

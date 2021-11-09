@@ -83,16 +83,12 @@ conversationViewMaybe luid conv = do
       (ConvMembers self others)
 
 -- | View for a local user of a remote conversation.
---
--- If the local user is not actually present in the conversation, simply
--- discard the conversation altogether. This should only happen if the remote
--- backend is misbehaving.
 remoteConversationView ::
   Local UserId ->
   MemberStatus ->
   Remote RemoteConversation ->
-  Maybe Conversation
-remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
+  Conversation
+remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) =
   let mems = rcnvMembers rconv
       others = rcmOthers mems
       self =
@@ -104,7 +100,7 @@ remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
               lmStatus = status,
               lmConvRoleName = rcmSelfRole mems
             }
-  pure $ Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
+   in Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
 
 -- | Convert a local conversation to a structure to be returned to a remote
 -- backend.
