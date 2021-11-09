@@ -3275,7 +3275,7 @@ removeUser = do
         deleteUser alexDel' !!! const 200 === statusCode
 
     liftIO $ do
-      assertEqual ("expect exactly 5 federated requests in : " <> show fedRequests) 7 (length fedRequests)
+      assertEqual ("expect exactly 7 federated requests in : " <> show fedRequests) 7 (length fedRequests)
 
     liftIO $ do
       bReq <- assertOne $ filter (matchFedRequest bDomain "/federation/on-user-deleted/conversations") fedRequests

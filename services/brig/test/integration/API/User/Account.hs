@@ -1281,8 +1281,8 @@ testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
 
   let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
       galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
-        case (requestMethod, requestPath) of
-          (_methodDelete, ["i", "user"]) -> do
+        case (Http.parseMethod requestMethod, requestPath) of
+          (Right Http.DELETE, ["i", "user"]) -> do
             let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
             pure response
           _ -> error "not mocked"

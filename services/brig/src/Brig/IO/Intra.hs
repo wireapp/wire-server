@@ -93,6 +93,7 @@ import Data.Coerce (coerce)
 import qualified Data.Conduit.List as C
 import qualified Data.Currency as Currency
 import Data.Domain
+import Data.Either.Combinators (whenLeft)
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
@@ -275,10 +276,8 @@ notifyUserDeletionRemotes deleted = do
         Just rangedUids -> do
           luidDeleted <- qualifyLocal deleted
           eitherFErr <- runExceptT (notifyUserDeleted luidDeleted (qualifyAs uids rangedUids))
-          case eitherFErr of
-            Left fErr -> do
-              logFederationError (tDomain uids) fErr
-            Right () -> pure ()
+          whenLeft eitherFErr $
+            logFederationError (tDomain uids)
 
     logFederationError :: Domain -> FederationError -> AppT IO ()
     logFederationError domain fErr =
