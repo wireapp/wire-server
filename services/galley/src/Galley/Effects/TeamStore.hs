@@ -63,6 +63,10 @@ module Galley.Effects.TeamStore
 
     -- ** Delete team members
     deleteTeamMember,
+
+    -- * Configuration
+    fanoutLimit,
+    getLegalHoldFlag,
   )
 where
 
@@ -107,6 +111,8 @@ data TeamStore m a where
   DeleteTeamConversation :: TeamId -> ConvId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
+  FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
+  GetLegalHoldFlag :: TeamStore m FeatureLegalHold
 
 makeSem ''TeamStore
 

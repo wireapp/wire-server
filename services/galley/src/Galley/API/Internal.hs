@@ -62,6 +62,7 @@ import Galley.Effects.Paging
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
+import Galley.Options
 import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
@@ -80,6 +81,8 @@ import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
 import Polysemy.Error
+import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import Servant.API hiding (JSON)
 import qualified Servant.API as Servant
 import Servant.API.Generic
@@ -95,7 +98,7 @@ import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Client (FederationError)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
-import Wire.API.Routes.Public (ZLocalUser, ZOptConn, ZUser)
+import Wire.API.Routes.Public (ZLocalUser, ZOptConn)
 import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
 
@@ -206,7 +209,7 @@ data InternalApi routes = InternalApi
     iConnect ::
       routes
         :- Summary "Create a connect conversation (deprecated)"
-        :> ZUser
+        :> ZLocalUser
         :> ZOptConn
         :> "i"
         :> "conversations"
@@ -542,13 +545,12 @@ rmUser lusr conn = do
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       mems <- getTeamMembersForFanout tid
-      uncheckedDeleteTeamMember (tUnqualified lusr) conn tid (tUnqualified lusr) mems
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
       page' <- liftSem $ listTeams (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
-      localDomain <- viewFederationDomain
       let qUser = qUntagged lusr
       cc <- liftSem $ getConversations ids
       now <- liftIO getCurrentTime
@@ -562,7 +564,7 @@ rmUser lusr conn = do
             let e =
                   Event
                     MemberLeave
-                    (Qualified (Data.convId c) localDomain)
+                    (qUntagged (qualifyAs lusr (Data.convId c)))
                     (qUntagged lusr)
                     now
                     (EdMembersLeave (QualifiedUserIdList [qUser]))
@@ -583,7 +585,6 @@ rmUser lusr conn = do
     -- test.
     notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Galley r ()
     notifyRemoteMembers now qUser cid remotes = do
-      localDomain <- viewFederationDomain
       let convUpdate =
             ConversationUpdate
               { cuTime = now,
@@ -592,7 +593,7 @@ rmUser lusr conn = do
                 cuAlreadyPresentUsers = tUnqualified remotes,
                 cuAction = ConversationActionRemoveMembers (pure qUser)
               }
-      let rpc = FedGalley.onConversationUpdated FedGalley.clientRoutes localDomain convUpdate
+      let rpc = FedGalley.onConversationUpdated FedGalley.clientRoutes (tDomain lusr) convUpdate
       liftSem (runFederatedEither remotes rpc)
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
@@ -627,7 +628,7 @@ deleteLoop = do
   safeForever "deleteLoop" $ do
     i@(TeamItem tid usr con) <- Q.pop q
     env <- ask
-    liftIO (evalGalley env (Teams.uncheckedDeleteTeam usr con tid))
+    liftIO (evalGalley env (doDelete usr con tid))
       `catchAny` someError q i
   where
     someError q i x = do
@@ -636,6 +637,10 @@ deleteLoop = do
       unless ok $
         err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
       liftIO $ threadDelay 1000000
+
+    doDelete usr con tid = do
+      lusr <- liftSem $ qualifyLocal usr
+      Teams.uncheckedDeleteTeam lusr con tid
 
 safeForever :: String -> App () -> App ()
 safeForever funName action =
@@ -649,13 +654,15 @@ guardLegalholdPolicyConflictsH ::
     '[ BrigAccess,
        Error LegalHoldError,
        Error InvalidInput,
-       TeamStore
+       Input Opts,
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
-  guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (liftSem (throw MissingLegalholdConsent))) pure
+  liftSem . mapError (const MissingLegalholdConsent) $
+    guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
   pure $ Network.Wai.Utilities.setStatus status200 empty

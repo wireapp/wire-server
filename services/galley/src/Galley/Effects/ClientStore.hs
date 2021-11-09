@@ -28,11 +28,15 @@ module Galley.Effects.ClientStore
     -- * Delete client
     deleteClient,
     deleteClients,
+
+    -- * Configuration
+    useIntraClientListing,
   )
 where
 
 import Data.Id
 import Galley.Types.Clients
+import Imports
 import Polysemy
 
 data ClientStore m a where
@@ -40,5 +44,6 @@ data ClientStore m a where
   CreateClient :: UserId -> ClientId -> ClientStore m ()
   DeleteClient :: UserId -> ClientId -> ClientStore m ()
   DeleteClients :: UserId -> ClientStore m ()
+  UseIntraClientListing :: ClientStore m Bool
 
 makeSem ''ClientStore

@@ -59,12 +59,14 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
+import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
@@ -133,6 +135,7 @@ instance IsConversationAction ConversationJoin where
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
+           Input Opts,
            LegalHoldStore,
            MemberStore,
            TeamStore
@@ -210,6 +213,7 @@ instance IsConversationAction ConversationJoin where
              ExternalAccess,
              FederatorAccess,
              GundeckAccess,
+             Input Opts,
              LegalHoldStore,
              MemberStore,
              TeamStore
@@ -243,7 +247,7 @@ instance IsConversationAction ConversationJoin where
             then do
               for_ convUsersLHStatus $ \(mem, status) ->
                 when (consentGiven status == ConsentNotGiven) $ do
-                  qvictim <- qUntagged <$> qualifyLocal (lmId mem)
+                  let qvictim = qUntagged (qualifyAs lcnv (lmId mem))
                   void . runMaybeT $
                     updateLocalConversation lcnv qvictim Nothing $
                       ConversationLeave (pure qvictim)
@@ -447,7 +451,7 @@ updateLocalConversation lcnv qusr con action = do
   -- retrieve conversation
   (conv, self) <-
     lift $
-      getConversationAndMemberWithError ConvNotFound qusr (tUnqualified lcnv)
+      getConversationAndMemberWithError ConvNotFound qusr lcnv
 
   -- perform checks
   lift $ ensureConversationActionAllowed lcnv action conv self
@@ -510,16 +514,15 @@ notifyConversationAction ::
   BotsAndMembers ->
   ConversationAction ->
   Galley r Event
-notifyConversationAction quid con (qUntagged -> qcnv) targets action = do
-  localDomain <- viewFederationDomain
+notifyConversationAction quid con lcnv targets action = do
   now <- liftIO getCurrentTime
-  let e = conversationActionToEvent now quid qcnv action
+  let e = conversationActionToEvent now quid (qUntagged lcnv) action
 
   -- notify remote participants
   liftSem $
     E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-      F.onConversationUpdated F.clientRoutes localDomain $
-        F.ConversationUpdate now quid (qUnqualified qcnv) (tUnqualified ruids) action
+      F.onConversationUpdated F.clientRoutes (tDomain lcnv) $
+        F.ConversationUpdate now quid (tUnqualified lcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots
-  pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
+  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets) $> e

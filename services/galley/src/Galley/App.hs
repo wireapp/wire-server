@@ -48,7 +48,6 @@ module Galley.App
     fromJsonBody,
     fromOptionalJsonBody,
     fromProtoBody,
-    fanoutLimit,
     currentFanoutLimit,
 
     -- * Temporary compatibility functions
@@ -60,7 +59,6 @@ module Galley.App
 where
 
 import Bilge hiding (Request, header, options, statusCode, statusMessage)
-import Bilge.RPC
 import Cassandra hiding (Set)
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
@@ -75,6 +73,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
 import qualified Data.ProtocolBuffers as Proto
 import Data.Proxy (Proxy (..))
+import Data.Qualified
 import Data.Range
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
@@ -118,6 +117,7 @@ import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.Internal (Append)
 import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
@@ -150,13 +150,6 @@ instance Monad (Galley r) where
 instance MonadIO (Galley r) where
   liftIO action = Galley (liftIO action)
 
-instance MonadReader Env (Galley r) where
-  ask = Galley $ P.ask @Env
-  local f m = Galley $ P.local f (unGalley m)
-
-fanoutLimit :: Galley r (Range 1 Teams.HardTruncationLimit Int32)
-fanoutLimit = view options >>= return . currentFanoutLimit
-
 -- Define some invariants for the options used
 validateOptions :: Logger -> Opts -> IO ()
 validateOptions l o = do
@@ -182,14 +175,6 @@ validateOptions l o = do
 
 instance MonadLogger (Galley r) where
   log l m = Galley $ P.polylog l m
-
-instance MonadHttp (Galley r) where
-  handleRequestWithCont req handler = do
-    httpManager <- view manager
-    liftIO $ withResponse req httpManager handler
-
-instance HasRequestId (Galley r) where
-  getRequestId = view reqId
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
@@ -306,6 +291,10 @@ evalGalley e =
     . interpretTinyLog e
     . interpretErrorToException
     . mapAllErrors
+    . runInputConst (e ^. options)
+    . runInputConst (toLocalUnsafe (e ^. options . optSettings . setFederationDomain) ())
+    . runInputConst (e ^. aEnv)
+    . runInputConst (e ^. deleteQueue)
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra

@@ -45,6 +45,7 @@ import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
+import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
 import Galley.Types.UserList
@@ -56,6 +57,7 @@ import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Wire.API.Conversation hiding (Conversation, Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
@@ -84,6 +86,7 @@ createGroupConversation ::
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
+       Input Opts,
        LegalHoldStore,
        TeamStore
      ]
@@ -112,6 +115,8 @@ internalCreateManagedConversationH ::
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
+       Input (Local ()),
+       Input Opts,
        LegalHoldStore,
        TeamStore
      ]
@@ -119,7 +124,7 @@ internalCreateManagedConversationH ::
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
   Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
-  lusr <- qualifyLocal zusr
+  lusr <- liftSem $ qualifyLocal zusr
   newConv <- fromJsonBody req
   handleConversationResponse <$> internalCreateManagedConversation lusr zcon newConv
 
@@ -136,6 +141,7 @@ internalCreateManagedConversation ::
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
+       Input Opts,
        LegalHoldStore,
        TeamStore
      ]
@@ -149,7 +155,7 @@ internalCreateManagedConversation lusr zcon (NewConvManaged body) = do
   createTeamGroupConv lusr zcon tinfo body
 
 ensureNoLegalholdConflicts ::
-  Members '[Error LegalHoldError, LegalHoldStore, TeamStore] r =>
+  Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
   [Remote UserId] ->
   [UserId] ->
   Galley r ()
@@ -170,6 +176,7 @@ createRegularGroupConv ::
        Error InvalidInput,
        Error LegalHoldError,
        GundeckAccess,
+       Input Opts,
        LegalHoldStore,
        TeamStore
      ]
@@ -181,7 +188,7 @@ createRegularGroupConv ::
 createRegularGroupConv lusr zcon (NewConvUnmanaged body) = do
   name <- liftSem $ rangeCheckedMaybe (newConvName body)
   let allUsers = newConvMembers lusr body
-  o <- view options
+  o <- liftSem input
   checkedUsers <- liftSem $ checkedConvSize o allUsers
   ensureConnected lusr allUsers
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
@@ -218,6 +225,7 @@ createTeamGroupConv ::
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
+       Input Opts,
        LegalHoldStore,
        TeamStore
      ]
@@ -234,7 +242,7 @@ createTeamGroupConv lusr zcon tinfo body = do
 
   zusrMembership <- liftSem $ E.getTeamMember convTeam (tUnqualified lusr)
   void $ permissionCheck CreateConversation zusrMembership
-  o <- view options
+  o <- liftSem input
   checkedUsers <- liftSem $ checkedConvSize o allUsers
   convLocalMemberships <- mapM (liftSem . E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRole body) (zip (ulLocals allUsers) convLocalMemberships)
@@ -450,12 +458,11 @@ createConnectConversation ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   Connect ->
   Galley r ConversationResponse
-createConnectConversation usr conn j = do
-  lusr <- qualifyLocal usr
+createConnectConversation lusr conn j = do
   foldQualified
     lusr
     (\lrcpt -> createLegacyConnectConversation lusr conn lrcpt j)
@@ -515,7 +522,7 @@ createLegacyConnectConversation lusr conn lrecipient j = do
                   -- we already were in the conversation, maybe also other
                   connect n conv
                 | otherwise -> do
-                  lcid <- qualifyLocal (Data.convId conv)
+                  let lcid = qualifyAs lusr (Data.convId conv)
                   mm <- liftSem $ E.createMember lcid lusr
                   let conv' =
                         conv
@@ -527,21 +534,20 @@ createLegacyConnectConversation lusr conn lrecipient j = do
                       connect n conv'
                     else do
                       -- we were not in the conversation, but someone else
-                      conv'' <- acceptOne2One (tUnqualified lusr) conv' conn
+                      conv'' <- acceptOne2One lusr conv' conn
                       if Data.convType conv'' == ConnectConv
                         then connect n conv''
                         else return conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-        localDomain <- viewFederationDomain
-        let qconv = Qualified (Data.convId conv) localDomain
+        let lcnv = qualifyAs lusr (Data.convId conv)
         n' <- case n of
           Just x -> liftSem $ do
             E.setConversationName (Data.convId conv) x
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
-        let e = Event ConvConnect qconv (qUntagged lusr) t (EdConnect j)
+        let e = Event ConvConnect (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           liftSem . E.push1 $
             p

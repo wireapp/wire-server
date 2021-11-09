@@ -64,6 +64,7 @@ import Network.Wai.Predicate hiding (Error)
 import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley as FederatedGalley
@@ -257,22 +258,21 @@ acceptOne2One ::
        GundeckAccess
      ]
     r =>
-  UserId ->
+  Local UserId ->
   Data.Conversation ->
   Maybe ConnId ->
   Galley r Data.Conversation
-acceptOne2One usr conv conn = do
-  lusr <- qualifyLocal usr
-  lcid <- qualifyLocal cid
+acceptOne2One lusr conv conn = do
+  let lcid = qualifyAs lusr cid
   case Data.convType conv of
     One2OneConv ->
-      if usr `isMember` mems
+      if tUnqualified lusr `isMember` mems
         then return conv
         else do
           mm <- liftSem $ createMember lcid lusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
-      [_, _] | usr `isMember` mems -> liftSem promote
+      [_, _] | tUnqualified lusr `isMember` mems -> liftSem promote
       [_, _] -> liftSem $ throw ConvNotFound
       _ -> do
         when (length mems > 2) $
@@ -280,9 +280,9 @@ acceptOne2One usr conv conn = do
         now <- liftIO getCurrentTime
         mm <- liftSem $ createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
-        conv' <- if isJust (find ((usr /=) . lmId) mems) then liftSem promote else pure conv
+        conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then liftSem promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
+        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mems')) $ \p ->
           liftSem $ push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
     x -> liftSem . throw . InvalidOp $ x
@@ -510,29 +510,28 @@ getMember p ex u = note ex . find ((u ==) . p)
 getConversationAndCheckMembership ::
   Members '[ConversationStore, Error ConversationError] r =>
   UserId ->
-  ConvId ->
+  Local ConvId ->
   Galley r Data.Conversation
-getConversationAndCheckMembership uid cnv = do
+getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
       ConvAccessDenied
       uid
-      cnv
+      lcnv
   pure conv
 
 getConversationAndMemberWithError ::
   (Members '[ConversationStore, Error ConversationError] r, IsConvMemberId uid mem) =>
   ConversationError ->
   uid ->
-  ConvId ->
+  Local ConvId ->
   Galley r (Data.Conversation, mem)
-getConversationAndMemberWithError ex usr convId = do
-  c <- liftSem $ getConversation convId >>= note ConvNotFound
+getConversationAndMemberWithError ex usr lcnv = do
+  c <- liftSem $ getConversation (tUnqualified lcnv) >>= note ConvNotFound
   liftSem . when (DataTypes.isConvDeleted c) $ do
-    deleteConversation convId
+    deleteConversation (tUnqualified lcnv)
     throw ConvNotFound
-  loc <- qualifyLocal ()
-  member <- liftSem . note ex $ getConvMember loc c usr
+  member <- liftSem . note ex $ getConvMember lcnv c usr
   pure (c, member)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
@@ -557,12 +556,11 @@ pushConversationEvent ::
   (Members '[GundeckAccess, ExternalAccess] r, Foldable f) =>
   Maybe ConnId ->
   Event ->
-  f UserId ->
+  Local (f UserId) ->
   f BotMember ->
   Galley r ()
-pushConversationEvent conn e users bots = do
-  localDomain <- viewFederationDomain
-  for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
+pushConversationEvent conn e lusers bots = do
+  for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
     liftSem $ push1 $ p & set pushConn conn
   liftSem $ deliverAsync (toList bots `zip` repeat e)
 
@@ -623,8 +621,11 @@ ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
 viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
 
-qualifyLocal :: MonadReader Env m => a -> m (Local a)
-qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
+qualifyLocal :: Member (Input (Local ())) r => a -> Sem r (Local a)
+qualifyLocal a = toLocalUnsafe <$> fmap tDomain input <*> pure a
+
+runLocalInput :: Local x -> Sem (Input (Local ()) ': r) a -> Sem r a
+runLocalInput = runInputConst . void
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
 -- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
@@ -783,9 +784,13 @@ getLHStatus teamOfUser other = do
       mMember <- liftSem $ getTeamMember team other
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
-anyLegalholdActivated :: Member TeamStore r => [UserId] -> Galley r Bool
+anyLegalholdActivated ::
+  Members '[Input Opts, TeamStore] r =>
+  [UserId] ->
+  Galley r Bool
 anyLegalholdActivated uids = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+  opts <- liftSem input
+  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
@@ -796,11 +801,12 @@ anyLegalholdActivated uids = do
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
 allLegalholdConsentGiven ::
-  Members '[LegalHoldStore, TeamStore] r =>
+  Members '[Input Opts, LegalHoldStore, TeamStore] r =>
   [UserId] ->
   Galley r Bool
 allLegalholdConsentGiven uids = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+  opts <- liftSem input
+  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
@@ -828,13 +834,17 @@ getLHStatusForUsers uids =
         )
 
 getTeamMembersForFanout :: Member TeamStore r => TeamId -> Galley r TeamMemberList
-getTeamMembersForFanout tid = do
+getTeamMembersForFanout tid = liftSem $ do
   lim <- fanoutLimit
-  liftSem $ getTeamMembersWithLimit tid lim
+  getTeamMembersWithLimit tid lim
 
-ensureMemberLimit :: (Foldable f, Member (Error ConversationError) r) => [LocalMember] -> f a -> Galley r ()
-ensureMemberLimit old new = do
-  o <- view options
+ensureMemberLimit ::
+  (Foldable f, Members '[Error ConversationError, Input Opts] r) =>
+  [LocalMember] ->
+  f a ->
+  Galley r ()
+ensureMemberLimit old new = liftSem $ do
+  o <- input
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
-  liftSem . when (length old + length new > maxSize) $
+  when (length old + length new > maxSize) $
     throw TooManyMembers

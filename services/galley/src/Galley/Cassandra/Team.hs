@@ -45,6 +45,9 @@ import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
+import Galley.Env
+import Galley.Monad
+import Galley.Options
 import Galley.Types.Teams hiding
   ( DeleteTeam,
     GetTeamConversations,
@@ -59,7 +62,7 @@ import qualified UnliftIO
 import Wire.API.Team.Member
 
 interpretTeamStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, P.Reader Env, P.Reader ClientState] r =>
   FeatureLegalHold ->
   Sem (TeamStore ': r) a ->
   Sem r a
@@ -89,6 +92,9 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
   SetTeamData tid upd -> embedClient $ updateTeam tid upd
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
+  FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
+  GetLegalHoldFlag ->
+    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> P.ask
 
 interpretTeamListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>

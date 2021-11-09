@@ -23,11 +23,15 @@ where
 
 import Cassandra
 import Control.Arrow
+import Control.Lens
 import Data.Id
 import Data.List.Split (chunksOf)
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ClientStore (ClientStore (..))
+import Galley.Env
+import Galley.Monad
+import Galley.Options
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Imports
@@ -54,7 +58,7 @@ eraseClients :: UserId -> Client ()
 eraseClients user = retry x5 (write Cql.rmClients (params LocalQuorum (Identity user)))
 
 interpretClientStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, P.Reader ClientState, P.Reader Env] r =>
   Sem (ClientStore ': r) a ->
   Sem r a
 interpretClientStoreToCassandra = interpret $ \case
@@ -62,3 +66,4 @@ interpretClientStoreToCassandra = interpret $ \case
   CreateClient uid cid -> embedClient $ updateClient True uid cid
   DeleteClient uid cid -> embedClient $ updateClient False uid cid
   DeleteClients uid -> embedClient $ eraseClients uid
+  UseIntraClientListing -> embedApp . view $ options . optSettings . setIntraListing

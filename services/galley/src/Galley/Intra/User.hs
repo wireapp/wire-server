@@ -27,6 +27,7 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
+    getAccountFeatureConfigClient,
   )
 where
 
@@ -35,12 +36,17 @@ import Bilge.RPC
 import Brig.Types.Connection (Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import qualified Brig.Types.Intra as Brig
 import Brig.Types.User (User)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.Qualified
+import Data.String.Conversions
+import Galley.API.Error
+import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
@@ -49,7 +55,12 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Servant.API ((:<|>) ((:<|>)))
+import qualified Servant.Client as Client
+import Util.Options
+import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team.Feature
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -209,3 +220,30 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
+
+getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
+getAccountFeatureConfigClient uid =
+  runHereClientM (getAccountFeatureConfigClientM uid)
+    >>= handleResp
+  where
+    handleResp ::
+      Either Client.ClientError TeamFeatureStatusNoConfig ->
+      App TeamFeatureStatusNoConfig
+    handleResp (Right cfg) = pure cfg
+    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+
+getAccountFeatureConfigClientM ::
+  UserId -> Client.ClientM TeamFeatureStatusNoConfig
+( _
+    :<|> getAccountFeatureConfigClientM
+    :<|> _
+    :<|> _
+  ) = Client.client (Proxy @IAPI.API)
+
+runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
+runHereClientM action = do
+  mgr <- view manager
+  brigep <- view brig
+  let env = Client.mkClientEnv mgr baseurl
+      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+  liftIO $ Client.runClientM action env

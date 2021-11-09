@@ -42,10 +42,13 @@ import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.MemberStore as E
+import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
 import Imports
 import Polysemy.Error (Error, throw)
+import Polysemy.Input
+import Polysemy.TinyLog
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
@@ -77,13 +80,13 @@ federationSitemap =
       }
 
 onConversationCreated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore] r =>
   Domain ->
   F.NewRemoteConversation ConvId ->
   Galley r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
-  loc <- qualifyLocal ()
+  loc <- liftSem input
   let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
 
   addedUserIds <-
@@ -112,19 +115,19 @@ onConversationCreated domain rc = do
             (qUntagged (F.rcRemoteOrigUserId qrcConnected))
             (F.rcTime qrcConnected)
             (EdConversation c)
-    pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
+    pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 
 getConversations ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Input (Local ())] r =>
   Domain ->
   F.GetConversationsRequest ->
   Galley r F.GetConversationsResponse
 getConversations domain (F.GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
-  localDomain <- viewFederationDomain
+  loc <- liftSem input
   liftSem $
     F.GetConversationsResponse
-      . mapMaybe (Mapping.conversationToRemote localDomain ruid)
+      . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
       <$> E.getConversations cids
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
@@ -133,13 +136,12 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore] r =>
   Domain ->
   F.ConversationUpdate ->
   Galley r ()
 onConversationUpdated requestingDomain cu = do
-  localDomain <- viewFederationDomain
-  loc <- qualifyLocal ()
+  loc <- liftSem input
   let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
       qconvId = qUntagged rconvId
 
@@ -167,7 +169,7 @@ onConversationUpdated requestingDomain cu = do
         [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
         (u : us) -> pure (Just $ ConversationActionAddMembers (u :| us) role, addedLocalUsers)
     ConversationActionRemoveMembers toRemove -> liftSem $ do
-      let localUsers = getLocalUsers localDomain toRemove
+      let localUsers = getLocalUsers (tDomain loc) toRemove
       E.deleteMembersInRemoteConversation rconvId localUsers
       pure (Just $ F.cuAction cu, [])
     ConversationActionRename _ -> pure (Just $ F.cuAction cu, [])
@@ -195,7 +197,7 @@ onConversationUpdated requestingDomain cu = do
         targets = nubOrd $ presentUsers <> extraTargets
 
     -- FUTUREWORK: support bots?
-    pushConversationEvent Nothing event targets []
+    pushConversationEvent Nothing event (qualifyAs loc targets) []
 
 addLocalUsersToRemoteConv ::
   Members '[BrigAccess, MemberStore] r =>
@@ -239,6 +241,7 @@ leaveConversation ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input (Local ()),
        LegalHoldStore,
        MemberStore,
        TeamStore
@@ -249,7 +252,7 @@ leaveConversation ::
   Galley r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (F.lcLeaver lc) requestingDomain
-  lcnv <- qualifyLocal (F.lcConvId lc)
+  lcnv <- liftSem $ qualifyLocal (F.lcConvId lc)
   fmap
     ( F.LeaveConversationResponse
         . maybe (Left RemoveFromConversationErrorUnchanged) Right
@@ -264,7 +267,7 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
 onMessageSent ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
+  Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), TinyLog] r =>
   Domain ->
   F.RemoteMessage ConvId ->
   Galley r ()
@@ -324,9 +327,12 @@ sendMessage ::
        Error InvalidInput,
        FederatorAccess,
        GundeckAccess,
+       Input (Local ()),
+       Input Opts,
        ExternalAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TinyLog
      ]
     r =>
   Domain ->
@@ -334,10 +340,11 @@ sendMessage ::
   Galley r F.MessageSendResponse
 sendMessage originDomain msr = do
   let sender = Qualified (F.msrSender msr) originDomain
-  msg <- either err pure (fromProto (fromBase64ByteString (F.msrRawMessage msr)))
-  F.MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (F.msrConvId msr) msg
+  msg <- either throwErr pure (fromProto (fromBase64ByteString (F.msrRawMessage msr)))
+  lcnv <- liftSem $ qualifyLocal (F.msrConvId msr)
+  F.MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing lcnv msg
   where
-    err = liftSem . throw . InvalidPayload . LT.pack
+    throwErr = liftSem . throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
   Members
@@ -346,6 +353,7 @@ onUserDeleted ::
        FireAndForget,
        ExternalAccess,
        GundeckAccess,
+       Input (Local ()),
        MemberStore
      ]
     r =>
@@ -359,7 +367,7 @@ onUserDeleted origDomain udcn = do
 
   spawnMany $
     fromRange convIds <&> \c -> do
-      lc <- qualifyLocal c
+      lc <- liftSem $ qualifyLocal c
       mconv <- liftSem $ E.getConversation c
       liftSem $ E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do

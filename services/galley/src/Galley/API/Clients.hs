@@ -22,13 +22,11 @@ module Galley.API.Clients
   )
 where
 
-import Control.Lens (view)
 import Data.Id
 import Galley.App
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
-import Galley.Options
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
 import Network.Wai
@@ -47,7 +45,7 @@ getClients ::
   UserId ->
   Galley r [ClientId]
 getClients usr = do
-  isInternal <- view $ options . optSettings . setIntraListing
+  isInternal <- liftSem E.useIntraClientListing
   clts <-
     liftSem $
       if isInternal

@@ -72,6 +72,8 @@ interpretBrigAccess = interpret $ \case
     embedApp $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
     embedApp $ removeLegalHoldClientFromUser uid
+  GetAccountFeatureConfigClient uid ->
+    embedApp $ getAccountFeatureConfigClient uid
 
 interpretSparAccess ::
   Members '[Embed IO, P.Reader Env] r =>

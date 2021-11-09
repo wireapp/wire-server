@@ -22,7 +22,6 @@ module Galley.Intra.Push.Internal where
 import Bilge hiding (options)
 import Control.Lens (makeLenses, set, view, (.~))
 import Data.Aeson (Object)
-import Data.Domain
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
@@ -163,7 +162,7 @@ newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 newPushLocal :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPushLocal lt uid e rr = newPush lt (Just uid) e rr
 
-newConversationEventPush :: Domain -> Event -> [UserId] -> Maybe Push
-newConversationEventPush localDomain e users =
-  let musr = guard (localDomain == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient users)
+newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
+newConversationEventPush e users =
+  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+   in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))

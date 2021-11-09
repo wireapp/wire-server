@@ -42,6 +42,7 @@ import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
 import Polysemy
+import Polysemy.Input
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import qualified Proto.TeamEvents_Fields as T
 import System.Logger (field, msg, val)
@@ -52,7 +53,7 @@ import qualified System.Logger.Class as Log
 -- is started without journaling arguments
 
 teamActivate ::
-  Member TeamStore r =>
+  Members '[Input (Maybe Aws.Env), Input Opts.Opts, TeamStore] r =>
   TeamId ->
   Natural ->
   Maybe Currency.Alpha ->
@@ -62,19 +63,37 @@ teamActivate tid teamSize cur time = do
   billingUserIds <- getBillingUserIds tid Nothing
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
-teamUpdate :: TeamId -> Natural -> [UserId] -> Galley r ()
+teamUpdate ::
+  Member (Input (Maybe Aws.Env)) r =>
+  TeamId ->
+  Natural ->
+  [UserId] ->
+  Galley r ()
 teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
-teamDelete :: TeamId -> Galley r ()
+teamDelete ::
+  Member (Input (Maybe Aws.Env)) r =>
+  TeamId ->
+  Galley r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
-teamSuspend :: TeamId -> Galley r ()
+teamSuspend ::
+  Member (Input (Maybe Aws.Env)) r =>
+  TeamId ->
+  Galley r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
-journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Maybe TeamCreationTime -> Galley r ()
-journalEvent typ tid dat tim =
-  view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
+journalEvent ::
+  Member (Input (Maybe Aws.Env)) r =>
+  TeamEvent'EventType ->
+  TeamId ->
+  Maybe TeamEvent'EventData ->
+  Maybe TeamCreationTime ->
+  Galley r ()
+journalEvent typ tid dat tim = do
+  mEnv <- liftSem input
+  for_ mEnv $ \e -> do
     -- writetime is in microseconds in cassandra 3.11
     ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
     let ev =
@@ -99,12 +118,19 @@ evData memberCount billingUserIds cur =
 -- 'getBillingTeamMembers'. This is required only until data is backfilled in the
 -- 'billing_team_user' table.
 getBillingUserIds ::
-  Member TeamStore r =>
+  Members '[Input Opts.Opts, TeamStore] r =>
   TeamId ->
   Maybe TeamMemberList ->
   Galley r [UserId]
 getBillingUserIds tid maybeMemberList = do
-  enableIndexedBillingTeamMembers <- view (options . Opts.optSettings . Opts.setEnableIndexedBillingTeamMembers . to (fromMaybe False))
+  opts <- liftSem input
+  let enableIndexedBillingTeamMembers =
+        view
+          ( Opts.optSettings
+              . Opts.setEnableIndexedBillingTeamMembers
+              . to (fromMaybe False)
+          )
+          opts
   case maybeMemberList of
     Nothing ->
       if enableIndexedBillingTeamMembers
@@ -126,7 +152,7 @@ getBillingUserIds tid maybeMemberList = do
       case list ^. teamMemberListType of
         ListTruncated ->
           if enableIndexedBillingTeamMembers
-            then liftSem $ fetchFromDB
+            then liftSem fetchFromDB
             else do
               Log.warn $
                 field "team" (toByteString tid)

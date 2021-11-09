@@ -58,6 +58,7 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.API.Error
+import qualified Galley.Aws as Aws
 import Galley.Cassandra.Paging
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
@@ -79,9 +80,14 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
+import Galley.Env
+import Galley.Options
+import Galley.Queue (Queue)
+import Imports
 import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.Internal
 
 type NonErrorGalleyEffects1 =
@@ -108,7 +114,11 @@ type NonErrorGalleyEffects1 =
      ListItems CassandraPaging (Remote ConvId),
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
-     ListItems InternalPaging TeamId
+     ListItems InternalPaging TeamId,
+     Input (Queue DeleteItem), -- FUTUREWORK: replace with a higher level effect
+     Input (Maybe Aws.Env), -- FUTUREWORK: replace with a higher level effect
+     Input (Local ()),
+     Input Opts
    ]
 
 -- All the possible high-level effects.

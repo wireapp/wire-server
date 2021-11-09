@@ -65,6 +65,7 @@ import Network.Wai.Predicate hiding (Error, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
 import Wire.API.Conversation (ConversationCoverView (..))
@@ -78,22 +79,23 @@ import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
 getBotConversationH ::
-  Members '[ConversationStore, Error ConversationError] r =>
+  Members '[ConversationStore, Error ConversationError, Input (Local ())] r =>
   BotId ::: ConvId ::: JSON ->
   Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
-  json <$> getBotConversation zbot zcnv
+  lcnv <- liftSem $ qualifyLocal zcnv
+  json <$> getBotConversation zbot lcnv
 
 getBotConversation ::
   Members '[ConversationStore, Error ConversationError] r =>
   BotId ->
-  ConvId ->
+  Local ConvId ->
   Galley r Public.BotConvView
-getBotConversation zbot zcnv = do
-  (c, _) <- getConversationAndMemberWithError ConvNotFound (botUserId zbot) zcnv
-  domain <- viewFederationDomain
-  let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
-  pure $ Public.botConvView zcnv (Data.convName c) cmems
+getBotConversation zbot lcnv = do
+  (c, _) <- getConversationAndMemberWithError ConvNotFound (botUserId zbot) lcnv
+  let domain = tDomain lcnv
+      cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
+  pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
   where
     mkMember :: Domain -> LocalMember -> Maybe OtherMember
     mkMember domain m
@@ -108,7 +110,7 @@ getUnqualifiedConversation ::
   ConvId ->
   Galley r Public.Conversation
 getUnqualifiedConversation lusr cnv = do
-  c <- getConversationAndCheckMembership (tUnqualified lusr) cnv
+  c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
 
 getConversation ::
@@ -134,7 +136,7 @@ getConversation lusr cnv = do
   where
     getRemoteConversation :: Remote ConvId -> Galley r Public.Conversation
     getRemoteConversation remoteConvId = do
-      conversations <- getRemoteConversations (tUnqualified lusr) [remoteConvId]
+      conversations <- getRemoteConversations lusr [remoteConvId]
       liftSem $ case conversations of
         [] -> throw ConvNotFound
         [conv] -> pure conv
@@ -150,11 +152,11 @@ getRemoteConversations ::
        P.TinyLog
      ]
     r =>
-  UserId ->
+  Local UserId ->
   [Remote ConvId] ->
   Galley r [Public.Conversation]
-getRemoteConversations zusr remoteConvs =
-  getRemoteConversationsWithFailures zusr remoteConvs >>= \case
+getRemoteConversations lusr remoteConvs =
+  getRemoteConversationsWithFailures lusr remoteConvs >>= \case
     -- throw first error
     (failed : _, _) -> liftSem . throwFgcError $ failed
     ([], result) -> pure result
@@ -196,15 +198,12 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 
 getRemoteConversationsWithFailures ::
   Members '[ConversationStore, FederatorAccess, P.TinyLog] r =>
-  UserId ->
+  Local UserId ->
   [Remote ConvId] ->
   Galley r ([FailedGetConversation], [Public.Conversation])
-getRemoteConversationsWithFailures zusr convs = do
-  localDomain <- viewFederationDomain
-  lusr <- qualifyLocal zusr
-
+getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
-  statusMap <- liftSem $ E.getRemoteConversationStatus zusr convs
+  statusMap <- liftSem $ E.getRemoteConversationStatus (tUnqualified lusr) convs
   let remoteView :: Remote FederatedGalley.RemoteConversation -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
@@ -221,11 +220,11 @@ getRemoteConversationsWithFailures zusr convs = do
         | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain
+  let rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes (tDomain lusr)
   resp <-
     liftSem $
       E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
-        rpc $ FederatedGalley.GetConversationsRequest zusr (tUnqualified someConvs)
+        rpc $ FederatedGalley.GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
   bimap (localFailures <>) (map remoteView . concat)
     . partitionEithers
     <$> traverse handleFailure resp
@@ -247,7 +246,7 @@ getConversationRoles ::
   ConvId ->
   Galley r Public.ConversationRolesList
 getConversationRoles lusr cnv = do
-  void $ getConversationAndCheckMembership (tUnqualified lusr) cnv
+  void $ getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
@@ -395,7 +394,7 @@ listConversations luser (Public.ListConversations ids) = do
       >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
   localConversations <- mapM (Mapping.conversationView luser) localInternalConversations
 
-  (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures (tUnqualified luser) remoteIds
+  (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures luser remoteIds
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
@@ -452,11 +451,11 @@ iterateConversations luid pageSize handleConvs = go Nothing
       pure $ resultHead : resultTail
 
 internalGetMemberH ::
-  Members '[ConversationStore, MemberStore] r =>
+  Members '[ConversationStore, Input (Local ()), MemberStore] r =>
   ConvId ::: UserId ->
   Galley r Response
 internalGetMemberH (cnv ::: usr) = do
-  lusr <- qualifyLocal usr
+  lusr <- liftSem $ qualifyLocal usr
   json <$> getLocalSelf lusr cnv
 
 getLocalSelf ::
