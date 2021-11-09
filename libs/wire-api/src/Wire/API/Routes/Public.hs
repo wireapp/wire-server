@@ -21,40 +21,83 @@
 module Wire.API.Routes.Public where
 
 import Control.Lens ((<>~))
+import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
+import Data.Kind
 import Data.Metrics.Servant
+import Data.Qualified
 import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.API.Modifiers (FoldLenient, FoldRequired)
+import Servant.API.Modifiers
 import Servant.Swagger (HasSwagger (toSwagger))
+
+mapRequestArgument ::
+  forall mods a b.
+  (SBoolI (FoldRequired mods), SBoolI (FoldLenient mods)) =>
+  (a -> b) ->
+  RequestArgument mods a ->
+  RequestArgument mods b
+mapRequestArgument f x =
+  case (sbool :: SBool (FoldRequired mods), sbool :: SBool (FoldLenient mods)) of
+    (STrue, STrue) -> fmap f x
+    (STrue, SFalse) -> f x
+    (SFalse, STrue) -> (fmap . fmap) f x
+    (SFalse, SFalse) -> fmap f x
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
 -- "Z-Auth" header in the server. This helps keep the swagger docs usable
 -- through nginz.
-data ZUserType = ZAuthUser | ZAuthConn
+data ZType = ZAuthUser | ZLocalAuthUser | ZAuthConn
 
-type family ZUserHeader (ztype :: ZUserType) :: Symbol where
-  ZUserHeader 'ZAuthUser = "Z-User"
-  ZUserHeader 'ZAuthConn = "Z-Connection"
+class
+  (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
+  IsZType (ztype :: ZType)
+  where
+  type ZHeader ztype :: Symbol
+  type ZParam ztype :: *
+  type ZQualifiedParam ztype :: *
+  type ZConstraint ztype (ctx :: [*]) :: Constraint
 
-type family ZUserParam (ztype :: ZUserType) :: * where
-  ZUserParam 'ZAuthUser = UserId
-  ZUserParam 'ZAuthConn = ConnId
+  qualifyZParam :: ZConstraint ztype ctx => Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
-data ZAuthServant (ztype :: ZUserType) (opts :: [*])
+instance IsZType 'ZLocalAuthUser where
+  type ZHeader 'ZLocalAuthUser = "Z-User"
+  type ZParam 'ZLocalAuthUser = UserId
+  type ZQualifiedParam 'ZLocalAuthUser = Local UserId
+  type ZConstraint 'ZLocalAuthUser ctx = HasContextEntry ctx Domain
+
+  qualifyZParam ctx = toLocalUnsafe (getContextEntry ctx)
+
+instance IsZType 'ZAuthUser where
+  type ZHeader 'ZAuthUser = "Z-User"
+  type ZParam 'ZAuthUser = UserId
+  type ZQualifiedParam 'ZAuthUser = UserId
+  type ZConstraint 'ZAuthUser ctx = ()
+
+  qualifyZParam _ = id
+
+instance IsZType 'ZAuthConn where
+  type ZHeader 'ZAuthConn = "Z-Connection"
+  type ZParam 'ZAuthConn = ConnId
+  type ZQualifiedParam 'ZAuthConn = ConnId
+  type ZConstraint 'ZAuthConn ctx = ()
+
+  qualifyZParam _ = id
+
+data ZAuthServant (ztype :: ZType) (opts :: [*])
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
 
 type InternalAuth ztype opts =
   Header'
     opts
-    (ZUserHeader ztype)
-    (ZUserParam ztype)
+    (ZHeader ztype)
+    (ZParam ztype)
 
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 
@@ -80,20 +123,26 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) whe
   toSwagger _ = toSwagger (Proxy @api)
 
 instance
-  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+  ( IsZType ztype,
+    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    ZConstraint ztype ctx,
     SBoolI (FoldLenient opts),
     SBoolI (FoldRequired opts),
-    HasServer api ctx,
-    KnownSymbol (ZUserHeader ztype),
-    FromHttpApiData (ZUserParam ztype)
+    HasServer api ctx
   ) =>
   HasServer (ZAuthServant ztype opts :> api) ctx
   where
-  type ServerT (ZAuthServant ztype opts :> api) m = ServerT (InternalAuth ztype opts :> api) m
+  type
+    ServerT (ZAuthServant ztype opts :> api) m =
+      RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
 
-  route _ = Servant.route (Proxy @(InternalAuth ztype opts :> api))
-  hoistServerWithContext _ pc nt s =
-    Servant.hoistServerWithContext (Proxy @(InternalAuth ztype opts :> api)) pc nt s
+  route _ ctx subserver =
+    Servant.route
+      (Proxy @(InternalAuth ztype opts :> api))
+      ctx
+      (fmap (. mapRequestArgument @opts (qualifyZParam @ztype ctx)) subserver)
+
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
   getRoutes = getRoutes @api
