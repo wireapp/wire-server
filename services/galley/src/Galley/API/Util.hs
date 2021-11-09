@@ -65,13 +65,14 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import qualified Wire.API.Conversation as Public
+import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client
 
 type JSON = Media "application" "json"
 
 ensureAccessRole ::
-  Members '[BrigAccess, Error TeamError, Error ConversationError] r =>
+  Members '[BrigAccess, Error NotATeamMember, Error ConversationError] r =>
   AccessRole ->
   [(UserId, Maybe TeamMember)] ->
   Galley r ()
@@ -79,7 +80,7 @@ ensureAccessRole role users = liftSem $ case role of
   PrivateAccessRole -> throw ConvAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throw NotATeamMember
+      throwED @NotATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
@@ -197,7 +198,7 @@ ensureConvRoleNotElevated origMember targetRole = liftSem $ do
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return the team member.
 permissionCheck ::
-  (IsPerm perm, Show perm, Members '[Error ActionError, Error TeamError] r) =>
+  (IsPerm perm, Show perm, Members '[Error ActionError, Error NotATeamMember] r) =>
   perm ->
   Maybe TeamMember ->
   Galley r TeamMember
@@ -207,7 +208,7 @@ permissionCheck p =
       if m `hasPermission` p
         then pure m
         else throw (OperationDenied (show p))
-    Nothing -> throw NotATeamMember
+    Nothing -> throwED @NotATeamMember
 
 assertTeamExists :: Members '[Error TeamError, TeamStore] r => TeamId -> Galley r ()
 assertTeamExists tid = liftSem $ do
@@ -216,11 +217,11 @@ assertTeamExists tid = liftSem $ do
     then pure ()
     else throw TeamNotFound
 
-assertOnTeam :: Members '[Error TeamError, TeamStore] r => UserId -> TeamId -> Galley r ()
+assertOnTeam :: Members '[Error NotATeamMember, TeamStore] r => UserId -> TeamId -> Galley r ()
 assertOnTeam uid tid =
   liftSem $
     getTeamMember tid uid >>= \case
-      Nothing -> throw NotATeamMember
+      Nothing -> throwED @NotATeamMember
       Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
@@ -230,7 +231,7 @@ permissionCheckTeamConv ::
     '[ ConversationStore,
        Error ActionError,
        Error ConversationError,
-       Error TeamError,
+       Error NotATeamMember,
        TeamStore
      ]
     r =>
@@ -585,7 +586,7 @@ ensureConversationAccess ::
        Error ActionError,
        Error ConversationError,
        Error FederationError,
-       Error TeamError,
+       Error NotATeamMember,
        TeamStore
      ]
     r =>

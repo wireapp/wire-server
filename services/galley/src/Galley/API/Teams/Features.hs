@@ -78,13 +78,8 @@ import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import qualified System.Logger.Class as Log
 import Util.Options (Endpoint, epHost, epPort)
+import Wire.API.ErrorDescription
 import Wire.API.Event.FeatureConfig
-  ( EventData
-      ( EdFeatureApplockChanged,
-        EdFeatureSelfDeletingMessagesChanged,
-        EdFeatureWithoutConfigChanged
-      ),
-  )
 import qualified Wire.API.Event.FeatureConfig as Event
 import Wire.API.Federation.Client
 import qualified Wire.API.Routes.Internal.Brig as IAPI
@@ -101,6 +96,7 @@ getFeatureStatus ::
     Members
       '[ Error ActionError,
          Error TeamError,
+         Error NotATeamMember,
          TeamStore
        ]
       r
@@ -125,6 +121,7 @@ setFeatureStatus ::
     Members
       '[ Error ActionError,
          Error TeamError,
+         Error NotATeamMember,
          TeamStore
        ]
       r
@@ -150,6 +147,7 @@ getFeatureConfig ::
     Members
       '[ Error ActionError,
          Error TeamError,
+         Error NotATeamMember,
          TeamStore
        ]
       r
@@ -171,6 +169,7 @@ getAllFeatureConfigs ::
   Members
     '[ Error ActionError,
        Error InternalError,
+       Error NotATeamMember,
        Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
@@ -186,7 +185,7 @@ getAllFeatureConfigs zusr = do
         forall (a :: Public.TeamFeatureName) r.
         ( Public.KnownTeamFeatureName a,
           Aeson.ToJSON (Public.TeamFeatureStatus a),
-          Members '[Error ActionError, Error TeamError, TeamStore] r
+          Members '[Error ActionError, Error TeamError, Error NotATeamMember, TeamStore] r
         ) =>
         (GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
         Galley r (Text, Aeson.Value)
@@ -216,6 +215,7 @@ getAllFeaturesH ::
     '[ Error ActionError,
        Error InternalError,
        Error TeamError,
+       Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore
@@ -232,6 +232,7 @@ getAllFeatures ::
     '[ Error ActionError,
        Error InternalError,
        Error TeamError,
+       Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore
@@ -417,6 +418,7 @@ setLegalholdStatusInternal ::
          Error InvalidInput,
          Error LegalHoldError,
          Error TeamError,
+         Error NotATeamMember,
          Error TeamFeatureError,
          ExternalAccess,
          FederatorAccess,

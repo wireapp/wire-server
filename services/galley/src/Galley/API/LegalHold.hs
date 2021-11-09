@@ -74,6 +74,7 @@ import Polysemy.Error
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.ErrorDescription
 import Wire.API.Federation.Client
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
@@ -81,7 +82,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabledForTeam ::
-  Members '[Error LegalHoldError, LegalHoldStore, TeamFeatureStore] r =>
+  Members '[Error LegalHoldError, Error NotATeamMember, LegalHoldStore, TeamFeatureStore] r =>
   TeamId ->
   Galley r ()
 assertLegalHoldEnabledForTeam tid =
@@ -112,6 +113,7 @@ createSettingsH ::
     '[ Error ActionError,
        Error InvalidInput,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
@@ -129,6 +131,7 @@ createSettings ::
     '[ Error ActionError,
        Error InvalidInput,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
@@ -160,6 +163,7 @@ getSettingsH ::
     '[ Error ActionError,
        Error InvalidInput,
        Error TeamError,
+       Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore
@@ -175,6 +179,7 @@ getSettings ::
     '[ Error ActionError,
        Error InvalidInput,
        Error TeamError,
+       Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore
@@ -205,6 +210,7 @@ removeSettingsH ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -239,6 +245,7 @@ removeSettings ::
          Error ConversationError,
          Error FederationError,
          Error LegalHoldError,
+         Error NotATeamMember,
          Error TeamError,
          ExternalAccess,
          FederatorAccess,
@@ -293,6 +300,7 @@ removeSettings' ::
          Error ConversationError,
          Error FederationError,
          Error LegalHoldError,
+         Error NotATeamMember,
          Error TeamError,
          ExternalAccess,
          FederatorAccess,
@@ -381,6 +389,7 @@ grantConsentH ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -414,6 +423,7 @@ grantConsent ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -452,6 +462,7 @@ requestDeviceH ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -487,6 +498,7 @@ requestDevice ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -556,6 +568,7 @@ approveDeviceH ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -587,6 +600,7 @@ approveDevice ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -655,6 +669,7 @@ disableForUserH ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -691,6 +706,7 @@ disableForUser ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -745,6 +761,7 @@ changeLegalholdStatus ::
        Error ConversationError,
        Error FederationError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
@@ -798,7 +815,7 @@ changeLegalholdStatus tid uid old new = do
 -- FUTUREWORK: make this async?
 blockNonConsentingConnections ::
   forall r.
-  Members '[BrigAccess, Error LegalHoldError, LegalHoldStore, TeamStore] r =>
+  Members '[BrigAccess, Error LegalHoldError, Error NotATeamMember, LegalHoldStore, TeamStore] r =>
   UserId ->
   Galley r ()
 blockNonConsentingConnections uid = do

@@ -58,6 +58,7 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation hiding (Conversation, Member)
 import qualified Wire.API.Conversation as Public
+import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.Client
 import Wire.API.Routes.Public.Galley (ConversationResponse)
@@ -79,6 +80,7 @@ createGroupConversation ::
        Error InternalError,
        Error InvalidInput,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
@@ -106,6 +108,7 @@ internalCreateManagedConversationH ::
        Error InternalError,
        Error InvalidInput,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
@@ -128,6 +131,7 @@ internalCreateManagedConversation ::
        Error InternalError,
        Error InvalidInput,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
@@ -210,6 +214,7 @@ createTeamGroupConv ::
        Error InternalError,
        Error InvalidInput,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
@@ -297,6 +302,7 @@ createOne2OneConversation ::
        Error FederationError,
        Error InternalError,
        Error InvalidInput,
+       Error NotATeamMember,
        Error TeamError,
        FederatorAccess,
        GundeckAccess,

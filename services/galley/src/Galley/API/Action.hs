@@ -68,6 +68,7 @@ import Polysemy.Error
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
+import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Client
@@ -128,7 +129,7 @@ instance IsConversationAction ConversationJoin where
            Error FederationError,
            Error InvalidInput,
            Error LegalHoldError,
-           Error TeamError,
+           Error NotATeamMember,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
@@ -162,7 +163,7 @@ instance IsConversationAction ConversationJoin where
           '[ BrigAccess,
              Error ActionError,
              Error ConversationError,
-             Error TeamError,
+             Error NotATeamMember,
              TeamStore
            ]
           r =>
@@ -275,12 +276,12 @@ instance IsConversationAction ConversationMemberUpdate where
 instance IsConversationAction ConversationDelete where
   type
     HasConversationActionEffects ConversationDelete r =
-      Members '[Error FederationError, Error TeamError, CodeStore, TeamStore] r
+      Members '[Error FederationError, Error NotATeamMember, CodeStore, TeamStore] r
   conversationAction ConversationDelete = ConversationActionDelete
   ensureAllowed loc ConversationDelete conv self =
     liftSem . for_ (convTeam conv) $ \tid -> do
       lusr <- ensureLocal loc (convMemberId loc self)
-      void $ E.getTeamMember tid (tUnqualified lusr) >>= note NotATeamMember
+      void $ E.getTeamMember tid (tUnqualified lusr) >>= noteED @NotATeamMember
   conversationActionTag' _ _ = DeleteConversation
   performAction _ lcnv conv action = lift . liftSem $ do
     key <- E.makeKey (tUnqualified lcnv)

@@ -88,6 +88,7 @@ import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
+import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley (ConversationUpdate (..), UserDeletedConversationsNotification (UserDeletedConversationsNotification))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Client (FederationError)
@@ -306,6 +307,7 @@ iGetTeamFeature ::
   ( Public.KnownTeamFeatureName a,
     Members
       '[ Error ActionError,
+         Error NotATeamMember,
          Error TeamError,
          TeamStore
        ]
@@ -321,6 +323,7 @@ iPutTeamFeature ::
   ( Public.KnownTeamFeatureName a,
     Members
       '[ Error ActionError,
+         Error NotATeamMember,
          Error TeamError,
          TeamStore
        ]

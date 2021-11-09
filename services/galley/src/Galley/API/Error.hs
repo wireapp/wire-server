@@ -135,8 +135,7 @@ instance APIError ConversationError where
   toWai NoManagedTeamConv = noManagedTeamConv
 
 data TeamError
-  = NotATeamMember
-  | NoBindingTeam
+  = NoBindingTeam
   | NoAddToBinding
   | NotABindingTeamMember
   | NotAOneMemberTeam
@@ -148,7 +147,6 @@ data TeamError
   | CannotEnableLegalHoldServiceLargeTeam
 
 instance APIError TeamError where
-  toWai NotATeamMember = errorDescriptionTypeToWai @NotATeamMember
   toWai NoBindingTeam = noBindingTeam
   toWai NoAddToBinding = noAddToBinding
   toWai NotABindingTeamMember = nonBindingTeam
@@ -221,6 +219,24 @@ data ClientError = UnknownClient
 instance APIError ClientError where
   toWai UnknownClient = errorDescriptionTypeToWai @UnknownClient
 
+throwED ::
+  ( e ~ ErrorDescription code label desc,
+    KnownSymbol desc,
+    Member (P.Error e) r
+  ) =>
+  Sem r a
+throwED = P.throw mkErrorDescription
+
+noteED ::
+  forall e code label desc r a.
+  ( e ~ ErrorDescription code label desc,
+    KnownSymbol desc,
+    Member (P.Error e) r
+  ) =>
+  Maybe a ->
+  Sem r a
+noteED = P.note (mkErrorDescription :: e)
+
 type AllErrorEffects =
   '[ P.Error ActionError,
      P.Error AuthenticationError,
@@ -234,12 +250,14 @@ type AllErrorEffects =
      P.Error LegalHoldError,
      P.Error TeamError,
      P.Error TeamFeatureError,
-     P.Error TeamNotificationError
+     P.Error TeamNotificationError,
+     P.Error NotATeamMember
    ]
 
 mapAllErrors :: Member (P.Error Error) r => Sem (Append AllErrorEffects r) a -> Sem r a
 mapAllErrors =
-  P.mapError toWai
+  P.mapError errorDescriptionToWai
+    . P.mapError toWai
     . P.mapError toWai
     . P.mapError toWai
     . P.mapError toWai

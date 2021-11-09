@@ -121,9 +121,6 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
-  ( mkErrorDescription,
-  )
-import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client
@@ -490,7 +487,7 @@ deleteLocalConversation ::
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -678,7 +675,7 @@ joinConversationByReusableCodeH ::
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -701,7 +698,7 @@ joinConversationByReusableCode ::
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
+       Error NotATeamMember,
        FederatorAccess,
        ExternalAccess,
        GundeckAccess,
@@ -726,7 +723,7 @@ joinConversationByIdH ::
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -747,7 +744,7 @@ joinConversationById ::
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -770,7 +767,7 @@ joinConversation ::
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
        MemberStore,
@@ -813,7 +810,7 @@ addMembersUnqualified ::
        Error FederationError,
        Error InvalidInput,
        Error LegalHoldError,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -840,7 +837,7 @@ addMembers ::
        Error FederationError,
        Error InvalidInput,
        Error LegalHoldError,
-       Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -1112,8 +1109,8 @@ removeMemberFromLocalConv lcnv lusr con victim =
 data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
-  | OtrUnknownClient !Public.UnknownClient
-  | OtrConversationNotFound !Public.ConvNotFound
+  | OtrUnknownClient !UnknownClient
+  | OtrConversationNotFound !ConvNotFound
 
 handleOtrResult ::
   Members
@@ -1256,6 +1253,7 @@ postProtoOtrBroadcastH ::
        Error ConversationError,
        Error LegalHoldError,
        Error InvalidInput,
+       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        TeamStore
@@ -1277,6 +1275,7 @@ postOtrBroadcastH ::
        Error ConversationError,
        Error LegalHoldError,
        Error InvalidInput,
+       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        TeamStore
@@ -1295,6 +1294,7 @@ postOtrBroadcast ::
        ClientStore,
        Error ActionError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        TeamStore
@@ -1324,6 +1324,7 @@ postNewOtrBroadcast ::
        ClientStore,
        Error ActionError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        TeamStore
@@ -1724,6 +1725,7 @@ withValidOtrBroadcastRecipients ::
        ClientStore,
        Error ActionError,
        Error LegalHoldError,
+       Error NotATeamMember,
        Error TeamError,
        TeamStore
      ]

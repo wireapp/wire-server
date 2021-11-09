@@ -71,6 +71,7 @@ import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationError (FederationUnexpectedBody), executeFederated)
@@ -499,7 +500,7 @@ getConversationByReusableCode ::
        Error CodeError,
        Error ConversationError,
        Error FederationError,
-       Error TeamError,
+       Error NotATeamMember,
        TeamStore
      ]
     r =>
