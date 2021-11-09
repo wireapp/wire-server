@@ -38,7 +38,6 @@ module Galley.App
     -- * Galley monad
     Galley,
     GalleyEffects,
-    Galley0,
     runGalley,
     evalGalley,
     ask,
@@ -55,10 +54,8 @@ module Galley.App
     -- * Temporary compatibility functions
     fireAndForget,
     spawnMany,
-    liftGalley0,
     liftSem,
     unGalley,
-    interpretGalleyToGalley0,
   )
 where
 
@@ -70,7 +67,6 @@ import qualified Cassandra.Settings as C
 import Control.Error
 import qualified Control.Exception
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch (..), MonadMask (..), MonadThrow (..))
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
@@ -138,8 +134,6 @@ import Wire.API.Federation.Client (HasFederatorConfig (..))
 type GalleyEffects0 = '[P.TinyLog, P.Reader ClientState, P.Reader Env, Embed IO, Final IO]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
-
-type Galley0 = Galley GalleyEffects0
 
 newtype Galley r a = Galley {unGalley :: Members GalleyEffects0 r => Sem r a}
 
@@ -255,14 +249,6 @@ runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m
 
-evalGalley0 :: Env -> Sem GalleyEffects0 a -> IO a
-evalGalley0 e =
-  runFinal @IO
-    . embedToFinal @IO
-    . P.runReader e
-    . P.runReader (e ^. cstate)
-    . interpretTinyLog e
-
 interpretTinyLog ::
   Members '[Embed IO] r =>
   Env ->
@@ -270,9 +256,6 @@ interpretTinyLog ::
   Sem r a
 interpretTinyLog e = interpret $ \case
   P.Polylog l m -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
-
-evalGalley :: Env -> Galley GalleyEffects a -> IO a
-evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
 
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
@@ -313,24 +296,19 @@ toServantHandler env galley = do
     mkCode = statusCode . Wai.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . Wai.code
 
-withLH ::
-  Member (P.Reader Env) r =>
-  (Teams.FeatureLegalHold -> Sem (eff ': r) a -> Sem r a) ->
-  Sem (eff ': r) a ->
-  Sem r a
-withLH f action = do
-  lh <- P.asks (view (options . optSettings . setFeatureFlags . Teams.flagLegalHold))
-  f lh action
-
 interpretErrorToException ::
   (Exception e, Member (Embed IO) r) =>
   Sem (Error e ': r) a ->
   Sem r a
 interpretErrorToException = (either (embed @IO . UnliftIO.throwIO) pure =<<) . runError
 
-interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
-interpretGalleyToGalley0 =
-  Galley
+evalGalley :: Env -> Galley GalleyEffects a -> IO a
+evalGalley e =
+  runFinal @IO
+    . embedToFinal @IO
+    . P.runReader e
+    . P.runReader (e ^. cstate)
+    . interpretTinyLog e
     . interpretErrorToException
     . mapAllErrors
     . interpretInternalTeamListToCassandra
@@ -338,14 +316,14 @@ interpretGalleyToGalley0 =
     . interpretLegacyConversationListToCassandra
     . interpretRemoteConversationListToCassandra
     . interpretConversationListToCassandra
-    . withLH interpretTeamMemberStoreToCassandra
-    . withLH interpretTeamStoreToCassandra
+    . interpretTeamMemberStoreToCassandra lh
+    . interpretTeamStoreToCassandra lh
     . interpretTeamNotificationStoreToCassandra
     . interpretTeamFeatureStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
     . interpretMemberStoreToCassandra
-    . withLH interpretLegalHoldStoreToCassandra
+    . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretCodeStoreToCassandra
@@ -358,6 +336,8 @@ interpretGalleyToGalley0 =
     . interpretGundeckAccess
     . interpretBrigAccess
     . unGalley
+  where
+    lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
 
 ----------------------------------------------------------------------------------
 ---- temporary MonadUnliftIO support code for the polysemy refactoring
@@ -367,31 +347,6 @@ fireAndForget (Galley m) = Galley $ E.fireAndForget m
 
 spawnMany :: Member FireAndForget r => [Galley r ()] -> Galley r ()
 spawnMany ms = Galley $ E.spawnMany (map unGalley ms)
-
-instance MonadUnliftIO Galley0 where
-  askUnliftIO = Galley $ do
-    env <- P.ask @Env
-    pure $ UnliftIO $ evalGalley0 env . unGalley
-
-instance MonadMask Galley0 where
-  mask = UnliftIO.mask
-  uninterruptibleMask = UnliftIO.uninterruptibleMask
-  generalBracket acquire release useB = Galley $ do
-    env <- P.ask @Env
-    embed @IO $
-      generalBracket
-        (evalGalley0 env (unGalley acquire))
-        (\resource exitCase -> evalGalley0 env (unGalley (release resource exitCase)))
-        (\resource -> evalGalley0 env (unGalley (useB resource)))
-
-instance MonadThrow Galley0 where
-  throwM e = Galley (embed @IO (throwM e))
-
-instance MonadCatch Galley0 where
-  catch = UnliftIO.catch
-
-liftGalley0 :: Galley0 a -> Galley r a
-liftGalley0 (Galley m) = Galley $ subsume_ m
 
 liftSem :: Sem r a -> Galley r a
 liftSem m = Galley m

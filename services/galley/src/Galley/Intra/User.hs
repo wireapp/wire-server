@@ -42,6 +42,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
@@ -61,7 +62,7 @@ getConnectionsUnqualified ::
   [UserId] ->
   Maybe [UserId] ->
   Maybe Relation ->
-  IntraM [ConnectionStatus]
+  App [ConnectionStatus]
 getConnectionsUnqualified uFrom uTo rlt = do
   r <-
     call Brig $
@@ -84,7 +85,7 @@ getConnections ::
   [UserId] ->
   Maybe [Qualified UserId] ->
   Maybe Relation ->
-  IntraM [ConnectionStatusV2]
+  App [ConnectionStatusV2]
 getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
   r <-
@@ -97,7 +98,7 @@ getConnections uFrom uTo rlt = do
 
 putConnectionInternal ::
   UpdateConnectionsInternal ->
-  IntraM Status
+  App Status
 putConnectionInternal updateConn = do
   response <-
     call Brig $
@@ -109,7 +110,7 @@ putConnectionInternal updateConn = do
 deleteBot ::
   ConvId ->
   BotId ->
-  IntraM ()
+  App ()
 deleteBot cid bot = do
   void $
     call Brig $
@@ -124,7 +125,7 @@ deleteBot cid bot = do
 reAuthUser ::
   UserId ->
   Brig.ReAuthUser ->
-  IntraM Bool
+  App Bool
 reAuthUser uid auth = do
   let req =
         method GET
@@ -143,7 +144,7 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: [UserId] -> IntraM [User]
+lookupActivatedUsers :: [UserId] -> App [User]
 lookupActivatedUsers = chunkify $ \uids -> do
   let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
@@ -169,7 +170,7 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> IntraM [Brig.UserAccount]
+getUsers :: [UserId] -> App [Brig.UserAccount]
 getUsers = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -180,7 +181,7 @@ getUsers = chunkify $ \uids -> do
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
-deleteUser :: UserId -> IntraM ()
+deleteUser :: UserId -> App ()
 deleteUser uid = do
   void $
     call Brig $
@@ -189,7 +190,7 @@ deleteUser uid = do
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList :: UserId -> IntraM [UserId]
+getContactList :: UserId -> App [UserId]
 getContactList uid = do
   r <-
     call Brig $
@@ -199,7 +200,7 @@ getContactList uid = do
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: [UserId] -> IntraM [(UserId, RichInfo)]
+getRichInfoMultiUser :: [UserId] -> App [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   resp <-
     call Brig $

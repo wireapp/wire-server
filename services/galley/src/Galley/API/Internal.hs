@@ -61,6 +61,7 @@ import Galley.Effects.MemberStore
 import Galley.Effects.Paging
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
+import Galley.Monad
 import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
@@ -75,7 +76,7 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, err)
 import qualified Network.Wai.Predicate as P
-import Network.Wai.Routing hiding (route, toList)
+import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
 import Polysemy.Error
@@ -622,12 +623,13 @@ rmUser user conn = do
             )
         Right _ -> pure ()
 
-deleteLoop :: Galley r ()
-deleteLoop = liftGalley0 $ do
+deleteLoop :: App ()
+deleteLoop = do
   q <- view deleteQueue
   safeForever "deleteLoop" $ do
     i@(TeamItem tid usr con) <- Q.pop q
-    interpretGalleyToGalley0 (Teams.uncheckedDeleteTeam usr con tid)
+    env <- ask
+    liftIO (evalGalley env (Teams.uncheckedDeleteTeam usr con tid))
       `catchAny` someError q i
   where
     someError q i x = do
@@ -637,7 +639,7 @@ deleteLoop = liftGalley0 $ do
         err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
       liftIO $ threadDelay 1000000
 
-safeForever :: String -> Galley0 () -> Galley0 ()
+safeForever :: String -> App () -> App ()
 safeForever funName action =
   forever $
     action `catchAny` \exc -> do

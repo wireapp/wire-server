@@ -37,7 +37,7 @@ import Galley.Cassandra.Store
 import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
 import Galley.Env
 import Galley.External.LegalHoldService.Internal
-import Galley.Intra.Util
+import Galley.Monad
 import Galley.Types.Teams
 import Imports
 import Polysemy
@@ -61,9 +61,9 @@ interpretLegalHoldStoreToCassandra lh = interpret $ \case
   IsTeamLegalholdWhitelisted tid -> embedClient $ isTeamLegalholdWhitelisted lh tid
   -- FUTUREWORK: should this action be part of a separate effect?
   MakeVerifiedRequestFreshManager fpr url r ->
-    embedIntra $ makeVerifiedRequestFreshManager fpr url r
+    embedApp $ makeVerifiedRequestFreshManager fpr url r
   MakeVerifiedRequest fpr url r ->
-    embedIntra $ makeVerifiedRequest fpr url r
+    embedApp $ makeVerifiedRequest fpr url r
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team

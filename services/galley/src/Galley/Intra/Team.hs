@@ -23,12 +23,13 @@ import Brig.Types.Team
 import Data.ByteString.Conversion
 import Data.Id
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-getSize :: TeamId -> IntraM TeamSize
+getSize :: TeamId -> App TeamSize
 getSize tid = do
   r <-
     call Brig $

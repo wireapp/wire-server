@@ -38,6 +38,7 @@ import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
 import Galley.Cassandra
+import Galley.Monad
 import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q
 import Imports
@@ -68,8 +69,8 @@ run o = do
         (portNumber $ fromIntegral $ o ^. optGalley . epPort)
         l
         (e ^. monitor)
-  deleteQueueThread <- Async.async $ evalGalley e Internal.deleteLoop
-  refreshMetricsThread <- Async.async $ evalGalley e refreshMetrics
+  deleteQueueThread <- Async.async $ runApp e Internal.deleteLoop
+  refreshMetricsThread <- Async.async $ runApp e refreshMetrics
   runSettingsWithShutdown s app 5 `finally` do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
@@ -131,8 +132,8 @@ bodyParserErrorFormatter _ _ errMsg =
 
 type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
-refreshMetrics :: Galley r ()
-refreshMetrics = liftGalley0 $ do
+refreshMetrics :: App ()
+refreshMetrics = do
   m <- view monitor
   q <- view deleteQueue
   Internal.safeForever "refreshMetrics" $ do

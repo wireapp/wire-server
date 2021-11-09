@@ -25,6 +25,7 @@ import Data.Qualified
 import Galley.Effects.FederatorAccess (FederatorAccess (..))
 import Galley.Env
 import Galley.Intra.Federator.Types
+import Galley.Monad
 import Imports
 import Polysemy
 import qualified Polysemy.Reader as P
@@ -32,38 +33,30 @@ import UnliftIO
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
-embedFederationM ::
-  Members '[Embed IO, P.Reader Env] r =>
-  FederationM a ->
-  Sem r a
-embedFederationM action = do
-  env <- P.ask
-  embed $ runFederationM env action
-
 interpretFederatorAccess ::
   Members '[Embed IO, P.Reader Env] r =>
   Sem (FederatorAccess ': r) a ->
   Sem r a
 interpretFederatorAccess = interpret $ \case
-  RunFederated dom rpc -> embedFederationM $ runFederated dom rpc
-  RunFederatedEither dom rpc -> embedFederationM $ runFederatedEither dom rpc
-  RunFederatedConcurrently rs f -> embedFederationM $ runFederatedConcurrently rs f
+  RunFederated dom rpc -> embedApp $ runFederated dom rpc
+  RunFederatedEither dom rpc -> embedApp $ runFederatedEither dom rpc
+  RunFederatedConcurrently rs f -> embedApp $ runFederatedConcurrently rs f
   RunFederatedConcurrentlyEither rs f ->
-    embedFederationM $
+    embedApp $
       runFederatedConcurrentlyEither rs f
 
 runFederatedEither ::
   Remote x ->
   FederatedRPC c a ->
-  FederationM (Either FederationError a)
+  App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
   env <- ask
-  liftIO $ runFederationM env (runExceptT (executeFederated remoteDomain rpc))
+  liftIO $ runApp env (runExceptT (executeFederated remoteDomain rpc))
 
 runFederated ::
   Remote x ->
   FederatedRPC c a ->
-  FederationM a
+  App a
 runFederated dom rpc =
   runFederatedEither dom rpc
     >>= either (throwIO . federationErrorToWai) pure
@@ -72,7 +65,7 @@ runFederatedConcurrently ::
   (Foldable f, Functor f) =>
   f (Remote a) ->
   (Remote [a] -> FederatedRPC c b) ->
-  FederationM [Remote b]
+  App [Remote b]
 runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     qualifyAs r <$> runFederated r (rpc r)
@@ -81,7 +74,7 @@ runFederatedConcurrentlyEither ::
   (Foldable f, Functor f) =>
   f (Remote a) ->
   (Remote [a] -> FederatedRPC c b) ->
-  FederationM [Either (Remote [a], FederationError) (Remote b)]
+  App [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)

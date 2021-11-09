@@ -33,6 +33,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Galley.Env
 import Galley.Intra.Util
+import Galley.Monad
 import Galley.Types
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
@@ -79,7 +80,7 @@ makeLenses ''PushTo
 
 type Push = PushTo UserId
 
-push :: Foldable f => f Push -> IntraM ()
+push :: Foldable f => f Push -> App ()
 push ps = do
   let pushes = foldMap (toList . mkPushTo) ps
   traverse_ pushLocal (nonEmpty pushes)
@@ -92,7 +93,7 @@ push ps = do
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: NonEmpty (PushTo UserId) -> IntraM ()
+pushLocal :: NonEmpty (PushTo UserId) -> App ()
 pushLocal ps = do
   opts <- view options
   let limit = currentFanoutLimit opts

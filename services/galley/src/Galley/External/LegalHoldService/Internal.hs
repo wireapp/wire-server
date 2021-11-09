@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Misc
 import Galley.API.Error
 import Galley.Env
-import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import qualified Network.HTTP.Client as Http
 import qualified OpenSSL.Session as SSL
@@ -42,7 +42,7 @@ import URI.ByteString (uriPath)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
-makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> IntraM (Http.Response LC8.ByteString)
+makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> App (Http.Response LC8.ByteString)
 makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
   let verified = verifyFingerprints [fpr]
   extHandleAll errHandler $ do
@@ -80,7 +80,7 @@ makeVerifiedRequest ::
   Fingerprint Rsa ->
   HttpsUrl ->
   (Http.Request -> Http.Request) ->
-  IntraM (Http.Response LC8.ByteString)
+  App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
   (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
@@ -93,7 +93,7 @@ makeVerifiedRequestFreshManager ::
   Fingerprint Rsa ->
   HttpsUrl ->
   (Http.Request -> Http.Request) ->
-  IntraM (Http.Response LC8.ByteString)
+  App (Http.Response LC8.ByteString)
 makeVerifiedRequestFreshManager fpr url reqBuilder = do
   ExtEnv (mgr, verifyFingerprints) <- liftIO initExtEnv
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder

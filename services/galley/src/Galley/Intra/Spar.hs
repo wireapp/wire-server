@@ -24,11 +24,12 @@ import Bilge
 import Data.ByteString.Conversion
 import Data.Id
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 
 -- | Notify Spar that a team is being deleted.
-deleteTeam :: TeamId -> IntraM ()
+deleteTeam :: TeamId -> App ()
 deleteTeam tid = do
   void . call Spar $
     method DELETE
