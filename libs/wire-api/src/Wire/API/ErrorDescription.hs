@@ -3,6 +3,7 @@ module Wire.API.ErrorDescription where
 import Control.Lens (at, (%~), (.~), (<>~), (?~))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
+import Data.Metrics.Servant
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
@@ -44,6 +45,9 @@ instance
 
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+
+instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
+  getRoutes = getRoutes @api
 
 errorDescriptionAddToSwagger ::
   forall (code :: Nat) (label :: Symbol) (desc :: Symbol).

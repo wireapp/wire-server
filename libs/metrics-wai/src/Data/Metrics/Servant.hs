@@ -40,6 +40,7 @@ import Network.Wai.Middleware.Prometheus
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import Network.Wai.Routing (Routes, prepare)
 import Servant.API
+import Servant.Multipart
 
 -- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 servantPrometheusMiddleware :: forall proxy api. (RoutesToPaths api) => proxy api -> Wai.Middleware
@@ -79,27 +80,59 @@ class RoutesToPaths routes where
 
 -- "seg" :> routes
 instance
-  {-# OVERLAPPING #-}
-  ( KnownSymbol seg,
-    RoutesToPaths segs
-  ) =>
+  (KnownSymbol seg, RoutesToPaths segs) =>
   RoutesToPaths (seg :> segs)
   where
   getRoutes = [Node (Right . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
 
 -- <capture> :> routes
 instance
-  {-# OVERLAPPING #-}
-  ( KnownSymbol capture,
-    RoutesToPaths segs
-  ) =>
+  (KnownSymbol capture, RoutesToPaths segs) =>
   RoutesToPaths (Capture' mods capture a :> segs)
   where
   getRoutes = [Node (Left (cs (":" <> symbolVal (Proxy @capture)))) (getRoutes @segs)]
 
+instance
+  (RoutesToPaths rest) =>
+  RoutesToPaths (Header' mods name a :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance
+  (RoutesToPaths rest) =>
+  RoutesToPaths (ReqBody' mods cts a :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance
+  (RoutesToPaths rest) =>
+  RoutesToPaths (Summary summary :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance
+  RoutesToPaths rest =>
+  RoutesToPaths (QueryParam' mods name a :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance RoutesToPaths rest => RoutesToPaths (MultipartForm tag a :> rest) where
+  getRoutes = getRoutes @rest
+
+instance
+  RoutesToPaths rest =>
+  RoutesToPaths (Description desc :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance RoutesToPaths (Verb method status cts a) where
+  getRoutes = []
+
+instance RoutesToPaths (NoContentVerb method) where
+  getRoutes = []
+
 -- route :<|> routes
 instance
-  {-# OVERLAPPING #-}
   ( RoutesToPaths route,
     RoutesToPaths routes
   ) =>
@@ -107,13 +140,5 @@ instance
   where
   getRoutes = getRoutes @route <> getRoutes @routes
 
-instance
-  {-# OVERLAPPABLE #-}
-  ( RoutesToPaths segs
-  ) =>
-  RoutesToPaths (anything :> segs)
-  where
-  getRoutes = getRoutes @segs
-
-instance {-# OVERLAPPABLE #-} RoutesToPaths anything where
+instance RoutesToPaths Raw where
   getRoutes = []

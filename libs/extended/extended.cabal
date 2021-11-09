@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 18004f2559de4d4ac804d0a36a2d2780d0bbc10d79ebf78f337c9e6ba7a4ff3f
+-- hash: 65015665656bc1ae721971ef3e88ed707aa7a2be02ba04cf4aab39ac6188714a
 
 name:           extended
 version:        0.1.0
@@ -42,6 +42,7 @@ library
     , extra
     , http-types
     , imports
+    , metrics-wai
     , optparse-applicative
     , servant
     , servant-server

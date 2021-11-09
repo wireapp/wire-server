@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d17ec32d1990b4f59c918291cd7a1286d20e5c54ad921ecd5eb9d01b4b9f1c8
+-- hash: 2e805d6416bf9f547993a1c6fb55d615479783065d19d63e639ffc443301ecee
 
 name:           wire-api
 version:        0.1.0
@@ -142,6 +142,7 @@ library
     , iso639 >=0.1
     , lens >=4.12
     , memory
+    , metrics-wai
     , mime >=0.4
     , mtl
     , pem >=0.2
@@ -424,6 +425,7 @@ test-suite wire-api-tests
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
+      Test.Wire.API.Routes
       Test.Wire.API.Swagger
       Test.Wire.API.Team.Member
       Test.Wire.API.User
@@ -453,11 +455,13 @@ test-suite wire-api-tests
     , iso3166-country-codes
     , iso639
     , lens
+    , metrics-wai
     , mime
     , pem
     , pretty
     , proto-lens
     , saml2-web-sso
+    , servant
     , servant-swagger-ui
     , string-conversions
     , swagger2

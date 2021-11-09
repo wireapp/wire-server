@@ -23,6 +23,7 @@ module Wire.API.Routes.Public where
 import Control.Lens ((<>~))
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
+import Data.Metrics.Servant
 import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
@@ -94,6 +95,9 @@ instance
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth ztype opts :> api)) pc nt s
 
+instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
+  getRoutes = getRoutes @api
+
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
@@ -116,3 +120,6 @@ instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
   route _ = route (Proxy :: Proxy api)
   hoistServerWithContext _ pc nt s =
     hoistServerWithContext (Proxy :: Proxy api) pc nt s
+
+instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
+  getRoutes = getRoutes @api
