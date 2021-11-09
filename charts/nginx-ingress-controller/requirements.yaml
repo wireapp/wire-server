@@ -1,4 +1,6 @@
 dependencies:
 - name: ingress-nginx
-  version: 3.39.0 # app version v0.49.3; k8s [1.19 - 1.21]
+  # version support: https://github.com/kubernetes/ingress-nginx#support-versions-table
+  # chart version 3.39.0 == app version v0.49.3; k8s [1.19 - 1.21]
+  version: 3.39.0
   repository: https://kubernetes.github.io/ingress-nginx
