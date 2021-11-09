@@ -318,7 +318,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   let allUsers = newConvMembers lusr j
   other <- liftSem $ ensureOne (ulAll lusr allUsers)
   liftSem . when (qUntagged lusr == other) $
-    throw (InvalidOpGeneral "Cannot create a 1-1 with yourself")
+    throw . InvalidOp $ One2OneConv
   mtid <- case newConvTeam j of
     Just ti
       | cnvManaged ti -> liftSem $ throw NoManagedTeamConv

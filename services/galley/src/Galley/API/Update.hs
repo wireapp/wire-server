@@ -192,8 +192,7 @@ blockConv ::
 blockConv zusr cnv = do
   conv <- liftSem $ E.getConversation cnv >>= note ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
-    liftSem . throw $
-      InvalidOpGeneral "block: invalid conversation type"
+    liftSem . throw . InvalidOp . Data.convType $ conv
   let mems = Data.convLocalMembers conv
   when (zusr `isMember` mems) . liftSem $
     E.deleteMembers cnv (UserList [zusr] [])

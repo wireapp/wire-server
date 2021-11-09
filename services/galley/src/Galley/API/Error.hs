@@ -67,7 +67,6 @@ data ActionError
   | ActionDenied Action
   | AccessDenied
   | InvalidOp ConvType
-  | InvalidOpGeneral LText
   | OperationDenied String
   | NotConnected
   | NoAddToManaged
@@ -84,7 +83,6 @@ instance APIError ActionError where
   toWai (InvalidOp SelfConv) = invalidSelfOp
   toWai (InvalidOp One2OneConv) = invalidOne2OneOp
   toWai (InvalidOp ConnectConv) = invalidConnectOp
-  toWai (InvalidOpGeneral t) = invalidOp t
   toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
   toWai InvalidTargetUserOp = invalidTargetUserOp
