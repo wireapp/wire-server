@@ -18,7 +18,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Public where
+module Wire.API.Routes.Public
+  ( -- * nginz combinators
+    ZUser,
+    ZLocalUser,
+    ZConn,
+    ZOptUser,
+    ZOptConn,
+
+    -- * Swagger combinators
+    OmitDocs,
+  )
+where
 
 import Control.Lens ((<>~))
 import Data.Domain
@@ -52,7 +63,13 @@ mapRequestArgument f x =
 -- shows the "Authorization" header in the swagger docs, but expects the
 -- "Z-Auth" header in the server. This helps keep the swagger docs usable
 -- through nginz.
-data ZType = ZAuthUser | ZLocalAuthUser | ZAuthConn
+data ZType
+  = -- | Get a 'UserID' from the Z-Auth header
+    ZAuthUser
+  | -- | Same as 'ZAuthUser', but return a 'Local UserId' using the domain in the context
+    ZLocalAuthUser
+  | -- | Get a 'ConnId' from the Z-Conn header
+    ZAuthConn
 
 class
   (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
@@ -99,6 +116,8 @@ type InternalAuth ztype opts =
     (ZHeader ztype)
     (ZParam ztype)
 
+type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts
+
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 
 type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
@@ -118,6 +137,9 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) whe
           { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
+
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
+  toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
 
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) where
   toSwagger _ = toSwagger (Proxy @api)

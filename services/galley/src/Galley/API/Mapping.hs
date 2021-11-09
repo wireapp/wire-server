@@ -30,7 +30,6 @@ import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
 import Galley.API.Error
-import Galley.API.Util (qualifyLocal)
 import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
@@ -49,18 +48,17 @@ import Wire.API.Federation.API.Galley
 -- Throws "bad-state" when the user is not part of the conversation.
 conversationView ::
   Member (Error InternalError) r =>
-  UserId ->
+  Local UserId ->
   Data.Conversation ->
   Galley r Conversation
-conversationView uid conv = do
-  luid <- qualifyLocal uid
+conversationView luid conv = do
   let mbConv = conversationViewMaybe luid conv
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
       Log.err . msg $
         val "User "
-          +++ idToText uid
+          +++ idToText (tUnqualified luid)
           +++ val " is not a member of conv "
           +++ idToText (convId conv)
       liftSem $ throw BadMemberState

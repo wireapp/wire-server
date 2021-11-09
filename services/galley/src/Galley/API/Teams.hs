@@ -1166,14 +1166,13 @@ deleteTeamConversation ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   TeamId ->
   ConvId ->
   Galley r ()
-deleteTeamConversation zusr zcon _tid cid = do
-  lusr <- qualifyLocal zusr
-  lconv <- qualifyLocal cid
+deleteTeamConversation lusr zcon _tid cid = do
+  let lconv = qualifyAs lusr cid
   void $ API.deleteLocalConversation lusr zcon lconv
 
 getSearchVisibilityH ::

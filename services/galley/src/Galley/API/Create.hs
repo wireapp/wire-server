@@ -88,7 +88,7 @@ createGroupConversation ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
   Galley r ConversationResponse
@@ -119,8 +119,9 @@ internalCreateManagedConversationH ::
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
   Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
+  lusr <- qualifyLocal zusr
   newConv <- fromJsonBody req
-  handleConversationResponse <$> internalCreateManagedConversation zusr zcon newConv
+  handleConversationResponse <$> internalCreateManagedConversation lusr zcon newConv
 
 internalCreateManagedConversation ::
   Members
@@ -139,13 +140,13 @@ internalCreateManagedConversation ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   NewConvManaged ->
   Galley r ConversationResponse
-internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
+internalCreateManagedConversation lusr zcon (NewConvManaged body) = do
   tinfo <- liftSem $ note CannotCreateManagedConv (newConvTeam body)
-  createTeamGroupConv zusr zcon tinfo body
+  createTeamGroupConv lusr zcon tinfo body
 
 ensureNoLegalholdConflicts ::
   Members '[Error LegalHoldError, LegalHoldStore, TeamStore] r =>
@@ -173,12 +174,11 @@ createRegularGroupConv ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   NewConvUnmanaged ->
   Galley r ConversationResponse
-createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
-  lusr <- qualifyLocal zusr
+createRegularGroupConv lusr zcon (NewConvUnmanaged body) = do
   name <- liftSem $ rangeCheckedMaybe (newConvName body)
   let allUsers = newConvMembers lusr body
   o <- view options
@@ -200,8 +200,8 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
             ncUsers = checkedUsers,
             ncRole = newConvUsersRole body
           }
-  notifyCreatedConversation Nothing zusr (Just zcon) c
-  conversationCreated zusr c
+  notifyCreatedConversation Nothing lusr (Just zcon) c
+  conversationCreated lusr c
 
 -- | A helper for creating a team group conversation, used by the endpoint
 -- handlers above. Only supports unmanaged conversations.
@@ -222,18 +222,17 @@ createTeamGroupConv ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Public.ConvTeamInfo ->
   Public.NewConv ->
   Galley r ConversationResponse
-createTeamGroupConv zusr zcon tinfo body = do
-  lusr <- qualifyLocal zusr
+createTeamGroupConv lusr zcon tinfo body = do
   name <- liftSem $ rangeCheckedMaybe (newConvName body)
   let allUsers = newConvMembers lusr body
       convTeam = cnvTeamId tinfo
 
-  zusrMembership <- liftSem $ E.getTeamMember convTeam zusr
+  zusrMembership <- liftSem $ E.getTeamMember convTeam (tUnqualified lusr)
   void $ permissionCheck CreateConversation zusrMembership
   o <- view options
   checkedUsers <- liftSem $ checkedConvSize o allUsers
@@ -253,7 +252,7 @@ createTeamGroupConv zusr zcon tinfo body = do
     void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
-  ensureConnectedToLocals zusr (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
+  ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
@@ -273,24 +272,26 @@ createTeamGroupConv zusr zcon tinfo body = do
           }
   now <- liftIO getCurrentTime
   -- NOTE: We only send (conversation) events to members of the conversation
-  notifyCreatedConversation (Just now) zusr (Just zcon) conv
-  conversationCreated zusr conv
+  notifyCreatedConversation (Just now) lusr (Just zcon) conv
+  conversationCreated lusr conv
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
 createSelfConversation ::
   Members '[ConversationStore, Error InternalError] r =>
-  UserId ->
+  Local UserId ->
   Galley r ConversationResponse
-createSelfConversation zusr = do
-  lusr <- qualifyLocal zusr
-  c <- liftSem $ E.getConversation (Id . toUUID $ zusr)
-  maybe (create lusr) (conversationExisted zusr) c
+createSelfConversation lusr = do
+  c <- liftSem $ E.getConversation (Id . toUUID . tUnqualified $ lusr)
+  maybe create (conversationExisted lusr) c
   where
-    create lusr = do
+    create ::
+      Members '[ConversationStore, Error InternalError] r =>
+      Galley r ConversationResponse
+    create = do
       c <- liftSem $ E.createSelfConversation lusr Nothing
-      conversationCreated zusr c
+      conversationCreated lusr c
 
 createOne2OneConversation ::
   forall r.
@@ -309,12 +310,11 @@ createOne2OneConversation ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   NewConvUnmanaged ->
   Galley r ConversationResponse
-createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
-  lusr <- qualifyLocal zusr
+createOne2OneConversation lusr zcon (NewConvUnmanaged j) = do
   let allUsers = newConvMembers lusr j
   other <- liftSem $ ensureOne (ulAll lusr allUsers)
   liftSem . when (qUntagged lusr == other) $
@@ -325,7 +325,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       | otherwise -> do
         foldQualified
           lusr
-          (\lother -> checkBindingTeamPermissions lusr lother (cnvTeamId ti))
+          (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
           (const (pure Nothing))
           other
     Nothing -> ensureConnected lusr allUsers $> Nothing
@@ -343,10 +343,9 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
         throw NoBindingTeamMembers
     checkBindingTeamPermissions ::
       Local UserId ->
-      Local UserId ->
       TeamId ->
       Galley r (Maybe TeamId)
-    checkBindingTeamPermissions lusr lother tid = do
+    checkBindingTeamPermissions lother tid = do
       zusrMembership <- liftSem $ E.getTeamMember tid (tUnqualified lusr)
       void $ permissionCheck CreateConversation zusrMembership
       liftSem (E.getTeamBinding tid) >>= \case
@@ -377,12 +376,12 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   mc <- liftSem $ E.getConversation (tUnqualified lcnv)
   case mc of
-    Just c -> conversationExisted (tUnqualified self) c
+    Just c -> conversationExisted self c
     Nothing -> do
       (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
       c <- liftSem $ E.createLegacyOne2OneConversation self x y name mtid
-      notifyCreatedConversation Nothing (tUnqualified self) (Just zcon) c
-      conversationCreated (tUnqualified self) c
+      notifyCreatedConversation Nothing self (Just zcon) c
+      conversationCreated self c
 
 createOne2OneConversationUnchecked ::
   Members
@@ -419,11 +418,11 @@ createOne2OneConversationLocally ::
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- liftSem $ E.getConversation (tUnqualified lcnv)
   case mc of
-    Just c -> conversationExisted (tUnqualified self) c
+    Just c -> conversationExisted self c
     Nothing -> do
       c <- liftSem $ E.createOne2OneConversation (tUnqualified lcnv) self other name mtid
-      notifyCreatedConversation Nothing (tUnqualified self) (Just zcon) c
-      conversationCreated (tUnqualified self) c
+      notifyCreatedConversation Nothing self (Just zcon) c
+      conversationCreated self c
 
 createOne2OneConversationRemotely ::
   Member (Error FederationError) r =>
@@ -501,16 +500,16 @@ createLegacyConnectConversation lusr conn lrecipient j = do
       now <- liftIO getCurrentTime
       let lcid = qualifyAs lusr (Data.convId c)
           e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
-      notifyCreatedConversation Nothing (tUnqualified lusr) conn c
+      notifyCreatedConversation Nothing lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         liftSem . E.push1 $
           p
             & pushRoute .~ RouteDirect
             & pushConn .~ conn
-      conversationCreated (tUnqualified lusr) c
+      conversationCreated lusr c
     update n conv = do
       let mems = Data.convLocalMembers conv
-       in conversationExisted (tUnqualified lusr)
+       in conversationExisted lusr
             =<< if
                 | (tUnqualified lusr) `isMember` mems ->
                   -- we already were in the conversation, maybe also other
@@ -556,17 +555,17 @@ createLegacyConnectConversation lusr conn lrecipient j = do
 
 conversationCreated ::
   Member (Error InternalError) r =>
-  UserId ->
+  Local UserId ->
   Data.Conversation ->
   Galley r ConversationResponse
-conversationCreated usr cnv = Created <$> conversationView usr cnv
+conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 conversationExisted ::
   Member (Error InternalError) r =>
-  UserId ->
+  Local UserId ->
   Data.Conversation ->
   Galley r ConversationResponse
-conversationExisted usr cnv = Existed <$> conversationView usr cnv
+conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
@@ -576,32 +575,30 @@ handleConversationResponse = \case
 notifyCreatedConversation ::
   Members '[Error InternalError, FederatorAccess, GundeckAccess] r =>
   Maybe UTCTime ->
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
   Galley r ()
-notifyCreatedConversation dtime usr conn c = do
-  localDomain <- viewFederationDomain
+notifyCreatedConversation dtime lusr conn c = do
   now <- maybe (liftIO getCurrentTime) pure dtime
   -- FUTUREWORK: Handle failures in notifying so it does not abort half way
   -- through (either when notifying remotes or locals)
   --
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  registerRemoteConversationMemberships now localDomain c
+  registerRemoteConversationMemberships now (tDomain lusr) c
   -- Notify local users
-  liftSem . E.push =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
+  liftSem . E.push =<< mapM (toPush now) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny
       | otherwise = RouteDirect
-    toPush dom t m = do
-      let qconv = Qualified (Data.convId c) dom
-          qusr = Qualified usr dom
-      c' <- conversationView (lmId m) c
-      let e = Event ConvCreate qconv qusr t (EdConversation c')
+    toPush t m = do
+      let lconv = qualifyAs lusr (Data.convId c)
+      c' <- conversationView (qualifyAs lusr (lmId m)) c
+      let e = Event ConvCreate (qUntagged lconv) (qUntagged lusr) t (EdConversation c')
       return $
-        newPushLocal1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])
+        newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

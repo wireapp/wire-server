@@ -142,8 +142,9 @@ acceptConvH ::
     r =>
   UserId ::: Maybe ConnId ::: ConvId ->
   Galley r Response
-acceptConvH (usr ::: conn ::: cnv) =
-  setStatus status200 . json <$> acceptConv usr conn cnv
+acceptConvH (usr ::: conn ::: cnv) = do
+  lusr <- qualifyLocal usr
+  setStatus status200 . json <$> acceptConv lusr conn cnv
 
 acceptConv ::
   Members
@@ -155,15 +156,15 @@ acceptConv ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   ConvId ->
   Galley r Conversation
-acceptConv usr conn cnv = do
+acceptConv lusr conn cnv = do
   conv <-
     liftSem $ E.getConversation cnv >>= note ConvNotFound
-  conv' <- acceptOne2One usr conv conn
-  conversationView usr conv'
+  conv' <- acceptOne2One (tUnqualified lusr) conv conn
+  conversationView lusr conv'
 
 blockConvH ::
   Members
@@ -209,8 +210,9 @@ unblockConvH ::
     r =>
   UserId ::: Maybe ConnId ::: ConvId ->
   Galley r Response
-unblockConvH (usr ::: conn ::: cnv) =
-  setStatus status200 . json <$> unblockConv usr conn cnv
+unblockConvH (usr ::: conn ::: cnv) = do
+  lusr <- qualifyLocal usr
+  setStatus status200 . json <$> unblockConv lusr conn cnv
 
 unblockConv ::
   Members
@@ -222,17 +224,17 @@ unblockConv ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   ConvId ->
   Galley r Conversation
-unblockConv usr conn cnv = do
+unblockConv lusr conn cnv = do
   conv <-
     liftSem $ E.getConversation cnv >>= note ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     liftSem . throw . InvalidOp . Data.convType $ conv
-  conv' <- acceptOne2One usr conv conn
-  conversationView usr conv'
+  conv' <- acceptOne2One (tUnqualified lusr) conv conn
+  conversationView lusr conv'
 
 -- conversation updates
 
@@ -259,13 +261,12 @@ updateConversationAccess ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Public.ConversationAccessData ->
   Galley r (UpdateResult Event)
-updateConversationAccess usr con qcnv update = do
-  lusr <- qualifyLocal usr
+updateConversationAccess lusr con qcnv update = do
   let doUpdate =
         foldQualified
           lusr
@@ -290,14 +291,13 @@ updateConversationAccessUnqualified ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.ConversationAccessData ->
   Galley r (UpdateResult Event)
-updateConversationAccessUnqualified usr zcon cnv update = do
-  lusr <- qualifyLocal usr
-  lcnv <- qualifyLocal cnv
+updateConversationAccessUnqualified lusr zcon cnv update = do
+  let lcnv = qualifyAs lusr cnv
   updateLocalConversationAccess lcnv lusr zcon update
 
 updateLocalConversationAccess ::
@@ -347,13 +347,12 @@ updateConversationReceiptMode ::
      ]
     r =>
   Members '[Error FederationError] r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Public.ConversationReceiptModeUpdate ->
   Galley r (UpdateResult Event)
-updateConversationReceiptMode usr zcon qcnv update = do
-  lusr <- qualifyLocal usr
+updateConversationReceiptMode lusr zcon qcnv update = do
   let doUpdate =
         foldQualified
           lusr
@@ -372,14 +371,13 @@ updateConversationReceiptModeUnqualified ::
        GundeckAccess
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.ConversationReceiptModeUpdate ->
   Galley r (UpdateResult Event)
-updateConversationReceiptModeUnqualified usr zcon cnv update = do
-  lusr <- qualifyLocal usr
-  lcnv <- qualifyLocal cnv
+updateConversationReceiptModeUnqualified lusr zcon cnv update = do
+  let lcnv = qualifyAs lusr cnv
   updateLocalConversationReceiptMode lcnv lusr zcon update
 
 updateLocalConversationReceiptMode ::
@@ -422,14 +420,13 @@ updateConversationMessageTimerUnqualified ::
        GundeckAccess
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.ConversationMessageTimerUpdate ->
   Galley r (UpdateResult Event)
-updateConversationMessageTimerUnqualified usr zcon cnv update = do
-  lusr <- qualifyLocal usr
-  lcnv <- qualifyLocal cnv
+updateConversationMessageTimerUnqualified lusr zcon cnv update = do
+  let lcnv = qualifyAs lusr cnv
   updateLocalConversationMessageTimer lusr zcon lcnv update
 
 updateConversationMessageTimer ::
@@ -444,13 +441,12 @@ updateConversationMessageTimer ::
        GundeckAccess
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Public.ConversationMessageTimerUpdate ->
   Galley r (UpdateResult Event)
-updateConversationMessageTimer usr zcon qcnv update = do
-  lusr <- qualifyLocal usr
+updateConversationMessageTimer lusr zcon qcnv update = do
   foldQualified
     lusr
     (updateLocalConversationMessageTimer lusr zcon)
@@ -818,14 +814,14 @@ addMembersUnqualified ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.Invite ->
   Galley r (UpdateResult Event)
-addMembersUnqualified zusr zcon cnv (Public.Invite users role) = do
+addMembersUnqualified lusr zcon cnv (Public.Invite users role) = do
   qusers <- traverse (fmap qUntagged . qualifyLocal) (toNonEmpty users)
-  addMembers zusr zcon cnv (Public.InviteQualified qusers role)
+  addMembers lusr zcon cnv (Public.InviteQualified qusers role)
 
 addMembers ::
   Members
@@ -845,14 +841,13 @@ addMembers ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.InviteQualified ->
   Galley r (UpdateResult Event)
-addMembers zusr zcon cnv (Public.InviteQualified users role) = do
-  lusr <- qualifyLocal zusr
-  lcnv <- qualifyLocal cnv
+addMembers lusr zcon cnv (Public.InviteQualified users role) = do
+  let lcnv = qualifyAs lusr cnv
   getUpdateResult $
     updateLocalConversation lcnv (qUntagged lusr) (Just zcon) $
       ConversationJoin users role
@@ -866,34 +861,31 @@ updateSelfMember ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Public.MemberUpdate ->
   Galley r ()
-updateSelfMember zusr zcon qcnv update = do
-  lusr <- qualifyLocal zusr
-  exists <- liftSem $ foldQualified lusr checkLocalMembership checkRemoteMembership qcnv lusr
+updateSelfMember lusr zcon qcnv update = do
+  exists <- liftSem $ foldQualified lusr checkLocalMembership checkRemoteMembership qcnv
   liftSem . unless exists . throw $ ConvNotFound
   liftSem $ E.setSelfMember qcnv lusr update
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
-  pushConversationEvent (Just zcon) e [zusr] []
+  pushConversationEvent (Just zcon) e [tUnqualified lusr] []
   where
     checkLocalMembership ::
       Members '[MemberStore] r =>
       Local ConvId ->
-      Local UserId ->
       Sem r Bool
-    checkLocalMembership lcnv lusr =
+    checkLocalMembership lcnv =
       isMember (tUnqualified lusr)
         <$> E.getLocalMembers (tUnqualified lcnv)
     checkRemoteMembership ::
       Members '[ConversationStore] r =>
       Remote ConvId ->
-      Local UserId ->
       Sem r Bool
-    checkRemoteMembership rcnv lusr =
+    checkRemoteMembership rcnv =
       isJust . Map.lookup rcnv
         <$> E.getRemoteConversationStatus (tUnqualified lusr) [rcnv]
     updateData luid =
@@ -917,14 +909,14 @@ updateUnqualifiedSelfMember ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.MemberUpdate ->
   Galley r ()
-updateUnqualifiedSelfMember zusr zcon cnv update = do
-  lcnv <- qualifyLocal cnv
-  updateSelfMember zusr zcon (qUntagged lcnv) update
+updateUnqualifiedSelfMember lusr zcon cnv update = do
+  let lcnv = qualifyAs lusr cnv
+  updateSelfMember lusr zcon (qUntagged lcnv) update
 
 updateOtherMemberUnqualified ::
   Members
@@ -938,16 +930,15 @@ updateOtherMemberUnqualified ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   UserId ->
   Public.OtherMemberUpdate ->
   Galley r ()
-updateOtherMemberUnqualified zusr zcon cnv victim update = do
-  lusr <- qualifyLocal zusr
-  lcnv <- qualifyLocal cnv
-  lvictim <- qualifyLocal victim
+updateOtherMemberUnqualified lusr zcon cnv victim update = do
+  let lcnv = qualifyAs lusr cnv
+  let lvictim = qualifyAs lusr victim
   updateOtherMemberLocalConv lcnv lusr zcon (qUntagged lvictim) update
 
 updateOtherMember ::
@@ -963,14 +954,13 @@ updateOtherMember ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
   Galley r ()
-updateOtherMember zusr zcon qcnv qvictim update = do
-  lusr <- qualifyLocal zusr
+updateOtherMember lusr zcon qcnv qvictim update = do
   let doUpdate = foldQualified lusr updateOtherMemberLocalConv updateOtherMemberRemoteConv
   doUpdate qcnv lusr zcon qvictim update
 
@@ -1020,15 +1010,15 @@ removeMemberUnqualified ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   UserId ->
   Galley r RemoveFromConversationResponse
-removeMemberUnqualified zusr con cnv victim = do
-  lcnv <- qualifyLocal cnv
-  lvictim <- qualifyLocal victim
-  removeMemberQualified zusr con (qUntagged lcnv) (qUntagged lvictim)
+removeMemberUnqualified lusr con cnv victim = do
+  let lvictim = qualifyAs lusr victim
+      lcnv = qualifyAs lusr cnv
+  removeMemberQualified lusr con (qUntagged lcnv) (qUntagged lvictim)
 
 removeMemberQualified ::
   Members
@@ -1042,13 +1032,12 @@ removeMemberQualified ::
        MemberStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
   Galley r RemoveFromConversationResponse
-removeMemberQualified zusr con qcnv victim = do
-  lusr <- qualifyLocal zusr
+removeMemberQualified lusr con qcnv victim = do
   foldQualified lusr removeMemberFromLocalConv removeMemberFromRemoteConv qcnv lusr (Just con) victim
 
 removeMemberFromRemoteConv ::
@@ -1184,13 +1173,12 @@ postProteusMessage ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   RawProto Public.QualifiedNewOtrMessage ->
   Galley r (Public.PostOtrResponse Public.MessageSendingStatus)
-postProteusMessage zusr zcon conv msg = do
-  sender <- qualifyLocal zusr
+postProteusMessage sender zcon conv msg = do
   foldQualified
     sender
     (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) (tUnqualified c) (rpValue msg))
@@ -1210,17 +1198,16 @@ postOtrMessageUnqualified ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Maybe Public.IgnoreMissing ->
   Maybe Public.ReportMissing ->
   Public.NewOtrMessage ->
   Galley r (Public.PostOtrResponse Public.ClientMismatch)
-postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
+postOtrMessageUnqualified sender zcon cnv ignoreMissing reportMissing message = do
   localDomain <- viewFederationDomain
-  let sender = Qualified zusr localDomain
-      qualifiedRecipients =
+  let qualifiedRecipients =
         Public.QualifiedOtrRecipients
           . QualifiedUserClientMap
           . Map.singleton localDomain
@@ -1241,7 +1228,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify localDomain
-    <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
+    <$> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH ::
   Members
@@ -1423,13 +1410,12 @@ updateConversationName ::
        GundeckAccess
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Public.ConversationRename ->
   Galley r (Maybe Public.Event)
-updateConversationName zusr zcon qcnv convRename = do
-  lusr <- qualifyLocal zusr
+updateConversationName lusr zcon qcnv convRename = do
   foldQualified
     lusr
     (updateLocalConversationName lusr zcon)
@@ -1448,14 +1434,13 @@ updateUnqualifiedConversationName ::
        GundeckAccess
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Public.ConversationRename ->
   Galley r (Maybe Public.Event)
-updateUnqualifiedConversationName zusr zcon cnv rename = do
-  lusr <- qualifyLocal zusr
-  lcnv <- qualifyLocal cnv
+updateUnqualifiedConversationName lusr zcon cnv rename = do
+  let lcnv = qualifyAs lusr cnv
   updateLocalConversationName lusr zcon lcnv rename
 
 updateLocalConversationName ::

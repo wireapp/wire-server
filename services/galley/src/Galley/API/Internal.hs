@@ -95,7 +95,7 @@ import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Client (FederationError)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
-import Wire.API.Routes.Public (ZOptConn, ZUser)
+import Wire.API.Routes.Public (ZLocalUser, ZOptConn, ZUser)
 import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
 
@@ -195,7 +195,7 @@ data InternalApi routes = InternalApi
       routes
         :- Summary
              "Remove a user from their teams and conversations and erase their clients"
-        :> ZUser
+        :> ZLocalUser
         :> ZOptConn
         :> "i"
         :> "user"
@@ -517,60 +517,58 @@ rmUser ::
        ]
       r
   ) =>
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   Galley r ()
-rmUser user conn = do
+rmUser lusr conn = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  tids <- liftSem $ listTeams user Nothing maxBound
+  tids <- liftSem $ listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
-  allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
-  lusr <- qualifyLocal user
-  goConvPages lusr nRange1000 allConvIds
+  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
+  goConvPages nRange1000 allConvIds
 
-  liftSem $ deleteClients user
+  liftSem $ deleteClients (tUnqualified lusr)
   where
-    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
-    goConvPages lusr range page = do
+    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
+    goConvPages range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
-      for_ (rangedChunks remoteConvs) (leaveRemoteConversations lusr)
+      traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
-            usr = tUnqualified lusr
             nextQuery = GetPaginatedConversationIds (Just nextState) range
-        newCids <- Query.conversationIdsPageFrom usr nextQuery
-        goConvPages lusr range newCids
+        newCids <- Query.conversationIdsPageFrom lusr nextQuery
+        goConvPages range newCids
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       mems <- getTeamMembersForFanout tid
-      uncheckedDeleteTeamMember user conn tid user mems
-      page' <- liftSem $ listTeams user (Just (pageState page)) maxBound
+      uncheckedDeleteTeamMember (tUnqualified lusr) conn tid (tUnqualified lusr) mems
+      page' <- liftSem $ listTeams (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
-      let qUser = Qualified user localDomain
+      let qUser = qUntagged lusr
       cc <- liftSem $ getConversations ids
       now <- liftIO getCurrentTime
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
-        ConnectConv -> liftSem $ deleteMembers (Data.convId c) (UserList [user] []) $> Nothing
+        One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
-          | user `isMember` Data.convLocalMembers c -> do
-            liftSem $ deleteMembers (Data.convId c) (UserList [user] [])
+          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+            liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event
                     MemberLeave
                     (Qualified (Data.convId c) localDomain)
-                    (Qualified user localDomain)
+                    (qUntagged lusr)
                     now
                     (EdMembersLeave (QualifiedUserIdList [qUser]))
             for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
             pure $
-              Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
@@ -598,8 +596,8 @@ rmUser user conn = do
       liftSem (runFederatedEither remotes rpc)
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
-    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
-    leaveRemoteConversations lusr cids = do
+    leaveRemoteConversations :: Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
+    leaveRemoteConversations cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete

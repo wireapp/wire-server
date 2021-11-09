@@ -912,9 +912,10 @@ handleGroupConvPolicyConflicts ::
   UserId ->
   UserLegalHoldStatus ->
   Galley r ()
-handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
+handleGroupConvPolicyConflicts uid hypotheticalLHStatus = do
+  luid <- qualifyLocal uid
   void $
-    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+    iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
