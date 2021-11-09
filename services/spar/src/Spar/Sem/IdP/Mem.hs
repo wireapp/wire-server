@@ -52,9 +52,16 @@ idPToMem = evState . evEff
       Eff.DeleteRawMetadata i ->
         modify (_2 %~ deleteRawMetadata i)
 
--- TODO(sandy): Do we want to check the primary keys here?
 storeConfig :: IP.IdP -> TypedState -> TypedState
-storeConfig iw = M.insert (iw ^. SAML.idpId) iw
+storeConfig iw =
+  M.insert (iw ^. SAML.idpId) iw
+  . M.filter
+    ( \iw' ->
+        or
+          [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
+            iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
+          ]
+    )
 
 getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
 getConfig = M.lookup
