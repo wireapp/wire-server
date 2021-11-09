@@ -23,6 +23,8 @@ module Galley.Effects.TeamFeatureStore
     setApplockFeatureStatus,
     getSelfDeletingMessagesStatus,
     setSelfDeletingMessagesStatus,
+    setPaymentStatus,
+    getPaymentStatus,
   )
 where
 
@@ -67,6 +69,21 @@ data TeamFeatureStore m a where
     TeamId ->
     TeamFeatureStatus 'TeamFeatureSelfDeletingMessages ->
     TeamFeatureStore m (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages)
+  SetPaymentStatus' ::
+    forall (a :: TeamFeatureName) m.
+    ( HasPaymentStatusCol a
+    ) =>
+    Proxy a ->
+    TeamId ->
+    PaymentStatus ->
+    TeamFeatureStore m PaymentStatus
+  GetPaymentStatus' ::
+    forall (a :: TeamFeatureName) m.
+    ( HasPaymentStatusCol a
+    ) =>
+    Proxy a ->
+    TeamId ->
+    TeamFeatureStore m (Maybe PaymentStatus)
 
 makeSem ''TeamFeatureStore
 
@@ -84,3 +101,18 @@ setFeatureStatusNoConfig ::
   TeamFeatureStatus a ->
   Sem r (TeamFeatureStatus a)
 setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
+
+setPaymentStatus ::
+  forall (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, HasPaymentStatusCol a) =>
+  TeamId ->
+  PaymentStatus ->
+  Sem r PaymentStatus
+setPaymentStatus = setPaymentStatus' (Proxy @a)
+
+getPaymentStatus ::
+  forall (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, HasPaymentStatusCol a) =>
+  TeamId ->
+  Sem r (Maybe PaymentStatus)
+getPaymentStatus = getPaymentStatus' (Proxy @a)

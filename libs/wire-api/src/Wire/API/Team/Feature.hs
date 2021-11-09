@@ -32,6 +32,8 @@ module Wire.API.Team.Feature
     TeamFeatureStatusWithConfig (..),
     HasDeprecatedFeatureName (..),
     AllFeatureConfigs (..),
+    PaymentStatus (..),
+    PaymentStatusValue (..),
     defaultAppLockStatus,
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
@@ -45,6 +47,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
     modelForTeamFeature,
+    modelPaymentStatus,
   )
 where
 
@@ -52,8 +55,9 @@ import qualified Cassandra.CQL as Cass
 import Control.Lens.Combinators (dimap)
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Parser
-import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString, toByteString')
 import Data.Domain (Domain)
+import Data.Either.Extra (maybeToEither)
 import Data.Kind (Constraint)
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -64,6 +68,7 @@ import qualified Data.Text.Encoding as T
 import Deriving.Aeson
 import GHC.TypeLits (Symbol)
 import Imports
+import Servant (FromHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -304,11 +309,11 @@ modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
+modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig modelPaymentStatus
 modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
+modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig modelPaymentStatus
 modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
+modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig modelPaymentStatus
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -339,19 +344,21 @@ instance ToSchema TeamFeatureStatusNoConfig where
 -- to recreate the config every time it's turned on.
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
-    tfwcConfig :: cfg
+    tfwcConfig :: cfg,
+    tfwcPaymentStatus :: Maybe PaymentStatusValue --FUTUREWORK: remove payment status from set feature status request, it should only be part of the API response
   }
   deriving stock (Eq, Show, Generic, Typeable)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfig cfg))
 
 instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
-  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
+  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary <*> arbitrary
 
-modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
-modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
+modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model -> Doc.Model
+modelTeamFeatureStatusWithConfig name cfgModel paymentStatusModel = Doc.defineModel (cs $ show name) $ do
   Doc.description $ "Status and config of " <> cs (show name)
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
   Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
+  Doc.property "paymentStatus" (Doc.ref paymentStatusModel) $ Doc.description "payment status"
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
@@ -359,6 +366,7 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
         <*> tfwcConfig .= field "config" schema
+        <*> tfwcPaymentStatus .= opt (field "paymentStatus" schema)
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
@@ -383,7 +391,11 @@ modelTeamFeatureClassifiedDomainsConfig =
     Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
 
 defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-defaultClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureDisabled (TeamFeatureClassifiedDomainsConfig [])
+defaultClassifiedDomains =
+  TeamFeatureStatusWithConfig
+    TeamFeatureDisabled
+    (TeamFeatureClassifiedDomainsConfig [])
+    $ Just PaymentLocked
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig
@@ -423,6 +435,7 @@ defaultAppLockStatus =
   TeamFeatureStatusWithConfig
     TeamFeatureEnabled
     (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
+    $ Just PaymentLocked
 
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
@@ -450,6 +463,77 @@ defaultSelfDeletingMessagesStatus =
   TeamFeatureStatusWithConfig
     TeamFeatureEnabled
     (TeamFeatureSelfDeletingMessagesConfig 0)
+    $ Just PaymentLocked
+
+----------------------------------------------------------------------
+-- PaymentStatus
+
+instance FromHttpApiData PaymentStatusValue where
+  parseUrlPiece = maybeToEither "Invalid payment status" . fromByteString . cs
+
+data PaymentStatusValue = PaymentLocked | PaymentUnlocked
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PaymentStatusValue)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PaymentStatusValue)
+
+newtype PaymentStatus = PaymentStatus
+  { paymentStatus :: PaymentStatusValue
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema PaymentStatus)
+  deriving (Arbitrary) via (GenericUniform PaymentStatus)
+
+instance ToSchema PaymentStatus where
+  schema =
+    object "PaymentStatus" $
+      PaymentStatus
+        <$> paymentStatus .= field "paymentStatus" schema
+
+modelPaymentStatus :: Doc.Model
+modelPaymentStatus =
+  Doc.defineModel "PaymentStatus" $ do
+    Doc.property "paymentStatus" typePaymentStatusValue $ Doc.description ""
+
+typePaymentStatusValue :: Doc.DataType
+typePaymentStatusValue =
+  Doc.string $
+    Doc.enum
+      [ "locked",
+        "unlocked"
+      ]
+
+instance ToSchema PaymentStatusValue where
+  schema =
+    enum @Text "PaymentStatusValue" $
+      mconcat
+        [ element "locked" PaymentLocked,
+          element "unlocked" PaymentUnlocked
+        ]
+
+instance ToByteString PaymentStatusValue where
+  builder PaymentLocked = "locked"
+  builder PaymentUnlocked = "unlocked"
+
+instance FromByteString PaymentStatusValue where
+  parser =
+    Parser.takeByteString >>= \b ->
+      case T.decodeUtf8' b of
+        Right "locked" -> pure PaymentLocked
+        Right "unlocked" -> pure PaymentUnlocked
+        Right t -> fail $ "Invalid PaymentStatusValue: " <> T.unpack t
+        Left e -> fail $ "Invalid PaymentStatusValue: " <> show e
+
+instance Cass.Cql PaymentStatusValue where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  fromCql (Cass.CqlInt n) = case n of
+    0 -> pure PaymentLocked
+    1 -> pure PaymentUnlocked
+    _ -> Left "fromCql: Invalid PaymentStatusValue"
+  fromCql _ = Left "fromCql: PaymentStatusValue: CqlInt expected"
+
+  toCql PaymentLocked = Cass.CqlInt 0
+  toCql PaymentUnlocked = Cass.CqlInt 1
 
 ----------------------------------------------------------------------
 -- internal
