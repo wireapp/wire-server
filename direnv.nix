@@ -108,8 +108,49 @@ let
       linuxAmd64Sha256 = "949f81b3c30ca03a3d4effdecda04f100fa3edc07a28b19400f72ede7c5f0491";
     };
   };
-in
-pkgs.buildEnv {
+
+  compile-deps = pkgs.buildEnv {
+    name = "wire-server-compile-deps";
+    paths = [
+      pkgs.pkgconfig
+      pkgs.protobuf
+
+      pkgs.cryptobox
+      pkgs.geoip
+      pkgs.icu.dev
+      pkgs.icu.out
+      pkgs.libsodium.dev
+      pkgs.libsodium.out
+      pkgs.libxml2.dev
+      pkgs.libxml2.out
+      pkgs.ncurses.dev
+      pkgs.ncurses.out
+      pkgs.openssl.dev
+      pkgs.openssl.out
+      pkgs.pcre.dev
+      pkgs.pcre.out
+      pkgs.snappy.dev
+      pkgs.snappy.out
+      pkgs.zlib.dev
+      pkgs.zlib.out
+      pkgs.lzma.dev
+      pkgs.lzma.out
+    ];
+  };
+
+  # This performs roughly the same setup as direnv's load_prefix function, but
+  # only when invoking cabal. This means that we can set LD_LIBRARY_PATH just
+  # for cabal, as setting it in direnv can interfere with programs in the host
+  # system, especially for non-NixOS users.
+  cabal-wrapper = pkgs.writeShellScriptBin "cabal" ''
+    export CPATH="${compile-deps}/include:$CPATH"
+    export LD_LIBRARY_PATH="${compile-deps}/lib:$LD_LIBRARY_PATH"
+    export LIBRARY_PATH="${compile-deps}/lib:$LIBRARY_PATH"
+    export PKG_CONFIG_PATH="${compile-deps}/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export PATH="${compile-deps}/bin:$PATH"
+    exec "${pkgs.cabal-install}/bin/cabal" "$@"
+  '';
+in pkgs.buildEnv {
   name = "wire-server-direnv";
   paths = [
     pkgs.cfssl
@@ -135,31 +176,10 @@ pkgs.buildEnv {
 
     # For cabal-migration
     pkgs.haskell.compiler.ghc884
-
-    pkgs.cabal-install
     pkgs.haskellPackages.cabal-plan
-    pkgs.pkgconfig
-    pkgs.protobuf
 
-    pkgs.cryptobox
-    pkgs.geoip
-    pkgs.icu.dev
-    pkgs.icu.out
-    pkgs.libsodium.dev
-    pkgs.libsodium.out
-    pkgs.libxml2.dev
-    pkgs.libxml2.out
-    pkgs.ncurses.dev
-    pkgs.ncurses.out
-    pkgs.openssl.dev
-    pkgs.openssl.out
-    pkgs.pcre.dev
-    pkgs.pcre.out
-    pkgs.snappy.dev
-    pkgs.snappy.out
-    pkgs.zlib.dev
-    pkgs.zlib.out
-    pkgs.lzma.dev
-    pkgs.lzma.out
+    # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
+    # which sets LD_LIBRARY_PATH and others correctly.
+    cabal-wrapper
   ];
 }
