@@ -21,6 +21,7 @@ module Galley.Effects.FederatorAccess
     runFederated,
     runFederatedEither,
     runFederatedConcurrently,
+    runFederatedConcurrentlyEither,
     runFederatedConcurrently_,
   )
 where
@@ -49,6 +50,12 @@ data FederatorAccess m a where
     f (Remote x) ->
     (Remote [x] -> FederatedRPC c a) ->
     FederatorAccess m [Remote a]
+  RunFederatedConcurrentlyEither ::
+    forall (c :: Component) f a m x.
+    (Foldable f, Functor f) =>
+    f (Remote x) ->
+    (Remote [x] -> FederatedRPC c a) ->
+    FederatorAccess m [Either FederationError (Remote a)]
 
 makeSem ''FederatorAccess
 

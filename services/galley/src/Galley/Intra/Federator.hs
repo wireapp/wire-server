@@ -47,6 +47,9 @@ interpretFederatorAccess = interpret $ \case
   RunFederated dom rpc -> embedFederationM $ runFederated dom rpc
   RunFederatedEither dom rpc -> embedFederationM $ runFederatedEither dom rpc
   RunFederatedConcurrently rs f -> embedFederationM $ runFederatedConcurrently rs f
+  RunFederatedConcurrentlyEither rs f ->
+    embedFederationM $
+      runFederatedConcurrentlyEither rs f
 
 runFederatedEither ::
   Remote x ->
@@ -72,3 +75,12 @@ runFederatedConcurrently ::
 runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     qualifyAs r <$> runFederated r (rpc r)
+
+runFederatedConcurrentlyEither ::
+  (Foldable f, Functor f) =>
+  f (Remote a) ->
+  (Remote [a] -> FederatedRPC c b) ->
+  FederationM [Either FederationError (Remote b)]
+runFederatedConcurrentlyEither xs rpc =
+  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    sequenceA . qualifyAs r <$> runFederatedEither r (rpc r)
