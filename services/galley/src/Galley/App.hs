@@ -127,7 +127,6 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
-import Wire.API.Federation.Client (HasFederatorConfig (..))
 
 -- MTL-style effects derived from the old implementation of the Galley monad.
 -- They will disappear as we introduce more high-level effects into Galley.
@@ -154,10 +153,6 @@ instance MonadIO (Galley r) where
 instance MonadReader Env (Galley r) where
   ask = Galley $ P.ask @Env
   local f m = Galley $ P.local f (unGalley m)
-
-instance HasFederatorConfig (Galley r) where
-  federatorEndpoint = view federator
-  federationDomain = view (options . optSettings . setFederationDomain)
 
 fanoutLimit :: Galley r (Range 1 Teams.HardTruncationLimit Int32)
 fanoutLimit = view options >>= return . currentFanoutLimit

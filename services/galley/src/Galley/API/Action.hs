@@ -181,16 +181,22 @@ instance IsConversationAction ConversationJoin where
         ensureConnectedOrSameTeam lusr newUsers
 
       checkRemotes ::
-        Members '[BrigAccess, Error ActionError, Error FederationError, TeamStore] r =>
+        Members
+          '[ BrigAccess,
+             Error ActionError,
+             Error FederationError,
+             FederatorAccess,
+             TeamStore
+           ]
+          r =>
         Local UserId ->
         [Remote UserId] ->
         Galley r ()
       checkRemotes lusr remotes = do
         -- if federator is not configured, we fail early, so we avoid adding
         -- remote members to the database
-        unless (null remotes) $ do
-          endpoint <- federatorEndpoint
-          liftSem . when (isNothing endpoint) $
+        liftSem . unless (null remotes) $
+          unlessM E.isFederationConfigured $
             throw FederationNotConfigured
         ensureConnectedToRemotes lusr remotes
 

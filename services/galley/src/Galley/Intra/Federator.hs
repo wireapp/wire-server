@@ -44,6 +44,7 @@ interpretFederatorAccess = interpret $ \case
   RunFederatedConcurrentlyEither rs f ->
     embedApp $
       runFederatedConcurrentlyEither rs f
+  IsFederationConfigured -> embedApp $ isJust <$> federatorEndpoint
 
 runFederatedEither ::
   Remote x ->

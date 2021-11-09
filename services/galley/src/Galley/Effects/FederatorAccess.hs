@@ -23,6 +23,7 @@ module Galley.Effects.FederatorAccess
     runFederatedConcurrently,
     runFederatedConcurrentlyEither,
     runFederatedConcurrently_,
+    isFederationConfigured,
   )
 where
 
@@ -56,6 +57,7 @@ data FederatorAccess m a where
     f (Remote x) ->
     (Remote [x] -> FederatedRPC c a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
+  IsFederationConfigured :: FederatorAccess m Bool
 
 makeSem ''FederatorAccess
 
