@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bd0d9ed993e3fb077f99d5814451253c5a533864af3a3b7029f75191c67369af
+-- hash: af762220a13610d32130073d120e0d4d17fa807475708c4adac423d76474d3d8
 
 name:           spar
 version:        0.1
@@ -49,6 +49,7 @@ library
       Spar.Sem.BrigAccess.Http
       Spar.Sem.DefaultSsoCode
       Spar.Sem.DefaultSsoCode.Cassandra
+      Spar.Sem.DefaultSsoCode.Mem
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
       Spar.Sem.IdP
