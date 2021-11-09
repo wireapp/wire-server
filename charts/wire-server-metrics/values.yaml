@@ -1,4 +1,4 @@
-prometheus-operator:
+kube-prometheus-stack:
   prometheus:
     additionalServiceMonitors:
       - name: wire-services
@@ -38,29 +38,9 @@ prometheus-operator:
       enabled: true
       accessModes: ["ReadWriteOnce"]
       size: 10Gi
-
-    dashboardProviders:
-      dashboardproviders.yaml:
-        apiVersion: 1
-        providers:
-          - name: 'default'
-            orgId: 1
-            folder: ''
-            type: file
-            disableDeletion: false
-            editable: true
-            options:
-              path: /var/lib/grafana/dashboards/default
-
-    dashboards:
-      default:
-        # grafana can only access files from within its own chart directory
-        # which we don't have access to here; we can either dump the json
-        # directly into the values file, or load from a url
-        messages:
-          url: https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/charts/wire-server-metrics/dashboards/message-stats.json
-        services:
-          url: https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/charts/wire-server-metrics/dashboards/services.json
+    sidecar:
+      dashboards:
+        label: grafana_dashboard
 
   prometheusSpec:
     storageSpec:
