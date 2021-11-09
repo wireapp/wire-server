@@ -437,6 +437,7 @@ executable galley-schema
       V52_FeatureConferenceCalling
       V53_AddRemoteConvStatus
       V54_TeamFeatureSelfDeletingMessages
+      V55_TeamFeatureWithConfigPaymentStatus
       Paths_galley
   hs-source-dirs:
       schema/src

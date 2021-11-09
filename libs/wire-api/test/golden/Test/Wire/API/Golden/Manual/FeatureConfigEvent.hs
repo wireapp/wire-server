@@ -19,5 +19,6 @@ testObject_FeatureConfigEvent_3 =
         ( TeamFeatureStatusWithConfig
             TeamFeatureDisabled
             (TeamFeatureAppLockConfig (EnforceAppLock True) 300)
+            $ Just PaymentLocked
         )
     )

@@ -18,9 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team where
 
-import Imports (Bool (False, True))
+import Imports (Bool (False, True), Maybe (..))
 import Wire.API.Team.Feature
   ( EnforceAppLock (EnforceAppLock),
+    PaymentStatusValue (..),
     TeamFeatureAppLockConfig (..),
     TeamFeatureStatusValue (TeamFeatureDisabled, TeamFeatureEnabled),
     TeamFeatureStatusWithConfig (..),
@@ -31,6 +32,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_1 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_1 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Just PaymentLocked,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -98}
     }
@@ -40,6 +42,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_2 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_2 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Just PaymentUnlocked,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 14}
     }
@@ -49,6 +52,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_3 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_3 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 92}
     }
@@ -58,6 +62,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_4 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_4 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 45}
     }
@@ -67,6 +72,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_5 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_5 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 119}
     }
@@ -76,6 +82,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_6 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_6 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -50}
     }
@@ -85,6 +92,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_7 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_7 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -50}
     }
@@ -94,6 +102,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_8 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_8 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = -76}
     }
@@ -103,6 +112,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_9 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_9 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 96}
     }
@@ -112,6 +122,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_10 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_10 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 120}
     }
@@ -121,6 +132,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_11 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_11 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 62}
     }
@@ -130,6 +142,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_12 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_12 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = -50}
     }
@@ -139,6 +152,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_13 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_13 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -99}
     }
@@ -148,6 +162,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_14 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_14 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -96}
     }
@@ -157,6 +172,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_15 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_15 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -12}
     }
@@ -166,6 +182,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_16 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_16 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = -60}
     }
@@ -175,6 +192,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_17 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_17 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 100}
     }
@@ -184,6 +202,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_18 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_18 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 74}
     }
@@ -193,6 +212,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_19 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_19 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureDisabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -125}
     }
@@ -202,6 +222,7 @@ testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_20 ::
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_20 =
   TeamFeatureStatusWithConfig
     { tfwcStatus = TeamFeatureEnabled,
+      tfwcPaymentStatus = Nothing,
       tfwcConfig =
         TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 69}
     }

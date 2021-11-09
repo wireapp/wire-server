@@ -39,7 +39,9 @@ module Galley.API.Teams.Features
     getConferenceCallingInternal,
     setConferenceCallingInternal,
     getSelfDeletingMessagesInternal,
+    setPaymentStatusInternal,
     setSelfDeletingMessagesInternal,
+    setPaymentStatus,
     DoAuth (..),
     GetFeatureInternalParam,
   )
@@ -117,11 +119,14 @@ getFeatureStatus getter doauth tid = do
 setFeatureStatus ::
   forall (a :: Public.TeamFeatureName) r.
   ( Public.KnownTeamFeatureName a,
+    HasPaymentStatusCol a,
     Members
       '[ Error ActionError,
          Error TeamError,
          Error NotATeamMember,
-         TeamStore
+         Error TeamFeatureError,
+         TeamStore,
+         TeamFeatureStore
        ]
       r
   ) =>
@@ -137,7 +142,31 @@ setFeatureStatus setter doauth tid status = do
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
       assertTeamExists tid
-  setter tid status
+  maybePaymentStatus <- TeamFeatures.getPaymentStatus @a tid
+  case maybePaymentStatus of
+    Just (Public.PaymentStatus Public.PaymentLocked) -> throw PaymentStatusLocked
+    _ -> setter tid status
+
+-- | Setting payment status can only be done through the internal API and therefore doesn't require auth.
+setPaymentStatus ::
+  forall (a :: Public.TeamFeatureName) r.
+  ( Public.KnownTeamFeatureName a,
+    HasPaymentStatusCol a,
+    Members
+      [ Error ActionError,
+        Error TeamError,
+        Error NotATeamMember,
+        TeamStore
+      ]
+      r
+  ) =>
+  (TeamId -> Public.PaymentStatusValue -> Sem r Public.PaymentStatus) ->
+  TeamId ->
+  Public.PaymentStatusValue ->
+  Sem r Public.PaymentStatus
+setPaymentStatus setter tid paymentStatusUpdate = do
+  assertTeamExists tid
+  setter tid paymentStatusUpdate
 
 -- | For individual users to get feature config for their account (personal or team).
 getFeatureConfig ::
@@ -180,7 +209,7 @@ getAllFeatureConfigs ::
   Sem r AllFeatureConfigs
 getAllFeatureConfigs zusr = do
   mbTeam <- getOneUserTeam zusr
-  zusrMembership <- maybe (pure Nothing) ((flip getTeamMember zusr)) mbTeam
+  zusrMembership <- maybe (pure Nothing) (flip getTeamMember zusr) mbTeam
   let getStatus ::
         forall (a :: Public.TeamFeatureName) r.
         ( Public.KnownTeamFeatureName a,
@@ -194,7 +223,7 @@ getAllFeatureConfigs zusr = do
           void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
         status <- getter (maybe (Left (Just zusr)) Right mbTeam)
         let feature = Public.knownTeamFeatureName @a
-        pure $ (cs (toByteString' feature) Aeson..= status)
+        pure $ cs (toByteString' feature) Aeson..= status
 
   AllFeatureConfigs . HashMap.fromList
     <$> sequence
@@ -268,7 +297,7 @@ getAllFeatures uid tid = do
     getStatus getter = do
       status <- getFeatureStatus @a getter (DoAuth uid) tid
       let feature = Public.knownTeamFeatureName @a
-      pure $ (cs (toByteString' feature) Aeson..= status)
+      pure $ cs (toByteString' feature) Aeson..= status
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) r.
@@ -323,7 +352,7 @@ getSSOStatusInternal =
 setSSOStatusInternal ::
   Members '[Error TeamFeatureError, GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
-  (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureSSO ->
   Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
   Public.TeamFeatureDisabled -> const (throw DisableSsoNotImplemented)
@@ -346,7 +375,7 @@ getTeamSearchVisibilityAvailableInternal =
 setTeamSearchVisibilityAvailableInternal ::
   Members '[GundeckAccess, SearchVisibilityStore, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
-  (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility ->
   Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
   Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
@@ -369,7 +398,7 @@ getValidateSAMLEmailsInternal =
 setValidateSAMLEmailsInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
-  (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails ->
   Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
 setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
 
@@ -518,7 +547,7 @@ setAppLockInternal tid status = do
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureAppLock (EdFeatureApplockChanged status)
-  (TeamFeatures.setApplockFeatureStatus tid status) <* pushEvent
+  TeamFeatures.setApplockFeatureStatus tid status <* pushEvent
 
 getClassifiedDomainsInternal ::
   Member (Input Opts) r =>
@@ -529,7 +558,7 @@ getClassifiedDomainsInternal _mbtid = do
   let config = globalConfig
   pure $ case Public.tfwcStatus config of
     Public.TeamFeatureDisabled ->
-      Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
+      Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig []) (Just Public.PaymentLocked)
     Public.TeamFeatureEnabled -> config
 
 getConferenceCallingInternal ::
@@ -559,7 +588,16 @@ getSelfDeletingMessagesInternal = \case
   Left _ -> pure Public.defaultSelfDeletingMessagesStatus
   Right tid ->
     TeamFeatures.getSelfDeletingMessagesStatus tid
-      <&> maybe Public.defaultSelfDeletingMessagesStatus id
+      <&> fromMaybe Public.defaultSelfDeletingMessagesStatus
+
+setPaymentStatusInternal ::
+  forall (a :: Public.TeamFeatureName) r.
+  (HasPaymentStatusCol a, Member TeamFeatureStore r) =>
+  TeamId ->
+  Public.PaymentStatusValue ->
+  Sem r Public.PaymentStatus
+setPaymentStatusInternal tid paymentStatus =
+  TeamFeatures.setPaymentStatus @a tid (Public.PaymentStatus paymentStatus)
 
 setSelfDeletingMessagesInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
@@ -570,7 +608,7 @@ setSelfDeletingMessagesInternal tid st = do
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
-  (TeamFeatures.setSelfDeletingMessagesStatus tid st) <* pushEvent
+  TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
 
 pushFeatureConfigEvent ::
   Members '[GundeckAccess, TeamStore, P.TinyLog] r =>
@@ -588,7 +626,7 @@ pushFeatureConfigEvent tid event = do
   let recipients = membersToRecipients Nothing (memList ^. teamMembers)
   for_
     (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
-    (push1)
+    push1
 
 -- | (Currently, we only have 'Public.TeamFeatureConferenceCalling' here, but we may have to
 -- extend this in the future.)

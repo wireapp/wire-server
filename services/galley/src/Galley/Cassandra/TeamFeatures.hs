@@ -73,13 +73,13 @@ getApplockFeatureStatus tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
-    mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout)
+    mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout, mbPaymentStatusValue) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout) <*> Just mbPaymentStatusValue
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe EnforceAppLock, Maybe Int32)
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe EnforceAppLock, Maybe Int32, Maybe PaymentStatusValue)
     select =
       fromString $
-        "select " <> statusCol @'TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
+        "select " <> statusCol @'TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs, app_lock_payment_status "
           <> "from team_features where team_id = ?"
 
 setApplockFeatureStatus ::
@@ -110,15 +110,15 @@ getSelfDeletingMessagesStatus tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
-    mTuple >>= \(mbStatusValue, mbTimeout) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout)
+    mTuple >>= \(mbStatusValue, mbTimeout, mbPaymentStatusValue) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout) <*> Just mbPaymentStatusValue
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Int32)
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Int32, Maybe PaymentStatusValue)
     select =
       fromString $
         "select "
           <> statusCol @'TeamFeatureSelfDeletingMessages
-          <> ", self_deleting_messages_ttl "
+          <> ", self_deleting_messages_ttl, self_deleting_messages_payment_status "
           <> "from team_features where team_id = ?"
 
 setSelfDeletingMessagesStatus ::
@@ -140,6 +140,52 @@ setSelfDeletingMessagesStatus tid status = do
           <> ", self_deleting_messages_ttl) "
           <> "values (?, ?, ?)"
 
+setPaymentStatus ::
+  forall (a :: TeamFeatureName) m.
+  ( MonadClient m,
+    HasPaymentStatusCol a
+  ) =>
+  Proxy a ->
+  TeamId ->
+  PaymentStatus ->
+  m PaymentStatus
+setPaymentStatus _ tid (PaymentStatus paymentStatus) =
+  case paymentStatusCol @a of
+    Nothing -> pure $ PaymentStatus PaymentUnlocked -- todo: what should we do here? probably return an error, UpdatePaymentStatusNotAllowed or sth. similar
+    Just col -> do
+      retry x5 $ write insert (params LocalQuorum (tid, paymentStatus))
+      pure (PaymentStatus paymentStatus)
+      where
+        insert :: PrepQuery W (TeamId, PaymentStatusValue) ()
+        insert =
+          fromString $
+            "insert into team_features (team_id, "
+              <> col
+              <> ") values (?, ?)"
+
+getPaymentStatus ::
+  forall (a :: TeamFeatureName) m.
+  ( MonadClient m,
+    HasPaymentStatusCol a
+  ) =>
+  Proxy a ->
+  TeamId ->
+  m (Maybe PaymentStatus)
+getPaymentStatus _ tid =
+  case paymentStatusCol @a of
+    Nothing -> pure Nothing
+    Just col -> do
+      let q = query1 select (params LocalQuorum (Identity tid))
+      mTuple <- (>>= runIdentity) <$> retry x1 q
+      pure $ PaymentStatus <$> mTuple
+      where
+        select :: PrepQuery R (Identity TeamId) (Identity (Maybe PaymentStatusValue))
+        select =
+          fromString $
+            "select "
+              <> col
+              <> " from team_features where team_id = ?"
+
 interpretTeamFeatureStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
   Sem (TeamFeatureStore ': r) a ->
@@ -147,6 +193,8 @@ interpretTeamFeatureStoreToCassandra ::
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   GetFeatureStatusNoConfig' p tid -> embedClient $ getFeatureStatusNoConfig p tid
   SetFeatureStatusNoConfig' p tid value -> embedClient $ setFeatureStatusNoConfig p tid value
+  SetPaymentStatus' p tid value -> embedClient $ setPaymentStatus p tid value
+  GetPaymentStatus' p tid -> embedClient $ getPaymentStatus p tid
   GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid
   SetApplockFeatureStatus tid value -> embedClient $ setApplockFeatureStatus tid value
   GetSelfDeletingMessagesStatus tid -> embedClient $ getSelfDeletingMessagesStatus tid

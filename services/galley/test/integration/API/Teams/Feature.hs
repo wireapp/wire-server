@@ -270,7 +270,8 @@ testClassifiedDomainsEnabled = do
   let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureEnabled,
-            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]
+            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"],
+            Public.tfwcPaymentStatus = Nothing
           }
 
   let getClassifiedDomainsFeatureConfig ::
@@ -292,7 +293,8 @@ testClassifiedDomainsDisabled = do
   let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureDisabled,
-            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig []
+            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [],
+            Public.tfwcPaymentStatus = Nothing
           }
 
   let getClassifiedDomainsFeatureConfig ::
@@ -386,6 +388,7 @@ testSelfDeletingMessages = do
         Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
           stat
           (Public.TeamFeatureSelfDeletingMessagesConfig tout)
+          Nothing
 
   personalUser <- Util.randomUser
   Util.getFeatureConfig Public.TeamFeatureSelfDeletingMessages personalUser
@@ -446,19 +449,21 @@ testAllFeatures = do
           toS TeamFeatureAppLock
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
-              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32))
+              Nothing,
           toS TeamFeatureFileSharing .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
           toS TeamFeatureClassifiedDomains
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
-              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
+              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"])
+              Nothing,
           toS TeamFeatureConferenceCalling
             .= Public.TeamFeatureStatusNoConfig confCalling,
           toS TeamFeatureSelfDeletingMessages
-            .= ( Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
-                   TeamFeatureEnabled
-                   (Public.TeamFeatureSelfDeletingMessagesConfig 0)
-               )
+            .= Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
+              TeamFeatureEnabled
+              (Public.TeamFeatureSelfDeletingMessagesConfig 0)
+              Nothing
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
@@ -478,8 +483,6 @@ testFeatureConfigConsistency = do
 
   unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
     liftIO $ expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
-
-  pure ()
   where
     parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
     parseObjectKeys res = do

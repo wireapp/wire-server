@@ -52,6 +52,7 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
+import Galley.Data.TeamFeatures (HasPaymentStatusCol)
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
@@ -194,6 +195,9 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusSelfDeletingMessagesGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureSelfDeletingMessages,
+    iTeamFeaturePaymentStatusSelfDeletingMessagesPut ::
+      routes
+        :- IFeatureStatusPaymentStatusPut 'Public.TeamFeatureSelfDeletingMessages,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     iDeleteUser ::
@@ -251,6 +255,16 @@ type IFeatureStatusPut featureName =
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
+type IFeatureStatusPaymentStatusPut featureName =
+  Summary (AppendSymbol "(Un-) lock payment for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.KnownTeamFeatureNameSymbol featureName
+    :> Capture "paymentStatus" Public.PaymentStatusValue
+    :> Put '[Servant.JSON] Public.PaymentStatus
+
 -- | A type for a GET endpoint for a feature with a deprecated path
 type IFeatureStatusDeprecatedGet featureName =
   Summary (AppendSymbol "[deprecated] Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
@@ -303,6 +317,7 @@ servantSitemap =
         iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
         iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
+        iTeamFeaturePaymentStatusSelfDeletingMessagesPut = Features.setPaymentStatus @'Public.TeamFeatureSelfDeletingMessages (Features.setPaymentStatusInternal @'Public.TeamFeatureSelfDeletingMessages),
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
         iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
@@ -327,11 +342,14 @@ iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 iPutTeamFeature ::
   forall a r.
   ( Public.KnownTeamFeatureName a,
+    HasPaymentStatusCol a,
     Members
       '[ Error ActionError,
          Error NotATeamMember,
          Error TeamError,
-         TeamStore
+         Error TeamFeatureError,
+         TeamStore,
+         TeamFeatureStore
        ]
       r
   ) =>

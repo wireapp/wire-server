@@ -3,5 +3,6 @@
         "enforceAppLock": false,
         "inactivityTimeoutSecs": -98
     },
+    "paymentStatus": "locked",
     "status": "disabled"
 }
