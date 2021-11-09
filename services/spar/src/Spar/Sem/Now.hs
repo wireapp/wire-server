@@ -9,15 +9,15 @@ data Now m a where
 
 makeSem ''Now
 
-
 -- | Check a time against 'Now', checking if it's still alive (hasn't occurred yet.)
-boolTTL
-    :: Member Now r
-    => a  -- ^ The value to return if the TTL is expired
-    -> a  -- ^ The value to return if the TTL is alive
-    -> SAML.Time  -- The time to check
-    -> Sem r a
+boolTTL ::
+  Member Now r =>
+  -- | The value to return if the TTL is expired
+  a ->
+  -- | The value to return if the TTL is alive
+  a ->
+  SAML.Time -> -- The time to check
+  Sem r a
 boolTTL f t time = do
   now <- get
   pure $ bool f t $ now <= time
-
