@@ -18,14 +18,13 @@ aReqIDStoreToMem
     :: Member Now r
     => Sem (AReqIDStore ': r) a
     -> Sem r a
-aReqIDStoreToMem = (evalState @(Map AReqId (SAML.Time, VerdictFormat)) mempty .) $ (evalState @(Map AReqId SAML.Time) mempty .) $ reinterpret2 $ \x -> case x of
+aReqIDStoreToMem = (evalState @(Map AReqId (SAML.Time, VerdictFormat)) mempty .) $ (evalState @(Map AReqId SAML.Time) mempty .) $ reinterpret2 $ \case
   Store areqid ti -> modify $ M.insert areqid ti
   UnStore areqid -> modify $ M.delete areqid
   IsAlive areqid ->
     gets (M.lookup areqid) >>= \case
       Just time -> do
-        now <- Now.get
-        pure $ now <= time
+        boolTTL False True time
       Nothing -> pure False
   StoreVerdictFormat ndt areqid vf -> do
     now <- Now.get
@@ -33,10 +32,6 @@ aReqIDStoreToMem = (evalState @(Map AReqId (SAML.Time, VerdictFormat)) mempty .)
   GetVerdictFormat areqid -> do
     gets (M.lookup areqid) >>= \case
       Just (time, vf) -> do
-        now <- Now.get
-        pure $
-          if (now <= time)
-           then Just vf
-           else Nothing
+        boolTTL Nothing (Just vf) time
       Nothing -> pure Nothing
 

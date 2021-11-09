@@ -17,14 +17,12 @@ assIdStoreToMem
     :: Member Now r
     => Sem (AssIDStore ': r) a
     -> Sem r a
-assIdStoreToMem = (evalState @(Map AssId SAML.Time) mempty .) $ reinterpret $ \x -> case x of
+assIdStoreToMem = (evalState @(Map AssId SAML.Time) mempty .) $ reinterpret $ \case
   Store assid ti -> modify $ M.insert assid ti
   UnStore assid -> modify $ M.delete assid
   IsAlive assid ->
     gets (M.lookup assid) >>= \case
-      Just time -> do
-        now <- Now.get
-        pure $ now <= time
+      Just time -> boolTTL False True time
       Nothing -> pure False
 
 
