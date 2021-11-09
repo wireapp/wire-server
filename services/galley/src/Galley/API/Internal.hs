@@ -530,7 +530,6 @@ rmUser user conn = do
       page' <- liftSem $ listTeams user (Just (pageState page)) maxBound
       leaveTeams page'
 
-    -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain

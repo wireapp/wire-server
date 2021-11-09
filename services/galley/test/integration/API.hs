@@ -3198,11 +3198,17 @@ removeUser = do
   c <- view tsCannon
   [alice, alexDel, amy] <- replicateM 3 randomQualifiedUser
   let [alice', alexDel', amy'] = qUnqualified <$> [alice, alexDel, amy]
+
   let bDomain = Domain "b.example.com"
   bart <- randomQualifiedId bDomain
   berta <- randomQualifiedId bDomain
+
   let cDomain = Domain "c.example.com"
   carl <- randomQualifiedId cDomain
+
+  let dDomain = Domain "d.example.com"
+  dwight <- randomQualifiedId dDomain
+  dory <- randomQualifiedId dDomain
 
   connectUsers alice' (list1 alexDel' [amy'])
   connectWithRemoteUser alice' bart
@@ -3210,14 +3216,17 @@ removeUser = do
   connectWithRemoteUser alexDel' bart
   connectWithRemoteUser alice' carl
   connectWithRemoteUser alexDel' carl
+  connectWithRemoteUser alice' dwight
+  connectWithRemoteUser alexDel' dory
 
   convA1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
-  convA2 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, amy, berta]}
+  convA2 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, amy, berta, dwight]}
   convA3 <- decodeConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
   convA4 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, bart, carl]}
   convB1 <- randomId -- a remote conversation at 'bDomain' that Alice, AlexDel and Bart will be in
   convB2 <- randomId -- a remote conversation at 'bDomain' that AlexDel and Bart will be in
   convC1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Carl will be in
+  convD1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Dory will be in
   let qconvA1 = Qualified convA1 (qDomain alexDel)
       qconvA2 = Qualified convA2 (qDomain alexDel)
 
@@ -3239,23 +3248,34 @@ removeUser = do
   FederatedGalley.onConversationCreated fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
   FederatedGalley.onConversationCreated fedGalleyClient bDomain $ nc convB2 bart [alexDel]
   FederatedGalley.onConversationCreated fedGalleyClient cDomain $ nc convC1 carl [alexDel]
-
-  localDomain <- viewFederationDomain
+  FederatedGalley.onConversationCreated fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
-    let galleyApi _domain =
-          emptyFederatedGalley
-            { FederatedGalley.leaveConversation = \_domain _update ->
-                pure (FederatedGalley.LeaveConversationResponse (Right ())),
-              FederatedGalley.onConversationUpdated = \_domain _convUpdate ->
-                pure ()
-            }
+    let handler :: F.FederatedRequest -> IO F.OutwardResponse
+        handler freq@(Domain . F.domain -> domain)
+          | domain == dDomain =
+            pure
+              ( F.OutwardResponseError
+                  ( F.OutwardError
+                      F.ConnectionRefused
+                      "mocked: dDomain is unavailable"
+                  )
+              )
+          | domain `elem` [bDomain, cDomain] =
+            case F.path <$> F.request freq of
+              (Just "/federation/leave-conversation") ->
+                pure (F.OutwardResponseBody (cs (encode (FederatedGalley.LeaveConversationResponse (Right ())))))
+              (Just "federation/on-conversation-updated") ->
+                pure (F.OutwardResponseBody (cs (encode ())))
+              other -> error $ "unmocked path " <> show other
+          | otherwise = error "unmocked domain"
+
     (_, fedRequests) <-
-      withTempServantMockFederator (const emptyFederatedBrig) galleyApi localDomain $
+      withTempMockFederator' handler $
         deleteUser alexDel' !!! const 200 === statusCode
 
     liftIO $ do
-      assertEqual ("expect exactly 5 federated requests in : " <> show fedRequests) 5 (length fedRequests)
+      assertEqual ("expect exactly 7 federated requests in : " <> show fedRequests) 7 (length fedRequests)
 
     liftIO $ do
       bReq <- assertOne $ filter (matchFedRequest bDomain "/federation/on-user-deleted/conversations") fedRequests
@@ -3272,6 +3292,14 @@ removeUser = do
       Just (Right udcnC) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cReq)
       sort (fromRange (FederatedGalley.udcnConversations udcnC)) @?= sort [convC1]
       FederatedGalley.udcnUser udcnC @?= qUnqualified alexDel
+
+    liftIO $ do
+      dReq <- assertOne $ filter (matchFedRequest dDomain "/federation/on-user-deleted/conversations") fedRequests
+      fmap F.component (F.request dReq) @?= Just F.Galley
+      fmap F.path (F.request dReq) @?= Just "/federation/on-user-deleted/conversations"
+      Just (Right udcnD) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request dReq)
+      sort (fromRange (FederatedGalley.udcnConversations udcnD)) @?= sort [convD1]
+      FederatedGalley.udcnUser udcnD @?= qUnqualified alexDel
 
     liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
@@ -3298,6 +3326,13 @@ removeUser = do
       cuConvId convUpdate @?= convA4
       cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
+
+    liftIO $ do
+      dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "/federation/on-conversation-updated") fedRequests
+      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request dConvUpdateRPC)
+      cuConvId convUpdate @?= convA2
+      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
 
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA1
