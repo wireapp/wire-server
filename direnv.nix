@@ -109,36 +109,9 @@ let
     };
   };
 
-  direnv-depends = pkgs.buildEnv {
-    name = "wire-server-direnv-depends";
+  compile-deps = pkgs.buildEnv {
+    name = "wire-server-compile-deps";
     paths = [
-      pkgs.cfssl
-      pkgs.docker-compose
-      pkgs.gnumake
-      pkgs.grpcurl
-      pkgs.haskell-language-server
-      pkgs.jq
-      pkgs.ormolu
-      pkgs.telepresence
-      pkgs.wget
-      pkgs.yq
-      pkgs.rsync
-
-      # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
-      pkgs.buildah
-
-      pinned.stack
-      pinned.helm
-      pinned.helmfile
-      pinned.kubectl
-      pinned.kind
-
-      # For cabal-migration
-      pkgs.haskell.compiler.ghc884
-
-      # We don't include cabal here, as we invoke it with a wrapper which sets
-      # LD_LIBRARY_PATH and others correctly.
-      pkgs.haskellPackages.cabal-plan
       pkgs.pkgconfig
       pkgs.protobuf
 
@@ -170,16 +143,43 @@ let
   # for cabal, as setting it in direnv can interfere with programs in the host
   # system, especially for non-NixOS users.
   cabal-wrapper = pkgs.writeShellScriptBin "cabal" ''
-    export CPATH="${direnv-depends}/include:$CPATH"
-    export LD_LIBRARY_PATH="${direnv-depends}/lib:$LD_LIBRARY_PATH"
-    export LIBRARY_PATH="${direnv-depends}/lib:$LIBRARY_PATH"
-    export PKG_CONFIG_PATH="${direnv-depends}/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export CPATH="${compile-deps}/include:$CPATH"
+    export LD_LIBRARY_PATH="${compile-deps}/lib:$LD_LIBRARY_PATH"
+    export LIBRARY_PATH="${compile-deps}/lib:$LIBRARY_PATH"
+    export PKG_CONFIG_PATH="${compile-deps}/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export PATH="${compile-deps}/bin:$PATH"
     exec "${pkgs.cabal-install}/bin/cabal" "$@"
   '';
 in pkgs.buildEnv {
   name = "wire-server-direnv";
   paths = [
-    direnv-depends
+    pkgs.cfssl
+    pkgs.docker-compose
+    pkgs.gnumake
+    pkgs.grpcurl
+    pkgs.haskell-language-server
+    pkgs.jq
+    pkgs.ormolu
+    pkgs.telepresence
+    pkgs.wget
+    pkgs.yq
+    pkgs.rsync
+
+    # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
+    pkgs.buildah
+
+    pinned.stack
+    pinned.helm
+    pinned.helmfile
+    pinned.kubectl
+    pinned.kind
+
+    # For cabal-migration
+    pkgs.haskell.compiler.ghc884
+    pkgs.haskellPackages.cabal-plan
+
+    # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
+    # which sets LD_LIBRARY_PATH and others correctly.
     cabal-wrapper
   ];
 }
