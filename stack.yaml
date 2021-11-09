@@ -256,7 +256,7 @@ extra-deps:
     - x509-store
 
 # Not on stackage yet
-- polysemy-check-0.6.0.0
+- polysemy-check-0.8.1.0
 
 ############################################################
 # Development tools

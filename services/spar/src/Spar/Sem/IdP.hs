@@ -32,11 +32,12 @@ data IdP m a where
   GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdP m (GetIdPResult SAML.IdPId)
   GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdP m (Maybe SAML.IdPId)
   GetConfigsByTeam :: TeamId -> IdP m [IP.IdP]
-  DeleteConfig :: SAML.IdPId -> SAML.Issuer -> TeamId -> IdP m ()
+  DeleteConfig :: IP.IdP -> IdP m ()
+  -- affects _wiReplacedBy in GetConfig
   SetReplacedBy :: Replaced -> Replacing -> IdP m ()
   ClearReplacedBy :: Replaced -> IdP m ()
   -- TODO(sandy): maybe this wants  to be a separate effect
-  -- data Metadata  m a wher       e
+  -- data Metadata  m a where
   StoreRawMetadata :: SAML.IdPId -> Text -> IdP m ()
   GetRawMetadata :: SAML.IdPId -> IdP m (Maybe Text)
   DeleteRawMetadata :: SAML.IdPId -> IdP m ()
