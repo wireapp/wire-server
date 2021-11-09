@@ -29,15 +29,10 @@ where
 
 import qualified Bilge
 import Bilge.Response
-import Bilge.Retry
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch
-import Control.Retry
 import Data.Aeson
-import qualified Data.ByteString as BS
 import Data.ByteString.Conversion.To
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Id
@@ -45,7 +40,6 @@ import Data.Misc
 import Galley.API.Error
 import Galley.App
 import Galley.Effects.LegalHoldStore as LegalHoldData
-import Galley.Env
 import Galley.External.LegalHoldService.Types
 import Imports
 import qualified Network.HTTP.Client as Http
@@ -54,25 +48,22 @@ import qualified OpenSSL.EVP.Digest as SSL
 import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
-import qualified OpenSSL.Session as SSL
 import Polysemy
 import Polysemy.Error
-import Ssl.Util
 import qualified Ssl.Util as SSL
 import qualified System.Logger.Class as Log
-import URI.ByteString (uriPath)
 
 ----------------------------------------------------------------------
 -- api
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus ::
-  Member (Error LegalHoldError) r =>
+  Members '[Error LegalHoldError, LegalHoldStore] r =>
   Fingerprint Rsa ->
   HttpsUrl ->
   Galley r ()
 checkLegalHoldServiceStatus fpr url = do
-  resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
+  resp <- liftSem $ makeVerifiedRequestFreshManager fpr url reqBuilder
   if
       | Bilge.statusCode resp < 400 -> pure ()
       | otherwise -> do
@@ -154,10 +145,10 @@ makeLegalHoldServiceRequest ::
   TeamId ->
   (Http.Request -> Http.Request) ->
   Galley r (Http.Response LC8.ByteString)
-makeLegalHoldServiceRequest tid reqBuilder = do
-  maybeLHSettings <- liftSem $ LegalHoldData.getSettings tid
+makeLegalHoldServiceRequest tid reqBuilder = liftSem $ do
+  maybeLHSettings <- LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
-    Nothing -> liftSem $ throw LegalHoldServiceNotRegistered
+    Nothing -> throw LegalHoldServiceNotRegistered
     Just lhSettings -> pure lhSettings
   let LegalHoldService
         { legalHoldServiceUrl = baseUrl,
@@ -169,57 +160,6 @@ makeLegalHoldServiceRequest tid reqBuilder = do
     mkReqBuilder token =
       reqBuilder
         . Bilge.header "Authorization" ("Bearer " <> toByteString' token)
-
-makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
-makeVerifiedRequest fpr url reqBuilder = do
-  (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
-  makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
-
--- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.
---   We should really _only_ use it in `checkLegalHoldServiceStatus` for the time being because
---   this is where we check for signatures, etc. If we reuse the manager, we are likely to reuse
---   an existing connection which will _not_ cause the new public key to be verified.
-makeVerifiedRequestFreshManager :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
-makeVerifiedRequestFreshManager fpr url reqBuilder = do
-  ExtEnv (mgr, verifyFingerprints) <- liftIO initExtEnv
-  makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
-
--- | Check that the given fingerprint is valid and make the request over ssl.
--- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
-makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
-makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
-  let verified = verifyFingerprints [fpr]
-  liftGalley0 $
-    extHandleAll errHandler $ do
-      recovering x3 httpHandlers $
-        const $
-          liftIO $
-            withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
-              \req ->
-                Http.httpLbs req mgr
-  where
-    reqBuilderMods =
-      maybe id Bilge.host (Bilge.extHost url)
-        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
-        . Bilge.secure
-        . prependPath (uriPath url)
-    errHandler e = do
-      Log.info . Log.msg $ "error making request to legalhold service: " <> show e
-      throwM legalHoldServiceUnavailable
-    prependPath :: ByteString -> Http.Request -> Http.Request
-    prependPath pth req = req {Http.path = pth </> Http.path req}
-    -- append two paths with exactly one slash
-    (</>) :: ByteString -> ByteString -> ByteString
-    a </> b = fromMaybe a (BS.stripSuffix "/" a) <> "/" <> fromMaybe b (BS.stripPrefix "/" b)
-    x3 :: RetryPolicy
-    x3 = limitRetries 3 <> exponentialBackoff 100000
-    extHandleAll :: MonadCatch m => (SomeException -> m a) -> m a -> m a
-    extHandleAll f ma =
-      catches
-        ma
-        [ Handler $ \(ex :: SomeAsyncException) -> throwM ex,
-          Handler $ \(ex :: SomeException) -> f ex
-        ]
 
 -- | Copied unchanged from "Brig.Provider.API".  Interpret a service certificate and extract
 -- key and fingerprint.  (This only has to be in 'MonadIO' because the FFI in OpenSSL works
