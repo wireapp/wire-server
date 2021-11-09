@@ -55,13 +55,13 @@ idPToMem = evState . evEff
 storeConfig :: IP.IdP -> TypedState -> TypedState
 storeConfig iw =
   M.insert (iw ^. SAML.idpId) iw
-  . M.filter
-    ( \iw' ->
-        or
-          [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
-            iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
-          ]
-    )
+    . M.filter
+      ( \iw' ->
+          or
+            [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
+              iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
+            ]
+      )
 
 getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
 getConfig = M.lookup

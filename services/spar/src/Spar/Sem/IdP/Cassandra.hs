@@ -1,12 +1,12 @@
 module Spar.Sem.IdP.Cassandra where
 
 import Cassandra
+import Control.Lens ((^.))
 import Imports
 import Polysemy
+import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Data as Data
 import Spar.Sem.IdP
-import qualified SAML2.WebSSO.Types as SAML
-import Control.Lens ((^.))
 import Wire.API.User.IdentityProvider (wiTeam)
 
 idPToCassandra ::
