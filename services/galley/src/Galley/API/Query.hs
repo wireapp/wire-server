@@ -35,7 +35,6 @@ where
 
 import qualified Cassandra as C
 import Control.Lens (sequenceAOf)
-import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
@@ -63,37 +62,36 @@ import Galley.Types.Conversations.Roles
 import Imports
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (result, setStatus)
-import Network.Wai.Utilities
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Predicate hiding (Error, result, setStatus)
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Polysemy.Error
 import qualified System.Logger.Class as Logger
 import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ConvNotFound)
+import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationError, executeFederated)
-import Wire.API.Federation.Error
+import Wire.API.Federation.Client (FederationError (FederationUnexpectedBody), executeFederated)
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
 getBotConversationH ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   BotId ::: ConvId ::: JSON ->
   Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot zcnv
 
 getBotConversation ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   BotId ->
   ConvId ->
   Galley r Public.BotConvView
 getBotConversation zbot zcnv = do
-  (c, _) <- getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
+  (c, _) <- getConversationAndMemberWithError ConvNotFound (botUserId zbot) zcnv
   domain <- viewFederationDomain
   let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
@@ -106,7 +104,7 @@ getBotConversation zbot zcnv = do
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Error ConversationError, Error InternalError] r =>
   UserId ->
   ConvId ->
   Galley r Public.Conversation
@@ -116,7 +114,13 @@ getUnqualifiedConversation zusr cnv = do
 
 getConversation ::
   forall r.
-  Member ConversationStore r =>
+  Members
+    '[ ConversationStore,
+       Error ConversationError,
+       Error FederationError,
+       Error InternalError
+     ]
+    r =>
   UserId ->
   Qualified ConvId ->
   Galley r Public.Conversation
@@ -131,37 +135,40 @@ getConversation zusr cnv = do
     getRemoteConversation :: Remote ConvId -> Galley r Public.Conversation
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations zusr [remoteConvId]
-      case conversations of
-        [] -> throwErrorDescriptionType @ConvNotFound
+      liftSem $ case conversations of
+        [] -> throw ConvNotFound
         [conv] -> pure conv
-        _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
+        -- _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
+        _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Error ConversationError, Error FederationError] r =>
   UserId ->
   [Remote ConvId] ->
   Galley r [Public.Conversation]
 getRemoteConversations zusr remoteConvs =
   getRemoteConversationsWithFailures zusr remoteConvs >>= \case
     -- throw first error
-    (failed : _, _) -> throwM (fgcError failed)
+    (failed : _, _) -> liftSem . throwFgcError $ failed
     ([], result) -> pure result
 
 data FailedGetConversationReason
   = FailedGetConversationLocally
   | FailedGetConversationRemotely FederationError
 
-fgcrError :: FailedGetConversationReason -> Wai.Error
-fgcrError FailedGetConversationLocally = errorDescriptionTypeToWai @ConvNotFound
-fgcrError (FailedGetConversationRemotely e) = federationErrorToWai e
+throwFgcrError ::
+  Members '[Error ConversationError, Error FederationError] r => FailedGetConversationReason -> Sem r a
+throwFgcrError FailedGetConversationLocally = throw ConvNotFound
+throwFgcrError (FailedGetConversationRemotely e) = throw e
 
 data FailedGetConversation
   = FailedGetConversation
       [Qualified ConvId]
       FailedGetConversationReason
 
-fgcError :: FailedGetConversation -> Wai.Error
-fgcError (FailedGetConversation _ r) = fgcrError r
+throwFgcError ::
+  Members '[Error ConversationError, Error FederationError] r => FailedGetConversation -> Sem r a
+throwFgcError (FailedGetConversation _ r) = throwFgcrError r
 
 failedGetConversationRemotely ::
   [Remote ConvId] -> FederationError -> FailedGetConversation
@@ -231,7 +238,7 @@ getRemoteConversationsWithFailures zusr convs = do
         throwE e
 
 getConversationRoles ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Error ConversationError] r =>
   UserId ->
   ConvId ->
   Galley r Public.ConversationRolesList
@@ -299,7 +306,6 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
           pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
     remotesOnly ::
-      Members '[ListItems p (Remote ConvId)] r =>
       Maybe C.PagingState ->
       Range 1 1000 Int32 ->
       Sem r Public.ConvIdsPage
@@ -317,7 +323,7 @@ conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
-  Members '[ListItems LegacyPaging ConvId, ConversationStore] r =>
+  Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore] r =>
   UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -369,7 +375,7 @@ getConversationsInternal user mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  Member ConversationStore r =>
+  Members '[ConversationStore, Error InternalError] r =>
   UserId ->
   Public.ListConversations ->
   Galley r Public.ConversationsResponse
@@ -485,7 +491,18 @@ getConversationMeta cnv = liftSem $ do
       pure Nothing
 
 getConversationByReusableCode ::
-  Members '[CodeStore, ConversationStore, BrigAccess, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       CodeStore,
+       ConversationStore,
+       Error ActionError,
+       Error CodeError,
+       Error ConversationError,
+       Error FederationError,
+       Error NotATeamMember,
+       TeamStore
+     ]
+    r =>
   UserId ->
   Key ->
   Value ->

@@ -38,7 +38,7 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (throwErrorDescriptionType)
+import Galley.API.Error
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.One2One as One2One
@@ -73,11 +73,12 @@ import Galley.Types.UserList
 import Imports hiding (head)
 import Network.HTTP.Types (status200)
 import Network.Wai
-import Network.Wai.Predicate hiding (err)
+import Network.Wai.Predicate hiding (Error, err)
 import qualified Network.Wai.Predicate as P
 import Network.Wai.Routing hiding (route, toList)
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
+import Polysemy.Error
 import Servant.API hiding (JSON)
 import qualified Servant.API as Servant
 import Servant.API.Generic
@@ -87,7 +88,7 @@ import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
-import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.ErrorDescription
 import Wire.API.Federation.API.Galley (ConversationUpdate (..), UserDeletedConversationsNotification (UserDeletedConversationsNotification))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Client (FederationError)
@@ -303,7 +304,15 @@ servantSitemap =
 
 iGetTeamFeature ::
   forall a r.
-  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error NotATeamMember,
+         Error TeamError,
+         TeamStore
+       ]
+      r
+  ) =>
   (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley r (Public.TeamFeatureStatus a)
@@ -311,7 +320,15 @@ iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a r.
-  (Public.KnownTeamFeatureName a, Member TeamStore r) =>
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error NotATeamMember,
+         Error TeamError,
+         TeamStore
+       ]
+      r
+  ) =>
   (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -628,11 +645,17 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Members '[BrigAccess, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       Error LegalHoldError,
+       Error InvalidInput,
+       TeamStore
+     ]
+    r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
+    >>= either (const (liftSem (throw MissingLegalholdConsent))) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

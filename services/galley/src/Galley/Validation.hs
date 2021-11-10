@@ -25,21 +25,21 @@ module Galley.Validation
 where
 
 import Control.Lens
-import Control.Monad.Catch
 import Data.Range
 import Galley.API.Error
-import Galley.Env
 import Galley.Options
 import Imports
+import Polysemy
+import Polysemy.Error
 
-rangeChecked :: (MonadThrow galley, Within a n m) => a -> galley (Range n m a)
+rangeChecked :: (Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
 rangeChecked = either throwErr return . checkedEither
 {-# INLINE rangeChecked #-}
 
 rangeCheckedMaybe ::
-  (MonadThrow galley, Within a n m) =>
+  (Member (Error InvalidInput) r, Within a n m) =>
   Maybe a ->
-  galley (Maybe (Range n m a))
+  Sem r (Maybe (Range n m a))
 rangeCheckedMaybe Nothing = return Nothing
 rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 {-# INLINE rangeCheckedMaybe #-}
@@ -49,16 +49,16 @@ newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)
 
 checkedConvSize ::
-  (MonadReader Env galley, MonadThrow galley, Foldable f) =>
+  (Member (Error InvalidInput) r, Foldable f) =>
+  Opts ->
   f a ->
-  galley (ConvSizeChecked f a)
-checkedConvSize x = do
-  o <- view options
+  Sem r (ConvSizeChecked f a)
+checkedConvSize o x = do
   let minV :: Integer = 0
       limit = o ^. optSettings . setMaxConvSize - 1
   if length x <= fromIntegral limit
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
-throwErr :: MonadThrow galley => String -> galley a
-throwErr = throwM . invalidRange . fromString
+throwErr :: Member (Error InvalidInput) r => String -> Sem r a
+throwErr = throw . InvalidRange . fromString

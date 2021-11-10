@@ -127,6 +127,7 @@ data FederationError
   | FederationNotImplemented
   | FederationNotConfigured
   | FederationCallFailure FederationClientFailure
+  | FederationUnexpectedBody Text
   deriving (Show, Eq, Typeable)
 
 instance Exception FederationError

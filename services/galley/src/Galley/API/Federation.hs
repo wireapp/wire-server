@@ -18,25 +18,23 @@ module Galley.API.Federation where
 
 import Brig.Types.Connection (Relation (Accepted))
 import Control.Lens (itraversed, (<.>))
-import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
-import Data.Domain
+import Data.Domain (Domain)
 import Data.Id (ConvId, UserId)
 import Data.Json.Util (Base64ByteString (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
-import Data.Range
+import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
-import Galley.API.Error (invalidPayload)
+import Galley.API.Action
+import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
-import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
-import Galley.API.Update (notifyConversationMetadataUpdate)
-import qualified Galley.API.Update as API
+import Galley.API.Message
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -44,9 +42,10 @@ import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.MemberStore as E
-import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
-import Galley.Types.UserList
+import Galley.Types.Conversations.Members
+import Galley.Types.UserList (UserList (UserList))
 import Imports
+import Polysemy.Error (Error, throw)
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
@@ -56,52 +55,41 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley
-  ( ConversationUpdate (..),
-    GetConversationsRequest (..),
-    GetConversationsResponse (..),
-    LeaveConversationRequest (..),
-    LeaveConversationResponse (..),
-    MessageSendRequest (..),
-    MessageSendResponse (..),
-    NewRemoteConversation (..),
-    RemoteMessage (..),
-    UserDeletedConversationsNotification,
-  )
-import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.Federation.API.Common (EmptyResponse (..))
+import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.Client
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
-import Wire.API.ServantProto (FromProto (..))
+import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
-federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) (Galley GalleyEffects)
+federationSitemap :: ServerT (ToServantApi F.Api) (Galley GalleyEffects)
 federationSitemap =
   genericServerT $
-    FederationAPIGalley.Api
-      { FederationAPIGalley.onConversationCreated = onConversationCreated,
-        FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.onConversationUpdated = onConversationUpdated,
-        FederationAPIGalley.leaveConversation = leaveConversation,
-        FederationAPIGalley.onMessageSent = onMessageSent,
-        FederationAPIGalley.sendMessage = sendMessage,
-        FederationAPIGalley.onUserDeleted = onUserDeleted
+    F.Api
+      { F.onConversationCreated = onConversationCreated,
+        F.getConversations = getConversations,
+        F.onConversationUpdated = onConversationUpdated,
+        F.leaveConversation = leaveConversation,
+        F.onMessageSent = onMessageSent,
+        F.sendMessage = sendMessage,
+        F.onUserDeleted = onUserDeleted
       }
 
 onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
-  NewRemoteConversation ConvId ->
+  F.NewRemoteConversation ConvId ->
   Galley r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
-  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (rcNonCreatorMembers rc)))
+  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
 
   addedUserIds <-
     addLocalUsersToRemoteConv
-      (rcCnvId qrc)
-      (qUntagged (FederationAPIGalley.rcRemoteOrigUserId qrc))
+      (F.rcCnvId qrc)
+      (qUntagged (F.rcRemoteOrigUserId qrc))
       localUserIds
 
   let connectedMembers =
@@ -112,30 +100,30 @@ onConversationCreated domain rc = do
               (const True)
               . omQualifiedId
           )
-          (rcNonCreatorMembers rc)
+          (F.rcNonCreatorMembers rc)
   -- Make sure to notify only about local users connected to the adder
-  let qrcConnected = qrc {rcNonCreatorMembers = connectedMembers}
+  let qrcConnected = qrc {F.rcNonCreatorMembers = connectedMembers}
 
   forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
-            (qUntagged (rcCnvId qrcConnected))
-            (qUntagged (FederationAPIGalley.rcRemoteOrigUserId qrcConnected))
-            (rcTime qrcConnected)
+            (qUntagged (F.rcCnvId qrcConnected))
+            (qUntagged (F.rcRemoteOrigUserId qrcConnected))
+            (F.rcTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event [qUnqualified . Public.memId $ mem] []
 
 getConversations ::
   Member ConversationStore r =>
   Domain ->
-  GetConversationsRequest ->
-  Galley r GetConversationsResponse
-getConversations domain (GetConversationsRequest uid cids) = do
+  F.GetConversationsRequest ->
+  Galley r F.GetConversationsResponse
+getConversations domain (F.GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   localDomain <- viewFederationDomain
   liftSem $
-    GetConversationsResponse
+    F.GetConversationsResponse
       . mapMaybe (Mapping.conversationToRemote localDomain ruid)
       <$> E.getConversations cids
 
@@ -147,12 +135,12 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 onConversationUpdated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
-  ConversationUpdate ->
+  F.ConversationUpdate ->
   Galley r ()
 onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
   loc <- qualifyLocal ()
-  let rconvId = toRemoteUnsafe requestingDomain (cuConvId cu)
+  let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
       qconvId = qUntagged rconvId
 
   -- Note: we generally do not send notifications to users that are not part of
@@ -160,7 +148,7 @@ onConversationUpdated requestingDomain cu = do
   -- backend. See also the comment below.
   (presentUsers, allUsersArePresent) <-
     liftSem $
-      E.selectRemoteMembers (cuAlreadyPresentUsers cu) rconvId
+      E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
 
   -- Perform action, and determine extra notification targets.
   --
@@ -170,10 +158,10 @@ onConversationUpdated requestingDomain cu = do
   -- are not in the conversations are being removed or have their membership state
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
-  (mActualAction, extraTargets) <- case cuAction cu of
+  (mActualAction, extraTargets) <- case F.cuAction cu of
     ConversationActionAddMembers toAdd role -> do
       let (localUsers, remoteUsers) = partitionQualified loc toAdd
-      addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (cuOrigUserId cu) localUsers
+      addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
       let allAddedUsers = map (qUntagged . qualifyAs loc) addedLocalUsers <> map qUntagged remoteUsers
       case allAddedUsers of
         [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
@@ -181,19 +169,19 @@ onConversationUpdated requestingDomain cu = do
     ConversationActionRemoveMembers toRemove -> liftSem $ do
       let localUsers = getLocalUsers localDomain toRemove
       E.deleteMembersInRemoteConversation rconvId localUsers
-      pure (Just $ cuAction cu, [])
-    ConversationActionRename _ -> pure (Just $ cuAction cu, [])
-    ConversationActionMessageTimerUpdate _ -> pure (Just $ cuAction cu, [])
-    ConversationActionMemberUpdate _ _ -> pure (Just $ cuAction cu, [])
-    ConversationActionReceiptModeUpdate _ -> pure (Just $ cuAction cu, [])
-    ConversationActionAccessUpdate _ -> pure (Just $ cuAction cu, [])
+      pure (Just $ F.cuAction cu, [])
+    ConversationActionRename _ -> pure (Just $ F.cuAction cu, [])
+    ConversationActionMessageTimerUpdate _ -> pure (Just $ F.cuAction cu, [])
+    ConversationActionMemberUpdate _ _ -> pure (Just $ F.cuAction cu, [])
+    ConversationActionReceiptModeUpdate _ -> pure (Just $ F.cuAction cu, [])
+    ConversationActionAccessUpdate _ -> pure (Just $ F.cuAction cu, [])
     ConversationActionDelete -> liftSem $ do
       E.deleteMembersInRemoteConversation rconvId presentUsers
-      pure (Just $ cuAction cu, [])
+      pure (Just $ F.cuAction cu, [])
 
   unless allUsersArePresent $
     Log.warn $
-      Log.field "conversation" (toByteString' (cuConvId cu))
+      Log.field "conversation" (toByteString' (F.cuConvId cu))
         . Log.field "domain" (toByteString' requestingDomain)
         . Log.msg
           ( "Attempt to send notification about conversation update \
@@ -203,7 +191,7 @@ onConversationUpdated requestingDomain cu = do
 
   -- Send notifications
   for_ mActualAction $ \action -> do
-    let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId action
+    let event = conversationActionToEvent (F.cuTime cu) (F.cuOrigUserId cu) qconvId action
         targets = nubOrd $ presentUsers <> extraTargets
 
     -- FUTUREWORK: support bots?
@@ -242,6 +230,11 @@ leaveConversation ::
        BrigAccess,
        CodeStore,
        ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error FederationError,
+       Error InvalidInput,
+       Error TeamError,
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
@@ -252,19 +245,19 @@ leaveConversation ::
      ]
     r =>
   Domain ->
-  LeaveConversationRequest ->
-  Galley r LeaveConversationResponse
+  F.LeaveConversationRequest ->
+  Galley r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
-  let leaver = Qualified (lcLeaver lc) requestingDomain
-  lcnv <- qualifyLocal (lcConvId lc)
+  let leaver = Qualified (F.lcLeaver lc) requestingDomain
+  lcnv <- qualifyLocal (F.lcConvId lc)
   fmap
-    ( LeaveConversationResponse
+    ( F.LeaveConversationResponse
         . maybe (Left RemoveFromConversationErrorUnchanged) Right
     )
     . runMaybeT
     . void
-    . API.updateLocalConversation lcnv leaver Nothing
-    . ConversationActionRemoveMembers
+    . updateLocalConversation lcnv leaver Nothing
+    . ConversationLeave
     . pure
     $ leaver
 
@@ -273,23 +266,23 @@ leaveConversation requestingDomain lc = do
 onMessageSent ::
   Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore] r =>
   Domain ->
-  RemoteMessage ConvId ->
+  F.RemoteMessage ConvId ->
   Galley r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
-      convId = qUntagged $ rmConversation rm
+      convId = qUntagged $ F.rmConversation rm
       msgMetadata =
         MessageMetadata
-          { mmNativePush = rmPush rm,
-            mmTransient = rmTransient rm,
-            mmNativePriority = rmPriority rm,
-            mmData = rmData rm
+          { mmNativePush = F.rmPush rm,
+            mmTransient = F.rmTransient rm,
+            mmNativePriority = F.rmPriority rm,
+            mmData = F.rmData rm
           }
-      recipientMap = userClientMap $ rmRecipients rm
+      recipientMap = userClientMap $ F.rmRecipients rm
       msgs = toMapOf (itraversed <.> itraversed) recipientMap
   (members, allMembers) <-
     liftSem $
-      E.selectRemoteMembers (Map.keys recipientMap) (rmConversation rm)
+      E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
   unless allMembers $
     Log.warn $
       Log.field "conversation" (toByteString' (qUnqualified convId))
@@ -300,7 +293,16 @@ onMessageSent domain rmUnqualified = do
               ByteString
           )
   localMembers <- sequence $ Map.fromSet mkLocalMember (Set.fromList members)
-  void $ sendLocalMessages (rmTime rm) (rmSender rm) (rmSenderClient rm) Nothing convId localMembers msgMetadata msgs
+  void $
+    sendLocalMessages
+      (F.rmTime rm)
+      (F.rmSender rm)
+      (F.rmSenderClient rm)
+      Nothing
+      convId
+      localMembers
+      msgMetadata
+      msgs
   where
     -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-875
     mkLocalMember :: UserId -> Galley r LocalMember
@@ -319,6 +321,7 @@ sendMessage ::
        BrigAccess,
        ClientStore,
        ConversationStore,
+       Error InvalidInput,
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
@@ -327,14 +330,14 @@ sendMessage ::
      ]
     r =>
   Domain ->
-  MessageSendRequest ->
-  Galley r MessageSendResponse
+  F.MessageSendRequest ->
+  Galley r F.MessageSendResponse
 sendMessage originDomain msr = do
-  let sender = Qualified (msrSender msr) originDomain
-  msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
-  MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
+  let sender = Qualified (F.msrSender msr) originDomain
+  msg <- either err pure (fromProto (fromBase64ByteString (F.msrRawMessage msr)))
+  F.MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (F.msrConvId msr) msg
   where
-    err = throwM . invalidPayload . LT.pack
+    err = liftSem . throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
   Members
@@ -347,12 +350,12 @@ onUserDeleted ::
      ]
     r =>
   Domain ->
-  UserDeletedConversationsNotification ->
+  F.UserDeletedConversationsNotification ->
   Galley r EmptyResponse
 onUserDeleted origDomain udcn = do
-  let deletedUser = toRemoteUnsafe origDomain (FederationAPIGalley.udcnUser udcn)
+  let deletedUser = toRemoteUnsafe origDomain (F.udcnUser udcn)
       untaggedDeletedUser = qUntagged deletedUser
-      convIds = FederationAPIGalley.udcnConversations udcn
+      convIds = F.udcnConversations udcn
 
   spawnMany $
     fromRange convIds <&> \c -> do
@@ -374,5 +377,5 @@ onUserDeleted origDomain udcn = do
               let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
 
                   botsAndMembers = convBotsAndMembers conv
-              void $ notifyConversationMetadataUpdate untaggedDeletedUser Nothing lc botsAndMembers action
+              void $ notifyConversationAction untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse

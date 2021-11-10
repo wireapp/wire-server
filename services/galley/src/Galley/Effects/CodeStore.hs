@@ -22,15 +22,20 @@ module Galley.Effects.CodeStore
     -- * Create code
     createCode,
 
-    -- * Read code,
+    -- * Read code
     getCode,
 
-    -- * Delete code,
+    -- * Delete code
     deleteCode,
+
+    -- * Code generation
+    makeKey,
+    generateCode,
   )
 where
 
 import Brig.Types.Code
+import Data.Id
 import Galley.Data.Types
 import Imports
 import Polysemy
@@ -39,5 +44,7 @@ data CodeStore m a where
   CreateCode :: Code -> CodeStore m ()
   GetCode :: Key -> Scope -> CodeStore m (Maybe Code)
   DeleteCode :: Key -> Scope -> CodeStore m ()
+  MakeKey :: ConvId -> CodeStore m Key
+  GenerateCode :: ConvId -> Scope -> Timeout -> CodeStore m Code
 
 makeSem ''CodeStore

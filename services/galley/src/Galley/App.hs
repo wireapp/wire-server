@@ -46,18 +46,18 @@ module Galley.App
     toServantHandler,
 
     -- * Utilities
-    ifNothing,
     fromJsonBody,
     fromOptionalJsonBody,
     fromProtoBody,
     fanoutLimit,
     currentFanoutLimit,
 
-    -- * MonadUnliftIO / Sem compatibility
+    -- * Temporary compatibility functions
     fireAndForget,
     spawnMany,
     liftGalley0,
     liftSem,
+    unGalley,
     interpretGalleyToGalley0,
   )
 where
@@ -116,11 +116,12 @@ import Network.HTTP.Types (hContentType)
 import Network.HTTP.Types.Status (statusCode, statusMessage)
 import Network.Wai
 import Network.Wai.Utilities hiding (Error)
-import qualified Network.Wai.Utilities as WaiError
+import qualified Network.Wai.Utilities as Wai
 import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
+import Polysemy.Error
 import Polysemy.Internal (Append)
 import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
@@ -155,9 +156,6 @@ instance Monad (Galley r) where
 
 instance MonadIO (Galley r) where
   liftIO action = Galley (liftIO action)
-
-instance MonadThrow (Galley r) where
-  throwM e = Galley (embed @IO (throwM e))
 
 instance MonadReader Env (Galley r) where
   ask = Galley $ P.ask @Env
@@ -278,23 +276,24 @@ evalGalley e = evalGalley0 e . unGalley . interpretGalleyToGalley0
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
-fromJsonBody :: FromJSON a => JsonRequest a -> Galley r a
-fromJsonBody r = exceptT (throwM . invalidPayload) return (parseBody r)
+fromJsonBody :: (Member (Error InvalidInput) r, FromJSON a) => JsonRequest a -> Galley r a
+fromJsonBody r = exceptT (liftSem . throw . InvalidPayload) return (parseBody r)
 {-# INLINE fromJsonBody #-}
 
-fromOptionalJsonBody :: FromJSON a => OptionalJsonRequest a -> Galley r (Maybe a)
-fromOptionalJsonBody r = exceptT (throwM . invalidPayload) return (parseOptionalBody r)
+fromOptionalJsonBody ::
+  ( Member (Error InvalidInput) r,
+    FromJSON a
+  ) =>
+  OptionalJsonRequest a ->
+  Galley r (Maybe a)
+fromOptionalJsonBody r = exceptT (liftSem . throw . InvalidPayload) return (parseOptionalBody r)
 {-# INLINE fromOptionalJsonBody #-}
 
-fromProtoBody :: Proto.Decode a => Request -> Galley r a
+fromProtoBody :: (Member (Error InvalidInput) r, Proto.Decode a) => Request -> Galley r a
 fromProtoBody r = do
   b <- readBody r
-  either (throwM . invalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
+  either (liftSem . throw . InvalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
 {-# INLINE fromProtoBody #-}
-
-ifNothing :: WaiError.Error -> Maybe a -> Galley r a
-ifNothing e = maybe (throwM e) return
-{-# INLINE ifNothing #-}
 
 toServantHandler :: Env -> Galley GalleyEffects a -> Servant.Handler a
 toServantHandler env galley = do
@@ -304,14 +303,14 @@ toServantHandler env galley = do
       handleWaiErrors (view applog env) (unRequestId (view reqId env)) werr
     Right result -> pure result
   where
-    handleWaiErrors :: Logger -> ByteString -> WaiError.Error -> Servant.Handler a
+    handleWaiErrors :: Logger -> ByteString -> Wai.Error -> Servant.Handler a
     handleWaiErrors logger reqId' werr = do
       Server.logError' logger (Just reqId') werr
       Servant.throwError $
         Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
 
-    mkCode = statusCode . WaiError.code
-    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
+    mkCode = statusCode . Wai.code
+    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . Wai.code
 
 withLH ::
   Member (P.Reader Env) r =>
@@ -322,9 +321,17 @@ withLH f action = do
   lh <- P.asks (view (options . optSettings . setFeatureFlags . Teams.flagLegalHold))
   f lh action
 
+interpretErrorToException ::
+  (Exception e, Member (Embed IO) r) =>
+  Sem (Error e ': r) a ->
+  Sem r a
+interpretErrorToException = (either (embed @IO . UnliftIO.throwIO) pure =<<) . runError
+
 interpretGalleyToGalley0 :: Galley GalleyEffects a -> Galley0 a
 interpretGalleyToGalley0 =
   Galley
+    . interpretErrorToException
+    . mapAllErrors
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -375,6 +382,9 @@ instance MonadMask Galley0 where
         (evalGalley0 env (unGalley acquire))
         (\resource exitCase -> evalGalley0 env (unGalley (release resource exitCase)))
         (\resource -> evalGalley0 env (unGalley (useB resource)))
+
+instance MonadThrow Galley0 where
+  throwM e = Galley (embed @IO (throwM e))
 
 instance MonadCatch Galley0 where
   catch = UnliftIO.catch
