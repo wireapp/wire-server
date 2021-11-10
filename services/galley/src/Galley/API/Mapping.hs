@@ -37,7 +37,7 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
-import qualified System.Logger.Class as Log
+import qualified Polysemy.TinyLog as P
 import System.Logger.Message (msg, val, (+++))
 import Wire.API.Conversation hiding (Member (..))
 import qualified Wire.API.Conversation as Conversation
@@ -47,21 +47,21 @@ import Wire.API.Federation.API.Galley
 --
 -- Throws "bad-state" when the user is not part of the conversation.
 conversationView ::
-  Member (Error InternalError) r =>
+  Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
   Galley r Conversation
 conversationView luid conv = do
   let mbConv = conversationViewMaybe luid conv
-  maybe memberNotFound pure mbConv
+  maybe (liftSem memberNotFound) pure mbConv
   where
     memberNotFound = do
-      Log.err . msg $
+      P.err . msg $
         val "User "
           +++ idToText (tUnqualified luid)
           +++ val " is not a member of conv "
           +++ idToText (convId conv)
-      liftSem $ throw BadMemberState
+      throw BadMemberState
 
 -- | View for a given user of a stored conversation.
 --

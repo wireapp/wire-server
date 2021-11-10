@@ -173,9 +173,6 @@ validateOptions l o = do
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
-instance MonadLogger (Galley r) where
-  log l m = Galley $ P.polylog l m
-
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)

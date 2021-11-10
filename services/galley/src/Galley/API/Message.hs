@@ -344,7 +344,7 @@ sendMessages now sender senderClient mconn lcnv localMemberMap metadata messages
         foldQualified
           lcnv
           (\_ -> sendLocalMessages now sender senderClient mconn (qUntagged lcnv) localMemberMap metadata)
-          (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
+          (\r -> liftSem . sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
 
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
@@ -384,7 +384,7 @@ sendLocalMessages now sender senderClient mconn qcnv localMemberMap metadata loc
 
 sendRemoteMessages ::
   forall r x.
-  Member FederatorAccess r =>
+  Members '[FederatorAccess, P.TinyLog] r =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->
@@ -392,7 +392,7 @@ sendRemoteMessages ::
   Local ConvId ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
-  Galley r (Set (UserId, ClientId))
+  Sem r (Set (UserId, ClientId))
 sendRemoteMessages domain now sender senderClient lcnv metadata messages = (handle =<<) $ do
   let rcpts =
         foldr
@@ -412,12 +412,12 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             FederatedGalley.rmRecipients = UserClientMap rcpts
           }
   let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes (tDomain lcnv) rm
-  liftSem $ runFederatedEither domain rpc
+  runFederatedEither domain rpc
   where
-    handle :: Either FederationError a -> Galley r (Set (UserId, ClientId))
+    handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
     handle (Right _) = pure mempty
     handle (Left e) = do
-      Log.warn $
+      P.warn $
         Log.field "conversation" (toByteString' (tUnqualified lcnv))
           Log.~~ Log.field "domain" (toByteString' (tDomain domain))
           Log.~~ Log.field "exception" (encode (federationErrorToWai e))

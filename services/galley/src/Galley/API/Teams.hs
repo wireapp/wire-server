@@ -124,6 +124,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.Reader as P
+import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
@@ -210,7 +211,8 @@ createNonBindingTeamH ::
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
@@ -227,7 +229,8 @@ createNonBindingTeam ::
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -243,7 +246,7 @@ createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   let zothers = map (view userId) others
   ensureUnboundUsers (zusr : zothers)
   ensureConnectedToLocals zusr zothers
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
       . Log.field "action" (Log.val "Teams.createNonBindingTeam")
   team <-
@@ -290,7 +293,8 @@ updateTeamStatusH ::
        Error NotATeamMember,
        Input (Maybe Aws.Env),
        Input Opts,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   TeamId ::: JsonRequest TeamStatusUpdate ::: JSON ->
@@ -308,7 +312,8 @@ updateTeamStatus ::
        Error NotATeamMember,
        Input (Maybe Aws.Env),
        Input Opts,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   TeamId ->
@@ -813,7 +818,8 @@ addTeamMemberH ::
        MemberStore,
        TeamFeatureStore,
        TeamNotificationStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
@@ -837,7 +843,8 @@ addTeamMember ::
        MemberStore,
        TeamFeatureStore,
        TeamNotificationStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -847,7 +854,7 @@ addTeamMember ::
   Galley r ()
 addTeamMember zusr zcon tid nmem = do
   let uid = nmem ^. ntmNewTeamMember . userId
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
   -- verify permissions
@@ -879,8 +886,9 @@ uncheckedAddTeamMemberH ::
        LegalHoldStore,
        MemberStore,
        TeamFeatureStore,
+       TeamNotificationStore,
        TeamStore,
-       TeamNotificationStore
+       P.TinyLog
      ]
     r =>
   TeamId ::: JsonRequest NewTeamMember ::: JSON ->
@@ -903,8 +911,9 @@ uncheckedAddTeamMember ::
        MemberStore,
        LegalHoldStore,
        TeamFeatureStore,
+       TeamNotificationStore,
        TeamStore,
-       TeamNotificationStore
+       P.TinyLog
      ]
     r =>
   TeamId ->
@@ -928,7 +937,8 @@ updateTeamMemberH ::
        Input (Maybe Aws.Env),
        Input Opts,
        GundeckAccess,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
@@ -949,7 +959,8 @@ updateTeamMember ::
        GundeckAccess,
        Input (Maybe Aws.Env),
        Input Opts,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -960,7 +971,7 @@ updateTeamMember ::
 updateTeamMember zusr zcon tid targetMember = do
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString targetId)
       . Log.field "action" (Log.val "Teams.updateTeamMember")
 
@@ -1031,7 +1042,8 @@ deleteTeamMemberH ::
        Input (Maybe Aws.Env),
        Input Opts,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
@@ -1062,7 +1074,8 @@ deleteTeamMember ::
        Input Opts,
        GundeckAccess,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -1072,7 +1085,7 @@ deleteTeamMember ::
   Maybe Public.TeamMemberDeleteData ->
   Galley r TeamMemberDeleteResult
 deleteTeamMember lusr zcon tid remove mBody = do
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
   zusrMember <- liftSem $ E.getTeamMember tid (tUnqualified lusr)
@@ -1392,7 +1405,8 @@ addTeamMemberInternal ::
        Input Opts,
        MemberStore,
        TeamNotificationStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   TeamId ->
@@ -1402,7 +1416,7 @@ addTeamMemberInternal ::
   TeamMemberList ->
   Galley r TeamSize
 addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid

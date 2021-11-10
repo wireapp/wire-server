@@ -76,7 +76,7 @@ import Imports hiding (head)
 import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, err)
-import qualified Network.Wai.Predicate as P
+import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -345,7 +345,7 @@ sitemap = do
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
     zauthUserId
-      .&. (capture "cnv" :: HasCaptures r => Predicate r P.Error ConvId)
+      .&. (capture "cnv" :: HasCaptures r => Predicate r Predicate.Error ConvId)
       .&. request
 
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
@@ -516,7 +516,8 @@ rmUser ::
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
          MemberStore,
-         TeamStore
+         TeamStore,
+         P.TinyLog
        ]
       r
   ) =>
@@ -610,16 +611,17 @@ rmUser lusr conn = do
     logAndIgnoreError :: Text -> UserId -> Either FederationError a -> Galley r ()
     logAndIgnoreError message usr res = do
       case res of
-        Left federationError -> do
-          Log.err
-            ( Log.msg
-                ( "Federation error while notifying remote backends of a user deletion (Galley). "
-                    <> message
-                    <> " "
-                    <> (cs . show $ federationError)
-                )
-                . Log.field "user" (show usr)
-            )
+        Left federationError ->
+          liftSem $
+            P.err
+              ( Log.msg
+                  ( "Federation error while notifying remote backends of a user deletion (Galley). "
+                      <> message
+                      <> " "
+                      <> (cs . show $ federationError)
+                  )
+                  . Log.field "user" (show usr)
+              )
         Right _ -> pure ()
 
 deleteLoop :: App ()

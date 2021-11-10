@@ -50,6 +50,7 @@ import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import Polysemy
 import Polysemy.Error
+import qualified Polysemy.TinyLog as P
 import qualified Ssl.Util as SSL
 import qualified System.Logger.Class as Log
 
@@ -58,7 +59,7 @@ import qualified System.Logger.Class as Log
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus ::
-  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  Members '[Error LegalHoldError, LegalHoldStore, P.TinyLog] r =>
   Fingerprint Rsa ->
   HttpsUrl ->
   Galley r ()
@@ -66,9 +67,9 @@ checkLegalHoldServiceStatus fpr url = do
   resp <- liftSem $ makeVerifiedRequestFreshManager fpr url reqBuilder
   if
       | Bilge.statusCode resp < 400 -> pure ()
-      | otherwise -> do
-        Log.info . Log.msg $ showResponse resp
-        liftSem $ throw LegalHoldServiceBadResponse
+      | otherwise -> liftSem $ do
+        P.info . Log.msg $ showResponse resp
+        throw LegalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder =
@@ -78,16 +79,16 @@ checkLegalHoldServiceStatus fpr url = do
 
 -- | @POST /initiate@.
 requestNewDevice ::
-  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  Members '[Error LegalHoldError, LegalHoldStore, P.TinyLog] r =>
   TeamId ->
   UserId ->
   Galley r NewLegalHoldClient
 requestNewDevice tid uid = do
   resp <- makeLegalHoldServiceRequest tid reqParams
   case eitherDecode (responseBody resp) of
-    Left e -> do
-      Log.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
-      liftSem $ throw LegalHoldServiceBadResponse
+    Left e -> liftSem $ do
+      P.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
+      throw LegalHoldServiceBadResponse
     Right client -> pure client
   where
     reqParams =

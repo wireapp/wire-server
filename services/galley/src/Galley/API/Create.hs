@@ -58,6 +58,7 @@ import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
@@ -88,7 +89,8 @@ createGroupConversation ::
        GundeckAccess,
        Input Opts,
        LegalHoldStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -118,7 +120,8 @@ internalCreateManagedConversationH ::
        Input (Local ()),
        Input Opts,
        LegalHoldStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
@@ -143,7 +146,8 @@ internalCreateManagedConversation ::
        GundeckAccess,
        Input Opts,
        LegalHoldStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -178,7 +182,8 @@ createRegularGroupConv ::
        GundeckAccess,
        Input Opts,
        LegalHoldStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -227,7 +232,8 @@ createTeamGroupConv ::
        GundeckAccess,
        Input Opts,
        LegalHoldStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -287,16 +293,15 @@ createTeamGroupConv lusr zcon tinfo body = do
 -- Other kinds of conversations
 
 createSelfConversation ::
-  Members '[ConversationStore, Error InternalError] r =>
+  forall r.
+  Members '[ConversationStore, Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Galley r ConversationResponse
 createSelfConversation lusr = do
   c <- liftSem $ E.getConversation (Id . toUUID . tUnqualified $ lusr)
   maybe create (conversationExisted lusr) c
   where
-    create ::
-      Members '[ConversationStore, Error InternalError] r =>
-      Galley r ConversationResponse
+    create :: Galley r ConversationResponse
     create = do
       c <- liftSem $ E.createSelfConversation lusr Nothing
       conversationCreated lusr c
@@ -315,7 +320,8 @@ createOne2OneConversation ::
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -371,7 +377,8 @@ createLegacyOne2OneConversationUnchecked ::
        Error InternalError,
        Error InvalidInput,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -397,7 +404,8 @@ createOne2OneConversationUnchecked ::
        Error FederationError,
        Error InternalError,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -415,7 +423,14 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId (qUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  Members '[ConversationStore, Error InternalError, FederatorAccess, GundeckAccess] r =>
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       FederatorAccess,
+       GundeckAccess,
+       P.TinyLog
+     ]
+    r =>
   Local ConvId ->
   Local UserId ->
   ConnId ->
@@ -455,7 +470,8 @@ createConnectConversation ::
        Error InvalidInput,
        FederatorAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -488,7 +504,8 @@ createLegacyConnectConversation ::
        Error InternalError,
        FederatorAccess,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -560,14 +577,14 @@ createLegacyConnectConversation lusr conn lrecipient j = do
 -- Helpers
 
 conversationCreated ::
-  Member (Error InternalError) r =>
+  Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
   Galley r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 conversationExisted ::
-  Member (Error InternalError) r =>
+  Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
   Galley r ConversationResponse
@@ -579,7 +596,7 @@ handleConversationResponse = \case
   Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation ::
-  Members '[Error InternalError, FederatorAccess, GundeckAccess] r =>
+  Members '[Error InternalError, FederatorAccess, GundeckAccess, P.TinyLog] r =>
   Maybe UTCTime ->
   Local UserId ->
   Maybe ConnId ->

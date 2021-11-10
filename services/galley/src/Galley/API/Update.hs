@@ -140,7 +140,8 @@ acceptConvH ::
        Error InternalError,
        GundeckAccess,
        Input (Local ()),
-       MemberStore
+       MemberStore,
+       TinyLog
      ]
     r =>
   UserId ::: Maybe ConnId ::: ConvId ->
@@ -156,7 +157,8 @@ acceptConv ::
        Error ConversationError,
        Error InternalError,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TinyLog
      ]
     r =>
   Local UserId ->
@@ -209,7 +211,8 @@ unblockConvH ::
        Error InternalError,
        GundeckAccess,
        Input (Local ()),
-       MemberStore
+       MemberStore,
+       TinyLog
      ]
     r =>
   UserId ::: Maybe ConnId ::: ConvId ->
@@ -225,7 +228,8 @@ unblockConv ::
        Error ConversationError,
        Error InternalError,
        GundeckAccess,
-       MemberStore
+       MemberStore,
+       TinyLog
      ]
     r =>
   Local UserId ->

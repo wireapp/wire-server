@@ -48,7 +48,7 @@ import Galley.Types.UserList (UserList (UserList))
 import Imports
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
-import Polysemy.TinyLog
+import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
@@ -80,7 +80,7 @@ federationSitemap =
       }
 
 onConversationCreated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore] r =>
+  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>
   Domain ->
   F.NewRemoteConversation ConvId ->
   Galley r ()
@@ -136,7 +136,15 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore] r =>
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       ExternalAccess,
+       Input (Local ()),
+       MemberStore,
+       P.TinyLog
+     ]
+    r =>
   Domain ->
   F.ConversationUpdate ->
   Galley r ()
@@ -181,8 +189,8 @@ onConversationUpdated requestingDomain cu = do
       E.deleteMembersInRemoteConversation rconvId presentUsers
       pure (Just $ F.cuAction cu, [])
 
-  unless allUsersArePresent $
-    Log.warn $
+  liftSem . unless allUsersArePresent $
+    P.warn $
       Log.field "conversation" (toByteString' (F.cuConvId cu))
         . Log.field "domain" (toByteString' requestingDomain)
         . Log.msg
@@ -200,7 +208,7 @@ onConversationUpdated requestingDomain cu = do
     pushConversationEvent Nothing event (qualifyAs loc targets) []
 
 addLocalUsersToRemoteConv ::
-  Members '[BrigAccess, MemberStore] r =>
+  Members '[BrigAccess, MemberStore, P.TinyLog] r =>
   Remote ConvId ->
   Qualified UserId ->
   [UserId] ->
@@ -214,8 +222,8 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- FUTUREWORK: Consider handling the discrepancy between the views of the
   -- conversation-owning backend and the local backend
-  unless (Set.null unconnected) $
-    Log.warn $
+  liftSem . unless (Set.null unconnected) $
+    P.warn $
       Log.msg ("A remote user is trying to add unconnected local users to a remote conversation" :: Text)
         . Log.field "remote_user" (show qAdder)
         . Log.field "local_unconnected_users" (show unconnected)
@@ -267,7 +275,7 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
 onMessageSent ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), TinyLog] r =>
+  Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
   Domain ->
   F.RemoteMessage ConvId ->
   Galley r ()
@@ -286,8 +294,8 @@ onMessageSent domain rmUnqualified = do
   (members, allMembers) <-
     liftSem $
       E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
-  unless allMembers $
-    Log.warn $
+  liftSem . unless allMembers $
+    P.warn $
       Log.field "conversation" (toByteString' (qUnqualified convId))
         Log.~~ Log.field "domain" (toByteString' (qDomain convId))
         Log.~~ Log.msg
@@ -332,7 +340,7 @@ sendMessage ::
        ExternalAccess,
        MemberStore,
        TeamStore,
-       TinyLog
+       P.TinyLog
      ]
     r =>
   Domain ->

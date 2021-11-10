@@ -72,6 +72,7 @@ import Network.Wai.Utilities as Wai hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -118,7 +119,8 @@ createSettingsH ::
        Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON ->
@@ -136,7 +138,8 @@ createSettings ::
        Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -167,7 +170,8 @@ getSettingsH ::
        Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: JSON ->
@@ -183,7 +187,8 @@ getSettings ::
        Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -221,9 +226,10 @@ removeSettingsH ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore,
        TeamFeatureStore,
-       TeamMemberStore InternalPaging
+       TeamMemberStore InternalPaging,
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
@@ -258,8 +264,9 @@ removeSettings ::
          ListItems LegacyPaging ConvId,
          MemberStore,
          TeamFeatureStore,
+         TeamMemberStore p,
          TeamStore,
-         TeamMemberStore p
+         P.TinyLog
        ]
       r
   ) =>
@@ -313,8 +320,9 @@ removeSettings' ::
          LegalHoldStore,
          ListItems LegacyPaging ConvId,
          MemberStore,
+         TeamMemberStore p,
          TeamStore,
-         TeamMemberStore p
+         P.TinyLog
        ]
       r
   ) =>
@@ -329,7 +337,7 @@ removeSettings' tid =
     action membs = do
       let zothers = map (view userId) membs
       let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
-      Log.debug $
+      liftSem . P.debug $
         Log.field "targets" (toByteString . show $ toByteString <$> zothers)
           . Log.field "action" (Log.val "LegalHold.removeSettings'")
       spawnMany (map removeLHForUser lhMembers)
@@ -343,7 +351,7 @@ removeSettings' tid =
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
 getUserStatusH ::
-  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore] r =>
+  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore, P.TinyLog] r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
   Galley r Response
 getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
@@ -351,7 +359,7 @@ getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
 
 getUserStatus ::
   forall r.
-  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore] r =>
+  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   UserId ->
   Galley r Public.UserLegalHoldStatusResponse
@@ -369,12 +377,12 @@ getUserStatus tid uid = do
     makeResponseDetails = do
       mLastKey <- liftSem $ fmap snd <$> LegalHoldData.selectPendingPrekeys uid
       lastKey <- case mLastKey of
-        Nothing -> do
-          Log.err . Log.msg $
+        Nothing -> liftSem $ do
+          P.err . Log.msg $
             "expected to find a prekey for user: "
               <> toByteString' uid
               <> " but none was found"
-          liftSem $ throw NoPrekeyForUser
+          throw NoPrekeyForUser
         Just lstKey -> pure lstKey
       let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
       pure (Just lastKey, Just clientId)
@@ -403,7 +411,8 @@ grantConsentH ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: JSON ->
@@ -438,7 +447,8 @@ grantConsent ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -479,7 +489,8 @@ requestDeviceH ::
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
@@ -516,7 +527,8 @@ requestDevice ::
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -525,7 +537,7 @@ requestDevice ::
   Galley r RequestDeviceResult
 requestDevice zusr tid luid = do
   assertLegalHoldEnabledForTeam tid
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- liftSem $ getTeamMember tid zusr
@@ -587,7 +599,8 @@ approveDeviceH ::
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
@@ -620,7 +633,8 @@ approveDevice ::
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamFeatureStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -631,7 +645,7 @@ approveDevice ::
   Galley r ()
 approveDevice zusr tid luid connId (Public.ApproveLegalHoldForUserRequest mPassword) = do
   assertLegalHoldEnabledForTeam tid
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.approveDevice")
   liftSem . unless (zusr == tUnqualified luid) $ throw AccessDenied
@@ -643,9 +657,9 @@ approveDevice zusr tid luid connId (Public.ApproveLegalHoldForUserRequest mPassw
   assertUserLHPending userLHStatus
   mPreKeys <- liftSem $ LegalHoldData.selectPendingPrekeys (tUnqualified luid)
   (prekeys, lastPrekey') <- case mPreKeys of
-    Nothing -> do
-      Log.info $ Log.msg @Text "No prekeys found"
-      liftSem $ throw NoLegalHoldDeviceAllocated
+    Nothing -> liftSem $ do
+      P.info $ Log.msg @Text "No prekeys found"
+      throw NoLegalHoldDeviceAllocated
     Just keys -> pure keys
   clientId <- liftSem $ addLegalHoldClientToUser (tUnqualified luid) connId prekeys lastPrekey'
   -- Note: teamId could be passed in the getLegalHoldAuthToken request instead of lookup up again
@@ -689,7 +703,8 @@ disableForUserH ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
@@ -727,7 +742,8 @@ disableForUser ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   UserId ->
@@ -736,7 +752,7 @@ disableForUser ::
   Public.DisableLegalHoldForUserRequest ->
   Galley r DisableLegalHoldForUserResponse
 disableForUser zusr tid luid (Public.DisableLegalHoldForUserRequest mPassword) = do
-  Log.debug $
+  liftSem . P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- liftSem $ getTeamMember tid zusr
@@ -782,7 +798,8 @@ changeLegalholdStatus ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   TeamId ->
@@ -827,7 +844,15 @@ changeLegalholdStatus tid luid old new = do
 -- FUTUREWORK: make this async?
 blockNonConsentingConnections ::
   forall r.
-  Members '[BrigAccess, Error LegalHoldError, Error NotATeamMember, LegalHoldStore, TeamStore] r =>
+  Members
+    '[ BrigAccess,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   UserId ->
   Galley r ()
 blockNonConsentingConnections uid = do
@@ -837,9 +862,9 @@ blockNonConsentingConnections uid = do
     blockConflicts uid conflicts
   case mconcat errmsgs of
     [] -> pure ()
-    msgs@(_ : _) -> do
-      Log.warn $ Log.msg @String msgs
-      liftSem $ throw LegalHoldCouldNotBlockConnections
+    msgs@(_ : _) -> liftSem $ do
+      P.warn $ Log.msg @String msgs
+      throw LegalHoldCouldNotBlockConnections
   where
     findConflicts :: [ConnectionStatus] -> Galley r [[UserId]]
     findConflicts conns = do
@@ -918,7 +943,8 @@ handleGroupConvPolicyConflicts ::
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore
+       TeamStore,
+       P.TinyLog
      ]
     r =>
   Local UserId ->

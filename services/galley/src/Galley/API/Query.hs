@@ -105,7 +105,7 @@ getBotConversation zbot lcnv = do
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
-  Members '[ConversationStore, Error ConversationError, Error InternalError] r =>
+  Members '[ConversationStore, Error ConversationError, Error InternalError, P.TinyLog] r =>
   Local UserId ->
   ConvId ->
   Galley r Public.Conversation
@@ -326,7 +326,7 @@ conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
-  Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore] r =>
+  Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore, P.TinyLog] r =>
   Local UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -399,11 +399,11 @@ listConversations luser (Public.ListConversations ids) = do
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map qUntagged remoteIds
-  unless (null remoteNotFoundRemoteIds) $
+  liftSem . unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.
-    Logger.warn $
+    P.warn $
       Logger.msg ("Some locally found conversation ids were not returned by remotes" :: ByteString)
         . Logger.field "convIds" (show remoteNotFoundRemoteIds)
 

@@ -76,6 +76,7 @@ import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
 import Wire.API.Event.FeatureConfig
@@ -290,7 +291,7 @@ setFeatureStatusNoConfig ::
   ( Public.KnownTeamFeatureName a,
     Public.FeatureHasNoConfig a,
     HasStatusCol a,
-    Members '[GundeckAccess, TeamFeatureStore, TeamStore] r
+    Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r
   ) =>
   (Public.TeamFeatureStatusValue -> TeamId -> Galley r ()) ->
   TeamId ->
@@ -323,7 +324,7 @@ getSSOStatusInternal =
         FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
 
 setSSOStatusInternal ::
-  Members '[Error TeamFeatureError, GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  Members '[Error TeamFeatureError, GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
@@ -346,7 +347,7 @@ getTeamSearchVisibilityAvailableInternal =
         FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
 setTeamSearchVisibilityAvailableInternal ::
-  Members '[GundeckAccess, SearchVisibilityStore, TeamFeatureStore, TeamStore] r =>
+  Members '[GundeckAccess, SearchVisibilityStore, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
@@ -369,7 +370,7 @@ getValidateSAMLEmailsInternal =
     getDef = pure Public.TeamFeatureDisabled
 
 setValidateSAMLEmailsInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
@@ -390,7 +391,7 @@ getDigitalSignaturesInternal =
     getDef = pure Public.TeamFeatureDisabled
 
 setDigitalSignaturesInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
@@ -434,7 +435,8 @@ setLegalholdStatusInternal ::
          MemberStore,
          TeamFeatureStore,
          TeamStore,
-         TeamMemberStore p
+         TeamMemberStore p,
+         P.TinyLog
        ]
       r
   ) =>
@@ -490,7 +492,7 @@ getFeatureStatusWithDefaultConfig lens' =
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
@@ -508,7 +510,7 @@ getAppLockInternal mbtid = do
   pure $ fromMaybe defaultStatus status
 
 setAppLockInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore, Error TeamFeatureError] r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, Error TeamFeatureError, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
@@ -544,7 +546,7 @@ getConferenceCallingInternal (Right tid) = do
   getFeatureStatusWithDefaultConfig @'Public.TeamFeatureConferenceCalling flagConferenceCalling (Just tid)
 
 setConferenceCallingInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
@@ -563,7 +565,7 @@ getSelfDeletingMessagesInternal = \case
         <&> maybe Public.defaultSelfDeletingMessagesStatus id
 
 setSelfDeletingMessagesInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
@@ -574,14 +576,14 @@ setSelfDeletingMessagesInternal tid st = do
   (liftSem $ TeamFeatures.setSelfDeletingMessagesStatus tid st) <* pushEvent
 
 pushFeatureConfigEvent ::
-  Members '[GundeckAccess, TeamStore] r =>
+  Members '[GundeckAccess, TeamStore, P.TinyLog] r =>
   TeamId ->
   Event.Event ->
   Galley r ()
 pushFeatureConfigEvent tid event = do
   memList <- getTeamMembersForFanout tid
   when ((memList ^. teamMemberListType) == ListTruncated) $ do
-    Log.warn $
+    liftSem . P.warn $
       Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
         . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
         . Log.field "team" (Log.val (cs . show $ tid))

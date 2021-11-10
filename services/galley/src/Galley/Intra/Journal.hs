@@ -43,17 +43,17 @@ import Imports hiding (head)
 import Numeric.Natural
 import Polysemy
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import qualified Proto.TeamEvents_Fields as T
 import System.Logger (field, msg, val)
-import qualified System.Logger.Class as Log
 
 -- [Note: journaling]
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
 teamActivate ::
-  Members '[Input (Maybe Aws.Env), Input Opts.Opts, TeamStore] r =>
+  Members '[Input (Maybe Aws.Env), Input Opts.Opts, TeamStore, P.TinyLog] r =>
   TeamId ->
   Natural ->
   Maybe Currency.Alpha ->
@@ -118,7 +118,7 @@ evData memberCount billingUserIds cur =
 -- 'getBillingTeamMembers'. This is required only until data is backfilled in the
 -- 'billing_team_user' table.
 getBillingUserIds ::
-  Members '[Input Opts.Opts, TeamStore] r =>
+  Members '[Input Opts.Opts, TeamStore, P.TinyLog] r =>
   TeamId ->
   Maybe TeamMemberList ->
   Galley r [UserId]
@@ -147,14 +147,14 @@ getBillingUserIds tid maybeMemberList = do
     filterFromMembers list =
       pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
 
-    handleList :: Member TeamStore r => Bool -> TeamMemberList -> Galley r [UserId]
+    handleList :: Members '[TeamStore, P.TinyLog] r => Bool -> TeamMemberList -> Galley r [UserId]
     handleList enableIndexedBillingTeamMembers list =
       case list ^. teamMemberListType of
         ListTruncated ->
           if enableIndexedBillingTeamMembers
             then liftSem fetchFromDB
             else do
-              Log.warn $
+              liftSem . P.warn $
                 field "team" (toByteString tid)
                   . msg (val "TeamMemberList is incomplete, you may not see all the admin users in team. Please enable the indexedBillingTeamMembers feature.")
               filterFromMembers list
