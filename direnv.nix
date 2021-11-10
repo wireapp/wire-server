@@ -118,6 +118,7 @@ let
       pkgs.gnugrep
       pkgs.pkgconfig
       pkgs.gawk
+      pkgs.git
 
       pkgs.haskell.compiler.ghc884
       pkgs.protobuf
