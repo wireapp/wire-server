@@ -15,34 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamNotificationStore
-  ( TeamNotificationStore (..),
-    createTeamNotification,
-    getTeamNotifications,
-    mkNotificationId,
-  )
-where
+module Galley.Effects.WaiRoutes.IO where
 
-import qualified Data.Aeson as JSON
-import Data.Id
-import Data.List1 (List1)
-import Data.Range
-import Galley.Data.TeamNotifications
-import Gundeck.Types.Notification
+import Control.Error
+import qualified Data.ProtocolBuffers as Proto
+import Data.Serialize.Get
+import Galley.API.Error
+import Galley.Effects.WaiRoutes
 import Imports
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Polysemy.Error
 
-data TeamNotificationStore m a where
-  CreateTeamNotification ::
-    TeamId ->
-    NotificationId ->
-    List1 JSON.Object ->
-    TeamNotificationStore m ()
-  GetTeamNotifications ::
-    TeamId ->
-    Maybe NotificationId ->
-    Range 1 10000 Int32 ->
-    TeamNotificationStore m ResultPage
-  MkNotificationId :: TeamNotificationStore m NotificationId
-
-makeSem ''TeamNotificationStore
+interpretWaiRoutes ::
+  Members '[Embed IO, Error InvalidInput] r =>
+  Sem (WaiRoutes ': r) a ->
+  Sem r a
+interpretWaiRoutes = interpret $ \case
+  FromJsonBody r -> exceptT (throw . InvalidPayload) return (parseBody r)
+  FromOptionalJsonBody r -> exceptT (throw . InvalidPayload) return (parseOptionalBody r)
+  FromProtoBody r -> do
+    b <- readBody r
+    either (throw . InvalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)

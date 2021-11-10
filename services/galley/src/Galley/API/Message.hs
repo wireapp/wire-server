@@ -20,7 +20,7 @@ import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Set.Lens
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
 import Galley.App
@@ -223,6 +223,7 @@ postQualifiedOtrMessage ::
        ExternalAccess,
        Input (Local ()), -- FUTUREWORK: remove this
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore,
        P.TinyLog
@@ -237,7 +238,7 @@ postQualifiedOtrMessage ::
 postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
   alive <- lift . liftSem $ isConversationAlive (tUnqualified lcnv)
   let localDomain = tDomain lcnv
-  now <- liftIO getCurrentTime
+  now <- lift . liftSem $ input
   let nowMillis = toUTCTimeMillis now
   let senderDomain = qDomain sender
       senderUser = qUnqualified sender

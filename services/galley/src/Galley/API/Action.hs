@@ -136,6 +136,7 @@ instance IsConversationAction ConversationJoin where
            FederatorAccess,
            GundeckAccess,
            Input Opts,
+           Input UTCTime,
            LegalHoldStore,
            MemberStore,
            TeamStore
@@ -214,6 +215,7 @@ instance IsConversationAction ConversationJoin where
              FederatorAccess,
              GundeckAccess,
              Input Opts,
+             Input UTCTime,
              LegalHoldStore,
              MemberStore,
              TeamStore
@@ -345,7 +347,8 @@ instance IsConversationAction ConversationAccessData where
            FireAndForget,
            GundeckAccess,
            MemberStore,
-           TeamStore
+           TeamStore,
+           Input UTCTime
          ]
         r
   conversationAction = ConversationActionAccessUpdate
@@ -377,9 +380,9 @@ instance IsConversationAction ConversationAccessData where
       ( CodeAccess `elem` convAccess conv
           && CodeAccess `notElem` cupAccess action
       )
-      $ lift $ do
-        key <- mkKey (tUnqualified lcnv)
-        liftSem $ E.deleteCode key ReusableCode
+      $ lift . liftSem $ do
+        key <- E.makeKey (tUnqualified lcnv)
+        E.deleteCode key ReusableCode
 
     -- Determine bots and members to be removed
     let filterBotsAndMembers = filterActivated >=> filterTeammates
@@ -437,7 +440,8 @@ updateLocalConversation ::
          Error InvalidInput,
          ExternalAccess,
          FederatorAccess,
-         GundeckAccess
+         GundeckAccess,
+         Input UTCTime
        ]
       r,
     HasConversationActionEffects a r
@@ -507,7 +511,7 @@ addMembersToLocalConversation lcnv users role = do
   pure (bmFromMembers lmems rmems, action)
 
 notifyConversationAction ::
-  Members '[FederatorAccess, ExternalAccess, GundeckAccess] r =>
+  Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvId ->
@@ -515,7 +519,7 @@ notifyConversationAction ::
   ConversationAction ->
   Galley r Event
 notifyConversationAction quid con lcnv targets action = do
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   let e = conversationActionToEvent now quid (qUntagged lcnv) action
 
   -- notify remote participants

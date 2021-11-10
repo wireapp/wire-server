@@ -60,6 +60,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.Paging
 import Galley.Effects.TeamStore
+import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
 import Galley.Options
@@ -512,6 +513,7 @@ rmUser ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         Input UTCTime,
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
@@ -554,7 +556,7 @@ rmUser lusr conn = do
     leaveLocalConversations ids = do
       let qUser = qUntagged lusr
       cc <- liftSem $ getConversations ids
-      now <- liftIO getCurrentTime
+      now <- liftSem input
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
@@ -658,13 +660,14 @@ guardLegalholdPolicyConflictsH ::
        Error InvalidInput,
        Input Opts,
        TeamStore,
-       P.TinyLog
+       P.TinyLog,
+       WaiRoutes
      ]
     r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
-  glh <- fromJsonBody req
+  glh <- liftSem $ fromJsonBody req
   liftSem . mapError (const MissingLegalholdConsent) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
   pure $ Network.Wai.Utilities.setStatus status200 empty

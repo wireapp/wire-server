@@ -46,6 +46,7 @@ import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
+import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
@@ -60,6 +61,7 @@ import Galley.Effects.Paging
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
+import Galley.Effects.WaiRoutes
 import qualified Galley.External.LegalHoldService as LHService
 import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
@@ -120,13 +122,14 @@ createSettingsH ::
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore,
-       P.TinyLog
+       P.TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON ->
   Galley r Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
-  newService <- fromJsonBody req
+  newService <- liftSem $ fromJsonBody req
   setStatus status201 . json <$> createSettings zusr tid newService
 
 createSettings ::
@@ -155,8 +158,9 @@ createSettings zusr tid newService = do
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
-    LHService.validateServiceKey (newLegalHoldServiceKey newService)
-      >>= liftSem . note LegalHoldServiceInvalidKey
+    liftSem $
+      LegalHoldData.validateServiceKey (newLegalHoldServiceKey newService)
+        >>= note LegalHoldServiceInvalidKey
   LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
   let service = legalHoldService tid fpr newService key
   liftSem $ LegalHoldData.createSettings service
@@ -222,6 +226,7 @@ removeSettingsH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        Input (Local ()),
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
@@ -229,13 +234,14 @@ removeSettingsH ::
        TeamFeatureStore,
        TeamMemberStore InternalPaging,
        TeamStore,
-       P.TinyLog
+       P.TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
   Galley r Response
 removeSettingsH (zusr ::: tid ::: req ::: _) = do
-  removeSettingsRequest <- fromJsonBody req
+  removeSettingsRequest <- liftSem $ fromJsonBody req
   removeSettings zusr tid removeSettingsRequest
   pure noContent
 
@@ -259,6 +265,7 @@ removeSettings ::
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
+         Input UTCTime,
          Input (Local ()),
          LegalHoldStore,
          ListItems LegacyPaging ConvId,
@@ -316,6 +323,7 @@ removeSettings' ::
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
+         Input UTCTime,
          Input (Local ()),
          LegalHoldStore,
          ListItems LegacyPaging ConvId,
@@ -407,6 +415,7 @@ grantConsentH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        Input (Local ()),
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
@@ -444,6 +453,7 @@ grantConsent ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
@@ -484,6 +494,7 @@ requestDeviceH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        Input (Local ()),
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
@@ -523,6 +534,7 @@ requestDevice ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
@@ -594,20 +606,22 @@ approveDeviceH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        Input (Local ()),
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamFeatureStore,
        TeamStore,
-       P.TinyLog
+       P.TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
   Galley r Response
 approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
   luid <- liftSem $ qualifyLocal uid
-  approve <- fromJsonBody req
+  approve <- liftSem $ fromJsonBody req
   approveDevice zusr tid luid connId approve
   pure empty
 
@@ -629,6 +643,7 @@ approveDevice ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
@@ -699,19 +714,21 @@ disableForUserH ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        Input (Local ()),
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamStore,
-       P.TinyLog
+       P.TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
   Galley r Response
 disableForUserH (zusr ::: tid ::: uid ::: req ::: _) = do
   luid <- liftSem $ qualifyLocal uid
-  disable <- fromJsonBody req
+  disable <- liftSem $ fromJsonBody req
   disableForUser zusr tid luid disable <&> \case
     DisableLegalHoldSuccess -> empty
     DisableLegalHoldWasNotEnabled -> noContent
@@ -739,6 +756,7 @@ disableForUser ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
@@ -795,6 +813,7 @@ changeLegalholdStatus ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
@@ -940,6 +959,7 @@ handleGroupConvPolicyConflicts ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,

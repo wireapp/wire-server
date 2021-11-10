@@ -15,34 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamNotificationStore
-  ( TeamNotificationStore (..),
-    createTeamNotification,
-    getTeamNotifications,
-    mkNotificationId,
+module Galley.Effects.Queue
+  ( Queue (..),
+    tryPush,
+    pop,
   )
 where
 
-import qualified Data.Aeson as JSON
-import Data.Id
-import Data.List1 (List1)
-import Data.Range
-import Galley.Data.TeamNotifications
-import Gundeck.Types.Notification
 import Imports
 import Polysemy
 
-data TeamNotificationStore m a where
-  CreateTeamNotification ::
-    TeamId ->
-    NotificationId ->
-    List1 JSON.Object ->
-    TeamNotificationStore m ()
-  GetTeamNotifications ::
-    TeamId ->
-    Maybe NotificationId ->
-    Range 1 10000 Int32 ->
-    TeamNotificationStore m ResultPage
-  MkNotificationId :: TeamNotificationStore m NotificationId
+data Queue a m x where
+  TryPush :: a -> Queue a m Bool
+  Pop :: Queue a m a
 
-makeSem ''TeamNotificationStore
+makeSem ''Queue

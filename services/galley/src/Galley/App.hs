@@ -44,12 +44,6 @@ module Galley.App
     DeleteItem (..),
     toServantHandler,
 
-    -- * Utilities
-    fromJsonBody,
-    fromOptionalJsonBody,
-    fromProtoBody,
-    currentFanoutLimit,
-
     -- * Temporary compatibility functions
     fireAndForget,
     spawnMany,
@@ -65,20 +59,18 @@ import qualified Cassandra.Settings as C
 import Control.Error
 import qualified Control.Exception
 import Control.Lens hiding ((.=))
-import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
-import qualified Data.ProtocolBuffers as Proto
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
-import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Time.Clock
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Cassandra.Client
@@ -96,11 +88,13 @@ import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Effects.FireAndForget (interpretFireAndForget)
 import qualified Galley.Effects.FireAndForget as E
+import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External
 import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Options
+import Galley.Queue
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
 import Imports hiding (forkIO)
@@ -110,7 +104,6 @@ import Network.HTTP.Media.RenderHeader (RenderHeader (..))
 import Network.HTTP.Types (hContentType)
 import Network.HTTP.Types.Status (statusCode, statusMessage)
 import Network.Wai
-import Network.Wai.Utilities hiding (Error)
 import qualified Network.Wai.Utilities as Wai
 import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.Session as Ssl
@@ -148,7 +141,7 @@ instance Monad (Galley r) where
   Galley m >>= f = Galley (m >>= unGalley . f)
 
 instance MonadIO (Galley r) where
-  liftIO action = Galley (liftIO action)
+  liftIO action = Galley (embed action)
 
 -- Define some invariants for the options used
 validateOptions :: Logger -> Opts -> IO ()
@@ -237,25 +230,6 @@ interpretTinyLog e = interpret $ \case
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
-fromJsonBody :: (Member (Error InvalidInput) r, FromJSON a) => JsonRequest a -> Galley r a
-fromJsonBody r = exceptT (liftSem . throw . InvalidPayload) return (parseBody r)
-{-# INLINE fromJsonBody #-}
-
-fromOptionalJsonBody ::
-  ( Member (Error InvalidInput) r,
-    FromJSON a
-  ) =>
-  OptionalJsonRequest a ->
-  Galley r (Maybe a)
-fromOptionalJsonBody r = exceptT (liftSem . throw . InvalidPayload) return (parseOptionalBody r)
-{-# INLINE fromOptionalJsonBody #-}
-
-fromProtoBody :: (Member (Error InvalidInput) r, Proto.Decode a) => Request -> Galley r a
-fromProtoBody r = do
-  b <- readBody r
-  either (liftSem . throw . InvalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
-{-# INLINE fromProtoBody #-}
-
 toServantHandler :: Env -> Galley GalleyEffects a -> Servant.Handler a
 toServantHandler env galley = do
   eith <- liftIO $ Control.Exception.try (evalGalley env galley)
@@ -280,7 +254,7 @@ interpretErrorToException ::
 interpretErrorToException = (either (embed @IO . UnliftIO.throwIO) pure =<<) . runError
 
 evalGalley :: Env -> Galley GalleyEffects a -> IO a
-evalGalley e =
+evalGalley e action = do
   runFinal @IO
     . embedToFinal @IO
     . P.runReader e
@@ -288,10 +262,11 @@ evalGalley e =
     . interpretTinyLog e
     . interpretErrorToException
     . mapAllErrors
+    . interpretQueue (e ^. deleteQueue)
+    . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
+    . interpretWaiRoutes
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . optSettings . setFederationDomain) ())
-    . runInputConst (e ^. aEnv)
-    . runInputConst (e ^. deleteQueue)
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -317,6 +292,7 @@ evalGalley e =
     . interpretGundeckAccess
     . interpretBrigAccess
     . unGalley
+    $ action
   where
     lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
 

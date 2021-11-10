@@ -27,6 +27,7 @@ import Galley.API.Error
 import Galley.API.Util
 import Galley.App
 import Galley.Effects.CustomBackendStore
+import Galley.Effects.WaiRoutes
 import Galley.Types
 import Imports hiding ((\\))
 import Network.HTTP.Types
@@ -63,11 +64,11 @@ getCustomBackendByDomain domain =
 -- INTERNAL -------------------------------------------------------------------
 
 internalPutCustomBackendByDomainH ::
-  Members '[CustomBackendStore, Error InvalidInput] r =>
+  Members '[CustomBackendStore, Error InvalidInput, WaiRoutes] r =>
   Domain ::: JsonRequest CustomBackend ->
   Galley r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do
-  customBackend <- fromJsonBody req
+  customBackend <- liftSem $ fromJsonBody req
   -- simple enough to not need a separate function
   liftSem $ setCustomBackend domain customBackend
   pure (empty & setStatus status201)

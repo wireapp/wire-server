@@ -49,6 +49,10 @@ module Galley.Effects
     -- * Paging effects
     ListItems,
 
+    -- * Other effects
+    Queue,
+    WaiRoutes,
+
     -- * Polysemy re-exports
     Member,
     Members,
@@ -57,8 +61,8 @@ where
 
 import Data.Id
 import Data.Qualified
+import Data.Time.Clock
 import Galley.API.Error
-import qualified Galley.Aws as Aws
 import Galley.Cassandra.Paging
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
@@ -73,6 +77,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
@@ -80,10 +85,9 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
+import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
-import Galley.Queue (Queue)
-import Imports
 import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
@@ -115,10 +119,11 @@ type NonErrorGalleyEffects1 =
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
-     Input (Queue DeleteItem), -- FUTUREWORK: replace with a higher level effect
-     Input (Maybe Aws.Env), -- FUTUREWORK: replace with a higher level effect
      Input (Local ()),
-     Input Opts
+     Input Opts,
+     WaiRoutes,
+     Input UTCTime,
+     Queue DeleteItem
    ]
 
 -- All the possible high-level effects.

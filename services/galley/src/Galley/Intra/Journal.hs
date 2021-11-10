@@ -29,10 +29,11 @@ import Control.Lens
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Id
-import Data.Proto
 import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.Text (pack)
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 import Galley.API.Util
 import Galley.App
 import Galley.Effects.TeamStore
@@ -52,7 +53,13 @@ import System.Logger (field, msg, val)
 -- is started without journaling arguments
 
 teamActivate ::
-  Members '[Input Opts.Opts, TeamStore, P.TinyLog] r =>
+  Members
+    '[ Input Opts.Opts,
+       Input UTCTime,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   TeamId ->
   Natural ->
   Maybe Currency.Alpha ->
@@ -63,7 +70,7 @@ teamActivate tid teamSize cur time = do
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
 teamUpdate ::
-  Member TeamStore r =>
+  Members '[TeamStore, Input UTCTime] r =>
   TeamId ->
   Natural ->
   [UserId] ->
@@ -72,19 +79,19 @@ teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete ::
-  Member TeamStore r =>
+  Members '[TeamStore, Input UTCTime] r =>
   TeamId ->
   Galley r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
-  Member TeamStore r =>
+  Members '[TeamStore, Input UTCTime] r =>
   TeamId ->
   Galley r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
-  Member TeamStore r =>
+  Members '[TeamStore, Input UTCTime] r =>
   TeamEvent'EventType ->
   TeamId ->
   Maybe TeamEvent'EventData ->
@@ -92,8 +99,9 @@ journalEvent ::
   Galley r ()
 journalEvent typ tid dat tim = do
   -- writetime is in microseconds in cassandra 3.11
-  ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
-  let ev =
+  now <- liftSem $ round . utcTimeToPOSIXSeconds <$> input
+  let ts = maybe now ((`div` 1000000) . view tcTime) tim
+      ev =
         defMessage
           & T.eventType .~ typ
           & T.teamId .~ toBytes tid

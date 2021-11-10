@@ -15,34 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamNotificationStore
-  ( TeamNotificationStore (..),
-    createTeamNotification,
-    getTeamNotifications,
-    mkNotificationId,
+module Galley.Effects.WaiRoutes
+  ( WaiRoutes (..),
+    fromJsonBody,
+    fromOptionalJsonBody,
+    fromProtoBody,
   )
 where
 
-import qualified Data.Aeson as JSON
-import Data.Id
-import Data.List1 (List1)
-import Data.Range
-import Galley.Data.TeamNotifications
-import Gundeck.Types.Notification
+import Data.Aeson (FromJSON)
+import qualified Data.ProtocolBuffers as Proto
 import Imports
+import Network.Wai
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
 
-data TeamNotificationStore m a where
-  CreateTeamNotification ::
-    TeamId ->
-    NotificationId ->
-    List1 JSON.Object ->
-    TeamNotificationStore m ()
-  GetTeamNotifications ::
-    TeamId ->
-    Maybe NotificationId ->
-    Range 1 10000 Int32 ->
-    TeamNotificationStore m ResultPage
-  MkNotificationId :: TeamNotificationStore m NotificationId
+data WaiRoutes m a where
+  FromJsonBody :: FromJSON a => JsonRequest a -> WaiRoutes m a
+  FromOptionalJsonBody :: FromJSON a => OptionalJsonRequest a -> WaiRoutes m (Maybe a)
+  FromProtoBody :: Proto.Decode a => Request -> WaiRoutes m a
 
-makeSem ''TeamNotificationStore
+makeSem ''WaiRoutes

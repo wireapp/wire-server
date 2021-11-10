@@ -95,3 +95,4 @@ interpretGundeckAccess ::
   Sem r a
 interpretGundeckAccess = interpret $ \case
   Push ps -> embedApp $ G.push ps
+  PushSlowly ps -> embedApp $ G.pushSlowly ps

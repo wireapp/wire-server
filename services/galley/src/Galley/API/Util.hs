@@ -254,8 +254,9 @@ acceptOne2One ::
        Error ActionError,
        Error ConversationError,
        Error InternalError,
-       MemberStore,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime,
+       MemberStore
      ]
     r =>
   Local UserId ->
@@ -277,7 +278,7 @@ acceptOne2One lusr conv conn = do
       _ -> do
         when (length mems > 2) $
           liftSem . throw . BadConvState $ cid
-        now <- liftIO getCurrentTime
+        now <- liftSem input
         mm <- liftSem $ createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then liftSem promote else pure conv

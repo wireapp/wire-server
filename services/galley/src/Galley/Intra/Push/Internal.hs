@@ -33,6 +33,7 @@ import qualified Data.Set as Set
 import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
+import Galley.Options
 import Galley.Types
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
@@ -166,3 +167,11 @@ newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
 newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
    in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))
+
+pushSlowly :: Foldable f => f Push -> App ()
+pushSlowly ps = do
+  mmillis <- view (options . optSettings . setDeleteConvThrottleMillis)
+  let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis mmillis)
+  forM_ ps $ \p -> do
+    push [p]
+    threadDelay delay

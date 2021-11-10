@@ -76,7 +76,7 @@ import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.Qualified
 import Data.Range as Range
 import qualified Data.Set as Set
-import Data.Time.Clock (UTCTime (..), getCurrentTime)
+import Data.Time.Clock (UTCTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
@@ -97,16 +97,16 @@ import qualified Galley.Effects.LegalHoldStore as Data
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Paging as E
+import qualified Galley.Effects.Queue as E
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import qualified Galley.Effects.SparAccess as Spar
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Queue (Queue)
-import qualified Galley.Queue as Q
 import Galley.Types (UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
@@ -143,7 +143,7 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH ::
-  Members '[Error TeamError, Error NotATeamMember, Input (Queue DeleteItem), TeamStore] r =>
+  Members '[Error TeamError, Error NotATeamMember, Input UTCTime, Queue DeleteItem, TeamStore] r =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getTeamH (zusr ::: tid ::: _) =
@@ -169,14 +169,14 @@ getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
 getManyTeamsH ::
-  (Members '[TeamStore, Input (Queue DeleteItem), ListItems LegacyPaging TeamId] r) =>
+  (Members '[TeamStore, Queue DeleteItem, Input UTCTime, ListItems LegacyPaging TeamId] r) =>
   UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON ->
   Galley r Response
 getManyTeamsH (zusr ::: range ::: size ::: _) =
   json <$> getManyTeams zusr range size
 
 getManyTeams ::
-  (Members '[TeamStore, Input (Queue DeleteItem), ListItems LegacyPaging TeamId] r) =>
+  (Members '[TeamStore, Input UTCTime, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
   UserId ->
   Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
   Range 1 100 Int32 ->
@@ -187,7 +187,7 @@ getManyTeams zusr range size =
     pure (Public.newTeamList (catMaybes teams) more)
 
 lookupTeam ::
-  Members '[TeamStore, Input (Queue DeleteItem)] r =>
+  Members '[TeamStore, Input UTCTime, Queue DeleteItem] r =>
   UserId ->
   TeamId ->
   Galley r (Maybe Public.Team)
@@ -197,8 +197,7 @@ lookupTeam zusr tid = do
     then do
       t <- liftSem $ E.getTeam tid
       when (Just PendingDelete == (tdStatus <$> t)) $ do
-        q <- liftSem input
-        void $ Q.tryPush q (TeamItem tid zusr Nothing)
+        void . liftSem $ E.tryPush (TeamItem tid zusr Nothing)
       pure (tdTeam <$> t)
     else pure Nothing
 
@@ -210,14 +209,16 @@ createNonBindingTeamH ::
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
+       Input UTCTime,
+       P.TinyLog,
        TeamStore,
-       P.TinyLog
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
   Galley r Response
 createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
-  newTeam <- fromJsonBody req
+  newTeam <- liftSem $ fromJsonBody req
   newTeamId <- createNonBindingTeam zusr zcon newTeam
   pure (empty & setStatus status201 . location newTeamId)
 
@@ -228,6 +229,7 @@ createNonBindingTeam ::
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
+       Input UTCTime,
        TeamStore,
        P.TinyLog
      ]
@@ -261,16 +263,16 @@ createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   pure (team ^. teamId)
 
 createBindingTeamH ::
-  Members '[BrigAccess, Error InvalidInput, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, GundeckAccess, Input UTCTime, TeamStore, WaiRoutes] r =>
   UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON ->
   Galley r Response
 createBindingTeamH (zusr ::: tid ::: req ::: _) = do
-  newTeam <- fromJsonBody req
+  newTeam <- liftSem $ fromJsonBody req
   newTeamId <- createBindingTeam zusr tid newTeam
   pure (empty & setStatus status201 . location newTeamId)
 
 createBindingTeam ::
-  Members '[BrigAccess, GundeckAccess, TeamStore] r =>
+  Members '[BrigAccess, GundeckAccess, Input UTCTime, TeamStore] r =>
   UserId ->
   TeamId ->
   BindingNewTeam ->
@@ -291,14 +293,16 @@ updateTeamStatusH ::
        Error TeamError,
        Error NotATeamMember,
        Input Opts,
+       Input UTCTime,
+       P.TinyLog,
        TeamStore,
-       P.TinyLog
+       WaiRoutes
      ]
     r =>
   TeamId ::: JsonRequest TeamStatusUpdate ::: JSON ->
   Galley r Response
 updateTeamStatusH (tid ::: req ::: _) = do
-  teamStatusUpdate <- fromJsonBody req
+  teamStatusUpdate <- liftSem $ fromJsonBody req
   updateTeamStatus tid teamStatusUpdate
   return empty
 
@@ -309,8 +313,9 @@ updateTeamStatus ::
        Error TeamError,
        Error NotATeamMember,
        Input Opts,
-       TeamStore,
-       P.TinyLog
+       Input UTCTime,
+       P.TinyLog,
+       TeamStore
      ]
     r =>
   TeamId ->
@@ -348,17 +353,18 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
 updateTeamH ::
   Members
     '[ Error ActionError,
-       Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
-       TeamStore
+       Input UTCTime,
+       TeamStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.TeamUpdateData ::: JSON ->
   Galley r Response
 updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  updateData <- fromJsonBody req
+  updateData <- liftSem $ fromJsonBody req
   updateTeam zusr zcon tid updateData
   pure empty
 
@@ -368,6 +374,7 @@ updateTeam ::
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
+       Input UTCTime,
        TeamStore
      ]
     r =>
@@ -384,7 +391,7 @@ updateTeam zusr zcon tid updateData = do
   --     . Log.field "action" (Log.val "Teams.updateTeam")
   void $ permissionCheck SetTeamData zusrMembership
   liftSem $ E.setTeamData tid updateData
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   memList <- getTeamMembersForFanout tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
@@ -399,14 +406,15 @@ deleteTeamH ::
        Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
-       Input (Queue DeleteItem),
-       TeamStore
+       Queue DeleteItem,
+       TeamStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON ->
   Galley r Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  mBody <- fromOptionalJsonBody req
+  mBody <- liftSem $ fromOptionalJsonBody req
   deleteTeam zusr zcon tid mBody
   pure (empty & setStatus status202)
 
@@ -420,7 +428,7 @@ deleteTeam ::
        Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
-       Input (Queue DeleteItem),
+       Queue DeleteItem,
        TeamStore
      ]
     r =>
@@ -451,7 +459,7 @@ internalDeleteBindingTeamWithOneMember ::
     '[ Error InternalError,
        Error TeamError,
        Error NotATeamMember,
-       Input (Queue DeleteItem),
+       Queue DeleteItem,
        TeamStore
      ]
     r =>
@@ -474,6 +482,7 @@ uncheckedDeleteTeam ::
        ExternalAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
        SparAccess,
@@ -488,7 +497,7 @@ uncheckedDeleteTeam lusr zcon tid = do
   team <- liftSem $ E.getTeam tid
   when (isJust team) $ do
     liftSem $ Spar.deleteTeam tid
-    now <- liftIO getCurrentTime
+    now <- liftSem input
     convs <-
       liftSem $
         filter (not . view managedConversation) <$> E.getTeamConversations tid
@@ -525,12 +534,7 @@ uncheckedDeleteTeam lusr zcon tid = do
           -- push module to never fan this out to more than the limit
           x : xs -> E.push1 (newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
-      -- FUTUREWORK: make this behaviour part of the GundeckAccess effect
-      let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
-      forM_ ue $ \event -> do
-        -- push ConversationDelete events
-        liftSem $ E.push1 event
-        threadDelay delay
+      liftSem $ E.pushSlowly ue
     createConvDeleteEvents ::
       UTCTime ->
       [TeamMember] ->
@@ -583,7 +587,7 @@ getTeamMembers zusr tid maxResults = liftSem $ do
   pure (mems, withPerms)
 
 getTeamMembersCSVH ::
-  (Members '[BrigAccess, Error ActionError, TeamStore, P.Reader Env] r) =>
+  (Members '[BrigAccess, Embed IO, Error ActionError, TeamStore, P.Reader Env] r) =>
   UserId ::: TeamId ::: JSON ->
   Galley r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
@@ -619,7 +623,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
               richInfos <-
                 liftSem $
                   lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
-              liftIO $ do
+              liftSem . embed $ do
                 writeString
                   ( encodeDefaultOrderedByNameWith
                       defaultEncodeOptions
@@ -705,13 +709,14 @@ bulkGetTeamMembersH ::
        Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
-       TeamStore
+       TeamStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON ->
   Galley r Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
-  UserIdList uids <- fromJsonBody body
+  UserIdList uids <- liftSem $ fromJsonBody body
   (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
   pure . json $ teamMemberListJson withPerms memberList
 
@@ -760,7 +765,7 @@ internalDeleteBindingTeamWithOneMemberH ::
     '[ Error InternalError,
        Error TeamError,
        Error NotATeamMember,
-       Input (Queue DeleteItem),
+       Queue DeleteItem,
        TeamStore
      ]
     r =>
@@ -805,23 +810,24 @@ addTeamMemberH ::
        GundeckAccess,
        Error ActionError,
        Error LegalHoldError,
-       Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
+       P.TinyLog,
        TeamFeatureStore,
        TeamNotificationStore,
        TeamStore,
-       P.TinyLog
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
   Galley r Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
+  nmem <- liftSem $ fromJsonBody req
   addTeamMember zusr zcon tid nmem
   pure empty
 
@@ -835,6 +841,7 @@ addTeamMember ::
        Error NotATeamMember,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
        TeamFeatureStore,
@@ -872,24 +879,25 @@ uncheckedAddTeamMemberH ::
   Members
     '[ BrigAccess,
        Error LegalHoldError,
-       Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
+       P.TinyLog,
        TeamFeatureStore,
        TeamNotificationStore,
        TeamStore,
-       P.TinyLog
+       WaiRoutes
      ]
     r =>
   TeamId ::: JsonRequest NewTeamMember ::: JSON ->
   Galley r Response
 uncheckedAddTeamMemberH (tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
+  nmem <- liftSem $ fromJsonBody req
   uncheckedAddTeamMember tid nmem
   return empty
 
@@ -902,12 +910,13 @@ uncheckedAddTeamMember ::
        Error NotATeamMember,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
        LegalHoldStore,
+       P.TinyLog,
        TeamFeatureStore,
        TeamNotificationStore,
-       TeamStore,
-       P.TinyLog
+       TeamStore
      ]
     r =>
   TeamId ->
@@ -925,20 +934,21 @@ updateTeamMemberH ::
   Members
     '[ BrigAccess,
        Error ActionError,
-       Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
        Input Opts,
+       Input UTCTime,
        GundeckAccess,
+       P.TinyLog,
        TeamStore,
-       P.TinyLog
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
   Galley r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
-  targetMember <- view ntmNewTeamMember <$> fromJsonBody req
+  targetMember <- view ntmNewTeamMember <$> (liftSem $ fromJsonBody req)
   updateTeamMember zusr zcon tid targetMember
   pure empty
 
@@ -951,8 +961,9 @@ updateTeamMember ::
        Error NotATeamMember,
        GundeckAccess,
        Input Opts,
-       TeamStore,
-       P.TinyLog
+       Input UTCTime,
+       P.TinyLog,
+       TeamStore
      ]
     r =>
   UserId ->
@@ -1013,7 +1024,7 @@ updateTeamMember zusr zcon tid targetMember = do
           mkUpdate = EdMemberUpdate targetId
           privilegedUpdate = mkUpdate $ Just targetPermissions
           privilegedRecipients = membersToRecipients Nothing privileged
-      now <- liftIO getCurrentTime
+      now <- liftSem input
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
@@ -1026,22 +1037,24 @@ deleteTeamMemberH ::
        Error ActionError,
        Error AuthenticationError,
        Error InvalidInput,
-       Error TeamError,
        Error NotATeamMember,
+       Error TeamError,
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
+       P.TinyLog,
        TeamStore,
-       P.TinyLog
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
   Galley r Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
   lusr <- liftSem $ qualifyLocal zusr
-  mBody <- fromOptionalJsonBody req
+  mBody <- liftSem $ fromOptionalJsonBody req
   deleteTeamMember lusr zcon tid remove mBody >>= \case
     TeamMemberDeleteAccepted -> pure (empty & setStatus status202)
     TeamMemberDeleteCompleted -> pure empty
@@ -1062,6 +1075,7 @@ deleteTeamMember ::
        Error NotATeamMember,
        ExternalAccess,
        Input Opts,
+       Input UTCTime,
        GundeckAccess,
        MemberStore,
        TeamStore,
@@ -1115,6 +1129,7 @@ uncheckedDeleteTeamMember ::
        ConversationStore,
        GundeckAccess,
        ExternalAccess,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -1126,7 +1141,7 @@ uncheckedDeleteTeamMember ::
   TeamMemberList ->
   Galley r ()
 uncheckedDeleteTeamMember lusr zcon tid remove mems = do
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   pushMemberLeaveEvent now
   liftSem $ E.deleteTeamMember tid remove
   removeFromConvsAndPushConvLeaveEvent now
@@ -1219,6 +1234,7 @@ deleteTeamConversation ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
        TeamStore
@@ -1252,13 +1268,13 @@ getSearchVisibilityH (uid ::: tid ::: _) = do
 setSearchVisibilityH ::
   Members
     '[ Error ActionError,
-       Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
        Input Opts,
        SearchVisibilityStore,
        TeamStore,
-       TeamFeatureStore
+       TeamFeatureStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: TeamId ::: JsonRequest Public.TeamSearchVisibilityView ::: JSON ->
@@ -1266,7 +1282,7 @@ setSearchVisibilityH ::
 setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
   zusrMembership <- liftSem $ E.getTeamMember tid uid
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
-  setSearchVisibilityInternal tid =<< fromJsonBody req
+  setSearchVisibilityInternal tid =<< (liftSem $ fromJsonBody req)
   pure noContent
 
 -- Internal -----------------------------------------------------------------
@@ -1393,6 +1409,7 @@ addTeamMemberInternal ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamNotificationStore,
        TeamStore,
@@ -1412,7 +1429,7 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
   sizeBeforeAdd <- ensureNotTooLarge tid
   liftSem $ E.createTeamMember tid new
   cc <- liftSem $ filter (view managedConversation) <$> E.getTeamConversations tid
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   for_ cc $ \c -> do
     lcid <- liftSem $ qualifyLocal (c ^. conversationId)
     luid <- liftSem $ qualifyLocal (new ^. userId)
@@ -1468,7 +1485,7 @@ getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
 finishCreateTeam ::
-  Members '[GundeckAccess, TeamStore] r =>
+  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
   Team ->
   TeamMember ->
   [TeamMember] ->
@@ -1479,7 +1496,7 @@ finishCreateTeam team owner others zcon = do
   liftSem $
     for_ (owner : others) $
       E.createTeamMember (team ^. teamId)
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
   liftSem . E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
@@ -1575,18 +1592,18 @@ getSearchVisibilityInternal =
 
 setSearchVisibilityInternalH ::
   Members
-    '[ Error InvalidInput,
-       Error TeamError,
+    '[ Error TeamError,
        Error NotATeamMember,
        Input Opts,
        SearchVisibilityStore,
-       TeamFeatureStore
+       TeamFeatureStore,
+       WaiRoutes
      ]
     r =>
   TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON ->
   Galley r Response
 setSearchVisibilityInternalH (tid ::: req ::: _) = do
-  setSearchVisibilityInternal tid =<< fromJsonBody req
+  setSearchVisibilityInternal tid =<< (liftSem $ fromJsonBody req)
   pure noContent
 
 setSearchVisibilityInternal ::
@@ -1627,12 +1644,11 @@ userIsTeamOwner tid uid = do
 
 -- Queues a team for async deletion
 queueTeamDeletion ::
-  Members '[Error InternalError, Input (Queue DeleteItem)] r =>
+  Members '[Error InternalError, Queue DeleteItem] r =>
   TeamId ->
   UserId ->
   Maybe ConnId ->
   Galley r ()
 queueTeamDeletion tid zusr zcon = do
-  q <- liftSem input
-  ok <- Q.tryPush q (TeamItem tid zusr zcon)
+  ok <- liftSem $ E.tryPush (TeamItem tid zusr zcon)
   liftSem . unless ok $ throw DeleteQueueFull

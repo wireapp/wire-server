@@ -31,7 +31,6 @@ import qualified Bilge
 import Bilge.Response
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
-import Control.Exception.Enclosed (handleAny)
 import Data.Aeson
 import Data.ByteString.Conversion.To
 import qualified Data.ByteString.Lazy.Char8 as LC8
@@ -44,14 +43,9 @@ import Galley.External.LegalHoldService.Types
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types
-import qualified OpenSSL.EVP.Digest as SSL
-import qualified OpenSSL.EVP.PKey as SSL
-import qualified OpenSSL.PEM as SSL
-import qualified OpenSSL.RSA as SSL
 import Polysemy
 import Polysemy.Error
 import qualified Polysemy.TinyLog as P
-import qualified Ssl.Util as SSL
 import qualified System.Logger.Class as Log
 
 ----------------------------------------------------------------------
@@ -161,33 +155,3 @@ makeLegalHoldServiceRequest tid reqBuilder = liftSem $ do
     mkReqBuilder token =
       reqBuilder
         . Bilge.header "Authorization" ("Bearer " <> toByteString' token)
-
--- | Copied unchanged from "Brig.Provider.API".  Interpret a service certificate and extract
--- key and fingerprint.  (This only has to be in 'MonadIO' because the FFI in OpenSSL works
--- like that.)
---
--- FUTUREWORK: It would be nice to move (part of) this to ssl-util, but it has types from
--- brig-types and types-common.
-validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
-validateServiceKey pem =
-  liftIO $
-    readPublicKey >>= \pk ->
-      case join (SSL.toPublicKey <$> pk) of
-        Nothing -> return Nothing
-        Just pk' -> do
-          Just sha <- SSL.getDigestByName "SHA256"
-          let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
-          if size < minRsaKeySize
-            then return Nothing
-            else do
-              fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
-              let bits = fromIntegral size * 8
-              let key = ServiceKey RsaServiceKey bits pem
-              return $ Just (key, fpr)
-  where
-    readPublicKey =
-      handleAny
-        (const $ return Nothing)
-        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
-    minRsaKeySize :: Int
-    minRsaKeySize = 256 -- Bytes (= 2048 bits)

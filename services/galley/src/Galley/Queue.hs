@@ -23,12 +23,15 @@ module Galley.Queue
     tryPush,
     pop,
     len,
+    interpretQueue,
   )
 where
 
 import qualified Control.Concurrent.STM as Stm
+import qualified Galley.Effects.Queue as E
 import Imports
 import Numeric.Natural (Natural)
+import Polysemy
 
 data Queue a = Queue
   { _len :: Stm.TVar Word,
@@ -53,3 +56,12 @@ pop q = liftIO . atomically $ do
 
 len :: MonadIO m => Queue a -> m Word
 len q = liftIO $ Stm.readTVarIO (_len q)
+
+interpretQueue ::
+  Member (Embed IO) r =>
+  Queue a ->
+  Sem (E.Queue a ': r) x ->
+  Sem r x
+interpretQueue q = interpret $ \case
+  E.TryPush a -> embed @IO $ tryPush q a
+  E.Pop -> embed @IO $ pop q

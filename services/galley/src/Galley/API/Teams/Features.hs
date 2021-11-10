@@ -52,6 +52,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Qualified
 import Data.String.Conversions (cs)
+import Data.Time.Clock
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
@@ -430,6 +431,7 @@ setLegalholdStatusInternal ::
          FireAndForget,
          GundeckAccess,
          Input (Local ()),
+         Input UTCTime,
          LegalHoldStore,
          ListItems LegacyPaging ConvId,
          MemberStore,

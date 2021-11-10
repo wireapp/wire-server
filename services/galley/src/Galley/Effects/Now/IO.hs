@@ -15,34 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamNotificationStore
-  ( TeamNotificationStore (..),
-    createTeamNotification,
-    getTeamNotifications,
-    mkNotificationId,
-  )
-where
+module Galley.Effects.Now.IO where
 
-import qualified Data.Aeson as JSON
-import Data.Id
-import Data.List1 (List1)
-import Data.Range
-import Galley.Data.TeamNotifications
-import Gundeck.Types.Notification
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
+import Galley.Effects.Now
 import Imports
 import Polysemy
 
-data TeamNotificationStore m a where
-  CreateTeamNotification ::
-    TeamId ->
-    NotificationId ->
-    List1 JSON.Object ->
-    TeamNotificationStore m ()
-  GetTeamNotifications ::
-    TeamId ->
-    Maybe NotificationId ->
-    Range 1 10000 Int32 ->
-    TeamNotificationStore m ResultPage
-  MkNotificationId :: TeamNotificationStore m NotificationId
-
-makeSem ''TeamNotificationStore
+interpretNow :: Member (Embed IO) r => Sem (Now ': r) a -> Sem r a
+interpretNow = interpret $ \case
+  GetTime -> embed getCurrentTime
+  GetPosixTime -> embed $ round . utcTimeToPOSIXSeconds <$> getCurrentTime

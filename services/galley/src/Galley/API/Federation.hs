@@ -31,6 +31,7 @@ import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
+import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -250,6 +251,7 @@ leaveConversation ::
        FireAndForget,
        GundeckAccess,
        Input (Local ()),
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
        TeamStore
@@ -337,6 +339,7 @@ sendMessage ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        ExternalAccess,
        MemberStore,
        TeamStore,
@@ -362,6 +365,7 @@ onUserDeleted ::
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
+       Input UTCTime,
        MemberStore
      ]
     r =>

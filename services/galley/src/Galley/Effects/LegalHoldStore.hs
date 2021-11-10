@@ -30,6 +30,7 @@ module Galley.Effects.LegalHoldStore
     setTeamLegalholdWhitelisted,
     unsetTeamLegalholdWhitelisted,
     isTeamLegalholdWhitelisted,
+    validateServiceKey,
 
     -- * Intra actions
     makeVerifiedRequest,
@@ -45,6 +46,7 @@ import Galley.External.LegalHoldService.Types
 import Imports
 import qualified Network.HTTP.Client as Http
 import Polysemy
+import Wire.API.Provider.Service
 import Wire.API.User.Client.Prekey
 
 data LegalHoldStore m a where
@@ -69,5 +71,6 @@ data LegalHoldStore m a where
     HttpsUrl ->
     (Http.Request -> Http.Request) ->
     LegalHoldStore m (Http.Response LC8.ByteString)
+  ValidateServiceKey :: ServiceKeyPEM -> LegalHoldStore m (Maybe (ServiceKey, Fingerprint Rsa))
 
 makeSem ''LegalHoldStore

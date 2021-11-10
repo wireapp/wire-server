@@ -99,6 +99,7 @@ import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.ServiceStore as E
 import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types
@@ -140,6 +141,7 @@ acceptConvH ::
        Error InternalError,
        GundeckAccess,
        Input (Local ()),
+       Input UTCTime,
        MemberStore,
        TinyLog
      ]
@@ -157,6 +159,7 @@ acceptConv ::
        Error ConversationError,
        Error InternalError,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        TinyLog
      ]
@@ -211,6 +214,7 @@ unblockConvH ::
        Error InternalError,
        GundeckAccess,
        Input (Local ()),
+       Input UTCTime,
        MemberStore,
        TinyLog
      ]
@@ -228,6 +232,7 @@ unblockConv ::
        Error ConversationError,
        Error InternalError,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        TinyLog
      ]
@@ -265,6 +270,7 @@ updateConversationAccess ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -295,6 +301,7 @@ updateConversationAccessUnqualified ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -321,6 +328,7 @@ updateLocalConversationAccess ::
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -351,7 +359,8 @@ updateConversationReceiptMode ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Members '[Error FederationError] r =>
@@ -376,7 +385,8 @@ updateConversationReceiptModeUnqualified ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -396,7 +406,8 @@ updateLocalConversationReceiptMode ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local ConvId ->
@@ -425,7 +436,8 @@ updateConversationMessageTimerUnqualified ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -446,7 +458,8 @@ updateConversationMessageTimer ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -470,7 +483,8 @@ updateLocalConversationMessageTimer ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -494,6 +508,7 @@ deleteLocalConversation ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        TeamStore
      ]
     r =>
@@ -514,8 +529,9 @@ addCodeH ::
        ConversationStore,
        Error ConversationError,
        ExternalAccess,
+       GundeckAccess,
        Input (Local ()),
-       GundeckAccess
+       Input UTCTime
      ]
     r =>
   UserId ::: ConnId ::: ConvId ->
@@ -538,7 +554,8 @@ addCode ::
        ConversationStore,
        Error ConversationError,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -550,13 +567,13 @@ addCode lusr zcon lcnv = do
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   liftSem $ ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
-  key <- mkKey (tUnqualified lcnv)
+  key <- liftSem $ E.makeKey (tUnqualified lcnv)
   mCode <- liftSem $ E.getCode key ReusableCode
   case mCode of
     Nothing -> do
-      code <- generate (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
+      code <- liftSem $ E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
       liftSem $ E.createCode code
-      now <- liftIO getCurrentTime
+      now <- liftSem input
       conversationCode <- createCode code
       let event = Event ConvCodeUpdate (qUntagged lcnv) (qUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
@@ -576,8 +593,9 @@ rmCodeH ::
        ConversationStore,
        Error ConversationError,
        ExternalAccess,
+       GundeckAccess,
        Input (Local ()),
-       GundeckAccess
+       Input UTCTime
      ]
     r =>
   UserId ::: ConnId ::: ConvId ->
@@ -593,7 +611,8 @@ rmCode ::
        ConversationStore,
        Error ConversationError,
        ExternalAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -606,9 +625,9 @@ rmCode lusr zcon lcnv = do
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   liftSem $ ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
-  key <- mkKey (tUnqualified lcnv)
+  key <- liftSem $ E.makeKey (tUnqualified lcnv)
   liftSem $ E.deleteCode key ReusableCode
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   let event = Event ConvCodeDelete (qUntagged lcnv) (qUntagged lusr) now EdConvCodeDelete
   pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
   pure event
@@ -642,7 +661,7 @@ getCode usr cnv = do
     liftSem $ E.getConversation cnv >>= note ConvNotFound
   liftSem $ ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) usr
-  key <- mkKey cnv
+  key <- liftSem $ E.makeKey cnv
   c <- liftSem $ E.getCode key ReusableCode >>= note CodeNotFound
   returnCode c
 
@@ -652,11 +671,11 @@ returnCode c = do
   pure $ Public.mkConversationCode (codeKey c) (codeValue c) urlPrefix
 
 checkReusableCodeH ::
-  Members '[CodeStore, Error CodeError, Error InvalidInput] r =>
+  Members '[CodeStore, Error CodeError, Error InvalidInput, WaiRoutes] r =>
   JsonRequest Public.ConversationCode ->
   Galley r Response
 checkReusableCodeH req = do
-  convCode <- fromJsonBody req
+  convCode <- liftSem $ fromJsonBody req
   checkReusableCode convCode
   pure empty
 
@@ -683,15 +702,17 @@ joinConversationByReusableCodeH ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.ConversationCode ->
   Galley r Response
 joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
   lusr <- liftSem $ qualifyLocal zusr
-  convCode <- fromJsonBody req
+  convCode <- liftSem $ fromJsonBody req
   handleUpdateResult <$> joinConversationByReusableCode lusr zcon convCode
 
 joinConversationByReusableCode ::
@@ -709,6 +730,7 @@ joinConversationByReusableCode ::
        ExternalAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -735,6 +757,7 @@ joinConversationByIdH ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -758,6 +781,7 @@ joinConversationById ::
        ExternalAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -782,6 +806,7 @@ joinConversation ::
        ExternalAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore
      ]
@@ -826,6 +851,7 @@ addMembersUnqualified ::
        FederatorAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
        TeamStore,
@@ -855,6 +881,7 @@ addMembers ::
        FederatorAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        MemberStore,
        TeamStore,
@@ -876,8 +903,9 @@ updateSelfMember ::
   Members
     '[ ConversationStore,
        Error ConversationError,
-       GundeckAccess,
        ExternalAccess,
+       GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -890,7 +918,7 @@ updateSelfMember lusr zcon qcnv update = do
   exists <- liftSem $ foldQualified lusr checkLocalMembership checkRemoteMembership qcnv
   liftSem . unless exists . throw $ ConvNotFound
   liftSem $ E.setSelfMember qcnv lusr update
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   let e = Event MemberStateUpdate qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) e (fmap pure lusr) []
   where
@@ -926,6 +954,7 @@ updateUnqualifiedSelfMember ::
        Error ConversationError,
        ExternalAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -947,6 +976,7 @@ updateOtherMemberUnqualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -971,6 +1001,7 @@ updateOtherMember ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -993,6 +1024,7 @@ updateOtherMemberLocalConv ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -1027,6 +1059,7 @@ removeMemberUnqualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -1049,6 +1082,7 @@ removeMemberQualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -1061,7 +1095,7 @@ removeMemberQualified lusr con qcnv victim = do
   foldQualified lusr removeMemberFromLocalConv removeMemberFromRemoteConv qcnv lusr (Just con) victim
 
 removeMemberFromRemoteConv ::
-  Members '[FederatorAccess] r =>
+  Members '[FederatorAccess, Input UTCTime] r =>
   Remote ConvId ->
   Local UserId ->
   Maybe ConnId ->
@@ -1076,7 +1110,7 @@ removeMemberFromRemoteConv cnv lusr _ victim
               FederatedGalley.clientRoutes
               (qDomain victim)
               lc
-      t <- liftIO getCurrentTime
+      t <- liftSem input
       let successEvent =
             Event MemberLeave (qUntagged cnv) (qUntagged lusr) t $
               EdMembersLeave (QualifiedUserIdList [victim])
@@ -1095,6 +1129,7 @@ removeMemberFromLocalConv ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -1150,9 +1185,11 @@ postBotMessageH ::
        ExternalAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore,
-       TinyLog
+       TinyLog,
+       WaiRoutes
      ]
     r =>
   BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
@@ -1160,7 +1197,7 @@ postBotMessageH ::
 postBotMessageH (zbot ::: cnv ::: val ::: req ::: _) = do
   lbot <- liftSem $ qualifyLocal zbot
   lcnv <- liftSem $ qualifyLocal cnv
-  message <- fromJsonBody req
+  message <- liftSem $ fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postBotMessage lbot lcnv val' message
 
@@ -1175,6 +1212,7 @@ postBotMessage ::
        FederatorAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore,
        TinyLog
@@ -1198,6 +1236,7 @@ postProteusMessage ::
        ExternalAccess,
        Input (Local ()), -- FUTUREWORK: remove this
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore,
        TinyLog
@@ -1227,6 +1266,7 @@ postOtrMessageUnqualified ::
        MemberStore,
        Input (Local ()), -- FUTUREWORK: remove this
        Input Opts,
+       Input UTCTime,
        TeamStore,
        TinyLog
      ]
@@ -1278,15 +1318,17 @@ postProtoOtrBroadcastH ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        TeamStore,
-       TinyLog
+       TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON ->
   Galley r Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   lusr <- liftSem $ qualifyLocal zusr
-  message <- Public.protoToNewOtrMessage <$> fromProtoBody req
+  message <- liftSem $ Public.protoToNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postOtrBroadcast lusr zcon val' message
 
@@ -1304,15 +1346,17 @@ postOtrBroadcastH ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        TeamStore,
-       TinyLog
+       TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ->
   Galley r Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   lusr <- liftSem $ qualifyLocal zusr
-  message <- fromJsonBody req
+  message <- liftSem $ fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postOtrBroadcast lusr zcon val' message
 
@@ -1326,6 +1370,7 @@ postOtrBroadcast ::
        Error TeamError,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        TeamStore,
        TinyLog
      ]
@@ -1357,6 +1402,7 @@ postNewOtrBroadcast ::
        Error NotATeamMember,
        Error TeamError,
        Input Opts,
+       Input UTCTime,
        GundeckAccess,
        TeamStore,
        TinyLog
@@ -1370,7 +1416,7 @@ postNewOtrBroadcast ::
 postNewOtrBroadcast lusr con val msg = do
   let sender = newOtrSender msg
       recvrs = newOtrRecipients msg
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   withValidOtrBroadcastRecipients (tUnqualified lusr) sender recvrs val now $ \rs -> do
     let (_, toUsers) = foldr (newMessage (qUntagged lusr) con Nothing msg now) ([], []) rs
     liftSem $ E.push (catMaybes toUsers)
@@ -1385,6 +1431,7 @@ postNewOtrMessage ::
        ExternalAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        MemberStore,
        TeamStore,
        TinyLog
@@ -1400,7 +1447,7 @@ postNewOtrMessage ::
 postNewOtrMessage utype lusr con lcnv val msg = do
   let sender = newOtrSender msg
       recvrs = newOtrRecipients msg
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   withValidOtrRecipients utype (tUnqualified lusr) sender (tUnqualified lcnv) recvrs val now $ \rs -> liftSem $ do
     let (toBots, toUsers) = foldr (newMessage (qUntagged lusr) con (Just (qUntagged lcnv)) msg now) ([], []) rs
     E.push (catMaybes toUsers)
@@ -1450,7 +1497,8 @@ updateConversationName ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -1474,7 +1522,8 @@ updateUnqualifiedConversationName ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -1494,7 +1543,8 @@ updateLocalConversationName ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -1516,7 +1566,8 @@ updateLiveLocalConversationName ::
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
-       GundeckAccess
+       GundeckAccess,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
@@ -1534,7 +1585,9 @@ isTypingH ::
        Error InvalidInput,
        GundeckAccess,
        Input (Local ()),
-       MemberStore
+       Input UTCTime,
+       MemberStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData ->
@@ -1542,12 +1595,12 @@ isTypingH ::
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   lusr <- liftSem $ qualifyLocal zusr
   lcnv <- liftSem $ qualifyLocal cnv
-  typingData <- fromJsonBody req
+  typingData <- liftSem $ fromJsonBody req
   isTyping lusr zcon lcnv typingData
   pure empty
 
 isTyping ::
-  Members '[Error ConversationError, GundeckAccess, MemberStore] r =>
+  Members '[Error ConversationError, GundeckAccess, Input UTCTime, MemberStore] r =>
   Local UserId ->
   ConnId ->
   Local ConvId ->
@@ -1556,7 +1609,7 @@ isTyping ::
 isTyping lusr zcon lcnv typingData = do
   mm <- liftSem $ E.getLocalMembers (tUnqualified lcnv)
   liftSem . unless (tUnqualified lusr `isMember` mm) . throw $ ConvNotFound
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   let e = Event Typing (qUntagged lcnv) (qUntagged lusr) now (EdTyping typingData)
   for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
     liftSem . E.push1 $
@@ -1568,21 +1621,22 @@ isTyping lusr zcon lcnv typingData = do
 addServiceH ::
   Members
     '[ Error InvalidInput,
-       ServiceStore
+       ServiceStore,
+       WaiRoutes
      ]
     r =>
   JsonRequest Service ->
   Galley r Response
 addServiceH req = do
-  liftSem . E.createService =<< fromJsonBody req
+  liftSem $ E.createService =<< fromJsonBody req
   return empty
 
 rmServiceH ::
-  Members '[Error InvalidInput, ServiceStore] r =>
+  Members '[Error InvalidInput, ServiceStore, WaiRoutes] r =>
   JsonRequest ServiceRef ->
   Galley r Response
 rmServiceH req = do
-  liftSem . E.deleteService =<< fromJsonBody req
+  liftSem $ E.deleteService =<< fromJsonBody req
   return empty
 
 addBotH ::
@@ -1596,14 +1650,16 @@ addBotH ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest AddBot ->
   Galley r Response
 addBotH (zusr ::: zcon ::: req) = do
-  bot <- fromJsonBody req
+  bot <- liftSem $ fromJsonBody req
   lusr <- liftSem $ qualifyLocal zusr
   json <$> addBot lusr zcon bot
 
@@ -1618,8 +1674,10 @@ addBot ::
        ExternalAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       WaiRoutes
      ]
     r =>
   Local UserId ->
@@ -1632,7 +1690,7 @@ addBot lusr zcon b = do
   -- Check some preconditions on adding bots to a conversation
   for_ (Data.convTeam c) $ teamConvChecks (b ^. addBotConv)
   (bots, users) <- regularConvChecks c
-  t <- liftIO getCurrentTime
+  t <- liftSem input
   liftSem $ E.createClient (botUserId (b ^. addBotId)) (b ^. addBotClient)
   bm <- liftSem $ E.createBotMember (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv)
   let e =
@@ -1680,14 +1738,16 @@ rmBotH ::
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
-       MemberStore
+       Input UTCTime,
+       MemberStore,
+       WaiRoutes
      ]
     r =>
   UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
   Galley r Response
 rmBotH (zusr ::: zcon ::: req) = do
   lusr <- liftSem $ qualifyLocal zusr
-  bot <- fromJsonBody req
+  bot <- liftSem $ fromJsonBody req
   handleUpdateResult <$> rmBot lusr zcon bot
 
 rmBot ::
@@ -1697,6 +1757,7 @@ rmBot ::
        Error ConversationError,
        ExternalAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore
      ]
     r =>
@@ -1714,7 +1775,7 @@ rmBot lusr zcon b = do
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
     else do
-      t <- liftIO getCurrentTime
+      t <- liftSem input
       liftSem $ do
         let evd = EdMembersLeave (QualifiedUserIdList [qUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event MemberLeave (qUntagged lcnv) (qUntagged lusr) t evd

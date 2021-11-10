@@ -21,6 +21,7 @@ module Galley.Cassandra.LegalHold
 
     -- * Used by tests
     selectPendingPrekeys,
+    validateServiceKey,
   )
 where
 
@@ -28,9 +29,13 @@ import Brig.Types.Client.Prekey
 import Brig.Types.Instances ()
 import Brig.Types.Team.LegalHold
 import Cassandra
+import Control.Exception.Enclosed (handleAny)
 import Control.Lens (unsnoc)
+import Data.ByteString.Conversion.To
+import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Id
 import Data.LegalHold
+import Data.Misc
 import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Q
 import Galley.Cassandra.Store
@@ -40,8 +45,14 @@ import Galley.External.LegalHoldService.Internal
 import Galley.Monad
 import Galley.Types.Teams
 import Imports
+import qualified OpenSSL.EVP.Digest as SSL
+import qualified OpenSSL.EVP.PKey as SSL
+import qualified OpenSSL.PEM as SSL
+import qualified OpenSSL.RSA as SSL
 import Polysemy
 import qualified Polysemy.Reader as P
+import qualified Ssl.Util as SSL
+import Wire.API.Provider.Service
 
 interpretLegalHoldStoreToCassandra ::
   Members '[Embed IO, P.Reader ClientState, P.Reader Env] r =>
@@ -64,6 +75,7 @@ interpretLegalHoldStoreToCassandra lh = interpret $ \case
     embedApp $ makeVerifiedRequestFreshManager fpr url r
   MakeVerifiedRequest fpr url r ->
     embedApp $ makeVerifiedRequest fpr url r
+  ValidateServiceKey sk -> embed @IO $ validateServiceKey sk
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team
@@ -122,3 +134,33 @@ isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
   isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))
+
+-- | Copied unchanged from "Brig.Provider.API".  Interpret a service certificate and extract
+-- key and fingerprint.  (This only has to be in 'MonadIO' because the FFI in OpenSSL works
+-- like that.)
+--
+-- FUTUREWORK: It would be nice to move (part of) this to ssl-util, but it has types from
+-- brig-types and types-common.
+validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
+validateServiceKey pem =
+  liftIO $
+    readPublicKey >>= \pk ->
+      case join (SSL.toPublicKey <$> pk) of
+        Nothing -> return Nothing
+        Just pk' -> do
+          Just sha <- SSL.getDigestByName "SHA256"
+          let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
+          if size < minRsaKeySize
+            then return Nothing
+            else do
+              fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
+              let bits = fromIntegral size * 8
+              let key = ServiceKey RsaServiceKey bits pem
+              return $ Just (key, fpr)
+  where
+    readPublicKey =
+      handleAny
+        (const $ return Nothing)
+        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
+    minRsaKeySize :: Int
+    minRsaKeySize = 256 -- Bytes (= 2048 bits)

@@ -44,6 +44,7 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -88,6 +89,7 @@ createGroupConversation ::
        FederatorAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        TeamStore,
        P.TinyLog
@@ -119,16 +121,18 @@ internalCreateManagedConversationH ::
        GundeckAccess,
        Input (Local ()),
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        TeamStore,
-       P.TinyLog
+       P.TinyLog,
+       WaiRoutes
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
   Galley r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
   lusr <- liftSem $ qualifyLocal zusr
-  newConv <- fromJsonBody req
+  newConv <- liftSem $ fromJsonBody req
   handleConversationResponse <$> internalCreateManagedConversation lusr zcon newConv
 
 internalCreateManagedConversation ::
@@ -146,6 +150,7 @@ internalCreateManagedConversation ::
        GundeckAccess,
        Input Opts,
        LegalHoldStore,
+       Input UTCTime,
        TeamStore,
        P.TinyLog
      ]
@@ -181,6 +186,7 @@ createRegularGroupConv ::
        Error LegalHoldError,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        TeamStore,
        P.TinyLog
@@ -231,6 +237,7 @@ createTeamGroupConv ::
        FederatorAccess,
        GundeckAccess,
        Input Opts,
+       Input UTCTime,
        LegalHoldStore,
        TeamStore,
        P.TinyLog
@@ -284,7 +291,7 @@ createTeamGroupConv lusr zcon tinfo body = do
             ncUsers = checkedUsers,
             ncRole = newConvUsersRole body
           }
-  now <- liftIO getCurrentTime
+  now <- liftSem input
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) lusr (Just zcon) conv
   conversationCreated lusr conv
@@ -320,6 +327,7 @@ createOne2OneConversation ::
        Error TeamError,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        TeamStore,
        P.TinyLog
      ]
@@ -378,6 +386,7 @@ createLegacyOne2OneConversationUnchecked ::
        Error InvalidInput,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        P.TinyLog
      ]
     r =>
@@ -405,6 +414,7 @@ createOne2OneConversationUnchecked ::
        Error InternalError,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        P.TinyLog
      ]
     r =>
@@ -428,6 +438,7 @@ createOne2OneConversationLocally ::
        Error InternalError,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        P.TinyLog
      ]
     r =>
@@ -470,6 +481,7 @@ createConnectConversation ::
        Error InvalidInput,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        P.TinyLog
      ]
@@ -504,6 +516,7 @@ createLegacyConnectConversation ::
        Error InternalError,
        FederatorAccess,
        GundeckAccess,
+       Input UTCTime,
        MemberStore,
        P.TinyLog
      ]
@@ -521,7 +534,7 @@ createLegacyConnectConversation lusr conn lrecipient j = do
   where
     create x y n = do
       c <- liftSem $ E.createConnectConversation x y n
-      now <- liftIO getCurrentTime
+      now <- liftSem input
       let lcid = qualifyAs lusr (Data.convId c)
           e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing lusr conn c
@@ -563,7 +576,7 @@ createLegacyConnectConversation lusr conn lrecipient j = do
             E.setConversationName (Data.convId conv) x
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
-        t <- liftIO getCurrentTime
+        t <- liftSem input
         let e = Event ConvConnect (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           liftSem . E.push1 $
@@ -596,14 +609,14 @@ handleConversationResponse = \case
   Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation ::
-  Members '[Error InternalError, FederatorAccess, GundeckAccess, P.TinyLog] r =>
+  Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r =>
   Maybe UTCTime ->
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
   Galley r ()
 notifyCreatedConversation dtime lusr conn c = do
-  now <- maybe (liftIO getCurrentTime) pure dtime
+  now <- maybe (liftSem input) pure dtime
   -- FUTUREWORK: Handle failures in notifying so it does not abort half way
   -- through (either when notifying remotes or locals)
   --
