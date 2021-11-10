@@ -35,7 +35,6 @@ import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Aws as Aws
 import Galley.Effects.TeamStore
 import qualified Galley.Options as Opts
 import Galley.Types.Teams
@@ -53,7 +52,7 @@ import System.Logger (field, msg, val)
 -- is started without journaling arguments
 
 teamActivate ::
-  Members '[Input (Maybe Aws.Env), Input Opts.Opts, TeamStore, P.TinyLog] r =>
+  Members '[Input Opts.Opts, TeamStore, P.TinyLog] r =>
   TeamId ->
   Natural ->
   Maybe Currency.Alpha ->
@@ -64,7 +63,7 @@ teamActivate tid teamSize cur time = do
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
 teamUpdate ::
-  Member (Input (Maybe Aws.Env)) r =>
+  Member TeamStore r =>
   TeamId ->
   Natural ->
   [UserId] ->
@@ -73,36 +72,34 @@ teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete ::
-  Member (Input (Maybe Aws.Env)) r =>
+  Member TeamStore r =>
   TeamId ->
   Galley r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
-  Member (Input (Maybe Aws.Env)) r =>
+  Member TeamStore r =>
   TeamId ->
   Galley r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
-  Member (Input (Maybe Aws.Env)) r =>
+  Member TeamStore r =>
   TeamEvent'EventType ->
   TeamId ->
   Maybe TeamEvent'EventData ->
   Maybe TeamCreationTime ->
   Galley r ()
 journalEvent typ tid dat tim = do
-  mEnv <- liftSem input
-  for_ mEnv $ \e -> do
-    -- writetime is in microseconds in cassandra 3.11
-    ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
-    let ev =
-          defMessage
-            & T.eventType .~ typ
-            & T.teamId .~ toBytes tid
-            & T.utcTime .~ ts
-            & T.maybe'eventData .~ dat
-    Aws.execute e (Aws.enqueue ev)
+  -- writetime is in microseconds in cassandra 3.11
+  ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
+  let ev =
+        defMessage
+          & T.eventType .~ typ
+          & T.teamId .~ toBytes tid
+          & T.utcTime .~ ts
+          & T.maybe'eventData .~ dat
+  liftSem $ enqueueTeamEvent ev
 
 ----------------------------------------------------------------------------
 -- utils

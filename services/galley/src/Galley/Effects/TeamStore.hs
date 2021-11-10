@@ -67,6 +67,9 @@ module Galley.Effects.TeamStore
     -- * Configuration
     fanoutLimit,
     getLegalHoldFlag,
+
+    -- * Events
+    enqueueTeamEvent,
   )
 where
 
@@ -78,6 +81,7 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
 import Polysemy
+import qualified Proto.TeamEvents as E
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()
@@ -113,6 +117,7 @@ data TeamStore m a where
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
   FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
   GetLegalHoldFlag :: TeamStore m FeatureLegalHold
+  EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 
 makeSem ''TeamStore
 

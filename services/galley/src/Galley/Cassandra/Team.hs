@@ -36,6 +36,7 @@ import qualified Data.Map.Strict as Map
 import Data.Range
 import qualified Data.Set as Set
 import Data.UUID.V4 (nextRandom)
+import qualified Galley.Aws as Aws
 import qualified Galley.Cassandra.Conversation as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Paging
@@ -95,6 +96,10 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
   GetLegalHoldFlag ->
     view (options . optSettings . setFeatureFlags . flagLegalHold) <$> P.ask
+  EnqueueTeamEvent e -> do
+    menv <- P.asks (view aEnv)
+    for_ menv $ \env ->
+      embed $ Aws.execute env (Aws.enqueue e)
 
 interpretTeamListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>

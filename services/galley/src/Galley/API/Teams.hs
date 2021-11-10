@@ -85,7 +85,6 @@ import qualified Galley.API.Teams.Notifications as APITeamQueue
 import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Aws as Aws
 import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember)
@@ -291,7 +290,6 @@ updateTeamStatusH ::
        Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
-       Input (Maybe Aws.Env),
        Input Opts,
        TeamStore,
        P.TinyLog
@@ -310,7 +308,6 @@ updateTeamStatus ::
        Error ActionError,
        Error TeamError,
        Error NotATeamMember,
-       Input (Maybe Aws.Env),
        Input Opts,
        TeamStore,
        P.TinyLog
@@ -476,7 +473,6 @@ uncheckedDeleteTeam ::
     '[ BrigAccess,
        ExternalAccess,
        GundeckAccess,
-       Input (Maybe Aws.Env),
        Input Opts,
        LegalHoldStore,
        MemberStore,
@@ -881,7 +877,6 @@ uncheckedAddTeamMemberH ::
        Error NotATeamMember,
        GundeckAccess,
        Input (Local ()),
-       Input (Maybe Aws.Env),
        Input Opts,
        LegalHoldStore,
        MemberStore,
@@ -906,7 +901,6 @@ uncheckedAddTeamMember ::
        Error TeamError,
        Error NotATeamMember,
        Input (Local ()),
-       Input (Maybe Aws.Env),
        Input Opts,
        MemberStore,
        LegalHoldStore,
@@ -934,7 +928,6 @@ updateTeamMemberH ::
        Error InvalidInput,
        Error TeamError,
        Error NotATeamMember,
-       Input (Maybe Aws.Env),
        Input Opts,
        GundeckAccess,
        TeamStore,
@@ -957,7 +950,6 @@ updateTeamMember ::
        Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
-       Input (Maybe Aws.Env),
        Input Opts,
        TeamStore,
        P.TinyLog
@@ -1039,7 +1031,6 @@ deleteTeamMemberH ::
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
-       Input (Maybe Aws.Env),
        Input Opts,
        MemberStore,
        TeamStore,
@@ -1070,7 +1061,6 @@ deleteTeamMember ::
        Error TeamError,
        Error NotATeamMember,
        ExternalAccess,
-       Input (Maybe Aws.Env),
        Input Opts,
        GundeckAccess,
        MemberStore,
