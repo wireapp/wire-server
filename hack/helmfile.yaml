@@ -54,19 +54,19 @@ releases:
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: '{{ .Values.namespace }}-ingress-cont'
+  - name: '{{ .Values.namespace }}-ic'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: '{{ .Values.namespace }}-ingress-cont-2'
+  - name: '{{ .Values.namespace }}-ic-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: '{{ .Values.namespace }}-ingress-svc'
+  - name: '{{ .Values.namespace }}-is'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
@@ -79,7 +79,7 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
 
-  - name: '{{ .Values.namespace }}-ingress-svc-2'
+  - name: '{{ .Values.namespace }}-is-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:

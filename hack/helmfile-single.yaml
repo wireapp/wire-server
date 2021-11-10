@@ -32,13 +32,13 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: '{{ .Values.namespace }}-ingress-cont'
+  - name: '{{ .Values.namespace }}-ic'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: '{{ .Values.namespace }}-ingress-svc'
+  - name: '{{ .Values.namespace }}-is'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
