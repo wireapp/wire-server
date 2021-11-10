@@ -112,7 +112,14 @@ let
   compile-deps = pkgs.buildEnv {
     name = "wire-server-compile-deps";
     paths = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.gnused
+      pkgs.gnugrep
       pkgs.pkgconfig
+      pkgs.gawk
+
+      pkgs.haskell.compiler.ghc884
       pkgs.protobuf
 
       pkgs.cryptobox
@@ -143,11 +150,11 @@ let
   # for cabal, as setting it in direnv can interfere with programs in the host
   # system, especially for non-NixOS users.
   cabal-wrapper = pkgs.writeShellScriptBin "cabal" ''
-    export CPATH="${compile-deps}/include:$CPATH"
-    export LD_LIBRARY_PATH="${compile-deps}/lib:$LD_LIBRARY_PATH"
-    export LIBRARY_PATH="${compile-deps}/lib:$LIBRARY_PATH"
-    export PKG_CONFIG_PATH="${compile-deps}/lib/pkgconfig:$PKG_CONFIG_PATH"
-    export PATH="${compile-deps}/bin:$PATH"
+    export CPATH="${compile-deps}/include"
+    export LD_LIBRARY_PATH="${compile-deps}/lib"
+    export LIBRARY_PATH="${compile-deps}/lib"
+    export PKG_CONFIG_PATH="${compile-deps}/lib/pkgconfig"
+    export PATH="${compile-deps}/bin"
     exec "${pkgs.cabal-install}/bin/cabal" "$@"
   '';
 in pkgs.buildEnv {
@@ -175,7 +182,6 @@ in pkgs.buildEnv {
     pinned.kind
 
     # For cabal-migration
-    pkgs.haskell.compiler.ghc884
     pkgs.haskellPackages.cabal-plan
 
     # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
