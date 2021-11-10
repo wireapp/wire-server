@@ -29,12 +29,14 @@ dependencies:
 - metrics-wai
 - mtl
 - network
+- schema-profunctor
 - servant >=0.16
 - servant-client
 - servant-client-core
 - servant-server
 - sop-core
 - streaming-commons
+- swagger2
 - template-haskell
 - text >=0.11
 - time-manager

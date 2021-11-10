@@ -21,6 +21,7 @@ module Brig.API.Public
   ( sitemap,
     apiDocs,
     servantSitemap,
+    versionAPISitemap,
     swaggerDocsAPI,
     ServantAPI,
     SwaggerDocsAPI,
@@ -102,6 +103,7 @@ import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import qualified Wire.API.Routes.Public.Federation as VersionAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
@@ -129,7 +131,7 @@ type ServantAPI = BrigAPI.ServantAPI
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
+    swaggerCombined
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
       & S.security %~ nub
@@ -146,6 +148,14 @@ swaggerDocsAPI =
         . S._Inline
         %~ sanitise
   where
+    swaggerCombined =
+      mconcat
+        [ BrigAPI.swagger,
+          GalleyAPI.swaggerDoc,
+          LegalHoldAPI.swaggerDoc,
+          SparAPI.swaggerDoc,
+          VersionAPI.swaggerDoc
+        ]
     sanitise :: S.Schema -> S.Schema
     sanitise =
       (S.properties . traverse . S._Inline %~ sanitise)
@@ -284,6 +294,17 @@ servantSitemap =
         BrigAPI.updateConnection = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
+
+-- | The API for exposing a server-to-server API version. It comprises only one
+-- endpoint and it does not have its own package.
+versionAPISitemap :: Monad m => ServerT VersionAPI.ServantAPI m
+versionAPISitemap =
+  genericServerT $
+    VersionAPI.Api
+      { getAPIVersion = getVersion
+      }
+  where
+    getVersion = return $ VersionAPI.FederationVersionResponse @VersionAPI.FederationVersion
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

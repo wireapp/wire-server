@@ -27,7 +27,7 @@ import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
-import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
+import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI, versionAPISitemap)
 import qualified Brig.API.User as API
 import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
@@ -68,6 +68,8 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import qualified Wire.API.Federation.API.Brig as FederationBrig
+import qualified Wire.API.Routes.Public.Federation as VersionAPI
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -126,6 +128,8 @@ mkApp o = do
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
             :<|> Servant.hoistServer (Proxy @IAPI.API) (toServantHandler e) IAPI.servantSitemap
             :<|> Servant.hoistServer (Proxy @FederationAPI) (toServantHandler e) federationSitemap
+            :<|> Servant.hoistServer (genericApi (Proxy @FederationBrig.Api)) (toServantHandler e) federationSitemap
+            :<|> Servant.hoistServer (Proxy @VersionAPI.ServantAPI) (toServantHandler e) versionAPISitemap
             :<|> Servant.Tagged (app e)
         )
 
@@ -134,6 +138,8 @@ type ServantCombinedAPI =
       :<|> ServantAPI
       :<|> IAPI.API
       :<|> FederationAPI
+      :<|> ToServantApi FederationBrig.Api
+      :<|> VersionAPI.ServantAPI
       :<|> Servant.Raw
   )
 

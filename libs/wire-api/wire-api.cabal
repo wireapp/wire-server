@@ -57,6 +57,7 @@ library
       Wire.API.Routes.MultiVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
+      Wire.API.Routes.Public.Federation
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
