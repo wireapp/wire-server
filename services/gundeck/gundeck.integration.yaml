@@ -7,6 +7,7 @@ cassandra:
     host: 127.0.0.1
     port: 9042
   keyspace: gundeck_test
+  # filterNodesByDatacentre: datacenter1
 
 redis:
   host: 127.0.0.1

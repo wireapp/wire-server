@@ -88,6 +88,7 @@ substituteVar' var val = ST.intercalate val . ST.splitOn var
 
 type Opts = Opts' DerivedOpts
 
+-- FUTUREWORK: Shouldn't these types be in spar, not in wire-api?
 data Opts' a = Opts
   { saml :: !SAML.Config,
     brig :: !Endpoint,

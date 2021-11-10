@@ -231,6 +231,7 @@ initCassandra o l = do
     . C.setSendTimeout 3
     . C.setResponseTimeout 10
     . C.setProtocolVersion C.V4
+    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
     $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager
