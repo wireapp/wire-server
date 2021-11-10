@@ -32,10 +32,12 @@ dependencies:
 - mu-protobuf
 - mu-schema
 - mtl
+- schema-profunctor
 - servant >=0.16
 - servant-client
 - servant-client-core
 - sop-core
+- swagger2
 - template-haskell
 - text >=0.11
 - time >=1.8
