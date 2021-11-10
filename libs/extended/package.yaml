@@ -27,6 +27,7 @@ dependencies:
 # for servant's 'ReqBodyCustomError' type defined here.
 - errors
 - http-types
+- metrics-wai
 - servant
 - servant-server
 - servant-swagger
