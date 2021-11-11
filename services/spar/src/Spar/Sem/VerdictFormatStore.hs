@@ -10,4 +10,3 @@ data VerdictFormatStore m a where
   Get :: AReqId -> VerdictFormatStore m (Maybe VerdictFormat)
 
 makeSem ''VerdictFormatStore
-

@@ -9,9 +9,9 @@ import Polysemy.Input
 import SAML2.WebSSO (fromTime)
 import qualified Spar.Data as Data
 import Spar.Sem.AssIDStore
-import Wire.API.User.Saml (Opts, TTLError)
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
+import Wire.API.User.Saml (Opts, TTLError)
 
 assIDStoreToCassandra ::
   forall m r a.

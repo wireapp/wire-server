@@ -37,11 +37,11 @@ import Spar.Data as Data
 import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core

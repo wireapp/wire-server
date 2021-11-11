@@ -14,4 +14,3 @@ verdictFormatStoreToCassandra ::
 verdictFormatStoreToCassandra = interpret $ \case
   Store ndt itla vf -> embed @m $ Data.storeVerdictFormat ndt itla vf
   Get itla -> embed @m $ Data.getVerdictFormat itla
-
