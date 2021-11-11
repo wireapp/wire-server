@@ -88,7 +88,7 @@ onConversationCreated ::
   Galley r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
-  loc <- liftSem input
+  loc <- input
   let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
 
   addedUserIds <-
@@ -126,11 +126,10 @@ getConversations ::
   Galley r F.GetConversationsResponse
 getConversations domain (F.GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
-  loc <- liftSem input
-  liftSem $
-    F.GetConversationsResponse
-      . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
-      <$> E.getConversations cids
+  loc <- input
+  F.GetConversationsResponse
+    . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
+    <$> E.getConversations cids
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
@@ -151,7 +150,7 @@ onConversationUpdated ::
   F.ConversationUpdate ->
   Galley r ()
 onConversationUpdated requestingDomain cu = do
-  loc <- liftSem input
+  loc <- input
   let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
       qconvId = qUntagged rconvId
 
@@ -159,8 +158,7 @@ onConversationUpdated requestingDomain cu = do
   -- the conversation (from our point of view), to prevent spam from the remote
   -- backend. See also the comment below.
   (presentUsers, allUsersArePresent) <-
-    liftSem $
-      E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
+    E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
 
   -- Perform action, and determine extra notification targets.
   --
@@ -178,7 +176,7 @@ onConversationUpdated requestingDomain cu = do
       case allAddedUsers of
         [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
         (u : us) -> pure (Just $ ConversationActionAddMembers (u :| us) role, addedLocalUsers)
-    ConversationActionRemoveMembers toRemove -> liftSem $ do
+    ConversationActionRemoveMembers toRemove -> do
       let localUsers = getLocalUsers (tDomain loc) toRemove
       E.deleteMembersInRemoteConversation rconvId localUsers
       pure (Just $ F.cuAction cu, [])
@@ -187,11 +185,11 @@ onConversationUpdated requestingDomain cu = do
     ConversationActionMemberUpdate _ _ -> pure (Just $ F.cuAction cu, [])
     ConversationActionReceiptModeUpdate _ -> pure (Just $ F.cuAction cu, [])
     ConversationActionAccessUpdate _ -> pure (Just $ F.cuAction cu, [])
-    ConversationActionDelete -> liftSem $ do
+    ConversationActionDelete -> do
       E.deleteMembersInRemoteConversation rconvId presentUsers
       pure (Just $ F.cuAction cu, [])
 
-  liftSem . unless allUsersArePresent $
+  unless allUsersArePresent $
     P.warn $
       Log.field "conversation" (toByteString' (F.cuConvId cu))
         . Log.field "domain" (toByteString' requestingDomain)
@@ -216,7 +214,7 @@ addLocalUsersToRemoteConv ::
   [UserId] ->
   Galley r (Set UserId)
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
-  connStatus <- liftSem $ E.getConnections localUsers (Just [qAdder]) (Just Accepted)
+  connStatus <- E.getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
       connected = Set.fromList $ fmap csv2From connStatus
       unconnected = Set.difference localUserIdsSet connected
@@ -224,7 +222,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- FUTUREWORK: Consider handling the discrepancy between the views of the
   -- conversation-owning backend and the local backend
-  liftSem . unless (Set.null unconnected) $
+  unless (Set.null unconnected) $
     P.warn $
       Log.msg ("A remote user is trying to add unconnected local users to a remote conversation" :: Text)
         . Log.field "remote_user" (show qAdder)
@@ -232,7 +230,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  liftSem $ E.createMembersInRemoteConversation remoteConvId connectedList
+  E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
@@ -263,7 +261,7 @@ leaveConversation ::
   Galley r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (F.lcLeaver lc) requestingDomain
-  lcnv <- liftSem $ qualifyLocal (F.lcConvId lc)
+  lcnv <- qualifyLocal (F.lcConvId lc)
   fmap
     ( F.LeaveConversationResponse
         . maybe (Left RemoveFromConversationErrorUnchanged) Right
@@ -295,9 +293,8 @@ onMessageSent domain rmUnqualified = do
       recipientMap = userClientMap $ F.rmRecipients rm
       msgs = toMapOf (itraversed <.> itraversed) recipientMap
   (members, allMembers) <-
-    liftSem $
-      E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
-  liftSem . unless allMembers $
+    E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
+  unless allMembers $
     P.warn $
       Log.field "conversation" (toByteString' (qUnqualified convId))
         Log.~~ Log.field "domain" (toByteString' (qDomain convId))
@@ -353,10 +350,10 @@ sendMessage ::
 sendMessage originDomain msr = do
   let sender = Qualified (F.msrSender msr) originDomain
   msg <- either throwErr pure (fromProto (fromBase64ByteString (F.msrRawMessage msr)))
-  lcnv <- liftSem $ qualifyLocal (F.msrConvId msr)
+  lcnv <- qualifyLocal (F.msrConvId msr)
   F.MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing lcnv msg
   where
-    throwErr = liftSem . throw . InvalidPayload . LT.pack
+    throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
   Members
@@ -380,9 +377,9 @@ onUserDeleted origDomain udcn = do
 
   E.spawnMany $
     fromRange convIds <&> \c -> do
-      lc <- liftSem $ qualifyLocal c
-      mconv <- liftSem $ E.getConversation c
-      liftSem $ E.deleteMembers c (UserList [] [deletedUser])
+      lc <- qualifyLocal c
+      mconv <- E.getConversation c
+      E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
         when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $
           case Data.convType conv of

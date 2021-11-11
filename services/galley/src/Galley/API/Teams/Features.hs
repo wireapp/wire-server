@@ -108,7 +108,7 @@ getFeatureStatus ::
 getFeatureStatus getter doauth tid = do
   case doauth of
     DoAuth uid -> do
-      zusrMembership <- liftSem $ getTeamMember tid uid
+      zusrMembership <- getTeamMember tid uid
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
       assertTeamExists tid
@@ -134,7 +134,7 @@ setFeatureStatus ::
 setFeatureStatus setter doauth tid status = do
   case doauth of
     DoAuth uid -> do
-      zusrMembership <- liftSem $ getTeamMember tid uid
+      zusrMembership <- getTeamMember tid uid
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
       assertTeamExists tid
@@ -156,11 +156,11 @@ getFeatureConfig ::
   UserId ->
   Galley r (Public.TeamFeatureStatus a)
 getFeatureConfig getter zusr = do
-  mbTeam <- liftSem $ getOneUserTeam zusr
+  mbTeam <- getOneUserTeam zusr
   case mbTeam of
     Nothing -> getter (Left (Just zusr))
     Just tid -> do
-      zusrMembership <- liftSem $ getTeamMember tid zusr
+      zusrMembership <- getTeamMember tid zusr
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
       assertTeamExists tid
       getter (Right tid)
@@ -181,8 +181,8 @@ getAllFeatureConfigs ::
   UserId ->
   Galley r AllFeatureConfigs
 getAllFeatureConfigs zusr = do
-  mbTeam <- liftSem $ getOneUserTeam zusr
-  zusrMembership <- maybe (pure Nothing) (liftSem . (flip getTeamMember zusr)) mbTeam
+  mbTeam <- getOneUserTeam zusr
+  zusrMembership <- maybe (pure Nothing) ((flip getTeamMember zusr)) mbTeam
   let getStatus ::
         forall (a :: Public.TeamFeatureName) r.
         ( Public.KnownTeamFeatureName a,
@@ -285,7 +285,7 @@ getFeatureStatusNoConfig ::
   Galley r (Public.TeamFeatureStatus a)
 getFeatureStatusNoConfig getDefault tid = do
   defaultStatus <- Public.TeamFeatureStatusNoConfig <$> getDefault
-  liftSem $ fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @a tid
+  fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @a tid
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) r.
@@ -300,7 +300,7 @@ setFeatureStatusNoConfig ::
   Galley r (Public.TeamFeatureStatus a)
 setFeatureStatusNoConfig applyState tid status = do
   applyState (Public.tfwoStatus status) tid
-  newStatus <- liftSem $ TeamFeatures.setFeatureStatusNoConfig @a tid status
+  newStatus <- TeamFeatures.setFeatureStatusNoConfig @a tid status
   pushFeatureConfigEvent tid $
     Event.Event Event.Update (Public.knownTeamFeatureName @a) (EdFeatureWithoutConfigChanged newStatus)
   pure newStatus
@@ -320,7 +320,7 @@ getSSOStatusInternal =
   where
     getDef :: Member (Input Opts) r => Galley r Public.TeamFeatureStatusValue
     getDef =
-      liftSem (inputs (view (optSettings . setFeatureFlags . flagSSO))) <&> \case
+      inputs (view (optSettings . setFeatureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> Public.TeamFeatureEnabled
         FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
 
@@ -330,7 +330,7 @@ setSSOStatusInternal ::
   (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
-  Public.TeamFeatureDisabled -> const (liftSem (throw DisableSsoNotImplemented))
+  Public.TeamFeatureDisabled -> const (throw DisableSsoNotImplemented)
   Public.TeamFeatureEnabled -> const (pure ())
 
 getTeamSearchVisibilityAvailableInternal ::
@@ -343,7 +343,7 @@ getTeamSearchVisibilityAvailableInternal =
     (getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility getDef)
   where
     getDef = do
-      liftSem (inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility))) <&> \case
+      inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
         FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
@@ -353,7 +353,7 @@ setTeamSearchVisibilityAvailableInternal ::
   (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
-  Public.TeamFeatureDisabled -> liftSem . SearchVisibilityData.resetSearchVisibility
+  Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
   Public.TeamFeatureEnabled -> const (pure ())
 
 getValidateSAMLEmailsInternal ::
@@ -450,8 +450,8 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
     -- this extra do is to encapsulate the assertions running before the actual operation.
     -- enabeling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
-    featureLegalHold <- liftSem getLegalHoldFlag
-    liftSem $ case featureLegalHold of
+    featureLegalHold <- getLegalHoldFlag
+    case featureLegalHold of
       FeatureLegalHoldDisabledByDefault -> do
         pure ()
       FeatureLegalHoldDisabledPermanently -> do
@@ -464,7 +464,7 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
     Public.TeamFeatureDisabled -> removeSettings' tid
     Public.TeamFeatureEnabled -> do
       ensureNotTooLargeToActivateLegalHold tid
-  liftSem $ TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
+  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
 
 getFileSharingInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
@@ -485,8 +485,8 @@ getFeatureStatusWithDefaultConfig ::
   Galley r (Public.TeamFeatureStatus a)
 getFeatureStatusWithDefaultConfig lens' =
   maybe
-    (liftSem (Public.TeamFeatureStatusNoConfig <$> getDef))
-    (getFeatureStatusNoConfig @a (liftSem getDef))
+    (Public.TeamFeatureStatusNoConfig <$> getDef)
+    (getFeatureStatusNoConfig @a getDef)
   where
     getDef :: Member (Input Opts) r => Sem r Public.TeamFeatureStatusValue
     getDef =
@@ -505,10 +505,9 @@ getAppLockInternal ::
   GetFeatureInternalParam ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal mbtid = do
-  Defaults defaultStatus <- liftSem $ inputs (view (optSettings . setFeatureFlags . flagAppLockDefaults))
+  Defaults defaultStatus <- inputs (view (optSettings . setFeatureFlags . flagAppLockDefaults))
   status <-
-    liftSem $
-      join <$> (TeamFeatures.getApplockFeatureStatus `mapM` either (const Nothing) Just mbtid)
+    join <$> (TeamFeatures.getApplockFeatureStatus `mapM` either (const Nothing) Just mbtid)
   pure $ fromMaybe defaultStatus status
 
 setAppLockInternal ::
@@ -518,18 +517,18 @@ setAppLockInternal ::
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
-    liftSem $ throw AppLockinactivityTimeoutTooLow
+    throw AppLockinactivityTimeoutTooLow
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureAppLock (EdFeatureApplockChanged status)
-  (liftSem $ TeamFeatures.setApplockFeatureStatus tid status) <* pushEvent
+  (TeamFeatures.setApplockFeatureStatus tid status) <* pushEvent
 
 getClassifiedDomainsInternal ::
   Member (Input Opts) r =>
   GetFeatureInternalParam ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
 getClassifiedDomainsInternal _mbtid = do
-  globalConfig <- liftSem $ inputs (view (optSettings . setFeatureFlags . flagClassifiedDomains))
+  globalConfig <- inputs (view (optSettings . setFeatureFlags . flagClassifiedDomains))
   let config = globalConfig
   pure $ case Public.tfwcStatus config of
     Public.TeamFeatureDisabled ->
@@ -562,9 +561,8 @@ getSelfDeletingMessagesInternal ::
 getSelfDeletingMessagesInternal = \case
   Left _ -> pure Public.defaultSelfDeletingMessagesStatus
   Right tid ->
-    liftSem $
-      TeamFeatures.getSelfDeletingMessagesStatus tid
-        <&> maybe Public.defaultSelfDeletingMessagesStatus id
+    TeamFeatures.getSelfDeletingMessagesStatus tid
+      <&> maybe Public.defaultSelfDeletingMessagesStatus id
 
 setSelfDeletingMessagesInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
@@ -575,7 +573,7 @@ setSelfDeletingMessagesInternal tid st = do
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
-  (liftSem $ TeamFeatures.setSelfDeletingMessagesStatus tid st) <* pushEvent
+  (TeamFeatures.setSelfDeletingMessagesStatus tid st) <* pushEvent
 
 pushFeatureConfigEvent ::
   Members '[GundeckAccess, TeamStore, P.TinyLog] r =>
@@ -585,7 +583,7 @@ pushFeatureConfigEvent ::
 pushFeatureConfigEvent tid event = do
   memList <- getTeamMembersForFanout tid
   when ((memList ^. teamMemberListType) == ListTruncated) $ do
-    liftSem . P.warn $
+    P.warn $
       Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
         . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
         . Log.field "team" (Log.val (cs . show $ tid))
@@ -593,7 +591,7 @@ pushFeatureConfigEvent tid event = do
   let recipients = membersToRecipients Nothing (memList ^. teamMembers)
   for_
     (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
-    (liftSem . push1)
+    (push1)
 
 -- | (Currently, we only have 'Public.TeamFeatureConferenceCalling' here, but we may have to
 -- extend this in the future.)
@@ -603,4 +601,4 @@ getFeatureConfigViaAccount ::
   ) =>
   UserId ->
   Galley r (Public.TeamFeatureStatus flag)
-getFeatureConfigViaAccount = liftSem . getAccountFeatureConfigClient
+getFeatureConfigViaAccount = getAccountFeatureConfigClient

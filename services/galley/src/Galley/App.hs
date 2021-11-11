@@ -36,7 +36,6 @@ module Galley.App
     extGetManager,
 
     -- * Galley monad
-    liftSem,
     Galley,
     GalleyEffects,
     runGalley,
@@ -274,6 +273,3 @@ evalGalley e action = do
     $ action
   where
     lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
-
-liftSem :: Sem r a -> Galley r a
-liftSem = id

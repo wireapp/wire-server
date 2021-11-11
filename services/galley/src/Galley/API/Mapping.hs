@@ -53,7 +53,7 @@ conversationView ::
   Galley r Conversation
 conversationView luid conv = do
   let mbConv = conversationViewMaybe luid conv
-  maybe (liftSem memberNotFound) pure mbConv
+  maybe memberNotFound pure mbConv
   where
     memberNotFound = do
       P.err . msg $

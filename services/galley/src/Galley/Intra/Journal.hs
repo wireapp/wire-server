@@ -99,7 +99,7 @@ journalEvent ::
   Galley r ()
 journalEvent typ tid dat tim = do
   -- writetime is in microseconds in cassandra 3.11
-  now <- liftSem $ round . utcTimeToPOSIXSeconds <$> input
+  now <- round . utcTimeToPOSIXSeconds <$> input
   let ts = maybe now ((`div` 1000000) . view tcTime) tim
       ev =
         defMessage
@@ -107,7 +107,7 @@ journalEvent typ tid dat tim = do
           & T.teamId .~ toBytes tid
           & T.utcTime .~ ts
           & T.maybe'eventData .~ dat
-  liftSem $ enqueueTeamEvent ev
+  enqueueTeamEvent ev
 
 ----------------------------------------------------------------------------
 -- utils
@@ -128,7 +128,7 @@ getBillingUserIds ::
   Maybe TeamMemberList ->
   Galley r [UserId]
 getBillingUserIds tid maybeMemberList = do
-  opts <- liftSem input
+  opts <- input
   let enableIndexedBillingTeamMembers =
         view
           ( Opts.optSettings
@@ -139,7 +139,7 @@ getBillingUserIds tid maybeMemberList = do
   case maybeMemberList of
     Nothing ->
       if enableIndexedBillingTeamMembers
-        then liftSem $ fetchFromDB
+        then fetchFromDB
         else do
           mems <- getTeamMembersForFanout tid
           handleList enableIndexedBillingTeamMembers mems
@@ -157,9 +157,9 @@ getBillingUserIds tid maybeMemberList = do
       case list ^. teamMemberListType of
         ListTruncated ->
           if enableIndexedBillingTeamMembers
-            then liftSem fetchFromDB
+            then fetchFromDB
             else do
-              liftSem . P.warn $
+              P.warn $
                 field "team" (toByteString tid)
                   . msg (val "TeamMemberList is incomplete, you may not see all the admin users in team. Please enable the indexedBillingTeamMembers feature.")
               filterFromMembers list

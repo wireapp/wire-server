@@ -528,12 +528,12 @@ rmUser ::
   Galley r ()
 rmUser lusr conn = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  tids <- liftSem $ listTeams (tUnqualified lusr) Nothing maxBound
+  tids <- listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
 
-  liftSem $ deleteClients (tUnqualified lusr)
+  deleteClients (tUnqualified lusr)
   where
     goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
     goConvPages range page = do
@@ -549,21 +549,21 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       mems <- getTeamMembersForFanout tid
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
-      page' <- liftSem $ listTeams (tUnqualified lusr) (Just (pageState page)) maxBound
+      page' <- listTeams (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
     leaveLocalConversations ids = do
       let qUser = qUntagged lusr
-      cc <- liftSem $ getConversations ids
-      now <- liftSem input
+      cc <- getConversations ids
+      now <- input
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-            liftSem $ deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+            deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event
                     MemberLeave
@@ -580,7 +580,7 @@ rmUser lusr conn = do
 
       for_
         (maybeList1 (catMaybes pp))
-        (liftSem . push)
+        (push)
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could
@@ -597,7 +597,7 @@ rmUser lusr conn = do
                 cuAction = ConversationActionRemoveMembers (pure qUser)
               }
       let rpc = FedGalley.onConversationUpdated FedGalley.clientRoutes (tDomain lusr) convUpdate
-      liftSem (runFederatedEither remotes rpc)
+      runFederatedEither remotes rpc
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
     leaveRemoteConversations :: Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
@@ -605,7 +605,7 @@ rmUser lusr conn = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete
-        liftSem (runFederatedEither remoteConvs rpc)
+        runFederatedEither remoteConvs rpc
           >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
@@ -614,16 +614,15 @@ rmUser lusr conn = do
     logAndIgnoreError message usr res = do
       case res of
         Left federationError ->
-          liftSem $
-            P.err
-              ( Log.msg
-                  ( "Federation error while notifying remote backends of a user deletion (Galley). "
-                      <> message
-                      <> " "
-                      <> (cs . show $ federationError)
-                  )
-                  . Log.field "user" (show usr)
-              )
+          P.err
+            ( Log.msg
+                ( "Federation error while notifying remote backends of a user deletion (Galley). "
+                    <> message
+                    <> " "
+                    <> (cs . show $ federationError)
+                )
+                . Log.field "user" (show usr)
+            )
         Right _ -> pure ()
 
 deleteLoop :: App ()
@@ -643,7 +642,7 @@ deleteLoop = do
       liftIO $ threadDelay 1000000
 
     doDelete usr con tid = do
-      lusr <- liftSem $ qualifyLocal usr
+      lusr <- qualifyLocal usr
       Teams.uncheckedDeleteTeam lusr con tid
 
 safeForever :: String -> App () -> App ()
@@ -667,7 +666,7 @@ guardLegalholdPolicyConflictsH ::
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
   Galley r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
-  glh <- liftSem $ fromJsonBody req
-  liftSem . mapError (const MissingLegalholdConsent) $
+  glh <- fromJsonBody req
+  mapError (const MissingLegalholdConsent) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
   pure $ Network.Wai.Utilities.setStatus status200 empty

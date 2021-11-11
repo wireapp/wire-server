@@ -188,9 +188,8 @@ getRemoteClients ::
   Galley r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
-  liftSem $
-    mconcat . map tUnqualified
-      <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
+  mconcat . map tUnqualified
+    <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
   where
     getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
@@ -210,7 +209,7 @@ postRemoteOtrMessage sender conv rawMsg = do
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
-  liftSem $ FederatedGalley.msResponse <$> runFederated conv rpc
+  FederatedGalley.msResponse <$> runFederated conv rpc
 
 postQualifiedOtrMessage ::
   Members
@@ -236,20 +235,20 @@ postQualifiedOtrMessage ::
   QualifiedNewOtrMessage ->
   Galley r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
-  alive <- lift . liftSem $ isConversationAlive (tUnqualified lcnv)
+  alive <- lift $ isConversationAlive (tUnqualified lcnv)
   let localDomain = tDomain lcnv
-  now <- lift . liftSem $ input
+  now <- lift $ input
   let nowMillis = toUTCTimeMillis now
   let senderDomain = qDomain sender
       senderUser = qUnqualified sender
   let senderClient = qualifiedNewOtrSender msg
   unless alive $ do
-    lift . liftSem $ deleteConversation (tUnqualified lcnv)
+    lift $ deleteConversation (tUnqualified lcnv)
     throwError MessageNotSentConversationNotFound
 
   -- conversation members
-  localMembers <- lift . liftSem $ getLocalMembers (tUnqualified lcnv)
-  remoteMembers <- lift . liftSem $ getRemoteMembers (tUnqualified lcnv)
+  localMembers <- lift $ getLocalMembers (tUnqualified lcnv)
+  remoteMembers <- lift $ getRemoteMembers (tUnqualified lcnv)
 
   let localMemberIds = lmId <$> localMembers
       localMemberMap :: Map UserId LocalMember
@@ -258,7 +257,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
       members =
         Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
           <> Set.fromList (map (qUntagged . rmId) remoteMembers)
-  isInternal <- lift . liftSem $ view (optSettings . setIntraListing) <$> input
+  isInternal <- lift $ view (optSettings . setIntraListing) <$> input
 
   -- check if the sender is part of the conversation
   unless (Set.member sender members) $
@@ -266,7 +265,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
 
   -- get local clients
   localClients <-
-    lift . liftSem $
+    lift $
       if isInternal
         then Clients.fromUserClients <$> lookupClients localMemberIds
         else getClients localMemberIds
@@ -302,7 +301,6 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
         clientMissingErr = pure $ MessageNotSentClientMissing otrResult
     e <-
       lift
-        . liftSem
         . runLocalInput lcnv
         . eitherM (const legalholdErr) (const clientMissingErr)
         . runError
@@ -345,7 +343,7 @@ sendMessages now sender senderClient mconn lcnv localMemberMap metadata messages
         foldQualified
           lcnv
           (\_ -> sendLocalMessages now sender senderClient mconn (qUntagged lcnv) localMemberMap metadata)
-          (\r -> liftSem . sendRemoteMessages r now sender senderClient lcnv metadata)
+          (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
 
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
@@ -368,7 +366,7 @@ sendLocalMessages ::
   Map (UserId, ClientId) Text ->
   Galley r (Set (UserId, ClientId))
 sendLocalMessages now sender senderClient mconn qcnv localMemberMap metadata localMessages = do
-  loc <- liftSem input
+  loc <- input
   let events =
         localMessages & reindexed snd itraversed
           %@~ newMessageEvent
@@ -459,7 +457,7 @@ runMessagePush ::
   Qualified ConvId ->
   MessagePush ->
   Galley r ()
-runMessagePush qcnv mp = liftSem $ do
+runMessagePush qcnv mp = do
   push (userPushes mp)
   pushToBots (botPushes mp)
   where

@@ -63,8 +63,8 @@ getTeamNotifications ::
   Range 1 10000 Int32 ->
   Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid <- liftSem . (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
-  page <- liftSem $ E.getTeamNotifications tid since size
+  tid <- (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
+  page <- E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
       (toList (DataTeamQueue.resultSeq page))
@@ -73,5 +73,5 @@ getTeamNotifications zusr since size = do
 
 pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Galley r ()
 pushTeamEvent tid evt = do
-  nid <- liftSem E.mkNotificationId
-  liftSem $ E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)
+  nid <- E.mkNotificationId
+  E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)

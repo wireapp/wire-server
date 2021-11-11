@@ -45,19 +45,18 @@ getClients ::
   UserId ->
   Galley r [ClientId]
 getClients usr = do
-  isInternal <- liftSem E.useIntraClientListing
+  isInternal <- E.useIntraClientListing
   clts <-
-    liftSem $
-      if isInternal
-        then fromUserClients <$> E.lookupClients [usr]
-        else E.getClients [usr]
+    if isInternal
+      then fromUserClients <$> E.lookupClients [usr]
+      else E.getClients [usr]
   return $ clientIds usr clts
 
 addClientH ::
   Member ClientStore r =>
   UserId ::: ClientId ->
   Galley r Response
-addClientH (usr ::: clt) = liftSem $ do
+addClientH (usr ::: clt) = do
   E.createClient usr clt
   return empty
 
@@ -65,6 +64,6 @@ rmClientH ::
   Member ClientStore r =>
   UserId ::: ClientId ->
   Galley r Response
-rmClientH (usr ::: clt) = liftSem $ do
+rmClientH (usr ::: clt) = do
   E.deleteClient usr clt
   return empty

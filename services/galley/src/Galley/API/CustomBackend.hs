@@ -56,7 +56,6 @@ getCustomBackendByDomain ::
   Domain ->
   Galley r Public.CustomBackend
 getCustomBackendByDomain domain =
-  liftSem $
     getCustomBackend domain >>= \case
       Nothing -> throw (CustomBackendNotFound domain)
       Just customBackend -> pure customBackend
@@ -68,12 +67,12 @@ internalPutCustomBackendByDomainH ::
   Domain ::: JsonRequest CustomBackend ->
   Galley r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do
-  customBackend <- liftSem $ fromJsonBody req
+  customBackend <- fromJsonBody req
   -- simple enough to not need a separate function
-  liftSem $ setCustomBackend domain customBackend
+  setCustomBackend domain customBackend
   pure (empty & setStatus status201)
 
 internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Galley r Response
 internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  liftSem $ deleteCustomBackend domain
+  deleteCustomBackend domain
   pure (empty & setStatus status200)

@@ -77,7 +77,7 @@ ensureAccessRole ::
   AccessRole ->
   [(UserId, Maybe TeamMember)] ->
   Galley r ()
-ensureAccessRole role users = liftSem $ case role of
+ensureAccessRole role users = case role of
   PrivateAccessRole -> throw ConvAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
@@ -100,9 +100,9 @@ ensureConnectedOrSameTeam ::
   Galley r ()
 ensureConnectedOrSameTeam _ [] = pure ()
 ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
-  uTeams <- liftSem $ getUserTeams u
+  uTeams <- getUserTeams u
   -- We collect all the relevant uids from same teams as the origin user
-  sameTeamUids <- liftSem . forM uTeams $ \team ->
+  sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u (uids \\ join sameTeamUids)
@@ -127,7 +127,7 @@ ensureConnectedToLocals ::
   [UserId] ->
   Galley r ()
 ensureConnectedToLocals _ [] = pure ()
-ensureConnectedToLocals u uids = liftSem $ do
+ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
     getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
@@ -139,7 +139,7 @@ ensureConnectedToRemotes ::
   [Remote UserId] ->
   Galley r ()
 ensureConnectedToRemotes _ [] = pure ()
-ensureConnectedToRemotes u remotes = liftSem $ do
+ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
     throw NotConnected
@@ -153,7 +153,7 @@ ensureReAuthorised ::
   UserId ->
   Maybe PlainTextPassword ->
   Galley r ()
-ensureReAuthorised u secret = liftSem $ do
+ensureReAuthorised u secret = do
   reAuthed <- reauthUser u (ReAuthUser secret)
   unless reAuthed $
     throw ReAuthFailed
@@ -166,7 +166,7 @@ ensureActionAllowed ::
   Action ->
   mem ->
   Galley r ()
-ensureActionAllowed action self = liftSem $ case isActionAllowed action (convMemberRole self) of
+ensureActionAllowed action self = case isActionAllowed action (convMemberRole self) of
   Just True -> pure ()
   Just False -> throw (ActionDenied action)
   -- Actually, this will "never" happen due to the
@@ -187,7 +187,7 @@ ensureConvRoleNotElevated ::
   mem ->
   RoleName ->
   Galley r ()
-ensureConvRoleNotElevated origMember targetRole = liftSem $ do
+ensureConvRoleNotElevated origMember targetRole = do
   case (roleNameToActions targetRole, roleNameToActions (convMemberRole origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
@@ -204,7 +204,7 @@ permissionCheck ::
   Maybe TeamMember ->
   Galley r TeamMember
 permissionCheck p =
-  liftSem . \case
+  \case
     Just m -> do
       if m `hasPermission` p
         then pure m
@@ -212,7 +212,7 @@ permissionCheck p =
     Nothing -> throwED @NotATeamMember
 
 assertTeamExists :: Members '[Error TeamError, TeamStore] r => TeamId -> Galley r ()
-assertTeamExists tid = liftSem $ do
+assertTeamExists tid = do
   teamExists <- isJust <$> getTeam tid
   if teamExists
     then pure ()
@@ -220,10 +220,9 @@ assertTeamExists tid = liftSem $ do
 
 assertOnTeam :: Members '[Error NotATeamMember, TeamStore] r => UserId -> TeamId -> Galley r ()
 assertOnTeam uid tid =
-  liftSem $
-    getTeamMember tid uid >>= \case
-      Nothing -> throwED @NotATeamMember
-      Just _ -> return ()
+  getTeamMember tid uid >>= \case
+    Nothing -> throwED @NotATeamMember
+    Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
@@ -241,11 +240,11 @@ permissionCheckTeamConv ::
   Perm ->
   Galley r ()
 permissionCheckTeamConv zusr cnv perm =
-  liftSem (getConversation cnv) >>= \case
+  getConversation cnv >>= \case
     Just cnv' -> case Data.convTeam cnv' of
-      Just tid -> void $ permissionCheck perm =<< liftSem (getTeamMember tid zusr)
+      Just tid -> void $ permissionCheck perm =<< getTeamMember tid zusr
       Nothing -> pure ()
-    Nothing -> liftSem $ throw ConvNotFound
+    Nothing -> throw ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
@@ -270,23 +269,23 @@ acceptOne2One lusr conv conn = do
       if tUnqualified lusr `isMember` mems
         then return conv
         else do
-          mm <- liftSem $ createMember lcid lusr
+          mm <- createMember lcid lusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
-      [_, _] | tUnqualified lusr `isMember` mems -> liftSem promote
-      [_, _] -> liftSem $ throw ConvNotFound
+      [_, _] | tUnqualified lusr `isMember` mems -> promote
+      [_, _] -> throw ConvNotFound
       _ -> do
         when (length mems > 2) $
-          liftSem . throw . BadConvState $ cid
-        now <- liftSem input
-        mm <- liftSem $ createMember lcid lusr
+          throw . BadConvState $ cid
+        now <- input
+        mm <- createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
-        conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then liftSem promote else pure conv
+        conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mems')) $ \p ->
-          liftSem $ push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
-    x -> liftSem . throw . InvalidOp $ x
+    x -> throw . InvalidOp $ x
   where
     cid = Data.convId conv
     mems = Data.convLocalMembers conv
@@ -458,7 +457,7 @@ getSelfMemberFromLocals ::
   t LocalMember ->
   Galley r LocalMember
 getSelfMemberFromLocals usr lmems =
-  liftSem $ getMember lmId ConvNotFound usr lmems
+  getMember lmId ConvNotFound usr lmems
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
@@ -479,7 +478,7 @@ getSelfMemberFromRemotes ::
   t RemoteMember ->
   Galley r RemoteMember
 getSelfMemberFromRemotes usr rmems =
-  liftSem $ getMember rmId ConvNotFound usr rmems
+  getMember rmId ConvNotFound usr rmems
 
 getQualifiedMember ::
   Member (Error e) r =>
@@ -528,11 +527,11 @@ getConversationAndMemberWithError ::
   Local ConvId ->
   Galley r (Data.Conversation, mem)
 getConversationAndMemberWithError ex usr lcnv = do
-  c <- liftSem $ getConversation (tUnqualified lcnv) >>= note ConvNotFound
-  liftSem . when (DataTypes.isConvDeleted c) $ do
+  c <- getConversation (tUnqualified lcnv) >>= note ConvNotFound
+  when (DataTypes.isConvDeleted c) $ do
     deleteConversation (tUnqualified lcnv)
     throw ConvNotFound
-  member <- liftSem . note ex $ getConvMember lcnv c usr
+  member <- note ex $ getConvMember lcnv c usr
   pure (c, member)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
@@ -562,8 +561,8 @@ pushConversationEvent ::
   Galley r ()
 pushConversationEvent conn e lusers bots = do
   for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
-    liftSem $ push1 $ p & set pushConn conn
-  liftSem $ deliverAsync (toList bots `zip` repeat e)
+    push1 $ p & set pushConn conn
+  deliverAsync (toList bots `zip` repeat e)
 
 verifyReusableCode ::
   Members '[CodeStore, Error CodeError] r =>
@@ -571,11 +570,10 @@ verifyReusableCode ::
   Galley r DataTypes.Code
 verifyReusableCode convCode = do
   c <-
-    liftSem $
-      getCode (conversationKey convCode) DataTypes.ReusableCode
-        >>= note CodeNotFound
+    getCode (conversationKey convCode) DataTypes.ReusableCode
+      >>= note CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    liftSem $ throw CodeNotFound
+    throw CodeNotFound
   return c
 
 ensureConversationAccess ::
@@ -595,12 +593,10 @@ ensureConversationAccess ::
   Galley r Data.Conversation
 ensureConversationAccess zusr cnv access = do
   conv <-
-    liftSem $
-      getConversation cnv >>= note ConvNotFound
-  liftSem $ ensureAccess conv access
+    getConversation cnv >>= note ConvNotFound
+  ensureAccess conv access
   zusrMembership <-
-    liftSem $
-      maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
+    maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   pure conv
 
@@ -737,7 +733,7 @@ registerRemoteConversationMemberships ::
   Domain ->
   Data.Conversation ->
   Galley r ()
-registerRemoteConversationMemberships now localDomain c = liftSem $ do
+registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->
@@ -782,7 +778,7 @@ getLHStatus teamOfUser other = do
   case teamOfUser of
     Nothing -> pure defUserLegalHoldStatus
     Just team -> do
-      mMember <- liftSem $ getTeamMember team other
+      mMember <- getTeamMember team other
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 anyLegalholdActivated ::
@@ -790,7 +786,7 @@ anyLegalholdActivated ::
   [UserId] ->
   Galley r Bool
 anyLegalholdActivated uids = do
-  opts <- liftSem input
+  opts <- input
   case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
@@ -798,7 +794,7 @@ anyLegalholdActivated uids = do
   where
     check = do
       flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsOfUsers <- liftSem $ getUsersTeams uidsPage
+        teamsOfUsers <- getUsersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
 allLegalholdConsentGiven ::
@@ -806,20 +802,20 @@ allLegalholdConsentGiven ::
   [UserId] ->
   Galley r Bool
 allLegalholdConsentGiven uids = do
-  opts <- liftSem input
+  opts <- input
   case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsOfUsers <- liftSem $ getUsersTeams uidsPage
+        teamsOfUsers <- getUsersTeams uidsPage
         allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       -- For this feature the implementation is more efficient. Being part of
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- liftSem $ nub . Map.elems <$> getUsersTeams uidsPage
-        allM (liftSem . isTeamLegalholdWhitelisted) teamsPage
+        teamsPage <- nub . Map.elems <$> getUsersTeams uidsPage
+        allM (isTeamLegalholdWhitelisted) teamsPage
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
@@ -829,13 +825,13 @@ getLHStatusForUsers ::
 getLHStatusForUsers uids =
   mconcat
     <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
-            teamsOfUsers <- liftSem $ getUsersTeams uidsChunk
+            teamsOfUsers <- getUsersTeams uidsChunk
             for uidsChunk $ \uid -> do
               (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
         )
 
 getTeamMembersForFanout :: Member TeamStore r => TeamId -> Galley r TeamMemberList
-getTeamMembersForFanout tid = liftSem $ do
+getTeamMembersForFanout tid = do
   lim <- fanoutLimit
   getTeamMembersWithLimit tid lim
 
@@ -844,7 +840,7 @@ ensureMemberLimit ::
   [LocalMember] ->
   f a ->
   Galley r ()
-ensureMemberLimit old new = liftSem $ do
+ensureMemberLimit old new = do
   o <- input
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $

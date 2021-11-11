@@ -58,10 +58,10 @@ checkLegalHoldServiceStatus ::
   HttpsUrl ->
   Galley r ()
 checkLegalHoldServiceStatus fpr url = do
-  resp <- liftSem $ makeVerifiedRequestFreshManager fpr url reqBuilder
+  resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
   if
       | Bilge.statusCode resp < 400 -> pure ()
-      | otherwise -> liftSem $ do
+      | otherwise -> do
         P.info . Log.msg $ showResponse resp
         throw LegalHoldServiceBadResponse
   where
@@ -80,7 +80,7 @@ requestNewDevice ::
 requestNewDevice tid uid = do
   resp <- makeLegalHoldServiceRequest tid reqParams
   case eitherDecode (responseBody resp) of
-    Left e -> liftSem $ do
+    Left e -> do
       P.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
       throw LegalHoldServiceBadResponse
     Right client -> pure client
@@ -140,7 +140,7 @@ makeLegalHoldServiceRequest ::
   TeamId ->
   (Http.Request -> Http.Request) ->
   Galley r (Http.Response LC8.ByteString)
-makeLegalHoldServiceRequest tid reqBuilder = liftSem $ do
+makeLegalHoldServiceRequest tid reqBuilder = do
   maybeLHSettings <- LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
     Nothing -> throw LegalHoldServiceNotRegistered

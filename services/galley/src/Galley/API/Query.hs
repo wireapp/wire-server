@@ -83,7 +83,7 @@ getBotConversationH ::
   BotId ::: ConvId ::: JSON ->
   Galley r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
-  lcnv <- liftSem $ qualifyLocal zcnv
+  lcnv <- qualifyLocal zcnv
   json <$> getBotConversation zbot lcnv
 
 getBotConversation ::
@@ -137,7 +137,7 @@ getConversation lusr cnv = do
     getRemoteConversation :: Remote ConvId -> Galley r Public.Conversation
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations lusr [remoteConvId]
-      liftSem $ case conversations of
+      case conversations of
         [] -> throw ConvNotFound
         [conv] -> pure conv
         -- _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
@@ -158,7 +158,7 @@ getRemoteConversations ::
 getRemoteConversations lusr remoteConvs =
   getRemoteConversationsWithFailures lusr remoteConvs >>= \case
     -- throw first error
-    (failed : _, _) -> liftSem . throwFgcError $ failed
+    (failed : _, _) -> throwFgcError $ failed
     ([], result) -> pure result
 
 data FailedGetConversationReason
@@ -203,7 +203,7 @@ getRemoteConversationsWithFailures ::
   Galley r ([FailedGetConversation], [Public.Conversation])
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
-  statusMap <- liftSem $ E.getRemoteConversationStatus (tUnqualified lusr) convs
+  statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
   let remoteView :: Remote FederatedGalley.RemoteConversation -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
@@ -222,9 +222,8 @@ getRemoteConversationsWithFailures lusr convs = do
   -- request conversations from remote backends
   let rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes (tDomain lusr)
   resp <-
-    liftSem $
-      E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
-        rpc $ FederatedGalley.GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
+    E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
+      rpc $ FederatedGalley.GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
   bimap (localFailures <>) (map remoteView . concat)
     . partitionEithers
     <$> traverse handleFailure resp
@@ -233,7 +232,7 @@ getRemoteConversationsWithFailures lusr convs = do
       Members '[P.TinyLog] r =>
       Either (Remote [ConvId], FederationError) (Remote FederatedGalley.GetConversationsResponse) ->
       Galley r (Either FailedGetConversation [Remote FederatedGalley.RemoteConversation])
-    handleFailure (Left (rcids, e)) = liftSem $ do
+    handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
           . Logger.field "error" (show e)
@@ -257,7 +256,7 @@ conversationIdsPageFromUnqualified ::
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Galley r (Public.ConversationList ConvId)
-conversationIdsPageFromUnqualified lusr start msize = liftSem $ do
+conversationIdsPageFromUnqualified lusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $
@@ -283,7 +282,7 @@ conversationIdsPageFrom ::
   Galley r Public.ConvIdsPage
 conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
   let localDomain = tDomain lusr
-  liftSem $ case gmtprState of
+  case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
       remotesOnly (mkState <$> stateBS) gmtprSize
     _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
@@ -344,11 +343,11 @@ getConversationsInternal ::
   Maybe (Range 1 500 Int32) ->
   Galley r (Public.ConversationList Data.Conversation)
 getConversationsInternal luser mids mstart msize = do
-  (more, ids) <- liftSem $ getIds mids
+  (more, ids) <- getIds mids
   let localConvIds = ids
   cs <-
-    liftSem (E.getConversations localConvIds)
-      >>= filterM (liftSem . removeDeleted)
+    E.getConversations localConvIds
+      >>= filterM (removeDeleted)
       >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
   pure $ Public.ConversationList cs more
   where
@@ -385,11 +384,10 @@ listConversations ::
 listConversations luser (Public.ListConversations ids) = do
   let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <-
-    liftSem $
-      foundsAndNotFounds (E.selectConversations (tUnqualified luser)) localIds
+    foundsAndNotFounds (E.selectConversations (tUnqualified luser)) localIds
 
   localInternalConversations <-
-    liftSem (E.getConversations foundLocalIds)
+    E.getConversations foundLocalIds
       >>= filterM removeDeleted
       >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
   localConversations <- mapM (Mapping.conversationView luser) localInternalConversations
@@ -399,7 +397,7 @@ listConversations luser (Public.ListConversations ids) = do
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map qUntagged remoteIds
-  liftSem . unless (null remoteNotFoundRemoteIds) $
+  unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.
@@ -423,7 +421,7 @@ listConversations luser (Public.ListConversations ids) = do
       Data.Conversation ->
       Galley r Bool
     removeDeleted c
-      | Data.isConvDeleted c = liftSem $ E.deleteConversation (Data.convId c) >> pure False
+      | Data.isConvDeleted c = E.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
     foundsAndNotFounds :: (Monad m, Eq a) => ([a] -> m [a]) -> [a] -> m ([a], [a])
     foundsAndNotFounds f xs = do
@@ -455,7 +453,7 @@ internalGetMemberH ::
   ConvId ::: UserId ->
   Galley r Response
 internalGetMemberH (cnv ::: usr) = do
-  lusr <- liftSem $ qualifyLocal usr
+  lusr <- qualifyLocal usr
   json <$> getLocalSelf lusr cnv
 
 getLocalSelf ::
@@ -464,7 +462,7 @@ getLocalSelf ::
   ConvId ->
   Galley r (Maybe Public.Member)
 getLocalSelf lusr cnv = do
-  liftSem $ do
+  do
     alive <- E.isConversationAlive cnv
     if alive
       then Mapping.localMemberToSelf lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
@@ -483,7 +481,7 @@ getConversationMeta ::
   Member ConversationStore r =>
   ConvId ->
   Galley r (Maybe ConversationMetadata)
-getConversationMeta cnv = liftSem $ do
+getConversationMeta cnv = do
   alive <- E.isConversationAlive cnv
   if alive
     then E.getConversationMetadata cnv
