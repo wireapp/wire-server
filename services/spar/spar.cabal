@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 91130e99aab27d3b61a86e0fed80ba3bf3543ca6743802d6e6a442124f0e06cf
+-- hash: cccfd5a1a71446d33dadffc674c1667789b83f98134eff30b5aab70fdc9a4ba1
 
 name:           spar
 version:        0.1
@@ -502,6 +502,7 @@ test-suite spec
       Test.Spar.Intra.BrigSpec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
+      Test.Spar.Sem.IdPSpec
       Test.Spar.TypesSpec
       Paths_spar
   hs-source-dirs:
@@ -550,6 +551,7 @@ test-suite spec
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check
     , polysemy-plugin
     , raw-strings-qq
     , retry

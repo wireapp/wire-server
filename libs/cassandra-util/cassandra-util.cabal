@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a030e92940be80f5ff4f31e38dbbddc2d24567f1114953edf9924cf61f9c43f
+-- hash: 0e7f101562d82c7e04fbc1824f5bc9ef427915eacf3bd7370a2412a016a022be
 
 name:           cassandra-util
 version:        0.16.5
@@ -35,6 +35,7 @@ library
       aeson >=0.7
     , base >=4.6 && <5.0
     , conduit
+    , containers
     , cql >=3.0.0
     , cql-io >=0.14
     , cql-io-tinylog

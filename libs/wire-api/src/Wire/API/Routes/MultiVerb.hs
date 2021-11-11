@@ -47,6 +47,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Containers.ListUtils
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
 import qualified Data.Sequence as Seq
@@ -633,3 +634,6 @@ instance
       method = reflectMethod (Proxy @method)
 
   hoistClientMonad _ _ f = f
+
+instance RoutesToPaths (MultiVerb method cs as r) where
+  getRoutes = []

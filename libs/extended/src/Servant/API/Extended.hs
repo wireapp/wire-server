@@ -23,6 +23,7 @@ module Servant.API.Extended where
 
 import qualified Data.ByteString.Lazy as BL
 import Data.EitherR (fmapL)
+import Data.Metrics.Servant
 import Data.String.Conversions (cs)
 import Data.Typeable
 import GHC.TypeLits
@@ -113,3 +114,6 @@ instance
   HasSwagger (ReqBodyCustomError cts tag a :> api)
   where
   toSwagger Proxy = toSwagger (Proxy @(ReqBody' '[Required, Strict] cts a :> api))
+
+instance RoutesToPaths rest => RoutesToPaths (ReqBodyCustomError' mods list tag a :> rest) where
+  getRoutes = getRoutes @rest

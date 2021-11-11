@@ -37,7 +37,7 @@ import Galley.API.Federation (federationSitemap)
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
-import qualified Galley.Data as Data
+import Galley.Cassandra
 import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q
 import Imports
@@ -82,7 +82,7 @@ mkApp o = do
   e <- App.createEnv m o
   let l = e ^. App.applog
   runClient (e ^. cstate) $
-    versionCheck Data.schemaVersion
+    versionCheck schemaVersion
   let finalizer = do
         Log.info l $ Log.msg @Text "Galley application finished."
         Log.flush l

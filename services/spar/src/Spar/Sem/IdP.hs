@@ -18,11 +18,13 @@ data GetIdPResult a
   | -- | An IdP was found, but it lives in another team than the one you were looking for.
     --   This should be handled similarly to NotFound in most cases.
     GetIdPWrongTeam SAML.IdPId
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 newtype Replaced = Replaced SAML.IdPId
+  deriving (Eq, Ord, Show)
 
 newtype Replacing = Replacing SAML.IdPId
+  deriving (Eq, Ord, Show)
 
 data IdP m a where
   StoreConfig :: IP.IdP -> IdP m ()
@@ -30,9 +32,12 @@ data IdP m a where
   GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdP m (GetIdPResult SAML.IdPId)
   GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdP m (Maybe SAML.IdPId)
   GetConfigsByTeam :: TeamId -> IdP m [IP.IdP]
-  DeleteConfig :: SAML.IdPId -> SAML.Issuer -> TeamId -> IdP m ()
+  DeleteConfig :: IP.IdP -> IdP m ()
+  -- affects _wiReplacedBy in GetConfig
   SetReplacedBy :: Replaced -> Replacing -> IdP m ()
   ClearReplacedBy :: Replaced -> IdP m ()
+
+deriving stock instance Show (IdP m a)
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdP

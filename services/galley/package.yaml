@@ -26,6 +26,7 @@ dependencies:
 
 library:
   source-dirs: src
+  ghc-options: -fplugin=Polysemy.Plugin
   dependencies:
   - aeson >=0.11
   - amazonka >=1.4.5
@@ -66,6 +67,8 @@ library:
   - optparse-applicative >=0.10
   - pem
   - polysemy
+  - polysemy-plugin
+  - polysemy-wire-zoo
   - protobuf >=0.2
   - proto-lens >=0.2
   - QuickCheck >=2.14
@@ -73,6 +76,7 @@ library:
   - retry >=0.5
   - safe-exceptions >=0.1
   - servant
+  - servant-client-core
   - servant-server
   - servant-swagger
   - servant-swagger-ui
@@ -166,7 +170,6 @@ executables:
     - cereal
     - containers
     - cookie
-    - cql-io
     - currency-codes
     - metrics-wai
     - data-timeout

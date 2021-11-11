@@ -380,7 +380,7 @@ data AddTokenResponse
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
 addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
-  (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.Quorum
+  (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
   Log.info $
     "user" .= UUID.toASCIIBytes (toUUID uid)
       ~~ "token" .= Text.take 16 (tokenText (newtok ^. token))
@@ -512,10 +512,10 @@ updateEndpoint uid t arn e = do
 
 deleteToken :: UserId -> Token -> Gundeck ()
 deleteToken uid tok = do
-  as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.Quorum
+  as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.LocalQuorum
   when (null as) $
     throwM (mkError status404 "not-found" "Push token not found")
   Native.deleteTokens as Nothing
 
 listTokens :: UserId -> Gundeck PushTokenList
-listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.Quorum
+listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.LocalQuorum

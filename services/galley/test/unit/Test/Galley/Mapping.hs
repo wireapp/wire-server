@@ -25,7 +25,7 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Galley.API.Mapping
-import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Types.Conversations.Members
 import Imports
 import Test.Tasty

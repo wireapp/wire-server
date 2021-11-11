@@ -10,14 +10,16 @@ copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - aeson >=0.6
-- containers >=0.5
-- imports
-- types-common >=0.16
-- servant-swagger-ui
 - case-insensitive
-- hscim
-- saml2-web-sso
+- containers >=0.5
 - filepath
+- hscim
+- imports
+- metrics-wai
+- saml2-web-sso
+- servant
+- servant-swagger-ui
+- types-common >=0.16
 library:
   source-dirs: src
   dependencies:
@@ -62,7 +64,6 @@ library:
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
   - resourcet
-  - servant
   - servant-client
   - servant-client-core
   - servant-multipart

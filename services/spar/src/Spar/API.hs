@@ -473,7 +473,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
   -- Delete IdP config
   do
-    IdPEffect.deleteConfig idpid issuer team
+    IdPEffect.deleteConfig idp
     IdPRawMetadataStore.delete idpid
   return NoContent
   where

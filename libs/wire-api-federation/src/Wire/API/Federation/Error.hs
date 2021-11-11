@@ -76,6 +76,7 @@ federationErrorToWai (FederationCallFailure failure) = addErrorData $
                   Wai.federrPath = T.decodeUtf8 (fedFailPath failure)
                 }
         }
+federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 
 noFederationStatus :: Status
 noFederationStatus = status403

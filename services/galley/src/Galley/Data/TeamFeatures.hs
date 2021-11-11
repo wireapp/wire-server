@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,27 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.TeamFeatures
-  ( getFeatureStatusNoConfig,
-    setFeatureStatusNoConfig,
-    getApplockFeatureStatus,
-    setApplockFeatureStatus,
-    HasStatusCol (..),
-  )
-where
+module Galley.Data.TeamFeatures (HasStatusCol (..)) where
 
-import Cassandra
-import Data.Id
-import Galley.Data.Instances ()
 import Imports
 import Wire.API.Team.Feature
-  ( TeamFeatureName (..),
-    TeamFeatureStatus,
-    TeamFeatureStatusNoConfig (..),
-    TeamFeatureStatusValue (..),
-    TeamFeatureStatusWithConfig (..),
-  )
-import qualified Wire.API.Team.Feature as Public
 
 -- | Because not all so called team features are actually team-level features,
 -- not all of them have a corresponding column in the database. Therefore,
@@ -66,75 +47,4 @@ instance HasStatusCol 'TeamFeatureFileSharing where statusCol = "file_sharing"
 
 instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conference_calling"
 
-getFeatureStatusNoConfig ::
-  forall (a :: Public.TeamFeatureName) m.
-  ( MonadClient m,
-    Public.FeatureHasNoConfig a,
-    HasStatusCol a
-  ) =>
-  TeamId ->
-  m (Maybe (TeamFeatureStatus a))
-getFeatureStatusNoConfig tid = do
-  let q = query1 select (params Quorum (Identity tid))
-  mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  pure $ TeamFeatureStatusNoConfig <$> mStatusValue
-  where
-    select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
-    select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
-
-setFeatureStatusNoConfig ::
-  forall (a :: Public.TeamFeatureName) m.
-  ( MonadClient m,
-    Public.FeatureHasNoConfig a,
-    HasStatusCol a
-  ) =>
-  TeamId ->
-  TeamFeatureStatus a ->
-  m (TeamFeatureStatus a)
-setFeatureStatusNoConfig tid status = do
-  let flag = Public.tfwoStatus status
-  retry x5 $ write update (params Quorum (flag, tid))
-  pure status
-  where
-    update :: PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-    update = fromString $ "update team_features set " <> statusCol @a <> " = ? where team_id = ?"
-
-getApplockFeatureStatus ::
-  forall m.
-  (MonadClient m) =>
-  TeamId ->
-  m (Maybe (TeamFeatureStatus 'Public.TeamFeatureAppLock))
-getApplockFeatureStatus tid = do
-  let q = query1 select (params Quorum (Identity tid))
-  mTuple <- retry x1 q
-  pure $
-    mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout)
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Public.EnforceAppLock, Maybe Int32)
-    select =
-      fromString $
-        "select " <> statusCol @'Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
-          <> "from team_features where team_id = ?"
-
-setApplockFeatureStatus ::
-  (MonadClient m) =>
-  TeamId ->
-  TeamFeatureStatus 'Public.TeamFeatureAppLock ->
-  m (TeamFeatureStatus 'Public.TeamFeatureAppLock)
-setApplockFeatureStatus tid status = do
-  let statusValue = Public.tfwcStatus status
-      enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
-      timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
-  retry x5 $ write update (params Quorum (statusValue, enforce, timeout, tid))
-  pure status
-  where
-    update :: PrepQuery W (TeamFeatureStatusValue, Public.EnforceAppLock, Int32, TeamId) ()
-    update =
-      fromString $
-        "update team_features set "
-          <> statusCol @'Public.TeamFeatureAppLock
-          <> " = ?, "
-          <> "app_lock_enforce = ?, "
-          <> "app_lock_inactivity_timeout_secs = ? "
-          <> "where team_id = ?"
+instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_deleting_messages_status"

@@ -1,0 +1,1 @@
+Add polysemy store effects and split off Cassandra specific functionality from the Galley.Data module hierarchy (#1890, #1906).

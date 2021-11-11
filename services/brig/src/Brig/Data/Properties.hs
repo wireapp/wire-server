@@ -42,31 +42,31 @@ data PropertiesDataError
 
 insertProperty :: UserId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError AppIO ()
 insertProperty u k v = do
-  n <- lift . fmap (maybe 0 runIdentity) . retry x1 $ query1 propertyCount (params Quorum (Identity u))
+  n <- lift . fmap (maybe 0 runIdentity) . retry x1 $ query1 propertyCount (params LocalQuorum (Identity u))
   unless (n < maxProperties) $
     throwE TooManyProperties
-  lift . retry x5 $ write propertyInsert (params Quorum (u, k, v))
+  lift . retry x5 $ write propertyInsert (params LocalQuorum (u, k, v))
 
 deleteProperty :: UserId -> PropertyKey -> AppIO ()
-deleteProperty u k = retry x5 $ write propertyDelete (params Quorum (u, k))
+deleteProperty u k = retry x5 $ write propertyDelete (params LocalQuorum (u, k))
 
 clearProperties :: UserId -> AppIO ()
-clearProperties u = retry x5 $ write propertyReset (params Quorum (Identity u))
+clearProperties u = retry x5 $ write propertyReset (params LocalQuorum (Identity u))
 
 lookupProperty :: UserId -> PropertyKey -> AppIO (Maybe PropertyValue)
 lookupProperty u k =
   fmap runIdentity
-    <$> retry x1 (query1 propertySelect (params Quorum (u, k)))
+    <$> retry x1 (query1 propertySelect (params LocalQuorum (u, k)))
 
 lookupPropertyKeys :: UserId -> AppIO [PropertyKey]
 lookupPropertyKeys u =
   map runIdentity
-    <$> retry x1 (query propertyKeysSelect (params Quorum (Identity u)))
+    <$> retry x1 (query propertyKeysSelect (params LocalQuorum (Identity u)))
 
 lookupPropertyKeysAndValues :: UserId -> AppIO PropertyKeysAndValues
 lookupPropertyKeysAndValues u =
   PropertyKeysAndValues
-    <$> retry x1 (query propertyKeysValuesSelect (params Quorum (Identity u)))
+    <$> retry x1 (query propertyKeysValuesSelect (params LocalQuorum (Identity u)))
 
 -------------------------------------------------------------------------------
 -- Queries

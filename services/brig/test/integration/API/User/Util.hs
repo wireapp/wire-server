@@ -50,8 +50,10 @@ import qualified Data.Vector as Vec
 import Federation.Util (withTempMockFederator)
 import Gundeck.Types (Notification (..))
 import Imports
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
+import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.GRPC.Types hiding (body, path)
 import qualified Wire.API.Federation.GRPC.Types as F
@@ -462,3 +464,15 @@ matchDeleteUserNotification quid n = do
   etype @?= Just "user.delete"
   eUnqualifiedId @?= Just (qUnqualified quid)
   eQualifiedId @?= Just quid
+
+matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+matchConvLeaveNotification conv remover removeds n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  Conv.evtConv e @?= conv
+  Conv.evtType e @?= Conv.MemberLeave
+  Conv.evtFrom e @?= remover
+  sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList removeds))
+  where
+    sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave (Conv.QualifiedUserIdList (sort m))
+    sorted x = x

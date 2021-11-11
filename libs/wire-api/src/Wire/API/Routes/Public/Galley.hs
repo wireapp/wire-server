@@ -601,6 +601,7 @@ data Api routes = Api
              '[Servant.JSON]
              (PostOtrResponses MessageSendingStatus)
              (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus),
+    -- team features
     teamFeatureStatusSSOGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureSSO,
@@ -652,6 +653,12 @@ data Api routes = Api
     teamFeatureStatusConferenceCallingGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureConferenceCalling,
+    teamFeatureStatusSelfDeletingMessagesGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureSelfDeletingMessages,
+    teamFeatureStatusSelfDeletingMessagesPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureSelfDeletingMessages,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
@@ -681,7 +688,10 @@ data Api routes = Api
         :- FeatureConfigGet 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureConferenceCalling
+        :- FeatureConfigGet 'TeamFeatureConferenceCalling,
+    featureConfigSelfDeletingMessagesGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSelfDeletingMessages
   }
   deriving (Generic)
 
