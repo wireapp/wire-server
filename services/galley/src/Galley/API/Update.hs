@@ -1231,7 +1231,6 @@ postProteusMessage ::
        FederatorAccess,
        GundeckAccess,
        ExternalAccess,
-       Input (Local ()), -- FUTUREWORK: remove this
        Input Opts,
        Input UTCTime,
        MemberStore,
@@ -1244,7 +1243,7 @@ postProteusMessage ::
   Qualified ConvId ->
   RawProto Public.QualifiedNewOtrMessage ->
   Sem r (Public.PostOtrResponse Public.MessageSendingStatus)
-postProteusMessage sender zcon conv msg = do
+postProteusMessage sender zcon conv msg = runLocalInput sender $ do
   foldQualified
     sender
     (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) c (rpValue msg))
@@ -1261,7 +1260,6 @@ postOtrMessageUnqualified ::
        GundeckAccess,
        ExternalAccess,
        MemberStore,
-       Input (Local ()), -- FUTUREWORK: remove this
        Input Opts,
        Input UTCTime,
        TeamStore,
@@ -1298,8 +1296,9 @@ postOtrMessageUnqualified sender zcon cnv ignoreMissing reportMissing message = 
             Public.qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
-  unqualify localDomain
-    <$> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) lcnv qualifiedMessage
+  runLocalInput sender $
+    unqualify localDomain
+      <$> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) lcnv qualifiedMessage
 
 postProtoOtrBroadcastH ::
   Members
