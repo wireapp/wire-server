@@ -65,9 +65,9 @@ module Galley.API.Update
   )
 where
 
+import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.State
-import Control.Monad.Trans.Maybe
 import Data.Code
 import Data.Either.Extra (mapRight)
 import Data.Id
@@ -519,8 +519,8 @@ deleteLocalConversation lusr con lcnv =
   getUpdateResult $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) ConversationDelete
 
-getUpdateResult :: Functor m => MaybeT m a -> m (UpdateResult a)
-getUpdateResult = fmap (maybe Unchanged Updated) . runMaybeT
+getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
+getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeH ::
   Members
@@ -828,13 +828,12 @@ joinConversation lusr zcon cnv access = do
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
-    lift $
-      notifyConversationAction
-        (qUntagged lusr)
-        (Just zcon)
-        lcnv
-        (convBotsAndMembers conv <> extraTargets)
-        (conversationAction action)
+    notifyConversationAction
+      (qUntagged lusr)
+      (Just zcon)
+      lcnv
+      (convBotsAndMembers conv <> extraTargets)
+      (conversationAction action)
 
 addMembersUnqualified ::
   Members
@@ -1034,7 +1033,7 @@ updateOtherMemberLocalConv ::
   Public.OtherMemberUpdate ->
   Sem r ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult $ do
-  lift . when (qUntagged lusr == qvictim) $
+  when (qUntagged lusr == qvictim) $
     throw InvalidTargetUserOp
   updateLocalConversation lcnv (qUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
@@ -1137,8 +1136,8 @@ removeMemberFromLocalConv ::
   Sem r RemoveFromConversationResponse
 removeMemberFromLocalConv lcnv lusr con victim =
   -- FUTUREWORK: actually return errors as part of the response instead of throwing
-  fmap (maybe (Left RemoveFromConversationErrorUnchanged) Right)
-    . runMaybeT
+  runError
+    . mapError @NoChanges (const (RemoveFromConversationErrorUnchanged))
     . updateLocalConversation lcnv (qUntagged lusr) con
     . ConversationLeave
     . pure
@@ -1572,7 +1571,7 @@ updateLiveLocalConversationName ::
   Public.ConversationRename ->
   Sem r (Maybe Public.Event)
 updateLiveLocalConversationName lusr con lcnv rename =
-  runMaybeT $
+  fmap hush . runError @NoChanges $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) rename
 
 isTypingH ::

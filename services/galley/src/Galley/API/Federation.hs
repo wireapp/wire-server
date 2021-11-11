@@ -18,7 +18,6 @@ module Galley.API.Federation where
 
 import Brig.Types.Connection (Relation (Accepted))
 import Control.Lens (itraversed, (<.>))
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
@@ -49,7 +48,7 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
@@ -263,11 +262,9 @@ leaveConversation ::
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (F.lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (F.lcConvId lc)
-  fmap
-    ( F.LeaveConversationResponse
-        . maybe (Left RemoveFromConversationErrorUnchanged) Right
-    )
-    . runMaybeT
+  fmap F.LeaveConversationResponse
+    . runError
+    . mapError @NoChanges (const RemoveFromConversationErrorUnchanged)
     . void
     . updateLocalConversation lcnv leaver Nothing
     . ConversationLeave
