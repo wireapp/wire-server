@@ -467,7 +467,7 @@ testExternalIdIsRequired = do
     !!! const 400 === statusCode
 
 -- The next line contains a mapping from this test to the following test standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 -- | Test that user creation fails if handle is invalid
 testCreateRejectsInvalidHandle :: TestSpar ()

@@ -362,7 +362,7 @@ testSendLoginCode brig = do
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
 -- The testLoginFailure test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 -- | Test that trying to log in with a wrong password or non-existent email fails.
 testLoginFailure :: Brig -> Http ()
@@ -400,7 +400,7 @@ testThrottleLogins conf b = do
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 -- The testLimitRetries test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
@@ -574,7 +574,7 @@ testNoUserSsoLogin brig = do
 -- Token Refresh
 
 -- The testInvalidCookie test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 -- | Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
@@ -910,7 +910,7 @@ testRemoveCookiesByLabelAndId b = do
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
 -- The testTooManyCookies test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
