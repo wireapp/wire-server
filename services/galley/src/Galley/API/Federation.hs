@@ -42,6 +42,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -377,7 +378,7 @@ onUserDeleted origDomain udcn = do
       untaggedDeletedUser = qUntagged deletedUser
       convIds = F.udcnConversations udcn
 
-  spawnMany $
+  E.spawnMany $
     fromRange convIds <&> \c -> do
       lc <- liftSem $ qualifyLocal c
       mconv <- liftSem $ E.getConversation c

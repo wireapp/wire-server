@@ -56,6 +56,7 @@ import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
+import Galley.Effects.FireAndForget
 import qualified Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.Effects.Paging
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures

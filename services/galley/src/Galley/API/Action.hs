@@ -57,6 +57,7 @@ import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
+import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Options
@@ -392,7 +393,7 @@ instance IsConversationAction ConversationAccessData where
 
     -- Update Cassandra
     lift . liftSem $ E.setConversationAccess (tUnqualified lcnv) action
-    lift . fireAndForget $ do
+    lift . E.fireAndForget $ do
       -- Remove bots
       traverse_ (liftSem . E.deleteBot (tUnqualified lcnv) . botMemId) (bmBots toRemove)
 

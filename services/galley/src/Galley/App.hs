@@ -36,6 +36,7 @@ module Galley.App
     extGetManager,
 
     -- * Galley monad
+    liftSem,
     Galley,
     GalleyEffects,
     runGalley,
@@ -43,12 +44,6 @@ module Galley.App
     ask,
     DeleteItem (..),
     toServantHandler,
-
-    -- * Temporary compatibility functions
-    fireAndForget,
-    spawnMany,
-    liftSem,
-    unGalley,
   )
 where
 
@@ -87,7 +82,6 @@ import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Effects.FireAndForget (interpretFireAndForget)
-import qualified Galley.Effects.FireAndForget as E
 import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External
@@ -127,21 +121,7 @@ type GalleyEffects0 = '[P.TinyLog, P.Reader ClientState, P.Reader Env, Embed IO,
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
-newtype Galley r a = Galley {unGalley :: Members GalleyEffects0 r => Sem r a}
-
-instance Functor (Galley r) where
-  fmap f (Galley x) = Galley (fmap f x)
-
-instance Applicative (Galley r) where
-  pure x = Galley (pure x)
-  (<*>) = ap
-
-instance Monad (Galley r) where
-  return = pure
-  Galley m >>= f = Galley (m >>= unGalley . f)
-
-instance MonadIO (Galley r) where
-  liftIO action = Galley (embed action)
+type Galley = Sem
 
 -- Define some invariants for the options used
 validateOptions :: Logger -> Opts -> IO ()
@@ -214,7 +194,7 @@ initHttpManager o = do
         managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
       }
 
-runGalley :: Env -> Request -> Galley GalleyEffects a -> IO a
+runGalley :: Env -> Request -> Sem GalleyEffects a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m
@@ -230,7 +210,7 @@ interpretTinyLog e = interpret $ \case
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
-toServantHandler :: Env -> Galley GalleyEffects a -> Servant.Handler a
+toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler env galley = do
   eith <- liftIO $ Control.Exception.try (evalGalley env galley)
   case eith of
@@ -253,7 +233,7 @@ interpretErrorToException ::
   Sem r a
 interpretErrorToException = (either (embed @IO . UnliftIO.throwIO) pure =<<) . runError
 
-evalGalley :: Env -> Galley GalleyEffects a -> IO a
+evalGalley :: Env -> Sem GalleyEffects a -> IO a
 evalGalley e action = do
   runFinal @IO
     . embedToFinal @IO
@@ -291,19 +271,9 @@ evalGalley e action = do
     . interpretSparAccess
     . interpretGundeckAccess
     . interpretBrigAccess
-    . unGalley
     $ action
   where
     lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
 
-----------------------------------------------------------------------------------
----- temporary MonadUnliftIO support code for the polysemy refactoring
-
-fireAndForget :: Member FireAndForget r => Galley r () -> Galley r ()
-fireAndForget (Galley m) = Galley $ E.fireAndForget m
-
-spawnMany :: Member FireAndForget r => [Galley r ()] -> Galley r ()
-spawnMany ms = Galley $ E.spawnMany (map unGalley ms)
-
 liftSem :: Sem r a -> Galley r a
-liftSem m = Galley m
+liftSem = id
