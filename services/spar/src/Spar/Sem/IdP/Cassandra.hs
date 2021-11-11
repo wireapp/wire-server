@@ -22,6 +22,3 @@ idPToCassandra =
       DeleteConfig i i11 itlt -> Data.deleteIdPConfig i i11 itlt
       SetReplacedBy r r11 -> Data.setReplacedBy r r11
       ClearReplacedBy r -> Data.clearReplacedBy r
-      StoreRawMetadata i t -> Data.storeIdPRawMetadata i t
-      GetRawMetadata i -> Data.getIdPRawMetadata i
-      DeleteRawMetadata i -> Data.deleteIdPRawMetadata i

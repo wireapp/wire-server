@@ -33,11 +33,6 @@ data IdP m a where
   DeleteConfig :: SAML.IdPId -> SAML.Issuer -> TeamId -> IdP m ()
   SetReplacedBy :: Replaced -> Replacing -> IdP m ()
   ClearReplacedBy :: Replaced -> IdP m ()
-  -- TODO(sandy): maybe this wants  to be a separate effect
-  -- data Metadata  m a wher       e
-  StoreRawMetadata :: SAML.IdPId -> Text -> IdP m ()
-  GetRawMetadata :: SAML.IdPId -> IdP m (Maybe Text)
-  DeleteRawMetadata :: SAML.IdPId -> IdP m ()
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdP
