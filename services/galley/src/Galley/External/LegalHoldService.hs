@@ -37,7 +37,6 @@ import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Id
 import Data.Misc
 import Galley.API.Error
-import Galley.App
 import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.External.LegalHoldService.Types
 import Imports
@@ -56,7 +55,7 @@ checkLegalHoldServiceStatus ::
   Members '[Error LegalHoldError, LegalHoldStore, P.TinyLog] r =>
   Fingerprint Rsa ->
   HttpsUrl ->
-  Galley r ()
+  Sem r ()
 checkLegalHoldServiceStatus fpr url = do
   resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
   if
@@ -76,7 +75,7 @@ requestNewDevice ::
   Members '[Error LegalHoldError, LegalHoldStore, P.TinyLog] r =>
   TeamId ->
   UserId ->
-  Galley r NewLegalHoldClient
+  Sem r NewLegalHoldClient
 requestNewDevice tid uid = do
   resp <- makeLegalHoldServiceRequest tid reqParams
   case eitherDecode (responseBody resp) of
@@ -101,7 +100,7 @@ confirmLegalHold ::
   UserId ->
   -- | TODO: Replace with 'LegalHold' token type
   OpaqueAuthToken ->
-  Galley r ()
+  Sem r ()
 confirmLegalHold clientId tid uid legalHoldAuthToken = do
   void $ makeLegalHoldServiceRequest tid reqParams
   where
@@ -118,7 +117,7 @@ removeLegalHold ::
   Members '[Error LegalHoldError, LegalHoldStore] r =>
   TeamId ->
   UserId ->
-  Galley r ()
+  Sem r ()
 removeLegalHold tid uid = do
   void $ makeLegalHoldServiceRequest tid reqParams
   where
@@ -139,7 +138,7 @@ makeLegalHoldServiceRequest ::
   Members '[Error LegalHoldError, LegalHoldStore] r =>
   TeamId ->
   (Http.Request -> Http.Request) ->
-  Galley r (Http.Response LC8.ByteString)
+  Sem r (Http.Response LC8.ByteString)
 makeLegalHoldServiceRequest tid reqBuilder = do
   maybeLHSettings <- LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of

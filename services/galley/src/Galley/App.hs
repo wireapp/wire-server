@@ -35,8 +35,7 @@ module Galley.App
     ExtEnv (..),
     extGetManager,
 
-    -- * Galley monad
-    Galley,
+    -- * Running Galley effects
     GalleyEffects,
     runGalley,
     evalGalley,
@@ -119,8 +118,6 @@ import Util.Options
 type GalleyEffects0 = '[P.TinyLog, P.Reader ClientState, P.Reader Env, Embed IO, Final IO]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
-
-type Galley = Sem
 
 -- Define some invariants for the options used
 validateOptions :: Logger -> Opts -> IO ()

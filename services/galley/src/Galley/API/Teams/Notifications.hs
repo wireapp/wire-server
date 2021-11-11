@@ -46,7 +46,6 @@ import Data.Json.Util (toJSONObject)
 import qualified Data.List1 as List1
 import Data.Range (Range)
 import Galley.API.Error
-import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
@@ -54,6 +53,7 @@ import qualified Galley.Effects.TeamNotificationStore as E
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
+import Polysemy
 import Polysemy.Error
 
 getTeamNotifications ::
@@ -61,7 +61,7 @@ getTeamNotifications ::
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
-  Galley r QueuedNotificationList
+  Sem r QueuedNotificationList
 getTeamNotifications zusr since size = do
   tid <- (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
   page <- E.getTeamNotifications tid since size
@@ -71,7 +71,7 @@ getTeamNotifications zusr since size = do
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Galley r ()
+pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Sem r ()
 pushTeamEvent tid evt = do
   nid <- E.mkNotificationId
   E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)

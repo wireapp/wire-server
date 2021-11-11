@@ -36,7 +36,6 @@ import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
-import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
@@ -98,7 +97,7 @@ createGroupConversation ::
   Local UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
   case newConvTeam body of
     Nothing -> createRegularGroupConv user conn wrapped
@@ -129,7 +128,7 @@ internalCreateManagedConversationH ::
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest NewConvManaged ->
-  Galley r Response
+  Sem r Response
 internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
   lusr <- qualifyLocal zusr
   newConv <- fromJsonBody req
@@ -158,7 +157,7 @@ internalCreateManagedConversation ::
   Local UserId ->
   ConnId ->
   NewConvManaged ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 internalCreateManagedConversation lusr zcon (NewConvManaged body) = do
   tinfo <- note CannotCreateManagedConv (newConvTeam body)
   createTeamGroupConv lusr zcon tinfo body
@@ -167,7 +166,7 @@ ensureNoLegalholdConflicts ::
   Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
   [Remote UserId] ->
   [UserId] ->
-  Galley r ()
+  Sem r ()
 ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
@@ -195,7 +194,7 @@ createRegularGroupConv ::
   Local UserId ->
   ConnId ->
   NewConvUnmanaged ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createRegularGroupConv lusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
   let allUsers = newConvMembers lusr body
@@ -246,7 +245,7 @@ createTeamGroupConv ::
   ConnId ->
   Public.ConvTeamInfo ->
   Public.NewConv ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createTeamGroupConv lusr zcon tinfo body = do
   name <- rangeCheckedMaybe (newConvName body)
   let allUsers = newConvMembers lusr body
@@ -301,12 +300,12 @@ createSelfConversation ::
   forall r.
   Members '[ConversationStore, Error InternalError, P.TinyLog] r =>
   Local UserId ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createSelfConversation lusr = do
   c <- E.getConversation (Id . toUUID . tUnqualified $ lusr)
   maybe create (conversationExisted lusr) c
   where
-    create :: Galley r ConversationResponse
+    create :: Sem r ConversationResponse
     create = do
       c <- E.createSelfConversation lusr Nothing
       conversationCreated lusr c
@@ -333,7 +332,7 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewConvUnmanaged ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversation lusr zcon (NewConvUnmanaged j) = do
   let allUsers = newConvMembers lusr j
   other <- ensureOne (ulAll lusr allUsers)
@@ -356,7 +355,7 @@ createOne2OneConversation lusr zcon (NewConvUnmanaged j) = do
     (createOne2OneConversationUnchecked lusr zcon n mtid . qUntagged)
     other
   where
-    verifyMembership :: TeamId -> UserId -> Galley r ()
+    verifyMembership :: TeamId -> UserId -> Sem r ()
     verifyMembership tid u = do
       membership <- E.getTeamMember tid u
       when (isNothing membership) $
@@ -364,7 +363,7 @@ createOne2OneConversation lusr zcon (NewConvUnmanaged j) = do
     checkBindingTeamPermissions ::
       Local UserId ->
       TeamId ->
-      Galley r (Maybe TeamId)
+      Sem r (Maybe TeamId)
     checkBindingTeamPermissions lother tid = do
       zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
       void $ permissionCheck CreateConversation zusrMembership
@@ -393,7 +392,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Local UserId ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   mc <- E.getConversation (tUnqualified lcnv)
@@ -421,7 +420,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -446,7 +445,7 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -464,7 +463,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
@@ -486,7 +485,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createConnectConversation lusr conn j = do
   foldQualified
     lusr
@@ -499,7 +498,7 @@ createConnectConversationWithRemote ::
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createConnectConversationWithRemote _ _ _ =
   throw FederationNotImplemented
 
@@ -521,7 +520,7 @@ createLegacyConnectConversation ::
   Maybe ConnId ->
   Local UserId ->
   Connect ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 createLegacyConnectConversation lusr conn lrecipient j = do
   (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
@@ -589,14 +588,14 @@ conversationCreated ::
   Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 conversationExisted ::
   Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
-  Galley r ConversationResponse
+  Sem r ConversationResponse
 conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
@@ -610,7 +609,7 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Galley r ()
+  Sem r ()
 notifyCreatedConversation dtime lusr conn c = do
   now <- maybe (input) pure dtime
   -- FUTUREWORK: Handle failures in notifying so it does not abort half way
@@ -638,7 +637,7 @@ localOne2OneConvId ::
   Member (Error InvalidInput) r =>
   Local UserId ->
   Local UserId ->
-  Galley r (Local ConvId)
+  Sem r (Local ConvId)
 localOne2OneConvId self other = do
   (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
   pure . qualifyAs self $ Data.localOne2OneConvId x y
@@ -647,7 +646,7 @@ toUUIDs ::
   Member (Error InvalidInput) r =>
   UserId ->
   UserId ->
-  Galley r (U.UUID U.V4, U.UUID U.V4)
+  Sem r (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do
   a' <- U.fromUUID (toUUID a) & note InvalidUUID4
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4

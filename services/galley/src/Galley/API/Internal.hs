@@ -81,6 +81,7 @@ import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
+import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
@@ -271,7 +272,7 @@ type IFeatureStatusDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
-servantSitemap :: ServerT ServantAPI (Galley GalleyEffects)
+servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
 servantSitemap =
   genericServerT $
     InternalApi
@@ -318,9 +319,9 @@ iGetTeamFeature ::
        ]
       r
   ) =>
-  (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
+  (Features.GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus a)) ->
   TeamId ->
-  Galley r (Public.TeamFeatureStatus a)
+  Sem r (Public.TeamFeatureStatus a)
 iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
@@ -334,13 +335,13 @@ iPutTeamFeature ::
        ]
       r
   ) =>
-  (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
+  (TeamId -> Public.TeamFeatureStatus a -> Sem r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
-  Galley r (Public.TeamFeatureStatus a)
+  Sem r (Public.TeamFeatureStatus a)
 iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
-sitemap :: Routes a (Galley GalleyEffects) ()
+sitemap :: Routes a (Sem GalleyEffects) ()
 sitemap = do
   -- Conversation API (internal) ----------------------------------------
 
@@ -525,7 +526,7 @@ rmUser ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Galley r ()
+  Sem r ()
 rmUser lusr conn = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
@@ -535,7 +536,7 @@ rmUser lusr conn = do
 
   deleteClients (tUnqualified lusr)
   where
-    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
+    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
@@ -552,7 +553,7 @@ rmUser lusr conn = do
       page' <- listTeams (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
-    leaveLocalConversations :: Member MemberStore r => [ConvId] -> Galley r ()
+    leaveLocalConversations :: Member MemberStore r => [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
       let qUser = qUntagged lusr
       cc <- getConversations ids
@@ -586,7 +587,7 @@ rmUser lusr conn = do
     -- made. When a team is deleted the burst of RPCs created here could
     -- lead to performance issues. We should cover this in a performance
     -- test.
-    notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Galley r ()
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Sem r ()
     notifyRemoteMembers now qUser cid remotes = do
       let convUpdate =
             ConversationUpdate
@@ -600,7 +601,7 @@ rmUser lusr conn = do
       runFederatedEither remotes rpc
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
-    leaveRemoteConversations :: Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
+    leaveRemoteConversations :: Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
     leaveRemoteConversations cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
@@ -610,7 +611,7 @@ rmUser lusr conn = do
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
     -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
-    logAndIgnoreError :: Text -> UserId -> Either FederationError a -> Galley r ()
+    logAndIgnoreError :: Text -> UserId -> Either FederationError a -> Sem r ()
     logAndIgnoreError message usr res = do
       case res of
         Left federationError ->
@@ -664,7 +665,7 @@ guardLegalholdPolicyConflictsH ::
      ]
     r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
-  Galley r Response
+  Sem r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   mapError (const MissingLegalholdConsent) $

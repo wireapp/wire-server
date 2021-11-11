@@ -30,7 +30,6 @@ import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
 import Galley.API.Error
-import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
 import Galley.Types.Conversations.Members
@@ -50,7 +49,7 @@ conversationView ::
   Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
-  Galley r Conversation
+  Sem r Conversation
 conversationView luid conv = do
   let mbConv = conversationViewMaybe luid conv
   maybe memberNotFound pure mbConv

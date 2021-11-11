@@ -23,7 +23,6 @@ import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
-import Galley.App
 import Galley.Data.Services as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
@@ -185,7 +184,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
 getRemoteClients ::
   Member FederatorAccess r =>
   [RemoteMember] ->
-  Galley r (Map (Domain, UserId) (Set ClientId))
+  Sem r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
   mconcat . map tUnqualified
@@ -200,7 +199,7 @@ postRemoteOtrMessage ::
   Qualified UserId ->
   Remote ConvId ->
   LByteString ->
-  Galley r (PostOtrResponse MessageSendingStatus)
+  Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         FederatedGalley.MessageSendRequest
@@ -233,7 +232,7 @@ postQualifiedOtrMessage ::
   Maybe ConnId ->
   Local ConvId ->
   QualifiedNewOtrMessage ->
-  Galley r (PostOtrResponse MessageSendingStatus)
+  Sem r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
   alive <- lift $ isConversationAlive (tUnqualified lcnv)
   let localDomain = tDomain lcnv
@@ -336,7 +335,7 @@ sendMessages ::
   Map UserId LocalMember ->
   MessageMetadata ->
   Map (Domain, UserId, ClientId) ByteString ->
-  Galley r QualifiedUserClients
+  Sem r QualifiedUserClients
 sendMessages now sender senderClient mconn lcnv localMemberMap metadata messages = do
   let messageMap = byDomain $ fmap toBase64Text messages
   let send dom =
@@ -364,7 +363,7 @@ sendLocalMessages ::
   Map UserId LocalMember ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
-  Galley r (Set (UserId, ClientId))
+  Sem r (Set (UserId, ClientId))
 sendLocalMessages now sender senderClient mconn qcnv localMemberMap metadata localMessages = do
   loc <- input
   let events =
@@ -456,7 +455,7 @@ runMessagePush ::
   Members '[BotAccess, GundeckAccess, ExternalAccess, Input (Local ()), P.TinyLog] r =>
   Qualified ConvId ->
   MessagePush ->
-  Galley r ()
+  Sem r ()
 runMessagePush qcnv mp = do
   push (userPushes mp)
   pushToBots (botPushes mp)

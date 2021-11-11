@@ -48,6 +48,7 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
 import Imports
+import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
@@ -68,7 +69,7 @@ import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
-federationSitemap :: ServerT (ToServantApi F.Api) (Galley GalleyEffects)
+federationSitemap :: ServerT (ToServantApi F.Api) (Sem GalleyEffects)
 federationSitemap =
   genericServerT $
     F.Api
@@ -85,7 +86,7 @@ onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>
   Domain ->
   F.NewRemoteConversation ConvId ->
-  Galley r ()
+  Sem r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- input
@@ -123,7 +124,7 @@ getConversations ::
   Members '[ConversationStore, Input (Local ())] r =>
   Domain ->
   F.GetConversationsRequest ->
-  Galley r F.GetConversationsResponse
+  Sem r F.GetConversationsResponse
 getConversations domain (F.GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   loc <- input
@@ -148,7 +149,7 @@ onConversationUpdated ::
     r =>
   Domain ->
   F.ConversationUpdate ->
-  Galley r ()
+  Sem r ()
 onConversationUpdated requestingDomain cu = do
   loc <- input
   let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
@@ -212,7 +213,7 @@ addLocalUsersToRemoteConv ::
   Remote ConvId ->
   Qualified UserId ->
   [UserId] ->
-  Galley r (Set UserId)
+  Sem r (Set UserId)
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   connStatus <- E.getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
@@ -258,7 +259,7 @@ leaveConversation ::
     r =>
   Domain ->
   F.LeaveConversationRequest ->
-  Galley r F.LeaveConversationResponse
+  Sem r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (F.lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (F.lcConvId lc)
@@ -279,7 +280,7 @@ onMessageSent ::
   Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
   Domain ->
   F.RemoteMessage ConvId ->
-  Galley r ()
+  Sem r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
       convId = qUntagged $ F.rmConversation rm
@@ -316,7 +317,7 @@ onMessageSent domain rmUnqualified = do
       msgs
   where
     -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-875
-    mkLocalMember :: UserId -> Galley r LocalMember
+    mkLocalMember :: UserId -> Sem r LocalMember
     mkLocalMember m =
       pure $
         LocalMember
@@ -346,7 +347,7 @@ sendMessage ::
     r =>
   Domain ->
   F.MessageSendRequest ->
-  Galley r F.MessageSendResponse
+  Sem r F.MessageSendResponse
 sendMessage originDomain msr = do
   let sender = Qualified (F.msrSender msr) originDomain
   msg <- either throwErr pure (fromProto (fromBase64ByteString (F.msrRawMessage msr)))
@@ -369,7 +370,7 @@ onUserDeleted ::
     r =>
   Domain ->
   F.UserDeletedConversationsNotification ->
-  Galley r EmptyResponse
+  Sem r EmptyResponse
 onUserDeleted origDomain udcn = do
   let deletedUser = toRemoteUnsafe origDomain (F.udcnUser udcn)
       untaggedDeletedUser = qUntagged deletedUser

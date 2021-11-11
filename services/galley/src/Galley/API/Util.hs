@@ -36,7 +36,6 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
-import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
@@ -50,6 +49,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
+import Galley.Env
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types
@@ -76,7 +76,7 @@ ensureAccessRole ::
   Members '[BrigAccess, Error NotATeamMember, Error ConversationError] r =>
   AccessRole ->
   [(UserId, Maybe TeamMember)] ->
-  Galley r ()
+  Sem r ()
 ensureAccessRole role users = case role of
   PrivateAccessRole -> throw ConvAccessDenied
   TeamAccessRole ->
@@ -97,7 +97,7 @@ ensureConnectedOrSameTeam ::
   Members '[BrigAccess, TeamStore, Error ActionError] r =>
   Local UserId ->
   [UserId] ->
-  Galley r ()
+  Sem r ()
 ensureConnectedOrSameTeam _ [] = pure ()
 ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
@@ -116,7 +116,7 @@ ensureConnected ::
   Members '[BrigAccess, Error ActionError] r =>
   Local UserId ->
   UserList UserId ->
-  Galley r ()
+  Sem r ()
 ensureConnected self others = do
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
   ensureConnectedToRemotes self (ulRemotes others)
@@ -125,7 +125,7 @@ ensureConnectedToLocals ::
   Members '[BrigAccess, Error ActionError] r =>
   UserId ->
   [UserId] ->
-  Galley r ()
+  Sem r ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
@@ -137,7 +137,7 @@ ensureConnectedToRemotes ::
   Members '[BrigAccess, Error ActionError] r =>
   Local UserId ->
   [Remote UserId] ->
-  Galley r ()
+  Sem r ()
 ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
@@ -152,7 +152,7 @@ ensureReAuthorised ::
     r =>
   UserId ->
   Maybe PlainTextPassword ->
-  Galley r ()
+  Sem r ()
 ensureReAuthorised u secret = do
   reAuthed <- reauthUser u (ReAuthUser secret)
   unless reAuthed $
@@ -165,7 +165,7 @@ ensureActionAllowed ::
   (IsConvMember mem, Members '[Error ActionError, Error InvalidInput] r) =>
   Action ->
   mem ->
-  Galley r ()
+  Sem r ()
 ensureActionAllowed action self = case isActionAllowed action (convMemberRole self) of
   Just True -> pure ()
   Just False -> throw (ActionDenied action)
@@ -186,7 +186,7 @@ ensureConvRoleNotElevated ::
   (IsConvMember mem, Members '[Error InvalidInput, Error ActionError] r) =>
   mem ->
   RoleName ->
-  Galley r ()
+  Sem r ()
 ensureConvRoleNotElevated origMember targetRole = do
   case (roleNameToActions targetRole, roleNameToActions (convMemberRole origMember)) of
     (Just targetActions, Just memberActions) ->
@@ -202,7 +202,7 @@ permissionCheck ::
   (IsPerm perm, Show perm, Members '[Error ActionError, Error NotATeamMember] r) =>
   perm ->
   Maybe TeamMember ->
-  Galley r TeamMember
+  Sem r TeamMember
 permissionCheck p =
   \case
     Just m -> do
@@ -211,14 +211,14 @@ permissionCheck p =
         else throw (OperationDenied (show p))
     Nothing -> throwED @NotATeamMember
 
-assertTeamExists :: Members '[Error TeamError, TeamStore] r => TeamId -> Galley r ()
+assertTeamExists :: Members '[Error TeamError, TeamStore] r => TeamId -> Sem r ()
 assertTeamExists tid = do
   teamExists <- isJust <$> getTeam tid
   if teamExists
     then pure ()
     else throw TeamNotFound
 
-assertOnTeam :: Members '[Error NotATeamMember, TeamStore] r => UserId -> TeamId -> Galley r ()
+assertOnTeam :: Members '[Error NotATeamMember, TeamStore] r => UserId -> TeamId -> Sem r ()
 assertOnTeam uid tid =
   getTeamMember tid uid >>= \case
     Nothing -> throwED @NotATeamMember
@@ -238,7 +238,7 @@ permissionCheckTeamConv ::
   UserId ->
   ConvId ->
   Perm ->
-  Galley r ()
+  Sem r ()
 permissionCheckTeamConv zusr cnv perm =
   getConversation cnv >>= \case
     Just cnv' -> case Data.convTeam cnv' of
@@ -261,7 +261,7 @@ acceptOne2One ::
   Local UserId ->
   Data.Conversation ->
   Maybe ConnId ->
-  Galley r Data.Conversation
+  Sem r Data.Conversation
 acceptOne2One lusr conv conn = do
   let lcid = qualifyAs lusr cid
   case Data.convType conv of
@@ -455,7 +455,7 @@ getSelfMemberFromLocals ::
   (Foldable t, Member (Error ConversationError) r) =>
   UserId ->
   t LocalMember ->
-  Galley r LocalMember
+  Sem r LocalMember
 getSelfMemberFromLocals usr lmems =
   getMember lmId ConvNotFound usr lmems
 
@@ -476,7 +476,7 @@ getSelfMemberFromRemotes ::
   (Foldable t, Member (Error ConversationError) r) =>
   Remote UserId ->
   t RemoteMember ->
-  Galley r RemoteMember
+  Sem r RemoteMember
 getSelfMemberFromRemotes usr rmems =
   getMember rmId ConvNotFound usr rmems
 
@@ -511,7 +511,7 @@ getConversationAndCheckMembership ::
   Members '[ConversationStore, Error ConversationError] r =>
   UserId ->
   Local ConvId ->
-  Galley r Data.Conversation
+  Sem r Data.Conversation
 getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
@@ -525,7 +525,7 @@ getConversationAndMemberWithError ::
   ConversationError ->
   uid ->
   Local ConvId ->
-  Galley r (Data.Conversation, mem)
+  Sem r (Data.Conversation, mem)
 getConversationAndMemberWithError ex usr lcnv = do
   c <- getConversation (tUnqualified lcnv) >>= note ConvNotFound
   when (DataTypes.isConvDeleted c) $ do
@@ -558,7 +558,7 @@ pushConversationEvent ::
   Event ->
   Local (f UserId) ->
   f BotMember ->
-  Galley r ()
+  Sem r ()
 pushConversationEvent conn e lusers bots = do
   for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
     push1 $ p & set pushConn conn
@@ -567,7 +567,7 @@ pushConversationEvent conn e lusers bots = do
 verifyReusableCode ::
   Members '[CodeStore, Error CodeError] r =>
   ConversationCode ->
-  Galley r DataTypes.Code
+  Sem r DataTypes.Code
 verifyReusableCode convCode = do
   c <-
     getCode (conversationKey convCode) DataTypes.ReusableCode
@@ -590,7 +590,7 @@ ensureConversationAccess ::
   UserId ->
   ConvId ->
   Access ->
-  Galley r Data.Conversation
+  Sem r Data.Conversation
 ensureConversationAccess zusr cnv access = do
   conv <-
     getConversation cnv >>= note ConvNotFound
@@ -732,7 +732,7 @@ registerRemoteConversationMemberships ::
   -- | The domain of the user that created the conversation
   Domain ->
   Data.Conversation ->
-  Galley r ()
+  Sem r ()
 registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
@@ -763,7 +763,7 @@ checkConsent ::
   Member TeamStore r =>
   Map UserId TeamId ->
   UserId ->
-  Galley r ConsentGiven
+  Sem r ConsentGiven
 checkConsent teamsOfUsers other = do
   consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
 
@@ -773,7 +773,7 @@ getLHStatus ::
   Member TeamStore r =>
   Maybe TeamId ->
   UserId ->
-  Galley r UserLegalHoldStatus
+  Sem r UserLegalHoldStatus
 getLHStatus teamOfUser other = do
   case teamOfUser of
     Nothing -> pure defUserLegalHoldStatus
@@ -784,7 +784,7 @@ getLHStatus teamOfUser other = do
 anyLegalholdActivated ::
   Members '[Input Opts, TeamStore] r =>
   [UserId] ->
-  Galley r Bool
+  Sem r Bool
 anyLegalholdActivated uids = do
   opts <- input
   case view (optSettings . setFeatureFlags . flagLegalHold) opts of
@@ -800,7 +800,7 @@ anyLegalholdActivated uids = do
 allLegalholdConsentGiven ::
   Members '[Input Opts, LegalHoldStore, TeamStore] r =>
   [UserId] ->
-  Galley r Bool
+  Sem r Bool
 allLegalholdConsentGiven uids = do
   opts <- input
   case view (optSettings . setFeatureFlags . flagLegalHold) opts of
@@ -821,7 +821,7 @@ allLegalholdConsentGiven uids = do
 getLHStatusForUsers ::
   Member TeamStore r =>
   [UserId] ->
-  Galley r [(UserId, UserLegalHoldStatus)]
+  Sem r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
   mconcat
     <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
@@ -830,7 +830,7 @@ getLHStatusForUsers uids =
               (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
         )
 
-getTeamMembersForFanout :: Member TeamStore r => TeamId -> Galley r TeamMemberList
+getTeamMembersForFanout :: Member TeamStore r => TeamId -> Sem r TeamMemberList
 getTeamMembersForFanout tid = do
   lim <- fanoutLimit
   getTeamMembersWithLimit tid lim
@@ -839,7 +839,7 @@ ensureMemberLimit ::
   (Foldable f, Members '[Error ConversationError, Input Opts] r) =>
   [LocalMember] ->
   f a ->
-  Galley r ()
+  Sem r ()
 ensureMemberLimit old new = do
   o <- input
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)

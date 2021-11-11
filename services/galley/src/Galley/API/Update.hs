@@ -84,7 +84,6 @@ import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Util
-import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
@@ -147,7 +146,7 @@ acceptConvH ::
      ]
     r =>
   UserId ::: Maybe ConnId ::: ConvId ->
-  Galley r Response
+  Sem r Response
 acceptConvH (usr ::: conn ::: cnv) = do
   lusr <- qualifyLocal usr
   setStatus status200 . json <$> acceptConv lusr conn cnv
@@ -167,7 +166,7 @@ acceptConv ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Galley r Conversation
+  Sem r Conversation
 acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
@@ -183,7 +182,7 @@ blockConvH ::
      ]
     r =>
   UserId ::: ConvId ->
-  Galley r Response
+  Sem r Response
 blockConvH (zusr ::: cnv) =
   empty <$ blockConv zusr cnv
 
@@ -197,7 +196,7 @@ blockConv ::
     r =>
   UserId ->
   ConvId ->
-  Galley r ()
+  Sem r ()
 blockConv zusr cnv = do
   conv <- E.getConversation cnv >>= note ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
@@ -220,7 +219,7 @@ unblockConvH ::
      ]
     r =>
   UserId ::: Maybe ConnId ::: ConvId ->
-  Galley r Response
+  Sem r Response
 unblockConvH (usr ::: conn ::: cnv) = do
   lusr <- qualifyLocal usr
   setStatus status200 . json <$> unblockConv lusr conn cnv
@@ -240,7 +239,7 @@ unblockConv ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Galley r Conversation
+  Sem r Conversation
 unblockConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
@@ -279,7 +278,7 @@ updateConversationAccess ::
   ConnId ->
   Qualified ConvId ->
   Public.ConversationAccessData ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateConversationAccess lusr con qcnv update = do
   let doUpdate =
         foldQualified
@@ -310,7 +309,7 @@ updateConversationAccessUnqualified ::
   ConnId ->
   ConvId ->
   Public.ConversationAccessData ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateConversationAccessUnqualified lusr zcon cnv update = do
   let lcnv = qualifyAs lusr cnv
   updateLocalConversationAccess lcnv lusr zcon update
@@ -337,7 +336,7 @@ updateLocalConversationAccess ::
   Local UserId ->
   ConnId ->
   Public.ConversationAccessData ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateLocalConversationAccess lcnv lusr con =
   getUpdateResult
     . updateLocalConversation lcnv (qUntagged lusr) (Just con)
@@ -348,7 +347,7 @@ updateRemoteConversationAccess ::
   Local UserId ->
   ConnId ->
   Public.ConversationAccessData ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateRemoteConversationAccess _ _ _ _ = throw FederationNotImplemented
 
 updateConversationReceiptMode ::
@@ -368,7 +367,7 @@ updateConversationReceiptMode ::
   ConnId ->
   Qualified ConvId ->
   Public.ConversationReceiptModeUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateConversationReceiptMode lusr zcon qcnv update = do
   let doUpdate =
         foldQualified
@@ -393,7 +392,7 @@ updateConversationReceiptModeUnqualified ::
   ConnId ->
   ConvId ->
   Public.ConversationReceiptModeUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateConversationReceiptModeUnqualified lusr zcon cnv update = do
   let lcnv = qualifyAs lusr cnv
   updateLocalConversationReceiptMode lcnv lusr zcon update
@@ -414,7 +413,7 @@ updateLocalConversationReceiptMode ::
   Local UserId ->
   ConnId ->
   Public.ConversationReceiptModeUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateLocalConversationReceiptMode lcnv lusr con update =
   getUpdateResult $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) update
@@ -425,7 +424,7 @@ updateRemoteConversationReceiptMode ::
   Local UserId ->
   ConnId ->
   Public.ConversationReceiptModeUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateRemoteConversationReceiptMode _ _ _ _ = throw FederationNotImplemented
 
 updateConversationMessageTimerUnqualified ::
@@ -444,7 +443,7 @@ updateConversationMessageTimerUnqualified ::
   ConnId ->
   ConvId ->
   Public.ConversationMessageTimerUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateConversationMessageTimerUnqualified lusr zcon cnv update = do
   let lcnv = qualifyAs lusr cnv
   updateLocalConversationMessageTimer lusr zcon lcnv update
@@ -466,7 +465,7 @@ updateConversationMessageTimer ::
   ConnId ->
   Qualified ConvId ->
   Public.ConversationMessageTimerUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateConversationMessageTimer lusr zcon qcnv update = do
   foldQualified
     lusr
@@ -491,7 +490,7 @@ updateLocalConversationMessageTimer ::
   ConnId ->
   Local ConvId ->
   Public.ConversationMessageTimerUpdate ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 updateLocalConversationMessageTimer lusr con lcnv update =
   getUpdateResult $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) update
@@ -515,7 +514,7 @@ deleteLocalConversation ::
   Local UserId ->
   ConnId ->
   Local ConvId ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
   getUpdateResult $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) ConversationDelete
@@ -535,7 +534,7 @@ addCodeH ::
      ]
     r =>
   UserId ::: ConnId ::: ConvId ->
-  Galley r Response
+  Sem r Response
 addCodeH (usr ::: zcon ::: cnv) = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
@@ -561,7 +560,7 @@ addCode ::
   Local UserId ->
   ConnId ->
   Local ConvId ->
-  Galley r AddCodeResult
+  Sem r AddCodeResult
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
@@ -582,7 +581,7 @@ addCode lusr zcon lcnv = do
       conversationCode <- createCode code
       pure $ CodeAlreadyExisted conversationCode
   where
-    createCode :: Code -> Galley r ConversationCode
+    createCode :: Code -> Sem r ConversationCode
     createCode code = do
       urlPrefix <- E.getConversationCodeURI
       return $ mkConversationCode (codeKey code) (codeValue code) urlPrefix
@@ -599,7 +598,7 @@ rmCodeH ::
      ]
     r =>
   UserId ::: ConnId ::: ConvId ->
-  Galley r Response
+  Sem r Response
 rmCodeH (usr ::: zcon ::: cnv) = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
@@ -618,7 +617,7 @@ rmCode ::
   Local UserId ->
   ConnId ->
   Local ConvId ->
-  Galley r Public.Event
+  Sem r Public.Event
 rmCode lusr zcon lcnv = do
   conv <-
     E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
@@ -641,7 +640,7 @@ getCodeH ::
      ]
     r =>
   UserId ::: ConvId ->
-  Galley r Response
+  Sem r Response
 getCodeH (usr ::: cnv) =
   setStatus status200 . json <$> getCode usr cnv
 
@@ -655,7 +654,7 @@ getCode ::
     r =>
   UserId ->
   ConvId ->
-  Galley r Public.ConversationCode
+  Sem r Public.ConversationCode
 getCode usr cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
@@ -665,7 +664,7 @@ getCode usr cnv = do
   c <- E.getCode key ReusableCode >>= note CodeNotFound
   returnCode c
 
-returnCode :: Member CodeStore r => Code -> Galley r Public.ConversationCode
+returnCode :: Member CodeStore r => Code -> Sem r Public.ConversationCode
 returnCode c = do
   urlPrefix <- E.getConversationCodeURI
   pure $ Public.mkConversationCode (codeKey c) (codeValue c) urlPrefix
@@ -673,7 +672,7 @@ returnCode c = do
 checkReusableCodeH ::
   Members '[CodeStore, Error CodeError, Error InvalidInput, WaiRoutes] r =>
   JsonRequest Public.ConversationCode ->
-  Galley r Response
+  Sem r Response
 checkReusableCodeH req = do
   convCode <- fromJsonBody req
   checkReusableCode convCode
@@ -682,7 +681,7 @@ checkReusableCodeH req = do
 checkReusableCode ::
   Members '[CodeStore, Error CodeError] r =>
   Public.ConversationCode ->
-  Galley r ()
+  Sem r ()
 checkReusableCode convCode =
   void $ verifyReusableCode convCode
 
@@ -709,7 +708,7 @@ joinConversationByReusableCodeH ::
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest Public.ConversationCode ->
-  Galley r Response
+  Sem r Response
 joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
   lusr <- qualifyLocal zusr
   convCode <- fromJsonBody req
@@ -738,7 +737,7 @@ joinConversationByReusableCode ::
   Local UserId ->
   ConnId ->
   Public.ConversationCode ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 joinConversationByReusableCode lusr zcon convCode = do
   c <- verifyReusableCode convCode
   joinConversation lusr zcon (codeConversation c) CodeAccess
@@ -763,7 +762,7 @@ joinConversationByIdH ::
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JSON ->
-  Galley r Response
+  Sem r Response
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) = do
   lusr <- qualifyLocal zusr
   handleUpdateResult <$> joinConversationById lusr zcon cnv
@@ -789,7 +788,7 @@ joinConversationById ::
   Local UserId ->
   ConnId ->
   ConvId ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 joinConversationById lusr zcon cnv =
   joinConversation lusr zcon cnv LinkAccess
 
@@ -815,7 +814,7 @@ joinConversation ::
   ConnId ->
   ConvId ->
   Access ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 joinConversation lusr zcon cnv access = do
   let lcnv = qualifyAs lusr cnv
   conv <- ensureConversationAccess (tUnqualified lusr) cnv access
@@ -862,7 +861,7 @@ addMembersUnqualified ::
   ConnId ->
   ConvId ->
   Public.Invite ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Public.Invite users role) = do
   let qusers = fmap (qUntagged . qualifyAs lusr) (toNonEmpty users)
   addMembers lusr zcon cnv (Public.InviteQualified qusers role)
@@ -892,7 +891,7 @@ addMembers ::
   ConnId ->
   ConvId ->
   Public.InviteQualified ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 addMembers lusr zcon cnv (Public.InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult $
@@ -913,7 +912,7 @@ updateSelfMember ::
   ConnId ->
   Qualified ConvId ->
   Public.MemberUpdate ->
-  Galley r ()
+  Sem r ()
 updateSelfMember lusr zcon qcnv update = do
   exists <- foldQualified lusr checkLocalMembership checkRemoteMembership qcnv
   unless exists . throw $ ConvNotFound
@@ -962,7 +961,7 @@ updateUnqualifiedSelfMember ::
   ConnId ->
   ConvId ->
   Public.MemberUpdate ->
-  Galley r ()
+  Sem r ()
 updateUnqualifiedSelfMember lusr zcon cnv update = do
   let lcnv = qualifyAs lusr cnv
   updateSelfMember lusr zcon (qUntagged lcnv) update
@@ -985,7 +984,7 @@ updateOtherMemberUnqualified ::
   ConvId ->
   UserId ->
   Public.OtherMemberUpdate ->
-  Galley r ()
+  Sem r ()
 updateOtherMemberUnqualified lusr zcon cnv victim update = do
   let lcnv = qualifyAs lusr cnv
   let lvictim = qualifyAs lusr victim
@@ -1010,7 +1009,7 @@ updateOtherMember ::
   Qualified ConvId ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
-  Galley r ()
+  Sem r ()
 updateOtherMember lusr zcon qcnv qvictim update = do
   let doUpdate = foldQualified lusr updateOtherMemberLocalConv updateOtherMemberRemoteConv
   doUpdate qcnv lusr zcon qvictim update
@@ -1033,7 +1032,7 @@ updateOtherMemberLocalConv ::
   ConnId ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
-  Galley r ()
+  Sem r ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult $ do
   lift . when (qUntagged lusr == qvictim) $
     throw InvalidTargetUserOp
@@ -1047,7 +1046,7 @@ updateOtherMemberRemoteConv ::
   ConnId ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
-  Galley r ()
+  Sem r ()
 updateOtherMemberRemoteConv _ _ _ _ _ = throw FederationNotImplemented
 
 removeMemberUnqualified ::
@@ -1067,7 +1066,7 @@ removeMemberUnqualified ::
   ConnId ->
   ConvId ->
   UserId ->
-  Galley r RemoveFromConversationResponse
+  Sem r RemoveFromConversationResponse
 removeMemberUnqualified lusr con cnv victim = do
   let lvictim = qualifyAs lusr victim
       lcnv = qualifyAs lusr cnv
@@ -1090,7 +1089,7 @@ removeMemberQualified ::
   ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
-  Galley r RemoveFromConversationResponse
+  Sem r RemoveFromConversationResponse
 removeMemberQualified lusr con qcnv victim = do
   foldQualified lusr removeMemberFromLocalConv removeMemberFromRemoteConv qcnv lusr (Just con) victim
 
@@ -1100,7 +1099,7 @@ removeMemberFromRemoteConv ::
   Local UserId ->
   Maybe ConnId ->
   Qualified UserId ->
-  Galley r RemoveFromConversationResponse
+  Sem r RemoveFromConversationResponse
 removeMemberFromRemoteConv cnv lusr _ victim
   | qUntagged lusr == victim = do
     let lc = FederatedGalley.LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
@@ -1135,7 +1134,7 @@ removeMemberFromLocalConv ::
   Local UserId ->
   Maybe ConnId ->
   Qualified UserId ->
-  Galley r RemoveFromConversationResponse
+  Sem r RemoveFromConversationResponse
 removeMemberFromLocalConv lcnv lusr con victim =
   -- FUTUREWORK: actually return errors as part of the response instead of throwing
   fmap (maybe (Left RemoveFromConversationErrorUnchanged) Right)
@@ -1160,7 +1159,7 @@ handleOtrResult ::
      ]
     r =>
   OtrResult ->
-  Galley r Response
+  Sem r Response
 handleOtrResult =
   \case
     OtrSent m -> pure $ json m & setStatus status201
@@ -1191,7 +1190,7 @@ postBotMessageH ::
      ]
     r =>
   BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON ->
-  Galley r Response
+  Sem r Response
 postBotMessageH (zbot ::: cnv ::: val ::: req ::: _) = do
   lbot <- qualifyLocal zbot
   lcnv <- qualifyLocal cnv
@@ -1220,7 +1219,7 @@ postBotMessage ::
   Local ConvId ->
   Public.OtrFilterMissing ->
   Public.NewOtrMessage ->
-  Galley r OtrResult
+  Sem r OtrResult
 postBotMessage zbot = postNewOtrMessage Bot (fmap botUserId zbot) Nothing
 
 postProteusMessage ::
@@ -1244,7 +1243,7 @@ postProteusMessage ::
   ConnId ->
   Qualified ConvId ->
   RawProto Public.QualifiedNewOtrMessage ->
-  Galley r (Public.PostOtrResponse Public.MessageSendingStatus)
+  Sem r (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage sender zcon conv msg = do
   foldQualified
     sender
@@ -1275,7 +1274,7 @@ postOtrMessageUnqualified ::
   Maybe Public.IgnoreMissing ->
   Maybe Public.ReportMissing ->
   Public.NewOtrMessage ->
-  Galley r (Public.PostOtrResponse Public.ClientMismatch)
+  Sem r (Public.PostOtrResponse Public.ClientMismatch)
 postOtrMessageUnqualified sender zcon cnv ignoreMissing reportMissing message = do
   let lcnv = qualifyAs sender cnv
       localDomain = tDomain sender
@@ -1323,7 +1322,7 @@ postProtoOtrBroadcastH ::
      ]
     r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON ->
-  Galley r Response
+  Sem r Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   lusr <- qualifyLocal zusr
   message <- Public.protoToNewOtrMessage <$> fromProtoBody req
@@ -1351,7 +1350,7 @@ postOtrBroadcastH ::
      ]
     r =>
   UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ->
-  Galley r Response
+  Sem r Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   lusr <- qualifyLocal zusr
   message <- fromJsonBody req
@@ -1377,7 +1376,7 @@ postOtrBroadcast ::
   ConnId ->
   Public.OtrFilterMissing ->
   Public.NewOtrMessage ->
-  Galley r OtrResult
+  Sem r OtrResult
 postOtrBroadcast lusr zcon = postNewOtrBroadcast lusr (Just zcon)
 
 -- internal OTR helpers
@@ -1410,7 +1409,7 @@ postNewOtrBroadcast ::
   Maybe ConnId ->
   OtrFilterMissing ->
   NewOtrMessage ->
-  Galley r OtrResult
+  Sem r OtrResult
 postNewOtrBroadcast lusr con val msg = do
   let sender = newOtrSender msg
       recvrs = newOtrRecipients msg
@@ -1441,7 +1440,7 @@ postNewOtrMessage ::
   Local ConvId ->
   OtrFilterMissing ->
   NewOtrMessage ->
-  Galley r OtrResult
+  Sem r OtrResult
 postNewOtrMessage utype lusr con lcnv val msg = do
   let sender = newOtrSender msg
       recvrs = newOtrRecipients msg
@@ -1503,7 +1502,7 @@ updateConversationName ::
   ConnId ->
   Qualified ConvId ->
   Public.ConversationRename ->
-  Galley r (Maybe Public.Event)
+  Sem r (Maybe Public.Event)
 updateConversationName lusr zcon qcnv convRename = do
   foldQualified
     lusr
@@ -1528,7 +1527,7 @@ updateUnqualifiedConversationName ::
   ConnId ->
   ConvId ->
   Public.ConversationRename ->
-  Galley r (Maybe Public.Event)
+  Sem r (Maybe Public.Event)
 updateUnqualifiedConversationName lusr zcon cnv rename = do
   let lcnv = qualifyAs lusr cnv
   updateLocalConversationName lusr zcon lcnv rename
@@ -1549,7 +1548,7 @@ updateLocalConversationName ::
   ConnId ->
   Local ConvId ->
   Public.ConversationRename ->
-  Galley r (Maybe Public.Event)
+  Sem r (Maybe Public.Event)
 updateLocalConversationName lusr zcon lcnv convRename = do
   alive <- E.isConversationAlive (tUnqualified lcnv)
   if alive
@@ -1572,7 +1571,7 @@ updateLiveLocalConversationName ::
   ConnId ->
   Local ConvId ->
   Public.ConversationRename ->
-  Galley r (Maybe Public.Event)
+  Sem r (Maybe Public.Event)
 updateLiveLocalConversationName lusr con lcnv rename =
   runMaybeT $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) rename
@@ -1589,7 +1588,7 @@ isTypingH ::
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData ->
-  Galley r Response
+  Sem r Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   lusr <- qualifyLocal zusr
   lcnv <- qualifyLocal cnv
@@ -1603,7 +1602,7 @@ isTyping ::
   ConnId ->
   Local ConvId ->
   Public.TypingData ->
-  Galley r ()
+  Sem r ()
 isTyping lusr zcon lcnv typingData = do
   mm <- E.getLocalMembers (tUnqualified lcnv)
   unless (tUnqualified lusr `isMember` mm) . throw $ ConvNotFound
@@ -1624,7 +1623,7 @@ addServiceH ::
      ]
     r =>
   JsonRequest Service ->
-  Galley r Response
+  Sem r Response
 addServiceH req = do
   E.createService =<< fromJsonBody req
   return empty
@@ -1632,7 +1631,7 @@ addServiceH req = do
 rmServiceH ::
   Members '[Error InvalidInput, ServiceStore, WaiRoutes] r =>
   JsonRequest ServiceRef ->
-  Galley r Response
+  Sem r Response
 rmServiceH req = do
   E.deleteService =<< fromJsonBody req
   return empty
@@ -1655,7 +1654,7 @@ addBotH ::
      ]
     r =>
   UserId ::: ConnId ::: JsonRequest AddBot ->
-  Galley r Response
+  Sem r Response
 addBotH (zusr ::: zcon ::: req) = do
   bot <- fromJsonBody req
   lusr <- qualifyLocal zusr
@@ -1681,7 +1680,7 @@ addBot ::
   Local UserId ->
   ConnId ->
   AddBot ->
-  Galley r Event
+  Sem r Event
 addBot lusr zcon b = do
   c <-
     E.getConversation (b ^. addBotConv) >>= note ConvNotFound
@@ -1720,7 +1719,7 @@ addBot lusr zcon b = do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
       return (bots, users)
-    teamConvChecks :: ConvId -> TeamId -> Galley r ()
+    teamConvChecks :: ConvId -> TeamId -> Sem r ()
     teamConvChecks cid tid = do
       tcv <- E.getTeamConversation tid cid
       when (maybe True (view managedConversation) tcv) $
@@ -1741,7 +1740,7 @@ rmBotH ::
      ]
     r =>
   UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
-  Galley r Response
+  Sem r Response
 rmBotH (zusr ::: zcon ::: req) = do
   lusr <- qualifyLocal zusr
   bot <- fromJsonBody req
@@ -1761,7 +1760,7 @@ rmBot ::
   Local UserId ->
   Maybe ConnId ->
   RemoveBot ->
-  Galley r (UpdateResult Event)
+  Sem r (UpdateResult Event)
 rmBot lusr zcon b = do
   c <-
     E.getConversation (b ^. rmBotConv) >>= note ConvNotFound
@@ -1786,7 +1785,7 @@ rmBot lusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-ensureConvMember :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Galley r ()
+ensureConvMember :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Sem r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $ throw ConvNotFound
 
@@ -1824,8 +1823,8 @@ withValidOtrBroadcastRecipients ::
   OtrRecipients ->
   OtrFilterMissing ->
   UTCTime ->
-  ([(LocalMember, ClientId, Text)] -> Galley r ()) ->
-  Galley r OtrResult
+  ([(LocalMember, ClientId, Text)] -> Sem r ()) ->
+  Sem r OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> E.fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
@@ -1856,7 +1855,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       unless (length localUserIdsToLookup <= limit) $
         throw BroadcastLimitExceeded
       E.selectTeamMembers tid localUserIdsToLookup
-    maybeFetchAllMembersInTeam :: TeamId -> Galley r [TeamMember]
+    maybeFetchAllMembersInTeam :: TeamId -> Sem r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
       mems <- getTeamMembersForFanout tid
       when (mems ^. teamMemberListType == ListTruncated) $
@@ -1882,8 +1881,8 @@ withValidOtrRecipients ::
   OtrRecipients ->
   OtrFilterMissing ->
   UTCTime ->
-  ([(LocalMember, ClientId, Text)] -> Galley r ()) ->
-  Galley r OtrResult
+  ([(LocalMember, ClientId, Text)] -> Sem r ()) ->
+  Sem r OtrResult
 withValidOtrRecipients utype usr clt cnv rcps val now go = do
   alive <- E.isConversationAlive cnv
   if not alive
@@ -1919,8 +1918,8 @@ handleOtrResponse ::
   -- | The current timestamp.
   UTCTime ->
   -- | Callback if OtrRecipients are valid
-  ([(LocalMember, ClientId, Text)] -> Galley r ()) ->
-  Galley r OtrResult
+  ([(LocalMember, ClientId, Text)] -> Sem r ()) ->
+  Sem r OtrResult
 handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> mapError (const MissingLegalholdConsent) $ do
@@ -2019,8 +2018,8 @@ withBindingTeam ::
      ]
     r =>
   UserId ->
-  (TeamId -> Galley r b) ->
-  Galley r b
+  (TeamId -> Sem r b) ->
+  Sem r b
 withBindingTeam zusr callback = do
   tid <- E.getOneUserTeam zusr >>= note TeamNotFound
   binding <- E.getTeamBinding tid >>= note TeamNotFound

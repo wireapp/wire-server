@@ -47,7 +47,6 @@ import qualified Data.Set as Set
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.Util
-import Galley.App
 import Galley.Data.Conversation
 import Galley.Data.Services
 import Galley.Data.Types
@@ -90,7 +89,7 @@ class IsConversationAction a where
     a ->
     Conversation ->
     mem ->
-    Galley r ()
+    Sem r ()
   ensureAllowed _ _ _ _ = pure ()
   conversationActionTag' :: Qualified UserId -> a -> Action
   performAction ::
@@ -101,7 +100,7 @@ class IsConversationAction a where
     Local ConvId ->
     Conversation ->
     a ->
-    MaybeT (Galley r) (BotsAndMembers, a)
+    MaybeT (Sem r) (BotsAndMembers, a)
 
 -- | The action of some users joining a conversation.
 data ConversationJoin = ConversationJoin
@@ -175,7 +174,7 @@ instance IsConversationAction ConversationJoin where
         Local UserId ->
         Maybe TeamId ->
         [UserId] ->
-        Galley r ()
+        Sem r ()
       checkLocals lusr (Just tid) newUsers = do
         tms <- E.selectTeamMembers tid newUsers
         let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
@@ -196,7 +195,7 @@ instance IsConversationAction ConversationJoin where
           r =>
         Local UserId ->
         [Remote UserId] ->
-        Galley r ()
+        Sem r ()
       checkRemotes lusr remotes = do
         -- if federator is not configured, we fail early, so we avoid adding
         -- remote members to the database
@@ -223,7 +222,7 @@ instance IsConversationAction ConversationJoin where
            ]
           r =>
         [UserId] ->
-        Galley r ()
+        Sem r ()
       checkLHPolicyConflictsLocal newUsers = do
         let convUsers = convLocalMembers conv
 
@@ -258,7 +257,7 @@ instance IsConversationAction ConversationJoin where
 
       checkLHPolicyConflictsRemote ::
         FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
-        Galley r ()
+        Sem r ()
       checkLHPolicyConflictsRemote _remotes = pure ()
 
 instance IsConversationAction ConversationLeave where
@@ -449,7 +448,7 @@ updateLocalConversation ::
   Qualified UserId ->
   Maybe ConnId ->
   a ->
-  MaybeT (Galley r) Event
+  MaybeT (Sem r) Event
 updateLocalConversation lcnv qusr con action = do
   -- retrieve conversation
   (conv, self) <-
@@ -484,7 +483,7 @@ ensureConversationActionAllowed ::
   a ->
   Conversation ->
   mem ->
-  Galley r ()
+  Sem r ()
 ensureConversationActionAllowed loc action conv self = do
   let tag = conversationActionTag' (convMemberId loc self) action
   -- general action check
@@ -502,7 +501,7 @@ addMembersToLocalConversation ::
   Local ConvId ->
   UserList UserId ->
   RoleName ->
-  MaybeT (Galley r) (BotsAndMembers, ConversationJoin)
+  MaybeT (Sem r) (BotsAndMembers, ConversationJoin)
 addMembersToLocalConversation lcnv users role = do
   (lmems, rmems) <- lift $ E.createMembers (tUnqualified lcnv) (fmap (,role) users)
   neUsers <- maybe mzero pure . nonEmpty . ulAll lcnv $ users
@@ -516,7 +515,7 @@ notifyConversationAction ::
   Local ConvId ->
   BotsAndMembers ->
   ConversationAction ->
-  Galley r Event
+  Sem r Event
 notifyConversationAction quid con lcnv targets action = do
   now <- input
   let e = conversationActionToEvent now quid (qUntagged lcnv) action

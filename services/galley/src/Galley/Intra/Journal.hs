@@ -35,7 +35,6 @@ import Data.Text (pack)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Galley.API.Util
-import Galley.App
 import Galley.Effects.TeamStore
 import qualified Galley.Options as Opts
 import Galley.Types.Teams
@@ -64,7 +63,7 @@ teamActivate ::
   Natural ->
   Maybe Currency.Alpha ->
   Maybe TeamCreationTime ->
-  Galley r ()
+  Sem r ()
 teamActivate tid teamSize cur time = do
   billingUserIds <- getBillingUserIds tid Nothing
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
@@ -74,20 +73,20 @@ teamUpdate ::
   TeamId ->
   Natural ->
   [UserId] ->
-  Galley r ()
+  Sem r ()
 teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete ::
   Members '[TeamStore, Input UTCTime] r =>
   TeamId ->
-  Galley r ()
+  Sem r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
   Members '[TeamStore, Input UTCTime] r =>
   TeamId ->
-  Galley r ()
+  Sem r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
@@ -96,7 +95,7 @@ journalEvent ::
   TeamId ->
   Maybe TeamEvent'EventData ->
   Maybe TeamCreationTime ->
-  Galley r ()
+  Sem r ()
 journalEvent typ tid dat tim = do
   -- writetime is in microseconds in cassandra 3.11
   now <- round . utcTimeToPOSIXSeconds <$> input
@@ -126,7 +125,7 @@ getBillingUserIds ::
   Members '[Input Opts.Opts, TeamStore, P.TinyLog] r =>
   TeamId ->
   Maybe TeamMemberList ->
-  Galley r [UserId]
+  Sem r [UserId]
 getBillingUserIds tid maybeMemberList = do
   opts <- input
   let enableIndexedBillingTeamMembers =
@@ -148,11 +147,11 @@ getBillingUserIds tid maybeMemberList = do
     fetchFromDB :: Member TeamStore r => Sem r [UserId]
     fetchFromDB = getBillingTeamMembers tid
 
-    filterFromMembers :: TeamMemberList -> Galley r [UserId]
+    filterFromMembers :: TeamMemberList -> Sem r [UserId]
     filterFromMembers list =
       pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
 
-    handleList :: Members '[TeamStore, P.TinyLog] r => Bool -> TeamMemberList -> Galley r [UserId]
+    handleList :: Members '[TeamStore, P.TinyLog] r => Bool -> TeamMemberList -> Sem r [UserId]
     handleList enableIndexedBillingTeamMembers list =
       case list ^. teamMemberListType of
         ListTruncated ->

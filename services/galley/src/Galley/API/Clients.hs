@@ -23,7 +23,6 @@ module Galley.API.Clients
 where
 
 import Data.Id
-import Galley.App
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
@@ -32,18 +31,19 @@ import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Polysemy
 
 getClientsH ::
   Members '[BrigAccess, ClientStore] r =>
   UserId ->
-  Galley r Response
+  Sem r Response
 getClientsH usr = do
   json <$> getClients usr
 
 getClients ::
   Members '[BrigAccess, ClientStore] r =>
   UserId ->
-  Galley r [ClientId]
+  Sem r [ClientId]
 getClients usr = do
   isInternal <- E.useIntraClientListing
   clts <-
@@ -55,7 +55,7 @@ getClients usr = do
 addClientH ::
   Member ClientStore r =>
   UserId ::: ClientId ->
-  Galley r Response
+  Sem r Response
 addClientH (usr ::: clt) = do
   E.createClient usr clt
   return empty
@@ -63,7 +63,7 @@ addClientH (usr ::: clt) = do
 rmClientH ::
   Member ClientStore r =>
   UserId ::: ClientId ->
-  Galley r Response
+  Sem r Response
 rmClientH (usr ::: clt) = do
   E.deleteClient usr clt
   return empty
