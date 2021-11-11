@@ -26,6 +26,8 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
+import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
+import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Spar.Sem.Now (Now)
@@ -48,8 +50,6 @@ import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
-import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
-import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 
 type CanonicalEffs =
   '[ SAML2,

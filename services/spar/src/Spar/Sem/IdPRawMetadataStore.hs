@@ -11,4 +11,3 @@ data IdPRawMetadataStore m a where
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdPRawMetadataStore
-

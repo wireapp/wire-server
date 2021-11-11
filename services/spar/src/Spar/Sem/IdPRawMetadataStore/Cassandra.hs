@@ -17,4 +17,3 @@ idpRawMetadataStoreToCassandra =
       Store i t -> Data.storeIdPRawMetadata i t
       Get i -> Data.getIdPRawMetadata i
       Delete i -> Data.deleteIdPRawMetadata i
-

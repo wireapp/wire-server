@@ -103,4 +103,3 @@ updateReplacedBy mbReplacing replaced idp =
     & if idp ^. SAML.idpId == replaced
       then SAML.idpExtraInfo . IP.wiReplacedBy .~ mbReplacing
       else id
-

@@ -78,6 +78,8 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
+import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Now (Now)
@@ -100,8 +102,6 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
-import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 
 app :: Env -> Application
 app ctx =
@@ -384,12 +384,14 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   pure idp
 
 idpGetRaw ::
-  Members '[GalleyAccess
-            , BrigAccess
-            , IdPEffect.IdP
-            , IdPRawMetadataStore
-            , Error SparError
-           ] r =>
+  Members
+    '[ GalleyAccess,
+       BrigAccess,
+       IdPEffect.IdP,
+       IdPRawMetadataStore,
+       Error SparError
+     ]
+    r =>
   Maybe UserId ->
   SAML.IdPId ->
   Sem r RawIdPMetadata
