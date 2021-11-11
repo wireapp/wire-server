@@ -10,7 +10,5 @@ data AReqIDStore m a where
   Store :: AReqId -> SAML.Time -> AReqIDStore m ()
   UnStore :: AReqId -> AReqIDStore m ()
   IsAlive :: AReqId -> AReqIDStore m Bool
-  StoreVerdictFormat :: NominalDiffTime -> AReqId -> VerdictFormat -> AReqIDStore m ()
-  GetVerdictFormat :: AReqId -> AReqIDStore m (Maybe VerdictFormat)
 
 makeSem ''AReqIDStore

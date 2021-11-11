@@ -46,6 +46,8 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
+import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
 
@@ -55,6 +57,7 @@ type CanonicalEffs =
      BindCookieStore,
      AssIDStore,
      AReqIDStore,
+     VerdictFormatStore,
      ScimExternalIdStore,
      ScimUserTimesStore,
      ScimTokenStore,
@@ -100,6 +103,7 @@ runSparToIO ctx action =
     . scimTokenStoreToCassandra
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
+    . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
     . assIDStoreToCassandra
     . bindCookieStoreToCassandra

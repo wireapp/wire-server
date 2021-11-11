@@ -67,7 +67,6 @@ import qualified Spar.Intra.BrigApp as Brig
 import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
@@ -94,6 +93,8 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
+import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
@@ -114,6 +115,7 @@ api ::
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
+       VerdictFormatStore,
        ScimExternalIdStore,
        ScimUserTimesStore,
        ScimTokenStore,
@@ -150,6 +152,7 @@ apiSSO ::
        BrigAccess,
        BindCookieStore,
        AssIDStore,
+       VerdictFormatStore,
        AReqIDStore,
        ScimTokenStore,
        DefaultSsoCode,
@@ -237,6 +240,7 @@ authreq ::
        Logger String,
        BindCookieStore,
        AssIDStore,
+       VerdictFormatStore,
        AReqIDStore,
        SAML2,
        SamlProtocolSettings,
@@ -262,7 +266,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
     SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
-  AReqIDStore.storeVerdictFormat authreqttl reqid vformat
+  VerdictFormatStore.store authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
@@ -320,6 +324,7 @@ authresp ::
        BrigAccess,
        BindCookieStore,
        AssIDStore,
+       VerdictFormatStore,
        AReqIDStore,
        ScimTokenStore,
        IdPEffect.IdP,

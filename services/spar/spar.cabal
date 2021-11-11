@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a0e25b55baaade0d8e5c5317b255ef5191d861abfde4369ef34ffb6d77bc8e0d
+-- hash: e6330438d7c8652addcf89ffd7d4236272696b74f4660dbf29a7465886d84568
 
 name:           spar
 version:        0.1
@@ -71,6 +71,8 @@ library
       Spar.Sem.ScimTokenStore.Cassandra
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
+      Spar.Sem.VerdictFormatStore
+      Spar.Sem.VerdictFormatStore.Cassandra
   other-modules:
       Paths_spar
   hs-source-dirs:
