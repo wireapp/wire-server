@@ -20,8 +20,8 @@ idPToMem ::
   Sem r (TypedState, a)
 idPToMem = evState . evEff
   where
-    evState :: Sem (State TypedState : r) a -> Sem r a
-    evState = evalState mempty
+    evState :: Sem (State TypedState : r) a -> Sem r (TypedState, a)
+    evState = runState mempty
 
     evEff :: Sem (Eff.IdP ': r) a -> Sem (State TypedState ': r) a
     evEff = reinterpret @_ @(State TypedState) $ \case
