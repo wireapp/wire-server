@@ -11,6 +11,8 @@ In addition to the information below, you can also consult the Dockerfiles for A
 
 ## General package dependencies (needed to compile Haskell services)
 
+*Note: all the below sections for getting compile-time dependencies necessary to compile all of wire-server may potentially go out of date; if you spot a mistake please open an issue or PR*
+
 ### Nix + Direnv
 
 Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
