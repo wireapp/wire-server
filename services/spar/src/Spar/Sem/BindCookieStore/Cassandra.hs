@@ -8,7 +8,7 @@ import Imports hiding (MonadReader (..), Reader)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import SAML2.WebSSO (fromTime, getNow)
+import SAML2.WebSSO (fromTime)
 import qualified Spar.Data as Data
 import Spar.Sem.BindCookieStore
 import Spar.Sem.Now (Now)
