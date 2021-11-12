@@ -579,9 +579,7 @@ ensureConversationAccess ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
        Error ConversationError,
-       Error FederationError,
        Error NotATeamMember,
        TeamStore
      ]

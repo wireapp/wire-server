@@ -195,7 +195,7 @@ getRemoteClients remoteMembers =
         <$> FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
 
 postRemoteOtrMessage ::
-  Members '[ConversationStore, FederatorAccess, Input (Local ())] r =>
+  Members '[FederatorAccess] r =>
   Qualified UserId ->
   Remote ConvId ->
   LByteString ->
@@ -212,8 +212,7 @@ postRemoteOtrMessage sender conv rawMsg = do
 
 postQualifiedOtrMessage ::
   Members
-    '[ BotAccess,
-       BrigAccess,
+    '[ BrigAccess,
        ClientStore,
        ConversationStore,
        FederatorAccess,
@@ -325,7 +324,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
 -- | Send both local and remote messages, return the set of clients for which
 -- sending has failed.
 sendMessages ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess, FederatorAccess, Input (Local ()), P.TinyLog] r =>
+  Members '[GundeckAccess, ExternalAccess, FederatorAccess, Input (Local ()), P.TinyLog] r =>
   -- FUTUREWORK: remove Input (Local ()) effect
   UTCTime ->
   Qualified UserId ->
@@ -354,7 +353,7 @@ sendMessages now sender senderClient mconn lcnv localMemberMap metadata messages
         mempty
 
 sendLocalMessages ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess, Input (Local ()), P.TinyLog] r =>
+  Members '[GundeckAccess, ExternalAccess, Input (Local ()), P.TinyLog] r =>
   UTCTime ->
   Qualified UserId ->
   ClientId ->
@@ -452,7 +451,7 @@ newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
 runMessagePush ::
   forall r.
-  Members '[BotAccess, GundeckAccess, ExternalAccess, Input (Local ()), P.TinyLog] r =>
+  Members '[GundeckAccess, ExternalAccess, Input (Local ()), P.TinyLog] r =>
   Qualified ConvId ->
   MessagePush ->
   Sem r ()

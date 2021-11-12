@@ -92,7 +92,7 @@ interpretBotAccess = interpret $ \case
   DeleteBot cid bid -> embedApp $ deleteBot cid bid
 
 interpretGundeckAccess ::
-  Members '[Embed IO, P.TinyLog, Input Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (GundeckAccess ': r) a ->
   Sem r a
 interpretGundeckAccess = interpret $ \case

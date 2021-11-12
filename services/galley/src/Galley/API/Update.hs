@@ -670,7 +670,7 @@ returnCode c = do
   pure $ Public.mkConversationCode (codeKey c) (codeValue c) urlPrefix
 
 checkReusableCodeH ::
-  Members '[CodeStore, Error CodeError, Error InvalidInput, WaiRoutes] r =>
+  Members '[CodeStore, Error CodeError, WaiRoutes] r =>
   JsonRequest Public.ConversationCode ->
   Sem r Response
 checkReusableCodeH req = do
@@ -694,8 +694,6 @@ joinConversationByReusableCodeH ::
        Error ActionError,
        Error CodeError,
        Error ConversationError,
-       Error FederationError,
-       Error InvalidInput,
        Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
@@ -722,8 +720,6 @@ joinConversationByReusableCode ::
        Error ActionError,
        Error CodeError,
        Error ConversationError,
-       Error FederationError,
-       Error InvalidInput,
        Error NotATeamMember,
        FederatorAccess,
        ExternalAccess,
@@ -749,8 +745,6 @@ joinConversationByIdH ::
        ConversationStore,
        Error ActionError,
        Error ConversationError,
-       Error FederationError,
-       Error InvalidInput,
        Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
@@ -774,8 +768,6 @@ joinConversationById ::
        ConversationStore,
        Error ActionError,
        Error ConversationError,
-       Error FederationError,
-       Error InvalidInput,
        Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
@@ -799,8 +791,6 @@ joinConversation ::
        FederatorAccess,
        Error ActionError,
        Error ConversationError,
-       Error FederationError,
-       Error InvalidInput,
        Error NotATeamMember,
        ExternalAccess,
        GundeckAccess,
@@ -852,8 +842,7 @@ addMembersUnqualified ::
        Input UTCTime,
        LegalHoldStore,
        MemberStore,
-       TeamStore,
-       TinyLog
+       TeamStore
      ]
     r =>
   Local UserId ->
@@ -882,8 +871,7 @@ addMembers ::
        Input UTCTime,
        LegalHoldStore,
        MemberStore,
-       TeamStore,
-       TinyLog
+       TeamStore
      ]
     r =>
   Local UserId ->
@@ -1168,15 +1156,12 @@ handleOtrResult =
 
 postBotMessageH ::
   Members
-    '[ BotAccess,
-       BrigAccess,
+    '[ BrigAccess,
        ClientStore,
        ConversationStore,
        Error ClientError,
        Error ConversationError,
        Error LegalHoldError,
-       Error InvalidInput,
-       FederatorAccess,
        GundeckAccess,
        ExternalAccess,
        Input (Local ()),
@@ -1199,13 +1184,11 @@ postBotMessageH (zbot ::: cnv ::: val ::: req ::: _) = do
 
 postBotMessage ::
   Members
-    '[ BotAccess,
-       BrigAccess,
+    '[ BrigAccess,
        ClientStore,
        ConversationStore,
        Error LegalHoldError,
        ExternalAccess,
-       FederatorAccess,
        GundeckAccess,
        Input Opts,
        Input UTCTime,
@@ -1307,8 +1290,6 @@ postProtoOtrBroadcastH ::
        Error ClientError,
        Error ConversationError,
        Error LegalHoldError,
-       Error InvalidInput,
-       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        Input (Local ()),
@@ -1335,8 +1316,6 @@ postOtrBroadcastH ::
        Error ClientError,
        Error ConversationError,
        Error LegalHoldError,
-       Error InvalidInput,
-       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        Input (Local ()),
@@ -1361,7 +1340,6 @@ postOtrBroadcast ::
        ClientStore,
        Error ActionError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
        GundeckAccess,
        Input Opts,
@@ -1394,7 +1372,6 @@ postNewOtrBroadcast ::
        ClientStore,
        Error ActionError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
        Input Opts,
        Input UTCTime,
@@ -1418,8 +1395,7 @@ postNewOtrBroadcast lusr con val msg = do
 
 postNewOtrMessage ::
   Members
-    '[ BotAccess,
-       BrigAccess,
+    '[ BrigAccess,
        ClientStore,
        ConversationStore,
        Error LegalHoldError,
@@ -1577,7 +1553,6 @@ updateLiveLocalConversationName lusr con lcnv rename =
 isTypingH ::
   Members
     '[ Error ConversationError,
-       Error InvalidInput,
        GundeckAccess,
        Input (Local ()),
        Input UTCTime,
@@ -1615,8 +1590,7 @@ isTyping lusr zcon lcnv typingData = do
 
 addServiceH ::
   Members
-    '[ Error InvalidInput,
-       ServiceStore,
+    '[ ServiceStore,
        WaiRoutes
      ]
     r =>
@@ -1627,7 +1601,7 @@ addServiceH req = do
   return empty
 
 rmServiceH ::
-  Members '[Error InvalidInput, ServiceStore, WaiRoutes] r =>
+  Members '[ServiceStore, WaiRoutes] r =>
   JsonRequest ServiceRef ->
   Sem r Response
 rmServiceH req = do
@@ -1671,8 +1645,7 @@ addBot ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore,
-       WaiRoutes
+       TeamStore
      ]
     r =>
   Local UserId ->
@@ -1728,7 +1701,6 @@ rmBotH ::
     '[ ClientStore,
        ConversationStore,
        Error ConversationError,
-       Error InvalidInput,
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1809,7 +1781,6 @@ withValidOtrBroadcastRecipients ::
        ClientStore,
        Error ActionError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
        Input Opts,
        TeamStore,

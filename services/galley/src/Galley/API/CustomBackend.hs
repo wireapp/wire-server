@@ -62,7 +62,7 @@ getCustomBackendByDomain domain =
 -- INTERNAL -------------------------------------------------------------------
 
 internalPutCustomBackendByDomainH ::
-  Members '[CustomBackendStore, Error InvalidInput, WaiRoutes] r =>
+  Members '[CustomBackendStore, WaiRoutes] r =>
   Domain ::: JsonRequest CustomBackend ->
   Sem r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do

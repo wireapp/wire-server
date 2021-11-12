@@ -193,8 +193,7 @@ instance IsConversationAction ConversationJoin where
           '[ BrigAccess,
              Error ActionError,
              Error FederationError,
-             FederatorAccess,
-             TeamStore
+             FederatorAccess
            ]
           r =>
         Local UserId ->

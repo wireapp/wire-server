@@ -553,7 +553,7 @@ rmUser lusr conn = do
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
-    leaveLocalConversations :: Member MemberStore r => [ConvId] -> Sem r ()
+    leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
       let qUser = qUntagged lusr
       cc <- getConversations ids
@@ -657,7 +657,6 @@ guardLegalholdPolicyConflictsH ::
   Members
     '[ BrigAccess,
        Error LegalHoldError,
-       Error InvalidInput,
        Input Opts,
        TeamStore,
        P.TinyLog,

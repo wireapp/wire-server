@@ -142,14 +142,14 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH ::
-  Members '[Error TeamError, Error NotATeamMember, Input UTCTime, Queue DeleteItem, TeamStore] r =>
+  Members '[Error TeamError, Queue DeleteItem, TeamStore] r =>
   UserId ::: TeamId ::: JSON ->
   Sem r Response
 getTeamH (zusr ::: tid ::: _) =
   maybe (throw TeamNotFound) (pure . json) =<< lookupTeam zusr tid
 
 getTeamInternalH ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ::: JSON ->
   Sem r Response
 getTeamInternalH (tid ::: _) =
@@ -157,7 +157,7 @@ getTeamInternalH (tid ::: _) =
     E.getTeam tid >>= note TeamNotFound
 
 getTeamNameInternalH ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ::: JSON ->
   Sem r Response
 getTeamNameInternalH (tid ::: _) =
@@ -168,14 +168,14 @@ getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
 getManyTeamsH ::
-  (Members '[TeamStore, Queue DeleteItem, Input UTCTime, ListItems LegacyPaging TeamId] r) =>
+  (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
   UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON ->
   Sem r Response
 getManyTeamsH (zusr ::: range ::: size ::: _) =
   json <$> getManyTeams zusr range size
 
 getManyTeams ::
-  (Members '[TeamStore, Input UTCTime, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
+  (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
   UserId ->
   Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
   Range 1 100 Int32 ->
@@ -186,7 +186,7 @@ getManyTeams zusr range size =
     pure (Public.newTeamList (catMaybes teams) more)
 
 lookupTeam ::
-  Members '[TeamStore, Input UTCTime, Queue DeleteItem] r =>
+  Members '[TeamStore, Queue DeleteItem] r =>
   UserId ->
   TeamId ->
   Sem r (Maybe Public.Team)
@@ -204,9 +204,7 @@ createNonBindingTeamH ::
   Members
     '[ BrigAccess,
        Error ActionError,
-       Error InvalidInput,
        Error TeamError,
-       Error NotATeamMember,
        GundeckAccess,
        Input UTCTime,
        P.TinyLog,
@@ -226,7 +224,6 @@ createNonBindingTeam ::
     '[ BrigAccess,
        Error ActionError,
        Error TeamError,
-       Error NotATeamMember,
        GundeckAccess,
        Input UTCTime,
        TeamStore,
@@ -261,7 +258,7 @@ createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   pure (team ^. teamId)
 
 createBindingTeamH ::
-  Members '[BrigAccess, GundeckAccess, Input UTCTime, TeamStore, WaiRoutes] r =>
+  Members '[GundeckAccess, Input UTCTime, TeamStore, WaiRoutes] r =>
   UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON ->
   Sem r Response
 createBindingTeamH (zusr ::: tid ::: req ::: _) = do
@@ -270,7 +267,7 @@ createBindingTeamH (zusr ::: tid ::: req ::: _) = do
   pure (empty & setStatus status201 . location newTeamId)
 
 createBindingTeam ::
-  Members '[BrigAccess, GundeckAccess, Input UTCTime, TeamStore] r =>
+  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
   UserId ->
   TeamId ->
   BindingNewTeam ->
@@ -286,9 +283,7 @@ updateTeamStatusH ::
   Members
     '[ BrigAccess,
        Error ActionError,
-       Error InvalidInput,
        Error TeamError,
-       Error NotATeamMember,
        Input Opts,
        Input UTCTime,
        P.TinyLog,
@@ -308,7 +303,6 @@ updateTeamStatus ::
     '[ BrigAccess,
        Error ActionError,
        Error TeamError,
-       Error NotATeamMember,
        Input Opts,
        Input UTCTime,
        P.TinyLog,
@@ -350,7 +344,6 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
 updateTeamH ::
   Members
     '[ Error ActionError,
-       Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
        Input UTCTime,
@@ -368,7 +361,6 @@ updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
 updateTeam ::
   Members
     '[ Error ActionError,
-       Error TeamError,
        Error NotATeamMember,
        GundeckAccess,
        Input UTCTime,
@@ -455,7 +447,6 @@ internalDeleteBindingTeamWithOneMember ::
   Members
     '[ Error InternalError,
        Error TeamError,
-       Error NotATeamMember,
        Queue DeleteItem,
        TeamStore
      ]
@@ -516,7 +507,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     Data.unsetTeamLegalholdWhitelisted tid
     E.deleteTeam tid
   where
-    pushDeleteEvents :: Member (Input Opts) r => [TeamMember] -> Event -> [Push] -> Sem r ()
+    pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
     pushDeleteEvents membs e ue = do
       o <- inputs (view optSettings)
       let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
@@ -551,7 +542,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       pure (pp', ee' ++ ee)
 
 getTeamConversationRoles ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Sem r Public.ConversationRolesList
@@ -562,7 +553,7 @@ getTeamConversationRoles zusr tid = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 getTeamMembersH ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error NotATeamMember, TeamStore] r =>
   UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JSON ->
   Sem r Response
 getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
@@ -570,7 +561,7 @@ getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
   pure . json $ teamMemberListJson withPerms memberList
 
 getTeamMembers ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Range 1 Public.HardTruncationLimit Int32 ->
@@ -582,7 +573,7 @@ getTeamMembers zusr tid maxResults = do
   pure (mems, withPerms)
 
 getTeamMembersCSVH ::
-  (Members '[BrigAccess, Embed IO, Error ActionError, TeamStore, Input Env] r) =>
+  (Members '[BrigAccess, Error ActionError, TeamStore, Input Env] r) =>
   UserId ::: TeamId ::: JSON ->
   Sem r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
@@ -697,9 +688,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 
 bulkGetTeamMembersH ::
   Members
-    '[ Error ActionError,
-       Error InvalidInput,
-       Error TeamError,
+    '[ Error InvalidInput,
        Error NotATeamMember,
        TeamStore,
        WaiRoutes
@@ -714,7 +703,7 @@ bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
-  Members '[Error ActionError, Error InvalidInput, Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error InvalidInput, Error NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
@@ -755,7 +744,6 @@ internalDeleteBindingTeamWithOneMemberH ::
   Members
     '[ Error InternalError,
        Error TeamError,
-       Error NotATeamMember,
        Queue DeleteItem,
        TeamStore
      ]
@@ -767,14 +755,14 @@ internalDeleteBindingTeamWithOneMemberH tid = do
   pure (empty & setStatus status202)
 
 uncheckedGetTeamMemberH ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ::: UserId ::: JSON ->
   Sem r Response
 uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
   json <$> uncheckedGetTeamMember tid uid
 
 uncheckedGetTeamMember ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error TeamError, TeamStore] r =>
   TeamId ->
   UserId ->
   Sem r TeamMember
@@ -871,7 +859,6 @@ uncheckedAddTeamMemberH ::
     '[ BrigAccess,
        Error LegalHoldError,
        Error TeamError,
-       Error NotATeamMember,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
@@ -898,7 +885,6 @@ uncheckedAddTeamMember ::
        GundeckAccess,
        Error LegalHoldError,
        Error TeamError,
-       Error NotATeamMember,
        Input (Local ()),
        Input Opts,
        Input UTCTime,
@@ -1115,8 +1101,7 @@ deleteTeamMember lusr zcon tid remove mBody = do
 uncheckedDeleteTeamMember ::
   forall r.
   Members
-    '[ BrigAccess,
-       ConversationStore,
+    '[ ConversationStore,
        GundeckAccess,
        ExternalAccess,
        Input UTCTime,
@@ -1173,7 +1158,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       E.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
-  Members '[Error ActionError, Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error ActionError, Error NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Sem r Public.TeamConversationList
@@ -1189,7 +1174,6 @@ getTeamConversation ::
   Members
     '[ Error ActionError,
        Error ConversationError,
-       Error TeamError,
        Error NotATeamMember,
        TeamStore
      ]
@@ -1209,23 +1193,17 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ CodeStore,
        ConversationStore,
        Error ActionError,
        Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error TeamError,
        Error NotATeamMember,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
        TeamStore
      ]
     r =>
@@ -1241,7 +1219,6 @@ deleteTeamConversation lusr zcon _tid cid = do
 getSearchVisibilityH ::
   Members
     '[ Error ActionError,
-       Error TeamError,
        Error NotATeamMember,
        SearchVisibilityStore,
        TeamStore
@@ -1307,7 +1284,7 @@ withTeamIds usr range size k = case range of
     k False ids
 {-# INLINE withTeamIds #-}
 
-ensureUnboundUsers :: Members '[Error TeamError, Error NotATeamMember, TeamStore] r => [UserId] -> Sem r ()
+ensureUnboundUsers :: Members '[Error TeamError, TeamStore] r => [UserId] -> Sem r ()
 ensureUnboundUsers uids = do
   -- We check only 1 team because, by definition, users in binding teams
   -- can only be part of one team.
@@ -1316,7 +1293,7 @@ ensureUnboundUsers uids = do
   when (any (== Binding) binds) $
     throw UserBindingExists
 
-ensureNonBindingTeam :: Members '[Error TeamError, Error NotATeamMember, TeamStore] r => TeamId -> Sem r ()
+ensureNonBindingTeam :: Members '[Error TeamError, TeamStore] r => TeamId -> Sem r ()
 ensureNonBindingTeam tid = do
   team <- note TeamNotFound =<< E.getTeam tid
   when ((tdTeam team) ^. teamBinding == Binding) $
@@ -1354,8 +1331,7 @@ ensureNotTooLarge tid = do
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
   Members
-    '[ BrigAccess,
-       Error LegalHoldError,
+    '[ Error LegalHoldError,
        LegalHoldStore,
        TeamStore,
        TeamFeatureStore
@@ -1393,7 +1369,6 @@ addTeamMemberInternal ::
   Members
     '[ BrigAccess,
        Error TeamError,
-       Error NotATeamMember,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
@@ -1444,7 +1419,6 @@ getTeamNotificationsH ::
   Members
     '[ BrigAccess,
        Error TeamError,
-       Error NotATeamMember,
        Error TeamNotificationError,
        TeamNotificationStore
      ]
@@ -1490,7 +1464,7 @@ finishCreateTeam team owner others zcon = do
 
 -- FUTUREWORK: Get rid of CPS
 withBindingTeam ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[Error TeamError, TeamStore] r =>
   UserId ->
   (TeamId -> Sem r b) ->
   Sem r b
@@ -1501,19 +1475,18 @@ withBindingTeam zusr callback = do
     Binding -> callback tid
     NonBinding -> throw NotABindingTeamMember
 
-getBindingTeamIdH :: Members '[Error TeamError, Error NotATeamMember, TeamStore] r => UserId -> Sem r Response
+getBindingTeamIdH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
 getBindingTeamIdH = fmap json . getBindingTeamId
 
-getBindingTeamId :: Members '[Error TeamError, Error NotATeamMember, TeamStore] r => UserId -> Sem r TeamId
+getBindingTeamId :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r TeamId
 getBindingTeamId zusr = withBindingTeam zusr pure
 
-getBindingTeamMembersH :: Members '[Error TeamError, Error NotATeamMember, TeamStore] r => UserId -> Sem r Response
+getBindingTeamMembersH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers ::
   Members
     '[ Error TeamError,
-       Error NotATeamMember,
        TeamStore
      ]
     r =>
@@ -1580,7 +1553,6 @@ getSearchVisibilityInternal =
 setSearchVisibilityInternalH ::
   Members
     '[ Error TeamError,
-       Error NotATeamMember,
        Input Opts,
        SearchVisibilityStore,
        TeamFeatureStore,
@@ -1596,7 +1568,6 @@ setSearchVisibilityInternalH (tid ::: req ::: _) = do
 setSearchVisibilityInternal ::
   Members
     '[ Error TeamError,
-       Error NotATeamMember,
        Input Opts,
        SearchVisibilityStore,
        TeamFeatureStore

@@ -62,7 +62,6 @@ import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
-import Wire.API.Federation.Client
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto
@@ -236,24 +235,16 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 -- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
-       ConversationStore,
+    '[ ConversationStore,
        Error ActionError,
        Error ConversationError,
-       Error FederationError,
        Error InvalidInput,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input (Local ()),
        Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       TeamStore
+       MemberStore
      ]
     r =>
   Domain ->
@@ -274,7 +265,7 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
 onMessageSent ::
-  Members '[BotAccess, GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
+  Members '[GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
   Domain ->
   F.RemoteMessage ConvId ->
   Sem r ()
@@ -326,8 +317,7 @@ onMessageSent domain rmUnqualified = do
 
 sendMessage ::
   Members
-    '[ BotAccess,
-       BrigAccess,
+    '[ BrigAccess,
        ClientStore,
        ConversationStore,
        Error InvalidInput,

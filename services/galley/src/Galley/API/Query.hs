@@ -493,10 +493,8 @@ getConversationByReusableCode ::
     '[ BrigAccess,
        CodeStore,
        ConversationStore,
-       Error ActionError,
        Error CodeError,
        Error ConversationError,
-       Error FederationError,
        Error NotATeamMember,
        TeamStore
      ]

@@ -168,7 +168,6 @@ getAllFeatureConfigs ::
   Members
     '[ BrigAccess,
        Error ActionError,
-       Error InternalError,
        Error NotATeamMember,
        Error TeamError,
        Input Opts,
@@ -215,7 +214,6 @@ getAllFeaturesH ::
   Members
     '[ BrigAccess,
        Error ActionError,
-       Error InternalError,
        Error TeamError,
        Error NotATeamMember,
        Input Opts,
@@ -234,7 +232,6 @@ getAllFeatures ::
   Members
     '[ BrigAccess,
        Error ActionError,
-       Error InternalError,
        Error TeamError,
        Error NotATeamMember,
        Input Opts,
@@ -488,7 +485,7 @@ getFeatureStatusWithDefaultConfig lens' =
     (Public.TeamFeatureStatusNoConfig <$> getDef)
     (getFeatureStatusNoConfig @a getDef)
   where
-    getDef :: Member (Input Opts) r => Sem r Public.TeamFeatureStatusValue
+    getDef :: Sem r Public.TeamFeatureStatusValue
     getDef =
       inputs (view (optSettings . setFeatureFlags . lens'))
         <&> Public.tfwoStatus . view unDefaults
@@ -536,7 +533,7 @@ getClassifiedDomainsInternal _mbtid = do
     Public.TeamFeatureEnabled -> config
 
 getConferenceCallingInternal ::
-  Members '[BrigAccess, Error InternalError, Input Opts, TeamFeatureStore] r =>
+  Members '[BrigAccess, Input Opts, TeamFeatureStore] r =>
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
 getConferenceCallingInternal (Left (Just uid)) = do

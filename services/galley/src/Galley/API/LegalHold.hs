@@ -86,7 +86,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabledForTeam ::
-  Members '[Error LegalHoldError, Error NotATeamMember, LegalHoldStore, TeamStore, TeamFeatureStore] r =>
+  Members '[Error LegalHoldError, LegalHoldStore, TeamStore, TeamFeatureStore] r =>
   TeamId ->
   Sem r ()
 assertLegalHoldEnabledForTeam tid =
@@ -114,10 +114,8 @@ isLegalHoldEnabledForTeam tid = do
 createSettingsH ::
   Members
     '[ Error ActionError,
-       Error InvalidInput,
        Error LegalHoldError,
        Error NotATeamMember,
-       Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore,
@@ -134,10 +132,8 @@ createSettingsH (zusr ::: tid ::: req ::: _) = do
 createSettings ::
   Members
     '[ Error ActionError,
-       Error InvalidInput,
        Error LegalHoldError,
        Error NotATeamMember,
-       Error TeamError,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore,
@@ -167,13 +163,10 @@ createSettings zusr tid newService = do
 getSettingsH ::
   Members
     '[ Error ActionError,
-       Error InvalidInput,
-       Error TeamError,
        Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
-       TeamStore,
-       P.TinyLog
+       TeamStore
      ]
     r =>
   UserId ::: TeamId ::: JSON ->
@@ -184,13 +177,10 @@ getSettingsH (zusr ::: tid ::: _) = do
 getSettings ::
   Members
     '[ Error ActionError,
-       Error InvalidInput,
-       Error TeamError,
        Error NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
-       TeamStore,
-       P.TinyLog
+       TeamStore
      ]
     r =>
   UserId ->
@@ -292,7 +282,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   ensureReAuthorised zusr mPassword
   removeSettings' @p tid
   where
-    assertNotWhitelisting :: Members '[Error LegalHoldError, TeamStore] r => Sem r ()
+    assertNotWhitelisting :: Sem r ()
     assertNotWhitelisting = do
       getLegalHoldFlag >>= \case
         FeatureLegalHoldDisabledPermanently -> pure ()
@@ -399,20 +389,15 @@ getUserStatus tid uid = do
 -- out).
 grantConsentH ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        Input (Local ()),
@@ -437,20 +422,15 @@ data GrantConsentResult
 
 grantConsent ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        LegalHoldStore,
@@ -477,20 +457,16 @@ grantConsent lusr tid = do
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        Input (Local ()),
@@ -517,20 +493,16 @@ data RequestDeviceResult
 requestDevice ::
   forall r.
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
-       Error NotATeamMember,
        Error TeamError,
+       Error NotATeamMember,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        LegalHoldStore,
@@ -588,21 +560,16 @@ requestDevice zusr tid luid = do
 -- since they are replaced if needed when registering new LH devices.
 approveDeviceH ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error AuthenticationError,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
        Error NotATeamMember,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        Input (Local ()),
@@ -625,21 +592,16 @@ approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
 
 approveDevice ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error AuthenticationError,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
        Error NotATeamMember,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        LegalHoldStore,
@@ -695,21 +657,16 @@ approveDevice zusr tid luid connId (Public.ApproveLegalHoldForUserRequest mPassw
 
 disableForUserH ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error AuthenticationError,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
        Error NotATeamMember,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        Input (Local ()),
@@ -737,21 +694,16 @@ data DisableLegalHoldForUserResponse
 disableForUser ::
   forall r.
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error AuthenticationError,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
        Error NotATeamMember,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        LegalHoldStore,
@@ -794,20 +746,14 @@ disableForUser zusr tid luid (Public.DisableLegalHoldForUserRequest mPassword) =
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
+    '[ BrigAccess,
        ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
-       Error NotATeamMember,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
        LegalHoldStore,
@@ -862,8 +808,6 @@ blockNonConsentingConnections ::
   Members
     '[ BrigAccess,
        Error LegalHoldError,
-       Error NotATeamMember,
-       LegalHoldStore,
        TeamStore,
        P.TinyLog
      ]
@@ -938,25 +882,17 @@ getTeamLegalholdWhitelistedH tid = do
 -- one from the database.
 handleGroupConvPolicyConflicts ::
   Members
-    '[ BotAccess,
-       BrigAccess,
-       CodeStore,
-       ConversationStore,
+    '[ ConversationStore,
        Error ActionError,
        Error InvalidInput,
        Error ConversationError,
-       Error FederationError,
-       Error TeamError,
        ExternalAccess,
        FederatorAccess,
-       FireAndForget,
        GundeckAccess,
        Input UTCTime,
-       LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore,
-       P.TinyLog
+       TeamStore
      ]
     r =>
   Local UserId ->
