@@ -41,6 +41,7 @@ import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatu
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
+import Galley.Cassandra.Paging
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -122,7 +123,7 @@ servantSitemap =
           getFeatureStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusLegalHoldPut =
-          setFeatureStatus @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal . DoAuth,
+          setFeatureStatus @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging) . DoAuth,
         GalleyAPI.teamFeatureStatusSearchVisibilityGet =
           getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
             . DoAuth,

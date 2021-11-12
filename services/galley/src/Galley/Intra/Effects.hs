@@ -23,6 +23,7 @@ module Galley.Intra.Effects
   )
 where
 
+import Galley.API.Error
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
 import Galley.Effects.GundeckAccess (GundeckAccess (..))
@@ -36,12 +37,13 @@ import Galley.Intra.User
 import Galley.Monad
 import Imports
 import Polysemy
+import Polysemy.Error
 import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
 
 interpretBrigAccess ::
-  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Error InternalError, P.TinyLog, P.Reader Env] r =>
   Sem (BrigAccess ': r) a ->
   Sem r a
 interpretBrigAccess = interpret $ \case

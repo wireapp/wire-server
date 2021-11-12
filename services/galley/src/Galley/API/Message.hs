@@ -21,7 +21,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
-import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
+import Galley.API.LegalHold.Conflicts
 import Galley.API.Util
 import Galley.Data.Services as Data
 import Galley.Effects
@@ -302,7 +302,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
       lift
         . runLocalInput lcnv
         . eitherM (const legalholdErr) (const clientMissingErr)
-        . runError
+        . runError @LegalholdConflicts
         $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
     throwError e
 
@@ -365,7 +365,7 @@ sendLocalMessages ::
   Map (UserId, ClientId) Text ->
   Sem r (Set (UserId, ClientId))
 sendLocalMessages now sender senderClient mconn qcnv localMemberMap metadata localMessages = do
-  loc <- input
+  loc <- qualifyLocal ()
   let events =
         localMessages & reindexed snd itraversed
           %@~ newMessageEvent
@@ -462,7 +462,7 @@ runMessagePush qcnv mp = do
   where
     pushToBots :: [(BotMember, Event)] -> Sem r ()
     pushToBots pushes = do
-      localDomain <- inputs tDomain
+      localDomain <- tDomain <$> qualifyLocal ()
       if localDomain /= qDomain qcnv
         then unless (null pushes) $ do
           P.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)

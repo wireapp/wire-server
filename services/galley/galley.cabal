@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4da860212d97dbcf09548cb2608930a410137fe9728aec9b69956542d11f4af8
+-- hash: 4af7b352008a3c5084be746c85f8442d8b5c9f53fddf87db673482d127e26fea
 
 name:           galley
 version:        0.83.0
@@ -130,7 +130,7 @@ library
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fplugin=Polysemy.Plugin
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
@@ -176,7 +176,6 @@ library
     , optparse-applicative >=0.10
     , pem
     , polysemy
-    , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens >=0.2
     , protobuf >=0.2

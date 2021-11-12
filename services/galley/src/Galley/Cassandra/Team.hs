@@ -99,7 +99,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   EnqueueTeamEvent e -> do
     menv <- P.asks (view aEnv)
     for_ menv $ \env ->
-      embed $ Aws.execute env (Aws.enqueue e)
+      embed @IO $ Aws.execute env (Aws.enqueue e)
 
 interpretTeamListToCassandra ::
   Members '[Embed IO, P.Reader ClientState] r =>

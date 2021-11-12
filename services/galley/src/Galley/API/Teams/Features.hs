@@ -409,6 +409,7 @@ getLegalholdStatusInternal (Right tid) = do
     False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
 setLegalholdStatusInternal ::
+  forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
     Members
@@ -460,7 +461,7 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
 
   -- we're good to update the status now.
   case statusValue of
-    Public.TeamFeatureDisabled -> removeSettings' tid
+    Public.TeamFeatureDisabled -> removeSettings' @p tid
     Public.TeamFeatureEnabled -> do
       ensureNotTooLargeToActivateLegalHold tid
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status

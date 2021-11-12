@@ -264,8 +264,8 @@ evalGalley e action = do
     . interpretBotAccess
     . interpretFederatorAccess
     . interpretExternalAccess
-    . interpretSparAccess
     . interpretGundeckAccess
+    . interpretSparAccess
     . interpretBrigAccess
     $ action
   where

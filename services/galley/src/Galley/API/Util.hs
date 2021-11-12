@@ -49,7 +49,6 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import Galley.Env
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types
@@ -615,11 +614,11 @@ ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m Domain
-viewFederationDomain = view (options . optSettings . setFederationDomain)
-
 qualifyLocal :: Member (Input (Local ())) r => a -> Sem r (Local a)
-qualifyLocal a = toLocalUnsafe <$> fmap tDomain input <*> pure a
+qualifyLocal a = toLocalUnsafe <$> fmap getDomain input <*> pure a
+  where
+    getDomain :: Local () -> Domain
+    getDomain = tDomain
 
 runLocalInput :: Local x -> Sem (Input (Local ()) ': r) a -> Sem r a
 runLocalInput = runInputConst . void

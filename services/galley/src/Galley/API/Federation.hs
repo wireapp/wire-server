@@ -88,7 +88,7 @@ onConversationCreated ::
   Sem r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
-  loc <- input
+  loc <- qualifyLocal ()
   let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
 
   addedUserIds <-
@@ -126,7 +126,7 @@ getConversations ::
   Sem r F.GetConversationsResponse
 getConversations domain (F.GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
-  loc <- input
+  loc <- qualifyLocal ()
   F.GetConversationsResponse
     . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
@@ -150,7 +150,7 @@ onConversationUpdated ::
   F.ConversationUpdate ->
   Sem r ()
 onConversationUpdated requestingDomain cu = do
-  loc <- input
+  loc <- qualifyLocal ()
   let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
       qconvId = qUntagged rconvId
 

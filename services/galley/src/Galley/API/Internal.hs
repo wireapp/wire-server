@@ -40,7 +40,7 @@ import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.Error
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
-import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import Galley.API.LegalHold.Conflicts
 import qualified Galley.API.One2One as One2One
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
@@ -281,7 +281,7 @@ servantSitemap =
         iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
         iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal,
         iTeamFeatureStatusLegalHoldGet = iGetTeamFeature @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
-        iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal,
+        iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging),
         iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
@@ -550,7 +550,7 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       mems <- getTeamMembersForFanout tid
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
-      page' <- listTeams (tUnqualified lusr) (Just (pageState page)) maxBound
+      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
     leaveLocalConversations :: Member MemberStore r => [ConvId] -> Sem r ()
@@ -668,6 +668,6 @@ guardLegalholdPolicyConflictsH ::
   Sem r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
-  mapError (const MissingLegalholdConsent) $
+  mapError @LegalholdConflicts (const MissingLegalholdConsent) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
   pure $ Network.Wai.Utilities.setStatus status200 empty

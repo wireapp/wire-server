@@ -240,10 +240,11 @@ removeSettingsH ::
   Sem r Response
 removeSettingsH (zusr ::: tid ::: req ::: _) = do
   removeSettingsRequest <- fromJsonBody req
-  removeSettings zusr tid removeSettingsRequest
+  removeSettings @InternalPaging zusr tid removeSettingsRequest
   pure noContent
 
 removeSettings ::
+  forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
     Members
@@ -289,7 +290,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
-  removeSettings' tid
+  removeSettings' @p tid
   where
     assertNotWhitelisting :: Members '[Error LegalHoldError, TeamStore] r => Sem r ()
     assertNotWhitelisting = do
@@ -336,7 +337,7 @@ removeSettings' ::
   Sem r ()
 removeSettings' tid =
   withChunks
-    (\mps -> listTeamMembers tid mps maxBound)
+    (\mps -> listTeamMembers @p tid mps maxBound)
     action
   where
     action :: [TeamMember] -> Sem r ()

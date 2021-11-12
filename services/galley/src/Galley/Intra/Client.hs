@@ -31,7 +31,6 @@ import Brig.Types.Client
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))
-import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
@@ -46,8 +45,9 @@ import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
+import Network.Wai.Utilities.Error hiding (Error)
 import Polysemy
+import Polysemy.Error
 import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
@@ -94,7 +94,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
-  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Error InternalError, P.TinyLog, P.Reader Env] r =>
   UserId ->
   Maybe PlainTextPassword ->
   Sem r OpaqueAuthToken
@@ -109,7 +109,7 @@ getLegalHoldAuthToken uid pw = do
   case getCookieValue "zuid" r of
     Nothing -> do
       P.warn $ Logger.msg @Text "Response from login missing auth cookie"
-      embed $ throwM internalError
+      throw $ InternalErrorWithDescription "internal error"
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
 -- | Calls 'Brig.API.addClientInternalH'.

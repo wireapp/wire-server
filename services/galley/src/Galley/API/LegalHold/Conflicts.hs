@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
+import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.TeamStore
@@ -57,7 +58,7 @@ guardQualifiedLegalholdPolicyConflicts ::
   QualifiedUserClients ->
   Sem r ()
 guardQualifiedLegalholdPolicyConflicts protectee qclients = do
-  localDomain <- tDomain <$> input
+  localDomain <- tDomain <$> qualifyLocal ()
   guardLegalholdPolicyConflicts protectee
     . UserClients
     . Map.findWithDefault mempty localDomain

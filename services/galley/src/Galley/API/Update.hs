@@ -80,7 +80,7 @@ import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
-import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import Galley.API.LegalHold.Conflicts
 import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Util
@@ -1920,7 +1920,7 @@ handleOtrResponse ::
   Sem r OtrResult
 handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
-  MissingOtrRecipients m -> mapError (const MissingLegalholdConsent) $ do
+  MissingOtrRecipients m -> mapError @LegalholdConflicts (const MissingLegalholdConsent) $ do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound mkErrorDescription

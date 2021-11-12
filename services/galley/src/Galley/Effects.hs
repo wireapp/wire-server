@@ -96,8 +96,8 @@ import Polysemy.Internal
 
 type NonErrorGalleyEffects1 =
   '[ BrigAccess,
-     GundeckAccess,
      SparAccess,
+     GundeckAccess,
      ExternalAccess,
      FederatorAccess,
      BotAccess,
