@@ -26,7 +26,7 @@ import Galley.Data.TeamFeatures
 import Galley.Effects.TeamFeatureStore (TeamFeatureStore (..))
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import Wire.API.Team.Feature
 
 getFeatureStatusNoConfig ::
@@ -141,7 +141,7 @@ setSelfDeletingMessagesStatus tid status = do
           <> "values (?, ?, ?)"
 
 interpretTeamFeatureStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case

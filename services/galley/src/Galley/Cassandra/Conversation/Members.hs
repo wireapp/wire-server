@@ -44,7 +44,7 @@ import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import qualified UnliftIO
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role
@@ -340,7 +340,7 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
 interpretMemberStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (MemberStore ': r) a ->
   Sem r a
 interpretMemberStoreToCassandra = interpret $ \case

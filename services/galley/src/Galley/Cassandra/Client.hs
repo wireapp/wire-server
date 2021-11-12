@@ -36,6 +36,7 @@ import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Imports
 import Polysemy
+import Polysemy.Input
 import qualified Polysemy.Reader as P
 import qualified UnliftIO
 
@@ -58,7 +59,7 @@ eraseClients :: UserId -> Client ()
 eraseClients user = retry x5 (write Cql.rmClients (params LocalQuorum (Identity user)))
 
 interpretClientStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState, P.Reader Env] r =>
+  Members '[Embed IO, Input ClientState, P.Reader Env] r =>
   Sem (ClientStore ': r) a ->
   Sem r a
 interpretClientStoreToCassandra = interpret $ \case

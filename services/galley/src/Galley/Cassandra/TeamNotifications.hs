@@ -45,10 +45,10 @@ import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 interpretTeamNotificationStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (TeamNotificationStore ': r) a ->
   Sem r a
 interpretTeamNotificationStoreToCassandra = interpret $ \case

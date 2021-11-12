@@ -32,10 +32,11 @@ import Galley.Env
 import Galley.Options
 import Imports
 import Polysemy
+import Polysemy.Input
 import qualified Polysemy.Reader as P
 
 interpretCodeStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState, P.Reader Env] r =>
+  Members '[Embed IO, Input ClientState, P.Reader Env] r =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case

@@ -93,6 +93,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.TinyLog
 
 type NonErrorGalleyEffects1 =
   '[ BrigAccess,
@@ -123,7 +124,8 @@ type NonErrorGalleyEffects1 =
      Input Opts,
      WaiRoutes,
      Input UTCTime,
-     Queue DeleteItem
+     Queue DeleteItem,
+     TinyLog
    ]
 
 -- All the possible high-level effects.

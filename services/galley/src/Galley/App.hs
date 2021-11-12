@@ -115,7 +115,7 @@ import Util.Options
 
 -- MTL-style effects derived from the old implementation of the Galley monad.
 -- They will disappear as we introduce more high-level effects into Galley.
-type GalleyEffects0 = '[P.TinyLog, P.Reader ClientState, P.Reader Env, Embed IO, Final IO]
+type GalleyEffects0 = '[Input ClientState, P.Reader Env, Embed IO, Final IO]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
@@ -234,10 +234,10 @@ evalGalley e action = do
   runFinal @IO
     . embedToFinal @IO
     . P.runReader e
-    . P.runReader (e ^. cstate)
-    . interpretTinyLog e
+    . runInputConst (e ^. cstate)
     . interpretErrorToException
     . mapAllErrors
+    . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
     . interpretWaiRoutes
