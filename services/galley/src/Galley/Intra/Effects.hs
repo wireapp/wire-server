@@ -38,12 +38,12 @@ import Galley.Monad
 import Imports
 import Polysemy
 import Polysemy.Error
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
 
 interpretBrigAccess ::
-  Members '[Embed IO, Error InternalError, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Error InternalError, P.TinyLog, Input Env] r =>
   Sem (BrigAccess ': r) a ->
   Sem r a
 interpretBrigAccess = interpret $ \case
@@ -78,21 +78,21 @@ interpretBrigAccess = interpret $ \case
     embedApp $ getAccountFeatureConfigClient uid
 
 interpretSparAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (SparAccess ': r) a ->
   Sem r a
 interpretSparAccess = interpret $ \case
   DeleteTeam tid -> embedApp $ deleteTeam tid
 
 interpretBotAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (BotAccess ': r) a ->
   Sem r a
 interpretBotAccess = interpret $ \case
   DeleteBot cid bid -> embedApp $ deleteBot cid bid
 
 interpretGundeckAccess ::
-  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, P.TinyLog, Input Env] r =>
   Sem (GundeckAccess ': r) a ->
   Sem r a
 interpretGundeckAccess = interpret $ \case

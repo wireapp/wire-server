@@ -51,12 +51,11 @@ import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import Polysemy
 import Polysemy.Input
-import qualified Polysemy.Reader as P
 import qualified Ssl.Util as SSL
 import Wire.API.Provider.Service
 
 interpretLegalHoldStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, P.Reader Env] r =>
+  Members '[Embed IO, Input ClientState, Input Env] r =>
   FeatureLegalHold ->
   Sem (LegalHoldStore ': r) a ->
   Sem r a

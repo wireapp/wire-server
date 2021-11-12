@@ -104,7 +104,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal (Append)
-import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
 import qualified Servant
 import Ssl.Util
@@ -115,7 +114,7 @@ import Util.Options
 
 -- MTL-style effects derived from the old implementation of the Galley monad.
 -- They will disappear as we introduce more high-level effects into Galley.
-type GalleyEffects0 = '[Input ClientState, P.Reader Env, Embed IO, Final IO]
+type GalleyEffects0 = '[Input ClientState, Input Env, Embed IO, Final IO]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
@@ -233,7 +232,7 @@ evalGalley :: Env -> Sem GalleyEffects a -> IO a
 evalGalley e action = do
   runFinal @IO
     . embedToFinal @IO
-    . P.runReader e
+    . runInputConst e
     . runInputConst (e ^. cstate)
     . interpretErrorToException
     . mapAllErrors

@@ -33,10 +33,9 @@ import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Input
-import qualified Polysemy.Reader as P
 
 interpretCodeStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, P.Reader Env] r =>
+  Members '[Embed IO, Input ClientState, Input Env] r =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
@@ -46,7 +45,7 @@ interpretCodeStoreToCassandra = interpret $ \case
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
   GetConversationCodeURI ->
-    view (options . optSettings . setConversationCodeURI) <$> P.ask
+    view (options . optSettings . setConversationCodeURI) <$> input
 
 -- | Insert a conversation code
 insertCode :: Code -> Client ()

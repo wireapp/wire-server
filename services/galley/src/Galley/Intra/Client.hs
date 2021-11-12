@@ -48,7 +48,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error hiding (Error)
 import Polysemy
 import Polysemy.Error
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
@@ -94,7 +94,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
-  Members '[Embed IO, Error InternalError, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Error InternalError, P.TinyLog, Input Env] r =>
   UserId ->
   Maybe PlainTextPassword ->
   Sem r OpaqueAuthToken

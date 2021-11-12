@@ -122,7 +122,6 @@ import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.Reader as P
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
@@ -583,7 +582,7 @@ getTeamMembers zusr tid maxResults = do
   pure (mems, withPerms)
 
 getTeamMembersCSVH ::
-  (Members '[BrigAccess, Embed IO, Error ActionError, TeamStore, P.Reader Env] r) =>
+  (Members '[BrigAccess, Embed IO, Error ActionError, TeamStore, Input Env] r) =>
   UserId ::: TeamId ::: JSON ->
   Sem r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
@@ -591,7 +590,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     Nothing -> throw AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throw AccessDenied
 
-  env <- P.ask
+  env <- input
   -- In case an exception is thrown inside the StreamingBody of responseStream
   -- the response will not contain a correct error message, but rather be an
   -- http error such as 'InvalidChunkHeaders'. The exception however still

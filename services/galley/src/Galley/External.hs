@@ -38,7 +38,7 @@ import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import Ssl.Util (withVerifiedSslConnection)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
@@ -46,7 +46,7 @@ import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 
 interpretExternalAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (ExternalAccess ': r) a ->
   Sem r a
 interpretExternalAccess = interpret $ \case

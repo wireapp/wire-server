@@ -29,7 +29,7 @@ import Galley.Env
 import Galley.Options
 import Imports hiding (log)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import System.Logger
 import qualified System.Logger.Class as LC
 import Wire.API.Federation.Client
@@ -74,9 +74,9 @@ instance LC.MonadLogger App where
     log (env ^. applog) lvl (reqIdMsg (env ^. reqId) . m)
 
 embedApp ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   App a ->
   Sem r a
 embedApp action = do
-  env <- P.ask
+  env <- input
   embed $ runApp env action

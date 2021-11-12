@@ -28,13 +28,13 @@ import Galley.Intra.Federator.Types
 import Galley.Monad
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import UnliftIO
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (FederatorAccess ': r) a ->
   Sem r a
 interpretFederatorAccess = interpret $ \case

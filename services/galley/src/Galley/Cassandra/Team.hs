@@ -59,12 +59,11 @@ import Galley.Types.Teams.Intra
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
-import qualified Polysemy.Reader as P
 import qualified UnliftIO
 import Wire.API.Team.Member
 
 interpretTeamStoreToCassandra ::
-  Members '[Embed IO, P.Reader Env, Input ClientState] r =>
+  Members '[Embed IO, Input Env, Input ClientState] r =>
   FeatureLegalHold ->
   Sem (TeamStore ': r) a ->
   Sem r a
@@ -96,9 +95,9 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
   FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
   GetLegalHoldFlag ->
-    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> P.ask
+    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> input
   EnqueueTeamEvent e -> do
-    menv <- P.asks (view aEnv)
+    menv <- inputs (view aEnv)
     for_ menv $ \env ->
       embed @IO $ Aws.execute env (Aws.enqueue e)
 
