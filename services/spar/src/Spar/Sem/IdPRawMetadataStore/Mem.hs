@@ -5,7 +5,7 @@ module Spar.Sem.IdPRawMetadataStore.Mem (idpRawMetadataStoreToMem, RawState) whe
 import qualified Data.Map as M
 import Imports
 import Polysemy
-import Polysemy.State (State, runState, gets, modify)
+import Polysemy.State (State, gets, modify, runState)
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.IdPRawMetadataStore
 
