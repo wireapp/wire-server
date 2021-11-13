@@ -9,5 +9,7 @@ data IdPRawMetadataStore m a where
   Get :: SAML.IdPId -> IdPRawMetadataStore m (Maybe Text)
   Delete :: SAML.IdPId -> IdPRawMetadataStore m ()
 
+deriving stock instance Show (IdPRawMetadataStore m a)
+
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdPRawMetadataStore
