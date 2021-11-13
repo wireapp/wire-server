@@ -36,11 +36,6 @@ data IdP m a where
   -- affects _wiReplacedBy in GetConfig
   SetReplacedBy :: Replaced -> Replacing -> IdP m ()
   ClearReplacedBy :: Replaced -> IdP m ()
-  -- TODO(sandy): maybe this wants  to be a separate effect
-  -- data Metadata  m a where
-  StoreRawMetadata :: SAML.IdPId -> Text -> IdP m ()
-  GetRawMetadata :: SAML.IdPId -> IdP m (Maybe Text)
-  DeleteRawMetadata :: SAML.IdPId -> IdP m ()
 
 deriving stock instance Show (IdP m a)
 

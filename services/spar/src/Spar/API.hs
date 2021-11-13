@@ -78,6 +78,8 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
+import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Now (Now)
@@ -119,6 +121,7 @@ api ::
        ScimTokenStore,
        DefaultSsoCode,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        SAMLUserStore,
        Random,
        Error SparError,
@@ -181,6 +184,7 @@ apiIDP ::
        BrigAccess,
        ScimTokenStore,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        SAMLUserStore,
        Error SparError
      ]
@@ -380,14 +384,21 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   pure idp
 
 idpGetRaw ::
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members
+    '[ GalleyAccess,
+       BrigAccess,
+       IdPEffect.IdP,
+       IdPRawMetadataStore,
+       Error SparError
+     ]
+    r =>
   Maybe UserId ->
   SAML.IdPId ->
   Sem r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- getIdPConfig idpid
   _ <- authorizeIdP zusr idp
-  IdPEffect.getRawMetadata idpid >>= \case
+  IdPRawMetadataStore.get idpid >>= \case
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSparSem $ SparIdPNotFound (cs $ show idpid)
 
@@ -426,6 +437,7 @@ idpDelete ::
        ScimTokenStore,
        SAMLUserStore,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -462,7 +474,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   -- Delete IdP config
   do
     IdPEffect.deleteConfig idp
-    IdPEffect.deleteRawMetadata idpid
+    IdPRawMetadataStore.delete idpid
   return NoContent
   where
     updateOldIssuers :: IdP -> Sem r ()
@@ -492,6 +504,7 @@ idpCreate ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
+       IdPRawMetadataStore,
        IdPEffect.IdP,
        Error SparError
      ]
@@ -512,6 +525,7 @@ idpCreateXML ::
        BrigAccess,
        ScimTokenStore,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -526,7 +540,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
-  IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   storeIdPConfig idp
   forM_ mReplaces $ \replaces -> do
     IdPEffect.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
@@ -635,6 +649,7 @@ idpUpdate ::
        GalleyAccess,
        BrigAccess,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -651,6 +666,7 @@ idpUpdateXML ::
        GalleyAccess,
        BrigAccess,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -662,7 +678,7 @@ idpUpdateXML ::
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
-  IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
   -- try again, which would clean up cassandra state.)

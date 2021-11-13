@@ -29,6 +29,3 @@ idPToCassandra =
          in Data.deleteIdPConfig idpid issuer team
       SetReplacedBy r r11 -> Data.setReplacedBy r r11
       ClearReplacedBy r -> Data.clearReplacedBy r
-      StoreRawMetadata i t -> Data.storeIdPRawMetadata i t
-      GetRawMetadata i -> Data.getIdPRawMetadata i
-      DeleteRawMetadata i -> Data.deleteIdPRawMetadata i
