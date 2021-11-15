@@ -22,30 +22,18 @@ where
 
 import Imports
 import Test.Tasty
-import qualified Test.Wire.API.Call.Config as Call.Config
-import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
-import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
-import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
-import qualified Test.Wire.API.Routes as Routes
-import qualified Test.Wire.API.Swagger as Swagger
-import qualified Test.Wire.API.Team.Member as Team.Member
-import qualified Test.Wire.API.User as User
-import qualified Test.Wire.API.User.RichInfo as User.RichInfo
-import qualified Test.Wire.API.User.Search as User.Search
+import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
+import qualified Test.Wire.API.Golden.Generated as Golden.Generated
+import qualified Test.Wire.API.Golden.Manual as Golden.Manual
+import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
 
 main :: IO ()
 main =
   defaultMain $
     testGroup
       "Tests"
-      [ Call.Config.tests,
-        Team.Member.tests,
-        User.tests,
-        User.Search.tests,
-        User.RichInfo.tests,
-        Roundtrip.Aeson.tests,
-        Roundtrip.ByteString.tests,
-        Swagger.tests,
-        Roundtrip.CSV.tests,
-        Routes.tests
+      [ Golden.Generated.tests,
+        Golden.Manual.tests,
+        Golden.FromJSON.tests,
+        Golden.Protobuf.tests
       ]
