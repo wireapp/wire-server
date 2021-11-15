@@ -112,8 +112,7 @@ import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 
--- MTL-style effects derived from the old implementation of the Galley monad.
--- They will disappear as we introduce more high-level effects into Galley.
+-- Effects needed by the interpretation of other effects
 type GalleyEffects0 = '[Input ClientState, Input Env, Embed IO, Final IO]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
