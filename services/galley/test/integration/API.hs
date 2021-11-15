@@ -183,6 +183,8 @@ tests s =
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv, non-existent" leaveNonExistentRemoteConv,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv, denied" leaveRemoteConvDenied,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove local user, fail" removeLocalMemberConvQualifiedFail,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove remote user, fail" removeRemoteMemberConvQualifiedFail,
           test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
@@ -2615,6 +2617,58 @@ leaveRemoteConvQualifiedOk = do
       Right e -> assertLeaveEvent qconv qAlice [qAlice] e
     FederatedGalley.lcConvId leaveRequest @?= conv
     FederatedGalley.lcLeaver leaveRequest @?= alice
+
+-- Alice tries to leave a non-existent remote conversation
+leaveNonExistentRemoteConv :: TestM ()
+leaveNonExistentRemoteConv = do
+  alice <- randomQualifiedUser
+  let remoteDomain = Domain "faraway.example.com"
+  conv <- randomQualifiedId remoteDomain
+
+  let mockResponses :: F.FederatedRequest -> Maybe Value
+      mockResponses req
+        | fmap F.component (F.request req) == Just F.Galley =
+          Just . toJSON . FederatedGalley.LeaveConversationResponse $
+            Left FederatedGalley.RemoveFromConversationErrorNotFound
+        | otherwise = Nothing
+
+  (resp, fedRequests) <-
+    withTempMockFederator mockResponses $
+      responseJsonError =<< deleteMemberQualified (qUnqualified alice) alice conv
+        <!! const 404 === statusCode
+  let leaveRequest =
+        fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
+          fedRequests
+  liftIO $ do
+    fmap label resp @?= Just "no-conversation"
+    FederatedGalley.lcConvId leaveRequest @?= qUnqualified conv
+    FederatedGalley.lcLeaver leaveRequest @?= qUnqualified alice
+
+-- Alice tries to leave a conversation of the wrong type
+leaveRemoteConvDenied :: TestM ()
+leaveRemoteConvDenied = do
+  alice <- randomQualifiedUser
+  let remoteDomain = Domain "faraway.example.com"
+  conv <- randomQualifiedId remoteDomain
+
+  let mockResponses :: F.FederatedRequest -> Maybe Value
+      mockResponses req
+        | fmap F.component (F.request req) == Just F.Galley =
+          Just . toJSON . FederatedGalley.LeaveConversationResponse $
+            Left FederatedGalley.RemoveFromConversationErrorRemovalNotAllowed
+        | otherwise = Nothing
+
+  (resp, fedRequests) <-
+    withTempMockFederator mockResponses $
+      responseJsonError =<< deleteMemberQualified (qUnqualified alice) alice conv
+        <!! const 403 === statusCode
+  let leaveRequest =
+        fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
+          fedRequests
+  liftIO $ do
+    fmap label resp @?= Just "action-denied"
+    FederatedGalley.lcConvId leaveRequest @?= qUnqualified conv
+    FederatedGalley.lcLeaver leaveRequest @?= qUnqualified alice
 
 -- Alice, a user remote to the conversation, tries to remove someone on her own
 -- backend other than herself via:
