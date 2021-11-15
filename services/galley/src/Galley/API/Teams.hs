@@ -121,7 +121,9 @@ import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Final
 import Polysemy.Input
+import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
@@ -572,8 +574,16 @@ getTeamMembers zusr tid maxResults = do
   let withPerms = (m `canSeePermsOf`)
   pure (mems, withPerms)
 
+outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
+outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
+  pure . (<$ state) $ \write flush -> do
+    let writeChunk c = embedFinal $ do
+          write (lazyByteString c)
+          flush
+    void . weave . (<$ state) $ runOutputSem writeChunk action
+
 getTeamMembersCSVH ::
-  (Members '[BrigAccess, Error ActionError, TeamStore, Input Env] r) =>
+  (Members '[BrigAccess, Error ActionError, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
   UserId ::: TeamId ::: JSON ->
   Sem r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
@@ -581,44 +591,34 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     Nothing -> throw AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throw AccessDenied
 
-  env <- input
   -- In case an exception is thrown inside the StreamingBody of responseStream
   -- the response will not contain a correct error message, but rather be an
   -- http error such as 'InvalidChunkHeaders'. The exception however still
   -- reaches the middleware and is being tracked in logging and metrics.
-  --
-  -- FUTUREWORK: rewrite this using some streaming primitive (e.g. polysemy's Output)
+  body <- outputToStreamingBody $ do
+    output headerLine
+    E.withChunks (\mps -> E.listTeamMembers @InternalPaging tid mps maxBound) $
+      \members -> do
+        inviters <- lookupInviterHandle members
+        users <-
+          lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
+        richInfos <-
+          lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
+        output @LByteString
+          ( encodeDefaultOrderedByNameWith
+              defaultEncodeOptions
+              (mapMaybe (teamExportUser users inviters richInfos) members)
+          )
   pure $
     responseStream
       status200
       [ (hContentType, "text/csv"),
         ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
       ]
-      $ \write flush -> do
-        let writeString = write . lazyByteString
-        writeString headerLine
-        flush
-        evalGalley env $ do
-          E.withChunks pager $
-            \members -> do
-              inviters <- lookupInviterHandle members
-              users <-
-                lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
-              richInfos <-
-                lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
-              embed $ do
-                writeString
-                  ( encodeDefaultOrderedByNameWith
-                      defaultEncodeOptions
-                      (mapMaybe (teamExportUser users inviters richInfos) members)
-                  )
-                flush
+      body
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
-
-    pager :: Maybe (InternalPagingState TeamMember) -> Sem GalleyEffects (InternalPage TeamMember)
-    pager mps = E.listTeamMembers tid mps maxBound
 
     defaultEncodeOptions :: EncodeOptions
     defaultEncodeOptions =
