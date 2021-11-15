@@ -1,1 +1,0 @@
-Make golden-tests in wire-api package a separate test suite (for faster feedback loop during development).
