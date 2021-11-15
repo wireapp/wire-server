@@ -11,6 +11,32 @@ In addition to the information below, you can also consult the Dockerfiles for A
 
 ## General package dependencies (needed to compile Haskell services)
 
+*Note: all the below sections for getting compile-time dependencies necessary to compile all of wire-server may potentially go out of date; if you spot a mistake please open an issue or PR*
+
+### Nix + Direnv
+
+Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
+dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
+
+If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
+You can then run all the builds, and the native dependencies will be automatically present.
+
+1. Install [Nix](https://nixos.org/download.html)
+   * MacOS users with a recent Mac might need to follow [these
+   instructions](https://nixos.org/nix/manual/#sect-macos-installation)
+   * Debian users can use their distro's `nix` package, and should remember
+   
+   to add their user to the `nix-users` group in /etc/group, and re-start
+   their login session.
+2. Install [Direnv](https://direnv.net/).
+   * On debian, you can install the `direnv` package. On MacOS use `brew install direnv`.
+   * On NixOS with home-manager, you can set `programs.direnv.enable = true;`.
+   * Make sure direnv is hooked into your shell via it's appripriate `rc` file.
+     Add `eval "$(direnv hook bash|zsh|fish)"` to your ~/.(bash|zsh|fish)rc .
+   * When successfully installed and hooked, direnv should ask you to `direnv allow`
+     the current `.envrc` when you cd to this repository.
+     See the [Installation documentation](https://direnv.net/docs/installation.html) for further details.
+
 ### Fedora:
 
 ```bash
@@ -22,7 +48,7 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327). This issue does not occur with Ubuntu.
 
 ```bash
-sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev libtinfo-dev liblzma-dev -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev libtinfo-dev liblzma-dev libpcre3 libpcre3-dev -y
 ```
 
 If `openssl-dev` does not work for you, try `libssl-dev`.
@@ -63,7 +89,13 @@ sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_heade
 
 Please refer to [Stack's installation instructions](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 
-When you're done, ensure `stack --version` is recent, ideally the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
+When you're done, ensure `stack --version` is the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
+
+If you have to, you can downgrade stack with this command:
+
+```bash
+stack upgrade --binary-version <version>
+```
 
 ### Ubuntu / Debian
 _Note_: The packaged versions of `haskell-stack` are too old. It is recommended to follow the generic instructions or to use stack to update stack (`stack upgrade`).
@@ -173,14 +205,6 @@ docker login --username=<MY_DOCKER_USERNAME>
 
 * [Install docker](https://docker.com)
 * [Install docker-compose](https://docs.docker.com/compose/install/)
-
-## Nix + Direnv
-
-Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
-dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
-
-If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
-You can then run all the builds, and the native dependencies will be automatically present.
 
 ## Telepresence
 

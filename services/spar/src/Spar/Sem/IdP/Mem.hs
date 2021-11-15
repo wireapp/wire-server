@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.IdP.Mem (idPToMem, IS) where
+module Spar.Sem.IdP.Mem (idPToMem, TypedState) where
 
-import Control.Lens ((%~), (.~), (^.), _1, _2)
+import Control.Lens ((.~), (^.))
 import Data.Id (TeamId)
 import qualified Data.Map as M
 import Imports
@@ -12,45 +12,35 @@ import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Sem.IdP as Eff
 import qualified Wire.API.User.IdentityProvider as IP
 
-type IS = (TypedState, RawState)
-
 type TypedState = Map SAML.IdPId IP.IdP
-
-type RawState = Map SAML.IdPId Text
 
 idPToMem ::
   forall r a.
   Sem (Eff.IdP ': r) a ->
-  Sem r (IS, a)
+  Sem r (TypedState, a)
 idPToMem = evState . evEff
   where
-    evState :: Sem (State IS : r) a -> Sem r (IS, a)
+    evState :: Sem (State TypedState : r) a -> Sem r (TypedState, a)
     evState = runState mempty
 
-    evEff :: Sem (Eff.IdP ': r) a -> Sem (State IS ': r) a
-    evEff = reinterpret @_ @(State IS) $ \case
+    evEff :: Sem (Eff.IdP ': r) a -> Sem (State TypedState ': r) a
+    evEff = reinterpret @_ @(State TypedState) $ \case
       Eff.StoreConfig iw ->
-        modify' (_1 %~ storeConfig iw)
+        modify' (storeConfig iw)
       Eff.GetConfig i ->
-        gets (getConfig i . (^. _1))
+        gets (getConfig i)
       Eff.GetIdByIssuerWithoutTeam iss ->
-        gets (getIdByIssuerWithoutTeam iss . (^. _1))
+        gets (getIdByIssuerWithoutTeam iss)
       Eff.GetIdByIssuerWithTeam iss team ->
-        gets (getIdByIssuerWithTeam iss team . (^. _1))
+        gets (getIdByIssuerWithTeam iss team)
       Eff.GetConfigsByTeam team ->
-        gets (getConfigsByTeam team . (^. _1))
+        gets (getConfigsByTeam team)
       Eff.DeleteConfig idp ->
-        modify' (_1 %~ deleteConfig idp)
+        modify' (deleteConfig idp)
       Eff.SetReplacedBy (Eff.Replaced replaced) (Eff.Replacing replacing) ->
-        modify' (_1 %~ ((updateReplacedBy (Just replacing) replaced) <$>))
+        modify' (updateReplacedBy (Just replacing) replaced <$>)
       Eff.ClearReplacedBy (Eff.Replaced replaced) ->
-        modify' (_1 %~ ((updateReplacedBy Nothing replaced) <$>))
-      Eff.StoreRawMetadata i txt ->
-        modify (_2 %~ storeRawMetadata i txt)
-      Eff.GetRawMetadata i ->
-        gets (getRawMetadata i . (^. _2))
-      Eff.DeleteRawMetadata i ->
-        modify (_2 %~ deleteRawMetadata i)
+        modify' (updateReplacedBy Nothing replaced <$>)
 
 storeConfig :: IP.IdP -> TypedState -> TypedState
 storeConfig iw =
@@ -107,12 +97,3 @@ updateReplacedBy mbReplacing replaced idp =
     & if idp ^. SAML.idpId == replaced
       then SAML.idpExtraInfo . IP.wiReplacedBy .~ mbReplacing
       else id
-
-storeRawMetadata :: SAML.IdPId -> Text -> RawState -> RawState
-storeRawMetadata = M.insert
-
-getRawMetadata :: SAML.IdPId -> RawState -> Maybe Text
-getRawMetadata = M.lookup
-
-deleteRawMetadata :: SAML.IdPId -> RawState -> RawState
-deleteRawMetadata idpid = M.filterWithKey (\idpid' _ -> idpid' /= idpid)

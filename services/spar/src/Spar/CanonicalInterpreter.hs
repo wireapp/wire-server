@@ -26,6 +26,8 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
+import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
+import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Spar.Sem.Now (Now)
@@ -63,6 +65,7 @@ type CanonicalEffs =
      ScimTokenStore,
      DefaultSsoCode,
      IdPEffect.IdP,
+     IdPRawMetadataStore,
      SAMLUserStore,
      Embed (Cas.Client),
      BrigAccess,
@@ -98,6 +101,7 @@ runSparToIO ctx action =
     . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
     . interpretClientToIO (sparCtxCas ctx)
     . samlUserStoreToCassandra
+    . idpRawMetadataStoreToCassandra
     . idPToCassandra
     . defaultSsoCodeToCassandra
     . scimTokenStoreToCassandra

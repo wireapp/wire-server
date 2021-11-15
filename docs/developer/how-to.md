@@ -9,6 +9,7 @@ Terminal 1:
 
 Terminal 2:
 * Compile all services: `make services`
+  * Note that you have to [import the public signing keys for nginx](../../services/nginz/README.md#common-problems-while-compiling) to be able to build nginz
 * Run services including nginz: `export INTEGRATION_USE_NGINZ=1; ./services/start-services-only.sh`
 
 Open your browser at:
