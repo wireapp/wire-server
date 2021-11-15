@@ -15,6 +15,7 @@ ghc-options:
 - -j
 - -Wno-redundant-constraints
 - -Werror
+- -fplugin=CoreWarn
 
 dependencies:
   - aeson
@@ -79,6 +80,7 @@ dependencies:
   - x509
   - xml-conduit
   - yaml
+  - core-warn
 
 library:
   source-dirs:

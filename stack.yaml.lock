@@ -839,6 +839,20 @@ packages:
       sha256: 9bf2645187637b647dfaebf37a45a57e221b3527592ce3b1cfd9faf90339dac3
   original:
     hackage: implicit-hie-0.1.2.5
+- completed:
+    hackage: core-warn-0.1.0.0@sha256:9d035ee6bedfb7e285b3b8869b614272e4f416a7ec0b245029b613f645487ef9,1993
+    pantry-tree:
+      size: 763
+      sha256: 6ba4f03e033c3306e3df94c521ca2fd74935da47662644c34d25ba06a08ffd25
+  original:
+    hackage: core-warn-0.1.0.0
+- completed:
+    hackage: containers-good-graph-0.6.4.1@sha256:cb9b68ce6708d53e40848bbe6a0f47e0712e3d3d0e1912330742419ff0243474,1535
+    pantry-tree:
+      size: 378
+      sha256: 9405d396051acb2ac970e2ddd0d4397113115b65532e0c5fff4987c08a0ff17f
+  original:
+    hackage: containers-good-graph-0.6.4.1@sha256:cb9b68ce6708d53e40848bbe6a0f47e0712e3d3d0e1912330742419ff0243474,1535
 snapshots:
 - completed:
     size: 532382
