@@ -63,7 +63,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
@@ -232,12 +231,9 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
--- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
   Members
     '[ ConversationStore,
-       Error ActionError,
-       Error ConversationError,
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
@@ -255,12 +251,23 @@ leaveConversation requestingDomain lc = do
   lcnv <- qualifyLocal (F.lcConvId lc)
   fmap F.LeaveConversationResponse
     . runError
-    . mapError @NoChanges (const RemoveFromConversationErrorUnchanged)
+    . mapError handleNoChanges
+    . mapError handleConvError
+    . mapError handleActionError
     . void
     . updateLocalConversation lcnv leaver Nothing
     . ConversationLeave
     . pure
     $ leaver
+  where
+    handleConvError :: ConversationError -> F.RemoveFromConversationError
+    handleConvError _ = F.RemoveFromConversationErrorNotFound
+
+    handleActionError :: ActionError -> F.RemoveFromConversationError
+    handleActionError _ = F.RemoveFromConversationErrorRemovalNotAllowed
+
+    handleNoChanges :: NoChanges -> F.RemoveFromConversationError
+    handleNoChanges _ = F.RemoveFromConversationErrorUnchanged
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients

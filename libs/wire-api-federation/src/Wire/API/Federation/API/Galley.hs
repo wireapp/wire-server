@@ -45,7 +45,6 @@ import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError)
 import Wire.API.User.Client (UserClientMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
@@ -213,6 +212,16 @@ data LeaveConversationRequest = LeaveConversationRequest
   }
   deriving stock (Generic, Eq, Show)
   deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversationRequest)
+
+-- | Error outcomes of the leave-conversation RPC.
+data RemoveFromConversationError
+  = RemoveFromConversationErrorRemovalNotAllowed
+  | RemoveFromConversationErrorNotFound
+  | RemoveFromConversationErrorUnchanged
+  deriving stock (Eq, Show, Generic)
+  deriving
+    (ToJSON, FromJSON)
+    via (CustomEncoded RemoveFromConversationError)
 
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
