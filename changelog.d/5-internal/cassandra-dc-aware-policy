@@ -1,1 +1,0 @@
-Add a 'filterNodesByDatacentre' config option useful during cassandra DC migration

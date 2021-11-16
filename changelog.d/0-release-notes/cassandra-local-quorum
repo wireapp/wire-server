@@ -1,1 +1,0 @@
-In case you use a multi-datacentre cassandra setup (most likely you do not), be aware that now [LOCAL_QUORUM](https://docs.datastax.com/en/cassandra-oss/3.0/cassandra/dml/dmlConfigConsistency.html) is in use as a default.
