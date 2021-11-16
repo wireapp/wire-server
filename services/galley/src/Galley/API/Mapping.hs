@@ -26,27 +26,32 @@ module Galley.API.Mapping
   )
 where
 
-import Control.Monad.Catch
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
+import Galley.API.Error
 import Galley.API.Util (qualifyLocal)
 import Galley.App
-import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
 import Galley.Types.Conversations.Members
 import Imports
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
+import Polysemy
+import Polysemy.Error
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (+++))
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member (..))
+import qualified Wire.API.Conversation as Conversation
 import Wire.API.Federation.API.Galley
 
 -- | View for a given user of a stored conversation.
 --
 -- Throws "bad-state" when the user is not part of the conversation.
-conversationView :: UserId -> Data.Conversation -> Galley r Conversation
+conversationView ::
+  Member (Error InternalError) r =>
+  UserId ->
+  Data.Conversation ->
+  Galley r Conversation
 conversationView uid conv = do
   luid <- qualifyLocal uid
   let mbConv = conversationViewMaybe luid conv
@@ -58,8 +63,7 @@ conversationView uid conv = do
           +++ idToText uid
           +++ val " is not a member of conv "
           +++ idToText (convId conv)
-      throwM badState
-    badState = mkError status500 "bad-state" "Bad internal member state."
+      liftSem $ throw BadMemberState
 
 -- | View for a given user of a stored conversation.
 --
@@ -131,9 +135,9 @@ conversationToRemote localDomain ruid conv = do
 
 -- | Convert a local conversation member (as stored in the DB) to a publicly
 -- facing 'Member' structure.
-localMemberToSelf :: Local x -> LocalMember -> Member
+localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
 localMemberToSelf loc lm =
-  Member
+  Conversation.Member
     { memId = qUntagged . qualifyAs loc . lmId $ lm,
       memService = lmService lm,
       memOtrMutedStatus = msOtrMutedStatus st,

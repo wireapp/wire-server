@@ -27,4 +27,14 @@ kubectl -n "$NAMESPACE" get configmap brig -o jsonpath='{.data.brig\.yaml}' >b.y
 sed -i "s=privateKeys: /etc/wire/brig/secrets/secretkey.txt=privateKeys: test/resources/zauth/privkeys.txt=g" b.yaml
 sed -i "s=publicKeys: /etc/wire/brig/secrets/publickey.txt=publicKeys: test/resources/zauth/pubkeys.txt=g" b.yaml
 
-telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "export INTEGRATION_FEDERATION_TESTS=1; ./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"
+# We need to pass --also-proxy to cannon pod IPs, as for some reason (maybe due
+# to calico) the pod IPs in some clusters are not within the podCIDR range
+# defined on the nodes and cannons need to be accessed directly (without using
+# the kubernetes services)
+declare -a alsoProxyOptions
+while read -r ip; do
+  alsoProxyOptions+=("--also-proxy=${ip}")
+done < <(kubectl get pods -n "$NAMESPACE" -l wireService=cannon -o json | jq -r '.items[].status.podIPs[].ip')
+
+# shellcheck disable=SC2086
+telepresence --namespace "$NAMESPACE" --also-proxy=cassandra-ephemeral ${alsoProxyOptions[*]} --run bash -c "export INTEGRATION_FEDERATION_TESTS=1; ./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"

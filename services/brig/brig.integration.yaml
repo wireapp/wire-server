@@ -7,6 +7,7 @@ cassandra:
     host: 127.0.0.1
     port: 9042
   keyspace: brig_test
+  # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
   url: http://127.0.0.1:9200

@@ -99,3 +99,7 @@ b.yaml
 telepresence.log
 
 /.ghci
+
+# local config
+.envrc.local
+cabal.project.local

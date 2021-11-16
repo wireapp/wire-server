@@ -69,7 +69,8 @@ newtype TestFederator m a = TestFederator {unwrapTestFederator :: ReaderT TestEn
       MonadReader TestEnv,
       MonadFail,
       MonadThrow,
-      MonadCatch
+      MonadCatch,
+      MonadMask
     )
 
 instance MonadRandom m => MonadRandom (TestFederator m) where

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d17ec32d1990b4f59c918291cd7a1286d20e5c54ad921ecd5eb9d01b4b9f1c8
+-- hash: f7a6c4eafbaab04b23ffb79fcde736cd8d0894f91c6ef1eace2de5b98d9a47e5
 
 name:           wire-api
 version:        0.1.0
@@ -142,6 +142,7 @@ library
     , iso639 >=0.1
     , lens >=4.12
     , memory
+    , metrics-wai
     , mime >=0.4
     , mtl
     , pem >=0.2
@@ -175,11 +176,10 @@ library
     , x509
   default-language: Haskell2010
 
-test-suite wire-api-tests
+test-suite wire-api-golden-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Test.Wire.API.Call.Config
       Test.Wire.API.Golden.FromJSON
       Test.Wire.API.Golden.Generated
       Test.Wire.API.Golden.Generated.Access_user
@@ -421,9 +421,64 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.UserIdList
       Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
+      Paths_wire_api
+  hs-source-dirs:
+      test/golden
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , aeson >=0.6
+    , aeson-pretty
+    , aeson-qq
+    , base
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassava
+    , containers >=0.5
+    , currency-codes
+    , directory
+    , filepath
+    , hscim
+    , imports
+    , iso3166-country-codes
+    , iso639
+    , lens
+    , metrics-wai
+    , mime
+    , pem
+    , pretty
+    , proto-lens
+    , saml2-web-sso
+    , servant
+    , servant-swagger-ui
+    , string-conversions
+    , swagger2
+    , tasty
+    , tasty-expected-failure
+    , tasty-hunit
+    , tasty-quickcheck
+    , text
+    , time
+    , types-common >=0.16
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , vector
+    , wire-api
+    , wire-message-proto-lens
+  default-language: Haskell2010
+
+test-suite wire-api-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Wire.API.Call.Config
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
+      Test.Wire.API.Routes
       Test.Wire.API.Swagger
       Test.Wire.API.Team.Member
       Test.Wire.API.User
@@ -453,11 +508,13 @@ test-suite wire-api-tests
     , iso3166-country-codes
     , iso639
     , lens
+    , metrics-wai
     , mime
     , pem
     , pretty
     , proto-lens
     , saml2-web-sso
+    , servant
     , servant-swagger-ui
     , string-conversions
     , swagger2

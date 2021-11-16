@@ -149,20 +149,20 @@ keyAvailable k u = do
 lookupKey :: UserKey -> AppIO (Maybe UserId)
 lookupKey k =
   fmap runIdentity
-    <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText k)))
+    <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
 insertKey :: UserId -> UserKey -> AppIO ()
 insertKey u k = do
   hk <- hashKey k
   let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
-  retry x5 $ write insertHashed (params Quorum (hk, kt, u))
-  retry x5 $ write keyInsert (params Quorum (keyText k, u))
+  retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
+  retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
 deleteKey :: UserKey -> AppIO ()
 deleteKey k = do
   hk <- hashKey k
-  retry x5 $ write deleteHashed (params Quorum (Identity hk))
-  retry x5 $ write keyDelete (params Quorum (Identity $ keyText k))
+  retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
+  retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
 hashKey :: UserKey -> AppIO UserKeyHash
 hashKey uk = do

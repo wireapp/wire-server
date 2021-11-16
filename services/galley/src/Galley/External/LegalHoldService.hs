@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -26,9 +24,6 @@ module Galley.External.LegalHoldService
 
     -- * helpers
     validateServiceKey,
-
-    -- * types
-    OpaqueAuthToken (..),
   )
 where
 
@@ -49,7 +44,9 @@ import Data.Id
 import Data.Misc
 import Galley.API.Error
 import Galley.App
-import qualified Galley.Data.LegalHold as LegalHoldData
+import Galley.Effects.LegalHoldStore as LegalHoldData
+import Galley.Env
+import Galley.External.LegalHoldService.Types
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types
@@ -58,6 +55,8 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import qualified OpenSSL.Session as SSL
+import Polysemy
+import Polysemy.Error
 import Ssl.Util
 import qualified Ssl.Util as SSL
 import qualified System.Logger.Class as Log
@@ -67,14 +66,18 @@ import URI.ByteString (uriPath)
 -- api
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
-checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley r ()
+checkLegalHoldServiceStatus ::
+  Member (Error LegalHoldError) r =>
+  Fingerprint Rsa ->
+  HttpsUrl ->
+  Galley r ()
 checkLegalHoldServiceStatus fpr url = do
   resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
   if
       | Bilge.statusCode resp < 400 -> pure ()
       | otherwise -> do
         Log.info . Log.msg $ showResponse resp
-        throwM legalHoldServiceBadResponse
+        liftSem $ throw LegalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder =
@@ -83,13 +86,17 @@ checkLegalHoldServiceStatus fpr url = do
         . Bilge.expect2xx
 
 -- | @POST /initiate@.
-requestNewDevice :: TeamId -> UserId -> Galley r NewLegalHoldClient
+requestNewDevice ::
+  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  TeamId ->
+  UserId ->
+  Galley r NewLegalHoldClient
 requestNewDevice tid uid = do
   resp <- makeLegalHoldServiceRequest tid reqParams
   case eitherDecode (responseBody resp) of
     Left e -> do
       Log.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
-      throwM legalHoldServiceBadResponse
+      liftSem $ throw LegalHoldServiceBadResponse
     Right client -> pure client
   where
     reqParams =
@@ -102,6 +109,7 @@ requestNewDevice tid uid = do
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
+  Members '[Error LegalHoldError, LegalHoldStore] r =>
   ClientId ->
   TeamId ->
   UserId ->
@@ -121,6 +129,7 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
+  Members '[Error LegalHoldError, LegalHoldStore] r =>
   TeamId ->
   UserId ->
   Galley r ()
@@ -140,11 +149,15 @@ removeLegalHold tid uid = do
 -- | Lookup legal hold service settings for a team and make a request to the service.  Pins
 -- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
 -- authenticate the request.
-makeLegalHoldServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galley r (Http.Response LC8.ByteString)
+makeLegalHoldServiceRequest ::
+  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  TeamId ->
+  (Http.Request -> Http.Request) ->
+  Galley r (Http.Response LC8.ByteString)
 makeLegalHoldServiceRequest tid reqBuilder = do
-  maybeLHSettings <- LegalHoldData.getSettings tid
+  maybeLHSettings <- liftSem $ LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
-    Nothing -> throwM legalHoldServiceNotRegistered
+    Nothing -> liftSem $ throw LegalHoldServiceNotRegistered
     Just lhSettings -> pure lhSettings
   let LegalHoldService
         { legalHoldServiceUrl = baseUrl,
@@ -237,14 +250,3 @@ validateServiceKey pem =
         (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
     minRsaKeySize :: Int
     minRsaKeySize = 256 -- Bytes (= 2048 bits)
-
--- Types
-
--- | When receiving tokens from other services which are 'just passing through'
--- it's error-prone useless extra work to parse and render them from JSON over and over again.
--- We'll just wrap them with this to give some level of typesafety and a reasonable JSON
--- instance
-newtype OpaqueAuthToken = OpaqueAuthToken
-  { opaqueAuthTokenToText :: Text
-  }
-  deriving newtype (Eq, Show, FromJSON, ToJSON, ToByteString)

@@ -20,6 +20,7 @@
 
 module Wire.API.Federation.Client where
 
+import Control.Monad.Catch
 import Control.Monad.Except (ExceptT, MonadError (..), withExceptT)
 import Control.Monad.State (MonadState (..), StateT, evalStateT, gets)
 import Data.ByteString.Builder (toLazyByteString)
@@ -27,13 +28,13 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText)
 import qualified Data.Text as T
 import Imports
-import Mu.GRpc.Client.TyApps (GRpcMessageProtocol (MsgProtoBuf), GRpcReply (..), GrpcClient, gRpcCall, grpcClientConfigSimple)
+import Mu.GRpc.Client.TyApps
 import qualified Network.HTTP.Types as HTTP
 import Servant.Client (ResponseF (..))
 import qualified Servant.Client as Servant
 import Servant.Client.Core (RequestBody (..), RequestF (..), RunClient (..))
 import Util.Options (Endpoint (..))
-import Wire.API.Federation.GRPC.Client (createGrpcClient, reason)
+import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 -- FUTUREWORK: Remove originDomain from here and make it part of all the API
@@ -50,7 +51,10 @@ newtype FederatorClient (component :: Proto.Component) m a = FederatorClient {ru
   deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadState (Maybe ByteString), MonadIO)
 
 runFederatorClientWith :: Monad m => GrpcClient -> Domain -> Domain -> FederatorClient component m a -> m a
-runFederatorClientWith client targetDomain originDomain = flip evalStateT Nothing . flip runReaderT (FederatorClientEnv client targetDomain originDomain) . runFederatorClient
+runFederatorClientWith client targetDomain originDomain =
+  flip evalStateT Nothing
+    . flip runReaderT (FederatorClientEnv client targetDomain originDomain)
+    . runFederatorClient
 
 class KnownComponent (c :: Proto.Component) where
   componentVal :: Proto.Component
@@ -123,6 +127,7 @@ data FederationError
   | FederationNotImplemented
   | FederationNotConfigured
   | FederationCallFailure FederationClientFailure
+  | FederationUnexpectedBody Text
   deriving (Show, Eq, Typeable)
 
 instance Exception FederationError
@@ -167,11 +172,12 @@ mkFederatorClient = do
     >>= either (throwError . FederationUnavailable . reason) pure
 
 executeFederated ::
-  (MonadIO m, HasFederatorConfig m) =>
+  (MonadIO m, MonadMask m, HasFederatorConfig m) =>
   Domain ->
   FederatorClient component (ExceptT FederationClientFailure m) a ->
   ExceptT FederationError m a
 executeFederated targetDomain action = do
-  federatorClient <- mkFederatorClient
   originDomain <- lift federationDomain
-  withExceptT FederationCallFailure (runFederatorClientWith federatorClient targetDomain originDomain action)
+  bracket mkFederatorClient closeGrpcClient $ \federatorClient ->
+    withExceptT FederationCallFailure $
+      runFederatorClientWith federatorClient targetDomain originDomain action

@@ -128,6 +128,7 @@ models =
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureClassifiedDomains,
     Team.Feature.modelTeamFeatureAppLockConfig,
     Team.Feature.modelTeamFeatureClassifiedDomainsConfig,
+    Team.Feature.modelTeamFeatureSelfDeletingMessagesConfig,
     Team.Invitation.modelTeamInvitation,
     Team.Invitation.modelTeamInvitationList,
     Team.Invitation.modelTeamInvitationRequest,

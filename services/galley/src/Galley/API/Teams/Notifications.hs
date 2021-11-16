@@ -52,38 +52,37 @@ import Galley.API.Error
 import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
-import Galley.Intra.User as Intra
+import Galley.Effects.BrigAccess as Intra
+import qualified Galley.Effects.TeamNotificationStore as E
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
 import Network.HTTP.Types
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
+import Polysemy.Error
 
 getTeamNotifications ::
-  Member BrigAccess r =>
+  Members '[BrigAccess, Error TeamError, TeamNotificationStore] r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
   Galley r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid :: TeamId <- do
-    mtid <- (userTeam . accountUser =<<) <$> Intra.getUser zusr
-    let err = throwM teamNotFound
-    maybe err pure mtid
-  page <- DataTeamQueue.fetch tid since size
+  tid <- liftSem . (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
+  page <- liftSem $ E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
       (toList (DataTeamQueue.resultSeq page))
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: TeamId -> Event -> Galley r ()
+pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Galley r ()
 pushTeamEvent tid evt = do
-  nid <- mkNotificationId
-  DataTeamQueue.add tid nid (List1.singleton $ toJSONObject evt)
+  nid <- liftIO mkNotificationId
+  liftSem $ E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)
 
 -- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
-mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
+mkNotificationId :: IO NotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
   maybe (throwM err) return ni

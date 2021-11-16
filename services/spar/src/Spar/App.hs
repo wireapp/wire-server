@@ -763,10 +763,9 @@ deleteTeam team = do
   -- used by the team, and remove everything related to those IdPs, too.
   idps <- IdPEffect.getConfigsByTeam team
   for_ idps $ \idp -> do
-    let idpid = idp ^. SAML.idpId
-        issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+    let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
     SAMLUserStore.deleteByIssuer issuer
-    IdPEffect.deleteConfig idpid issuer team
+    IdPEffect.deleteConfig idp
 
 sparToServerErrorWithLogging :: Member Reporter r => SparError -> Sem r ServerError
 sparToServerErrorWithLogging err = do

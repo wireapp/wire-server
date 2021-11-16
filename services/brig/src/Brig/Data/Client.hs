@@ -130,13 +130,13 @@ addClient u newId c maxPermClients loc cps = do
           lon = Longitude . view longitude <$> loc
           mdl = newClientModel c
           prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
-      retry x5 $ write insertClient (params Quorum prm)
+      retry x5 $ write insertClient (params LocalQuorum prm)
       return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl (ClientCapabilityList $ fromMaybe mempty cps)
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c =
   fmap toClient
-    <$> retry x1 (query1 selectClient (params Quorum (u, c)))
+    <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
 lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
 lookupClientsBulk uids = liftClient $ do
@@ -147,7 +147,7 @@ lookupClientsBulk uids = liftClient $ do
     getClientSetWithUser u = (u,) . Set.fromList <$> executeQuery u
 
     executeQuery :: MonadClient m => UserId -> m [Client]
-    executeQuery u = toClient <$$> retry x1 (query selectClients (params Quorum (Identity u)))
+    executeQuery u = toClient <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
 lookupPubClientsBulk uids = liftClient $ do
@@ -158,17 +158,17 @@ lookupPubClientsBulk uids = liftClient $ do
     getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
 
     executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
-    executeQuery u = retry x1 (query selectPubClients (params Quorum (Identity u)))
+    executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u =
   map toClient
-    <$> retry x1 (query selectClients (params Quorum (Identity u)))
+    <$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
 
 lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u =
   map runIdentity
-    <$> retry x1 (query selectClientIds (params Quorum (Identity u)))
+    <$> retry x1 (query selectClientIds (params LocalQuorum (Identity u)))
 
 lookupUsersClientIds :: MonadClient m => [UserId] -> m [(UserId, Set.Set ClientId)]
 lookupUsersClientIds us =
@@ -179,22 +179,22 @@ lookupUsersClientIds us =
 lookupPrekeyIds :: MonadClient m => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIds u c =
   map runIdentity
-    <$> retry x1 (query selectPrekeyIds (params Quorum (u, c)))
+    <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
 
 hasClient :: MonadClient m => UserId -> ClientId -> m Bool
-hasClient u d = isJust <$> retry x1 (query1 checkClient (params Quorum (u, d)))
+hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
 
 rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do
-  retry x5 $ write removeClient (params Quorum (u, c))
-  retry x5 $ write removeClientKeys (params Quorum (u, c))
+  retry x5 $ write removeClient (params LocalQuorum (u, c))
+  retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
   unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
-updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
+updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
 updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
-updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params Quorum (C.Set . Set.toList <$> fs, u, c))
+updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
 updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
@@ -204,7 +204,7 @@ updatePrekeys u c pks = do
     throwE MalformedPrekeys
   for_ pks $ \k -> do
     let args = (u, c, prekeyId k, prekeyKey k)
-    retry x5 $ write insertClientKey (params Quorum args)
+    retry x5 $ write insertClientKey (params LocalQuorum args)
   where
     check a b = do
       i <- CryptoBox.isPrekey b
@@ -217,18 +217,18 @@ claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
     Just localLock -> withLocalLock localLock $ do
-      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+      prekeys <- retry x1 $ query userPrekeys (params LocalQuorum (u, c))
       prekey <- pickRandomPrekey prekeys
       removeAndReturnPreKey prekey
     -- Use DynamoDB based optimistic locking strategy
     Nothing -> withOptLock u c $ do
-      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
+      prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
       removeAndReturnPreKey prekey
   where
     removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
       if i /= lastPrekeyId
-        then retry x1 $ write removePrekey (params Quorum (u, c, i))
+        then retry x1 $ write removePrekey (params LocalQuorum (u, c, i))
         else
           Log.debug $
             field "user" (toByteString u)

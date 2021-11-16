@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.Queries where
+module Galley.Cassandra.Queries where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Code
@@ -28,7 +28,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import qualified Data.Text.Lazy as LT
-import Galley.Data.Types
+import Galley.Data.Scope
 import Galley.Types hiding (Conversation)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams

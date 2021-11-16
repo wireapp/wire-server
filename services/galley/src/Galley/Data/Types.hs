@@ -33,53 +33,16 @@ module Galley.Data.Types
 where
 
 import Brig.Types.Code
-import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
-import Galley.Types (Access, AccessRole, ConvType (..), LocalMember, ReceiptMode)
-import Galley.Types.Conversations.Members (RemoteMember)
+import Galley.Data.Conversation
+import Galley.Data.Scope
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
-
--- | Internal conversation type, corresponding directly to database schema.
--- Should never be sent to users (and therefore doesn't have 'FromJSON' or
--- 'ToJSON' instances).
-data Conversation = Conversation
-  { convId :: ConvId,
-    convType :: ConvType,
-    convCreator :: UserId,
-    convName :: Maybe Text,
-    convAccess :: [Access],
-    convAccessRole :: AccessRole,
-    convLocalMembers :: [LocalMember],
-    convRemoteMembers :: [RemoteMember],
-    convTeam :: Maybe TeamId,
-    convDeleted :: Maybe Bool,
-    -- | Global message timer
-    convMessageTimer :: Maybe Milliseconds,
-    convReceiptMode :: Maybe ReceiptMode
-  }
-  deriving (Show)
-
-isSelfConv :: Conversation -> Bool
-isSelfConv = (SelfConv ==) . convType
-
-isO2OConv :: Conversation -> Bool
-isO2OConv = (One2OneConv ==) . convType
-
-isTeamConv :: Conversation -> Bool
-isTeamConv = isJust . convTeam
-
-isConvDeleted :: Conversation -> Bool
-isConvDeleted = fromMaybe False . convDeleted
-
-selfConv :: UserId -> ConvId
-selfConv uid = Id (toUUID uid)
 
 --------------------------------------------------------------------------------
 -- Code
@@ -92,17 +55,6 @@ data Code = Code
     codeScope :: !Scope
   }
   deriving (Eq, Show, Generic)
-
-data Scope = ReusableCode
-  deriving (Eq, Show, Generic)
-
-instance Cql Scope where
-  ctype = Tagged IntColumn
-
-  toCql ReusableCode = CqlInt 1
-
-  fromCql (CqlInt 1) = return ReusableCode
-  fromCql _ = Left "unknown Scope"
 
 toCode :: Key -> Scope -> (Value, Int32, ConvId) -> Code
 toCode k s (val, ttl, cnv) =

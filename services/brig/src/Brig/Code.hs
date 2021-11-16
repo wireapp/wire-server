@@ -239,7 +239,7 @@ insert c = do
   let e = codeForEmail c
   let p = codeForPhone c
   let t = round (codeTTL c)
-  retry x5 (write cql (params Quorum (k, s, v, r, e, p, a, t)))
+  retry x5 (write cql (params LocalQuorum (k, s, v, r, e, p, a, t)))
   where
     cql :: PrepQuery W (Key, Scope, Value, Retries, Maybe Email, Maybe Phone, Maybe UUID, Int32) ()
     cql =
@@ -248,7 +248,7 @@ insert c = do
 
 -- | Lookup a pending code.
 lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
-lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params Quorum (k, s)))
+lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
   where
     cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID)
     cql =
@@ -269,7 +269,7 @@ verify k s v = lookup k s >>= maybe (return Nothing) continue
 
 -- | Delete a code associated with the given key and scope.
 delete :: MonadClient m => Key -> Scope -> m ()
-delete k s = retry x5 $ write cql (params Quorum (k, s))
+delete k s = retry x5 $ write cql (params LocalQuorum (k, s))
   where
     cql :: PrepQuery W (Key, Scope) ()
     cql = "DELETE FROM vcodes WHERE key = ? AND scope = ?"

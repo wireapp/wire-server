@@ -89,7 +89,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.Federation.GRPC.Types (OutwardResponse)
+import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse)
 import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Routes.MultiTablePaging
 
@@ -1039,14 +1039,14 @@ withMockedGalley opts handler action =
 withMockedFederatorAndGalley ::
   Opt.Opts ->
   Domain ->
-  OutwardResponse ->
+  (FederatedRequest -> OutwardResponse) ->
   (ReceivedRequest -> MockT IO Wai.Response) ->
   Session a ->
   IO (a, Mock.ReceivedRequests, [ReceivedRequest])
 withMockedFederatorAndGalley opts domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
-      Mock.withTempMockFederator (Mock.initState domain) (const (pure fedResp)) $ \fedMockState -> do
+      Mock.withTempMockFederator (Mock.initState domain) (pure . fedResp) $ \fedMockState -> do
         let opts' =
               opts
                 { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),

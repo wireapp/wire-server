@@ -17,32 +17,40 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.CustomBackend
-  ( getCustomBackend,
-    setCustomBackend,
-    deleteCustomBackend,
-  )
-where
+module Galley.Cassandra.CustomBackend (interpretCustomBackendStoreToCassandra) where
 
 import Cassandra
 import Data.Domain (Domain)
-import Galley.Data.Instances ()
-import qualified Galley.Data.Queries as Cql
+import Galley.Cassandra.Instances ()
+import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Store
+import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Galley.Types
 import Imports
+import Polysemy
+import qualified Polysemy.Reader as P
+
+interpretCustomBackendStoreToCassandra ::
+  Members '[Embed IO, P.Reader ClientState] r =>
+  Sem (CustomBackendStore ': r) a ->
+  Sem r a
+interpretCustomBackendStoreToCassandra = interpret $ \case
+  GetCustomBackend dom -> embedClient $ getCustomBackend dom
+  SetCustomBackend dom b -> embedClient $ setCustomBackend dom b
+  DeleteCustomBackend dom -> embedClient $ deleteCustomBackend dom
 
 getCustomBackend :: MonadClient m => Domain -> m (Maybe CustomBackend)
 getCustomBackend domain =
   fmap toCustomBackend <$> do
-    retry x1 $ query1 Cql.selectCustomBackend (params Quorum (Identity domain))
+    retry x1 $ query1 Cql.selectCustomBackend (params LocalQuorum (Identity domain))
   where
     toCustomBackend (backendConfigJsonUrl, backendWebappWelcomeUrl) =
       CustomBackend {..}
 
 setCustomBackend :: MonadClient m => Domain -> CustomBackend -> m ()
 setCustomBackend domain CustomBackend {..} = do
-  retry x5 $ write Cql.updateCustomBackend (params Quorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
+  retry x5 $ write Cql.updateCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
 
 deleteCustomBackend :: MonadClient m => Domain -> m ()
 deleteCustomBackend domain = do
-  retry x5 $ write Cql.deleteCustomBackend (params Quorum (Identity domain))
+  retry x5 $ write Cql.deleteCustomBackend (params LocalQuorum (Identity domain))

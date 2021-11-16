@@ -53,7 +53,7 @@ createPasswordResetCode u target = do
   key <- liftIO $ mkPasswordResetKey u
   now <- liftIO =<< view currentTime
   code <- liftIO $ either (const genEmailCode) (const genPhoneCode) target
-  retry x5 . write codeInsert $ params Quorum (key, code, u, maxAttempts, ttl `addUTCTime` now, round ttl)
+  retry x5 . write codeInsert $ params LocalQuorum (key, code, u, maxAttempts, ttl `addUTCTime` now, round ttl)
   return (key, code)
   where
     genEmailCode = PasswordResetCode . Ascii.encodeBase64Url <$> randBytes 24
@@ -65,7 +65,7 @@ lookupPasswordResetCode :: UserId -> AppIO (Maybe PasswordResetCode)
 lookupPasswordResetCode u = do
   key <- liftIO $ mkPasswordResetKey u
   now <- liftIO =<< view currentTime
-  validate now =<< retry x1 (query1 codeSelect (params Quorum (Identity key)))
+  validate now =<< retry x1 (query1 codeSelect (params LocalQuorum (Identity key)))
   where
     validate now (Just (c, _, _, Just t)) | t > now = return $ Just c
     validate _ _ = return Nothing
@@ -73,7 +73,7 @@ lookupPasswordResetCode u = do
 verifyPasswordResetCode :: PasswordResetPair -> AppIO (Maybe UserId)
 verifyPasswordResetCode (k, c) = do
   now <- liftIO =<< view currentTime
-  code <- retry x1 (query1 codeSelect (params Quorum (Identity k)))
+  code <- retry x1 (query1 codeSelect (params LocalQuorum (Identity k)))
   case code of
     Just (c', u, _, Just t) | c == c' && t >= now -> return (Just u)
     Just (c', u, Just n, Just t) | n > 1 && t > now -> do
@@ -82,10 +82,10 @@ verifyPasswordResetCode (k, c) = do
     Just (_, _, _, _) -> deletePasswordResetCode k >> return Nothing
     Nothing -> return Nothing
   where
-    countdown = retry x5 . write codeInsert . params Quorum
+    countdown = retry x5 . write codeInsert . params LocalQuorum
 
 deletePasswordResetCode :: PasswordResetKey -> AppIO ()
-deletePasswordResetCode k = retry x5 . write codeDelete $ params Quorum (Identity k)
+deletePasswordResetCode k = retry x5 . write codeDelete $ params LocalQuorum (Identity k)
 
 mkPasswordResetKey :: (MonadIO m) => UserId -> m PasswordResetKey
 mkPasswordResetKey u = do

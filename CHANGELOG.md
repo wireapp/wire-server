@@ -1,5 +1,50 @@
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
+# [2021-11-15]
+
+## Release notes
+
+* In case you use a multi-datacentre cassandra setup (most likely you do not), be aware that now [LOCAL_QUORUM](https://docs.datastax.com/en/cassandra-oss/3.0/cassandra/dml/dmlConfigConsistency.html) is in use as a default. (#1884)
+* Deploy galley before brig. (#1857)
+* Upgrade webapp version to 2021-11-01-production.0-v0.28.29-0-d919633 (#1856)
+
+## API changes
+
+* Remove locale from publicly facing user profiles (but not from the self profile) (#1888)
+
+## Features
+
+* End-points for configuring self-deleting messages. (#1857)
+
+## Bug fixes and other updates
+
+* Ensure that all endpoints have a correct handler in prometheus metrics (#1919)
+* Push events when AppLock or SelfDeletingMessages config change. (#1901)
+
+## Documentation
+
+* Federation: Document how to deploy local builds (#1880)
+
+## Internal changes
+
+* Add a 'filterNodesByDatacentre' config option useful during cassandra DC migration (#1886)
+* Add ormolu to the direnv, add a GH Action to ensure formatting (#1908)
+* Turn placeholder access effects into actual Polysemy effects. (#1904)
+* Fix a bug in the IdP.Mem interpreter, and added law tests for IdP (#1863)
+* Introduce fine-grained error types and polysemy error effects in Galley. (#1907)
+* Add polysemy store effects and split off Cassandra specific functionality from the Galley.Data module hierarchy (#1890, #1906). (#1890)
+* Make golden-tests in wire-api package a separate test suite (for faster feedback loop during development). (#1926)
+* Separate IdPRawMetadataStore effect from IdP effect (#1924)
+* Test sending message to multiple remote domains (#1899)
+* Use cabal to build wire-server (opt-in) (#1853)
+
+## Federation changes
+
+* Close GRPC client after making a request to a federator. (#1865)
+* Do not fail user deletion when a remote notification fails (#1912)
+* Add a one-to-one conversation test in getting conversations in the federation API (#1899)
+* Notify remote participants when a user leaves a conversation because they were deleted (#1891)
+
 # [2021-10-29]
 
 ## Release notes

@@ -93,6 +93,7 @@ import Data.Coerce (coerce)
 import qualified Data.Conduit.List as C
 import qualified Data.Currency as Currency
 import Data.Domain
+import Data.Either.Combinators (whenLeft)
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
@@ -118,7 +119,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Client
-import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
+import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
@@ -275,13 +276,8 @@ notifyUserDeletionRemotes deleted = do
         Just rangedUids -> do
           luidDeleted <- qualifyLocal deleted
           eitherFErr <- runExceptT (notifyUserDeleted luidDeleted (qualifyAs uids rangedUids))
-          case eitherFErr of
-            Left fErr -> do
-              logFederationError (tDomain uids) fErr
-              -- FUTUTREWORK: Do something better here?
-              -- FUTUREWORK: Write test that this happens
-              throwM $ federationErrorToWai fErr
-            Right () -> pure ()
+          whenLeft eitherFErr $
+            logFederationError (tDomain uids)
 
     logFederationError :: Domain -> FederationError -> AppT IO ()
     logFederationError domain fErr =

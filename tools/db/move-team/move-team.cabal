@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6c50a8e33625c79cb1b04adac7f5a9b9c337181da35f450c10ea970548a9acd4
+-- hash: 6f97fa57af68acb9606816e6048ebe009ec9c0f01a971d39ae9dbc5e2061346d
 
 name:           move-team
 version:        1.0.0
@@ -38,7 +38,6 @@ library
     , cassandra-util
     , conduit
     , containers
-    , cql
     , filepath
     , galley
     , imports
@@ -74,7 +73,6 @@ executable move-team
     , cassandra-util
     , conduit
     , containers
-    , cql
     , filepath
     , galley
     , imports
@@ -111,7 +109,6 @@ executable move-team-generate
     , cassandra-util
     , conduit
     , containers
-    , cql
     , filepath
     , galley
     , imports

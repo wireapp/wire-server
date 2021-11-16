@@ -38,14 +38,14 @@ module Galley.API.Teams.Features
     setFileSharingInternal,
     getConferenceCallingInternal,
     setConferenceCallingInternal,
+    getSelfDeletingMessagesInternal,
+    setSelfDeletingMessagesInternal,
     DoAuth (..),
     GetFeatureInternalParam,
   )
 where
 
-import Bilge (MonadHttp)
 import Control.Lens
-import Control.Monad.Catch
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import qualified Data.HashMap.Strict as HashMap
@@ -57,24 +57,31 @@ import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
-import qualified Galley.Data.SearchVisibility as SearchVisibilityData
-import qualified Galley.Data.TeamFeatures as TeamFeatures
+import Galley.Cassandra.Paging
+import Galley.Data.TeamFeatures
 import Galley.Effects
-import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush, push1)
+import Galley.Effects.GundeckAccess
+import Galley.Effects.Paging
+import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
+import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.TeamStore
+import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
 import Network.HTTP.Client (Manager)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
+import Polysemy.Error
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import qualified System.Logger.Class as Log
 import Util.Options (Endpoint, epHost, epPort)
-import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
+import Wire.API.ErrorDescription
+import Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.FeatureConfig as Event
+import Wire.API.Federation.Client
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
@@ -85,7 +92,15 @@ data DoAuth = DoAuth UserId | DontDoAuth
 -- and a team id, but no uid of the member for which the feature config holds.
 getFeatureStatus ::
   forall (a :: Public.TeamFeatureName) r.
-  Public.KnownTeamFeatureName a =>
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error TeamError,
+         Error NotATeamMember,
+         TeamStore
+       ]
+      r
+  ) =>
   (GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   DoAuth ->
   TeamId ->
@@ -93,7 +108,7 @@ getFeatureStatus ::
 getFeatureStatus getter doauth tid = do
   case doauth of
     DoAuth uid -> do
-      zusrMembership <- Data.teamMember tid uid
+      zusrMembership <- liftSem $ getTeamMember tid uid
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
       assertTeamExists tid
@@ -102,7 +117,15 @@ getFeatureStatus getter doauth tid = do
 -- | For team-settings, like 'getFeatureStatus'.
 setFeatureStatus ::
   forall (a :: Public.TeamFeatureName) r.
-  Public.KnownTeamFeatureName a =>
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error TeamError,
+         Error NotATeamMember,
+         TeamStore
+       ]
+      r
+  ) =>
   (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
   DoAuth ->
   TeamId ->
@@ -111,7 +134,7 @@ setFeatureStatus ::
 setFeatureStatus setter doauth tid status = do
   case doauth of
     DoAuth uid -> do
-      zusrMembership <- Data.teamMember tid uid
+      zusrMembership <- liftSem $ getTeamMember tid uid
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
       assertTeamExists tid
@@ -120,28 +143,49 @@ setFeatureStatus setter doauth tid status = do
 -- | For individual users to get feature config for their account (personal or team).
 getFeatureConfig ::
   forall (a :: Public.TeamFeatureName) r.
-  Public.KnownTeamFeatureName a =>
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error TeamError,
+         Error NotATeamMember,
+         TeamStore
+       ]
+      r
+  ) =>
   (GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
   UserId ->
   Galley r (Public.TeamFeatureStatus a)
 getFeatureConfig getter zusr = do
-  mbTeam <- Data.oneUserTeam zusr
+  mbTeam <- liftSem $ getOneUserTeam zusr
   case mbTeam of
     Nothing -> getter (Left (Just zusr))
     Just tid -> do
-      zusrMembership <- Data.teamMember tid zusr
+      zusrMembership <- liftSem $ getTeamMember tid zusr
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
       assertTeamExists tid
       getter (Right tid)
 
-getAllFeatureConfigs :: UserId -> Galley r AllFeatureConfigs
+getAllFeatureConfigs ::
+  Members
+    '[ Error ActionError,
+       Error InternalError,
+       Error NotATeamMember,
+       Error TeamError,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  Galley r AllFeatureConfigs
 getAllFeatureConfigs zusr = do
-  mbTeam <- Data.oneUserTeam zusr
-  zusrMembership <- maybe (pure Nothing) (flip Data.teamMember zusr) mbTeam
+  mbTeam <- liftSem $ getOneUserTeam zusr
+  zusrMembership <- maybe (pure Nothing) (liftSem . (flip getTeamMember zusr)) mbTeam
   let getStatus ::
         forall (a :: Public.TeamFeatureName) r.
         ( Public.KnownTeamFeatureName a,
-          Aeson.ToJSON (Public.TeamFeatureStatus a)
+          Aeson.ToJSON (Public.TeamFeatureStatus a),
+          Members '[Error ActionError, Error TeamError, Error NotATeamMember, TeamStore] r
         ) =>
         (GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
         Galley r (Text, Aeson.Value)
@@ -162,14 +206,41 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
+        getStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
       ]
 
-getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley r Response
+getAllFeaturesH ::
+  Members
+    '[ Error ActionError,
+       Error InternalError,
+       Error TeamError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore
+     ]
+    r =>
+  UserId ::: TeamId ::: JSON ->
+  Galley r Response
 getAllFeaturesH (uid ::: tid ::: _) =
   json <$> getAllFeatures uid tid
 
-getAllFeatures :: UserId -> TeamId -> Galley r Aeson.Value
+getAllFeatures ::
+  forall r.
+  Members
+    '[ Error ActionError,
+       Error InternalError,
+       Error TeamError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  TeamId ->
+  Galley r Aeson.Value
 getAllFeatures uid tid = do
   Aeson.object
     <$> sequence
@@ -181,11 +252,12 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
+        getStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
       ]
   where
     getStatus ::
-      forall (a :: Public.TeamFeatureName) r.
+      forall (a :: Public.TeamFeatureName).
       ( Public.KnownTeamFeatureName a,
         Aeson.ToJSON (Public.TeamFeatureStatus a)
       ) =>
@@ -198,20 +270,23 @@ getAllFeatures uid tid = do
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) r.
-  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a, TeamFeatures.HasStatusCol a) =>
+  ( Public.FeatureHasNoConfig a,
+    HasStatusCol a,
+    Member TeamFeatureStore r
+  ) =>
   Galley r Public.TeamFeatureStatusValue ->
   TeamId ->
   Galley r (Public.TeamFeatureStatus a)
 getFeatureStatusNoConfig getDefault tid = do
   defaultStatus <- Public.TeamFeatureStatusNoConfig <$> getDefault
-  fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @a tid
+  liftSem $ fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @a tid
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) r.
   ( Public.KnownTeamFeatureName a,
     Public.FeatureHasNoConfig a,
-    TeamFeatures.HasStatusCol a,
-    Member GundeckAccess r
+    HasStatusCol a,
+    Members '[GundeckAccess, TeamFeatureStore, TeamStore] r
   ) =>
   (Public.TeamFeatureStatusValue -> TeamId -> Galley r ()) ->
   TeamId ->
@@ -219,7 +294,7 @@ setFeatureStatusNoConfig ::
   Galley r (Public.TeamFeatureStatus a)
 setFeatureStatusNoConfig applyState tid status = do
   applyState (Public.tfwoStatus status) tid
-  newStatus <- TeamFeatures.setFeatureStatusNoConfig @a tid status
+  newStatus <- liftSem $ TeamFeatures.setFeatureStatusNoConfig @a tid status
   pushFeatureConfigEvent tid $
     Event.Event Event.Update (Public.knownTeamFeatureName @a) (EdFeatureWithoutConfigChanged newStatus)
   pure newStatus
@@ -228,7 +303,10 @@ setFeatureStatusNoConfig applyState tid status = do
 -- the feature flag, so that we get more type safety.
 type GetFeatureInternalParam = Either (Maybe UserId) TeamId
 
-getSSOStatusInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
+getSSOStatusInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 getSSOStatusInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
@@ -241,15 +319,18 @@ getSSOStatusInternal =
         FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
 
 setSSOStatusInternal ::
-  Member GundeckAccess r =>
+  Members '[Error TeamFeatureError, GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
-  Public.TeamFeatureDisabled -> const (throwM disableSsoNotImplemented)
+  Public.TeamFeatureDisabled -> const (liftSem (throw DisableSsoNotImplemented))
   Public.TeamFeatureEnabled -> const (pure ())
 
-getTeamSearchVisibilityAvailableInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+getTeamSearchVisibilityAvailableInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
@@ -261,15 +342,18 @@ getTeamSearchVisibilityAvailableInternal =
         FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
 setTeamSearchVisibilityAvailableInternal ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, SearchVisibilityStore, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
-  Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
+  Public.TeamFeatureDisabled -> liftSem . SearchVisibilityData.resetSearchVisibility
   Public.TeamFeatureEnabled -> const (pure ())
 
-getValidateSAMLEmailsInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
+getValidateSAMLEmailsInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
 getValidateSAMLEmailsInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
@@ -281,13 +365,16 @@ getValidateSAMLEmailsInternal =
     getDef = pure Public.TeamFeatureDisabled
 
 setValidateSAMLEmailsInternal ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
 setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
 
-getDigitalSignaturesInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
+getDigitalSignaturesInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 getDigitalSignaturesInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
@@ -299,13 +386,16 @@ getDigitalSignaturesInternal =
     getDef = pure Public.TeamFeatureDisabled
 
 setDigitalSignaturesInternal ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
-getLegalholdStatusInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
+getLegalholdStatusInternal ::
+  Members '[LegalHoldStore, TeamFeatureStore] r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal (Left _) =
   pure $ Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 getLegalholdStatusInternal (Right tid) = do
@@ -314,7 +404,35 @@ getLegalholdStatusInternal (Right tid) = do
     False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
 setLegalholdStatusInternal ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  ( Paging p,
+    Bounded (PagingBounds p TeamMember),
+    Members
+      '[ BotAccess,
+         BrigAccess,
+         CodeStore,
+         ConversationStore,
+         Error ActionError,
+         Error AuthenticationError,
+         Error ConversationError,
+         Error FederationError,
+         Error InvalidInput,
+         Error LegalHoldError,
+         Error TeamError,
+         Error NotATeamMember,
+         Error TeamFeatureError,
+         ExternalAccess,
+         FederatorAccess,
+         FireAndForget,
+         GundeckAccess,
+         LegalHoldStore,
+         ListItems LegacyPaging ConvId,
+         MemberStore,
+         TeamFeatureStore,
+         TeamStore,
+         TeamMemberStore p
+       ]
+      r
+  ) =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
@@ -324,28 +442,31 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
     -- enabeling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
-    case featureLegalHold of
+    liftSem $ case featureLegalHold of
       FeatureLegalHoldDisabledByDefault -> do
         pure ()
       FeatureLegalHoldDisabledPermanently -> do
-        throwM legalHoldFeatureFlagNotEnabled
+        throw LegalHoldFeatureFlagNotEnabled
       FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-        throwM legalHoldWhitelistedOnly
+        throw LegalHoldWhitelistedOnly
 
   -- we're good to update the status now.
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
     Public.TeamFeatureEnabled -> do
       ensureNotTooLargeToActivateLegalHold tid
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
+  liftSem $ TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
 
-getFileSharingInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
+getFileSharingInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 getFileSharingInternal =
   getFeatureStatusWithDefaultConfig @'Public.TeamFeatureFileSharing flagFileSharing . either (const Nothing) Just
 
 getFeatureStatusWithDefaultConfig ::
   forall (a :: TeamFeatureName) r.
-  (KnownTeamFeatureName a, TeamFeatures.HasStatusCol a, FeatureHasNoConfig a) =>
+  (KnownTeamFeatureName a, HasStatusCol a, FeatureHasNoConfig a, Member TeamFeatureStore r) =>
   Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus a)) ->
   Maybe TeamId ->
   Galley r (Public.TeamFeatureStatus a)
@@ -360,23 +481,35 @@ getFeatureStatusWithDefaultConfig lens' =
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_status _tid -> pure ()
 
-getAppLockInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
+getAppLockInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal mbtid = do
   Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
-  status <- join <$> (TeamFeatures.getApplockFeatureStatus `mapM` either (const Nothing) Just mbtid)
+  status <-
+    liftSem $
+      join <$> (TeamFeatures.getApplockFeatureStatus `mapM` either (const Nothing) Just mbtid)
   pure $ fromMaybe defaultStatus status
 
-setAppLockInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureAppLock -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
+setAppLockInternal ::
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore, Error TeamFeatureError] r =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
-    throwM inactivityTimeoutTooLow
-  TeamFeatures.setApplockFeatureStatus tid status
+    liftSem $ throw AppLockinactivityTimeoutTooLow
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event Event.Update Public.TeamFeatureAppLock (EdFeatureApplockChanged status)
+  (liftSem $ TeamFeatures.setApplockFeatureStatus tid status) <* pushEvent
 
 getClassifiedDomainsInternal :: GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
 getClassifiedDomainsInternal _mbtid = do
@@ -388,6 +521,7 @@ getClassifiedDomainsInternal _mbtid = do
     Public.TeamFeatureEnabled -> config
 
 getConferenceCallingInternal ::
+  Members '[Error InternalError, TeamFeatureStore] r =>
   GetFeatureInternalParam ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
 getConferenceCallingInternal (Left (Just uid)) = do
@@ -398,15 +532,42 @@ getConferenceCallingInternal (Right tid) = do
   getFeatureStatusWithDefaultConfig @'Public.TeamFeatureConferenceCalling flagConferenceCalling (Just tid)
 
 setConferenceCallingInternal ::
-  Member GundeckAccess r =>
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling ->
   Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
-setConferenceCallingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
+setConferenceCallingInternal =
+  setFeatureStatusNoConfig @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
 
-pushFeatureConfigEvent :: Member GundeckAccess r => TeamId -> Event.Event -> Galley r ()
+getSelfDeletingMessagesInternal ::
+  Member TeamFeatureStore r =>
+  GetFeatureInternalParam ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
+getSelfDeletingMessagesInternal = \case
+  Left _ -> pure Public.defaultSelfDeletingMessagesStatus
+  Right tid ->
+    liftSem $
+      TeamFeatures.getSelfDeletingMessagesStatus tid
+        <&> maybe Public.defaultSelfDeletingMessagesStatus id
+
+setSelfDeletingMessagesInternal ::
+  Members '[GundeckAccess, TeamFeatureStore, TeamStore] r =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages ->
+  Galley r (Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages)
+setSelfDeletingMessagesInternal tid st = do
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
+  (liftSem $ TeamFeatures.setSelfDeletingMessagesStatus tid st) <* pushEvent
+
+pushFeatureConfigEvent ::
+  Members '[GundeckAccess, TeamStore] r =>
+  TeamId ->
+  Event.Event ->
+  Galley r ()
 pushFeatureConfigEvent tid event = do
-  memList <- Data.teamMembersForFanout tid
+  memList <- getTeamMembersForFanout tid
   when ((memList ^. teamMemberListType) == ListTruncated) $ do
     Log.warn $
       Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
@@ -416,12 +577,12 @@ pushFeatureConfigEvent tid event = do
   let recipients = membersToRecipients Nothing (memList ^. teamMembers)
   for_
     (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
-    push1
+    (liftSem . push1)
 
 -- | (Currently, we only have 'Public.TeamFeatureConferenceCalling' here, but we may have to
 -- extend this in the future.)
 getFeatureConfigViaAccount ::
-  (flag ~ 'Public.TeamFeatureConferenceCalling) =>
+  (flag ~ 'Public.TeamFeatureConferenceCalling, Member (Error InternalError) r) =>
   UserId ->
   Galley r (Public.TeamFeatureStatus flag)
 getFeatureConfigViaAccount uid = do
@@ -430,13 +591,14 @@ getFeatureConfigViaAccount uid = do
   getAccountFeatureConfigClient brigep mgr uid >>= handleResp
   where
     handleResp ::
+      Member (Error InternalError) r =>
       Either Client.ClientError Public.TeamFeatureStatusNoConfig ->
       Galley r Public.TeamFeatureStatusNoConfig
     handleResp (Right cfg) = pure cfg
-    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+    handleResp (Left errmsg) = liftSem . throw . InternalErrorWithDescription . cs . show $ errmsg
 
     getAccountFeatureConfigClient ::
-      (HasCallStack, MonadIO m, MonadHttp m) =>
+      (HasCallStack, MonadIO m) =>
       Endpoint ->
       Manager ->
       UserId ->
@@ -452,7 +614,7 @@ getFeatureConfigViaAccount uid = do
       ) = Client.client (Proxy @IAPI.API)
 
     runHereClientM ::
-      (HasCallStack, MonadIO m, MonadHttp m) =>
+      (HasCallStack, MonadIO m) =>
       Endpoint ->
       Manager ->
       Client.ClientM a ->

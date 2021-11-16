@@ -205,7 +205,7 @@ import Data.Conduit
 import Data.Id
 import Data.Time
 import Data.UUID
-import Galley.Data.Instances ()
+import Galley.Cassandra.Instances ()
 import Imports
 import Types
 import Wire.API.Team.Permission
@@ -229,7 +229,7 @@ select{{keySpaceCaml}}{{tableNameCaml}} = "SELECT {{columns}} FROM {{tableName}}
 read{{keySpaceCaml}}{{tableNameCaml}}:: Env -> {{lookupKeyType}} -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
 read{{keySpaceCaml}}{{tableNameCaml}} Env {..} {{lookupKeyVar}} =
   transPipe (runClient env{{keySpaceCaml}}) $
-    paginateC select{{keySpaceCaml}}{{tableNameCaml}} (paramsP Quorum (pure {{lookupKeyVar}}) envPageSize) x5
+    paginateC select{{keySpaceCaml}}{{tableNameCaml}} (paramsP LocalQuorum (pure {{lookupKeyVar}}) envPageSize) x5
 
 select{{keySpaceCaml}}{{tableNameCaml}}All :: PrepQuery R () Row{{keySpaceCaml}}{{tableNameCaml}}
 select{{keySpaceCaml}}{{tableNameCaml}}All = "SELECT {{columns}} FROM {{tableName}}"
@@ -237,7 +237,7 @@ select{{keySpaceCaml}}{{tableNameCaml}}All = "SELECT {{columns}} FROM {{tableNam
 read{{keySpaceCaml}}{{tableNameCaml}}All :: Env -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
 read{{keySpaceCaml}}{{tableNameCaml}}All Env {..} =
   transPipe (runClient env{{keySpaceCaml}}) $
-    paginateC select{{keySpaceCaml}}{{tableNameCaml}}All (paramsP Quorum () envPageSize) x5
+    paginateC select{{keySpaceCaml}}{{tableNameCaml}}All (paramsP LocalQuorum () envPageSize) x5
 
 export{{keySpaceCaml}}{{tableNameCaml}}Full :: Env -> FilePath -> IO ()
 export{{keySpaceCaml}}{{tableNameCaml}}Full env@Env {..} path = do

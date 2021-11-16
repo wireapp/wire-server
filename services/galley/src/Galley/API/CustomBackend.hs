@@ -22,42 +22,57 @@ module Galley.API.CustomBackend
   )
 where
 
-import Control.Monad.Catch
 import Data.Domain (Domain)
 import Galley.API.Error
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.CustomBackend as Data
+import Galley.Effects.CustomBackendStore
 import Galley.Types
 import Imports hiding ((\\))
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, setStatus)
+import Network.Wai.Utilities hiding (Error)
+import Polysemy
+import Polysemy.Error
 import qualified Wire.API.CustomBackend as Public
 
 -- PUBLIC ---------------------------------------------------------------------
 
-getCustomBackendByDomainH :: Domain ::: JSON -> Galley r Response
+getCustomBackendByDomainH ::
+  Members
+    '[ CustomBackendStore,
+       Error CustomBackendError
+     ]
+    r =>
+  Domain ::: JSON ->
+  Galley r Response
 getCustomBackendByDomainH (domain ::: _) =
   json <$> getCustomBackendByDomain domain
 
-getCustomBackendByDomain :: Domain -> Galley r Public.CustomBackend
+getCustomBackendByDomain ::
+  Members '[CustomBackendStore, Error CustomBackendError] r =>
+  Domain ->
+  Galley r Public.CustomBackend
 getCustomBackendByDomain domain =
-  Data.getCustomBackend domain >>= \case
-    Nothing -> throwM (customBackendNotFound domain)
-    Just customBackend -> pure customBackend
+  liftSem $
+    getCustomBackend domain >>= \case
+      Nothing -> throw (CustomBackendNotFound domain)
+      Just customBackend -> pure customBackend
 
 -- INTERNAL -------------------------------------------------------------------
 
-internalPutCustomBackendByDomainH :: Domain ::: JsonRequest CustomBackend -> Galley r Response
+internalPutCustomBackendByDomainH ::
+  Members '[CustomBackendStore, Error InvalidInput] r =>
+  Domain ::: JsonRequest CustomBackend ->
+  Galley r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do
   customBackend <- fromJsonBody req
   -- simple enough to not need a separate function
-  Data.setCustomBackend domain customBackend
+  liftSem $ setCustomBackend domain customBackend
   pure (empty & setStatus status201)
 
-internalDeleteCustomBackendByDomainH :: Domain ::: JSON -> Galley r Response
+internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Galley r Response
 internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  Data.deleteCustomBackend domain
+  liftSem $ deleteCustomBackend domain
   pure (empty & setStatus status200)
