@@ -32,7 +32,7 @@
 * Turn placeholder access effects into actual Polysemy effects. (#1904)
 * Fix a bug in the IdP.Mem interpreter, and added law tests for IdP (#1863)
 * Introduce fine-grained error types and polysemy error effects in Galley. (#1907)
-* Add polysemy store effects and split off Cassandra specific functionality from the Galley.Data module hierarchy (#1890, #1906). (#1890)
+* Add polysemy store effects and split off Cassandra specific functionality from the Galley.Data module hierarchy (#1890, #1906)
 * Make golden-tests in wire-api package a separate test suite (for faster feedback loop during development). (#1926)
 * Separate IdPRawMetadataStore effect from IdP effect (#1924)
 * Test sending message to multiple remote domains (#1899)
