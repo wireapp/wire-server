@@ -27,6 +27,7 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
+    getAccountFeatureConfigClient,
   )
 where
 
@@ -35,20 +36,31 @@ import Bilge.RPC
 import Brig.Types.Connection (Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import qualified Brig.Types.Intra as Brig
 import Brig.Types.User (User)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.Qualified
+import Data.String.Conversions
+import Galley.API.Error
+import Galley.Env
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Servant.API ((:<|>) ((:<|>)))
+import qualified Servant.Client as Client
+import Util.Options
+import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team.Feature
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -61,7 +73,7 @@ getConnectionsUnqualified ::
   [UserId] ->
   Maybe [UserId] ->
   Maybe Relation ->
-  IntraM [ConnectionStatus]
+  App [ConnectionStatus]
 getConnectionsUnqualified uFrom uTo rlt = do
   r <-
     call Brig $
@@ -84,7 +96,7 @@ getConnections ::
   [UserId] ->
   Maybe [Qualified UserId] ->
   Maybe Relation ->
-  IntraM [ConnectionStatusV2]
+  App [ConnectionStatusV2]
 getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
   r <-
@@ -97,7 +109,7 @@ getConnections uFrom uTo rlt = do
 
 putConnectionInternal ::
   UpdateConnectionsInternal ->
-  IntraM Status
+  App Status
 putConnectionInternal updateConn = do
   response <-
     call Brig $
@@ -109,7 +121,7 @@ putConnectionInternal updateConn = do
 deleteBot ::
   ConvId ->
   BotId ->
-  IntraM ()
+  App ()
 deleteBot cid bot = do
   void $
     call Brig $
@@ -124,7 +136,7 @@ deleteBot cid bot = do
 reAuthUser ::
   UserId ->
   Brig.ReAuthUser ->
-  IntraM Bool
+  App Bool
 reAuthUser uid auth = do
   let req =
         method GET
@@ -143,7 +155,7 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: [UserId] -> IntraM [User]
+lookupActivatedUsers :: [UserId] -> App [User]
 lookupActivatedUsers = chunkify $ \uids -> do
   let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
@@ -169,7 +181,7 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> IntraM [Brig.UserAccount]
+getUsers :: [UserId] -> App [Brig.UserAccount]
 getUsers = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -180,7 +192,7 @@ getUsers = chunkify $ \uids -> do
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
-deleteUser :: UserId -> IntraM ()
+deleteUser :: UserId -> App ()
 deleteUser uid = do
   void $
     call Brig $
@@ -189,7 +201,7 @@ deleteUser uid = do
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList :: UserId -> IntraM [UserId]
+getContactList :: UserId -> App [UserId]
 getContactList uid = do
   r <-
     call Brig $
@@ -199,7 +211,7 @@ getContactList uid = do
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: [UserId] -> IntraM [(UserId, RichInfo)]
+getRichInfoMultiUser :: [UserId] -> App [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -208,3 +220,30 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
+
+getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
+getAccountFeatureConfigClient uid =
+  runHereClientM (getAccountFeatureConfigClientM uid)
+    >>= handleResp
+  where
+    handleResp ::
+      Either Client.ClientError TeamFeatureStatusNoConfig ->
+      App TeamFeatureStatusNoConfig
+    handleResp (Right cfg) = pure cfg
+    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+
+getAccountFeatureConfigClientM ::
+  UserId -> Client.ClientM TeamFeatureStatusNoConfig
+( _
+    :<|> getAccountFeatureConfigClientM
+    :<|> _
+    :<|> _
+  ) = Client.client (Proxy @IAPI.API)
+
+runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
+runHereClientM action = do
+  mgr <- view manager
+  brigep <- view brig
+  let env = Client.mkClientEnv mgr baseurl
+      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+  liftIO $ Client.runClientM action env

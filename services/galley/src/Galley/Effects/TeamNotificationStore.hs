@@ -15,7 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamNotificationStore where
+module Galley.Effects.TeamNotificationStore
+  ( TeamNotificationStore (..),
+    createTeamNotification,
+    getTeamNotifications,
+    mkNotificationId,
+  )
+where
 
 import qualified Data.Aeson as JSON
 import Data.Id
@@ -37,5 +43,6 @@ data TeamNotificationStore m a where
     Maybe NotificationId ->
     Range 1 10000 Int32 ->
     TeamNotificationStore m ResultPage
+  MkNotificationId :: TeamNotificationStore m NotificationId
 
 makeSem ''TeamNotificationStore

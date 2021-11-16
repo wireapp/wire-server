@@ -23,6 +23,7 @@ module Galley.Intra.Effects
   )
 where
 
+import Galley.API.Error
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
 import Galley.Effects.GundeckAccess (GundeckAccess (..))
@@ -33,63 +34,67 @@ import qualified Galley.Intra.Push.Internal as G
 import Galley.Intra.Spar
 import Galley.Intra.Team
 import Galley.Intra.User
-import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Error
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
 
 interpretBrigAccess ::
-  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Error InternalError, P.TinyLog, Input Env] r =>
   Sem (BrigAccess ': r) a ->
   Sem r a
 interpretBrigAccess = interpret $ \case
   GetConnectionsUnqualified uids muids mrel ->
-    embedIntra $ getConnectionsUnqualified uids muids mrel
+    embedApp $ getConnectionsUnqualified uids muids mrel
   GetConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 ->
-    embedIntra $
+    embedApp $
       UnliftIO.concurrently
         (getConnectionsUnqualified uids1 (Just uids2) mrel1)
         (getConnectionsUnqualified uids2 (Just uids1) mrel2)
   GetConnections uids mquids mrel ->
-    embedIntra $
+    embedApp $
       getConnections uids mquids mrel
-  PutConnectionInternal uc -> embedIntra $ putConnectionInternal uc
-  ReauthUser uid reauth -> embedIntra $ reAuthUser uid reauth
-  LookupActivatedUsers uids -> embedIntra $ lookupActivatedUsers uids
-  GetUsers uids -> embedIntra $ getUsers uids
-  DeleteUser uid -> embedIntra $ deleteUser uid
-  GetContactList uid -> embedIntra $ getContactList uid
-  GetRichInfoMultiUser uids -> embedIntra $ getRichInfoMultiUser uids
-  GetSize tid -> embedIntra $ getSize tid
-  LookupClients uids -> embedIntra $ lookupClients uids
-  LookupClientsFull uids -> embedIntra $ lookupClientsFull uids
+  PutConnectionInternal uc -> embedApp $ putConnectionInternal uc
+  ReauthUser uid reauth -> embedApp $ reAuthUser uid reauth
+  LookupActivatedUsers uids -> embedApp $ lookupActivatedUsers uids
+  GetUsers uids -> embedApp $ getUsers uids
+  DeleteUser uid -> embedApp $ deleteUser uid
+  GetContactList uid -> embedApp $ getContactList uid
+  GetRichInfoMultiUser uids -> embedApp $ getRichInfoMultiUser uids
+  GetSize tid -> embedApp $ getSize tid
+  LookupClients uids -> embedApp $ lookupClients uids
+  LookupClientsFull uids -> embedApp $ lookupClientsFull uids
   NotifyClientsAboutLegalHoldRequest self other pk ->
-    embedIntra $ notifyClientsAboutLegalHoldRequest self other pk
+    embedApp $ notifyClientsAboutLegalHoldRequest self other pk
   GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken uid mpwd
   AddLegalHoldClientToUser uid conn pks lpk ->
-    embedIntra $ addLegalHoldClientToUser uid conn pks lpk
+    embedApp $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
-    embedIntra $ removeLegalHoldClientFromUser uid
+    embedApp $ removeLegalHoldClientFromUser uid
+  GetAccountFeatureConfigClient uid ->
+    embedApp $ getAccountFeatureConfigClient uid
 
 interpretSparAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (SparAccess ': r) a ->
   Sem r a
 interpretSparAccess = interpret $ \case
-  DeleteTeam tid -> embedIntra $ deleteTeam tid
+  DeleteTeam tid -> embedApp $ deleteTeam tid
 
 interpretBotAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (BotAccess ': r) a ->
   Sem r a
 interpretBotAccess = interpret $ \case
-  DeleteBot cid bid -> embedIntra $ deleteBot cid bid
+  DeleteBot cid bid -> embedApp $ deleteBot cid bid
 
 interpretGundeckAccess ::
-  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (GundeckAccess ': r) a ->
   Sem r a
 interpretGundeckAccess = interpret $ \case
-  Push ps -> embedIntra $ G.push ps
+  Push ps -> embedApp $ G.push ps
+  PushSlowly ps -> embedApp $ G.pushSlowly ps

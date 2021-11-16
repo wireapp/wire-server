@@ -15,17 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Store
-  ( embedClient,
+module Galley.Effects.WaiRoutes
+  ( WaiRoutes (..),
+    fromJsonBody,
+    fromOptionalJsonBody,
+    fromProtoBody,
   )
 where
 
-import Cassandra
+import Data.Aeson (FromJSON)
+import qualified Data.ProtocolBuffers as Proto
 import Imports
+import Network.Wai
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Input
 
-embedClient :: Members '[Embed IO, Input ClientState] r => Client a -> Sem r a
-embedClient client = do
-  cs <- input
-  embed @IO $ runClient cs client
+data WaiRoutes m a where
+  FromJsonBody :: FromJSON a => JsonRequest a -> WaiRoutes m a
+  FromOptionalJsonBody :: FromJSON a => OptionalJsonRequest a -> WaiRoutes m (Maybe a)
+  FromProtoBody :: Proto.Decode a => Request -> WaiRoutes m a
+
+makeSem ''WaiRoutes

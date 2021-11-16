@@ -28,10 +28,10 @@ import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Galley.Types
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 interpretCustomBackendStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (CustomBackendStore ': r) a ->
   Sem r a
 interpretCustomBackendStoreToCassandra = interpret $ \case

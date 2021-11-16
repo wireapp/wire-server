@@ -49,6 +49,10 @@ module Galley.Effects
     -- * Paging effects
     ListItems,
 
+    -- * Other effects
+    Queue,
+    WaiRoutes,
+
     -- * Polysemy re-exports
     Member,
     Members,
@@ -57,6 +61,7 @@ where
 
 import Data.Id
 import Data.Qualified
+import Data.Time.Clock
 import Galley.API.Error
 import Galley.Cassandra.Paging
 import Galley.Effects.BotAccess
@@ -72,6 +77,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
@@ -79,15 +85,20 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
+import Galley.Effects.WaiRoutes
+import Galley.Env
+import Galley.Options
 import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.TinyLog
 
 type NonErrorGalleyEffects1 =
   '[ BrigAccess,
-     GundeckAccess,
      SparAccess,
+     GundeckAccess,
      ExternalAccess,
      FederatorAccess,
      BotAccess,
@@ -108,7 +119,13 @@ type NonErrorGalleyEffects1 =
      ListItems CassandraPaging (Remote ConvId),
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
-     ListItems InternalPaging TeamId
+     ListItems InternalPaging TeamId,
+     Input (Local ()),
+     Input Opts,
+     WaiRoutes,
+     Input UTCTime,
+     Queue DeleteItem,
+     TinyLog
    ]
 
 -- All the possible high-level effects.

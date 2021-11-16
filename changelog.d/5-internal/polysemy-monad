@@ -1,0 +1,1 @@
+Replace Galley monad with polysemy's Sem throughout Galley

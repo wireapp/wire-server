@@ -15,17 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Store
-  ( embedClient,
-  )
-where
+module Galley.Effects.WaiRoutes.IO where
 
-import Cassandra
+import Control.Error
+import qualified Data.ProtocolBuffers as Proto
+import Data.Serialize.Get
+import Galley.API.Error
+import Galley.Effects.WaiRoutes
 import Imports
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Input
+import Polysemy.Error
 
-embedClient :: Members '[Embed IO, Input ClientState] r => Client a -> Sem r a
-embedClient client = do
-  cs <- input
-  embed @IO $ runClient cs client
+interpretWaiRoutes ::
+  Members '[Embed IO, Error InvalidInput] r =>
+  Sem (WaiRoutes ': r) a ->
+  Sem r a
+interpretWaiRoutes = interpret $ \case
+  FromJsonBody r -> exceptT (throw . InvalidPayload) return (parseBody r)
+  FromOptionalJsonBody r -> exceptT (throw . InvalidPayload) return (parseOptionalBody r)
+  FromProtoBody r -> do
+    b <- readBody r
+    either (throw . InvalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)

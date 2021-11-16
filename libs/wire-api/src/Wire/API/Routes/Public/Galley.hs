@@ -38,7 +38,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
@@ -78,21 +78,21 @@ data Api routes = Api
     getUnqualifiedConversation ::
       routes
         :- Summary "Get a conversation by ID"
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> Capture "cnv" ConvId
         :> Get '[Servant.JSON] Conversation,
     getConversation ::
       routes
         :- Summary "Get a conversation by ID"
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> QualifiedCapture "cnv" ConvId
         :> Get '[Servant.JSON] Conversation,
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "roles"
@@ -101,7 +101,7 @@ data Api routes = Api
       routes
         :- Summary "[deprecated] Get all local conversation IDs."
         -- FUTUREWORK: add bounds to swagger schema for Range
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> "ids"
         :> QueryParam'
@@ -133,7 +133,7 @@ data Api routes = Api
                \ `has_more` being `false`. Note that `paging_state` should be\
                \ considered an opaque token. It should not be inspected, or stored, or\
                \ reused across multiple unrelated invokations of the endpoint."
-          :> ZUser
+          :> ZLocalUser
           :> "conversations"
           :> "list-ids"
           :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
@@ -145,7 +145,7 @@ data Api routes = Api
              "Will not return remote conversations.\n\n\
              \Use `POST /conversations/list-ids` followed by \
              \`POST /conversations/list/v2` instead."
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> QueryParam'
              [ Optional,
@@ -172,7 +172,7 @@ data Api routes = Api
     listConversations ::
       routes
         :- Summary "Get conversation metadata for a list of conversation ids"
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> "list"
         :> "v2"
@@ -187,7 +187,7 @@ data Api routes = Api
         :> CanThrow CodeNotFound
         :> CanThrow ConvNotFound
         :> CanThrow ConvAccessDenied
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> "join"
         :> QueryParam' [Required, Strict] "key" Code.Key
@@ -200,7 +200,7 @@ data Api routes = Api
         :> CanThrow OperationDenied
         :> CanThrow NotATeamMember
         :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> ReqBody '[Servant.JSON] NewConvUnmanaged
@@ -208,7 +208,7 @@ data Api routes = Api
     createSelfConversation ::
       routes
         :- Summary "Create a self-conversation"
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> "self"
         :> ConversationVerb,
@@ -218,7 +218,7 @@ data Api routes = Api
     createOne2OneConversation ::
       routes
         :- Summary "Create a 1:1 conversation"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> "one2one"
@@ -233,7 +233,7 @@ data Api routes = Api
         :> CanThrow NotConnected
         :> CanThrow ConvAccessDenied
         :> CanThrow (InvalidOp "Invalid operation")
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
@@ -243,7 +243,7 @@ data Api routes = Api
     addMembersToConversation ::
       routes
         :- Summary "Add qualified members to an existing conversation."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
@@ -256,7 +256,7 @@ data Api routes = Api
     removeMemberUnqualified ::
       routes
         :- Summary "Remove a member from a conversation (deprecated)"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -272,7 +272,7 @@ data Api routes = Api
     removeMember ::
       routes
         :- Summary "Remove a member from a conversation"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
@@ -289,7 +289,7 @@ data Api routes = Api
       routes
         :- Summary "Update membership of the specified user (deprecated)"
         :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvNotFound
         :> CanThrow ConvMemberNotFound
@@ -308,7 +308,7 @@ data Api routes = Api
       routes
         :- Summary "Update membership of the specified user"
         :> Description "**Note**: at least one field has to be provided."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvNotFound
         :> CanThrow ConvMemberNotFound
@@ -329,7 +329,7 @@ data Api routes = Api
       routes
         :- Summary "Update conversation name (deprecated)"
         :> Description "Use `/conversations/:domain/:conv/name` instead."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -345,7 +345,7 @@ data Api routes = Api
       routes
         :- Summary "Update conversation name (deprecated)"
         :> Description "Use `/conversations/:domain/:conv/name` instead."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -361,7 +361,7 @@ data Api routes = Api
     updateConversationName ::
       routes
         :- Summary "Update conversation name"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
@@ -380,7 +380,7 @@ data Api routes = Api
       routes
         :- Summary "Update the message timer for a conversation (deprecated)"
         :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
@@ -397,7 +397,7 @@ data Api routes = Api
     updateConversationMessageTimer ::
       routes
         :- Summary "Update the message timer for a conversation"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
@@ -417,7 +417,7 @@ data Api routes = Api
       routes
         :- Summary "Update receipt mode for a conversation (deprecated)"
         :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
@@ -433,7 +433,7 @@ data Api routes = Api
     updateConversationReceiptMode ::
       routes
         :- Summary "Update receipt mode for a conversation"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
@@ -453,7 +453,7 @@ data Api routes = Api
       routes
         :- Summary "Update access modes for a conversation (deprecated)"
         :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
@@ -470,7 +470,7 @@ data Api routes = Api
     updateConversationAccess ::
       routes
         :- Summary "Update access modes for a conversation"
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow ConvAccessDenied
         :> CanThrow ConvNotFound
@@ -487,7 +487,7 @@ data Api routes = Api
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"
-        :> ZUser
+        :> ZLocalUser
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
         :> "self"
@@ -497,7 +497,7 @@ data Api routes = Api
         :- Summary "Update self membership properties (deprecated)"
         :> Description "Use `/conversations/:domain/:conv/self` instead."
         :> CanThrow ConvNotFound
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -513,7 +513,7 @@ data Api routes = Api
         :- Summary "Update self membership properties"
         :> Description "**Note**: at least one field has to be provided."
         :> CanThrow ConvNotFound
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
@@ -560,7 +560,7 @@ data Api routes = Api
         :- Summary "Remove a team conversation"
         :> CanThrow NotATeamMember
         :> CanThrow ActionDenied
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "teams"
         :> Capture "tid" TeamId
@@ -571,7 +571,7 @@ data Api routes = Api
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
         :> Description PostOtrDescriptionUnqualified
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
@@ -589,7 +589,7 @@ data Api routes = Api
       routes
         :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
         :> Description PostOtrDescription
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "conversations"
         :> QualifiedCapture "cnv" ConvId

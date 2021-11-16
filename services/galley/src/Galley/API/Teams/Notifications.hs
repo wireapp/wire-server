@@ -41,15 +41,11 @@ where
 
 import Brig.Types.Intra (accountUser)
 import Brig.Types.User (userTeam)
-import Control.Monad.Catch
-import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.Id
 import Data.Json.Util (toJSONObject)
 import qualified Data.List1 as List1
 import Data.Range (Range)
-import qualified Data.UUID.V1 as UUID
 import Galley.API.Error
-import Galley.App
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
@@ -57,8 +53,7 @@ import qualified Galley.Effects.TeamNotificationStore as E
 import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
-import Network.HTTP.Types
-import Network.Wai.Utilities hiding (Error)
+import Polysemy
 import Polysemy.Error
 
 getTeamNotifications ::
@@ -66,27 +61,17 @@ getTeamNotifications ::
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
-  Galley r QueuedNotificationList
+  Sem r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid <- liftSem . (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
-  page <- liftSem $ E.getTeamNotifications tid since size
+  tid <- (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
+  page <- E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
       (toList (DataTeamQueue.resultSeq page))
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Galley r ()
+pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Sem r ()
 pushTeamEvent tid evt = do
-  nid <- liftIO mkNotificationId
-  liftSem $ E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)
-
--- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
-mkNotificationId :: IO NotificationId
-mkNotificationId = do
-  ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
-  maybe (throwM err) return ni
-  where
-    x10 = limitRetries 10 <> exponentialBackoff 10
-    fun = const (return . isNothing)
-    err = mkError status500 "internal-error" "unable to generate notification ID"
+  nid <- E.mkNotificationId
+  E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)

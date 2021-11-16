@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6f378c75d7938aa5f221f136049c8ca98f63e7ae682e0035fb912f3917cfd1b1
+-- hash: 955ba4e571c8a43aab5b78d001425cbc40f17e59b95bfabb8ab5d42bae6500b5
 
 name:           galley
 version:        0.83.0
@@ -87,6 +87,7 @@ library
       Galley.Effects.ListItems
       Galley.Effects.MemberStore
       Galley.Effects.Paging
+      Galley.Effects.Queue
       Galley.Effects.RemoteConversationListStore
       Galley.Effects.SearchVisibilityStore
       Galley.Effects.ServiceStore
@@ -95,9 +96,12 @@ library
       Galley.Effects.TeamMemberStore
       Galley.Effects.TeamNotificationStore
       Galley.Effects.TeamStore
+      Galley.Effects.WaiRoutes
+      Galley.Effects.WaiRoutes.IO
       Galley.Env
       Galley.External
       Galley.External.LegalHoldService
+      Galley.External.LegalHoldService.Internal
       Galley.External.LegalHoldService.Types
       Galley.Intra.Client
       Galley.Intra.Effects
@@ -110,6 +114,7 @@ library
       Galley.Intra.Team
       Galley.Intra.User
       Galley.Intra.Util
+      Galley.Monad
       Galley.Options
       Galley.Queue
       Galley.Run
@@ -123,7 +128,7 @@ library
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fplugin=Polysemy.Plugin
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
@@ -169,7 +174,6 @@ library
     , optparse-applicative >=0.10
     , pem
     , polysemy
-    , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens >=0.2
     , protobuf >=0.2

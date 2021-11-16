@@ -22,7 +22,6 @@ module Galley.Intra.Push.Internal where
 import Bilge hiding (options)
 import Control.Lens (makeLenses, set, view, (.~))
 import Data.Aeson (Object)
-import Data.Domain
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
@@ -33,6 +32,8 @@ import Data.Range
 import qualified Data.Set as Set
 import Galley.Env
 import Galley.Intra.Util
+import Galley.Monad
+import Galley.Options
 import Galley.Types
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
@@ -79,7 +80,7 @@ makeLenses ''PushTo
 
 type Push = PushTo UserId
 
-push :: Foldable f => f Push -> IntraM ()
+push :: Foldable f => f Push -> App ()
 push ps = do
   let pushes = foldMap (toList . mkPushTo) ps
   traverse_ pushLocal (nonEmpty pushes)
@@ -92,7 +93,7 @@ push ps = do
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: NonEmpty (PushTo UserId) -> IntraM ()
+pushLocal :: NonEmpty (PushTo UserId) -> App ()
 pushLocal ps = do
   opts <- view options
   let limit = currentFanoutLimit opts
@@ -162,7 +163,15 @@ newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 newPushLocal :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPushLocal lt uid e rr = newPush lt (Just uid) e rr
 
-newConversationEventPush :: Domain -> Event -> [UserId] -> Maybe Push
-newConversationEventPush localDomain e users =
-  let musr = guard (localDomain == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient users)
+newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
+newConversationEventPush e users =
+  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+   in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))
+
+pushSlowly :: Foldable f => f Push -> App ()
+pushSlowly ps = do
+  mmillis <- view (options . optSettings . setDeleteConvThrottleMillis)
+  let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis mmillis)
+  forM_ ps $ \p -> do
+    push [p]
+    threadDelay delay

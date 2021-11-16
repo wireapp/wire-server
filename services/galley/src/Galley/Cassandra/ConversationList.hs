@@ -34,7 +34,7 @@ import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Imports hiding (max)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
@@ -66,21 +66,21 @@ remoteConversationIdsPageFrom usr pagingState max =
   uncurry toRemoteUnsafe <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
 
 interpretConversationListToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (ListItems CassandraPaging ConvId ': r) a ->
   Sem r a
 interpretConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> embedClient $ localConversationIdsPageFrom uid ps max
 
 interpretRemoteConversationListToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (ListItems CassandraPaging (Remote ConvId) ': r) a ->
   Sem r a
 interpretRemoteConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> embedClient $ remoteConversationIdsPageFrom uid ps (fromRange max)
 
 interpretLegacyConversationListToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (ListItems LegacyPaging ConvId ': r) a ->
   Sem r a
 interpretLegacyConversationListToCassandra = interpret $ \case

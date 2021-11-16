@@ -15,17 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Store
-  ( embedClient,
+module Galley.Effects.Queue
+  ( Queue (..),
+    tryPush,
+    pop,
   )
 where
 
-import Cassandra
 import Imports
 import Polysemy
-import Polysemy.Input
 
-embedClient :: Members '[Embed IO, Input ClientState] r => Client a -> Sem r a
-embedClient client = do
-  cs <- input
-  embed @IO $ runClient cs client
+data Queue a m x where
+  TryPush :: a -> Queue a m Bool
+  Pop :: Queue a m a
+
+makeSem ''Queue

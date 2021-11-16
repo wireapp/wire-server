@@ -27,27 +27,44 @@ module Galley.Cassandra.TeamNotifications
 where
 
 import Cassandra
+import Control.Monad.Catch
+import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as JSON
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
+import qualified Data.UUID.V1 as UUID
 import Galley.Cassandra.Store
 import Galley.Data.TeamNotifications
-import Galley.Effects.TeamNotificationStore
+import Galley.Effects
+import Galley.Effects.TeamNotificationStore (TeamNotificationStore (..))
 import Gundeck.Types.Notification
 import Imports
+import Network.HTTP.Types
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 interpretTeamNotificationStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (TeamNotificationStore ': r) a ->
   Sem r a
 interpretTeamNotificationStoreToCassandra = interpret $ \case
   CreateTeamNotification tid nid objs -> embedClient $ add tid nid objs
   GetTeamNotifications tid mnid lim -> embedClient $ fetch tid mnid lim
+  MkNotificationId -> embed mkNotificationId
+
+-- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
+mkNotificationId :: IO NotificationId
+mkNotificationId = do
+  ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
+  maybe (throwM err) return ni
+  where
+    x10 = limitRetries 10 <> exponentialBackoff 10
+    fun = const (return . isNothing)
+    err = mkError status500 "internal-error" "unable to generate notification ID"
 
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::

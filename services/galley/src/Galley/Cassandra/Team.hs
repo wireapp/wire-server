@@ -36,6 +36,7 @@ import qualified Data.Map.Strict as Map
 import Data.Range
 import qualified Data.Set as Set
 import Data.UUID.V4 (nextRandom)
+import qualified Galley.Aws as Aws
 import qualified Galley.Cassandra.Conversation as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Paging
@@ -45,6 +46,9 @@ import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
+import Galley.Env
+import Galley.Monad
+import Galley.Options
 import Galley.Types.Teams hiding
   ( DeleteTeam,
     GetTeamConversations,
@@ -54,12 +58,12 @@ import qualified Galley.Types.Teams as Teams
 import Galley.Types.Teams.Intra
 import Imports hiding (Set, max)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import qualified UnliftIO
 import Wire.API.Team.Member
 
 interpretTeamStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input Env, Input ClientState] r =>
   FeatureLegalHold ->
   Sem (TeamStore ': r) a ->
   Sem r a
@@ -89,16 +93,23 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
   SetTeamData tid upd -> embedClient $ updateTeam tid upd
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
+  FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
+  GetLegalHoldFlag ->
+    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> input
+  EnqueueTeamEvent e -> do
+    menv <- inputs (view aEnv)
+    for_ menv $ \env ->
+      embed @IO $ Aws.execute env (Aws.enqueue e)
 
 interpretTeamListToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (ListItems LegacyPaging TeamId ': r) a ->
   Sem r a
 interpretTeamListToCassandra = interpret $ \case
   ListItems uid ps lim -> embedClient $ teamIdsFrom uid ps lim
 
 interpretInternalTeamListToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (ListItems InternalPaging TeamId ': r) a ->
   Sem r a
 interpretInternalTeamListToCassandra = interpret $ \case
@@ -109,7 +120,7 @@ interpretInternalTeamListToCassandra = interpret $ \case
     Just ps -> ipNext ps
 
 interpretTeamMemberStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   FeatureLegalHold ->
   Sem (TeamMemberStore InternalPaging ': r) a ->
   Sem r a

@@ -27,6 +27,7 @@ module Galley.API.Action
 
     -- * Performing actions
     updateLocalConversation,
+    NoChanges,
 
     -- * Utilities
     ensureConversationActionAllowed,
@@ -37,7 +38,6 @@ where
 
 import qualified Brig.Types.User as User
 import Control.Lens
-import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Kind
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -47,7 +47,6 @@ import qualified Data.Set as Set
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.Util
-import Galley.App
 import Galley.Data.Conversation
 import Galley.Data.Services
 import Galley.Data.Types
@@ -57,14 +56,17 @@ import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
+import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
+import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
@@ -74,6 +76,11 @@ import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Client
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
+
+data NoChanges = NoChanges
+
+noChanges :: Member (Error NoChanges) r => Sem r a
+noChanges = throw NoChanges
 
 -- | An update to a conversation, including addition and removal of members.
 -- Used to send notifications to users and to remote backends.
@@ -87,18 +94,18 @@ class IsConversationAction a where
     a ->
     Conversation ->
     mem ->
-    Galley r ()
+    Sem r ()
   ensureAllowed _ _ _ _ = pure ()
   conversationActionTag' :: Qualified UserId -> a -> Action
   performAction ::
     ( HasConversationActionEffects a r,
-      Members '[ConversationStore] r
+      Members '[ConversationStore, Error NoChanges] r
     ) =>
     Qualified UserId ->
     Local ConvId ->
     Conversation ->
     a ->
-    MaybeT (Galley r) (BotsAndMembers, a)
+    Sem r (BotsAndMembers, a)
 
 -- | The action of some users joining a conversation.
 data ConversationJoin = ConversationJoin
@@ -133,6 +140,8 @@ instance IsConversationAction ConversationJoin where
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
+           Input Opts,
+           Input UTCTime,
            LegalHoldStore,
            MemberStore,
            TeamStore
@@ -145,14 +154,13 @@ instance IsConversationAction ConversationJoin where
   performAction qusr lcnv conv (ConversationJoin invited role) = do
     let newMembers = ulNewMembers lcnv conv . toUserList lcnv $ invited
 
-    lift $ do
-      lusr <- liftSem $ ensureLocal lcnv qusr
-      ensureMemberLimit (toList (convLocalMembers conv)) newMembers
-      liftSem $ ensureAccess conv InviteAccess
-      checkLocals lusr (convTeam conv) (ulLocals newMembers)
-      checkRemotes lusr (ulRemotes newMembers)
-      checkLHPolicyConflictsLocal (ulLocals newMembers)
-      checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
+    lusr <- ensureLocal lcnv qusr
+    ensureMemberLimit (toList (convLocalMembers conv)) newMembers
+    ensureAccess conv InviteAccess
+    checkLocals lusr (convTeam conv) (ulLocals newMembers)
+    checkRemotes lusr (ulRemotes newMembers)
+    checkLHPolicyConflictsLocal (ulLocals newMembers)
+    checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
 
     addMembersToLocalConversation lcnv newMembers role
     where
@@ -170,9 +178,9 @@ instance IsConversationAction ConversationJoin where
         Local UserId ->
         Maybe TeamId ->
         [UserId] ->
-        Galley r ()
+        Sem r ()
       checkLocals lusr (Just tid) newUsers = do
-        tms <- liftSem $ E.selectTeamMembers tid newUsers
+        tms <- E.selectTeamMembers tid newUsers
         let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
         ensureAccessRole (convAccessRole conv) userMembershipMap
         ensureConnectedOrSameTeam lusr newUsers
@@ -181,16 +189,21 @@ instance IsConversationAction ConversationJoin where
         ensureConnectedOrSameTeam lusr newUsers
 
       checkRemotes ::
-        Members '[BrigAccess, Error ActionError, Error FederationError, TeamStore] r =>
+        Members
+          '[ BrigAccess,
+             Error ActionError,
+             Error FederationError,
+             FederatorAccess
+           ]
+          r =>
         Local UserId ->
         [Remote UserId] ->
-        Galley r ()
+        Sem r ()
       checkRemotes lusr remotes = do
         -- if federator is not configured, we fail early, so we avoid adding
         -- remote members to the database
-        unless (null remotes) $ do
-          endpoint <- federatorEndpoint
-          liftSem . when (isNothing endpoint) $
+        unless (null remotes) $
+          unlessM E.isFederationConfigured $
             throw FederationNotConfigured
         ensureConnectedToRemotes lusr remotes
 
@@ -204,13 +217,15 @@ instance IsConversationAction ConversationJoin where
              ExternalAccess,
              FederatorAccess,
              GundeckAccess,
+             Input Opts,
+             Input UTCTime,
              LegalHoldStore,
              MemberStore,
              TeamStore
            ]
           r =>
         [UserId] ->
-        Galley r ()
+        Sem r ()
       checkLHPolicyConflictsLocal newUsers = do
         let convUsers = convLocalMembers conv
 
@@ -218,11 +233,11 @@ instance IsConversationAction ConversationJoin where
 
         whenM (anyLegalholdActivated (lmId <$> convUsers)) $
           unless allNewUsersGaveConsent $
-            liftSem $ throw MissingLegalholdConsent
+            throw MissingLegalholdConsent
 
         whenM (anyLegalholdActivated newUsers) $ do
           unless allNewUsersGaveConsent $
-            liftSem $ throw MissingLegalholdConsent
+            throw MissingLegalholdConsent
 
           convUsersLHStatus <- do
             uidsStatus <- getLHStatusForUsers (lmId <$> convUsers)
@@ -237,15 +252,15 @@ instance IsConversationAction ConversationJoin where
             then do
               for_ convUsersLHStatus $ \(mem, status) ->
                 when (consentGiven status == ConsentNotGiven) $ do
-                  qvictim <- qUntagged <$> qualifyLocal (lmId mem)
-                  void . runMaybeT $
+                  let qvictim = qUntagged (qualifyAs lcnv (lmId mem))
+                  void . runError @NoChanges $
                     updateLocalConversation lcnv qvictim Nothing $
                       ConversationLeave (pure qvictim)
-            else liftSem $ throw MissingLegalholdConsent
+            else throw MissingLegalholdConsent
 
       checkLHPolicyConflictsRemote ::
         FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
-        Galley r ()
+        Sem r ()
       checkLHPolicyConflictsRemote _remotes = pure ()
 
 instance IsConversationAction ConversationLeave where
@@ -258,8 +273,8 @@ instance IsConversationAction ConversationLeave where
     | otherwise = RemoveConversationMember
   performAction _qusr lcnv conv action = do
     let presentVictims = filter (isConvMember lcnv conv) (toList (clUsers action))
-    guard . not . null $ presentVictims
-    lift . liftSem $ E.deleteMembers (convId conv) (toUserList lcnv presentVictims)
+    when (null presentVictims) noChanges
+    E.deleteMembers (convId conv) (toUserList lcnv presentVictims)
     pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
 
 instance IsConversationAction ConversationMemberUpdate where
@@ -268,7 +283,7 @@ instance IsConversationAction ConversationMemberUpdate where
       (Members '[MemberStore, Error ConversationError] r)
   conversationAction cmu = ConversationActionMemberUpdate (cmuTarget cmu) (cmuUpdate cmu)
   conversationActionTag' _ _ = ModifyOtherConversationMember
-  performAction _qusr lcnv conv action = lift . liftSem $ do
+  performAction _qusr lcnv conv action = do
     void $ ensureOtherMember lcnv (cmuTarget action) conv
     E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
     pure (mempty, action)
@@ -279,11 +294,11 @@ instance IsConversationAction ConversationDelete where
       Members '[Error FederationError, Error NotATeamMember, CodeStore, TeamStore] r
   conversationAction ConversationDelete = ConversationActionDelete
   ensureAllowed loc ConversationDelete conv self =
-    liftSem . for_ (convTeam conv) $ \tid -> do
+    for_ (convTeam conv) $ \tid -> do
       lusr <- ensureLocal loc (convMemberId loc self)
       void $ E.getTeamMember tid (tUnqualified lusr) >>= noteED @NotATeamMember
   conversationActionTag' _ _ = DeleteConversation
-  performAction _ lcnv conv action = lift . liftSem $ do
+  performAction _ lcnv conv action = do
     key <- E.makeKey (tUnqualified lcnv)
     E.deleteCode key ReusableCode
     case convTeam conv of
@@ -298,7 +313,7 @@ instance IsConversationAction ConversationRename where
 
   conversationAction = ConversationActionRename
   conversationActionTag' _ _ = ModifyConversationName
-  performAction _ lcnv _ action = lift . liftSem $ do
+  performAction _ lcnv _ action = do
     cn <- rangeChecked (cupName action)
     E.setConversationName (tUnqualified lcnv) cn
     pure (mempty, action)
@@ -308,8 +323,8 @@ instance IsConversationAction ConversationMessageTimerUpdate where
   conversationAction = ConversationActionMessageTimerUpdate
   conversationActionTag' _ _ = ModifyConversationMessageTimer
   performAction _ lcnv conv action = do
-    guard $ convMessageTimer conv /= cupMessageTimer action
-    lift . liftSem $ E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
+    when (convMessageTimer conv == cupMessageTimer action) noChanges
+    E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
     pure (mempty, action)
 
 instance IsConversationAction ConversationReceiptModeUpdate where
@@ -317,8 +332,8 @@ instance IsConversationAction ConversationReceiptModeUpdate where
   conversationAction = ConversationActionReceiptModeUpdate
   conversationActionTag' _ _ = ModifyConversationReceiptMode
   performAction _ lcnv conv action = do
-    guard $ convReceiptMode conv /= Just (cruReceiptMode action)
-    lift . liftSem $ E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
+    when (convReceiptMode conv == Just (cruReceiptMode action)) noChanges
+    E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
     pure (mempty, action)
 
 instance IsConversationAction ConversationAccessData where
@@ -335,7 +350,8 @@ instance IsConversationAction ConversationAccessData where
            FireAndForget,
            GundeckAccess,
            MemberStore,
-           TeamStore
+           TeamStore,
+           Input UTCTime
          ]
         r
   conversationAction = ConversationActionAccessUpdate
@@ -343,12 +359,11 @@ instance IsConversationAction ConversationAccessData where
     -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
     -- so on; users are not supposed to be able to make other conversations
     -- have 'PrivateAccessRole'
-    liftSem $
-      when
-        ( PrivateAccess `elem` cupAccess target
-            || PrivateAccessRole == cupAccessRole target
-        )
-        $ throw InvalidTargetAccess
+    when
+      ( PrivateAccess `elem` cupAccess target
+          || PrivateAccessRole == cupAccessRole target
+      )
+      $ throw InvalidTargetAccess
     -- Team conversations incur another round of checks
     case convTeam conv of
       Just _ -> do
@@ -356,32 +371,31 @@ instance IsConversationAction ConversationAccessData where
         -- conversation, so the user must have the necessary permission flag
         ensureActionAllowed RemoveConversationMember self
       Nothing ->
-        liftSem $
-          when (cupAccessRole target == TeamAccessRole) $
-            throw InvalidTargetAccess
+        when (cupAccessRole target == TeamAccessRole) $
+          throw InvalidTargetAccess
   conversationActionTag' _ _ = ModifyConversationAccess
   performAction qusr lcnv conv action = do
-    guard $ convAccessData conv /= action
+    when (convAccessData conv == action) noChanges
     -- Remove conversation codes if CodeAccess is revoked
     when
       ( CodeAccess `elem` convAccess conv
           && CodeAccess `notElem` cupAccess action
       )
-      $ lift $ do
-        key <- mkKey (tUnqualified lcnv)
-        liftSem $ E.deleteCode key ReusableCode
+      $ do
+        key <- E.makeKey (tUnqualified lcnv)
+        E.deleteCode key ReusableCode
 
     -- Determine bots and members to be removed
     let filterBotsAndMembers = filterActivated >=> filterTeammates
     let current = convBotsAndMembers conv -- initial bots and members
-    desired <- lift . liftSem $ filterBotsAndMembers current -- desired bots and members
+    desired <- filterBotsAndMembers current -- desired bots and members
     let toRemove = bmDiff current desired -- bots and members to be removed
 
     -- Update Cassandra
-    lift . liftSem $ E.setConversationAccess (tUnqualified lcnv) action
-    lift . fireAndForget $ do
+    E.setConversationAccess (tUnqualified lcnv) action
+    E.fireAndForget $ do
       -- Remove bots
-      traverse_ (liftSem . E.deleteBot (tUnqualified lcnv) . botMemId) (bmBots toRemove)
+      traverse_ (E.deleteBot (tUnqualified lcnv) . botMemId) (bmBots toRemove)
 
       -- Update current bots and members
       let current' = current {bmBots = bmBots desired}
@@ -389,7 +403,7 @@ instance IsConversationAction ConversationAccessData where
       -- Remove users and notify everyone
       void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
         let rAction = ConversationLeave usersToRemove
-        void . runMaybeT $ performAction qusr lcnv conv rAction
+        void . runError @NoChanges $ performAction qusr lcnv conv rAction
         notifyConversationAction qusr Nothing lcnv current' (conversationAction rAction)
     pure (mempty, action)
     where
@@ -425,9 +439,11 @@ updateLocalConversation ::
          Error ActionError,
          Error ConversationError,
          Error InvalidInput,
+         Error NoChanges,
          ExternalAccess,
          FederatorAccess,
-         GundeckAccess
+         GundeckAccess,
+         Input UTCTime
        ]
       r,
     HasConversationActionEffects a r
@@ -436,27 +452,24 @@ updateLocalConversation ::
   Qualified UserId ->
   Maybe ConnId ->
   a ->
-  MaybeT (Galley r) Event
+  Sem r Event
 updateLocalConversation lcnv qusr con action = do
   -- retrieve conversation
-  (conv, self) <-
-    lift $
-      getConversationAndMemberWithError ConvNotFound qusr (tUnqualified lcnv)
+  (conv, self) <- getConversationAndMemberWithError ConvNotFound qusr lcnv
 
   -- perform checks
-  lift $ ensureConversationActionAllowed lcnv action conv self
+  ensureConversationActionAllowed lcnv action conv self
 
   -- perform action
   (extraTargets, action') <- performAction qusr lcnv conv action
 
   -- send notifications to both local and remote users
-  lift $
-    notifyConversationAction
-      qusr
-      con
-      lcnv
-      (convBotsAndMembers conv <> extraTargets)
-      (conversationAction action')
+  notifyConversationAction
+    qusr
+    con
+    lcnv
+    (convBotsAndMembers conv <> extraTargets)
+    (conversationAction action')
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -471,49 +484,47 @@ ensureConversationActionAllowed ::
   a ->
   Conversation ->
   mem ->
-  Galley r ()
+  Sem r ()
 ensureConversationActionAllowed loc action conv self = do
   let tag = conversationActionTag' (convMemberId loc self) action
   -- general action check
   ensureActionAllowed tag self
   -- check if it is a group conversation (except for rename actions)
   when (tag /= ModifyConversationName) $
-    liftSem $ ensureGroupConversation conv
+    ensureGroupConversation conv
   -- extra action-specific checks
   ensureAllowed loc action conv self
 
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
-  Members '[MemberStore] r =>
+  Members '[MemberStore, Error NoChanges] r =>
   Local ConvId ->
   UserList UserId ->
   RoleName ->
-  MaybeT (Galley r) (BotsAndMembers, ConversationJoin)
+  Sem r (BotsAndMembers, ConversationJoin)
 addMembersToLocalConversation lcnv users role = do
-  (lmems, rmems) <- lift . liftSem $ E.createMembers (tUnqualified lcnv) (fmap (,role) users)
-  neUsers <- maybe mzero pure . nonEmpty . ulAll lcnv $ users
+  (lmems, rmems) <- E.createMembers (tUnqualified lcnv) (fmap (,role) users)
+  neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
   let action = ConversationJoin neUsers role
   pure (bmFromMembers lmems rmems, action)
 
 notifyConversationAction ::
-  Members '[FederatorAccess, ExternalAccess, GundeckAccess] r =>
+  Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvId ->
   BotsAndMembers ->
   ConversationAction ->
-  Galley r Event
-notifyConversationAction quid con (qUntagged -> qcnv) targets action = do
-  localDomain <- viewFederationDomain
-  now <- liftIO getCurrentTime
-  let e = conversationActionToEvent now quid qcnv action
+  Sem r Event
+notifyConversationAction quid con lcnv targets action = do
+  now <- input
+  let e = conversationActionToEvent now quid (qUntagged lcnv) action
 
   -- notify remote participants
-  liftSem $
-    E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-      F.onConversationUpdated F.clientRoutes localDomain $
-        F.ConversationUpdate now quid (qUnqualified qcnv) (tUnqualified ruids) action
+  E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
+    F.onConversationUpdated F.clientRoutes (tDomain lcnv) $
+      F.ConversationUpdate now quid (tUnqualified lcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots
-  pushConversationEvent con e (bmLocals targets) (bmBots targets) $> e
+  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets) $> e

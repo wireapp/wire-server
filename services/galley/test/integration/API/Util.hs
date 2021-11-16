@@ -128,7 +128,7 @@ import Wire.API.User.Identity (mkSimpleSampleUref)
 -------------------------------------------------------------------------------
 -- API Operations
 
--- | A class for monads with access to a Galley r instance
+-- | A class for monads with access to a Sem r instance
 class HasGalley m where
   viewGalley :: m GalleyR
   viewGalleyOpts :: m Opts.Opts

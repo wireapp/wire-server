@@ -25,8 +25,8 @@ where
 import Data.Domain (Domain)
 import Galley.API.Error
 import Galley.API.Util
-import Galley.App
 import Galley.Effects.CustomBackendStore
+import Galley.Effects.WaiRoutes
 import Galley.Types
 import Imports hiding ((\\))
 import Network.HTTP.Types
@@ -46,33 +46,32 @@ getCustomBackendByDomainH ::
      ]
     r =>
   Domain ::: JSON ->
-  Galley r Response
+  Sem r Response
 getCustomBackendByDomainH (domain ::: _) =
   json <$> getCustomBackendByDomain domain
 
 getCustomBackendByDomain ::
   Members '[CustomBackendStore, Error CustomBackendError] r =>
   Domain ->
-  Galley r Public.CustomBackend
+  Sem r Public.CustomBackend
 getCustomBackendByDomain domain =
-  liftSem $
-    getCustomBackend domain >>= \case
-      Nothing -> throw (CustomBackendNotFound domain)
-      Just customBackend -> pure customBackend
+  getCustomBackend domain >>= \case
+    Nothing -> throw (CustomBackendNotFound domain)
+    Just customBackend -> pure customBackend
 
 -- INTERNAL -------------------------------------------------------------------
 
 internalPutCustomBackendByDomainH ::
-  Members '[CustomBackendStore, Error InvalidInput] r =>
+  Members '[CustomBackendStore, WaiRoutes] r =>
   Domain ::: JsonRequest CustomBackend ->
-  Galley r Response
+  Sem r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do
   customBackend <- fromJsonBody req
   -- simple enough to not need a separate function
-  liftSem $ setCustomBackend domain customBackend
+  setCustomBackend domain customBackend
   pure (empty & setStatus status201)
 
-internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Galley r Response
+internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Sem r Response
 internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  liftSem $ deleteCustomBackend domain
+  deleteCustomBackend domain
   pure (empty & setStatus status200)

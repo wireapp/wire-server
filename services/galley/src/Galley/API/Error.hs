@@ -218,12 +218,13 @@ instance APIError ClientError where
   toWai UnknownClient = errorDescriptionTypeToWai @UnknownClient
 
 throwED ::
+  forall e code label desc r a.
   ( e ~ ErrorDescription code label desc,
     KnownSymbol desc,
     Member (P.Error e) r
   ) =>
   Sem r a
-throwED = P.throw mkErrorDescription
+throwED = P.throw @e mkErrorDescription
 
 noteED ::
   forall e code label desc r a.

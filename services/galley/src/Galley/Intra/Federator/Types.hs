@@ -17,42 +17,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Federator.Types
-  ( FederatedRPC,
-    FederationM,
-    runFederationM,
-  )
-where
+module Galley.Intra.Federator.Types (FederatedRPC) where
 
-import Control.Lens
-import Control.Monad.Catch
 import Control.Monad.Except
-import Galley.Env
-import Galley.Options
-import Imports
+import Galley.Monad
 import Wire.API.Federation.Client
 import Wire.API.Federation.GRPC.Types
 
 type FederatedRPC (c :: Component) =
-  FederatorClient c (ExceptT FederationClientFailure FederationM)
-
-newtype FederationM a = FederationM
-  {unFederationM :: ReaderT Env IO a}
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadReader Env,
-      MonadUnliftIO,
-      MonadThrow,
-      MonadCatch,
-      MonadMask
-    )
-
-runFederationM :: Env -> FederationM a -> IO a
-runFederationM env = flip runReaderT env . unFederationM
-
-instance HasFederatorConfig FederationM where
-  federatorEndpoint = view federator
-  federationDomain = view (options . optSettings . setFederationDomain)
+  FederatorClient c (ExceptT FederationClientFailure App)

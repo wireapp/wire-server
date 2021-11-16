@@ -44,7 +44,7 @@ import Galley.Types.UserList
 import Galley.Validation
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import qualified UnliftIO
@@ -281,7 +281,7 @@ conversationGC conv = case join (convDeleted <$> conv) of
   _ -> return conv
 
 localConversations ::
-  (Members '[Embed IO, P.Reader ClientState, TinyLog] r) =>
+  (Members '[Embed IO, Input ClientState, TinyLog] r) =>
   [ConvId] ->
   Sem r [Conversation]
 localConversations [] = return []
@@ -345,7 +345,7 @@ toConv cid mms remoteMems conv =
     f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 interpretConversationStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState, TinyLog] r =>
+  Members '[Embed IO, Input ClientState, TinyLog] r =>
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra = interpret $ \case
