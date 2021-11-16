@@ -343,13 +343,6 @@ packages:
   original:
     hackage: prometheus-2.2.2
 - completed:
-    hackage: polysemy-plugin-0.2.5.2@sha256:649cea55749c38af841e9f3750ccf65be351e597f3085234e28e3491e78d1f78,3155
-    pantry-tree:
-      size: 1162
-      sha256: 20b462f8095a8108ef4d920f0d494ba1299821403ad30169168f4b1968b06c2a
-  original:
-    hackage: polysemy-plugin-0.2.5.2
-- completed:
     hackage: currency-codes-3.0.0.1@sha256:a4b24669dd91e805b11d9eb267becd0ba6d726927e535e03d5f3f368f44c1cf4,2902
     pantry-tree:
       size: 548
@@ -510,13 +503,6 @@ packages:
       sha256: 3737ee32d6629b4b915c01911fdb9dc0e255b96233799479c29420d986634726
   original:
     hackage: cryptonite-0.28
-- completed:
-    hackage: polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
-    pantry-tree:
-      size: 4577
-      sha256: c4ca508b4a6786fc27e0f484344ce8dba119ea2f7fe47fb7379a51313a94cd10
-  original:
-    hackage: polysemy-1.6.0.0
 - completed:
     name: servant-swagger
     version: 1.1.11
@@ -804,6 +790,20 @@ packages:
     subdir: x509-store
     git: https://github.com/vincenthz/hs-certificate
     commit: a899bda3d7666d25143be7be8f3105fc076703d9
+- completed:
+    hackage: polysemy-1.7.0.0@sha256:c972f33191113e2fe6809ea1cda24a6cabfeed2f115b3be0137dee7c65d08293,5977
+    pantry-tree:
+      size: 4577
+      sha256: 78c733f5dde13340e880bbb883dc64af948f6449da3a4025811cdc79c204dfde
+  original:
+    hackage: polysemy-1.7.0.0
+- completed:
+    hackage: polysemy-plugin-0.4.2.0@sha256:1dbcb892bb866926994dadafeb93e76ae4a6625dc3ae9ca0f4f419ee85cb2f7b,3154
+    pantry-tree:
+      size: 1229
+      sha256: ee75425b00b0f1c80207c3c4d5df86a94d892de229b75fb23e0380ec2526a626
+  original:
+    hackage: polysemy-plugin-0.4.2.0
 - completed:
     hackage: polysemy-check-0.8.1.0@sha256:5cce3ae162d2f8d8f629397daa28ec5e425f72d357afeb4fe994e102425f2383,2648
     pantry-tree:

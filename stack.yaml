@@ -144,7 +144,6 @@ extra-deps:
 - stm-hamt-1.2.0.4 # Latest: lts-15.16
 - primitive-unlifted-0.1.2.0 # Latest: lts-15.16
 - prometheus-2.2.2 # Only in nightly so far
-- polysemy-plugin-0.2.5.2 # Latest: lts-14.27
 
 # Not on stackage
 - currency-codes-3.0.0.1
@@ -174,7 +173,6 @@ extra-deps:
 - servant-swagger-ui-0.3.4.3.36.1
 - tls-1.5.5
 - cryptonite-0.28
-- polysemy-1.6.0.0 # needed for Polysemy.Input combinators
 
 # For changes from #128 and #135, not released to hackage yet
 - git: https://github.com/haskell-servant/servant-swagger
@@ -255,6 +253,8 @@ extra-deps:
     - x509-store
 
 # Not on stackage yet
+- polysemy-1.7.0.0
+- polysemy-plugin-0.4.2.0
 - polysemy-check-0.8.1.0
 
 ############################################################
