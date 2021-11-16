@@ -81,7 +81,6 @@ import Spar.Error hiding (sparToServerErrorWithLogging)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -102,6 +101,8 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
+import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -375,6 +376,7 @@ verdictHandler ::
        BrigAccess,
        BindCookieStore,
        AReqIDStore,
+       VerdictFormatStore,
        ScimTokenStore,
        IdPEffect.IdP,
        Error SparError,
@@ -393,7 +395,7 @@ verdictHandler cky mbteam aresp verdict = do
   -- the InResponseTo attribute MUST match the request's ID.
   Logger.log SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSparSem . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
-  format :: Maybe VerdictFormat <- AReqIDStore.getVerdictFormat reqid
+  format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just (VerdictFormatWeb) ->
       verdictHandlerResult cky mbteam verdict >>= verdictHandlerWeb
