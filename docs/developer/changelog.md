@@ -6,7 +6,9 @@ notes.
 
 ## tl;dr
 
-Entries have to be written in individual files in `changelog.d`.
+Entries have to be written in individual files in a relevant subfolder of `./changelog.d/`.
+
+*Example*: create the file `./changelog.d/2-features/potato-peeler` with one-line contents `Introduce automatic potato peeler functionality when buying potatoes, see [docs](link-to-docs)`
 
 ## Details
 
