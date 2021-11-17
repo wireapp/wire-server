@@ -161,7 +161,6 @@ extra-deps:
 - markov-chain-usage-model-0.0.0
 - wai-predicates-1.0.0
 - redis-io-1.1.0
-- polysemy-mocks-0.1.0.0
 
 # Not latest as latst one breaks wai-routing
 - wai-route-0.4.0
@@ -251,6 +250,10 @@ extra-deps:
   commit: a899bda3d7666d25143be7be8f3105fc076703d9 # master (Sep 29, 2021)
   subdirs:
     - x509-store
+
+# Polysemy 1.7 fix: https://github.com/akshaymankar/polysemy-mocks/pull/3
+- git: https://github.com/wireapp/polysemy-mocks
+  commit: 8f687140a218ec8cc9e466259600d3c5839ed185 # master (Nov 17, 2021)
 
 # Not on stackage yet
 - polysemy-1.7.0.0
