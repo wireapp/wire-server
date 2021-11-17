@@ -39,7 +39,6 @@ module Galley.API.Teams.Features
     getConferenceCallingInternal,
     setConferenceCallingInternal,
     getSelfDeletingMessagesInternal,
-    setPaymentStatusInternal,
     setSelfDeletingMessagesInternal,
     setPaymentStatus,
     DoAuth (..),
@@ -151,22 +150,22 @@ setFeatureStatus setter doauth tid status = do
 setPaymentStatus ::
   forall (a :: Public.TeamFeatureName) r.
   ( Public.KnownTeamFeatureName a,
-    HasPaymentStatusCol a,
+    MaybeHasPaymentStatusCol a,
     Members
       [ Error ActionError,
         Error TeamError,
         Error NotATeamMember,
-        TeamStore
+        TeamStore,
+        TeamFeatureStore
       ]
       r
   ) =>
-  (TeamId -> Public.PaymentStatusValue -> Sem r Public.PaymentStatus) ->
   TeamId ->
   Public.PaymentStatusValue ->
   Sem r Public.PaymentStatus
-setPaymentStatus setter tid paymentStatusUpdate = do
+setPaymentStatus tid paymentStatusUpdate = do
   assertTeamExists tid
-  setter tid paymentStatusUpdate
+  TeamFeatures.setPaymentStatus @a tid (Public.PaymentStatus paymentStatusUpdate)
 
 -- | For individual users to get feature config for their account (personal or team).
 getFeatureConfig ::
@@ -589,15 +588,6 @@ getSelfDeletingMessagesInternal = \case
   Right tid ->
     TeamFeatures.getSelfDeletingMessagesStatus tid
       <&> fromMaybe Public.defaultSelfDeletingMessagesStatus
-
-setPaymentStatusInternal ::
-  forall (a :: Public.TeamFeatureName) r.
-  (MaybeHasPaymentStatusCol a, Member TeamFeatureStore r) =>
-  TeamId ->
-  Public.PaymentStatusValue ->
-  Sem r Public.PaymentStatus
-setPaymentStatusInternal tid paymentStatus =
-  TeamFeatures.setPaymentStatus @a tid (Public.PaymentStatus paymentStatus)
 
 setSelfDeletingMessagesInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
