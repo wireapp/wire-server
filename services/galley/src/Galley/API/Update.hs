@@ -69,7 +69,6 @@ import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.State
 import Data.Code
-import Data.Either.Extra (mapRight)
 import Data.Id
 import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List1
@@ -127,7 +126,6 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client
 import qualified Wire.API.Message as Public
-import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.User.Client
@@ -1053,7 +1051,7 @@ removeMemberUnqualified ::
   ConnId ->
   ConvId ->
   UserId ->
-  Sem r RemoveFromConversationResponse
+  Sem r (Maybe Event)
 removeMemberUnqualified lusr con cnv victim = do
   let lvictim = qualifyAs lusr victim
       lcnv = qualifyAs lusr cnv
@@ -1076,18 +1074,26 @@ removeMemberQualified ::
   ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
-  Sem r RemoveFromConversationResponse
-removeMemberQualified lusr con qcnv victim = do
-  foldQualified lusr removeMemberFromLocalConv removeMemberFromRemoteConv qcnv lusr (Just con) victim
+  Sem r (Maybe Event)
+removeMemberQualified lusr con =
+  foldQualified
+    lusr
+    (\lcnv -> removeMemberFromLocalConv lcnv lusr (Just con))
+    (\rcnv -> removeMemberFromRemoteConv rcnv lusr)
 
 removeMemberFromRemoteConv ::
-  Members '[FederatorAccess, Input UTCTime] r =>
+  Members
+    '[ FederatorAccess,
+       Error ActionError,
+       Error ConversationError,
+       Input UTCTime
+     ]
+    r =>
   Remote ConvId ->
   Local UserId ->
-  Maybe ConnId ->
   Qualified UserId ->
-  Sem r RemoveFromConversationResponse
-removeMemberFromRemoteConv cnv lusr _ victim
+  Sem r (Maybe Event)
+removeMemberFromRemoteConv cnv lusr victim
   | qUntagged lusr == victim = do
     let lc = FederatedGalley.LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
     let rpc =
@@ -1095,13 +1101,25 @@ removeMemberFromRemoteConv cnv lusr _ victim
             FederatedGalley.clientRoutes
             (qDomain victim)
             lc
-    t <- input
-    let successEvent =
-          Event MemberLeave (qUntagged cnv) (qUntagged lusr) t $
-            EdMembersLeave (QualifiedUserIdList [victim])
-    mapRight (const successEvent) . FederatedGalley.leaveResponse
-      <$> E.runFederated cnv rpc
-  | otherwise = pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
+    (either handleError handleSuccess =<<) . fmap FederatedGalley.leaveResponse $
+      E.runFederated cnv rpc
+  | otherwise = throw (ActionDenied RemoveConversationMember)
+  where
+    handleError ::
+      Members '[Error ActionError, Error ConversationError] r =>
+      FederatedGalley.RemoveFromConversationError ->
+      Sem r (Maybe Event)
+    handleError FederatedGalley.RemoveFromConversationErrorRemovalNotAllowed =
+      throw (ActionDenied RemoveConversationMember)
+    handleError FederatedGalley.RemoveFromConversationErrorNotFound = throw ConvNotFound
+    handleError FederatedGalley.RemoveFromConversationErrorUnchanged = pure Nothing
+
+    handleSuccess :: Member (Input UTCTime) r => () -> Sem r (Maybe Event)
+    handleSuccess _ = do
+      t <- input
+      pure . Just $
+        Event MemberLeave (qUntagged cnv) (qUntagged lusr) t $
+          EdMembersLeave (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
@@ -1121,15 +1139,13 @@ removeMemberFromLocalConv ::
   Local UserId ->
   Maybe ConnId ->
   Qualified UserId ->
-  Sem r RemoveFromConversationResponse
-removeMemberFromLocalConv lcnv lusr con victim =
-  -- FUTUREWORK: actually return errors as part of the response instead of throwing
-  runError
-    . mapError @NoChanges (const (RemoveFromConversationErrorUnchanged))
+  Sem r (Maybe Event)
+removeMemberFromLocalConv lcnv lusr con =
+  fmap hush
+    . runError @NoChanges
     . updateLocalConversation lcnv (qUntagged lusr) con
     . ConversationLeave
     . pure
-    $ victim
 
 -- OTR
 

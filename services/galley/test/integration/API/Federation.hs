@@ -81,6 +81,8 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about access update" notifyAccess,
       test s "POST /federation/on-conversation-updated : Notify local users about a deleted conversation" notifyDeletedConversation,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
+      test s "POST /federation/leave-conversation : Non-existent" leaveConversationNonExistent,
+      test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted/conversations : Remove deleted remote user from local conversations" onUserDeleted
@@ -676,6 +678,51 @@ leaveConversationSuccess = do
       [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
   assertRemoveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
   assertRemoveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
+
+leaveConversationNonExistent :: TestM ()
+leaveConversationNonExistent = do
+  let remoteDomain = Domain "far-away.example.com"
+  alice <- randomQualifiedId remoteDomain
+  conv <- randomId
+
+  g <- viewGalley
+  let leaveRequest = FedGalley.LeaveConversationRequest conv (qUnqualified alice)
+  resp <-
+    fmap FedGalley.leaveResponse $
+      responseJsonError
+        =<< post
+          ( g
+              . paths ["federation", "leave-conversation"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' remoteDomain)
+              . json leaveRequest
+          )
+        <!! const 200 === statusCode
+  liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorNotFound
+
+leaveConversationInvalidType :: TestM ()
+leaveConversationInvalidType = do
+  let remoteDomain = Domain "far-away.example.com"
+  alice <- qTagUnsafe <$> randomQualifiedUser
+
+  (bob, conv) <- generateRemoteAndConvIdWithDomain remoteDomain True alice
+  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  createOne2OneConvWithRemote alice bob
+
+  g <- viewGalley
+  let leaveRequest = FedGalley.LeaveConversationRequest (qUnqualified conv) (tUnqualified bob)
+  resp <-
+    fmap FedGalley.leaveResponse $
+      responseJsonError
+        =<< post
+          ( g
+              . paths ["federation", "leave-conversation"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' remoteDomain)
+              . json leaveRequest
+          )
+        <!! const 200 === statusCode
+  liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorRemovalNotAllowed
 
 onMessageSent :: TestM ()
 onMessageSent = do

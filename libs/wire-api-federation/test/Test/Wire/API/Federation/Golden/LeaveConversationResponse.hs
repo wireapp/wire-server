@@ -1,8 +1,7 @@
 module Test.Wire.API.Federation.Golden.LeaveConversationResponse where
 
 import Imports
-import Wire.API.Federation.API.Galley (LeaveConversationResponse (LeaveConversationResponse))
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
+import Wire.API.Federation.API.Galley
 
 testObject_LeaveConversationResponse1 :: LeaveConversationResponse
 testObject_LeaveConversationResponse1 = LeaveConversationResponse $ Right ()
@@ -12,18 +11,6 @@ testObject_LeaveConversationResponse2 = LeaveConversationResponse $ Left RemoveF
 
 testObject_LeaveConversationResponse3 :: LeaveConversationResponse
 testObject_LeaveConversationResponse3 = LeaveConversationResponse $ Left RemoveFromConversationErrorNotFound
-
-testObject_LeaveConversationResponse4 :: LeaveConversationResponse
-testObject_LeaveConversationResponse4 = LeaveConversationResponse $ Left RemoveFromConversationErrorCustomRolesNotSupported
-
-testObject_LeaveConversationResponse5 :: LeaveConversationResponse
-testObject_LeaveConversationResponse5 = LeaveConversationResponse $ Left RemoveFromConversationErrorSelfConv
-
-testObject_LeaveConversationResponse6 :: LeaveConversationResponse
-testObject_LeaveConversationResponse6 = LeaveConversationResponse $ Left RemoveFromConversationErrorOne2OneConv
-
-testObject_LeaveConversationResponse7 :: LeaveConversationResponse
-testObject_LeaveConversationResponse7 = LeaveConversationResponse $ Left RemoveFromConversationErrorConnectConv
 
 testObject_LeaveConversationResponse8 :: LeaveConversationResponse
 testObject_LeaveConversationResponse8 = LeaveConversationResponse $ Left RemoveFromConversationErrorUnchanged
