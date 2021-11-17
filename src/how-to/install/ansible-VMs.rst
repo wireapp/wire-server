@@ -226,48 +226,8 @@ this step.
 Restund
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  In your ``hosts.ini`` file, in the ``[restund:vars]`` section, set
-   the ``restund_network_interface`` to the name of the interface
-   you want restund to talk to clients on. This value defaults to the
-   ``default_ipv4_address``, with a fallback to ``eth0``.
--  (optional) ``restund_peer_udp_advertise_addr=Y.Y.Y.Y``: set this to
-   the IP to advertise for other restund servers if different than the
-   ip on the 'restund_network_interface'. If using
-   'restund_peer_udp_advertise_addr', make sure that UDP (!) traffic
-   from any restund server (including itself) can reach that IP (for
-   ``restund <-> restund`` communication). This should only be necessary
-   if you're installing restund on a VM that is reachable on a public IP
-   address but the process cannot bind to that public IP address
-   directly (e.g. on AWS VPC VM). If unset, ``restund <-> restund`` UDP
-   traffic will default to the IP in the ``restund_network_interface``.
+For instructions on how to install Restund, see :ref:`this page <install-restund>`.
 
-.. code:: ini
-
-   [all]
-   (...)
-   restund01         ansible_host=X.X.X.X
-
-   (...)
-
-   [all:vars]
-   ## Set the network interface name for restund to bind to if you have more than one network interface
-   ## If unset, defaults to the ansible_default_ipv4 (if defined) otherwise to eth0
-   restund_network_interface = eth0
-
-(see
-`defaults/main.yml <https://github.com/wireapp/ansible-restund/blob/master/defaults/main.yml>`__
-for a full list of variables to change if necessary)
-
-- Place a copy of the PEM formatted certificate and key you are going
-  to use for TLS communication to the restund server in
-  ``/tmp/tls_cert_and_priv_key.pem``. Remove it after you have
-  completed deploying restund with ansible.
-
-Install restund:
-
-::
-
-   ansible-playbook -i hosts.ini restund.yml -vv
 
 IMPORTANT checks
 ^^^^^^^^^^^^^^^^
