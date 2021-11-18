@@ -328,8 +328,8 @@ generateTestModule = do
   generateBindingModule @Team.TeamDeleteData "team" ref
   generateBindingModule @Team.Conversation.TeamConversation "team" ref
   generateBindingModule @Team.Conversation.TeamConversationList "team" ref
-  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureLegalHold) "team" ref
-  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureAppLock) "team" ref
+  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutPaymentStatus 'Team.Feature.TeamFeatureLegalHold) "team" ref
+  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutPaymentStatus 'Team.Feature.TeamFeatureAppLock) "team" ref
   generateBindingModule @Team.Feature.TeamFeatureStatusValue "team" ref
   generateBindingModule @Team.Invitation.InvitationRequest "team" ref
   generateBindingModule @Team.Invitation.Invitation "team" ref

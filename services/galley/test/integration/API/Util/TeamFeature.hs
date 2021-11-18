@@ -152,11 +152,11 @@ putTeamFeatureFlagInternal ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a)
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
   ) =>
   (Request -> Request) ->
   TeamId ->
-  (Public.TeamFeatureStatus a) ->
+  (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a) ->
   TestM ()
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
@@ -168,12 +168,12 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
     MonadHttp m,
     HasCallStack,
     Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a)
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
   ) =>
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
-  (Public.TeamFeatureStatus a) ->
+  (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a) ->
   m ()
 putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
   void . put $

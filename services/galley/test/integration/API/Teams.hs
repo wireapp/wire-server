@@ -355,7 +355,7 @@ testEnableSSOPerTeam = do
   assertQueue "create team" tActivate
   let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
         liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
@@ -382,10 +382,10 @@ testEnableSSOPerTeam = do
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
   g <- view tsGalley
-  (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
+  (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
   let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
 
         liftIO $ assertEqual msg enabledness statusValue

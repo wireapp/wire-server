@@ -122,79 +122,79 @@ data InternalApi routes = InternalApi
     -- Viewing the config for features should be allowed for any admin.
     iTeamFeatureStatusSSOGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureSSO,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureSSO,
     iTeamFeatureStatusSSOPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSSO,
     iTeamFeatureStatusLegalHoldGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureLegalHold,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureLegalHold,
     iTeamFeatureStatusLegalHoldPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureLegalHold,
     iTeamFeatureStatusSearchVisibilityGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureSearchVisibility,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusSearchVisibilityPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusSearchVisibilityDeprecatedGet ::
       routes
-        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureSearchVisibility,
+        :- IFeatureStatusDeprecatedGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusSearchVisibilityDeprecatedPut ::
       routes
         :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusValidateSAMLEmailsGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureValidateSAMLEmails,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
       routes
-        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureValidateSAMLEmails,
+        :- IFeatureStatusDeprecatedGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut ::
       routes
         :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusDigitalSignaturesGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureDigitalSignatures,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesDeprecatedGet ::
       routes
-        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureDigitalSignatures,
+        :- IFeatureStatusDeprecatedGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesDeprecatedPut ::
       routes
         :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusAppLockGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusAppLockPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusFileSharingGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureFileSharing,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureFileSharing,
     iTeamFeatureStatusFileSharingPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
     iTeamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureClassifiedDomains,
     iTeamFeatureStatusConferenceCallingPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusConferenceCallingGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling,
+        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSelfDeletingMessages,
     iTeamFeatureStatusSelfDeletingMessagesGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureSelfDeletingMessages,
+        :- IFeatureStatusGet 'Public.WithPaymentStatus 'Public.TeamFeatureSelfDeletingMessages,
     iTeamFeaturePaymentStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusPaymentStatusPut 'Public.TeamFeatureSelfDeletingMessages,
@@ -236,14 +236,14 @@ data InternalApi routes = InternalApi
 
 type ServantAPI = ToServantApi InternalApi
 
-type IFeatureStatusGet featureName =
+type IFeatureStatusGet paymentStatus featureName =
   Summary (AppendSymbol "Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
     :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
-    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus paymentStatus featureName)
 
 type IFeatureStatusPut featureName =
   Summary (AppendSymbol "Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
@@ -252,8 +252,8 @@ type IFeatureStatusPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
-    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
-    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus featureName)
 
 type IFeatureStatusPaymentStatusPut featureName =
   Summary (AppendSymbol "(Un-) lock payment for " (Public.KnownTeamFeatureNameSymbol featureName))
@@ -266,14 +266,14 @@ type IFeatureStatusPaymentStatusPut featureName =
     :> Put '[Servant.JSON] Public.PaymentStatus
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type IFeatureStatusDeprecatedGet featureName =
+type IFeatureStatusDeprecatedGet paymentStatus featureName =
   Summary (AppendSymbol "[deprecated] Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
     :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.DeprecatedFeatureName featureName
-    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus paymentStatus featureName)
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
 type IFeatureStatusDeprecatedPut featureName =
@@ -283,8 +283,8 @@ type IFeatureStatusDeprecatedPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> Public.DeprecatedFeatureName featureName
-    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
-    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus featureName)
 
 servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
 servantSitemap =
@@ -292,31 +292,31 @@ servantSitemap =
     InternalApi
       { iStatusGet = pure NoContent,
         iStatusHead = pure NoContent,
-        iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
+        iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
         iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal,
-        iTeamFeatureStatusLegalHoldGet = iGetTeamFeature @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
+        iTeamFeatureStatusLegalHoldGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging),
-        iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
-        iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
-        iTeamFeatureStatusValidateSAMLEmailsGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
         iTeamFeatureStatusValidateSAMLEmailsPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
-        iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
         iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
-        iTeamFeatureStatusDigitalSignaturesGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         iTeamFeatureStatusDigitalSignaturesPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
-        iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
-        iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
+        iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
-        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
-        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
-        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
-        iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
+        iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iTeamFeaturePaymentStatusSelfDeletingMessagesPut = Features.setPaymentStatus @'Public.TeamFeatureSelfDeletingMessages,
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
@@ -324,7 +324,7 @@ servantSitemap =
       }
 
 iGetTeamFeature ::
-  forall a r.
+  forall ps a r.
   ( Public.KnownTeamFeatureName a,
     Members
       '[ Error ActionError,
@@ -334,10 +334,10 @@ iGetTeamFeature ::
        ]
       r
   ) =>
-  (Features.GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus a)) ->
+  (Features.GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus ps a)) ->
   TeamId ->
-  Sem r (Public.TeamFeatureStatus a)
-iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
+  Sem r (Public.TeamFeatureStatus ps a)
+iGetTeamFeature getter = Features.getFeatureStatus @ps @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a r.
@@ -353,10 +353,10 @@ iPutTeamFeature ::
        ]
       r
   ) =>
-  (TeamId -> Public.TeamFeatureStatus a -> Sem r (Public.TeamFeatureStatus a)) ->
+  (TeamId -> Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a -> Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)) ->
   TeamId ->
-  Public.TeamFeatureStatus a ->
-  Sem r (Public.TeamFeatureStatus a)
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
 iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
 sitemap :: Routes a (Sem GalleyEffects) ()

@@ -30,10 +30,12 @@ module Wire.API.Team.Feature
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
+    TeamFeatureStatusWithConfigAndPaymentStatus (..),
     HasDeprecatedFeatureName (..),
     AllFeatureConfigs (..),
     PaymentStatus (..),
     PaymentStatusValue (..),
+    IncludePaymentStatus (..),
     defaultAppLockStatus,
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
@@ -46,6 +48,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureAppLockConfig,
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
+    modelTeamFeatureStatusWithConfigAndPaymentStatus,
     modelForTeamFeature,
     modelPaymentStatus,
   )
@@ -288,19 +291,22 @@ instance Cass.Cql TeamFeatureStatusValue where
 ----------------------------------------------------------------------
 -- TeamFeatureStatus
 
-type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
-  TeamFeatureStatus 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureSSO = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureSearchVisibility = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-  TeamFeatureStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-  TeamFeatureStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
+data IncludePaymentStatus = WithPaymentStatus | WithoutPaymentStatus
 
-type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
+type family TeamFeatureStatus (ps :: IncludePaymentStatus) (a :: TeamFeatureName) :: * where
+  TeamFeatureStatus _ 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
+  TeamFeatureStatus _ 'TeamFeatureSSO = TeamFeatureStatusNoConfig
+  TeamFeatureStatus _ 'TeamFeatureSearchVisibility = TeamFeatureStatusNoConfig
+  TeamFeatureStatus _ 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
+  TeamFeatureStatus _ 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
+  TeamFeatureStatus _ 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+  TeamFeatureStatus _ 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
+  TeamFeatureStatus _ 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
+  TeamFeatureStatus _ 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
+  TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
+
+type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus 'WithoutPaymentStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
@@ -344,21 +350,19 @@ instance ToSchema TeamFeatureStatusNoConfig where
 -- to recreate the config every time it's turned on.
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
-    tfwcConfig :: cfg,
-    tfwcPaymentStatus :: Maybe PaymentStatusValue -- FUTUREWORK: remove payment status from set feature status request, it should only be part of the API response
+    tfwcConfig :: cfg
   }
   deriving stock (Eq, Show, Generic, Typeable)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfig cfg))
 
 instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
-  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
 
 modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
 modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
   Doc.description $ "Status and config of " <> cs (show name)
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
   Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
-  Doc.property "paymentStatus" typePaymentStatusValue $ Doc.optional >> Doc.description "payment status"
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
@@ -366,7 +370,32 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
         <*> tfwcConfig .= field "config" schema
-        <*> tfwcPaymentStatus .= opt (field "paymentStatus" schema)
+
+data TeamFeatureStatusWithConfigAndPaymentStatus (cfg :: *) = TeamFeatureStatusWithConfigAndPaymentStatus
+  { tfwcapsStatus :: TeamFeatureStatusValue,
+    tfwcapsConfig :: cfg,
+    tfwcapsPaymentStatus :: PaymentStatusValue
+  }
+  deriving stock (Eq, Show, Generic, Typeable)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfigAndPaymentStatus cfg))
+
+instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfigAndPaymentStatus cfg) where
+  arbitrary = TeamFeatureStatusWithConfigAndPaymentStatus <$> arbitrary <*> arbitrary <*> arbitrary
+
+modelTeamFeatureStatusWithConfigAndPaymentStatus :: TeamFeatureName -> Doc.Model -> Doc.Model
+modelTeamFeatureStatusWithConfigAndPaymentStatus name cfgModel = Doc.defineModel (cs $ show name) $ do
+  Doc.description $ "Status and config of " <> cs (show name)
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+  Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
+  Doc.property "paymentStatus" typePaymentStatusValue $ Doc.description "config"
+
+instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndPaymentStatus cfg) where
+  schema =
+    object "TeamFeatureStatusWithConfigAndPaymentStatus" $
+      TeamFeatureStatusWithConfigAndPaymentStatus
+        <$> tfwcapsStatus .= field "status" schema
+        <*> tfwcapsConfig .= field "config" schema
+        <*> tfwcapsPaymentStatus .= field "paymentStatus" schema
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
@@ -395,7 +424,6 @@ defaultClassifiedDomains =
   TeamFeatureStatusWithConfig
     TeamFeatureDisabled
     (TeamFeatureClassifiedDomainsConfig [])
-    $ Just PaymentLocked
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig
@@ -435,7 +463,6 @@ defaultAppLockStatus =
   TeamFeatureStatusWithConfig
     TeamFeatureEnabled
     (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
-    $ Just PaymentLocked
 
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
@@ -458,12 +485,12 @@ modelTeamFeatureSelfDeletingMessagesConfig =
   Doc.defineModel "TeamFeatureSelfDeletingMessagesConfig" $ do
     Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
 
-defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
+defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
 defaultSelfDeletingMessagesStatus =
-  TeamFeatureStatusWithConfig
+  TeamFeatureStatusWithConfigAndPaymentStatus
     TeamFeatureEnabled
     (TeamFeatureSelfDeletingMessagesConfig 0)
-    $ Just PaymentLocked
+    PaymentLocked
 
 ----------------------------------------------------------------------
 -- PaymentStatus

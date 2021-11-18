@@ -37,7 +37,7 @@ getFeatureStatusNoConfig ::
   ) =>
   Proxy a ->
   TeamId ->
-  m (Maybe (TeamFeatureStatus a))
+  m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
 getFeatureStatusNoConfig _ tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
@@ -54,8 +54,8 @@ setFeatureStatusNoConfig ::
   ) =>
   Proxy a ->
   TeamId ->
-  TeamFeatureStatus a ->
-  m (TeamFeatureStatus a)
+  TeamFeatureStatus 'WithoutPaymentStatus a ->
+  m (TeamFeatureStatus 'WithoutPaymentStatus a)
 setFeatureStatusNoConfig _ tid status = do
   let flag = tfwoStatus status
   retry x5 $ write insert (params LocalQuorum (tid, flag))
@@ -68,13 +68,13 @@ getApplockFeatureStatus ::
   forall m.
   (MonadClient m) =>
   TeamId ->
-  m (Maybe (TeamFeatureStatus 'TeamFeatureAppLock))
+  m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock))
 getApplockFeatureStatus tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout) <*> Nothing
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout)
   where
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe EnforceAppLock, Maybe Int32)
     select =
@@ -85,8 +85,8 @@ getApplockFeatureStatus tid = do
 setApplockFeatureStatus ::
   (MonadClient m) =>
   TeamId ->
-  TeamFeatureStatus 'TeamFeatureAppLock ->
-  m (TeamFeatureStatus 'TeamFeatureAppLock)
+  TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock ->
+  m (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock)
 setApplockFeatureStatus tid status = do
   let statusValue = tfwcStatus status
       enforce = applockEnforceAppLock . tfwcConfig $ status
@@ -105,13 +105,13 @@ getSelfDeletingMessagesStatus ::
   forall m.
   (MonadClient m) =>
   TeamId ->
-  m (Maybe (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages))
+  m (Maybe (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages))
 getSelfDeletingMessagesStatus tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbTimeout, mbPaymentStatusValue) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout) <*> Just mbPaymentStatusValue
+      TeamFeatureStatusWithConfigAndPaymentStatus <$> mbStatusValue <*> (TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout) <*> mbPaymentStatusValue
   where
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Int32, Maybe PaymentStatusValue)
     select =
@@ -125,8 +125,8 @@ getSelfDeletingMessagesStatus tid = do
 setSelfDeletingMessagesStatus ::
   (MonadClient m) =>
   TeamId ->
-  TeamFeatureStatus 'TeamFeatureSelfDeletingMessages ->
-  m (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages)
+  TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages ->
+  m (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesStatus tid status = do
   let statusValue = tfwcStatus status
       timeout = sdmEnforcedTimeoutSeconds . tfwcConfig $ status

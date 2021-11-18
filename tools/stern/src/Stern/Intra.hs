@@ -452,13 +452,13 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod True = POST
 
 getTeamFeatureFlag ::
-  forall (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    Typeable (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
+    Typeable (Public.TeamFeatureStatus ps a),
+    FromJSON (Public.TeamFeatureStatus ps a)
   ) =>
   TeamId ->
-  Handler (Public.TeamFeatureStatus a)
+  Handler (Public.TeamFeatureStatus ps a)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
@@ -467,17 +467,17 @@ getTeamFeatureFlag tid = do
           . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
-    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus a) resp
+    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus ps a) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a)
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
   ) =>
   TeamId ->
-  Public.TeamFeatureStatus a ->
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"

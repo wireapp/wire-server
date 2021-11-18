@@ -44,7 +44,7 @@ data TeamFeatureStore m a where
     ) =>
     Proxy a ->
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus a))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   SetFeatureStatusNoConfig' ::
     forall (a :: TeamFeatureName) m.
@@ -53,22 +53,22 @@ data TeamFeatureStore m a where
     ) =>
     Proxy a ->
     TeamId ->
-    TeamFeatureStatus a ->
-    TeamFeatureStore m (TeamFeatureStatus a)
+    TeamFeatureStatus 'WithoutPaymentStatus a ->
+    TeamFeatureStore m (TeamFeatureStatus 'WithoutPaymentStatus a)
   GetApplockFeatureStatus ::
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'TeamFeatureAppLock))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock))
   SetApplockFeatureStatus ::
     TeamId ->
-    TeamFeatureStatus 'TeamFeatureAppLock ->
-    TeamFeatureStore m (TeamFeatureStatus 'TeamFeatureAppLock)
+    TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock ->
+    TeamFeatureStore m (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock)
   GetSelfDeletingMessagesStatus ::
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages))
   SetSelfDeletingMessagesStatus ::
     TeamId ->
-    TeamFeatureStatus 'TeamFeatureSelfDeletingMessages ->
-    TeamFeatureStore m (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages)
+    TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages ->
+    TeamFeatureStore m (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages)
   SetPaymentStatus' ::
     forall (a :: TeamFeatureName) m.
     ( HasPaymentStatusCol a
@@ -91,15 +91,15 @@ getFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) r.
   (Member TeamFeatureStore r, FeatureHasNoConfig a, HasStatusCol a) =>
   TeamId ->
-  Sem r (Maybe (TeamFeatureStatus a))
+  Sem r (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
 getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @a)
 
 setFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) r.
   (Member TeamFeatureStore r, FeatureHasNoConfig a, HasStatusCol a) =>
   TeamId ->
-  TeamFeatureStatus a ->
-  Sem r (TeamFeatureStatus a)
+  TeamFeatureStatus 'WithoutPaymentStatus a ->
+  Sem r (TeamFeatureStatus 'WithoutPaymentStatus a)
 setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
 
 setPaymentStatus ::

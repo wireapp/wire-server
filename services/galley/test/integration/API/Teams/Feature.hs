@@ -60,14 +60,14 @@ tests s =
     [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
-      test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
-      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
-      test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
+      test s "DigitalSignatures" $ testSimpleFlag @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
+      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
+      test s "FileSharing" $ testSimpleFlag @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
+      test s "ConferenceCalling" $ testSimpleFlag @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
       test s "SelfDeletingMessages" $ testSelfDeletingMessages
     ]
 
@@ -249,7 +249,7 @@ getClassifiedDomains ::
   (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
   UserId ->
   TeamId ->
-  Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureClassifiedDomains ->
   m ()
 getClassifiedDomains member tid =
   assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
@@ -258,7 +258,7 @@ getClassifiedDomains member tid =
 getClassifiedDomainsInternal ::
   (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
   TeamId ->
-  Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureClassifiedDomains ->
   m ()
 getClassifiedDomainsInternal tid =
   assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
@@ -270,14 +270,13 @@ testClassifiedDomainsEnabled = do
   let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureEnabled,
-            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"],
-            Public.tfwcPaymentStatus = Nothing
+            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]
           }
 
   let getClassifiedDomainsFeatureConfig ::
         (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
         UserId ->
-        Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+        Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureClassifiedDomains ->
         m ()
       getClassifiedDomainsFeatureConfig uid = do
         assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
@@ -293,14 +292,13 @@ testClassifiedDomainsDisabled = do
   let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureDisabled,
-            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [],
-            Public.tfwcPaymentStatus = Nothing
+            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig []
           }
 
   let getClassifiedDomainsFeatureConfig ::
         (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
         UserId ->
-        Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+        Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureClassifiedDomains ->
         m ()
       getClassifiedDomainsFeatureConfig uid = do
         assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
@@ -318,13 +316,13 @@ testClassifiedDomainsDisabled = do
     getClassifiedDomainsFeatureConfig member expected
 
 testSimpleFlag ::
-  forall (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Typeable a,
     Public.FeatureHasNoConfig a,
     Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus a),
-    ToJSON (Public.TeamFeatureStatus a)
+    FromJSON (Public.TeamFeatureStatus ps a),
+    ToJSON (Public.TeamFeatureStatus ps a)
   ) =>
   Public.TeamFeatureStatusValue ->
   TestM ()
@@ -383,12 +381,11 @@ testSimpleFlag defaultValue = do
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
   -- personal users
-  let setting :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.TeamFeatureSelfDeletingMessages
+  let setting :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages
       setting stat tout =
         Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
           stat
           (Public.TeamFeatureSelfDeletingMessagesConfig tout)
-          Nothing
 
   personalUser <- Util.randomUser
   Util.getFeatureConfig Public.TeamFeatureSelfDeletingMessages personalUser
@@ -449,21 +446,18 @@ testAllFeatures = do
           toS TeamFeatureAppLock
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
-              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32))
-              Nothing,
+              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
           toS TeamFeatureFileSharing .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
           toS TeamFeatureClassifiedDomains
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
-              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"])
-              Nothing,
+              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
           toS TeamFeatureConferenceCalling
             .= Public.TeamFeatureStatusNoConfig confCalling,
           toS TeamFeatureSelfDeletingMessages
             .= Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
               TeamFeatureEnabled
               (Public.TeamFeatureSelfDeletingMessagesConfig 0)
-              Nothing
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
@@ -507,7 +501,7 @@ assertFlagNoConfig ::
   ( HasCallStack,
     Typeable a,
     Public.FeatureHasNoConfig a,
-    FromJSON (Public.TeamFeatureStatus a),
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
     Public.KnownTeamFeatureName a
   ) =>
   TestM ResponseLBS ->
@@ -517,7 +511,7 @@ assertFlagNoConfig res expected = do
   res !!! do
     statusCode === const 200
     ( fmap Public.tfwoStatus
-        . responseJsonEither @(Public.TeamFeatureStatus a)
+        . responseJsonEither @(Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
       )
       === const (Right expected)
 

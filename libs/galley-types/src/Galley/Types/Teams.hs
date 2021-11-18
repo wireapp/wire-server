@@ -212,11 +212,11 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
-    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing)),
-    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling)),
-    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages))
+    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock)),
+    _flagClassifiedDomains :: !(TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureClassifiedDomains),
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureFileSharing)),
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureConferenceCalling)),
+    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages))
   }
   deriving (Eq, Show, Generic)
 
