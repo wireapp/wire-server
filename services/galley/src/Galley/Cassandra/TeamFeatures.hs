@@ -157,9 +157,7 @@ setPaymentStatus _ tid (PaymentStatus paymentStatus) = do
     insert :: PrepQuery W (TeamId, PaymentStatusValue) ()
     insert =
       fromString $
-        "insert into team_features (team_id, "
-          <> paymentStatusCol @a
-          <> ") values (?, ?)"
+        "insert into team_features (team_id, " <> paymentStatusCol @a <> ") values (?, ?)"
 
 getPaymentStatus ::
   forall (a :: TeamFeatureName) m.
