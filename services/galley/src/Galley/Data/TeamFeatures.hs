@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.TeamFeatures (HasStatusCol (..), HasPaymentStatusCol (..)) where
+module Galley.Data.TeamFeatures (HasStatusCol (..), HasPaymentStatusCol (..), MaybeHasPaymentStatusCol (..)) where
 
 import Imports
 import Wire.API.Team.Feature
@@ -49,26 +49,32 @@ instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conferenc
 
 instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_deleting_messages_status"
 
+----------------------------------------------------------------------
 class HasPaymentStatusCol (a :: TeamFeatureName) where
-  paymentStatusCol :: Maybe String
+  paymentStatusCol :: String
 
+class MaybeHasPaymentStatusCol (a :: TeamFeatureName) where
+  maybePaymentStatusCol :: Maybe String
+
+instance {-# OVERLAPPABLE #-} HasPaymentStatusCol a => MaybeHasPaymentStatusCol a where
+  maybePaymentStatusCol = Just (paymentStatusCol @a)
+
+----------------------------------------------------------------------
 instance HasPaymentStatusCol 'TeamFeatureSelfDeletingMessages where
-  paymentStatusCol = Just "self_deleting_messages_payment_status"
+  paymentStatusCol = "self_deleting_messages_payment_status"
 
-instance HasPaymentStatusCol 'TeamFeatureLegalHold where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureLegalHold where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureSSO where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureSSO where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureSearchVisibility where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureSearchVisibility where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureValidateSAMLEmails where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureValidateSAMLEmails where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureDigitalSignatures where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureDigitalSignatures where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureAppLock where paymentStatusCol = Just "app_lock_payment_status"
+instance MaybeHasPaymentStatusCol 'TeamFeatureAppLock where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureFileSharing where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureFileSharing where maybePaymentStatusCol = Nothing
 
-instance HasPaymentStatusCol 'TeamFeatureClassifiedDomains where paymentStatusCol = Nothing
-
-instance HasPaymentStatusCol 'TeamFeatureConferenceCalling where paymentStatusCol = Nothing
+instance MaybeHasPaymentStatusCol 'TeamFeatureConferenceCalling where maybePaymentStatusCol = Nothing

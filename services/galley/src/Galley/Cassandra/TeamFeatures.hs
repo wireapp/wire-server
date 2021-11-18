@@ -73,13 +73,13 @@ getApplockFeatureStatus tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
-    mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout, mbPaymentStatusValue) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout) <*> Just mbPaymentStatusValue
+    mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout) <*> Nothing
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe EnforceAppLock, Maybe Int32, Maybe PaymentStatusValue)
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe EnforceAppLock, Maybe Int32)
     select =
       fromString $
-        "select " <> statusCol @'TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs, app_lock_payment_status "
+        "select " <> statusCol @'TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
           <> "from team_features where team_id = ?"
 
 setApplockFeatureStatus ::
@@ -118,8 +118,9 @@ getSelfDeletingMessagesStatus tid = do
       fromString $
         "select "
           <> statusCol @'TeamFeatureSelfDeletingMessages
-          <> ", self_deleting_messages_ttl, self_deleting_messages_payment_status "
-          <> "from team_features where team_id = ?"
+          <> ", self_deleting_messages_ttl, "
+          <> paymentStatusCol @'TeamFeatureSelfDeletingMessages
+          <> " from team_features where team_id = ?"
 
 setSelfDeletingMessagesStatus ::
   (MonadClient m) =>
@@ -143,16 +144,16 @@ setSelfDeletingMessagesStatus tid status = do
 setPaymentStatus ::
   forall (a :: TeamFeatureName) m.
   ( MonadClient m,
-    HasPaymentStatusCol a
+    MaybeHasPaymentStatusCol a
   ) =>
   Proxy a ->
   TeamId ->
   PaymentStatus ->
   m PaymentStatus
 setPaymentStatus _ tid (PaymentStatus paymentStatus) =
-  case paymentStatusCol @a of
-    Nothing -> pure $ PaymentStatus PaymentUnlocked -- todo: what should we do here? probably return an error, UpdatePaymentStatusNotAllowed or sth. similar
-    Just col -> do
+  case maybePaymentStatusCol @a of
+    Nothing -> pure $ PaymentStatus PaymentUnlocked
+    Just paymentStatusColName -> do
       retry x5 $ write insert (params LocalQuorum (tid, paymentStatus))
       pure (PaymentStatus paymentStatus)
       where
@@ -160,21 +161,21 @@ setPaymentStatus _ tid (PaymentStatus paymentStatus) =
         insert =
           fromString $
             "insert into team_features (team_id, "
-              <> col
+              <> paymentStatusColName
               <> ") values (?, ?)"
 
 getPaymentStatus ::
   forall (a :: TeamFeatureName) m.
   ( MonadClient m,
-    HasPaymentStatusCol a
+    MaybeHasPaymentStatusCol a
   ) =>
   Proxy a ->
   TeamId ->
   m (Maybe PaymentStatus)
 getPaymentStatus _ tid =
-  case paymentStatusCol @a of
+  case maybePaymentStatusCol @a of
     Nothing -> pure Nothing
-    Just col -> do
+    Just paymentStatusColName -> do
       let q = query1 select (params LocalQuorum (Identity tid))
       mTuple <- (>>= runIdentity) <$> retry x1 q
       pure $ PaymentStatus <$> mTuple
@@ -183,7 +184,7 @@ getPaymentStatus _ tid =
         select =
           fromString $
             "select "
-              <> col
+              <> paymentStatusColName
               <> " from team_features where team_id = ?"
 
 interpretTeamFeatureStoreToCassandra ::
