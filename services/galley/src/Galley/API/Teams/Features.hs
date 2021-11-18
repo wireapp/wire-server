@@ -150,7 +150,7 @@ setFeatureStatus setter doauth tid status = do
 setPaymentStatus ::
   forall (a :: Public.TeamFeatureName) r.
   ( Public.KnownTeamFeatureName a,
-    MaybeHasPaymentStatusCol a,
+    HasPaymentStatusCol a,
     Members
       [ Error ActionError,
         Error TeamError,

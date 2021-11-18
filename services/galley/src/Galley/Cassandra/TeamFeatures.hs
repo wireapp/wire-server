@@ -144,25 +144,22 @@ setSelfDeletingMessagesStatus tid status = do
 setPaymentStatus ::
   forall (a :: TeamFeatureName) m.
   ( MonadClient m,
-    MaybeHasPaymentStatusCol a
+    HasPaymentStatusCol a
   ) =>
   Proxy a ->
   TeamId ->
   PaymentStatus ->
   m PaymentStatus
-setPaymentStatus _ tid (PaymentStatus paymentStatus) =
-  case maybePaymentStatusCol @a of
-    Nothing -> pure $ PaymentStatus PaymentUnlocked
-    Just paymentStatusColName -> do
-      retry x5 $ write insert (params LocalQuorum (tid, paymentStatus))
-      pure (PaymentStatus paymentStatus)
-      where
-        insert :: PrepQuery W (TeamId, PaymentStatusValue) ()
-        insert =
-          fromString $
-            "insert into team_features (team_id, "
-              <> paymentStatusColName
-              <> ") values (?, ?)"
+setPaymentStatus _ tid (PaymentStatus paymentStatus) = do
+  retry x5 $ write insert (params LocalQuorum (tid, paymentStatus))
+  pure (PaymentStatus paymentStatus)
+  where
+    insert :: PrepQuery W (TeamId, PaymentStatusValue) ()
+    insert =
+      fromString $
+        "insert into team_features (team_id, "
+          <> paymentStatusCol @a
+          <> ") values (?, ?)"
 
 getPaymentStatus ::
   forall (a :: TeamFeatureName) m.
