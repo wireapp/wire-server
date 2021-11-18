@@ -556,8 +556,7 @@ getClassifiedDomainsInternal _mbtid = do
   globalConfig <- inputs (view (optSettings . setFeatureFlags . flagClassifiedDomains))
   let config = globalConfig
   pure $ case Public.tfwcStatus config of
-    Public.TeamFeatureDisabled ->
-      Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig []) (Just Public.PaymentLocked)
+    Public.TeamFeatureDisabled -> Public.defaultClassifiedDomains
     Public.TeamFeatureEnabled -> config
 
 getConferenceCallingInternal ::
