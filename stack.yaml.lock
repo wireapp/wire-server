@@ -448,6 +448,13 @@ packages:
   original:
     hackage: redis-io-1.1.0
 - completed:
+    hackage: polysemy-mocks-0.2.0.0@sha256:ed7b4aa8ee29995d0b840ac0c131a141636ca46493b82706b7e5ec5e33b9ffa7,1441
+    pantry-tree:
+      size: 695
+      sha256: 8218e3dde278ca1f01d19009fad40f603e1b17993a519d15fe6319e3a827cc01
+  original:
+    hackage: polysemy-mocks-0.2.0.0
+- completed:
     hackage: wai-route-0.4.0@sha256:ee52f13d2945e4a56147e91e515e184f840654f2e3d9071c73bec3d8aa1f4444,2119
     pantry-tree:
       size: 566
@@ -783,17 +790,6 @@ packages:
     subdir: x509-store
     git: https://github.com/vincenthz/hs-certificate
     commit: a899bda3d7666d25143be7be8f3105fc076703d9
-- completed:
-    name: polysemy-mocks
-    version: 0.1.0.1
-    git: https://github.com/wireapp/polysemy-mocks
-    pantry-tree:
-      size: 1282
-      sha256: 1f9e403155b556c52361e7d3184bad43d4b98df7193008ba9ec033ff42de0d18
-    commit: 8f687140a218ec8cc9e466259600d3c5839ed185
-  original:
-    git: https://github.com/wireapp/polysemy-mocks
-    commit: 8f687140a218ec8cc9e466259600d3c5839ed185
 - completed:
     hackage: polysemy-1.7.0.0@sha256:c972f33191113e2fe6809ea1cda24a6cabfeed2f115b3be0137dee7c65d08293,5977
     pantry-tree:
