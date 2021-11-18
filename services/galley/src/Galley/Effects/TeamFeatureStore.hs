@@ -71,7 +71,7 @@ data TeamFeatureStore m a where
     TeamFeatureStore m (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages)
   SetPaymentStatus' ::
     forall (a :: TeamFeatureName) m.
-    ( HasPaymentStatusCol a
+    ( MaybeHasPaymentStatusCol a
     ) =>
     Proxy a ->
     TeamId ->
@@ -79,7 +79,7 @@ data TeamFeatureStore m a where
     TeamFeatureStore m PaymentStatus
   GetPaymentStatus' ::
     forall (a :: TeamFeatureName) m.
-    ( HasPaymentStatusCol a
+    ( MaybeHasPaymentStatusCol a
     ) =>
     Proxy a ->
     TeamId ->
@@ -104,7 +104,7 @@ setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
 
 setPaymentStatus ::
   forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, HasPaymentStatusCol a) =>
+  (Member TeamFeatureStore r, MaybeHasPaymentStatusCol a) =>
   TeamId ->
   PaymentStatus ->
   Sem r PaymentStatus
@@ -112,7 +112,7 @@ setPaymentStatus = setPaymentStatus' (Proxy @a)
 
 getPaymentStatus ::
   forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, HasPaymentStatusCol a) =>
+  (Member TeamFeatureStore r, MaybeHasPaymentStatusCol a) =>
   TeamId ->
   Sem r (Maybe PaymentStatus)
 getPaymentStatus = getPaymentStatus' (Proxy @a)

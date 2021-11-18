@@ -119,7 +119,7 @@ getFeatureStatus getter doauth tid = do
 setFeatureStatus ::
   forall (a :: Public.TeamFeatureName) r.
   ( Public.KnownTeamFeatureName a,
-    HasPaymentStatusCol a,
+    MaybeHasPaymentStatusCol a,
     Members
       '[ Error ActionError,
          Error TeamError,
@@ -592,7 +592,7 @@ getSelfDeletingMessagesInternal = \case
 
 setPaymentStatusInternal ::
   forall (a :: Public.TeamFeatureName) r.
-  (HasPaymentStatusCol a, Member TeamFeatureStore r) =>
+  (MaybeHasPaymentStatusCol a, Member TeamFeatureStore r) =>
   TeamId ->
   Public.PaymentStatusValue ->
   Sem r Public.PaymentStatus

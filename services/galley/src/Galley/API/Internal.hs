@@ -52,7 +52,7 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
-import Galley.Data.TeamFeatures (HasPaymentStatusCol)
+import Galley.Data.TeamFeatures (MaybeHasPaymentStatusCol)
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
@@ -342,7 +342,7 @@ iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 iPutTeamFeature ::
   forall a r.
   ( Public.KnownTeamFeatureName a,
-    HasPaymentStatusCol a,
+    MaybeHasPaymentStatusCol a,
     Members
       '[ Error ActionError,
          Error NotATeamMember,

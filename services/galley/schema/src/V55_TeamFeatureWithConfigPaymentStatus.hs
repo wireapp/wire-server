@@ -25,10 +25,9 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 55 "Add payment status config for team features with config" $ do
+migration = Migration 55 "Add payment status config for self deleting messages team feature" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
-          self_deleting_messages_payment_status int,
-          app_lock_payment_status int,
+          self_deleting_messages_payment_status int
         )
      |]
