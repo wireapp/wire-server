@@ -345,7 +345,7 @@ instance ToSchema TeamFeatureStatusNoConfig where
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
     tfwcConfig :: cfg,
-    tfwcPaymentStatus :: Maybe PaymentStatusValue --FUTUREWORK: remove payment status from set feature status request, it should only be part of the API response
+    tfwcPaymentStatus :: Maybe PaymentStatusValue -- FUTUREWORK: remove payment status from set feature status request, it should only be part of the API response
   }
   deriving stock (Eq, Show, Generic, Typeable)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfig cfg))
