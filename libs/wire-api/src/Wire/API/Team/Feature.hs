@@ -309,11 +309,11 @@ modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig modelPaymentStatus
+modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
 modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig modelPaymentStatus
+modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
 modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig modelPaymentStatus
+modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -353,12 +353,12 @@ data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
 instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
   arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary <*> arbitrary
 
-modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model -> Doc.Model
-modelTeamFeatureStatusWithConfig name cfgModel paymentStatusModel = Doc.defineModel (cs $ show name) $ do
+modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
+modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
   Doc.description $ "Status and config of " <> cs (show name)
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
   Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
-  Doc.property "paymentStatus" (Doc.ref paymentStatusModel) $ Doc.description "payment status"
+  Doc.property "paymentStatus" typePaymentStatusValue $ Doc.optional >> Doc.description "payment status"
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
