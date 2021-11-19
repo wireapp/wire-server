@@ -69,7 +69,11 @@ endif
 # Usage: make ci package=brig test=1
 .PHONY: ci
 ci: c
+ifeq ("$(pattern)", "")
+	make -C services/$(package) i
+else
 	make -C services/$(package) i-$(pattern)
+endif
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
