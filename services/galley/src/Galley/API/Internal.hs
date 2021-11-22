@@ -599,7 +599,7 @@ rmUser lusr conn = do
 
       for_
         (maybeList1 (catMaybes pp))
-        (push)
+        push
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

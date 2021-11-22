@@ -51,12 +51,13 @@ putTeamSearchVisibilityAvailableInternal ::
   Public.TeamFeatureStatusValue ->
   (MonadIO m, MonadHttp m) => m ()
 putTeamSearchVisibilityAvailableInternal g tid statusValue =
-  putTeamFeatureFlagInternalWithGalleyAndMod
-    @'Public.TeamFeatureSearchVisibility
-    g
-    expect2xx
-    tid
-    (Public.TeamFeatureStatusNoConfig statusValue)
+  void $
+    putTeamFeatureFlagInternalWithGalleyAndMod
+      @'Public.TeamFeatureSearchVisibility
+      g
+      expect2xx
+      tid
+      (Public.TeamFeatureStatusNoConfig statusValue)
 
 putLegalHoldEnabledInternal' ::
   HasCallStack =>
@@ -65,7 +66,7 @@ putLegalHoldEnabledInternal' ::
   Public.TeamFeatureStatusValue ->
   TestM ()
 putLegalHoldEnabledInternal' g tid statusValue =
-  putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
+  void $ putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 --------------------------------------------------------------------------------
 
@@ -156,8 +157,8 @@ putTeamFeatureFlagInternal ::
   ) =>
   (Request -> Request) ->
   TeamId ->
-  (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a) ->
-  TestM ()
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
   putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
@@ -173,11 +174,28 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
-  (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a) ->
-  m ()
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  m ResponseLBS
 putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
-  void . put $
+  put $
     galley
       . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
       . json status
+      . reqmod
+
+setPaymentStatusInternal ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON Public.PaymentStatusValue
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.PaymentStatusValue ->
+  TestM ResponseLBS
+setPaymentStatusInternal reqmod tid paymentStatus = do
+  galley <- view tsGalley
+  put $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' paymentStatus]
       . reqmod

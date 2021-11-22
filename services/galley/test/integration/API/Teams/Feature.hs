@@ -68,7 +68,7 @@ tests s =
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
-      test s "SelfDeletingMessages" $ testSelfDeletingMessages
+      test s "SelfDeletingMessages" testSelfDeletingMessages
     ]
 
 testSSO :: TestM ()
@@ -87,7 +87,7 @@ testSSO = do
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getSSOInternal = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setSSOInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
+      setSSOInternal = void . Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
 
   assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSSO nonMember tid
 
@@ -127,7 +127,7 @@ testLegalHold = do
       getLegalHoldFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getFeatureConfig Public.TeamFeatureLegalHold member
 
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setLegalHoldInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
+      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
   getLegalHold Public.TeamFeatureDisabled
   getLegalHoldInternal Public.TeamFeatureDisabled
 
@@ -349,7 +349,7 @@ testSimpleFlag defaultValue = do
 
       setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
       setFlagInternal statusValue =
-        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+        void $ Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
@@ -381,31 +381,39 @@ testSimpleFlag defaultValue = do
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
   -- personal users
-  let setting :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages
-      setting stat tout =
+  let settingWithOutPaymentStatus :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages
+      settingWithOutPaymentStatus stat tout =
         Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
           stat
           (Public.TeamFeatureSelfDeletingMessagesConfig tout)
+      settingWithPaymentStatus :: TeamFeatureStatusValue -> Int32 -> Public.PaymentStatusValue -> Public.TeamFeatureStatus 'Public.WithPaymentStatus 'Public.TeamFeatureSelfDeletingMessages
+      settingWithPaymentStatus stat tout paymentStatus =
+        Public.TeamFeatureStatusWithConfigAndPaymentStatus @Public.TeamFeatureSelfDeletingMessagesConfig
+          stat
+          (Public.TeamFeatureSelfDeletingMessagesConfig tout)
+          paymentStatus
 
   personalUser <- Util.randomUser
   Util.getFeatureConfig Public.TeamFeatureSelfDeletingMessages personalUser
-    !!! responseJsonEither === const (Right $ setting TeamFeatureEnabled 0)
+    !!! responseJsonEither === const (Right $ settingWithPaymentStatus TeamFeatureEnabled 0 Public.PaymentLocked)
 
   -- team users
   galley <- view tsGalley
   (owner, tid, []) <- Util.createBindingTeamWithNMembers 0
 
-  let checkSet :: TeamFeatureStatusValue -> Int32 -> TestM ()
-      checkSet stat tout = do
-        Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSelfDeletingMessages
-          galley
-          tid
-          (setting stat tout)
+  let checkSet :: TeamFeatureStatusValue -> Int32 -> Int -> TestM ()
+      checkSet stat tout expectedStatusCode =
+        do
+          Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSelfDeletingMessages
+            galley
+            tid
+            (settingWithOutPaymentStatus stat tout)
+          !!! statusCode === const expectedStatusCode
 
       -- internal, public (/team/:tid/features), and team-agnostic (/feature-configs).
-      checkGet :: HasCallStack => TeamFeatureStatusValue -> Int32 -> TestM ()
-      checkGet stat tout = do
-        let expected = setting stat tout
+      checkGet :: HasCallStack => TeamFeatureStatusValue -> Int32 -> Public.PaymentStatusValue -> TestM ()
+      checkGet stat tout paymentStatus = do
+        let expected = settingWithPaymentStatus stat tout paymentStatus
         forM_
           [ Util.getTeamFeatureFlagInternal Public.TeamFeatureSelfDeletingMessages tid,
             Util.getTeamFeatureFlagWithGalley Public.TeamFeatureSelfDeletingMessages galley owner tid,
@@ -413,11 +421,30 @@ testSelfDeletingMessages = do
           ]
           (!!! responseJsonEither === const (Right expected))
 
-  checkGet TeamFeatureEnabled 0
-  checkSet TeamFeatureDisabled 0
-  checkGet TeamFeatureDisabled 0
-  checkSet TeamFeatureEnabled 30
-  checkGet TeamFeatureEnabled 30
+      checkSetPaymentStatus :: HasCallStack => Public.PaymentStatusValue -> TestM ()
+      checkSetPaymentStatus status =
+        do
+          Util.setPaymentStatusInternal @'Public.TeamFeatureSelfDeletingMessages galley tid status
+          !!! statusCode === const 200
+
+  checkGet TeamFeatureEnabled 0 Public.PaymentLocked
+  checkSet TeamFeatureDisabled 0 409
+  checkGet TeamFeatureEnabled 0 Public.PaymentLocked
+  checkSet TeamFeatureEnabled 30 409
+  checkGet TeamFeatureEnabled 0 Public.PaymentLocked
+  checkSetPaymentStatus Public.PaymentUnlocked
+  checkGet TeamFeatureEnabled 0 Public.PaymentUnlocked
+  checkSet TeamFeatureDisabled 0 200
+  checkGet TeamFeatureDisabled 0 Public.PaymentUnlocked
+  checkSet TeamFeatureEnabled 30 200
+  checkGet TeamFeatureEnabled 30 Public.PaymentUnlocked
+  checkSet TeamFeatureDisabled 30 200
+  checkGet TeamFeatureDisabled 30 Public.PaymentUnlocked
+  checkSetPaymentStatus Public.PaymentLocked
+  checkGet TeamFeatureEnabled 0 Public.PaymentLocked
+  checkSet TeamFeatureEnabled 50 409
+  checkSetPaymentStatus Public.PaymentUnlocked
+  checkGet TeamFeatureDisabled 30 Public.PaymentUnlocked
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
@@ -455,9 +482,10 @@ testAllFeatures = do
           toS TeamFeatureConferenceCalling
             .= Public.TeamFeatureStatusNoConfig confCalling,
           toS TeamFeatureSelfDeletingMessages
-            .= Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
+            .= Public.TeamFeatureStatusWithConfigAndPaymentStatus @Public.TeamFeatureSelfDeletingMessagesConfig
               TeamFeatureEnabled
               (Public.TeamFeatureSelfDeletingMessagesConfig 0)
+              Public.PaymentLocked
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'

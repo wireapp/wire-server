@@ -123,7 +123,6 @@ setFeatureStatus ::
       '[ Error ActionError,
          Error TeamError,
          Error NotATeamMember,
-         Error TeamFeatureError,
          TeamStore,
          TeamFeatureStore
        ]
@@ -141,10 +140,7 @@ setFeatureStatus setter doauth tid status = do
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
       assertTeamExists tid
-  maybePaymentStatus <- TeamFeatures.getPaymentStatus @a tid
-  case maybePaymentStatus of
-    Just (Public.PaymentStatus Public.PaymentLocked) -> throw PaymentStatusLocked
-    _ -> setter tid status
+  setter tid status
 
 -- | Setting payment status can only be done through the internal API and therefore doesn't require auth.
 setPaymentStatus ::
@@ -584,20 +580,43 @@ getSelfDeletingMessagesInternal ::
   Sem r (Public.TeamFeatureStatus 'Public.WithPaymentStatus 'Public.TeamFeatureSelfDeletingMessages)
 getSelfDeletingMessagesInternal = \case
   Left _ -> pure Public.defaultSelfDeletingMessagesStatus
-  Right tid ->
-    TeamFeatures.getSelfDeletingMessagesStatus tid
-      <&> fromMaybe Public.defaultSelfDeletingMessagesStatus
+  Right tid -> do
+    maybePaymentStatus <- TeamFeatures.getPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid
+    maybeFeatureStatus <- TeamFeatures.getSelfDeletingMessagesStatus tid
+    pure $ case (maybePaymentStatus, maybeFeatureStatus) of
+      (Just (Public.PaymentStatus Public.PaymentUnlocked), Just featureStatus) ->
+        Public.TeamFeatureStatusWithConfigAndPaymentStatus
+          (Public.tfwcStatus featureStatus)
+          (Public.tfwcConfig featureStatus)
+          Public.PaymentUnlocked
+      (Just (Public.PaymentStatus Public.PaymentUnlocked), Nothing) ->
+        Public.TeamFeatureStatusWithConfigAndPaymentStatus
+          (Public.tfwcapsStatus Public.defaultSelfDeletingMessagesStatus)
+          (Public.tfwcapsConfig Public.defaultSelfDeletingMessagesStatus)
+          Public.PaymentUnlocked
+      _ -> Public.defaultSelfDeletingMessagesStatus
 
 setSelfDeletingMessagesInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
+  Members
+    '[ GundeckAccess,
+       TeamStore,
+       TeamFeatureStore,
+       P.TinyLog,
+       Error TeamFeatureError
+     ]
+    r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesInternal tid st = do
-  let pushEvent =
-        pushFeatureConfigEvent tid $
-          Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
-  TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
+  maybePaymentStatus <- TeamFeatures.getPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid
+  case maybePaymentStatus of
+    Just (Public.PaymentStatus Public.PaymentUnlocked) -> do
+      let pushEvent =
+            pushFeatureConfigEvent tid $
+              Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
+      TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
+    _ -> throw PaymentStatusLocked
 
 pushFeatureConfigEvent ::
   Members '[GundeckAccess, TeamStore, P.TinyLog] r =>

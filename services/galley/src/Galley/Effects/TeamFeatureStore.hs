@@ -64,7 +64,7 @@ data TeamFeatureStore m a where
     TeamFeatureStore m (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock)
   GetSelfDeletingMessagesStatus ::
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages))
   SetSelfDeletingMessagesStatus ::
     TeamId ->
     TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages ->

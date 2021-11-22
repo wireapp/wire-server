@@ -1877,7 +1877,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (201, 200, 0, (x : xs)) -> return (x, xs)
         (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining -1) ((uid, cid) : acc) pk
         (403, 403, _, []) -> error "Need to connect with at least 1 user"
-        (403, 403, _, (x : xs)) -> return (x, xs)
+        (403, 403, _, x : xs) -> return (x, xs)
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
@@ -1892,7 +1892,7 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal tid statusValue = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

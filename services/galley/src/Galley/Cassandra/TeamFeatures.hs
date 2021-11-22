@@ -105,21 +105,20 @@ getSelfDeletingMessagesStatus ::
   forall m.
   (MonadClient m) =>
   TeamId ->
-  m (Maybe (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages))
+  m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages))
 getSelfDeletingMessagesStatus tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mTuple <- retry x1 q
   pure $
-    mTuple >>= \(mbStatusValue, mbTimeout, mbPaymentStatusValue) ->
-      TeamFeatureStatusWithConfigAndPaymentStatus <$> mbStatusValue <*> (TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout) <*> mbPaymentStatusValue
+    mTuple >>= \(mbStatusValue, mbTimeout) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (TeamFeatureSelfDeletingMessagesConfig <$> mbTimeout)
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Int32, Maybe PaymentStatusValue)
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Int32)
     select =
       fromString $
         "select "
           <> statusCol @'TeamFeatureSelfDeletingMessages
-          <> ", self_deleting_messages_ttl, "
-          <> paymentStatusCol @'TeamFeatureSelfDeletingMessages
+          <> ", self_deleting_messages_ttl"
           <> " from team_features where team_id = ?"
 
 setSelfDeletingMessagesStatus ::
