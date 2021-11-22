@@ -93,6 +93,7 @@ createEnv m o = do
         . C.setSendTimeout 3
         . C.setResponseTimeout 10
         . C.setProtocolVersion C.V4
+        . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
         $ C.defSettings
   a <- Aws.mkEnv l o n
   io <-

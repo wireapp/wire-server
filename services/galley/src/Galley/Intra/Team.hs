@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -22,20 +22,18 @@ import Bilge.RPC
 import Brig.Types.Team
 import Data.ByteString.Conversion
 import Data.Id
-import Galley.App
-import Galley.Effects
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-getSize :: Member BrigAccess r => TeamId -> Galley r TeamSize
+getSize :: TeamId -> App TeamSize
 getSize tid = do
-  (h, p) <- brigReq
   r <-
-    callBrig $
-      method GET . host h . port p
+    call Brig $
+      method GET
         . paths ["/i/teams", toByteString' tid, "size"]
         . expect2xx
   parseResponse (mkError status502 "server-error") r

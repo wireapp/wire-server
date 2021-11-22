@@ -67,7 +67,6 @@ import qualified Spar.Intra.BrigApp as Brig
 import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
@@ -78,6 +77,8 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
+import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Now (Now)
@@ -94,6 +95,8 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
+import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
@@ -114,11 +117,13 @@ api ::
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
+       VerdictFormatStore,
        ScimExternalIdStore,
        ScimUserTimesStore,
        ScimTokenStore,
        DefaultSsoCode,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        SAMLUserStore,
        Random,
        Error SparError,
@@ -150,6 +155,7 @@ apiSSO ::
        BrigAccess,
        BindCookieStore,
        AssIDStore,
+       VerdictFormatStore,
        AReqIDStore,
        ScimTokenStore,
        DefaultSsoCode,
@@ -181,6 +187,7 @@ apiIDP ::
        BrigAccess,
        ScimTokenStore,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        SAMLUserStore,
        Error SparError
      ]
@@ -237,6 +244,7 @@ authreq ::
        Logger String,
        BindCookieStore,
        AssIDStore,
+       VerdictFormatStore,
        AReqIDStore,
        SAML2,
        SamlProtocolSettings,
@@ -262,7 +270,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
     SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
-  AReqIDStore.storeVerdictFormat authreqttl reqid vformat
+  VerdictFormatStore.store authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
@@ -320,6 +328,7 @@ authresp ::
        BrigAccess,
        BindCookieStore,
        AssIDStore,
+       VerdictFormatStore,
        AReqIDStore,
        ScimTokenStore,
        IdPEffect.IdP,
@@ -380,14 +389,21 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   pure idp
 
 idpGetRaw ::
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members
+    '[ GalleyAccess,
+       BrigAccess,
+       IdPEffect.IdP,
+       IdPRawMetadataStore,
+       Error SparError
+     ]
+    r =>
   Maybe UserId ->
   SAML.IdPId ->
   Sem r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- getIdPConfig idpid
   _ <- authorizeIdP zusr idp
-  IdPEffect.getRawMetadata idpid >>= \case
+  IdPRawMetadataStore.get idpid >>= \case
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSparSem $ SparIdPNotFound (cs $ show idpid)
 
@@ -426,6 +442,7 @@ idpDelete ::
        ScimTokenStore,
        SAMLUserStore,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -461,8 +478,8 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
   -- Delete IdP config
   do
-    IdPEffect.deleteConfig idpid issuer team
-    IdPEffect.deleteRawMetadata idpid
+    IdPEffect.deleteConfig idp
+    IdPRawMetadataStore.delete idpid
   return NoContent
   where
     updateOldIssuers :: IdP -> Sem r ()
@@ -492,6 +509,7 @@ idpCreate ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
+       IdPRawMetadataStore,
        IdPEffect.IdP,
        Error SparError
      ]
@@ -512,6 +530,7 @@ idpCreateXML ::
        BrigAccess,
        ScimTokenStore,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -526,7 +545,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
-  IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   storeIdPConfig idp
   forM_ mReplaces $ \replaces -> do
     IdPEffect.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
@@ -635,6 +654,7 @@ idpUpdate ::
        GalleyAccess,
        BrigAccess,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -651,6 +671,7 @@ idpUpdateXML ::
        GalleyAccess,
        BrigAccess,
        IdPEffect.IdP,
+       IdPRawMetadataStore,
        Error SparError
      ]
     r =>
@@ -662,7 +683,7 @@ idpUpdateXML ::
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
-  IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
   -- try again, which would clean up cassandra state.)

@@ -38,91 +38,156 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Control.Exception (assert)
 import Control.Lens (view, (^.))
-import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (qUntagged)
+import Data.Qualified
 import Data.Range (toRange)
+import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
-import Galley.App
-import qualified Galley.Data as Data
-import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
-import qualified Galley.Data.LegalHold as LegalHoldData
-import qualified Galley.Data.TeamFeatures as TeamFeatures
+import Galley.Cassandra.Paging
+import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.BrigAccess
+import Galley.Effects.FireAndForget
+import qualified Galley.Effects.LegalHoldStore as LegalHoldData
+import Galley.Effects.Paging
+import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.TeamMemberStore
+import Galley.Effects.TeamStore
+import Galley.Effects.WaiRoutes
 import qualified Galley.External.LegalHoldService as LHService
-import qualified Galley.Intra.Client as Client
-import Galley.Intra.User (getConnectionsUnqualified, putConnectionInternal)
-import qualified Galley.Options as Opts
 import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Status (status201, status204)
 import Network.Wai
-import Network.Wai.Predicate hiding (or, result, setStatus, _3)
-import Network.Wai.Utilities as Wai
+import Network.Wai.Predicate hiding (Error, or, result, setStatus, _3)
+import Network.Wai.Utilities as Wai hiding (Error)
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.ErrorDescription
+import Wire.API.Federation.Client
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import qualified Wire.API.Team.LegalHold as Public
 
-assertLegalHoldEnabledForTeam :: TeamId -> Galley r ()
-assertLegalHoldEnabledForTeam tid = unlessM (isLegalHoldEnabledForTeam tid) $ throwM legalHoldNotEnabled
+assertLegalHoldEnabledForTeam ::
+  Members '[Error LegalHoldError, LegalHoldStore, TeamStore, TeamFeatureStore] r =>
+  TeamId ->
+  Sem r ()
+assertLegalHoldEnabledForTeam tid =
+  unlessM (isLegalHoldEnabledForTeam tid) $
+    throw LegalHoldNotEnabled
 
-isLegalHoldEnabledForTeam :: TeamId -> Galley r Bool
+isLegalHoldEnabledForTeam ::
+  Members '[LegalHoldStore, TeamStore, TeamFeatureStore] r =>
+  TeamId ->
+  Sem r Bool
 isLegalHoldEnabledForTeam tid = do
-  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+  getLegalHoldFlag >>= \case
     FeatureLegalHoldDisabledPermanently -> do
       pure False
     FeatureLegalHoldDisabledByDefault -> do
-      statusValue <- Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
+      statusValue <-
+        Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
       return $ case statusValue of
         Just Public.TeamFeatureEnabled -> True
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      isTeamLegalholdWhitelisted tid
+      LegalHoldData.isTeamLegalholdWhitelisted tid
 
-createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley r Response
+createSettingsH ::
+  Members
+    '[ Error ActionError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore,
+       P.TinyLog,
+       WaiRoutes
+     ]
+    r =>
+  UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON ->
+  Sem r Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
   newService <- fromJsonBody req
   setStatus status201 . json <$> createSettings zusr tid newService
 
-createSettings :: UserId -> TeamId -> Public.NewLegalHoldService -> Galley r Public.ViewLegalHoldService
+createSettings ::
+  Members
+    '[ Error ActionError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  UserId ->
+  TeamId ->
+  Public.NewLegalHoldService ->
+  Sem r Public.ViewLegalHoldService
 createSettings zusr tid newService = do
   assertLegalHoldEnabledForTeam tid
-  zusrMembership <- Data.teamMember tid zusr
+  zusrMembership <- getTeamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
-    LHService.validateServiceKey (newLegalHoldServiceKey newService)
-      >>= maybe (throwM legalHoldServiceInvalidKey) pure
+    LegalHoldData.validateServiceKey (newLegalHoldServiceKey newService)
+      >>= note LegalHoldServiceInvalidKey
   LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
   let service = legalHoldService tid fpr newService key
   LegalHoldData.createSettings service
   pure . viewLegalHoldService $ service
 
-getSettingsH :: UserId ::: TeamId ::: JSON -> Galley r Response
+getSettingsH ::
+  Members
+    '[ Error ActionError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore
+     ]
+    r =>
+  UserId ::: TeamId ::: JSON ->
+  Sem r Response
 getSettingsH (zusr ::: tid ::: _) = do
   json <$> getSettings zusr tid
 
-getSettings :: UserId -> TeamId -> Galley r Public.ViewLegalHoldService
+getSettings ::
+  Members
+    '[ Error ActionError,
+       Error NotATeamMember,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  TeamId ->
+  Sem r Public.ViewLegalHoldService
 getSettings zusr tid = do
-  zusrMembership <- Data.teamMember tid zusr
+  zusrMembership <- getTeamMember tid zusr
   void $ permissionCheck (ViewTeamFeature Public.TeamFeatureLegalHold) zusrMembership
   isenabled <- isLegalHoldEnabledForTeam tid
   mresult <- LegalHoldData.getSettings tid
@@ -132,76 +197,171 @@ getSettings zusr tid = do
     (True, Just result) -> viewLegalHoldService result
 
 removeSettingsH ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       CodeStore,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error AuthenticationError,
+       Error ConversationError,
+       Error FederationError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       Error TeamError,
+       ExternalAccess,
+       FederatorAccess,
+       FireAndForget,
+       GundeckAccess,
+       Input UTCTime,
+       Input (Local ()),
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamFeatureStore,
+       TeamMemberStore InternalPaging,
+       TeamStore,
+       P.TinyLog,
+       WaiRoutes
+     ]
+    r =>
   UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON ->
-  Galley r Response
+  Sem r Response
 removeSettingsH (zusr ::: tid ::: req ::: _) = do
   removeSettingsRequest <- fromJsonBody req
-  removeSettings zusr tid removeSettingsRequest
+  removeSettings @InternalPaging zusr tid removeSettingsRequest
   pure noContent
 
 removeSettings ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  forall p r.
+  ( Paging p,
+    Bounded (PagingBounds p TeamMember),
+    Members
+      '[ BotAccess,
+         BrigAccess,
+         CodeStore,
+         ConversationStore,
+         Error ActionError,
+         Error InvalidInput,
+         Error AuthenticationError,
+         Error ConversationError,
+         Error FederationError,
+         Error LegalHoldError,
+         Error NotATeamMember,
+         Error TeamError,
+         ExternalAccess,
+         FederatorAccess,
+         FireAndForget,
+         GundeckAccess,
+         Input UTCTime,
+         Input (Local ()),
+         LegalHoldStore,
+         ListItems LegacyPaging ConvId,
+         MemberStore,
+         TeamFeatureStore,
+         TeamMemberStore p,
+         TeamStore,
+         P.TinyLog
+       ]
+      r
+  ) =>
   UserId ->
   TeamId ->
   Public.RemoveLegalHoldSettingsRequest ->
-  Galley r ()
+  Sem r ()
 removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   assertNotWhitelisting
   assertLegalHoldEnabledForTeam tid
-  zusrMembership <- Data.teamMember tid zusr
+  zusrMembership <- getTeamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
-  removeSettings' tid
+  removeSettings' @p tid
   where
-    assertNotWhitelisting :: Galley r ()
+    assertNotWhitelisting :: Sem r ()
     assertNotWhitelisting = do
-      view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+      getLegalHoldFlag >>= \case
         FeatureLegalHoldDisabledPermanently -> pure ()
         FeatureLegalHoldDisabledByDefault -> pure ()
-        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-          throwM legalHoldDisableUnimplemented
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+          throw LegalHoldDisableUnimplemented
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
-  forall r.
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  forall p r.
+  ( Paging p,
+    Bounded (PagingBounds p TeamMember),
+    Members
+      '[ BotAccess,
+         BrigAccess,
+         CodeStore,
+         ConversationStore,
+         Error ActionError,
+         Error InvalidInput,
+         Error AuthenticationError,
+         Error ConversationError,
+         Error FederationError,
+         Error LegalHoldError,
+         Error NotATeamMember,
+         Error TeamError,
+         ExternalAccess,
+         FederatorAccess,
+         FireAndForget,
+         GundeckAccess,
+         Input UTCTime,
+         Input (Local ()),
+         LegalHoldStore,
+         ListItems LegacyPaging ConvId,
+         MemberStore,
+         TeamMemberStore p,
+         TeamStore,
+         P.TinyLog
+       ]
+      r
+  ) =>
   TeamId ->
-  Galley r ()
-removeSettings' tid = do
-  -- Loop through team members and run this action.
-  Data.withTeamMembersWithChunks tid action
-  LegalHoldData.removeSettings tid
+  Sem r ()
+removeSettings' tid =
+  withChunks
+    (\mps -> listTeamMembers @p tid mps maxBound)
+    action
   where
-    action :: [TeamMember] -> Galley r ()
+    action :: [TeamMember] -> Sem r ()
     action membs = do
       let zothers = map (view userId) membs
       let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
-      Log.debug $
+      P.debug $
         Log.field "targets" (toByteString . show $ toByteString <$> zothers)
           . Log.field "action" (Log.val "LegalHold.removeSettings'")
       spawnMany (map removeLHForUser lhMembers)
-    removeLHForUser :: TeamMember -> Galley r ()
+    removeLHForUser :: TeamMember -> Sem r ()
     removeLHForUser member = do
-      let uid = member ^. Team.userId
-      Client.removeLegalHoldClientFromUser uid
-      LHService.removeLegalHold tid uid
-      changeLegalholdStatus tid uid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
+      luid <- qualifyLocal (member ^. Team.userId)
+      removeLegalHoldClientFromUser (tUnqualified luid)
+      LHService.removeLegalHold tid (tUnqualified luid)
+      changeLegalholdStatus tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
-getUserStatusH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley r Response
+getUserStatusH ::
+  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore, P.TinyLog] r =>
+  UserId ::: TeamId ::: UserId ::: JSON ->
+  Sem r Response
 getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
   json <$> getUserStatus tid uid
 
-getUserStatus :: TeamId -> UserId -> Galley r Public.UserLegalHoldStatusResponse
+getUserStatus ::
+  forall r.
+  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore, P.TinyLog] r =>
+  TeamId ->
+  UserId ->
+  Sem r Public.UserLegalHoldStatusResponse
 getUserStatus tid uid = do
-  mTeamMember <- Data.teamMember tid uid
-  teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
+  teamMember <- note TeamMemberNotFound =<< getTeamMember tid uid
   let status = view legalHoldStatus teamMember
   (mlk, lcid) <- case status of
     UserLegalHoldNoConsent -> pure (Nothing, Nothing)
@@ -210,16 +370,16 @@ getUserStatus tid uid = do
     UserLegalHoldEnabled -> makeResponseDetails
   pure $ UserLegalHoldStatusResponse status mlk lcid
   where
-    makeResponseDetails :: Galley r (Maybe LastPrekey, Maybe ClientId)
+    makeResponseDetails :: Sem r (Maybe LastPrekey, Maybe ClientId)
     makeResponseDetails = do
       mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
       lastKey <- case mLastKey of
         Nothing -> do
-          Log.err . Log.msg $
+          P.err . Log.msg $
             "expected to find a prekey for user: "
               <> toByteString' uid
               <> " but none was found"
-          throwM internalError
+          throw NoPrekeyForUser
         Just lstKey -> pure lstKey
       let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
       pure (Just lastKey, Just clientId)
@@ -228,11 +388,31 @@ getUserStatus tid uid = do
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
 -- out).
 grantConsentH ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error TeamError,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       Input (Local ()),
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   UserId ::: TeamId ::: JSON ->
-  Galley r Response
+  Sem r Response
 grantConsentH (zusr ::: tid ::: _) = do
-  grantConsent zusr tid >>= \case
+  lusr <- qualifyLocal zusr
+  grantConsent lusr tid >>= \case
     GrantConsentSuccess -> pure $ empty & setStatus status201
     GrantConsentAlreadyGranted -> pure $ empty & setStatus status204
 
@@ -241,28 +421,68 @@ data GrantConsentResult
   | GrantConsentAlreadyGranted
 
 grantConsent ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
-  UserId ->
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error TeamError,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
   TeamId ->
-  Galley r GrantConsentResult
-grantConsent zusr tid = do
-  userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid zusr
+  Sem r GrantConsentResult
+grantConsent lusr tid = do
+  userLHStatus <-
+    note TeamMemberNotFound
+      =<< fmap (view legalHoldStatus) <$> getTeamMember tid (tUnqualified lusr)
   case userLHStatus of
-    Nothing ->
-      throwM teamMemberNotFound
-    Just lhs@UserLegalHoldNoConsent ->
-      changeLegalholdStatus tid zusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
-    Just UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
-    Just UserLegalHoldPending -> pure GrantConsentAlreadyGranted
-    Just UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
+    lhs@UserLegalHoldNoConsent ->
+      changeLegalholdStatus tid lusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
+    UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
+    UserLegalHoldPending -> pure GrantConsentAlreadyGranted
+    UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
 
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error TeamError,
+       Error NotATeamMember,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       Input (Local ()),
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamFeatureStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
-  Galley r Response
+  Sem r Response
 requestDeviceH (zusr ::: tid ::: uid ::: _) = do
-  requestDevice zusr tid uid <&> \case
+  luid <- qualifyLocal uid
+  requestDevice zusr tid luid <&> \case
     RequestDeviceSuccess -> empty & setStatus status201
     RequestDeviceAlreadyPending -> empty & setStatus status204
 
@@ -272,24 +492,44 @@ data RequestDeviceResult
 
 requestDevice ::
   forall r.
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error TeamError,
+       Error NotATeamMember,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamFeatureStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   UserId ->
   TeamId ->
-  UserId ->
-  Galley r RequestDeviceResult
-requestDevice zusr tid uid = do
+  Local UserId ->
+  Sem r RequestDeviceResult
+requestDevice zusr tid luid = do
   assertLegalHoldEnabledForTeam tid
-  Log.debug $
-    Log.field "targets" (toByteString uid)
+  P.debug $
+    Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.requestDevice")
-  zusrMembership <- Data.teamMember tid zusr
+  zusrMembership <- getTeamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  member <- maybe (throwM teamMemberNotFound) pure =<< Data.teamMember tid uid
+  member <- note TeamMemberNotFound =<< getTeamMember tid (tUnqualified luid)
   case member ^. legalHoldStatus of
-    UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+    UserLegalHoldEnabled -> throw UserLegalHoldAlreadyEnabled
     lhs@UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice lhs
     lhs@UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice lhs
-    UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
+    UserLegalHoldNoConsent -> throw NoUserLegalHoldConsent
   where
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
     -- ie. it returns the existing device on multiple calls to `/init`, like here:
@@ -298,18 +538,18 @@ requestDevice zusr tid uid = do
     -- This will still work if the LH service creates two new device on two consecutive calls
     -- to `/init`, but there may be race conditions, eg. when updating and enabling a pending
     -- device at (almost) the same time.
-    provisionLHDevice :: UserLegalHoldStatus -> Galley r ()
+    provisionLHDevice :: UserLegalHoldStatus -> Sem r ()
     provisionLHDevice userLHStatus = do
       (lastPrekey', prekeys) <- requestDeviceFromService
       -- We don't distinguish the last key here; brig will do so when the device is added
-      LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
-      changeLegalholdStatus tid uid userLHStatus UserLegalHoldPending
-      Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
+      LegalHoldData.insertPendingPrekeys (tUnqualified luid) (unpackLastPrekey lastPrekey' : prekeys)
+      changeLegalholdStatus tid luid userLHStatus UserLegalHoldPending
+      notifyClientsAboutLegalHoldRequest zusr (tUnqualified luid) lastPrekey'
 
-    requestDeviceFromService :: Galley r (LastPrekey, [Prekey])
+    requestDeviceFromService :: Sem r (LastPrekey, [Prekey])
     requestDeviceFromService = do
-      LegalHoldData.dropPendingPrekeys uid
-      lhDevice <- LHService.requestNewDevice tid uid
+      LegalHoldData.dropPendingPrekeys (tUnqualified luid)
+      lhDevice <- LHService.requestNewDevice tid (tUnqualified luid)
       let NewLegalHoldClient prekeys lastKey = lhDevice
       return (lastKey, prekeys)
 
@@ -319,65 +559,131 @@ requestDevice zusr tid uid = do
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
 approveDeviceH ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error AuthenticationError,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       Input (Local ()),
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamFeatureStore,
+       TeamStore,
+       P.TinyLog,
+       WaiRoutes
+     ]
+    r =>
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
-  Galley r Response
+  Sem r Response
 approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
+  luid <- qualifyLocal uid
   approve <- fromJsonBody req
-  approveDevice zusr tid uid connId approve
+  approveDevice zusr tid luid connId approve
   pure empty
 
 approveDevice ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error AuthenticationError,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamFeatureStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   UserId ->
   TeamId ->
-  UserId ->
+  Local UserId ->
   ConnId ->
   Public.ApproveLegalHoldForUserRequest ->
-  Galley r ()
-approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPassword) = do
+  Sem r ()
+approveDevice zusr tid luid connId (Public.ApproveLegalHoldForUserRequest mPassword) = do
   assertLegalHoldEnabledForTeam tid
-  Log.debug $
-    Log.field "targets" (toByteString uid)
+  P.debug $
+    Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.approveDevice")
-  unless (zusr == uid) (throwM accessDenied)
-  assertOnTeam uid tid
+  unless (zusr == tUnqualified luid) $ throw AccessDenied
+  assertOnTeam (tUnqualified luid) tid
   ensureReAuthorised zusr mPassword
-  userLHStatus <- maybe defUserLegalHoldStatus (view legalHoldStatus) <$> Data.teamMember tid uid
+  userLHStatus <-
+    maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
   assertUserLHPending userLHStatus
-  mPreKeys <- LegalHoldData.selectPendingPrekeys uid
+  mPreKeys <- LegalHoldData.selectPendingPrekeys (tUnqualified luid)
   (prekeys, lastPrekey') <- case mPreKeys of
     Nothing -> do
-      Log.info $ Log.msg @Text "No prekeys found"
-      throwM noLegalHoldDeviceAllocated
+      P.info $ Log.msg @Text "No prekeys found"
+      throw NoLegalHoldDeviceAllocated
     Just keys -> pure keys
-  clientId <- Client.addLegalHoldClientToUser uid connId prekeys lastPrekey'
+  clientId <- addLegalHoldClientToUser (tUnqualified luid) connId prekeys lastPrekey'
   -- Note: teamId could be passed in the getLegalHoldAuthToken request instead of lookup up again
-  -- Note: both 'Client.getLegalHoldToken' and 'ensureReAuthorized' check the password
-  -- Note: both 'Client.getLegalHoldToken' and this function in 'assertOnTeam' above
+  -- Note: both 'getLegalHoldToken' and 'ensureReAuthorized' check the password
+  -- Note: both 'getLegalHoldToken' and this function in 'assertOnTeam' above
   --       checks that the user is part of a binding team
   -- FUTUREWORK: reduce double checks
-  legalHoldAuthToken <- Client.getLegalHoldAuthToken uid mPassword
-  LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
+  legalHoldAuthToken <- getLegalHoldAuthToken (tUnqualified luid) mPassword
+  LHService.confirmLegalHold clientId tid (tUnqualified luid) legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  changeLegalholdStatus tid uid userLHStatus UserLegalHoldEnabled
+  changeLegalholdStatus tid luid userLHStatus UserLegalHoldEnabled
   where
-    assertUserLHPending :: UserLegalHoldStatus -> Galley r ()
+    assertUserLHPending :: Member (Error LegalHoldError) r => UserLegalHoldStatus -> Sem r ()
     assertUserLHPending userLHStatus = do
       case userLHStatus of
-        UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+        UserLegalHoldEnabled -> throw UserLegalHoldAlreadyEnabled
         UserLegalHoldPending -> pure ()
-        UserLegalHoldDisabled -> throwM userLegalHoldNotPending
-        UserLegalHoldNoConsent -> throwM userLegalHoldNotPending
+        UserLegalHoldDisabled -> throw UserLegalHoldNotPending
+        UserLegalHoldNoConsent -> throw UserLegalHoldNotPending
 
 disableForUserH ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error AuthenticationError,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       Input (Local ()),
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamStore,
+       P.TinyLog,
+       WaiRoutes
+     ]
+    r =>
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
-  Galley r Response
+  Sem r Response
 disableForUserH (zusr ::: tid ::: uid ::: req ::: _) = do
+  luid <- qualifyLocal uid
   disable <- fromJsonBody req
-  disableForUser zusr tid uid disable <&> \case
+  disableForUser zusr tid luid disable <&> \case
     DisableLegalHoldSuccess -> empty
     DisableLegalHoldWasNotEnabled -> noContent
 
@@ -387,45 +693,82 @@ data DisableLegalHoldForUserResponse
 
 disableForUser ::
   forall r.
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error AuthenticationError,
+       Error ConversationError,
+       Error LegalHoldError,
+       Error NotATeamMember,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   UserId ->
   TeamId ->
-  UserId ->
+  Local UserId ->
   Public.DisableLegalHoldForUserRequest ->
-  Galley r DisableLegalHoldForUserResponse
-disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = do
-  Log.debug $
-    Log.field "targets" (toByteString uid)
+  Sem r DisableLegalHoldForUserResponse
+disableForUser zusr tid luid (Public.DisableLegalHoldForUserRequest mPassword) = do
+  P.debug $
+    Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.disableForUser")
-  zusrMembership <- Data.teamMember tid zusr
+  zusrMembership <- getTeamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
 
-  userLHStatus <- maybe defUserLegalHoldStatus (view legalHoldStatus) <$> Data.teamMember tid uid
+  userLHStatus <-
+    maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
   if not $ userLHEnabled userLHStatus
     then pure DisableLegalHoldWasNotEnabled
     else disableLH userLHStatus $> DisableLegalHoldSuccess
   where
-    disableLH :: UserLegalHoldStatus -> Galley r ()
+    disableLH :: UserLegalHoldStatus -> Sem r ()
     disableLH userLHStatus = do
       ensureReAuthorised zusr mPassword
-      Client.removeLegalHoldClientFromUser uid
-      LHService.removeLegalHold tid uid
+      removeLegalHoldClientFromUser (tUnqualified luid)
+      LHService.removeLegalHold tid (tUnqualified luid)
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
+      changeLegalholdStatus tid luid userLHStatus UserLegalHoldDisabled
 
 -- | Allow no-consent => consent without further changes.  If LH device is requested, enabled,
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       Error LegalHoldError,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       LegalHoldStore,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   TeamId ->
-  UserId ->
+  Local UserId ->
   UserLegalHoldStatus ->
   UserLegalHoldStatus ->
-  Galley r ()
-changeLegalholdStatus tid uid old new = do
+  Sem r ()
+changeLegalholdStatus tid luid old new = do
   case old of
     UserLegalHoldEnabled -> case new of
       UserLegalHoldEnabled -> noop
@@ -451,16 +794,26 @@ changeLegalholdStatus tid uid old new = do
       UserLegalHoldDisabled -> update
       UserLegalHoldNoConsent -> noop
   where
-    update = LegalHoldData.setUserLegalHoldStatus tid uid new
-    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+    update = LegalHoldData.setUserLegalHoldStatus tid (tUnqualified luid) new
+    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving (tUnqualified luid))
     addblocks = do
-      blockNonConsentingConnections uid
-      handleGroupConvPolicyConflicts uid new
+      blockNonConsentingConnections (tUnqualified luid)
+      handleGroupConvPolicyConflicts luid new
     noop = pure ()
-    illegal = throwM userLegalHoldIllegalOperation
+    illegal = throw UserLegalHoldIllegalOperation
 
 -- FUTUREWORK: make this async?
-blockNonConsentingConnections :: forall r. Member BrigAccess r => UserId -> Galley r ()
+blockNonConsentingConnections ::
+  forall r.
+  Members
+    '[ BrigAccess,
+       Error LegalHoldError,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  UserId ->
+  Sem r ()
 blockNonConsentingConnections uid = do
   conns <- getConnectionsUnqualified [uid] Nothing Nothing
   errmsgs <- do
@@ -469,36 +822,34 @@ blockNonConsentingConnections uid = do
   case mconcat errmsgs of
     [] -> pure ()
     msgs@(_ : _) -> do
-      Log.warn $ Log.msg @String msgs
-      throwM legalHoldCouldNotBlockConnections
+      P.warn $ Log.msg @String msgs
+      throw LegalHoldCouldNotBlockConnections
   where
-    findConflicts :: [ConnectionStatus] -> Galley r [[UserId]]
+    findConflicts :: [ConnectionStatus] -> Sem r [[UserId]]
     findConflicts conns = do
       let (FutureWork @'Public.LegalholdPlusFederationNotImplemented -> _remoteUids, localUids) = (undefined, csTo <$> conns)
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
-        teamsOfUsers <- Data.usersTeams others
+        teamsOfUsers <- getUsersTeams others
         filterM (fmap (== ConsentNotGiven) . checkConsent teamsOfUsers) others
 
-    blockConflicts :: UserId -> [UserId] -> Galley r [String]
+    blockConflicts :: UserId -> [UserId] -> Sem r [String]
     blockConflicts _ [] = pure []
     blockConflicts userLegalhold othersToBlock@(_ : _) = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-setTeamLegalholdWhitelisted :: TeamId -> Galley r ()
-setTeamLegalholdWhitelisted tid = do
-  LegalHoldData.setTeamLegalholdWhitelisted tid
+setTeamLegalholdWhitelisted :: Member LegalHoldStore r => TeamId -> Sem r ()
+setTeamLegalholdWhitelisted tid = LegalHoldData.setTeamLegalholdWhitelisted tid
 
-setTeamLegalholdWhitelistedH :: TeamId -> Galley r Response
+setTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r Response
 setTeamLegalholdWhitelistedH tid = do
   empty <$ setTeamLegalholdWhitelisted tid
 
-unsetTeamLegalholdWhitelisted :: TeamId -> Galley r ()
-unsetTeamLegalholdWhitelisted tid = do
-  LegalHoldData.unsetTeamLegalholdWhitelisted tid
+unsetTeamLegalholdWhitelisted :: Member LegalHoldStore r => TeamId -> Sem r ()
+unsetTeamLegalholdWhitelisted tid = LegalHoldData.unsetTeamLegalholdWhitelisted tid
 
-unsetTeamLegalholdWhitelistedH :: TeamId -> Galley r Response
+unsetTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r Response
 unsetTeamLegalholdWhitelistedH tid = do
   () <-
     error
@@ -507,9 +858,9 @@ unsetTeamLegalholdWhitelistedH tid = do
       \before you enable the end-point."
   setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
 
-getTeamLegalholdWhitelistedH :: TeamId -> Galley r Response
+getTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r Response
 getTeamLegalholdWhitelistedH tid = do
-  lhEnabled <- isTeamLegalholdWhitelisted tid
+  lhEnabled <- LegalHoldData.isTeamLegalholdWhitelisted tid
   pure $
     if lhEnabled
       then setStatus status200 empty
@@ -530,13 +881,26 @@ getTeamLegalholdWhitelistedH tid = do
 -- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
 -- one from the database.
 handleGroupConvPolicyConflicts ::
-  Members '[BotAccess, BrigAccess, ExternalAccess, FederatorAccess, FireAndForget, GundeckAccess] r =>
-  UserId ->
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       Error InvalidInput,
+       Error ConversationError,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       ListItems LegacyPaging ConvId,
+       MemberStore,
+       TeamStore
+     ]
+    r =>
+  Local UserId ->
   UserLegalHoldStatus ->
-  Galley r ()
-handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
+  Sem r ()
+handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
   void $
-    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+    iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
@@ -547,22 +911,22 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
             zipWith
               ( \mem (mid, status) ->
                   assert (lmId mem == mid) $
-                    if lmId mem == uid
+                    if lmId mem == tUnqualified luid
                       then (mem, hypotheticalLHStatus)
                       else (mem, status)
               )
               mems
               uidsLHStatus
 
-        lcnv <- qualifyLocal (Data.convId conv)
+        let lcnv = qualifyAs luid (Data.convId conv)
         if any
           ((== ConsentGiven) . consentGiven . snd)
           (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              lusr <- qualifyLocal (lmId memberNoConsent)
+              let lusr = qualifyAs luid (lmId memberNoConsent)
               removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              lusr <- qualifyLocal (lmId legalholder)
+              let lusr = qualifyAs luid (lmId legalholder)
               removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)

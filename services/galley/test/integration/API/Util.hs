@@ -71,7 +71,7 @@ import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types
 import qualified Galley.Types as Conv
-import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..))
+import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
@@ -128,7 +128,7 @@ import Wire.API.User.Identity (mkSimpleSampleUref)
 -------------------------------------------------------------------------------
 -- API Operations
 
--- | A class for monads with access to a Galley r instance
+-- | A class for monads with access to a Sem r instance
 class HasGalley m where
   viewGalley :: m GalleyR
   viewGalleyOpts :: m Opts.Opts
@@ -685,8 +685,8 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  FederatedBrig.Api (AsServerT Handler) ->
-  FederatedGalley.Api (AsServerT Handler) ->
+  (Domain -> FederatedBrig.Api (AsServerT Handler)) ->
+  (Domain -> FederatedGalley.Api (AsServerT Handler)) ->
   TestM (ResponseLBS, Mock.ReceivedRequests)
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
@@ -2209,7 +2209,6 @@ mkProfile quid name =
       profileDeleted = False,
       profileService = Nothing,
       profileHandle = Nothing,
-      profileLocale = Nothing,
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
@@ -2252,19 +2251,22 @@ withTempMockFederator' resp action = do
 
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  FederatedBrig.Api (AsServerT Handler) ->
-  FederatedGalley.Api (AsServerT Handler) ->
+  (Domain -> FederatedBrig.Api (AsServerT Handler)) ->
+  (Domain -> FederatedGalley.Api (AsServerT Handler)) ->
   Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
 withTempServantMockFederator brigApi galleyApi originDomain =
   withTempMockFederator' mock
   where
-    server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
-    server = genericServerT brigApi :<|> genericServerT galleyApi
+    server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
+    server d = genericServerT (brigApi d) :<|> genericServerT (galleyApi d)
 
     mock :: F.FederatedRequest -> IO F.OutwardResponse
-    mock = makeFedRequestToServant @(ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) originDomain server
+    mock req =
+      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (Domain (F.domain req))) req
+
+type CombinedBrigAndGalleyAPI = ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api
 
 makeFedRequestToServant ::
   forall (api :: *).
@@ -2462,20 +2464,56 @@ fedRequestsForDomain domain component =
             && fmap F.component (F.request req) == Just component
       )
 
+parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
+parseFedRequest fr =
+  case F.request fr of
+    Just r ->
+      (eitherDecode . cs) (F.body r)
+    Nothing -> Left "No request"
+
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
+assertJust (Just a) = pure a
+assertJust Nothing = liftIO $ assertFailure "Expected Just, got Nothing"
 
 iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM ResponseLBS
 iUpsertOne2OneConversation req = do
   galley <- view tsGalley
   post (galley . path "/i/conversations/one2one/upsert" . Bilge.json req)
 
+createOne2OneConvWithRemote :: HasCallStack => Local UserId -> Remote UserId -> TestM ()
+createOne2OneConvWithRemote localUser remoteUser = do
+  let mkRequest actor mConvId =
+        UpsertOne2OneConversationRequest
+          { uooLocalUser = localUser,
+            uooRemoteUser = remoteUser,
+            uooActor = actor,
+            uooActorDesiredMembership = Included,
+            uooConvId = mConvId
+          }
+  ooConvId <-
+    fmap uuorConvId . responseJsonError
+      =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
+      <!! const 200 === statusCode
+  iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
+    !!! const 200 === statusCode
+
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
-generateRemoteAndConvId shouldBeLocal lUserId = do
-  other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")
+
+generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
+generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
+  other <- Qualified <$> randomId <*> pure remoteDomain
   let convId = one2OneConvId (qUntagged lUserId) other
       isLocal = tDomain lUserId == qDomain convId
   if shouldBeLocal == isLocal
     then pure (qTagUnsafe other, convId)
-    else generateRemoteAndConvId shouldBeLocal lUserId
+    else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
+
+matchFedRequest :: Domain -> ByteString -> FederatedRequest -> Bool
+matchFedRequest domain reqpath req =
+  F.domain req == domainText domain
+    && fmap F.path (F.request req) == Just reqpath

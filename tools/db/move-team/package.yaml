@@ -24,7 +24,7 @@ dependencies:
 - cassandra-util
 - conduit
 - containers
-- cql
+- cassandra-util
 - filepath
 - galley
 - imports

@@ -24,20 +24,26 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.App (Galley)
-import qualified Galley.Data as Data
+import Galley.Data.Conversation
+import Galley.Effects.ConversationStore
+import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.UserList (UserList (..))
 import Imports
+import Polysemy
 
-iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> Galley r UpsertOne2OneConversationResponse
+iUpsertOne2OneConversation ::
+  forall r.
+  Members '[ConversationStore, MemberStore] r =>
+  UpsertOne2OneConversationRequest ->
+  Sem r UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
   let convId = fromMaybe (one2OneConvId (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooConvId
 
-  let dolocal :: Local ConvId -> Galley r ()
+  let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do
-        mbConv <- Data.conversation (tUnqualified lconvId)
+        mbConv <- getConversation (tUnqualified lconvId)
         case mbConv of
           Nothing -> do
             let members =
@@ -46,27 +52,36 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                     (LocalActor, Excluded) -> UserList [] []
                     (RemoteActor, Included) -> UserList [] [uooRemoteUser]
                     (RemoteActor, Excluded) -> UserList [] []
-            unless (null members) $
-              Data.createConnectConversationWithRemote lconvId uooLocalUser members
+            unless (null members) . void $
+              createConnectConversationWithRemote
+                (tUnqualified lconvId)
+                (tUnqualified uooLocalUser)
+                members
           Just conv -> do
             case (uooActor, uooActorDesiredMembership) of
               (LocalActor, Included) -> do
-                void $ Data.addMember lconvId uooLocalUser
-                unless (null (Data.convRemoteMembers conv)) $
-                  Data.acceptConnect (tUnqualified lconvId)
-              (LocalActor, Excluded) -> Data.removeMember (tUnqualified uooLocalUser) (tUnqualified lconvId)
+                void $ createMember lconvId uooLocalUser
+                unless (null (convRemoteMembers conv)) $
+                  acceptConnectConversation (tUnqualified lconvId)
+              (LocalActor, Excluded) ->
+                deleteMembers
+                  (tUnqualified lconvId)
+                  (UserList [tUnqualified uooLocalUser] [])
               (RemoteActor, Included) -> do
-                void $ Data.addMembers lconvId (UserList [] [uooRemoteUser])
-                unless (null (Data.convLocalMembers conv)) $
-                  Data.acceptConnect (tUnqualified lconvId)
-              (RemoteActor, Excluded) -> Data.removeRemoteMembersFromLocalConv (tUnqualified lconvId) (pure uooRemoteUser)
-      doremote :: Remote ConvId -> Galley r ()
+                void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
+                unless (null (convLocalMembers conv)) $
+                  acceptConnectConversation (tUnqualified lconvId)
+              (RemoteActor, Excluded) ->
+                deleteMembers
+                  (tUnqualified lconvId)
+                  (UserList [] [uooRemoteUser])
+      doremote :: Remote ConvId -> Sem r ()
       doremote rconvId =
         case (uooActor, uooActorDesiredMembership) of
           (LocalActor, Included) -> do
-            Data.addLocalMembersToRemoteConv rconvId [tUnqualified uooLocalUser]
+            createMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (LocalActor, Excluded) -> do
-            Data.removeLocalMembersFromRemoteConv rconvId [tUnqualified uooLocalUser]
+            deleteMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (RemoteActor, _) -> pure ()
 
   foldQualified uooLocalUser dolocal doremote convId

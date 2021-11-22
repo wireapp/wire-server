@@ -46,6 +46,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
+import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -86,7 +87,7 @@ import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley
   ( Api (onConversationUpdated),
-    ConversationUpdate (cuAction, cuAlreadyPresentUsers, cuOrigUserId),
+    ConversationUpdate (cuAction, cuAlreadyPresentUsers, cuConvId, cuOrigUserId),
     GetConversationsResponse (..),
     RemoteConvMembers (..),
     RemoteConversation (..),
@@ -583,9 +584,12 @@ postCryptoMessage5 = do
   where
     listToByteString = BS.intercalate "," . map toByteString'
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
--- users from Backend A will send the message, it is expected that message will
--- be sent successfully.
+-- | Sets up a conversation on Backend A known as "owning backend". All user's
+-- on this backend have names begining with 'A'. The conversation has a couple
+-- of users from backend B and one user from backend C.
+--
+-- One of the users from Backend A will send the message, it is expected that
+-- message will be sent successfully.
 postMessageQualifiedLocalOwningBackendSuccess :: TestM ()
 postMessageQualifiedLocalOwningBackendSuccess = do
   -- WS receive timeout
@@ -595,66 +599,123 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   -- Domain which owns the converstaion
   owningDomain <- viewFederationDomain
 
-  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
-  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
-  bobClient2 <- randomClient (qUnqualified bobOwningDomain) (someLastPrekeys !! 2)
-  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
-  deeId <- randomId
-  deeClient <- liftIO $ generate arbitrary
-  let remoteDomain = Domain "far-away.example.com"
-      deeRemote = Qualified deeId remoteDomain
+  (alice, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (alex, alexClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  alexClient2 <- randomClient (qUnqualified alex) (someLastPrekeys !! 2)
+  (amy, amyClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
 
-  let aliceUnqualified = qUnqualified aliceOwningDomain
-      bobUnqualified = qUnqualified bobOwningDomain
-      chadUnqualified = qUnqualified chadOwningDomain
+  let bDomain = Domain "b.far-away.example.com"
+      cDomain = Domain "c.far-away.example.com"
+      randomQuidAndClients d n = (,) <$> randomQualifiedId d <*> liftIO (replicateM n $ generate arbitrary)
+  (bob, [bobClient]) <- randomQuidAndClients bDomain 1
+  (bart, [bartClient1, bartClient2]) <- randomQuidAndClients bDomain 2
+  (carl, [carlClient]) <- randomQuidAndClients cDomain 1
 
-  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
-  connectWithRemoteUser aliceUnqualified deeRemote
+  let aliceU = qUnqualified alice
+      alexU = qUnqualified alex
+      amyU = qUnqualified amy
 
-  -- FUTUREWORK: Do this test with more than one remote domains
+  connectLocalQualifiedUsers aliceU (list1 alex [amy])
+  forM_ [bob, bart, carl] $ connectWithRemoteUser aliceU
+
   resp <-
     postConvWithRemoteUsers
-      aliceUnqualified
-      defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
+      aliceU
+      defNewConv {newConvQualifiedUsers = [alex, amy, bob, bart, carl]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
-  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+  WS.bracketAsClientRN cannon [(alexU, alexClient), (alexU, alexClient2), (amyU, amyClient)] $ \[wsAlex1, wsAlex2, wsAmy] -> do
     let message =
-          [ (bobOwningDomain, bobClient, "text-for-bob"),
-            (bobOwningDomain, bobClient2, "text-for-bob2"),
-            (chadOwningDomain, chadClient, "text-for-chad"),
-            (deeRemote, deeClient, "text-for-dee")
+          [ (alex, alexClient, "text-for-alex"),
+            (alex, alexClient2, "text-for-alex2"),
+            (amy, amyClient, "text-for-amy"),
+            (bob, bobClient, "text-for-bob"),
+            (bart, bartClient1, "text-for-bart1"),
+            (bart, bartClient2, "text-for-bart2"),
+            (carl, carlClient, "text-for-carl")
           ]
 
-    let brigApi =
+    let mkPubClient c = PubClient c Nothing
+        brigApi d =
           emptyFederatedBrig
             { FederatedBrig.getUserClients = \_ ->
-                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+                pure $
+                  if
+                      | d == bDomain ->
+                        UserMap . Map.fromList $
+                          [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
+                            (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
+                          ]
+                      | d == cDomain -> UserMap (Map.singleton (qUnqualified carl) (Set.singleton (PubClient carlClient Nothing)))
+                      | otherwise -> mempty
             }
-        galleyApi =
+        galleyApi _ =
           emptyFederatedGalley
             { FederatedGalley.onMessageSent = \_ _ -> pure ()
             }
 
-    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
-
+    let encodedTextForAlex1 = toBase64Text "text-for-alex"
+        encodedTextForAlex2 = toBase64Text "text-for-alex2"
+        encodedTextForAmy = toBase64Text "text-for-amy"
+        encodedTextForBob = toBase64Text "text-for-bob"
+        encodedTextForBart1 = toBase64Text "text-for-bart1"
+        encodedTextForBart2 = toBase64Text "text-for-bart2"
+        encodedTextForCarl = toBase64Text "text-for-carl"
+        encodedData = toBase64Text "data"
     liftIO $ do
-      let expectedRequests =
-            [ (F.Brig, "get-user-clients"),
-              (F.Galley, "on-message-sent")
-            ]
-      forM_ (zip requests expectedRequests) $ \(req, (component, rpcPath)) -> do
-        F.domain req @?= domainText (qDomain deeRemote)
-        fmap F.component (F.request req) @?= Just component
-        fmap F.path (F.request req) @?= Just ("/federation/" <> rpcPath)
-      let encodedTextForBob = toBase64Text "text-for-bob"
-          encodedTextForChad = toBase64Text "text-for-chad"
-          encodedData = toBase64Text "data"
-      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
-      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+      let matchReq domain component r = F.domain r == domainText domain && (F.component <$> F.request r) == Just component
+          filterReq domain component = filter (matchReq domain component) requests
+      bBrigReq <- assertOne $ filterReq bDomain F.Brig
+      bGalleyReq <- assertOne $ filterReq bDomain F.Galley
+      cBrigReq <- assertOne $ filterReq cDomain F.Brig
+      cGalleyReq <- assertOne $ filterReq cDomain F.Galley
+
+      (F.path <$> F.request bBrigReq) @?= Just "/federation/get-user-clients"
+      (sort . FederatedBrig.gucUsers <$> parseFedRequest bBrigReq) @?= Right (sort $ qUnqualified <$> [bob, bart])
+      (F.path <$> F.request cBrigReq) @?= Just "/federation/get-user-clients"
+      parseFedRequest cBrigReq @?= Right (FederatedBrig.GetUserClients [qUnqualified carl])
+
+      (F.path <$> F.request bGalleyReq) @?= Just "/federation/on-message-sent"
+      bActualNotif <- assertRight $ parseFedRequest bGalleyReq
+      let bExpectedNotif =
+            FederatedGalley.RemoteMessage
+              { rmTime = FederatedGalley.rmTime bActualNotif,
+                rmData = Just $ toBase64Text "data",
+                rmSender = alice,
+                rmSenderClient = aliceClient,
+                rmConversation = qUnqualified convId,
+                rmPriority = Nothing,
+                rmPush = True,
+                rmTransient = False,
+                rmRecipients =
+                  UserClientMap $
+                    Map.fromList
+                      [ (qUnqualified bob, Map.singleton bobClient encodedTextForBob),
+                        ( qUnqualified bart,
+                          Map.fromList
+                            [ (bartClient1, encodedTextForBart1),
+                              (bartClient2, encodedTextForBart2)
+                            ]
+                        )
+                      ]
+              }
+      bActualNotif @?= bExpectedNotif
+      (F.path <$> F.request cGalleyReq) @?= Just "/federation/on-message-sent"
+      cActualNotif <- assertRight $ parseFedRequest cGalleyReq
+      let cExpectedNotif =
+            bExpectedNotif
+              { FederatedGalley.rmRecipients =
+                  UserClientMap $ Map.fromList [(qUnqualified carl, Map.singleton carlClient encodedTextForCarl)]
+              }
+      cActualNotif @?= cExpectedNotif
+
+      WS.assertMatch_ t wsAlex1 (wsAssertOtr' encodedData convId alice aliceClient alexClient encodedTextForAlex1)
+      WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
+      WS.assertMatch_ t wsAmy (wsAssertOtr' encodedData convId alice aliceClient amyClient encodedTextForAmy)
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
@@ -694,12 +755,12 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
   -- FUTUREWORK: Mock federator and ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    let brigApi =
+    let brigApi _ =
           emptyFederatedBrig
             { FederatedBrig.getUserClients = \_ ->
                 pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
             }
-        galleyApi = emptyFederatedGalley
+        galleyApi _ = emptyFederatedGalley
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
@@ -771,7 +832,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           ]
 
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
-    let brigApi =
+    let brigApi _ =
           emptyFederatedBrig
             { FederatedBrig.getUserClients = \getUserClients ->
                 let lookupClients uid
@@ -780,7 +841,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
                       | otherwise = Nothing
                  in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ FederatedBrig.gucUsers getUserClients
             }
-        galleyApi =
+        galleyApi _ =
           emptyFederatedGalley
             { FederatedGalley.onMessageSent = \_ _ -> pure ()
             }
@@ -851,11 +912,11 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       defNewConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
-  let brigApi =
+  let brigApi _ =
         emptyFederatedBrig
           { FederatedBrig.getUserClients = \_ -> pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
           }
-      galleyApi = emptyFederatedGalley
+      galleyApi _ = emptyFederatedGalley
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
@@ -984,12 +1045,12 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             (deeRemote, deeClient, "text-for-dee")
           ]
 
-    let brigApi =
+    let brigApi _ =
           emptyFederatedBrig
             { FederatedBrig.getUserClients = \_ ->
                 pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
             }
-        galleyApi =
+        galleyApi _ =
           emptyFederatedGalley
             { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
             }
@@ -1023,13 +1084,13 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   let remoteDomain = Domain "far-away.example.com"
       convId = Qualified convIdUnqualified remoteDomain
 
-  let galleyApi =
+  let galleyApi _ =
         emptyFederatedGalley
           { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
           }
 
   (resp2, _requests) <-
-    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll emptyFederatedBrig galleyApi
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll (const emptyFederatedBrig) galleyApi
 
   pure resp2 !!! do
     const 533 === statusCode
@@ -1063,13 +1124,13 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
             Message.mssFailedToSend = mempty
           }
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
-      galleyApi =
+      galleyApi _ =
         emptyFederatedGalley
           { FederatedGalley.sendMessage = \_ _ -> pure (FederatedGalley.MessageSendResponse (Right mss))
           }
 
   (resp2, _requests) <-
-    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll emptyFederatedBrig galleyApi
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll (const emptyFederatedBrig) galleyApi
 
   pure resp2 !!! do
     const 201 === statusCode
@@ -2001,8 +2062,8 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let brigApi = emptyFederatedBrig
-      galleyApi =
+  let brigApi _ = emptyFederatedBrig
+      galleyApi _ =
         emptyFederatedGalley
           { onConversationUpdated = \_domain _update -> pure ()
           }
@@ -2015,20 +2076,13 @@ testDeleteTeamConversationWithRemoteMembers = do
       !!! const 200 === statusCode
 
   liftIO $ do
-    let convUpdates = mapMaybe parseFedRequest received
-    convUpdate <- case (filter ((== ConversationActionDelete) . cuAction) convUpdates) of
+    let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
+    convUpdate <- case filter ((== ConversationActionDelete) . cuAction) convUpdates of
       [] -> assertFailure "No ConversationUpdate requests received"
       [convDelete] -> pure convDelete
       _ -> assertFailure "Multiple ConversationUpdate requests received"
     cuAlreadyPresentUsers convUpdate @?= [bobId]
     cuOrigUserId convUpdate @?= qalice
-  where
-    parseFedRequest :: FromJSON a => F.FederatedRequest -> Maybe a
-    parseFedRequest fr =
-      case F.request fr of
-        Just r ->
-          (decode . cs) (F.body r)
-        Nothing -> Nothing
 
 testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
@@ -2210,8 +2264,8 @@ testBulkGetQualifiedConvs = do
     let expectedFound =
           sortOn
             cnvQualifiedId
-            $ maybeToList (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
-              <> maybeToList (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
+            $ pure (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              <> pure (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
               <> [localConv]
         actualFound = sortOn cnvQualifiedId $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
@@ -3144,24 +3198,35 @@ removeUser = do
   c <- view tsCannon
   [alice, alexDel, amy] <- replicateM 3 randomQualifiedUser
   let [alice', alexDel', amy'] = qUnqualified <$> [alice, alexDel, amy]
+
   let bDomain = Domain "b.example.com"
   bart <- randomQualifiedId bDomain
+  berta <- randomQualifiedId bDomain
+
   let cDomain = Domain "c.example.com"
   carl <- randomQualifiedId cDomain
 
+  let dDomain = Domain "d.example.com"
+  dwight <- randomQualifiedId dDomain
+  dory <- randomQualifiedId dDomain
+
   connectUsers alice' (list1 alexDel' [amy'])
   connectWithRemoteUser alice' bart
+  connectWithRemoteUser alice' berta
   connectWithRemoteUser alexDel' bart
   connectWithRemoteUser alice' carl
   connectWithRemoteUser alexDel' carl
+  connectWithRemoteUser alice' dwight
+  connectWithRemoteUser alexDel' dory
 
   convA1 <- decodeConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
-  convA2 <- decodeConvId <$> postConv alice' [alexDel', amy'] (Just "gossip2") [] Nothing Nothing
+  convA2 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, amy, berta, dwight]}
   convA3 <- decodeConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
   convA4 <- decodeConvId <$> postConvWithRemoteUsers alice' defNewConv {newConvQualifiedUsers = [alexDel, bart, carl]}
   convB1 <- randomId -- a remote conversation at 'bDomain' that Alice, AlexDel and Bart will be in
   convB2 <- randomId -- a remote conversation at 'bDomain' that AlexDel and Bart will be in
   convC1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Carl will be in
+  convD1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Dory will be in
   let qconvA1 = Qualified convA1 (qDomain alexDel)
       qconvA2 = Qualified convA2 (qDomain alexDel)
 
@@ -3183,36 +3248,92 @@ removeUser = do
   FederatedGalley.onConversationCreated fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
   FederatedGalley.onConversationCreated fedGalleyClient bDomain $ nc convB2 bart [alexDel]
   FederatedGalley.onConversationCreated fedGalleyClient cDomain $ nc convC1 carl [alexDel]
+  FederatedGalley.onConversationCreated fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
+    let handler :: F.FederatedRequest -> IO F.OutwardResponse
+        handler freq@(Domain . F.domain -> domain)
+          | domain == dDomain =
+            pure
+              ( F.OutwardResponseError
+                  ( F.OutwardError
+                      F.ConnectionRefused
+                      "mocked: dDomain is unavailable"
+                  )
+              )
+          | domain `elem` [bDomain, cDomain] =
+            case F.path <$> F.request freq of
+              (Just "/federation/leave-conversation") ->
+                pure (F.OutwardResponseBody (cs (encode (FederatedGalley.LeaveConversationResponse (Right ())))))
+              (Just "federation/on-conversation-updated") ->
+                pure (F.OutwardResponseBody (cs (encode ())))
+              other -> error $ "unmocked path " <> show other
+          | otherwise = error "unmocked domain"
+
     (_, fedRequests) <-
-      withTempMockFederator (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
+      withTempMockFederator' handler $
         deleteUser alexDel' !!! const 200 === statusCode
 
-    -- FUTUTREWORK: There should be 4 requests, one to each domain for telling
-    -- them that alex left the conversation hosted locally. Add assertions for
-    -- that and implement it.
     liftIO $ do
-      assertEqual ("expect exactly 2 federated requests in : " <> show fedRequests) 2 (length fedRequests)
-    bReq <- assertOne $ filter (\req -> F.domain req == domainText bDomain) fedRequests
-    cReq <- assertOne $ filter (\req -> F.domain req == domainText cDomain) fedRequests
+      assertEqual ("expect exactly 7 federated requests in : " <> show fedRequests) 7 (length fedRequests)
+
     liftIO $ do
+      bReq <- assertOne $ filter (matchFedRequest bDomain "/federation/on-user-deleted/conversations") fedRequests
       fmap F.component (F.request bReq) @?= Just F.Galley
       fmap F.path (F.request bReq) @?= Just "/federation/on-user-deleted/conversations"
       Just (Right udcnB) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request bReq)
       sort (fromRange (FederatedGalley.udcnConversations udcnB)) @?= sort [convB1, convB2]
       FederatedGalley.udcnUser udcnB @?= qUnqualified alexDel
 
-      fmap F.component (F.request bReq) @?= Just F.Galley
+    liftIO $ do
+      cReq <- assertOne $ filter (matchFedRequest cDomain "/federation/on-user-deleted/conversations") fedRequests
+      fmap F.component (F.request cReq) @?= Just F.Galley
       fmap F.path (F.request cReq) @?= Just "/federation/on-user-deleted/conversations"
       Just (Right udcnC) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cReq)
       sort (fromRange (FederatedGalley.udcnConversations udcnC)) @?= sort [convC1]
       FederatedGalley.udcnUser udcnC @?= qUnqualified alexDel
 
+    liftIO $ do
+      dReq <- assertOne $ filter (matchFedRequest dDomain "/federation/on-user-deleted/conversations") fedRequests
+      fmap F.component (F.request dReq) @?= Just F.Galley
+      fmap F.path (F.request dReq) @?= Just "/federation/on-user-deleted/conversations"
+      Just (Right udcnD) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request dReq)
+      sort (fromRange (FederatedGalley.udcnConversations udcnD)) @?= sort [convD1]
+      FederatedGalley.udcnUser udcnD @?= qUnqualified alexDel
+
+    liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
         wsAssertMembersLeave qconvA1 alexDel [alexDel]
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel, wsAmy] $
         wsAssertMembersLeave qconvA2 alexDel [alexDel]
+
+    liftIO $ do
+      let bConvUpdateRPCs = filter (matchFedRequest bDomain "/federation/on-conversation-updated") fedRequests
+      bConvUpdatesEither :: [Either String ConversationUpdate] <- eitherDecode . LBS.fromStrict . F.body <$$> mapM (assertJust . F.request) bConvUpdateRPCs
+      bConvUpdates <- mapM assertRight bConvUpdatesEither
+
+      bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
+      cuAction bConvUpdatesA2 @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
+
+      bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
+      cuAction bConvUpdatesA4 @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
+
+    liftIO $ do
+      cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "/federation/on-conversation-updated") fedRequests
+      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request cConvUpdateRPC)
+      cuConvId convUpdate @?= convA4
+      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
+
+    liftIO $ do
+      dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "/federation/on-conversation-updated") fedRequests
+      Just (Right convUpdate) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request dConvUpdateRPC)
+      cuConvId convUpdate @?= convA2
+      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
+
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA1
   mems2 <- fmap cnvMembers . responseJsonError =<< getConv alice' convA2

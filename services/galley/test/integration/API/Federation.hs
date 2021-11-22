@@ -22,7 +22,7 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens hiding ((#))
-import Data.Aeson (FromJSON, ToJSON (..), eitherDecode)
+import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
@@ -88,27 +88,42 @@ tests s =
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
-  bob <- randomUser
-
-  -- create & get group conv
-  aliceQ <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  bobQ <- randomQualifiedUser
+  let bob = qUnqualified bobQ
+      lBob = toLocalUnsafe (qDomain bobQ) (qUnqualified bobQ)
+  (rAlice, cnv1Id) <- generateRemoteAndConvId True lBob
+  let aliceQ = qUntagged rAlice
   carlQ <- randomQualifiedUser
 
   connectUsers bob (singleton (qUnqualified carlQ))
   connectWithRemoteUser bob aliceQ
 
+  -- create & get group conv
   cnv2 <-
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
         defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
-  getConvs bob (Just $ Left [qUnqualified (cnvQualifiedId cnv2)]) Nothing !!! do
-    const 200 === statusCode
-    const (Just (Just [cnvQualifiedId cnv2]))
-      === fmap (fmap (map cnvQualifiedId . convList)) . responseJsonMaybe
+  -- create a one-to-one conversation between bob and alice
+  do
+    let createO2O =
+          UpsertOne2OneConversationRequest
+            { uooLocalUser = lBob,
+              uooRemoteUser = rAlice,
+              uooActor = LocalActor,
+              uooActorDesiredMembership = Included,
+              uooConvId = Just cnv1Id
+            }
+    UpsertOne2OneConversationResponse cnv1IdReturned <-
+      responseJsonError
+        =<< iUpsertOne2OneConversation createO2O
+    liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
 
-  -- FUTUREWORK: also create a one2one conversation
+  getConvs bob (Just . Left . fmap qUnqualified $ [cnv1Id, cnvQualifiedId cnv2]) Nothing !!! do
+    const 200 === statusCode
+    const (Just . Just . sort $ [cnv1Id, cnvQualifiedId cnv2])
+      === fmap (fmap (sort . map cnvQualifiedId . convList)) . responseJsonMaybe
 
   -- get conversations
 
@@ -119,7 +134,7 @@ getConversationsAllFound = do
       (qDomain aliceQ)
       ( GetConversationsRequest
           (qUnqualified aliceQ)
-          (map (qUnqualified . cnvQualifiedId) [cnv2])
+          (map qUnqualified [cnv1Id, cnvQualifiedId cnv2])
       )
 
   let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . rcnvId) convs
@@ -854,49 +869,48 @@ sendMessage = do
     Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
       @?= Set.singleton chadId
 
+-- | There are 3 backends in action here:
+--
+-- - Backend A (local) has Alice and Alex
+-- - Backend B has Bob and Bart
+-- - Backend C has Carl
+--
+-- Bob is in these convs:
+-- - One2One Conv with Alice (ooConvId)
+-- - Group conv with all users (groupConvId)
+--
+-- When bob gets deleted, backend A gets an RPC from bDomain stating that bob is
+-- deleted and they would like bob to leave these converstaions:
+-- - ooConvId -> Causes Alice to be notified
+-- - groupConvId -> Causes Alice and Alex to be notified
+-- - extraConvId -> Ignored
+-- - noBobConvId -> Ignored
 onUserDeleted :: TestM ()
 onUserDeleted = do
   cannon <- view tsCannon
-  let eveDomain = Domain "eve.example.com"
+  let bDomain = Domain "b.far-away.example.com"
+      cDomain = Domain "c.far-away.example.com"
 
   alice <- qTagUnsafe <$> randomQualifiedUser
-  (bob, ooConvId) <- generateRemoteAndConvId True alice
-  let bobDomain = tDomain bob
-  charlie <- randomQualifiedUser
-  dee <- randomQualifiedId bobDomain
-  eve <- randomQualifiedId eveDomain
+  alex <- randomQualifiedUser
+  (bob, ooConvId) <- generateRemoteAndConvIdWithDomain bDomain True alice
+  bart <- randomQualifiedId bDomain
+  carl <- randomQualifiedId cDomain
 
   connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
-  connectUsers (tUnqualified alice) (pure (qUnqualified charlie))
-  connectWithRemoteUser (tUnqualified alice) dee
-  connectWithRemoteUser (tUnqualified alice) eve
+  connectUsers (tUnqualified alice) (pure (qUnqualified alex))
+  connectWithRemoteUser (tUnqualified alice) bart
+  connectWithRemoteUser (tUnqualified alice) carl
 
   -- create 1-1 conversation between alice and bob
-  iUpsertOne2OneConversation
-    UpsertOne2OneConversationRequest
-      { uooLocalUser = alice,
-        uooRemoteUser = bob,
-        uooActor = LocalActor,
-        uooActorDesiredMembership = Included,
-        uooConvId = Nothing
-      }
-    !!! const 200 === statusCode
-  iUpsertOne2OneConversation
-    UpsertOne2OneConversationRequest
-      { uooLocalUser = alice,
-        uooRemoteUser = bob,
-        uooActor = RemoteActor,
-        uooActorDesiredMembership = Included,
-        uooConvId = Just ooConvId
-      }
-    !!! const 200 === statusCode
+  createOne2OneConvWithRemote alice bob
 
   -- create group conversation with everybody
   groupConvId <-
     decodeQualifiedConvId
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
-              defNewConv {newConvQualifiedUsers = [qUntagged bob, charlie, dee, eve]}
+              defNewConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
               <!! const 201 === statusCode
           )
 
@@ -905,12 +919,11 @@ onUserDeleted = do
 
   -- conversation without bob
   noBobConvId <-
-    decodeQualifiedConvId
-      <$> ( postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [charlie]}
-              <!! const 201 === statusCode
-          )
+    fmap decodeQualifiedConvId $
+      postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [alex]}
+        <!! const 201 === statusCode
 
-  WS.bracketR2 cannon (tUnqualified alice) (qUnqualified charlie) $ \(wsAlice, wsCharlie) -> do
+  WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do
     (resp, rpcCalls) <- withTempMockFederator (const ()) $ do
       let udcn =
             FedGalley.UserDeletedConversationsNotification
@@ -942,44 +955,37 @@ onUserDeleted = do
 
       -- Assert that bob gets removed from the conversation
       cmOthers (cnvMembers ooConvAfterDel) @?= []
-      sort (map omQualifiedId (cmOthers (cnvMembers groupConvAfterDel))) @?= sort [charlie, dee, eve]
+      sort (map omQualifiedId (cmOthers (cnvMembers groupConvAfterDel))) @?= sort [alex, bart, carl]
 
       -- Assert that local user's get notifications only for the conversation
       -- bob was part of and it wasn't a One2OneConv
       void . WS.assertMatch (3 # Second) wsAlice $
         wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
-      void . WS.assertMatch (3 # Second) wsCharlie $
+      void . WS.assertMatch (3 # Second) wsAlex $
         wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
       -- Alice shouldn't get any other notifications because we don't notify
       -- on One2One convs.
       --
-      -- Charlie shouldn't get any other notifications because charlie was
+      -- Alex shouldn't get any other notifications because alex was
       -- not part of any other conversations with bob.
-      WS.assertNoEvent (1 # Second) [wsAlice, wsCharlie]
+      WS.assertNoEvent (1 # Second) [wsAlice, wsAlex]
 
       -- There should be only 2 RPC calls made only for groupConvId: 1 for bob's
       -- domain and 1 for eve's domain
-      length rpcCalls @?= 2
+      assertEqual ("Expected 2 RPC calls, got: " <> show rpcCalls) 2 (length rpcCalls)
 
-      -- Assertions about RPC to Bob's domain
-      bobDomainRPC <- assertOne $ filter (\c -> F.domain c == domainText bobDomain) rpcCalls
+      -- Assertions about RPC to bDomain
+      bobDomainRPC <- assertOne $ filter (\c -> F.domain c == domainText bDomain) rpcCalls
       bobDomainRPCReq <- assertRight $ parseFedRequest bobDomainRPC
       FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
-      sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified dee]
+      sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
       FedGalley.cuAction bobDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
 
-      -- Assertions about RPC to Eve's domain
-      eveDomainRPC <- assertOne $ filter (\c -> F.domain c == domainText eveDomain) rpcCalls
-      eveDomainRPCReq <- assertRight $ parseFedRequest eveDomainRPC
-      FedGalley.cuOrigUserId eveDomainRPCReq @?= qUntagged bob
-      FedGalley.cuConvId eveDomainRPCReq @?= qUnqualified groupConvId
-      FedGalley.cuAlreadyPresentUsers eveDomainRPCReq @?= [qUnqualified eve]
-      FedGalley.cuAction eveDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
-  where
-    parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
-    parseFedRequest fr =
-      case F.request fr of
-        Just r ->
-          (eitherDecode . cs) (F.body r)
-        Nothing -> Left "No request"
+      -- Assertions about RPC to 'cDomain'
+      cDomainRPC <- assertOne $ filter (\c -> F.domain c == domainText cDomain) rpcCalls
+      cDomainRPCReq <- assertRight $ parseFedRequest cDomainRPC
+      FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
+      FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
+      FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
+      FedGalley.cuAction cDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)

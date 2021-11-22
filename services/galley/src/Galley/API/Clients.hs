@@ -22,38 +22,48 @@ module Galley.API.Clients
   )
 where
 
-import Control.Lens (view)
 import Data.Id
-import Galley.App
-import qualified Galley.Data as Data
 import Galley.Effects
-import qualified Galley.Intra.Client as Intra
-import Galley.Options
+import qualified Galley.Effects.BrigAccess as E
+import qualified Galley.Effects.ClientStore as E
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Polysemy
 
-getClientsH :: Member BrigAccess r => UserId -> Galley r Response
+getClientsH ::
+  Members '[BrigAccess, ClientStore] r =>
+  UserId ->
+  Sem r Response
 getClientsH usr = do
   json <$> getClients usr
 
-getClients :: Member BrigAccess r => UserId -> Galley r [ClientId]
+getClients ::
+  Members '[BrigAccess, ClientStore] r =>
+  UserId ->
+  Sem r [ClientId]
 getClients usr = do
-  isInternal <- view $ options . optSettings . setIntraListing
+  isInternal <- E.useIntraClientListing
   clts <-
     if isInternal
-      then fromUserClients <$> Intra.lookupClients [usr]
-      else Data.lookupClients [usr]
+      then fromUserClients <$> E.lookupClients [usr]
+      else E.getClients [usr]
   return $ clientIds usr clts
 
-addClientH :: UserId ::: ClientId -> Galley r Response
+addClientH ::
+  Member ClientStore r =>
+  UserId ::: ClientId ->
+  Sem r Response
 addClientH (usr ::: clt) = do
-  Data.updateClient True usr clt
+  E.createClient usr clt
   return empty
 
-rmClientH :: UserId ::: ClientId -> Galley r Response
+rmClientH ::
+  Member ClientStore r =>
+  UserId ::: ClientId ->
+  Sem r Response
 rmClientH (usr ::: clt) = do
-  Data.updateClient False usr clt
+  E.deleteClient usr clt
   return empty

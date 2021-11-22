@@ -6,14 +6,17 @@ let
 
       src =
         if pkgs.stdenv.isDarwin
-        then pkgs.fetchurl {
-          url = darwinAmd64Url;
-          sha256 = darwinAmd64Sha256;
-        }
-        else pkgs.fetchurl {
-          url = linuxAmd64Url;
-          sha256 = linuxAmd64Sha256;
-        };
+        then
+          pkgs.fetchurl
+            {
+              url = darwinAmd64Url;
+              sha256 = darwinAmd64Sha256;
+            }
+        else
+          pkgs.fetchurl {
+            url = linuxAmd64Url;
+            sha256 = linuxAmd64Sha256;
+          };
 
       installPhase = ''
         mkdir -p $out/bin
@@ -21,28 +24,31 @@ let
       '';
     };
 
-    staticBinary = { pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
-      pkgs.stdenv.mkDerivation {
-        inherit pname version;
+  staticBinary = { pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
+    pkgs.stdenv.mkDerivation {
+      inherit pname version;
 
-        src =
-          if pkgs.stdenv.isDarwin
-          then pkgs.fetchurl {
-            url = darwinAmd64Url;
-            sha256 = darwinAmd64Sha256;
-          }
-          else pkgs.fetchurl {
+      src =
+        if pkgs.stdenv.isDarwin
+        then
+          pkgs.fetchurl
+            {
+              url = darwinAmd64Url;
+              sha256 = darwinAmd64Sha256;
+            }
+        else
+          pkgs.fetchurl {
             url = linuxAmd64Url;
             sha256 = linuxAmd64Sha256;
           };
-        phases = ["installPhase" "patchPhase"];
+      phases = [ "installPhase" "patchPhase" ];
 
-        installPhase = ''
-          mkdir -p $out/bin
-          cp $src $out/bin/${binPath}
-          chmod +x $out/bin/${binPath}
-        '';
-      };
+      installPhase = ''
+        mkdir -p $out/bin
+        cp $src $out/bin/${binPath}
+        chmod +x $out/bin/${binPath}
+      '';
+    };
 
   pinned = {
     stack = staticBinaryInTarball {
@@ -102,18 +108,70 @@ let
       linuxAmd64Sha256 = "949f81b3c30ca03a3d4effdecda04f100fa3edc07a28b19400f72ede7c5f0491";
     };
   };
+
+  compile-deps = pkgs.buildEnv {
+    name = "wire-server-compile-deps";
+    paths = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.gnused
+      pkgs.gnugrep
+      pkgs.pkgconfig
+      pkgs.gawk
+      pkgs.git
+
+      pkgs.haskell.compiler.ghc884
+      pkgs.protobuf
+
+      pkgs.cryptobox
+      pkgs.geoip
+      pkgs.icu.dev
+      pkgs.icu.out
+      pkgs.libsodium.dev
+      pkgs.libsodium.out
+      pkgs.libxml2.dev
+      pkgs.libxml2.out
+      pkgs.ncurses.dev
+      pkgs.ncurses.out
+      pkgs.openssl.dev
+      pkgs.openssl.out
+      pkgs.pcre.dev
+      pkgs.pcre.out
+      pkgs.snappy.dev
+      pkgs.snappy.out
+      pkgs.zlib.dev
+      pkgs.zlib.out
+      pkgs.lzma.dev
+      pkgs.lzma.out
+    ];
+  };
+
+  # This performs roughly the same setup as direnv's load_prefix function, but
+  # only when invoking cabal. This means that we can set LD_LIBRARY_PATH just
+  # for cabal, as setting it in direnv can interfere with programs in the host
+  # system, especially for non-NixOS users.
+  cabal-wrapper = pkgs.writeShellScriptBin "cabal" ''
+    export CPATH="${compile-deps}/include"
+    export LD_LIBRARY_PATH="${compile-deps}/lib"
+    export LIBRARY_PATH="${compile-deps}/lib"
+    export PKG_CONFIG_PATH="${compile-deps}/lib/pkgconfig"
+    export PATH="${compile-deps}/bin"
+    exec "${pkgs.cabal-install}/bin/cabal" "$@"
+  '';
 in pkgs.buildEnv {
   name = "wire-server-direnv";
   paths = [
+    pkgs.cfssl
     pkgs.docker-compose
     pkgs.gnumake
-    pkgs.haskell-language-server
-    pkgs.telepresence
-    pkgs.jq
     pkgs.grpcurl
+    pkgs.haskell-language-server
+    pkgs.jq
+    pkgs.ormolu
+    pkgs.telepresence
     pkgs.wget
-    pkgs.cfssl
     pkgs.yq
+    pkgs.rsync
 
     # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
     pkgs.buildah
@@ -123,6 +181,12 @@ in pkgs.buildEnv {
     pinned.helmfile
     pinned.kubectl
     pinned.kind
+
+    # For cabal-migration
+    pkgs.haskellPackages.cabal-plan
+
+    # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
+    # which sets LD_LIBRARY_PATH and others correctly.
+    cabal-wrapper
   ];
 }
-

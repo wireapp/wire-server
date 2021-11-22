@@ -581,7 +581,7 @@ lookupIndexUser u =
 
 lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
 lookupForIndex u = do
-  result <- C.retry C.x1 (C.query1 cql (C.params C.Quorum (Identity u)))
+  result <- C.retry C.x1 (C.query1 cql (C.params C.LocalQuorum (Identity u)))
   sequence $ reindexRowToIndexUser <$> result
   where
     cql :: C.PrepQuery C.R (Identity UserId) ReindexRow

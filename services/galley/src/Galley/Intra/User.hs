@@ -17,45 +17,50 @@
 
 module Galley.Intra.User
   ( getConnections,
-    getConnectionsUnqualified0,
     getConnectionsUnqualified,
     putConnectionInternal,
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
-    getUser,
     getUsers,
     deleteUser,
     getContactList,
     chunkify,
     getRichInfoMultiUser,
-
-    -- * Internal
-    deleteBot0,
+    getAccountFeatureConfigClient,
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Connection (Relation (..), UpdateConnectionsInternal (..), UserIds (..))
-import Brig.Types.Intra
+import qualified Brig.Types.Intra as Brig
 import Brig.Types.User (User)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.Qualified
-import Galley.App
-import Galley.Effects
+import Data.String.Conversions
+import Galley.API.Error
+import Galley.Env
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Servant.API ((:<|>) ((:<|>)))
+import qualified Servant.Client as Client
+import Util.Options
+import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team.Feature
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -65,24 +70,14 @@ import Wire.API.User.RichInfo (RichInfo)
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
 getConnectionsUnqualified ::
-  Member BrigAccess r =>
   [UserId] ->
   Maybe [UserId] ->
   Maybe Relation ->
-  Galley r [ConnectionStatus]
-getConnectionsUnqualified uFrom uTo rlt =
-  liftGalley0 $ getConnectionsUnqualified0 uFrom uTo rlt
-
-getConnectionsUnqualified0 ::
-  [UserId] ->
-  Maybe [UserId] ->
-  Maybe Relation ->
-  Galley0 [ConnectionStatus]
-getConnectionsUnqualified0 uFrom uTo rlt = do
-  (h, p) <- brigReq
+  App [ConnectionStatus]
+getConnectionsUnqualified uFrom uTo rlt = do
   r <-
-    call0 "brig" $
-      method POST . host h . port p
+    call Brig $
+      method POST
         . path "/i/users/connections-status"
         . maybe id rfilter rlt
         . json ConnectionsStatusRequest {csrFrom = uFrom, csrTo = uTo}
@@ -97,53 +92,57 @@ getConnectionsUnqualified0 uFrom uTo rlt = do
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatus'.
-getConnections :: Member BrigAccess r => [UserId] -> Maybe [Qualified UserId] -> Maybe Relation -> Galley r [ConnectionStatusV2]
+getConnections ::
+  [UserId] ->
+  Maybe [Qualified UserId] ->
+  Maybe Relation ->
+  App [ConnectionStatusV2]
 getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
-  (h, p) <- brigReq
   r <-
-    callBrig $
-      method POST . host h . port p
+    call Brig $
+      method POST
         . path "/i/users/connections-status/v2"
         . json (ConnectionsStatusRequestV2 uFrom uTo rlt)
         . expect2xx
   parseResponse (mkError status502 "server-error") r
 
-putConnectionInternal :: Member BrigAccess r => UpdateConnectionsInternal -> Galley r Status
+putConnectionInternal ::
+  UpdateConnectionsInternal ->
+  App Status
 putConnectionInternal updateConn = do
-  (h, p) <- brigReq
   response <-
-    callBrig $
-      method PUT . host h . port p
+    call Brig $
+      method PUT
         . paths ["/i/connections/connection-update"]
         . json updateConn
   pure $ responseStatus response
 
-deleteBot0 :: ConvId -> BotId -> Galley0 ()
-deleteBot0 cid bot = do
-  (h, p) <- brigReq
+deleteBot ::
+  ConvId ->
+  BotId ->
+  App ()
+deleteBot cid bot = do
   void $
-    call0 "brig" $
-      method DELETE . host h . port p
+    call Brig $
+      method DELETE
         . path "/bot/self"
         . header "Z-Type" "bot"
         . header "Z-Bot" (toByteString' bot)
         . header "Z-Conversation" (toByteString' cid)
         . expect2xx
 
--- | Calls 'Brig.Provider.API.botGetSelfH'.
-deleteBot :: Member BotAccess r => ConvId -> BotId -> Galley r ()
-deleteBot cid bot = liftGalley0 $ deleteBot0 cid bot
-
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
-reAuthUser :: Member BrigAccess r => UserId -> ReAuthUser -> Galley r Bool
+reAuthUser ::
+  UserId ->
+  Brig.ReAuthUser ->
+  App Bool
 reAuthUser uid auth = do
-  (h, p) <- brigReq
   let req =
-        method GET . host h . port p
+        method GET
           . paths ["/i/users", toByteString' uid, "reauthenticate"]
           . json auth
-  st <- statusCode . responseStatus <$> callBrig (check [status200, status403] . req)
+  st <- statusCode . responseStatus <$> call Brig (check [status200, status403] . req)
   return $ st == 200
 
 check :: [Status] -> Request -> Request
@@ -156,13 +155,12 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: Member BrigAccess r => [UserId] -> Galley r [User]
+lookupActivatedUsers :: [UserId] -> App [User]
 lookupActivatedUsers = chunkify $ \uids -> do
-  (h, p) <- brigReq
   let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
-    callBrig $
-      method GET . host h . port p
+    call Brig $
+      method GET
         . path "/i/users"
         . queryItem "ids" users
         . expect2xx
@@ -183,50 +181,69 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUser :: Member BrigAccess r => UserId -> Galley r (Maybe UserAccount)
-getUser uid = listToMaybe <$> getUsers [uid]
-
--- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: Member BrigAccess r => [UserId] -> Galley r [UserAccount]
+getUsers :: [UserId] -> App [Brig.UserAccount]
 getUsers = chunkify $ \uids -> do
-  (h, p) <- brigReq
   resp <-
-    callBrig $
-      method GET . host h . port p
+    call Brig $
+      method GET
         . path "/i/users"
         . queryItem "ids" (BSC.intercalate "," (toByteString' <$> uids))
         . expect2xx
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
-deleteUser :: Member BrigAccess r => UserId -> Galley r ()
+deleteUser :: UserId -> App ()
 deleteUser uid = do
-  (h, p) <- brigReq
   void $
-    callBrig $
-      method DELETE . host h . port p
+    call Brig $
+      method DELETE
         . paths ["/i/users", toByteString' uid]
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList :: Member BrigAccess r => UserId -> Galley r [UserId]
+getContactList :: UserId -> App [UserId]
 getContactList uid = do
-  (h, p) <- brigReq
   r <-
-    callBrig $
-      method GET . host h . port p
+    call Brig $
+      method GET
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: Member BrigAccess r => [UserId] -> Galley r [(UserId, RichInfo)]
+getRichInfoMultiUser :: [UserId] -> App [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
-  (h, p) <- brigReq
   resp <-
-    callBrig $
-      method GET . host h . port p
+    call Brig $
+      method GET
         . paths ["/i/users/rich-info"]
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
+
+getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
+getAccountFeatureConfigClient uid =
+  runHereClientM (getAccountFeatureConfigClientM uid)
+    >>= handleResp
+  where
+    handleResp ::
+      Either Client.ClientError TeamFeatureStatusNoConfig ->
+      App TeamFeatureStatusNoConfig
+    handleResp (Right cfg) = pure cfg
+    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+
+getAccountFeatureConfigClientM ::
+  UserId -> Client.ClientM TeamFeatureStatusNoConfig
+( _
+    :<|> getAccountFeatureConfigClientM
+    :<|> _
+    :<|> _
+  ) = Client.client (Proxy @IAPI.API)
+
+runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
+runHereClientM action = do
+  mgr <- view manager
+  brigep <- view brig
+  let env = Client.mkClientEnv mgr baseurl
+      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+  liftIO $ Client.runClientM action env

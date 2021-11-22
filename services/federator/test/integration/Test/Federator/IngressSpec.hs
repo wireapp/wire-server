@@ -19,6 +19,7 @@ module Test.Federator.IngressSpec where
 
 import Bilge
 import Control.Lens (view, (^.))
+import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default (def)
@@ -43,7 +44,7 @@ import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Client (createGrpcClient)
+import Wire.API.Federation.GRPC.Client (closeGrpcClient, createGrpcClient)
 import Wire.API.Federation.GRPC.Types hiding (body, path)
 import qualified Wire.API.Federation.GRPC.Types as GRPC
 import Wire.API.User
@@ -98,24 +99,34 @@ spec env =
           GRpcErrorString err -> err `shouldBe` "GRPC status indicates failure: status-code=INTERNAL, status-message=\"HTTP Status 400\""
           _ -> assertFailure $ "Expect HTTP 400, got: " <> show grpcReply
 
-inwardBrigCallViaIngress :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
+inwardBrigCallViaIngress ::
+  ( MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    MonadReader TestEnv m,
+    HasCallStack
+  ) =>
+  ByteString ->
+  LBS.ByteString ->
+  m (GRpcReply InwardResponse)
 inwardBrigCallViaIngress requestPath payload = do
   Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
   tlsSettings <- view teTLSSettings
-  c <-
-    liftIO
-      . Polysemy.runM
-      . Polysemy.runError @RemoteError
-      . discardLogs
-      . Polysemy.runInputConst tlsSettings
-      . Polysemy.runReader runSettings
-      $ mkGrpcClient target
-  client <- case c of
-    Left clientErr -> liftIO $ assertFailure (show clientErr)
-    Right cli -> pure cli
-  inwardBrigCallViaIngressWithClient client requestPath payload
+  bracket
+    ( liftIO
+        . Polysemy.runM
+        . Polysemy.runError @RemoteError
+        . discardLogs
+        . Polysemy.runInputConst tlsSettings
+        . Polysemy.runReader runSettings
+        $ mkGrpcClient target
+    )
+    (either (const (pure ())) closeGrpcClient)
+    $ \case
+      Left clientErr -> liftIO $ assertFailure (show clientErr)
+      Right client -> inwardBrigCallViaIngressWithClient client requestPath payload
 
 inwardBrigCallViaIngressWithClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => GrpcClient -> ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
 inwardBrigCallViaIngressWithClient client requestPath payload = do

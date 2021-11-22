@@ -39,12 +39,37 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	cabal build all
+	./hack/bin/cabal-run-all-tests.sh
+	./hack/bin/cabal-install-all-artefacts.sh
+else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+endif
 
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	make install
+else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+endif
+
+# Usage: make c package=brig test=1
+.PHONY: c
+c:
+	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
+ifeq ($(test), 1)
+	./hack/bin/cabal-run-tests.sh $(package)
+endif
+	./hack/bin/cabal-install-artefacts.sh $(package)
+
+# ci here doesn't refer to continuous integration, but to cabal-integration
+# Usage: make ci package=brig test=1
+.PHONY: ci
+ci: c
+	make -C services/$(package) i-$(pattern)
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
@@ -54,12 +79,12 @@ services: init install
 # Build haddocks
 .PHONY: haddock
 haddock:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal" make fast
 
 # Build haddocks only for wire-server
 .PHONY: haddock-shallow
 haddock-shallow:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal --no-haddock-deps" make fast
 
 # formats all Haskell files (which don't contain CPP)
 .PHONY: format
@@ -232,14 +257,15 @@ libzauth:
 #
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
-hie.yaml: stack-dev.yaml
-	stack build implicit-hie
-	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
-
-.PHONY: stack-dev.yaml
-stack-dev.yaml:
+hie.yaml:
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	echo -e 'cradle:\n  cabal: {}' > hie.yaml
+else
 	cp stack.yaml stack-dev.yaml
 	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
+	stack build implicit-hie
+	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
+endif
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
@@ -276,6 +302,10 @@ kube-integration-test:
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown-federation.sh
+
+.PHONY: kube-integration-e2e-telepresence
+kube-integration-e2e-telepresence:
+	./services/brig/federation-tests.sh $(NAMESPACE)
 
 .PHONY: kube-integration-setup-sans-federation
 kube-integration-setup-sans-federation: guard-tag charts-integration

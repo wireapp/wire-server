@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b2822e177698d882484e9f4c067b51d4e7124695e44a6a15c7996feaabf674c5
+-- hash: df3b504e44066ec177fea8aacfc3e26ba57c742f664edac667f3b5b6862e7fcb
 
 name:           spar
 version:        0.1
@@ -55,6 +55,9 @@ library
       Spar.Sem.IdP
       Spar.Sem.IdP.Cassandra
       Spar.Sem.IdP.Mem
+      Spar.Sem.IdPRawMetadataStore
+      Spar.Sem.IdPRawMetadataStore.Cassandra
+      Spar.Sem.IdPRawMetadataStore.Mem
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
       Spar.Sem.Now
@@ -80,6 +83,8 @@ library
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
       Spar.Sem.ScimUserTimesStore.Mem
+      Spar.Sem.VerdictFormatStore
+      Spar.Sem.VerdictFormatStore.Cassandra
   other-modules:
       Paths_spar
   hs-source-dirs:
@@ -508,6 +513,8 @@ test-suite spec
       Test.Spar.Intra.BrigSpec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
+      Test.Spar.Sem.IdPRawMetadataStoreSpec
+      Test.Spar.Sem.IdPSpec
       Test.Spar.TypesSpec
       Paths_spar
   hs-source-dirs:
@@ -556,6 +563,7 @@ test-suite spec
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check
     , polysemy-plugin
     , raw-strings-qq
     , retry

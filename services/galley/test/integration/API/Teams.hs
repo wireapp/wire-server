@@ -51,7 +51,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
 import qualified Data.Vector as V
-import qualified Galley.App as Galley
+import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import Galley.Types.Conversations.Roles

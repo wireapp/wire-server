@@ -34,8 +34,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
--- | An update to a conversation, including addition and removal of members.
--- Used to send notifications to users and to remote backends.
+-- | A sum type consisting of all possible conversation actions.
 data ConversationAction
   = ConversationActionAddMembers (NonEmpty (Qualified UserId)) RoleName
   | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))

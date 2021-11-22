@@ -41,6 +41,7 @@ import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatu
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
+import Galley.Cassandra.Paging
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -51,6 +52,7 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
+import Polysemy
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import Servant.Server.Generic (genericServerT)
 import Servant.Swagger.Internal.Orphans ()
@@ -72,7 +74,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
-servantSitemap :: ServerT GalleyAPI.ServantAPI (Galley GalleyEffects)
+servantSitemap :: ServerT GalleyAPI.ServantAPI (Sem GalleyEffects)
 servantSitemap =
   genericServerT $
     GalleyAPI.Api
@@ -121,7 +123,7 @@ servantSitemap =
           getFeatureStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusLegalHoldPut =
-          setFeatureStatus @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal . DoAuth,
+          setFeatureStatus @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging) . DoAuth,
         GalleyAPI.teamFeatureStatusSearchVisibilityGet =
           getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
             . DoAuth,
@@ -162,6 +164,12 @@ servantSitemap =
         GalleyAPI.teamFeatureStatusConferenceCallingGet =
           getFeatureStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
             . DoAuth,
+        GalleyAPI.teamFeatureStatusSelfDeletingMessagesGet =
+          getFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSelfDeletingMessagesPut =
+          setFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal
+            . DoAuth,
         GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
         GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
@@ -171,10 +179,11 @@ servantSitemap =
         GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
-        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
       }
 
-sitemap :: Routes ApiBuilder (Galley GalleyEffects) ()
+sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
 
@@ -731,7 +740,7 @@ sitemap = do
     errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
-apiDocs :: Routes ApiBuilder (Galley r) ()
+apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =
   get "/conversations/api-docs" (continue docs) $
     accept "application" "json"
@@ -739,7 +748,7 @@ apiDocs =
 
 type JSON = Media "application" "json"
 
-docs :: JSON ::: ByteString -> Galley r Response
+docs :: JSON ::: ByteString -> Sem r Response
 docs (_ ::: url) = do
   let models = Public.Swagger.models
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap

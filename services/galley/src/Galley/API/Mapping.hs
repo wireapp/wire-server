@@ -26,40 +26,41 @@ module Galley.API.Mapping
   )
 where
 
-import Control.Monad.Catch
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
-import Galley.API.Util (qualifyLocal)
-import Galley.App
-import qualified Galley.Data as Data
+import Galley.API.Error
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
 import Galley.Types.Conversations.Members
 import Imports
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
-import qualified System.Logger.Class as Log
+import Polysemy
+import Polysemy.Error
+import qualified Polysemy.TinyLog as P
 import System.Logger.Message (msg, val, (+++))
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member (..))
+import qualified Wire.API.Conversation as Conversation
 import Wire.API.Federation.API.Galley
 
 -- | View for a given user of a stored conversation.
 --
 -- Throws "bad-state" when the user is not part of the conversation.
-conversationView :: UserId -> Data.Conversation -> Galley r Conversation
-conversationView uid conv = do
-  luid <- qualifyLocal uid
+conversationView ::
+  Members '[Error InternalError, P.TinyLog] r =>
+  Local UserId ->
+  Data.Conversation ->
+  Sem r Conversation
+conversationView luid conv = do
   let mbConv = conversationViewMaybe luid conv
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
-      Log.err . msg $
+      P.err . msg $
         val "User "
-          +++ idToText uid
+          +++ idToText (tUnqualified luid)
           +++ val " is not a member of conv "
           +++ idToText (convId conv)
-      throwM badState
-    badState = mkError status500 "bad-state" "Bad internal member state."
+      throw BadMemberState
 
 -- | View for a given user of a stored conversation.
 --
@@ -79,16 +80,12 @@ conversationViewMaybe luid conv = do
       (ConvMembers self others)
 
 -- | View for a local user of a remote conversation.
---
--- If the local user is not actually present in the conversation, simply
--- discard the conversation altogether. This should only happen if the remote
--- backend is misbehaving.
 remoteConversationView ::
   Local UserId ->
   MemberStatus ->
   Remote RemoteConversation ->
-  Maybe Conversation
-remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
+  Conversation
+remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) =
   let mems = rcnvMembers rconv
       others = rcmOthers mems
       self =
@@ -100,7 +97,7 @@ remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) = do
               lmStatus = status,
               lmConvRoleName = rcmSelfRole mems
             }
-  pure $ Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
+   in Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
 
 -- | Convert a local conversation to a structure to be returned to a remote
 -- backend.
@@ -131,9 +128,9 @@ conversationToRemote localDomain ruid conv = do
 
 -- | Convert a local conversation member (as stored in the DB) to a publicly
 -- facing 'Member' structure.
-localMemberToSelf :: Local x -> LocalMember -> Member
+localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
 localMemberToSelf loc lm =
-  Member
+  Conversation.Member
     { memId = qUntagged . qualifyAs loc . lmId $ lm,
       memService = lmService lm,
       memOtrMutedStatus = msOtrMutedStatus st,

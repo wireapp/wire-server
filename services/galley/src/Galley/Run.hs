@@ -27,6 +27,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (^.))
 import qualified Data.Aeson as Aeson
+import Data.Domain
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
@@ -37,21 +38,18 @@ import Galley.API.Federation (federationSitemap)
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
-import qualified Galley.Data as Data
-import Galley.Options (Opts, optGalley)
+import Galley.Cassandra
+import Galley.Monad
+import Galley.Options
 import qualified Galley.Queue as Q
 import Imports
 import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
-import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
-import Servant (Context ((:.)), Proxy (Proxy))
-import Servant.API ((:<|>) ((:<|>)))
-import qualified Servant.API as Servant
-import Servant.API.Generic (ToServantApi, genericApi)
-import qualified Servant.Server as Servant
+import Servant hiding (route)
+import Servant.API.Generic (ToServantApi)
 import qualified System.Logger as Log
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FederationGalley
@@ -68,8 +66,8 @@ run o = do
         (portNumber $ fromIntegral $ o ^. optGalley . epPort)
         l
         (e ^. monitor)
-  deleteQueueThread <- Async.async $ evalGalley e Internal.deleteLoop
-  refreshMetricsThread <- Async.async $ evalGalley e refreshMetrics
+  deleteQueueThread <- Async.async $ runApp e Internal.deleteLoop
+  refreshMetricsThread <- Async.async $ runApp e refreshMetrics
   runSettingsWithShutdown s app 5 `finally` do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
@@ -82,7 +80,7 @@ mkApp o = do
   e <- App.createEnv m o
   let l = e ^. App.applog
   runClient (e ^. cstate) $
-    versionCheck Data.schemaVersion
+    versionCheck schemaVersion
   let finalizer = do
         Log.info l $ Log.msg @Text "Galley application finished."
         Log.flush l
@@ -100,22 +98,39 @@ mkApp o = do
     servantApp e r =
       Servant.serveWithContext
         (Proxy @CombinedAPI)
-        (customFormatters :. Servant.EmptyContext)
-        ( Servant.hoistServer (Proxy @GalleyAPI.ServantAPI) (toServantHandler e) API.servantSitemap
-            :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
-            :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
+        ( view (options . optSettings . setFederationDomain) e
+            :. customFormatters
+            :. Servant.EmptyContext
+        )
+        ( hoistServer' @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
+            :<|> hoistServer' @Internal.ServantAPI (toServantHandler e) Internal.servantSitemap
+            :<|> hoistServer' @(ToServantApi FederationGalley.Api) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
         r
 
+-- Servant needs a context type argument here that contains *at least* the
+-- context types required by all the HasServer instances. In reality, this should
+-- not be necessary, because the contexts are only used by the @route@ functions,
+-- but unfortunately the 'hoistServerWithContext' function is also part of the
+-- 'HasServer' typeclass, even though it cannot possibly make use of its @context@
+-- type argument.
+hoistServer' ::
+  forall api m n.
+  HasServer api '[Domain] =>
+  (forall x. m x -> n x) ->
+  ServerT api m ->
+  ServerT api n
+hoistServer' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
+
 customFormatters :: Servant.ErrorFormatters
 customFormatters =
-  Servant.defaultErrorFormatters
-    { Servant.bodyParserErrorFormatter = bodyParserErrorFormatter
+  defaultErrorFormatters
+    { bodyParserErrorFormatter = bodyParserErrorFormatter'
     }
 
-bodyParserErrorFormatter :: Servant.ErrorFormatter
-bodyParserErrorFormatter _ _ errMsg =
+bodyParserErrorFormatter' :: Servant.ErrorFormatter
+bodyParserErrorFormatter' _ _ errMsg =
   Servant.ServerError
     { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
       Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
@@ -131,8 +146,8 @@ bodyParserErrorFormatter _ _ errMsg =
 
 type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
-refreshMetrics :: Galley r ()
-refreshMetrics = liftGalley0 $ do
+refreshMetrics :: App ()
+refreshMetrics = do
   m <- view monitor
   q <- view deleteQueue
   Internal.safeForever "refreshMetrics" $ do

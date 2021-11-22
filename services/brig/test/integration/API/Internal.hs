@@ -8,6 +8,7 @@ import Bilge
 import Brig.Data.User (lookupFeatureConferenceCalling)
 import qualified Brig.Options as Opt
 import Brig.Types.User (userId)
+import qualified Cassandra as Cass
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
 import qualified Data.Aeson.Lens as Aeson
@@ -15,7 +16,6 @@ import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import qualified Data.Set as Set
-import qualified Database.CQL.IO as Cass
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

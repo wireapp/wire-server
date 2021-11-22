@@ -66,6 +66,7 @@ library:
   - optparse-applicative >=0.10
   - pem
   - polysemy
+  - polysemy-wire-zoo
   - protobuf >=0.2
   - proto-lens >=0.2
   - QuickCheck >=2.14
@@ -73,6 +74,7 @@ library:
   - retry >=0.5
   - safe-exceptions >=0.1
   - servant
+  - servant-client-core
   - servant-server
   - servant-swagger
   - servant-swagger-ui
@@ -166,7 +168,6 @@ executables:
     - cereal
     - containers
     - cookie
-    - cql-io
     - currency-codes
     - metrics-wai
     - data-timeout

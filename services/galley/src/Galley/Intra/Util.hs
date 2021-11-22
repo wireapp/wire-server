@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -16,56 +18,80 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Intra.Util
-  ( brigReq,
-    sparReq,
-    call0,
-    callBrig,
-    callSpar,
-    callBot,
-    x1,
+  ( IntraComponent (..),
+    call,
+    asyncCall,
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens (view)
+import Control.Lens (view, (^.))
+import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Lazy as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
-import Galley.App
-import Galley.Effects
+import Galley.Env
+import Galley.Monad
 import Galley.Options
-import Imports
+import Imports hiding (log)
+import Network.HTTP.Types
+import System.Logger
+import qualified System.Logger.Class as LC
 import Util.Options
 
-brigReq :: Galley r (ByteString, Word16)
-brigReq = do
-  h <- encodeUtf8 <$> view (options . optBrig . epHost)
-  p <- portNumber . fromIntegral <$> view (options . optBrig . epPort)
-  return (h, p)
+data IntraComponent = Brig | Spar | Gundeck
+  deriving (Show)
 
-sparReq :: Galley r (ByteString, Word16)
-sparReq = do
-  h <- encodeUtf8 <$> view (options . optSpar . epHost)
-  p <- portNumber . fromIntegral <$> view (options . optSpar . epPort)
-  return (h, p)
+componentName :: IntraComponent -> String
+componentName Brig = "brig"
+componentName Spar = "spar"
+componentName Gundeck = "gundeck"
 
--- gundeckReq lives in Galley.Intra.Push
+componentRequest :: IntraComponent -> Opts -> Request -> Request
+componentRequest Brig o =
+  host (encodeUtf8 (o ^. optBrig . epHost))
+    . port (portNumber (fromIntegral (o ^. optBrig . epPort)))
+componentRequest Spar o =
+  host (encodeUtf8 (o ^. optSpar . epHost))
+    . port (portNumber (fromIntegral (o ^. optSpar . epPort)))
+componentRequest Gundeck o =
+  host (encodeUtf8 $ o ^. optGundeck . epHost)
+    . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
+    . method POST
+    . path "/i/push/v2"
+    . expect2xx
 
-call0 :: LT.Text -> (Request -> Request) -> Galley0 (Response (Maybe LB.ByteString))
-call0 n r = liftGalley0 $ recovering x1 rpcHandlers (const (rpc n r))
+componentRetryPolicy :: IntraComponent -> RetryPolicy
+componentRetryPolicy Brig = x1
+componentRetryPolicy Spar = x1
+componentRetryPolicy Gundeck = x3
 
-callBrig :: Member BrigAccess r => (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
-callBrig r = liftGalley0 $ call0 "brig" r
+call ::
+  IntraComponent ->
+  (Request -> Request) ->
+  App (Response (Maybe LB.ByteString))
+call comp r = do
+  o <- view options
+  let r0 = componentRequest comp o
+  let n = LT.pack (componentName comp)
+  recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
 
-callSpar :: Member SparAccess r => (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
-callSpar r = liftGalley0 $ call0 "spar" r
-
-callBot :: Member BotAccess r => (Request -> Request) -> Galley r (Response (Maybe LB.ByteString))
-callBot r = liftGalley0 $ call0 "brig" r
+asyncCall :: IntraComponent -> (Request -> Request) -> App ()
+asyncCall comp req = void $ do
+  let n = LT.pack (componentName comp)
+  forkIO $ catches (void (call comp req)) (handlers n)
+  where
+    handlers n =
+      [ Handler $ \(x :: RPCException) -> LC.err (rpcExceptionMsg x),
+        Handler $ \(x :: SomeException) -> LC.err $ "remote" .= n ~~ msg (show x)
+      ]
 
 x1 :: RetryPolicy
 x1 = limitRetries 1
+
+x3 :: RetryPolicy
+x3 = limitRetries 3 <> exponentialBackoff 100000

@@ -66,7 +66,7 @@ withClaim u v t io = do
     -- [Note: Guarantees]
     claim = do
       let ttl = max minTtl (fromIntegral (t #> Second))
-      retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
+      retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
         then liftIO $ timeout (fromIntegral ttl # Second) io
@@ -88,7 +88,7 @@ deleteClaim ::
   m ()
 deleteClaim u v t = do
   let ttl = max minTtl (fromIntegral (t #> Second))
-  retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
+  retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
   where
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
@@ -99,7 +99,7 @@ lookupClaims v =
   fmap (maybe [] (fromSet . runIdentity)) $
     retry x1 $
       query1 cql $
-        params Quorum (Identity v)
+        params LocalQuorum (Identity v)
   where
     cql :: PrepQuery R (Identity Text) (Identity (C.Set (Id a)))
     cql = "SELECT claims FROM unique_claims WHERE value = ?"

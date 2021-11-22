@@ -102,7 +102,7 @@ performMigration = do
   where
     insertNewRow :: NewRow -> EnvIO ()
     insertNewRow newRow = do
-      runSpar $ write insert (params Quorum newRow)
+      runSpar $ write insert (params LocalQuorum newRow)
       where
         insert :: PrepQuery W NewRow ()
         insert = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
@@ -138,7 +138,7 @@ collectMapping = do
     readOldRows = do
       pSize <- lift $ asks pageSize
       transPipe runSpar $
-        paginateC select (paramsP Quorum () pSize) x5
+        paginateC select (paramsP LocalQuorum () pSize) x5
       where
         select :: PrepQuery R () OldRow
         select = "SELECT issuer, sso_id, uid FROM user"
@@ -208,7 +208,7 @@ resolveViaActivated _ input@(List2 old1 old2 rest) = do
     isActivated u =
       runBrig $
         (== Just (Identity True))
-          <$> retry x1 (query1 activatedSelect (params Quorum (Identity u)))
+          <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity u)))
 
     activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
     activatedSelect = "SELECT activated FROM user WHERE id = ?"
@@ -226,7 +226,7 @@ resolveViaAccessToken _ input@(List2 old1 old2 rest) = do
     latestCookieExpiry :: UserId -> EnvIO (Maybe UTCTime)
     latestCookieExpiry uid =
       runBrig $
-        runIdentity <$$> query1 select (params Quorum (Identity uid))
+        runIdentity <$$> query1 select (params LocalQuorum (Identity uid))
       where
         select :: PrepQuery R (Identity UserId) (Identity UTCTime)
         select = "SELECT expires FROM user_cookies WHERE user = ? ORDER BY expires DESC LIMIT 1"

@@ -96,13 +96,13 @@ runMigration (Migration ver txt mig) = do
   persistVersion ver txt =<< liftIO getCurrentTime
 
 latestMigrationVersion :: MigrationActionT IO MigrationVersion
-latestMigrationVersion = MigrationVersion . maybe 0 fromIntegral <$> C.query1 cql (C.params C.Quorum ())
+latestMigrationVersion = MigrationVersion . maybe 0 fromIntegral <$> C.query1 cql (C.params C.LocalQuorum ())
   where
     cql :: C.QueryString C.R () (Identity Int32)
     cql = "select version from data_migration where id=1 order by version desc limit 1"
 
 persistVersion :: MigrationVersion -> Text -> UTCTime -> MigrationActionT IO ()
-persistVersion (MigrationVersion v) desc time = C.write cql (C.params C.Quorum (fromIntegral v, desc, time))
+persistVersion (MigrationVersion v) desc time = C.write cql (C.params C.LocalQuorum (fromIntegral v, desc, time))
   where
     cql :: C.QueryString C.W (Int32, Text, UTCTime) ()
     cql = "insert into data_migration (id, version, descr, date) values (1,?,?,?)"

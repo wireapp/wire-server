@@ -87,7 +87,13 @@ makeLenses ''Endpoint
 
 data CassandraOpts = CassandraOpts
   { _casEndpoint :: !Endpoint,
-    _casKeyspace :: !Text
+    _casKeyspace :: !Text,
+    -- | If this option is unset, use all available nodes.
+    -- If this option is set, use only cassandra nodes in the given datacentre
+    --
+    -- This option is most likely only necessary during a cassandra DC migration
+    -- FUTUREWORK: remove this option again, or support a datacentre migration feature
+    _casFilterNodesByDatacentre :: !(Maybe Text)
   }
   deriving (Show, Generic)
 
@@ -155,27 +161,6 @@ parseConfigPath defaultPath desc = do
 
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") return . fromByteString . fromString
-
-cassandraParser :: Parser CassandraOpts
-cassandraParser =
-  CassandraOpts
-    <$> ( Endpoint
-            <$> ( textOption $
-                    long "cassandra-host"
-                      <> metavar "HOSTNAME"
-                      <> help "Cassandra hostname or address"
-                )
-            <*> ( option auto $
-                    long "cassandra-port"
-                      <> metavar "PORT"
-                      <> help "Cassandra port"
-                )
-        )
-    <*> ( textOption $
-            long "cassandra-keyspace"
-              <> metavar "STRING"
-              <> help "Cassandra keyspace"
-        )
 
 discoUrlParser :: Parser Text
 discoUrlParser =

@@ -25,25 +25,22 @@ module Galley.API.Internal
   )
 where
 
-import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Except (runExceptT)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
 import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
 import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (throwErrorDescriptionType)
+import Galley.API.Error
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
-import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
+import Galley.API.LegalHold.Conflicts
 import qualified Galley.API.One2One as One2One
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
@@ -51,11 +48,22 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
+import Galley.API.Util
 import Galley.App
-import qualified Galley.Data as Data
+import Galley.Cassandra.Paging
+import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.ClientStore
+import Galley.Effects.ConversationStore
+import Galley.Effects.FederatorAccess
+import Galley.Effects.GundeckAccess
+import Galley.Effects.MemberStore
+import Galley.Effects.Paging
+import Galley.Effects.TeamStore
+import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Push as Intra
+import Galley.Monad
+import Galley.Options
 import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
@@ -64,14 +72,19 @@ import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), 
 import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
+import Galley.Types.UserList
 import Imports hiding (head)
 import Network.HTTP.Types (status200)
 import Network.Wai
-import Network.Wai.Predicate hiding (err)
-import qualified Network.Wai.Predicate as P
-import Network.Wai.Routing hiding (route, toList)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, err)
+import qualified Network.Wai.Predicate as Predicate
+import Network.Wai.Routing hiding (App, route, toList)
+import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import Servant.API hiding (JSON)
 import qualified Servant.API as Servant
 import Servant.API.Generic
@@ -80,13 +93,14 @@ import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
-import Wire.API.ErrorDescription (MissingLegalholdConsent)
-import Wire.API.Federation.API.Galley (UserDeletedConversationsNotification (UserDeletedConversationsNotification))
+import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
+import Wire.API.ErrorDescription
+import Wire.API.Federation.API.Galley (ConversationUpdate (..), UserDeletedConversationsNotification (UserDeletedConversationsNotification))
 import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.Federation.Client (executeFederated)
+import Wire.API.Federation.Client (FederationError)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
-import Wire.API.Routes.Public (ZOptConn, ZUser)
+import Wire.API.Routes.Public (ZLocalUser, ZOptConn)
 import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
 
@@ -174,13 +188,19 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusConferenceCallingGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling,
+    iTeamFeatureStatusSelfDeletingMessagesPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureSelfDeletingMessages,
+    iTeamFeatureStatusSelfDeletingMessagesGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureSelfDeletingMessages,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     iDeleteUser ::
       routes
         :- Summary
              "Remove a user from their teams and conversations and erase their clients"
-        :> ZUser
+        :> ZLocalUser
         :> ZOptConn
         :> "i"
         :> "user"
@@ -191,7 +211,7 @@ data InternalApi routes = InternalApi
     iConnect ::
       routes
         :- Summary "Create a connect conversation (deprecated)"
-        :> ZUser
+        :> ZLocalUser
         :> ZOptConn
         :> "i"
         :> "conversations"
@@ -252,7 +272,7 @@ type IFeatureStatusDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
-servantSitemap :: ServerT ServantAPI (Galley GalleyEffects)
+servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
 servantSitemap =
   genericServerT $
     InternalApi
@@ -261,7 +281,7 @@ servantSitemap =
         iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
         iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal,
         iTeamFeatureStatusLegalHoldGet = iGetTeamFeature @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
-        iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal,
+        iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging),
         iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
@@ -281,6 +301,8 @@ servantSitemap =
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
         iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
+        iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
         iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
@@ -288,28 +310,44 @@ servantSitemap =
 
 iGetTeamFeature ::
   forall a r.
-  Public.KnownTeamFeatureName a =>
-  (Features.GetFeatureInternalParam -> Galley r (Public.TeamFeatureStatus a)) ->
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error NotATeamMember,
+         Error TeamError,
+         TeamStore
+       ]
+      r
+  ) =>
+  (Features.GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus a)) ->
   TeamId ->
-  Galley r (Public.TeamFeatureStatus a)
+  Sem r (Public.TeamFeatureStatus a)
 iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a r.
-  Public.KnownTeamFeatureName a =>
-  (TeamId -> Public.TeamFeatureStatus a -> Galley r (Public.TeamFeatureStatus a)) ->
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error NotATeamMember,
+         Error TeamError,
+         TeamStore
+       ]
+      r
+  ) =>
+  (TeamId -> Public.TeamFeatureStatus a -> Sem r (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
-  Galley r (Public.TeamFeatureStatus a)
+  Sem r (Public.TeamFeatureStatus a)
 iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
-sitemap :: Routes a (Galley GalleyEffects) ()
+sitemap :: Routes a (Sem GalleyEffects) ()
 sitemap = do
   -- Conversation API (internal) ----------------------------------------
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
     zauthUserId
-      .&. (capture "cnv" :: HasCaptures r => Predicate r P.Error ConvId)
+      .&. (capture "cnv" :: HasCaptures r => Predicate r Predicate.Error ConvId)
       .&. request
 
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
@@ -466,93 +504,135 @@ sitemap = do
     capture "tid"
 
 rmUser ::
-  forall r.
-  Members '[BrigAccess, ExternalAccess, FederatorAccess, GundeckAccess] r =>
-  UserId ->
+  forall p1 p2 r.
+  ( p1 ~ CassandraPaging,
+    p2 ~ InternalPaging,
+    Members
+      '[ BrigAccess,
+         ClientStore,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input UTCTime,
+         ListItems p1 ConvId,
+         ListItems p1 (Remote ConvId),
+         ListItems p2 TeamId,
+         MemberStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r
+  ) =>
+  Local UserId ->
   Maybe ConnId ->
-  Galley r ()
-rmUser user conn = do
-  let n = toRange (Proxy @100) :: Range 1 100 Int32
-      nRange1000 = rcast n :: Range 1 1000 Int32
-  tids <- Data.teamIdsForPagination user Nothing n
+  Sem r ()
+rmUser lusr conn = do
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  tids <- listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
-  allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
-  lusr <- qualifyLocal user
-  goConvPages lusr nRange1000 allConvIds
-  Data.eraseClients user
+  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
+  goConvPages nRange1000 allConvIds
+
+  deleteClients (tUnqualified lusr)
   where
-    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley r ()
-    goConvPages lusr range page = do
+    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
+    goConvPages range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations localConvs
-      for_ (rangedChunks remoteConvs) (leaveRemoteConversations lusr)
+      traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
-            usr = tUnqualified lusr
             nextQuery = GetPaginatedConversationIds (Just nextState) range
-        newCids <- Query.conversationIdsPageFrom usr nextQuery
-        goConvPages lusr range newCids
+        newCids <- Query.conversationIdsPageFrom lusr nextQuery
+        goConvPages range newCids
 
-    leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
-      mems <- Data.teamMembersForFanout tid
-      uncheckedDeleteTeamMember user conn tid user mems
-      leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
+    leaveTeams page = for_ (pageItems page) $ \tid -> do
+      mems <- getTeamMembersForFanout tid
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
+      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
+      leaveTeams page'
 
-    -- FUTUREWORK: Ensure that remote members of local convs get notified of this activity
-    leaveLocalConversations :: [ConvId] -> Galley r ()
+    leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
-      localDomain <- viewFederationDomain
-      cc <- Data.localConversations ids
+      let qUser = qUntagged lusr
+      cc <- getConversations ids
+      now <- input
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
-        ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
+        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
-          | user `isMember` Data.convLocalMembers c -> do
-            Data.removeLocalMembersFromLocalConv (Data.convId c) (pure user)
-            now <- liftIO getCurrentTime
+          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+            deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event
                     MemberLeave
-                    (Qualified (Data.convId c) localDomain)
-                    (Qualified user localDomain)
+                    (qUntagged (qualifyAs lusr (Data.convId c)))
+                    (qUntagged lusr)
                     now
-                    (EdMembersLeave (QualifiedUserIdList [Qualified user localDomain]))
-            return $
-              Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                    (EdMembersLeave (QualifiedUserIdList [qUser]))
+            for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+            pure $
+              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
+
       for_
         (maybeList1 (catMaybes pp))
-        Intra.push
+        (push)
 
-    leaveRemoteConversations :: Local UserId -> Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Galley r ()
-    leaveRemoteConversations lusr cids = do
+    -- FUTUREWORK: This could be optimized to reduce the number of RPCs
+    -- made. When a team is deleted the burst of RPCs created here could
+    -- lead to performance issues. We should cover this in a performance
+    -- test.
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Sem r ()
+    notifyRemoteMembers now qUser cid remotes = do
+      let convUpdate =
+            ConversationUpdate
+              { cuTime = now,
+                cuOrigUserId = qUser,
+                cuConvId = cid,
+                cuAlreadyPresentUsers = tUnqualified remotes,
+                cuAction = ConversationActionRemoveMembers (pure qUser)
+              }
+      let rpc = FedGalley.onConversationUpdated FedGalley.clientRoutes (tDomain lusr) convUpdate
+      runFederatedEither remotes rpc
+        >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
+
+    leaveRemoteConversations :: Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
+    leaveRemoteConversations cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete
-        res <- runExceptT (executeFederated (tDomain remoteConvs) rpc)
-        case res of
-          -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
-          -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
-          Left federationError -> do
-            Log.err $
-              Log.msg $
-                T.unwords
-                  [ "Federation error while notifying remote backends of a user deletion (Galley).",
-                    "user_id: " <> (cs . show) lusr,
-                    "details: " <> (cs . show) federationError
-                  ]
-            pure ()
-          Right _ -> pure ()
+        runFederatedEither remoteConvs rpc
+          >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 
-deleteLoop :: Galley r ()
-deleteLoop = liftGalley0 $ do
+    -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
+    -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
+    logAndIgnoreError :: Text -> UserId -> Either FederationError a -> Sem r ()
+    logAndIgnoreError message usr res = do
+      case res of
+        Left federationError ->
+          P.err
+            ( Log.msg
+                ( "Federation error while notifying remote backends of a user deletion (Galley). "
+                    <> message
+                    <> " "
+                    <> (cs . show $ federationError)
+                )
+                . Log.field "user" (show usr)
+            )
+        Right _ -> pure ()
+
+deleteLoop :: App ()
+deleteLoop = do
   q <- view deleteQueue
   safeForever "deleteLoop" $ do
     i@(TeamItem tid usr con) <- Q.pop q
-    interpretGalleyToGalley0 (Teams.uncheckedDeleteTeam usr con tid)
+    env <- ask
+    liftIO (evalGalley env (doDelete usr con tid))
       `catchAny` someError q i
   where
     someError q i x = do
@@ -562,7 +642,11 @@ deleteLoop = liftGalley0 $ do
         err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
       liftIO $ threadDelay 1000000
 
-safeForever :: String -> Galley0 () -> Galley0 ()
+    doDelete usr con tid = do
+      lusr <- qualifyLocal usr
+      Teams.uncheckedDeleteTeam lusr con tid
+
+safeForever :: String -> App () -> App ()
 safeForever funName action =
   forever $
     action `catchAny` \exc -> do
@@ -570,11 +654,19 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Member BrigAccess r =>
+  Members
+    '[ BrigAccess,
+       Error LegalHoldError,
+       Input Opts,
+       TeamStore,
+       P.TinyLog,
+       WaiRoutes
+     ]
+    r =>
   (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
-  Galley r Response
+  Sem r Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
-  guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
+  mapError @LegalholdConflicts (const MissingLegalholdConsent) $
+    guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
   pure $ Network.Wai.Utilities.setStatus status200 empty
