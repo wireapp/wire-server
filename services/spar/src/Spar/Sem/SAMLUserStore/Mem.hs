@@ -28,7 +28,6 @@ samlUserStoreToMem = (evalState @(Map UserRefOrd UserId) mempty .) $
     GetAnyByIssuer is -> gets $ fmap snd . find (eqIssuer is . fst) . M.toList
     GetSomeByIssuer is -> gets $ coerce . filter (eqIssuer is . fst) . M.toList
     DeleteByIssuer is -> modify $ M.filterWithKey (\ref _ -> not $ eqIssuer is ref)
-    -- TODO(sandy): Is it OK to ignore uid here?
     Delete _uid ur -> modify $ M.delete $ UserRefOrd ur
   where
     eqIssuer :: SAML.Issuer -> UserRefOrd -> Bool
