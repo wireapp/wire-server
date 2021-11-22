@@ -12,8 +12,8 @@ import Wire.API.User.Identity (Email)
 
 scimExternalIdStoreToMem ::
   Sem (ScimExternalIdStore ': r) a ->
-  Sem r a
-scimExternalIdStoreToMem = (evalState @(Map (TeamId, Email) UserId) mempty .) $
+  Sem r (Map (TeamId, Email) UserId, a)
+scimExternalIdStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Insert tid em uid -> modify $ M.insert (tid, em) uid
     Lookup tid em -> gets $ M.lookup (tid, em)

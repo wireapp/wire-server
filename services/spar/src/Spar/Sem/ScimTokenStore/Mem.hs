@@ -11,8 +11,8 @@ import Spar.Sem.ScimTokenStore
 
 scimTokenStoreToMem ::
   Sem (ScimTokenStore ': r) a ->
-  Sem r a
-scimTokenStoreToMem = (evalState @(Map ScimToken ScimTokenInfo) mempty .) $
+  Sem r (Map ScimToken ScimTokenInfo, a)
+scimTokenStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Insert st sti -> modify $ M.insert st sti
     Lookup st -> gets $ M.lookup st

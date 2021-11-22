@@ -8,7 +8,7 @@ import Data.Id
 import qualified Data.Map as M
 import Imports
 import Polysemy
-import Polysemy.State (evalState, gets, modify)
+import Polysemy.State (gets, modify, runState)
 import SAML2.WebSSO (uidTenant)
 import qualified SAML2.WebSSO as SAML
 import Spar.Sem.SAMLUserStore
@@ -20,8 +20,8 @@ instance Ord UserRefOrd where
   compare (UserRefOrd (SAML.UserRef is ni)) (UserRefOrd (SAML.UserRef is' ni')) =
     compare is is' <> compare ni ni'
 
-samlUserStoreToMem :: Sem (SAMLUserStore ': r) a -> Sem r a
-samlUserStoreToMem = (evalState @(Map UserRefOrd UserId) mempty .) $
+samlUserStoreToMem :: Sem (SAMLUserStore ': r) a -> Sem r (Map UserRefOrd UserId, a)
+samlUserStoreToMem = (runState @(Map UserRefOrd UserId) mempty .) $
   reinterpret $ \case
     Insert ur uid -> modify $ M.insert (UserRefOrd ur) uid
     Get ur -> gets $ M.lookup $ UserRefOrd ur

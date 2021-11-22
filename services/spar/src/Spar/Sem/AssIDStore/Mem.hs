@@ -9,14 +9,13 @@ import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.AssIDStore
 import Spar.Sem.Now
-import qualified Spar.Sem.Now as Now
 import Wire.API.User.Saml (AssId)
 
 assIdStoreToMem ::
   Member Now r =>
   Sem (AssIDStore ': r) a ->
-  Sem r a
-assIdStoreToMem = (evalState @(Map AssId SAML.Time) mempty .) $
+  Sem r (Map AssId SAML.Time, a)
+assIdStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Store assid ti -> modify $ M.insert assid ti
     UnStore assid -> modify $ M.delete assid

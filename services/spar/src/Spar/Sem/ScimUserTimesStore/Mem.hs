@@ -14,8 +14,8 @@ import Web.Scim.Schema.Meta (WithMeta (WithMeta), created, lastModified)
 
 scimUserTimesStoreToMem ::
   Sem (ScimUserTimesStore ': r) a ->
-  Sem r a
-scimUserTimesStoreToMem = (evalState @(Map UserId (UTCTimeMillis, UTCTimeMillis)) mempty .) $
+  Sem r (Map UserId (UTCTimeMillis, UTCTimeMillis), a)
+scimUserTimesStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Write (WithMeta meta (WithId uid _)) -> modify $ M.insert uid (toUTCTimeMillis $ created meta, toUTCTimeMillis $ lastModified meta)
     Read uid -> gets $ M.lookup uid

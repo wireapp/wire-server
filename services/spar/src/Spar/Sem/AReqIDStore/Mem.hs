@@ -14,8 +14,8 @@ import Wire.API.User.Saml (AReqId)
 aReqIDStoreToMem ::
   Member Now r =>
   Sem (AReqIDStore ': r) a ->
-  Sem r a
-aReqIDStoreToMem = (evalState @(Map AReqId SAML.Time) mempty .) $
+  Sem r (Map AReqId SAML.Time, a)
+aReqIDStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Store areqid ti -> modify $ M.insert areqid ti
     UnStore areqid -> modify $ M.delete areqid

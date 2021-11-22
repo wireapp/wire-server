@@ -15,8 +15,8 @@ import qualified Spar.Sem.Now as Now
 import qualified Web.Cookie as Cky
 import Wire.API.Cookie
 
-bindCookieStoreToMem :: Member Now r => Sem (BindCookieStore ': r) a -> Sem r a
-bindCookieStoreToMem = (evalState @(Map BindCookie (SAML.Time, UserId)) mempty .) $
+bindCookieStoreToMem :: Member Now r => Sem (BindCookieStore ': r) a -> Sem r (Map BindCookie (SAML.Time, UserId), a)
+bindCookieStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Insert sbc uid ndt -> do
       let ckyval = BindCookie . cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ sbc

@@ -8,17 +8,17 @@ import Polysemy
 import Polysemy.State hiding (Get)
 import SAML2.WebSSO (addTime)
 import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.VerdictFormatStore
 import Spar.Sem.Now (Now, boolTTL)
 import qualified Spar.Sem.Now as Now
+import Spar.Sem.VerdictFormatStore
 import Wire.API.User.Saml (AReqId, VerdictFormat)
 
 verdictFormatStoreToMem ::
   Member Now r =>
   Sem (VerdictFormatStore ': r) a ->
-  Sem r a
+  Sem r (Map AReqId (SAML.Time, VerdictFormat), a)
 verdictFormatStoreToMem =
-  (evalState @(Map AReqId (SAML.Time, VerdictFormat)) mempty .) $
+  (runState mempty .) $
     reinterpret $ \case
       Store ndt areqid vf -> do
         now <- Now.get
@@ -28,4 +28,3 @@ verdictFormatStoreToMem =
           Just (time, vf) -> do
             boolTTL Nothing (Just vf) time
           Nothing -> pure Nothing
-
