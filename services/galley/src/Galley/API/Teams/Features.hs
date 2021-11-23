@@ -581,15 +581,14 @@ getSelfDeletingMessagesInternal ::
 getSelfDeletingMessagesInternal = \case
   Left _ -> pure Public.defaultSelfDeletingMessagesStatus
   Right tid -> do
-    maybePaymentStatus <- TeamFeatures.getPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid
-    maybeFeatureStatus <- TeamFeatures.getSelfDeletingMessagesStatus tid
+    (maybeFeatureStatus, maybePaymentStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
     pure $ case (maybePaymentStatus, maybeFeatureStatus) of
-      (Just (Public.PaymentStatus Public.PaymentUnlocked), Just featureStatus) ->
+      (Just Public.PaymentUnlocked, Just featureStatus) ->
         Public.TeamFeatureStatusWithConfigAndPaymentStatus
           (Public.tfwcStatus featureStatus)
           (Public.tfwcConfig featureStatus)
           Public.PaymentUnlocked
-      (Just (Public.PaymentStatus Public.PaymentUnlocked), Nothing) ->
+      (Just Public.PaymentUnlocked, Nothing) ->
         Public.TeamFeatureStatusWithConfigAndPaymentStatus
           (Public.tfwcapsStatus Public.defaultSelfDeletingMessagesStatus)
           (Public.tfwcapsConfig Public.defaultSelfDeletingMessagesStatus)
