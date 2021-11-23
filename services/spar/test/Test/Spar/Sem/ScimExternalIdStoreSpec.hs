@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Test.Spar.Sem.ScimExternalIdInsertSpec where
+module Test.Spar.Sem.ScimExternalIdStoreSpec where
 
 import Arbitrary ()
 import Imports
