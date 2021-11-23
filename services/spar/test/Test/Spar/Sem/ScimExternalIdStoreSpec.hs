@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-orphans             #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Test.Spar.Sem.ScimExternalIdStoreSpec where
+module Test.Spar.Sem.ScimExternalIdInsertSpec where
 
 import Arbitrary ()
 import Imports
@@ -25,12 +25,12 @@ propsForInterpreter ::
 propsForInterpreter interpreter lower = do
   describe interpreter $ do
     prop "delete/delete" $ prop_deleteDelete lower
-    prop "delete/lookup"    $ prop_deleteGet lower
-    prop "delete/insert"  $ prop_deleteStore lower
-    prop "lookup/insert"     $ prop_getStore lower
-    prop "insert/delete"  $ prop_storeStore lower
-    prop "insert/lookup"     $ prop_storeGet lower
-    prop "insert/insert"   $ prop_storeStore lower
+    prop "delete/lookup" $ prop_deleteLookup lower
+    prop "delete/insert" $ prop_deleteInsert lower
+    prop "lookup/insert" $ prop_lookupInsert lower
+    prop "insert/delete" $ prop_insertInsert lower
+    prop "insert/lookup" $ prop_insertLookup lower
+    prop "insert/insert" $ prop_insertInsert lower
 
 
 spec :: Spec
@@ -46,11 +46,11 @@ instance (Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall
    => PropConstraints r f
 
 
-prop_storeGet ::
+prop_insertLookup ::
   PropConstraints r f =>
   (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_storeGet =
+prop_insertLookup =
   prepropLaw @'[E.ScimExternalIdStore] $ do
         tid <- arbitrary
         email <- arbitrary
@@ -64,11 +64,11 @@ prop_storeGet =
               pure (Just uid)
           )
 
-prop_getStore ::
+prop_lookupInsert ::
   PropConstraints r f =>
   (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_getStore =
+prop_lookupInsert =
   prepropLaw @'[E.ScimExternalIdStore] $ do
         tid <- arbitrary
         email <- arbitrary
@@ -79,11 +79,11 @@ prop_getStore =
               pure ()
           )
 
-prop_storeDelete ::
+prop_insertDelete ::
   PropConstraints r f =>
   (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_storeDelete =
+prop_insertDelete =
   prepropLaw @'[E.ScimExternalIdStore] $ do
         tid <- arbitrary
         email <- arbitrary
@@ -97,11 +97,11 @@ prop_storeDelete =
           )
 
 
-prop_deleteStore ::
+prop_deleteInsert ::
   PropConstraints r f =>
   (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_deleteStore =
+prop_deleteInsert =
   prepropLaw @'[E.ScimExternalIdStore] $ do
         tid <- arbitrary
         email <- arbitrary
@@ -114,11 +114,11 @@ prop_deleteStore =
               E.insert tid email uid
           )
 
-prop_storeStore ::
+prop_insertInsert ::
   PropConstraints r f =>
   (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_storeStore =
+prop_insertInsert =
   prepropLaw @'[E.ScimExternalIdStore] $ do
         tid <- arbitrary
         email <- arbitrary
@@ -148,11 +148,11 @@ prop_deleteDelete =
               E.delete tid email
           )
 
-prop_deleteGet ::
+prop_deleteLookup ::
   PropConstraints r f =>
   (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_deleteGet =
+prop_deleteLookup =
   prepropLaw @'[E.ScimExternalIdStore] $ do
         tid <- arbitrary
         email <- arbitrary
