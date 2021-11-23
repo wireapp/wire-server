@@ -361,7 +361,7 @@ routes = do
       Doc.description "team feature status (enabled or disabled)"
     Doc.response 200 "Team feature flag status" Doc.end
 
-  mkFeaturePutGetRoute @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock
+  mkFeaturePutGetRoute @'Public.TeamFeatureAppLock
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
@@ -592,16 +592,16 @@ getTeamAdminInfo :: TeamId -> Handler Response
 getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
 
 getTeamFeatureFlagH ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
+  forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus ps a),
-    ToJSON (Public.TeamFeatureStatus ps a),
-    Typeable (Public.TeamFeatureStatus ps a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
+    Typeable (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
   ) =>
   TeamId ->
   Handler Response
 getTeamFeatureFlagH tid =
-  json <$> Intra.getTeamFeatureFlag @ps @a tid
+  json <$> Intra.getTeamFeatureFlag @'Public.WithoutPaymentStatus @a tid
 
 setTeamFeatureFlagH ::
   forall (a :: Public.TeamFeatureName).
@@ -753,19 +753,17 @@ noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (mkError status404 "no-user" "No such user")
 
 mkFeaturePutGetRoute ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
+  forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus ps a),
     FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    ToJSON (Public.TeamFeatureStatus ps a),
     ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    Typeable (Public.TeamFeatureStatus ps a)
+    Typeable (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
   ) =>
   Routes Doc.ApiBuilder Handler ()
 mkFeaturePutGetRoute = do
   let featureName = Public.knownTeamFeatureName @a
 
-  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (getTeamFeatureFlagH @ps @a)) $
+  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (getTeamFeatureFlagH @a)) $
     capture "tid"
   document "GET" "getTeamFeatureFlag" $ do
     summary "Shows whether a feature flag is enabled or not for a given team."
