@@ -55,18 +55,16 @@ prop_storeGetByIssuer x =
     )
     x
 
-testInterpreter :: Sem '[E.IdP] a -> IO (TypedState, a)
-testInterpreter = pure . run . idPToMem
-
 propsForInterpreter ::
   Member E.IdP r =>
+  String ->
   (forall a. Sem r a -> IO (TypedState, a)) ->
   Spec
-propsForInterpreter lower = do
-  describe "Config Actions" $ do
+propsForInterpreter interpreter lower = do
+  describe interpreter $ do
     prop "storeConfig/getConfig" $ prop_storeGet lower
     prop "storeConfig/getIdByIssuerWithoutTeam" $ prop_storeGetByIssuer lower
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
-  propsForInterpreter testInterpreter
+  propsForInterpreter "idPToMem" $ pure . run . idPToMem

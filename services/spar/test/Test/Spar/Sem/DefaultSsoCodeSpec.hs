@@ -10,7 +10,6 @@ import Arbitrary ()
 import Imports
 import Polysemy
 import Polysemy.Check
-import SAML2.WebSSO.Types
 import qualified Spar.Sem.DefaultSsoCode as E
 import Spar.Sem.DefaultSsoCode.Mem
 import Test.Hspec
@@ -21,10 +20,11 @@ deriveGenericK ''E.DefaultSsoCode
 
 propsForInterpreter ::
   PropConstraints r f =>
+  String ->
   (forall a. Sem r a -> IO (f a)) ->
   Spec
-propsForInterpreter lower = do
-  describe "DefaultSsoCode Actions" $ do
+propsForInterpreter interpreter lower = do
+  describe interpreter $ do
     prop "delete/delete" $ prop_deleteDelete lower
     prop "delete/get"    $ prop_deleteGet lower
     prop "delete/store"  $ prop_deleteStore lower
@@ -36,7 +36,7 @@ propsForInterpreter lower = do
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
-  propsForInterpreter testInterpreter
+  propsForInterpreter "defaultSsoCodeToMem" $ pure . run . defaultSsoCodeToMem
 
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative
@@ -151,7 +151,4 @@ prop_deleteGet =
               E.delete
               pure Nothing
           )
-
-testInterpreter :: Sem '[E.DefaultSsoCode] a -> IO (Maybe IdPId, a)
-testInterpreter = pure . run . defaultSsoCodeToMem
 

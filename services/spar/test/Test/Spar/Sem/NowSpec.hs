@@ -25,10 +25,11 @@ deriveGenericK ''E.Now
 
 propsForInterpreter ::
   PropConstraints r f =>
+  String ->
   (forall a. Sem r a -> IO (f a)) ->
   Spec
-propsForInterpreter lower = do
-  describe "Now Actions" $ do
+propsForInterpreter interpreter lower = do
+  describe interpreter $ do
     prop "now/now" $ prop_nowNow lower
 
 someTime :: Time
@@ -37,8 +38,8 @@ someTime = Time (UTCTime (fromJulianYearAndDay 1990 209) (secondsToDiffTime 0))
 spec :: Spec
 spec = do
   modifyMaxSuccess (const 1000) $ do
-    propsForInterpreter $ fmap Identity . runM . nowToIO . runInputConst ()
-    propsForInterpreter $ pure . Identity . run . runInputConst someTime . nowToInput . runInputConst ()
+    propsForInterpreter "nowToIO" $ fmap Identity . runM . nowToIO . runInputConst ()
+    propsForInterpreter "nowToInput" $ pure . Identity . run . runInputConst someTime . nowToInput . runInputConst ()
 
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative
