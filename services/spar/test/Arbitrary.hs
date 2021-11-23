@@ -23,7 +23,7 @@
 module Arbitrary where
 
 import Data.Aeson
-import Data.Id (TeamId)
+import Data.Id (TeamId, UserId)
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger hiding (Header (..))
@@ -106,6 +106,8 @@ instance CoArbitrary WireIdP
 instance CoArbitrary WireIdPAPIVersion
 
 instance CoArbitrary TeamId
+
+instance CoArbitrary UserId
 
 instance CoArbitrary Time
 
