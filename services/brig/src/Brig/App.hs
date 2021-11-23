@@ -181,6 +181,7 @@ makeLenses ''Env
 
 newEnv :: Opts -> IO Env
 newEnv o = do
+  putStrLn "Launching Rockets!"
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
