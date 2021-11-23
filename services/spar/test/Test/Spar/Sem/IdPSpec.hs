@@ -1,4 +1,6 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+
+{-# OPTIONS_GHC -Wno-orphans             #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Test.Spar.Sem.IdPSpec where
@@ -17,44 +19,6 @@ import Test.QuickCheck
 
 deriveGenericK ''E.IdP
 
-prop_storeGet ::
-  Member E.IdP r =>
-  (forall a. Sem r a -> IO (TypedState, a)) ->
-  Property
-prop_storeGet x =
-  prepropLaw @'[E.IdP]
-    ( do
-        s <- arbitrary
-        pure
-          ( do
-              E.storeConfig s
-              E.getConfig $ s ^. idpId,
-            do
-              E.storeConfig s
-              pure (Just s)
-          )
-    )
-    x
-
-prop_storeGetByIssuer ::
-  Member E.IdP r =>
-  (forall a. Sem r a -> IO (TypedState, a)) ->
-  Property
-prop_storeGetByIssuer x =
-  prepropLaw @'[E.IdP]
-    ( do
-        s <- arbitrary
-        pure
-          ( do
-              E.storeConfig s
-              E.getIdByIssuerWithoutTeam $ s ^. idpMetadata . edIssuer,
-            do
-              E.storeConfig s
-              pure $ E.GetIdPFound $ s ^. idpId
-          )
-    )
-    x
-
 propsForInterpreter ::
   Member E.IdP r =>
   String ->
@@ -68,3 +32,46 @@ propsForInterpreter interpreter lower = do
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter "idPToMem" $ pure . run . idPToMem
+
+-- | All the constraints we need to generalize properties in this module.
+-- A regular type synonym doesn't work due to dreaded impredicative
+-- polymorphism.
+class (Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z))
+   => PropConstraints r f
+instance (Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z))
+   => PropConstraints r f
+
+prop_storeGet ::
+  PropConstraints r f =>
+  (forall a. Sem r a -> IO (f a)) ->
+  Property
+prop_storeGet =
+  prepropLaw @'[E.IdP] $
+    do
+        s <- arbitrary
+        pure
+          ( do
+              E.storeConfig s
+              E.getConfig $ s ^. idpId,
+            do
+              E.storeConfig s
+              pure (Just s)
+          )
+
+prop_storeGetByIssuer ::
+  PropConstraints r f =>
+  (forall a. Sem r a -> IO (f a)) ->
+  Property
+prop_storeGetByIssuer =
+  prepropLaw @'[E.IdP] $
+     do
+        s <- arbitrary
+        pure
+          ( do
+              E.storeConfig s
+              E.getIdByIssuerWithoutTeam $ s ^. idpMetadata . edIssuer,
+            do
+              E.storeConfig s
+              pure $ E.GetIdPFound $ s ^. idpId
+          )
+

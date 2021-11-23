@@ -1,4 +1,3 @@
-{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 
 {-# OPTIONS_GHC -Wno-orphans             #-}
