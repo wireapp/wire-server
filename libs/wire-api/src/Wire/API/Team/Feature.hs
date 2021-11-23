@@ -280,8 +280,8 @@ instance Cass.Cql TeamFeatureStatusValue where
   ctype = Cass.Tagged Cass.IntColumn
 
   fromCql (Cass.CqlInt n) = case n of
-    0 -> pure $ TeamFeatureDisabled
-    1 -> pure $ TeamFeatureEnabled
+    0 -> pure TeamFeatureDisabled
+    1 -> pure TeamFeatureEnabled
     _ -> Left "fromCql: Invalid TeamFeatureStatusValue"
   fromCql _ = Left "fromCql: TeamFeatureStatusValue: CqlInt expected"
 
