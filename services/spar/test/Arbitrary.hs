@@ -105,6 +105,8 @@ instance CoArbitrary WireIdPAPIVersion
 
 instance CoArbitrary TeamId
 
+instance CoArbitrary Time
+
 instance CoArbitrary Issuer where
   coarbitrary (Issuer ur) = coarbitrary $ show ur
 

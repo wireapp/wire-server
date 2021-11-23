@@ -9,6 +9,8 @@ data Now m a where
 
 makeSem ''Now
 
+deriving instance Show (Now m a)
+
 -- | Check a time against 'Now', checking if it's still alive (hasn't occurred yet.)
 boolTTL ::
   Member Now r =>
