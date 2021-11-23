@@ -1,14 +1,16 @@
 {-# LANGUAGE QuantifiedConstraints #-}
-
-{-# OPTIONS_GHC -Wno-orphans             #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Test.Spar.Sem.NowSpec where
 
 import Arbitrary ()
+import Data.Time
+import Data.Time.Calendar.Julian
 import Imports
 import Polysemy
 import Polysemy.Check
+import Polysemy.Input
 import SAML2.WebSSO.Types
 import qualified Spar.Sem.Now as E
 import Spar.Sem.Now.IO
@@ -16,9 +18,6 @@ import Spar.Sem.Now.Input
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Polysemy.Input
-import Data.Time
-import Data.Time.Calendar.Julian
 
 deriveGenericK ''E.Now
 
@@ -43,11 +42,13 @@ spec = do
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
-class (Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z))
-   => PropConstraints r f
-instance (Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z))
-   => PropConstraints r f
+class
+  (Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  PropConstraints r f
 
+instance
+  (Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  PropConstraints r f
 
 prop_nowNow ::
   PropConstraints r f =>
@@ -61,8 +62,7 @@ prop_nowNow =
   -- results! And we can't keep it empty, because that triggers a crash in
   -- @polysemy-check@. Thus @Input ()@, which isn't beautiful, but works fine.
   prepropLaw @'[Input ()] $ do
-        pure
-          ( liftA2 (<=) E.get E.get,
-            pure True
-          )
-
+    pure
+      ( liftA2 (<=) E.get E.get,
+        pure True
+      )

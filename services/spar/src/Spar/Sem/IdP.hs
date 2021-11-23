@@ -41,6 +41,3 @@ deriving stock instance Show (IdP m a)
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdP
-
-
-
