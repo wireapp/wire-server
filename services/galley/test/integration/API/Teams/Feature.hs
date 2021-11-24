@@ -407,7 +407,7 @@ testSelfDeletingMessages = do
           Util.putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureSelfDeletingMessages
             galley
             tid
-            (settingWithOutPaymentStatus stat tout)
+            (settingWithoutPaymentStatus stat tout)
           !!! statusCode === const expectedStatusCode
 
       -- internal, public (/team/:tid/features), and team-agnostic (/feature-configs).
