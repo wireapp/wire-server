@@ -63,6 +63,9 @@ instance {-# OVERLAPPABLE #-} HasLockStatusCol a => MaybeHasLockStatusCol a wher
 instance HasLockStatusCol 'TeamFeatureSelfDeletingMessages where
   lockStatusCol = "self_deleting_messages_lock_status"
 
+instance HasLockStatusCol 'TeamFeatureConferenceCalling where
+  lockStatusCol = "conference_calling_lock_status"
+
 instance MaybeHasLockStatusCol 'TeamFeatureLegalHold where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureSSO where maybeLockStatusCol = Nothing
@@ -76,5 +79,3 @@ instance MaybeHasLockStatusCol 'TeamFeatureDigitalSignatures where maybeLockStat
 instance MaybeHasLockStatusCol 'TeamFeatureAppLock where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureFileSharing where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureConferenceCalling where maybeLockStatusCol = Nothing

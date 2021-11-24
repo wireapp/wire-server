@@ -188,7 +188,7 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusConferenceCallingGet ::
       routes
-        :- IFeatureStatusGet 'Public.WithoutLockStatus 'Public.TeamFeatureConferenceCalling,
+        :- IFeatureStatusGet 'Public.WithLockStatus 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSelfDeletingMessages,
@@ -198,6 +198,9 @@ data InternalApi routes = InternalApi
     iTeamFeatureLockStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusLockStatusPut 'Public.TeamFeatureSelfDeletingMessages,
+    iTeamFeatureLockStatusConferenceCallingPut ::
+      routes
+        :- IFeatureStatusLockStatusPut 'Public.TeamFeatureConferenceCalling,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     iDeleteUser ::
@@ -318,6 +321,7 @@ servantSitemap =
         iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
         iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iTeamFeatureLockStatusSelfDeletingMessagesPut = Features.setLockStatus @'Public.TeamFeatureSelfDeletingMessages,
+        iTeamFeatureLockStatusConferenceCallingPut = Features.setLockStatus @'Public.TeamFeatureConferenceCalling,
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
         iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation

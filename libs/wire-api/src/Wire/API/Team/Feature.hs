@@ -29,6 +29,7 @@ module Wire.API.Team.Feature
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
+    TeamFeatureStatusNoConfigAndLockStatus (..),
     TeamFeatureStatusWithConfig (..),
     TeamFeatureStatusWithConfigAndLockStatus (..),
     HasDeprecatedFeatureName (..),
@@ -39,6 +40,7 @@ module Wire.API.Team.Feature
     defaultAppLockStatus,
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
+    defaultConferenceCalling,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -49,6 +51,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
     modelTeamFeatureStatusWithConfigAndLockStatus,
+    modelTeamFeatureStatusNoConfigAndLockStatus,
     modelForTeamFeature,
     modelLockStatus,
   )
@@ -302,11 +305,14 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus _ 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
   TeamFeatureStatus _ 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-  TeamFeatureStatus _ 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithLockStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfigAndLockStatus
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
 
-type FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) = (TeamFeatureStatus ps a ~ TeamFeatureStatusNoConfig) :: Constraint
+type family FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) :: Constraint where
+  FeatureHasNoConfig 'WithLockStatus a = (TeamFeatureStatus 'WithLockStatus a ~ TeamFeatureStatusNoConfigAndLockStatus)
+  FeatureHasNoConfig 'WithoutLockStatus a = (TeamFeatureStatus 'WithoutLockStatus a ~ TeamFeatureStatusNoConfig)
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
@@ -340,6 +346,29 @@ instance ToSchema TeamFeatureStatusNoConfig where
     object "TeamFeatureStatusNoConfig" $
       TeamFeatureStatusNoConfig
         <$> tfwoStatus .= field "status" schema
+
+data TeamFeatureStatusNoConfigAndLockStatus = TeamFeatureStatusNoConfigAndLockStatus
+  { tfwoapsStatus :: TeamFeatureStatusValue,
+    tfwoapsLockStatus :: LockStatusValue
+  }
+  deriving stock (Eq, Show, Generic, Typeable)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfigAndLockStatus)
+
+instance Arbitrary TeamFeatureStatusNoConfigAndLockStatus where
+  arbitrary = TeamFeatureStatusNoConfigAndLockStatus <$> arbitrary <*> arbitrary
+
+modelTeamFeatureStatusNoConfigAndLockStatus :: Doc.Model
+modelTeamFeatureStatusNoConfigAndLockStatus = Doc.defineModel "TeamFeatureStatusNoConfigAndLockStatus" $ do
+  Doc.description "Team feature that has no configuration beyond the boolean on/off switch and a lock status"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description ""
+  Doc.property "lockStatus" typeLockStatusValue $ Doc.description ""
+
+instance ToSchema TeamFeatureStatusNoConfigAndLockStatus where
+  schema =
+    object "TeamFeatureStatusNoConfigAndLockStatus" $
+      TeamFeatureStatusNoConfigAndLockStatus
+        <$> tfwoapsStatus .= field "status" schema
+        <*> tfwoapsLockStatus .= field "lockStatus" schema
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
@@ -467,7 +496,7 @@ defaultAppLockStatus =
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
 
-data TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
+newtype TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
   { sdmEnforcedTimeoutSeconds :: Int32
   }
   deriving stock (Eq, Show, Generic)
@@ -491,6 +520,12 @@ defaultSelfDeletingMessagesStatus =
     TeamFeatureEnabled
     (TeamFeatureSelfDeletingMessagesConfig 0)
     Unlocked
+
+----------------------------------------------------------------------
+-- TeamFeatureConferenceCalling
+
+defaultConferenceCalling :: TeamFeatureStatusNoConfigAndLockStatus
+defaultConferenceCalling = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Locked
 
 ----------------------------------------------------------------------
 -- LockStatus

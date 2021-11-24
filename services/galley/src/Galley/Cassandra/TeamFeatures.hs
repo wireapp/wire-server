@@ -30,16 +30,15 @@ import Polysemy.Input
 import Wire.API.Team.Feature
 
 getFeatureStatusNoConfig ::
-  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) m.
+  forall (a :: TeamFeatureName) m.
   ( MonadClient m,
-    FeatureHasNoConfig ps a,
+    FeatureHasNoConfig 'WithoutLockStatus a,
     HasStatusCol a
   ) =>
-  Proxy ps ->
   Proxy a ->
   TeamId ->
-  m (Maybe (TeamFeatureStatus ps a))
-getFeatureStatusNoConfig _ _ tid = do
+  m (Maybe (TeamFeatureStatus 'WithoutLockStatus a))
+getFeatureStatusNoConfig _ tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
@@ -48,17 +47,16 @@ getFeatureStatusNoConfig _ _ tid = do
     select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
 
 setFeatureStatusNoConfig ::
-  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) m.
+  forall (a :: TeamFeatureName) m.
   ( MonadClient m,
-    FeatureHasNoConfig ps a,
+    FeatureHasNoConfig 'WithoutLockStatus a,
     HasStatusCol a
   ) =>
-  Proxy ps ->
   Proxy a ->
   TeamId ->
-  TeamFeatureStatus ps a ->
-  m (TeamFeatureStatus ps a)
-setFeatureStatusNoConfig _ _ tid status = do
+  TeamFeatureStatus 'WithoutLockStatus a ->
+  m (TeamFeatureStatus 'WithoutLockStatus a)
+setFeatureStatusNoConfig _ tid status = do
   let flag = tfwoStatus status
   retry x5 $ write insert (params LocalQuorum (tid, flag))
   pure status
@@ -190,8 +188,8 @@ interpretTeamFeatureStoreToCassandra ::
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  GetFeatureStatusNoConfig' ps tfn tid -> embedClient $ getFeatureStatusNoConfig ps tfn tid
-  SetFeatureStatusNoConfig' ps tfn tid value -> embedClient $ setFeatureStatusNoConfig ps tfn tid value
+  GetFeatureStatusNoConfig' p tid -> embedClient $ getFeatureStatusNoConfig p tid
+  SetFeatureStatusNoConfig' p tid value -> embedClient $ setFeatureStatusNoConfig p tid value
   SetLockStatus' p tid value -> embedClient $ setLockStatus p tid value
   GetLockStatus' p tid -> embedClient $ getLockStatus p tid
   GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid
