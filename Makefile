@@ -8,13 +8,13 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed for integration tests on kubernetes
-CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
+CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
