@@ -381,8 +381,8 @@ testSimpleFlag defaultValue = do
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
   -- personal users
-  let settingWithOutPaymentStatus :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages
-      settingWithOutPaymentStatus stat tout =
+  let settingWithoutPaymentStatus :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages
+      settingWithoutPaymentStatus stat tout =
         Public.TeamFeatureStatusWithConfig @Public.TeamFeatureSelfDeletingMessagesConfig
           stat
           (Public.TeamFeatureSelfDeletingMessagesConfig tout)
