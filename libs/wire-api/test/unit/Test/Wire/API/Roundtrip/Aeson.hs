@@ -206,6 +206,7 @@ tests =
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutPaymentStatus 'Team.Feature.TeamFeatureConferenceCalling),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutPaymentStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithPaymentStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutPaymentStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Feature.PaymentStatusValue,
       testRoundTrip @Team.Feature.PaymentStatus,
