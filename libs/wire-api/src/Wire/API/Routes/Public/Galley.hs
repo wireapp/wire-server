@@ -39,7 +39,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
@@ -71,6 +70,15 @@ type ConversationVerb =
     ConversationResponse
 
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
+
+type RemoveFromConversationVerb =
+  MultiVerb
+    'DELETE
+    '[JSON]
+    '[ RespondEmpty 204 "No change",
+       Respond 200 "Member removed" Event
+     ]
+    (Maybe Event)
 
 data Api routes = Api
   { -- Conversations
@@ -258,15 +266,13 @@ data Api routes = Api
         :- Summary "Remove a member from a conversation (deprecated)"
         :> ZLocalUser
         :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
         :> "members"
         :> Capture' '[Description "Target User ID"] "usr" UserId
-        :> MultiVerb
-             'DELETE
-             '[JSON]
-             RemoveFromConversationHTTPResponse
-             RemoveFromConversationResponse,
+        :> RemoveFromConversationVerb,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     removeMember ::
@@ -274,15 +280,13 @@ data Api routes = Api
         :- Summary "Remove a member from a conversation"
         :> ZLocalUser
         :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
         :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
         :> "members"
         :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
-        :> MultiVerb
-             'DELETE
-             '[JSON]
-             RemoveFromConversationHTTPResponse
-             RemoveFromConversationResponse,
+        :> RemoveFromConversationVerb,
     -- This endpoint can lead to the following events being sent:
     -- - MemberStateUpdate event to members
     updateOtherMemberUnqualified ::
