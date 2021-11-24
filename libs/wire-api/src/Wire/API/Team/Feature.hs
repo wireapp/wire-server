@@ -306,7 +306,7 @@ type family TeamFeatureStatus (ps :: IncludePaymentStatus) (a :: TeamFeatureName
   TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
   TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
 
-type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus 'WithoutPaymentStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
+type FeatureHasNoConfig (ps :: IncludePaymentStatus) (a :: TeamFeatureName) = (TeamFeatureStatus ps a ~ TeamFeatureStatusNoConfig) :: Constraint
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model

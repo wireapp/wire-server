@@ -30,15 +30,16 @@ import Polysemy.Input
 import Wire.API.Team.Feature
 
 getFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) m.
+  forall (ps :: IncludePaymentStatus) (a :: TeamFeatureName) m.
   ( MonadClient m,
-    FeatureHasNoConfig a,
+    FeatureHasNoConfig ps a,
     HasStatusCol a
   ) =>
+  Proxy ps ->
   Proxy a ->
   TeamId ->
-  m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
-getFeatureStatusNoConfig _ tid = do
+  m (Maybe (TeamFeatureStatus ps a))
+getFeatureStatusNoConfig _ _ tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
@@ -47,16 +48,17 @@ getFeatureStatusNoConfig _ tid = do
     select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
 
 setFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) m.
+  forall (ps :: IncludePaymentStatus) (a :: TeamFeatureName) m.
   ( MonadClient m,
-    FeatureHasNoConfig a,
+    FeatureHasNoConfig ps a,
     HasStatusCol a
   ) =>
+  Proxy ps ->
   Proxy a ->
   TeamId ->
-  TeamFeatureStatus 'WithoutPaymentStatus a ->
-  m (TeamFeatureStatus 'WithoutPaymentStatus a)
-setFeatureStatusNoConfig _ tid status = do
+  TeamFeatureStatus ps a ->
+  m (TeamFeatureStatus ps a)
+setFeatureStatusNoConfig _ _ tid status = do
   let flag = tfwoStatus status
   retry x5 $ write insert (params LocalQuorum (tid, flag))
   pure status
@@ -189,8 +191,8 @@ interpretTeamFeatureStoreToCassandra ::
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  GetFeatureStatusNoConfig' p tid -> embedClient $ getFeatureStatusNoConfig p tid
-  SetFeatureStatusNoConfig' p tid value -> embedClient $ setFeatureStatusNoConfig p tid value
+  GetFeatureStatusNoConfig' ps tfn tid -> embedClient $ getFeatureStatusNoConfig ps tfn tid
+  SetFeatureStatusNoConfig' ps tfn tid value -> embedClient $ setFeatureStatusNoConfig ps tfn tid value
   SetPaymentStatus' p tid value -> embedClient $ setPaymentStatus p tid value
   GetPaymentStatus' p tid -> embedClient $ getPaymentStatus p tid
   GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid

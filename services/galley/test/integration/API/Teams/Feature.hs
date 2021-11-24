@@ -81,13 +81,13 @@ testSSO = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getSSO :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSO = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
+      getSSO = assertFlagNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
       getSSOFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSOFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getFeatureConfig Public.TeamFeatureSSO member
+      getSSOFeatureConfig = assertFlagNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO $ Util.getFeatureConfig Public.TeamFeatureSSO member
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSOInternal = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
+      getSSOInternal = assertFlagNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setSSOInternal = void . Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
+      setSSOInternal = void . Util.putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
 
   assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSSO nonMember tid
 
@@ -121,13 +121,13 @@ testLegalHold = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getLegalHold :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getLegalHold = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
+      getLegalHold = assertFlagNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
       getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getLegalHoldInternal = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
-      getLegalHoldFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getFeatureConfig Public.TeamFeatureLegalHold member
+      getLegalHoldInternal = assertFlagNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
+      getLegalHoldFeatureConfig = assertFlagNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold $ Util.getFeatureConfig Public.TeamFeatureLegalHold member
 
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
+      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
   getLegalHold Public.TeamFeatureDisabled
   getLegalHoldInternal Public.TeamFeatureDisabled
 
@@ -319,9 +319,9 @@ testSimpleFlag ::
   forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Typeable a,
-    Public.FeatureHasNoConfig a,
+    Public.FeatureHasNoConfig ps a,
     Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus ps a),
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
     ToJSON (Public.TeamFeatureStatus ps a)
   ) =>
   Public.TeamFeatureStatusValue ->
@@ -337,19 +337,19 @@ testSimpleFlag defaultValue = do
 
   let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlag expected =
-        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
+        flip (assertFlagNoConfig @ps @a) expected $ Util.getTeamFeatureFlag feature member tid
 
       getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFeatureConfig expected =
-        flip (assertFlagNoConfig @a) expected $ Util.getFeatureConfig feature member
+        flip (assertFlagNoConfig @ps @a) expected $ Util.getFeatureConfig feature member
 
       getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlagInternal expected =
-        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlagInternal feature tid
+        flip (assertFlagNoConfig @ps @a) expected $ Util.getTeamFeatureFlagInternal feature tid
 
       setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
       setFlagInternal statusValue =
-        void $ Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+        void $ Util.putTeamFeatureFlagInternal @ps @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
@@ -404,7 +404,7 @@ testSelfDeletingMessages = do
   let checkSet :: TeamFeatureStatusValue -> Int32 -> Int -> TestM ()
       checkSet stat tout expectedStatusCode =
         do
-          Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSelfDeletingMessages
+          Util.putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureSelfDeletingMessages
             galley
             tid
             (settingWithOutPaymentStatus stat tout)
@@ -525,10 +525,10 @@ assertFlagForbidden res = do
     fmap label . responseJsonMaybe === const (Just "no-team-member")
 
 assertFlagNoConfig ::
-  forall (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Typeable a,
-    Public.FeatureHasNoConfig a,
+    Public.FeatureHasNoConfig ps a,
     FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
     Public.KnownTeamFeatureName a
   ) =>
@@ -539,7 +539,7 @@ assertFlagNoConfig res expected = do
   res !!! do
     statusCode === const 200
     ( fmap Public.tfwoStatus
-        . responseJsonEither @(Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+        . responseJsonEither @(Public.TeamFeatureStatus ps a)
       )
       === const (Right expected)
 

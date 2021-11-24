@@ -1892,7 +1892,7 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

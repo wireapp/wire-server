@@ -53,6 +53,7 @@ putTeamSearchVisibilityAvailableInternal ::
 putTeamSearchVisibilityAvailableInternal g tid statusValue =
   void $
     putTeamFeatureFlagInternalWithGalleyAndMod
+      @'Public.WithoutPaymentStatus
       @'Public.TeamFeatureSearchVisibility
       g
       expect2xx
@@ -66,7 +67,7 @@ putLegalHoldEnabledInternal' ::
   Public.TeamFeatureStatusValue ->
   TestM ()
 putLegalHoldEnabledInternal' g tid statusValue =
-  void $ putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
+  void $ putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 --------------------------------------------------------------------------------
 
@@ -150,31 +151,31 @@ getAllFeatureConfigsWithGalley galley uid = do
       . zUser uid
 
 putTeamFeatureFlagInternal ::
-  forall (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+    ToJSON (Public.TeamFeatureStatus ps a)
   ) =>
   (Request -> Request) ->
   TeamId ->
-  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  Public.TeamFeatureStatus ps a ->
   TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
+  putTeamFeatureFlagInternalWithGalleyAndMod @ps @a g reqmod tid status
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
-  forall (a :: Public.TeamFeatureName) m.
+  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName) m.
   ( MonadIO m,
     MonadHttp m,
     HasCallStack,
     Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+    ToJSON (Public.TeamFeatureStatus ps a)
   ) =>
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
-  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  Public.TeamFeatureStatus ps a ->
   m ResponseLBS
 putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
   put $
