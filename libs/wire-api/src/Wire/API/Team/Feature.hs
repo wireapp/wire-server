@@ -40,6 +40,7 @@ module Wire.API.Team.Feature
     defaultAppLockStatus,
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
+    defaultConferenceCalling,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -305,11 +306,13 @@ type family TeamFeatureStatus (ps :: IncludePaymentStatus) (a :: TeamFeatureName
   TeamFeatureStatus _ 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
   TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfigAndPaymentStatus
   TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
   TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
 
-type FeatureHasNoConfig (ps :: IncludePaymentStatus) (a :: TeamFeatureName) = (TeamFeatureStatus ps a ~ TeamFeatureStatusNoConfig) :: Constraint
+type family FeatureHasNoConfig (ps :: IncludePaymentStatus) (a :: TeamFeatureName) :: Constraint where
+  FeatureHasNoConfig 'WithPaymentStatus a = (TeamFeatureStatus 'WithPaymentStatus a ~ TeamFeatureStatusNoConfigAndPaymentStatus)
+  FeatureHasNoConfig 'WithoutPaymentStatus a = (TeamFeatureStatus 'WithoutPaymentStatus a ~ TeamFeatureStatusNoConfig)
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
@@ -517,6 +520,12 @@ defaultSelfDeletingMessagesStatus =
     TeamFeatureEnabled
     (TeamFeatureSelfDeletingMessagesConfig 0)
     PaymentLocked
+
+----------------------------------------------------------------------
+-- TeamFeatureConferenceCalling
+
+defaultConferenceCalling :: TeamFeatureStatusNoConfigAndPaymentStatus
+defaultConferenceCalling = TeamFeatureStatusNoConfigAndPaymentStatus TeamFeatureEnabled PaymentLocked
 
 ----------------------------------------------------------------------
 -- PaymentStatus

@@ -38,25 +38,23 @@ import Wire.API.Team.Feature
 data TeamFeatureStore m a where
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   GetFeatureStatusNoConfig' ::
-    forall (ps :: IncludePaymentStatus) (a :: TeamFeatureName) m.
-    ( FeatureHasNoConfig ps a,
+    forall (a :: TeamFeatureName) m.
+    ( FeatureHasNoConfig 'WithoutPaymentStatus a,
       HasStatusCol a
     ) =>
-    Proxy ps ->
     Proxy a ->
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus ps a))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   SetFeatureStatusNoConfig' ::
-    forall (ps :: IncludePaymentStatus) (a :: TeamFeatureName) m.
-    ( FeatureHasNoConfig ps a,
+    forall (a :: TeamFeatureName) m.
+    ( FeatureHasNoConfig 'WithoutPaymentStatus a,
       HasStatusCol a
     ) =>
-    Proxy ps ->
     Proxy a ->
     TeamId ->
-    TeamFeatureStatus ps a ->
-    TeamFeatureStore m (TeamFeatureStatus ps a)
+    TeamFeatureStatus 'WithoutPaymentStatus a ->
+    TeamFeatureStore m (TeamFeatureStatus 'WithoutPaymentStatus a)
   GetApplockFeatureStatus ::
     TeamId ->
     TeamFeatureStore m (Maybe (TeamFeatureStatus ps 'TeamFeatureAppLock))
@@ -90,19 +88,19 @@ data TeamFeatureStore m a where
 makeSem ''TeamFeatureStore
 
 getFeatureStatusNoConfig ::
-  forall (ps :: IncludePaymentStatus) (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig ps a, HasStatusCol a) =>
+  forall (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutPaymentStatus a, HasStatusCol a) =>
   TeamId ->
-  Sem r (Maybe (TeamFeatureStatus ps a))
-getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @ps) (Proxy @a)
+  Sem r (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
+getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @a)
 
 setFeatureStatusNoConfig ::
-  forall (ps :: IncludePaymentStatus) (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig ps a, HasStatusCol a) =>
+  forall (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutPaymentStatus a, HasStatusCol a) =>
   TeamId ->
-  TeamFeatureStatus ps a ->
-  Sem r (TeamFeatureStatus ps a)
-setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @ps) (Proxy @a)
+  TeamFeatureStatus 'WithoutPaymentStatus a ->
+  Sem r (TeamFeatureStatus 'WithoutPaymentStatus a)
+setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
 
 setPaymentStatus ::
   forall (a :: TeamFeatureName) r.

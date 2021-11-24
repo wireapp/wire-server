@@ -1532,7 +1532,7 @@ getTeamSearchVisibilityAvailableInternal tid = do
       FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
   fromMaybe defConfig
-    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility tid
+    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternalH ::

@@ -215,7 +215,7 @@ data FeatureFlags = FeatureFlags
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureAppLock)),
     _flagClassifiedDomains :: !(TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureClassifiedDomains),
     _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureFileSharing)),
-    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureConferenceCalling)),
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureConferenceCalling)),
     _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages))
   }
   deriving (Eq, Show, Generic)
@@ -261,7 +261,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
-      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
+      <*> (fromMaybe (Defaults defaultConferenceCalling) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
 
 instance ToJSON FeatureFlags where

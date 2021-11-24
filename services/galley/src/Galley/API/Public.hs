@@ -162,7 +162,7 @@ servantSitemap =
           getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusConferenceCallingGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+          getFeatureStatus @'Public.WithPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusSelfDeletingMessagesGet =
           getFeatureStatus @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
@@ -179,7 +179,7 @@ servantSitemap =
         GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
-        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
       }
 

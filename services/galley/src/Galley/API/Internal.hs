@@ -188,7 +188,7 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusConferenceCallingGet ::
       routes
-        :- IFeatureStatusGet 'Public.WithoutPaymentStatus 'Public.TeamFeatureConferenceCalling,
+        :- IFeatureStatusGet 'Public.WithPaymentStatus 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSelfDeletingMessages,
@@ -317,7 +317,7 @@ servantSitemap =
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
-        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.WithPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
         iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iTeamFeaturePaymentStatusSelfDeletingMessagesPut = Features.setPaymentStatus @'Public.TeamFeatureSelfDeletingMessages,

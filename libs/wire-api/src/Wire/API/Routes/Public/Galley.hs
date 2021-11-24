@@ -692,7 +692,7 @@ data Api routes = Api
         :- FeatureConfigGet 'WithoutPaymentStatus 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'WithoutPaymentStatus 'TeamFeatureConferenceCalling,
+        :- FeatureConfigGet 'WithPaymentStatus 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
         :- FeatureConfigGet 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages

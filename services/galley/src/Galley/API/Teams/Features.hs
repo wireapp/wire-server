@@ -230,7 +230,7 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
+        getStatus @'Public.WithPaymentStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
       ]
 
@@ -278,7 +278,7 @@ getAllFeatures uid tid = do
         getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
+        getStatus @'Public.WithPaymentStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
       ]
   where
@@ -295,32 +295,32 @@ getAllFeatures uid tid = do
       pure $ cs (toByteString' feature) Aeson..= status
 
 getFeatureStatusNoConfig ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName) r.
-  ( Public.FeatureHasNoConfig ps a,
+  forall (a :: Public.TeamFeatureName) r.
+  ( Public.FeatureHasNoConfig 'Public.WithoutPaymentStatus a,
     HasStatusCol a,
     Member TeamFeatureStore r
   ) =>
   Sem r Public.TeamFeatureStatusValue ->
   TeamId ->
-  Sem r (Public.TeamFeatureStatus ps a)
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
 getFeatureStatusNoConfig getDefault tid = do
   defaultStatus <- Public.TeamFeatureStatusNoConfig <$> getDefault
-  fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @ps @a tid
+  fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @a tid
 
 setFeatureStatusNoConfig ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName) r.
+  forall (a :: Public.TeamFeatureName) r.
   ( Public.KnownTeamFeatureName a,
-    Public.FeatureHasNoConfig ps a,
+    Public.FeatureHasNoConfig 'Public.WithoutPaymentStatus a,
     HasStatusCol a,
     Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r
   ) =>
   (Public.TeamFeatureStatusValue -> TeamId -> Sem r ()) ->
   TeamId ->
-  Public.TeamFeatureStatus ps a ->
-  Sem r (Public.TeamFeatureStatus ps a)
+  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
 setFeatureStatusNoConfig applyState tid status = do
   applyState (Public.tfwoStatus status) tid
-  newStatus <- TeamFeatures.setFeatureStatusNoConfig @ps @a tid status
+  newStatus <- TeamFeatures.setFeatureStatusNoConfig @a tid status
   pushFeatureConfigEvent tid $
     Event.Event Event.Update (Public.knownTeamFeatureName @a) (EdFeatureWithoutConfigChanged newStatus)
   pure newStatus
@@ -336,7 +336,7 @@ getSSOStatusInternal ::
 getSSOStatusInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO getDef)
+    (getFeatureStatusNoConfig @'Public.TeamFeatureSSO getDef)
   where
     getDef :: Member (Input Opts) r => Sem r Public.TeamFeatureStatusValue
     getDef =
@@ -349,7 +349,7 @@ setSSOStatusInternal ::
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSSO ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSSO)
-setSSOStatusInternal = setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO $ \case
+setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
   Public.TeamFeatureDisabled -> const (throw DisableSsoNotImplemented)
   Public.TeamFeatureEnabled -> const (pure ())
 
@@ -360,7 +360,7 @@ getTeamSearchVisibilityAvailableInternal ::
 getTeamSearchVisibilityAvailableInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility getDef)
+    (getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility getDef)
   where
     getDef = do
       inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility)) <&> \case
@@ -372,7 +372,7 @@ setTeamSearchVisibilityAvailableInternal ::
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSearchVisibility ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSearchVisibility)
-setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility $ \case
+setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
   Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
   Public.TeamFeatureEnabled -> const (pure ())
 
@@ -383,7 +383,7 @@ getValidateSAMLEmailsInternal ::
 getValidateSAMLEmailsInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails getDef)
+    (getFeatureStatusNoConfig   @'Public.TeamFeatureValidateSAMLEmails getDef)
   where
     -- FUTUREWORK: we may also want to get a default from the server config file here, like for
     -- sso, and team search visibility.
@@ -395,7 +395,7 @@ setValidateSAMLEmailsInternal ::
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureValidateSAMLEmails ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureValidateSAMLEmails)
-setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
+setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
 
 getDigitalSignaturesInternal ::
   Member TeamFeatureStore r =>
@@ -404,7 +404,7 @@ getDigitalSignaturesInternal ::
 getDigitalSignaturesInternal =
   either
     (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures getDef)
+    (getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures getDef)
   where
     -- FUTUREWORK: we may also want to get a default from the server config file here, like for
     -- sso, and team search visibility.
@@ -416,7 +416,7 @@ setDigitalSignaturesInternal ::
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureDigitalSignatures ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureDigitalSignatures)
-setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
+setDigitalSignaturesInternal = setFeatureStatusNoConfig  @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
 getLegalholdStatusInternal ::
   Members '[LegalHoldStore, TeamFeatureStore, TeamStore] r =>
@@ -485,29 +485,29 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
     Public.TeamFeatureDisabled -> removeSettings' @p tid
     Public.TeamFeatureEnabled -> do
       ensureNotTooLargeToActivateLegalHold tid
-  TeamFeatures.setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold tid status
+  TeamFeatures.setFeatureStatusNoConfig  @'Public.TeamFeatureLegalHold tid status
 
 getFileSharingInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureFileSharing)
 getFileSharingInternal =
-  getFeatureStatusWithDefaultConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing flagFileSharing . either (const Nothing) Just
+  getFeatureStatusWithDefaultConfig @'Public.TeamFeatureFileSharing flagFileSharing . either (const Nothing) Just
 
 getFeatureStatusWithDefaultConfig ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: TeamFeatureName) r.
+  forall (a :: TeamFeatureName) r.
   ( KnownTeamFeatureName a,
     HasStatusCol a,
-    FeatureHasNoConfig ps a,
+    FeatureHasNoConfig 'Public.WithoutPaymentStatus  a,
     Members '[Input Opts, TeamFeatureStore] r
   ) =>
-  Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus ps a)) ->
+  Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus  a)) ->
   Maybe TeamId ->
-  Sem r (Public.TeamFeatureStatus ps a)
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus  a)
 getFeatureStatusWithDefaultConfig lens' =
   maybe
     (Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @ps @a getDef)
+    (getFeatureStatusNoConfig  @a getDef)
   where
     getDef :: Sem r Public.TeamFeatureStatusValue
     getDef =
@@ -519,7 +519,7 @@ setFileSharingInternal ::
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureFileSharing ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureFileSharing)
-setFileSharingInternal = setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing $ \_status _tid -> pure ()
+setFileSharingInternal = setFeatureStatusNoConfig  @'Public.TeamFeatureFileSharing $ \_status _tid -> pure ()
 
 getAppLockInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
@@ -558,13 +558,16 @@ getClassifiedDomainsInternal _mbtid = do
 getConferenceCallingInternal ::
   Members '[BrigAccess, Input Opts, TeamFeatureStore] r =>
   GetFeatureInternalParam ->
-  Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureConferenceCalling)
+  Sem r (Public.TeamFeatureStatus 'Public.WithPaymentStatus 'Public.TeamFeatureConferenceCalling)
 getConferenceCallingInternal (Left (Just uid)) = do
-  getFeatureConfigViaAccount @'Public.TeamFeatureConferenceCalling uid
+  -- getFeatureConfigViaAccount @'Public.TeamFeatureConferenceCalling uid
+  error "todo"
 getConferenceCallingInternal (Left Nothing) = do
-  getFeatureStatusWithDefaultConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling flagConferenceCalling Nothing
+  -- getFeatureStatusWithDefaultConfig @'Public.TeamFeatureConferenceCalling flagConferenceCalling Nothing
+  error "todo"
 getConferenceCallingInternal (Right tid) = do
-  getFeatureStatusWithDefaultConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling flagConferenceCalling (Just tid)
+  -- getFeatureStatusWithDefaultConfig @'Public.TeamFeatureConferenceCalling flagConferenceCalling (Just tid)
+  error "todo"
 
 setConferenceCallingInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
@@ -572,7 +575,7 @@ setConferenceCallingInternal ::
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureConferenceCalling ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureConferenceCalling)
 setConferenceCallingInternal =
-  setFeatureStatusNoConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
+  setFeatureStatusNoConfig  @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
 
 getSelfDeletingMessagesInternal ::
   Member TeamFeatureStore r =>
