@@ -452,7 +452,7 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod True = POST
 
 getTeamFeatureFlag ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
     Typeable (Public.TeamFeatureStatus ps a),
     FromJSON (Public.TeamFeatureStatus ps a)
@@ -474,10 +474,10 @@ getTeamFeatureFlag tid = do
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   TeamId ->
-  Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"

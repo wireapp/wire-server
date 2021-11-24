@@ -537,12 +537,12 @@ testEnablePerTeam = do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
-    status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
   putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
   do
-    status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
@@ -554,7 +554,7 @@ testEnablePerTeam = do
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
       putEnabled tid Public.TeamFeatureDisabled -- disable again
-      status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
       let statusValue = Public.tfwoStatus status
       liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" statusValue Public.TeamFeatureDisabled
     do
@@ -575,7 +575,7 @@ testEnablePerTeamTooLarge = do
   -- Change the +1 to anything else and look at the logs
   (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
 
-  status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   let statusValue = Public.tfwoStatus status
   liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
   -- You cannot enable legal hold on a team that is too large
@@ -588,7 +588,7 @@ testAddTeamUserTooLargeWithLegalhold = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
-  status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   let statusValue = Public.tfwoStatus status
   liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
   -- You can still enable for this team

@@ -121,7 +121,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature (IncludePaymentStatus (..), TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 
 -----------------------------------------------------------------------------
@@ -968,7 +968,7 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureLegalHold)
+getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"

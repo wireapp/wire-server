@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.TeamFeatures (HasStatusCol (..), HasPaymentStatusCol (..), MaybeHasPaymentStatusCol (..)) where
+module Galley.Data.TeamFeatures (HasStatusCol (..), HasLockStatusCol (..), MaybeHasLockStatusCol (..)) where
 
 import Imports
 import Wire.API.Team.Feature
@@ -50,31 +50,31 @@ instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conferenc
 instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_deleting_messages_status"
 
 ----------------------------------------------------------------------
-class HasPaymentStatusCol (a :: TeamFeatureName) where
-  paymentStatusCol :: String
+class HasLockStatusCol (a :: TeamFeatureName) where
+  lockStatusCol :: String
 
-class MaybeHasPaymentStatusCol (a :: TeamFeatureName) where
-  maybePaymentStatusCol :: Maybe String
+class MaybeHasLockStatusCol (a :: TeamFeatureName) where
+  maybeLockStatusCol :: Maybe String
 
-instance {-# OVERLAPPABLE #-} HasPaymentStatusCol a => MaybeHasPaymentStatusCol a where
-  maybePaymentStatusCol = Just (paymentStatusCol @a)
+instance {-# OVERLAPPABLE #-} HasLockStatusCol a => MaybeHasLockStatusCol a where
+  maybeLockStatusCol = Just (lockStatusCol @a)
 
 ----------------------------------------------------------------------
-instance HasPaymentStatusCol 'TeamFeatureSelfDeletingMessages where
-  paymentStatusCol = "self_deleting_messages_payment_status"
+instance HasLockStatusCol 'TeamFeatureSelfDeletingMessages where
+  lockStatusCol = "self_deleting_messages_lock_status"
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureLegalHold where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureLegalHold where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureSSO where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureSSO where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureSearchVisibility where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureSearchVisibility where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureValidateSAMLEmails where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureValidateSAMLEmails where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureDigitalSignatures where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureDigitalSignatures where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureAppLock where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureAppLock where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureFileSharing where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureFileSharing where maybeLockStatusCol = Nothing
 
-instance MaybeHasPaymentStatusCol 'TeamFeatureConferenceCalling where maybePaymentStatusCol = Nothing
+instance MaybeHasLockStatusCol 'TeamFeatureConferenceCalling where maybeLockStatusCol = Nothing

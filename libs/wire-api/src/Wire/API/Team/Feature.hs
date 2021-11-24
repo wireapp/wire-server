@@ -30,12 +30,12 @@ module Wire.API.Team.Feature
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
-    TeamFeatureStatusWithConfigAndPaymentStatus (..),
+    TeamFeatureStatusWithConfigAndLockStatus (..),
     HasDeprecatedFeatureName (..),
     AllFeatureConfigs (..),
-    PaymentStatus (..),
-    PaymentStatusValue (..),
-    IncludePaymentStatus (..),
+    LockStatus (..),
+    LockStatusValue (..),
+    IncludeLockStatus (..),
     defaultAppLockStatus,
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
@@ -48,9 +48,9 @@ module Wire.API.Team.Feature
     modelTeamFeatureAppLockConfig,
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
-    modelTeamFeatureStatusWithConfigAndPaymentStatus,
+    modelTeamFeatureStatusWithConfigAndLockStatus,
     modelForTeamFeature,
-    modelPaymentStatus,
+    modelLockStatus,
   )
 where
 
@@ -291,9 +291,9 @@ instance Cass.Cql TeamFeatureStatusValue where
 ----------------------------------------------------------------------
 -- TeamFeatureStatus
 
-data IncludePaymentStatus = WithPaymentStatus | WithoutPaymentStatus
+data IncludeLockStatus = WithLockStatus | WithoutLockStatus
 
-type family TeamFeatureStatus (ps :: IncludePaymentStatus) (a :: TeamFeatureName) :: * where
+type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :: * where
   TeamFeatureStatus _ 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureSSO = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureSearchVisibility = TeamFeatureStatusNoConfig
@@ -303,10 +303,10 @@ type family TeamFeatureStatus (ps :: IncludePaymentStatus) (a :: TeamFeatureName
   TeamFeatureStatus _ 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
   TeamFeatureStatus _ 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
-  TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
-  TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
+  TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
+  TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
 
-type FeatureHasNoConfig (ps :: IncludePaymentStatus) (a :: TeamFeatureName) = (TeamFeatureStatus ps a ~ TeamFeatureStatusNoConfig) :: Constraint
+type FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) = (TeamFeatureStatus ps a ~ TeamFeatureStatusNoConfig) :: Constraint
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
@@ -371,31 +371,31 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
         <$> tfwcStatus .= field "status" schema
         <*> tfwcConfig .= field "config" schema
 
-data TeamFeatureStatusWithConfigAndPaymentStatus (cfg :: *) = TeamFeatureStatusWithConfigAndPaymentStatus
+data TeamFeatureStatusWithConfigAndLockStatus (cfg :: *) = TeamFeatureStatusWithConfigAndLockStatus
   { tfwcapsStatus :: TeamFeatureStatusValue,
     tfwcapsConfig :: cfg,
-    tfwcapsPaymentStatus :: PaymentStatusValue
+    tfwcapsLockStatus :: LockStatusValue
   }
   deriving stock (Eq, Show, Generic, Typeable)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfigAndPaymentStatus cfg))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (TeamFeatureStatusWithConfigAndLockStatus cfg))
 
-instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfigAndPaymentStatus cfg) where
-  arbitrary = TeamFeatureStatusWithConfigAndPaymentStatus <$> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfigAndLockStatus cfg) where
+  arbitrary = TeamFeatureStatusWithConfigAndLockStatus <$> arbitrary <*> arbitrary <*> arbitrary
 
-modelTeamFeatureStatusWithConfigAndPaymentStatus :: TeamFeatureName -> Doc.Model -> Doc.Model
-modelTeamFeatureStatusWithConfigAndPaymentStatus name cfgModel = Doc.defineModel (cs $ show name) $ do
+modelTeamFeatureStatusWithConfigAndLockStatus :: TeamFeatureName -> Doc.Model -> Doc.Model
+modelTeamFeatureStatusWithConfigAndLockStatus name cfgModel = Doc.defineModel (cs $ show name) $ do
   Doc.description $ "Status and config of " <> cs (show name)
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
   Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
-  Doc.property "paymentStatus" typePaymentStatusValue $ Doc.description "config"
+  Doc.property "lockStatus" typeLockStatusValue $ Doc.description "config"
 
-instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndPaymentStatus cfg) where
+instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndLockStatus cfg) where
   schema =
-    object "TeamFeatureStatusWithConfigAndPaymentStatus" $
-      TeamFeatureStatusWithConfigAndPaymentStatus
+    object "TeamFeatureStatusWithConfigAndLockStatus" $
+      TeamFeatureStatusWithConfigAndLockStatus
         <$> tfwcapsStatus .= field "status" schema
         <*> tfwcapsConfig .= field "config" schema
-        <*> tfwcapsPaymentStatus .= field "paymentStatus" schema
+        <*> tfwcapsLockStatus .= field "lockStatus" schema
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
@@ -485,82 +485,82 @@ modelTeamFeatureSelfDeletingMessagesConfig =
   Doc.defineModel "TeamFeatureSelfDeletingMessagesConfig" $ do
     Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
 
-defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
+defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
 defaultSelfDeletingMessagesStatus =
-  TeamFeatureStatusWithConfigAndPaymentStatus
+  TeamFeatureStatusWithConfigAndLockStatus
     TeamFeatureEnabled
     (TeamFeatureSelfDeletingMessagesConfig 0)
-    PaymentLocked
+    Locked
 
 ----------------------------------------------------------------------
--- PaymentStatus
+-- LockStatus
 
-instance FromHttpApiData PaymentStatusValue where
-  parseUrlPiece = maybeToEither "Invalid payment status" . fromByteString . cs
+instance FromHttpApiData LockStatusValue where
+  parseUrlPiece = maybeToEither "Invalid lock status" . fromByteString . cs
 
-data PaymentStatusValue = PaymentLocked | PaymentUnlocked
+data LockStatusValue = Locked | Unlocked
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform PaymentStatusValue)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PaymentStatusValue)
+  deriving (Arbitrary) via (GenericUniform LockStatusValue)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LockStatusValue)
 
-newtype PaymentStatus = PaymentStatus
-  { paymentStatus :: PaymentStatusValue
+newtype LockStatus = LockStatus
+  { lockStatus :: LockStatusValue
   }
   deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema PaymentStatus)
-  deriving (Arbitrary) via (GenericUniform PaymentStatus)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema LockStatus)
+  deriving (Arbitrary) via (GenericUniform LockStatus)
 
-instance ToSchema PaymentStatus where
+instance ToSchema LockStatus where
   schema =
-    object "PaymentStatus" $
-      PaymentStatus
-        <$> paymentStatus .= field "paymentStatus" schema
+    object "LockStatus" $
+      LockStatus
+        <$> lockStatus .= field "lockStatus" schema
 
-modelPaymentStatus :: Doc.Model
-modelPaymentStatus =
-  Doc.defineModel "PaymentStatus" $ do
-    Doc.property "paymentStatus" typePaymentStatusValue $ Doc.description ""
+modelLockStatus :: Doc.Model
+modelLockStatus =
+  Doc.defineModel "LockStatus" $ do
+    Doc.property "lockStatus" typeLockStatusValue $ Doc.description ""
 
-typePaymentStatusValue :: Doc.DataType
-typePaymentStatusValue =
+typeLockStatusValue :: Doc.DataType
+typeLockStatusValue =
   Doc.string $
     Doc.enum
       [ "locked",
         "unlocked"
       ]
 
-instance ToSchema PaymentStatusValue where
+instance ToSchema LockStatusValue where
   schema =
-    enum @Text "PaymentStatusValue" $
+    enum @Text "LockStatusValue" $
       mconcat
-        [ element "locked" PaymentLocked,
-          element "unlocked" PaymentUnlocked
+        [ element "locked" Locked,
+          element "unlocked" Unlocked
         ]
 
-instance ToByteString PaymentStatusValue where
-  builder PaymentLocked = "locked"
-  builder PaymentUnlocked = "unlocked"
+instance ToByteString LockStatusValue where
+  builder Locked = "locked"
+  builder Unlocked = "unlocked"
 
-instance FromByteString PaymentStatusValue where
+instance FromByteString LockStatusValue where
   parser =
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of
-        Right "locked" -> pure PaymentLocked
-        Right "unlocked" -> pure PaymentUnlocked
-        Right t -> fail $ "Invalid PaymentStatusValue: " <> T.unpack t
-        Left e -> fail $ "Invalid PaymentStatusValue: " <> show e
+        Right "locked" -> pure Locked
+        Right "unlocked" -> pure Unlocked
+        Right t -> fail $ "Invalid LockStatusValue: " <> T.unpack t
+        Left e -> fail $ "Invalid LockStatusValue: " <> show e
 
-instance Cass.Cql PaymentStatusValue where
+instance Cass.Cql LockStatusValue where
   ctype = Cass.Tagged Cass.IntColumn
 
   fromCql (Cass.CqlInt n) = case n of
-    0 -> pure PaymentLocked
-    1 -> pure PaymentUnlocked
-    _ -> Left "fromCql: Invalid PaymentStatusValue"
-  fromCql _ = Left "fromCql: PaymentStatusValue: CqlInt expected"
+    0 -> pure Locked
+    1 -> pure Unlocked
+    _ -> Left "fromCql: Invalid LockStatusValue"
+  fromCql _ = Left "fromCql: LockStatusValue: CqlInt expected"
 
-  toCql PaymentLocked = Cass.CqlInt 0
-  toCql PaymentUnlocked = Cass.CqlInt 1
+  toCql Locked = Cass.CqlInt 0
+  toCql Unlocked = Cass.CqlInt 1
 
 ----------------------------------------------------------------------
 -- internal

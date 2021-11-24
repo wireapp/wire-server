@@ -129,7 +129,7 @@ models =
     Team.Feature.modelTeamFeatureAppLockConfig,
     Team.Feature.modelTeamFeatureClassifiedDomainsConfig,
     Team.Feature.modelTeamFeatureSelfDeletingMessagesConfig,
-    Team.Feature.modelPaymentStatus,
+    Team.Feature.modelLockStatus,
     Team.Invitation.modelTeamInvitation,
     Team.Invitation.modelTeamInvitationList,
     Team.Invitation.modelTeamInvitationRequest,

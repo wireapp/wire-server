@@ -594,25 +594,25 @@ getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
 getTeamFeatureFlagH ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    Typeable (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    Typeable (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   TeamId ->
   Handler Response
 getTeamFeatureFlagH tid =
-  json <$> Intra.getTeamFeatureFlag @'Public.WithoutPaymentStatus @a tid
+  json <$> Intra.getTeamFeatureFlag @'Public.WithoutLockStatus @a tid
 
 setTeamFeatureFlagH ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
-  TeamId ::: JsonRequest (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a) ::: JSON ->
+  TeamId ::: JsonRequest (Public.TeamFeatureStatus 'Public.WithoutLockStatus a) ::: JSON ->
   Handler Response
 setTeamFeatureFlagH (tid ::: req ::: _) = do
-  status :: Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a <- parseBody req !>> mkError status400 "client-error"
+  status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus a <- parseBody req !>> mkError status400 "client-error"
   empty <$ Intra.setTeamFeatureFlag @a tid status
 
 getTeamFeatureFlagNoConfigH ::
@@ -755,9 +755,9 @@ noSuchUser = ifNothing (mkError status404 "no-user" "No such user")
 mkFeaturePutGetRoute ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a),
-    Typeable (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    Typeable (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   Routes Doc.ApiBuilder Handler ()
 mkFeaturePutGetRoute = do
@@ -774,7 +774,7 @@ mkFeaturePutGetRoute = do
 
   put ("/teams/:tid/features/" <> toByteString' featureName) (continue (setTeamFeatureFlagH @a)) $
     capture "tid"
-      .&. jsonRequest @(Public.TeamFeatureStatus 'Public.WithoutPaymentStatus a)
+      .&. jsonRequest @(Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
       .&. accept "application" "json"
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"

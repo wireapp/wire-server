@@ -117,70 +117,70 @@ servantSitemap =
         GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
         GalleyAPI.postProteusMessage = Update.postProteusMessage,
         GalleyAPI.teamFeatureStatusSSOGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusLegalHoldGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusLegalHoldPut =
           setFeatureStatus @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging) . DoAuth,
         GalleyAPI.teamFeatureStatusSearchVisibilityGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusSearchVisibilityPut =
           setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedPut =
           setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusValidateSAMLEmailsDeprecatedGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusDigitalSignaturesGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusDigitalSignaturesDeprecatedGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusAppLockGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusAppLockPut =
           setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusFileSharingGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
         GalleyAPI.teamFeatureStatusFileSharingPut =
           setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
         GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusConferenceCallingGet =
-          getFeatureStatus @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusSelfDeletingMessagesGet =
-          getFeatureStatus @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
+          getFeatureStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusSelfDeletingMessagesPut =
           setFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal
             . DoAuth,
         GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
-        GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
-        GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
-        GalleyAPI.featureConfigSearchVisibilityGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
-        GalleyAPI.featureConfigValidateSAMLEmailsGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
-        GalleyAPI.featureConfigDigitalSignaturesGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
-        GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal,
-        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
-        GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
-        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutPaymentStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
-        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
+        GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
+        GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
+        GalleyAPI.featureConfigSearchVisibilityGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        GalleyAPI.featureConfigValidateSAMLEmailsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        GalleyAPI.featureConfigDigitalSignaturesGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal,
+        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
       }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()

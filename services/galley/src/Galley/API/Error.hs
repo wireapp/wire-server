@@ -161,14 +161,14 @@ data TeamFeatureError
   | LegalHoldFeatureFlagNotEnabled
   | LegalHoldWhitelistedOnly
   | DisableSsoNotImplemented
-  | PaymentStatusLocked
+  | FeatureLocked
 
 instance APIError TeamFeatureError where
   toWai AppLockinactivityTimeoutTooLow = inactivityTimeoutTooLow
   toWai LegalHoldFeatureFlagNotEnabled = legalHoldFeatureFlagNotEnabled
   toWai LegalHoldWhitelistedOnly = legalHoldWhitelistedOnly
   toWai DisableSsoNotImplemented = disableSsoNotImplemented
-  toWai PaymentStatusLocked = setTeamFeatureConfigPaymentStatusLocked
+  toWai FeatureLocked = setTeamFeatureConfigFeatureLocked
 
 data TeamNotificationError
   = InvalidTeamNotificationId
@@ -460,8 +460,8 @@ noLegalHoldDeviceAllocated = mkError status404 "legalhold-no-device-allocated" "
 legalHoldCouldNotBlockConnections :: Error
 legalHoldCouldNotBlockConnections = mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
-setTeamFeatureConfigPaymentStatusLocked :: Error
-setTeamFeatureConfigPaymentStatusLocked = mkError status409 "payment-status-locked" "feature config cannot be updated when the payment status is locked"
+setTeamFeatureConfigFeatureLocked :: Error
+setTeamFeatureConfigFeatureLocked = mkError status409 "feature-locked" "feature config cannot be updated (eg., because it is configured to be locked, or because you need to upgrade your plan)"
 
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =

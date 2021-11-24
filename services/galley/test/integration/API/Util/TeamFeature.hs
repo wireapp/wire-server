@@ -53,7 +53,7 @@ putTeamSearchVisibilityAvailableInternal ::
 putTeamSearchVisibilityAvailableInternal g tid statusValue =
   void $
     putTeamFeatureFlagInternalWithGalleyAndMod
-      @'Public.WithoutPaymentStatus
+      @'Public.WithoutLockStatus
       @'Public.TeamFeatureSearchVisibility
       g
       expect2xx
@@ -67,7 +67,7 @@ putLegalHoldEnabledInternal' ::
   Public.TeamFeatureStatusValue ->
   TestM ()
 putLegalHoldEnabledInternal' g tid statusValue =
-  void $ putTeamFeatureFlagInternal @'Public.WithoutPaymentStatus @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
+  void $ putTeamFeatureFlagInternal @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 --------------------------------------------------------------------------------
 
@@ -151,7 +151,7 @@ getAllFeatureConfigsWithGalley galley uid = do
       . zUser uid
 
 putTeamFeatureFlagInternal ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Public.KnownTeamFeatureName a,
     ToJSON (Public.TeamFeatureStatus ps a)
@@ -165,7 +165,7 @@ putTeamFeatureFlagInternal reqmod tid status = do
   putTeamFeatureFlagInternalWithGalleyAndMod @ps @a g reqmod tid status
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
-  forall (ps :: Public.IncludePaymentStatus) (a :: Public.TeamFeatureName) m.
+  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName) m.
   ( MonadIO m,
     MonadHttp m,
     HasCallStack,
@@ -184,19 +184,19 @@ putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
       . json status
       . reqmod
 
-setPaymentStatusInternal ::
+setLockStatusInternal ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Public.KnownTeamFeatureName a,
-    ToJSON Public.PaymentStatusValue
+    ToJSON Public.LockStatusValue
   ) =>
   (Request -> Request) ->
   TeamId ->
-  Public.PaymentStatusValue ->
+  Public.LockStatusValue ->
   TestM ResponseLBS
-setPaymentStatusInternal reqmod tid paymentStatus = do
+setLockStatusInternal reqmod tid lockStatus = do
   galley <- view tsGalley
   put $
     galley
-      . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' paymentStatus]
+      . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' lockStatus]
       . reqmod

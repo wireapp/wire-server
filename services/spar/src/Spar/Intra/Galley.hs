@@ -32,7 +32,7 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature
-  ( IncludePaymentStatus (..),
+  ( IncludeLockStatus (..),
     TeamFeatureName (..),
     TeamFeatureStatus,
     TeamFeatureStatusNoConfig (..),
@@ -94,7 +94,7 @@ isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
     ( (statusCode resp == 200)
-        && ( responseJsonMaybe @(TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureValidateSAMLEmails) resp
+        && ( responseJsonMaybe @(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails) resp
                == Just (TeamFeatureStatusNoConfig TeamFeatureEnabled)
            )
     )
