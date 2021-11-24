@@ -608,14 +608,26 @@ setSelfDeletingMessagesInternal ::
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesInternal tid st = do
-  maybePaymentStatus <- TeamFeatures.getPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid
-  case maybePaymentStatus of
-    Just (Public.PaymentStatus Public.PaymentUnlocked) -> do
-      let pushEvent =
-            pushFeatureConfigEvent tid $
-              Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
-      TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
-    _ -> throw PaymentStatusLocked
+  guardPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid (Public.PaymentStatus Public.PaymentLocked)
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
+  TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
+
+-- TODO(fisx): move this function to a more suitable place / module.
+guardPaymentStatus ::
+  forall (a :: Public.TeamFeatureName) r.
+  ( MaybeHasPaymentStatusCol a,
+    Member TeamFeatureStore r,
+    Member (Error TeamFeatureError) r
+  ) =>
+  TeamId ->
+  Public.PaymentStatus -> -- FUTUREWORK(fisx): move this into its own type class and infer from `a`?
+  Sem r ()
+guardPaymentStatus tid defPaymentStatus = do
+  (TeamFeatures.getPaymentStatus @a tid <&> fromMaybe defPaymentStatus) >>= \case
+    Public.PaymentStatus Public.PaymentUnlocked -> pure ()
+    Public.PaymentStatus Public.PaymentLocked -> throw PaymentStatusLocked
 
 pushFeatureConfigEvent ::
   Members '[GundeckAccess, TeamStore, P.TinyLog] r =>
