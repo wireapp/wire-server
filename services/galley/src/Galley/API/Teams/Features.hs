@@ -590,7 +590,8 @@ getSelfDeletingMessagesInternal = \case
           Public.PaymentUnlocked
       (Just Public.PaymentUnlocked, Nothing) ->
         Public.defaultSelfDeletingMessagesStatus {Public.tfwcapsPaymentStatus = Public.PaymentUnlocked}
-      _ -> Public.defaultSelfDeletingMessagesStatus
+      (Just Public.PaymentLocked, _) -> Public.defaultSelfDeletingMessagesStatus
+      (Nothing, _) -> Public.defaultSelfDeletingMessagesStatus
 
 setSelfDeletingMessagesInternal ::
   Members
