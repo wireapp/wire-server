@@ -108,7 +108,7 @@ userSchemas =
 --
 -- For SCIM authentication and token handling logic, see "Spar.Scim.Auth".
 newtype ScimToken = ScimToken {fromScimToken :: Text}
-  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+  deriving (Eq, Ord, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
 newtype ScimTokenHash = ScimTokenHash {fromScimTokenHash :: Text}
   deriving (Eq, Show)

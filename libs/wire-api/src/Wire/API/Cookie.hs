@@ -36,6 +36,7 @@ instance ToParamSchema SetBindCookie where
   toParamSchema _ = toParamSchema (Proxy @String)
 
 newtype BindCookie = BindCookie {fromBindCookie :: ST}
+  deriving (Eq, Ord)
 
 instance ToParamSchema BindCookie where
   toParamSchema _ = toParamSchema (Proxy @String)

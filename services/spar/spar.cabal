@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f787f064cceffbeeef6ac5c1ca7475e519a51afc3fdd173bf7a7a86a9016b238
+-- hash: 34138a2c7fa249191ae03bc1581a7c95c94b12080f104da084a9bc37ac54c9ad
 
 name:           spar
 version:        0.1
@@ -38,14 +38,18 @@ library
       Spar.Scim.User
       Spar.Sem.AReqIDStore
       Spar.Sem.AReqIDStore.Cassandra
+      Spar.Sem.AReqIDStore.Mem
       Spar.Sem.AssIDStore
       Spar.Sem.AssIDStore.Cassandra
+      Spar.Sem.AssIDStore.Mem
       Spar.Sem.BindCookieStore
       Spar.Sem.BindCookieStore.Cassandra
+      Spar.Sem.BindCookieStore.Mem
       Spar.Sem.BrigAccess
       Spar.Sem.BrigAccess.Http
       Spar.Sem.DefaultSsoCode
       Spar.Sem.DefaultSsoCode.Cassandra
+      Spar.Sem.DefaultSsoCode.Mem
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
       Spar.Sem.IdP
@@ -57,6 +61,7 @@ library
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
       Spar.Sem.Now
+      Spar.Sem.Now.Input
       Spar.Sem.Now.IO
       Spar.Sem.Random
       Spar.Sem.Random.IO
@@ -68,14 +73,19 @@ library
       Spar.Sem.SamlProtocolSettings.Servant
       Spar.Sem.SAMLUserStore
       Spar.Sem.SAMLUserStore.Cassandra
+      Spar.Sem.SAMLUserStore.Mem
       Spar.Sem.ScimExternalIdStore
       Spar.Sem.ScimExternalIdStore.Cassandra
+      Spar.Sem.ScimExternalIdStore.Mem
       Spar.Sem.ScimTokenStore
       Spar.Sem.ScimTokenStore.Cassandra
+      Spar.Sem.ScimTokenStore.Mem
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
+      Spar.Sem.ScimUserTimesStore.Mem
       Spar.Sem.VerdictFormatStore
       Spar.Sem.VerdictFormatStore.Cassandra
+      Spar.Sem.VerdictFormatStore.Mem
   other-modules:
       Paths_spar
   hs-source-dirs:
