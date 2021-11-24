@@ -466,7 +466,6 @@ executable galley-schema
     ld-options: -static
   default-language: Haskell2010
 
--- FUTUREWORK(Leif): rename to galley-tests here and in the package.yaml file
 test-suite galley-types-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
