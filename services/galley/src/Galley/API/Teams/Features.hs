@@ -606,7 +606,7 @@ setSelfDeletingMessagesInternal ::
   Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus 'Public.TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesInternal tid st = do
-  guardPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid (Public.PaymentStatus Public.PaymentLocked)
+  guardPaymentStatus @'Public.TeamFeatureSelfDeletingMessages tid Public.PaymentLocked
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
@@ -620,12 +620,12 @@ guardPaymentStatus ::
     Member (Error TeamFeatureError) r
   ) =>
   TeamId ->
-  Public.PaymentStatus -> -- FUTUREWORK(fisx): move this into its own type class and infer from `a`?
+  Public.PaymentStatusValue -> -- FUTUREWORK(fisx): move this into its own type class and infer from `a`?
   Sem r ()
 guardPaymentStatus tid defPaymentStatus = do
   (TeamFeatures.getPaymentStatus @a tid <&> fromMaybe defPaymentStatus) >>= \case
-    Public.PaymentStatus Public.PaymentUnlocked -> pure ()
-    Public.PaymentStatus Public.PaymentLocked -> throw PaymentStatusLocked
+    Public.PaymentUnlocked -> pure ()
+    Public.PaymentLocked -> throw PaymentStatusLocked
 
 pushFeatureConfigEvent ::
   Members '[GundeckAccess, TeamStore, P.TinyLog] r =>

@@ -85,7 +85,7 @@ data TeamFeatureStore m a where
     ) =>
     Proxy a ->
     TeamId ->
-    TeamFeatureStore m (Maybe PaymentStatus)
+    TeamFeatureStore m (Maybe PaymentStatusValue)
 
 makeSem ''TeamFeatureStore
 
@@ -116,5 +116,5 @@ getPaymentStatus ::
   forall (a :: TeamFeatureName) r.
   (Member TeamFeatureStore r, MaybeHasPaymentStatusCol a) =>
   TeamId ->
-  Sem r (Maybe PaymentStatus)
+  Sem r (Maybe PaymentStatusValue)
 getPaymentStatus = getPaymentStatus' (Proxy @a)

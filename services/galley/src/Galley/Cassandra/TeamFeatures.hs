@@ -170,14 +170,13 @@ getPaymentStatus ::
   ) =>
   Proxy a ->
   TeamId ->
-  m (Maybe PaymentStatus)
+  m (Maybe PaymentStatusValue)
 getPaymentStatus _ tid =
   case maybePaymentStatusCol @a of
     Nothing -> pure Nothing
     Just paymentStatusColName -> do
       let q = query1 select (params LocalQuorum (Identity tid))
-      mTuple <- (>>= runIdentity) <$> retry x1 q
-      pure $ PaymentStatus <$> mTuple
+      (>>= runIdentity) <$> retry x1 q
       where
         select :: PrepQuery R (Identity TeamId) (Identity (Maybe PaymentStatusValue))
         select =
