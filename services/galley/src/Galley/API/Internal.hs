@@ -198,6 +198,9 @@ data InternalApi routes = InternalApi
     iTeamFeaturePaymentStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusPaymentStatusPut 'Public.TeamFeatureSelfDeletingMessages,
+    iTeamFeaturePaymentStatusConferenceCallingPut ::
+      routes
+        :- IFeatureStatusPaymentStatusPut 'Public.TeamFeatureConferenceCalling,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     iDeleteUser ::
@@ -318,6 +321,7 @@ servantSitemap =
         iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
         iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.WithPaymentStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iTeamFeaturePaymentStatusSelfDeletingMessagesPut = Features.setPaymentStatus @'Public.TeamFeatureSelfDeletingMessages,
+        iTeamFeaturePaymentStatusConferenceCallingPut = Features.setPaymentStatus @'Public.TeamFeatureConferenceCalling,
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
         iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation

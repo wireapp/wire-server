@@ -63,6 +63,9 @@ instance {-# OVERLAPPABLE #-} HasPaymentStatusCol a => MaybeHasPaymentStatusCol 
 instance HasPaymentStatusCol 'TeamFeatureSelfDeletingMessages where
   paymentStatusCol = "self_deleting_messages_payment_status"
 
+instance HasPaymentStatusCol 'TeamFeatureConferenceCalling where
+  paymentStatusCol = "conference_calling_payment_status"
+
 instance MaybeHasPaymentStatusCol 'TeamFeatureLegalHold where maybePaymentStatusCol = Nothing
 
 instance MaybeHasPaymentStatusCol 'TeamFeatureSSO where maybePaymentStatusCol = Nothing
@@ -76,5 +79,3 @@ instance MaybeHasPaymentStatusCol 'TeamFeatureDigitalSignatures where maybePayme
 instance MaybeHasPaymentStatusCol 'TeamFeatureAppLock where maybePaymentStatusCol = Nothing
 
 instance MaybeHasPaymentStatusCol 'TeamFeatureFileSharing where maybePaymentStatusCol = Nothing
-
-instance MaybeHasPaymentStatusCol 'TeamFeatureConferenceCalling where maybePaymentStatusCol = Nothing

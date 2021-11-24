@@ -29,6 +29,7 @@ module Wire.API.Team.Feature
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
+    TeamFeatureStatusNoConfigAndPaymentStatus (..),
     TeamFeatureStatusWithConfig (..),
     TeamFeatureStatusWithConfigAndPaymentStatus (..),
     HasDeprecatedFeatureName (..),
@@ -49,6 +50,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
     modelTeamFeatureStatusWithConfigAndPaymentStatus,
+    modelTeamFeatureStatusNoConfigAndPaymentStatus,
     modelForTeamFeature,
     modelPaymentStatus,
   )
@@ -302,7 +304,8 @@ type family TeamFeatureStatus (ps :: IncludePaymentStatus) (a :: TeamFeatureName
   TeamFeatureStatus _ 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
   TeamFeatureStatus _ 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-  TeamFeatureStatus _ 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'WithoutPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
   TeamFeatureStatus 'WithPaymentStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndPaymentStatus TeamFeatureSelfDeletingMessagesConfig
 
@@ -340,6 +343,29 @@ instance ToSchema TeamFeatureStatusNoConfig where
     object "TeamFeatureStatusNoConfig" $
       TeamFeatureStatusNoConfig
         <$> tfwoStatus .= field "status" schema
+
+data TeamFeatureStatusNoConfigAndPaymentStatus = TeamFeatureStatusNoConfigAndPaymentStatus
+  { tfwoapsStatus :: TeamFeatureStatusValue,
+    tfwoapsPaymentStatus :: PaymentStatusValue
+  }
+  deriving stock (Eq, Show, Generic, Typeable)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfigAndPaymentStatus)
+
+instance Arbitrary TeamFeatureStatusNoConfigAndPaymentStatus where
+  arbitrary = TeamFeatureStatusNoConfigAndPaymentStatus <$> arbitrary <*> arbitrary
+
+modelTeamFeatureStatusNoConfigAndPaymentStatus :: Doc.Model
+modelTeamFeatureStatusNoConfigAndPaymentStatus = Doc.defineModel "TeamFeatureStatusNoConfigAndPaymentStatus" $ do
+  Doc.description "Team feature that has no configuration beyond the boolean on/off switch and a payment status"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description ""
+  Doc.property "paymentStatus" typePaymentStatusValue $ Doc.description ""
+
+instance ToSchema TeamFeatureStatusNoConfigAndPaymentStatus where
+  schema =
+    object "TeamFeatureStatusNoConfigAndPaymentStatus" $
+      TeamFeatureStatusNoConfigAndPaymentStatus
+        <$> tfwoapsStatus .= field "status" schema
+        <*> tfwoapsPaymentStatus .= field "paymentStatus" schema
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
@@ -467,7 +493,7 @@ defaultAppLockStatus =
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
 
-data TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
+newtype TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
   { sdmEnforcedTimeoutSeconds :: Int32
   }
   deriving stock (Eq, Show, Generic)

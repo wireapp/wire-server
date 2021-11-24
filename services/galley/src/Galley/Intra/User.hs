@@ -233,7 +233,8 @@ getAccountFeatureConfigClient uid =
     handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
 
 getAccountFeatureConfigClientM ::
-  UserId -> Client.ClientM TeamFeatureStatusNoConfig
+  UserId ->
+  Client.ClientM TeamFeatureStatusNoConfig
 ( _
     :<|> getAccountFeatureConfigClientM
     :<|> _
