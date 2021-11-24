@@ -589,10 +589,7 @@ getSelfDeletingMessagesInternal = \case
           (Public.tfwcConfig featureStatus)
           Public.PaymentUnlocked
       (Just Public.PaymentUnlocked, Nothing) ->
-        Public.TeamFeatureStatusWithConfigAndPaymentStatus
-          (Public.tfwcapsStatus Public.defaultSelfDeletingMessagesStatus)
-          (Public.tfwcapsConfig Public.defaultSelfDeletingMessagesStatus)
-          Public.PaymentUnlocked
+        Public.defaultSelfDeletingMessagesStatus {Public.tfwcapsPaymentStatus = Public.PaymentUnlocked}
       _ -> Public.defaultSelfDeletingMessagesStatus
 
 setSelfDeletingMessagesInternal ::
