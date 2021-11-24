@@ -256,7 +256,7 @@ type IFeatureStatusPut featureName =
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus 'Public.WithoutPaymentStatus featureName)
 
 type IFeatureStatusPaymentStatusPut featureName =
-  Summary (AppendSymbol "(Un-) lock payment for " (Public.KnownTeamFeatureNameSymbol featureName))
+  Summary (AppendSymbol "(Un-)lock payment for " (Public.KnownTeamFeatureNameSymbol featureName))
     :> "i"
     :> "teams"
     :> Capture "tid" TeamId
