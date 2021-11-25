@@ -422,6 +422,7 @@ CREATE TABLE galley_test.team_features (
     file_sharing int,
     legalhold_status int,
     search_visibility_status int,
+    self_deleting_messages_lock_status int,
     self_deleting_messages_status int,
     self_deleting_messages_ttl int,
     sso_status int,

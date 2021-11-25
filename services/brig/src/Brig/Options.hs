@@ -508,8 +508,8 @@ data Settings = Settings
 -- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
 -- messages).  For now, we have something quick & simple.
 data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.TeamFeatureConferenceCalling),
-    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.TeamFeatureConferenceCalling)
+  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling),
+    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling)
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform AccountFeatureConfigs)

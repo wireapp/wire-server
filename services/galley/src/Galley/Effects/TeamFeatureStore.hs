@@ -23,6 +23,8 @@ module Galley.Effects.TeamFeatureStore
     setApplockFeatureStatus,
     getSelfDeletingMessagesStatus,
     setSelfDeletingMessagesStatus,
+    setLockStatus,
+    getLockStatus,
   )
 where
 
@@ -36,51 +38,83 @@ import Wire.API.Team.Feature
 data TeamFeatureStore m a where
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   GetFeatureStatusNoConfig' ::
-    forall (a :: TeamFeatureName) m.
-    ( FeatureHasNoConfig a,
+    forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) m.
+    ( FeatureHasNoConfig ps a,
       HasStatusCol a
     ) =>
+    Proxy ps ->
     Proxy a ->
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus a))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus ps a))
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   SetFeatureStatusNoConfig' ::
-    forall (a :: TeamFeatureName) m.
-    ( FeatureHasNoConfig a,
+    forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) m.
+    ( FeatureHasNoConfig ps a,
       HasStatusCol a
+    ) =>
+    Proxy ps ->
+    Proxy a ->
+    TeamId ->
+    TeamFeatureStatus ps a ->
+    TeamFeatureStore m (TeamFeatureStatus ps a)
+  GetApplockFeatureStatus ::
+    TeamId ->
+    TeamFeatureStore m (Maybe (TeamFeatureStatus ps 'TeamFeatureAppLock))
+  SetApplockFeatureStatus ::
+    TeamId ->
+    TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock ->
+    TeamFeatureStore m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock)
+  GetSelfDeletingMessagesStatus ::
+    TeamId ->
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages), Maybe LockStatusValue)
+  SetSelfDeletingMessagesStatus ::
+    TeamId ->
+    TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages ->
+    TeamFeatureStore m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages)
+  SetLockStatus' ::
+    forall (a :: TeamFeatureName) m.
+    ( HasLockStatusCol a
     ) =>
     Proxy a ->
     TeamId ->
-    TeamFeatureStatus a ->
-    TeamFeatureStore m (TeamFeatureStatus a)
-  GetApplockFeatureStatus ::
+    LockStatus ->
+    TeamFeatureStore m LockStatus
+  GetLockStatus' ::
+    forall (a :: TeamFeatureName) m.
+    ( MaybeHasLockStatusCol a
+    ) =>
+    Proxy a ->
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'TeamFeatureAppLock))
-  SetApplockFeatureStatus ::
-    TeamId ->
-    TeamFeatureStatus 'TeamFeatureAppLock ->
-    TeamFeatureStore m (TeamFeatureStatus 'TeamFeatureAppLock)
-  GetSelfDeletingMessagesStatus ::
-    TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages))
-  SetSelfDeletingMessagesStatus ::
-    TeamId ->
-    TeamFeatureStatus 'TeamFeatureSelfDeletingMessages ->
-    TeamFeatureStore m (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages)
+    TeamFeatureStore m (Maybe LockStatusValue)
 
 makeSem ''TeamFeatureStore
 
 getFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig a, HasStatusCol a) =>
+  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, FeatureHasNoConfig ps a, HasStatusCol a) =>
   TeamId ->
-  Sem r (Maybe (TeamFeatureStatus a))
-getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @a)
+  Sem r (Maybe (TeamFeatureStatus ps a))
+getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @ps) (Proxy @a)
 
 setFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig a, HasStatusCol a) =>
+  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, FeatureHasNoConfig ps a, HasStatusCol a) =>
   TeamId ->
-  TeamFeatureStatus a ->
-  Sem r (TeamFeatureStatus a)
-setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
+  TeamFeatureStatus ps a ->
+  Sem r (TeamFeatureStatus ps a)
+setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @ps) (Proxy @a)
+
+setLockStatus ::
+  forall (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, HasLockStatusCol a) =>
+  TeamId ->
+  LockStatus ->
+  Sem r LockStatus
+setLockStatus = setLockStatus' (Proxy @a)
+
+getLockStatus ::
+  forall (a :: TeamFeatureName) r.
+  (Member TeamFeatureStore r, MaybeHasLockStatusCol a) =>
+  TeamId ->
+  Sem r (Maybe LockStatusValue)
+getLockStatus = getLockStatus' (Proxy @a)
