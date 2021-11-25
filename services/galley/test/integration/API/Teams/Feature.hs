@@ -22,7 +22,7 @@ import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge
 import Bilge.Assert
-import Control.Lens (over, view)
+import Control.Lens (over, to, view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON, object, (.=))
 import qualified Data.Aeson as Aeson
@@ -380,6 +380,16 @@ testSimpleFlag defaultValue = do
 
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
+  defLockStatus :: Public.LockStatusValue <-
+    view
+      ( tsGConf
+          . optSettings
+          . setFeatureFlags
+          . flagSelfDeletingMessages
+          . unDefaults
+          . to Public.tfwcapsLockStatus
+      )
+
   -- personal users
   let settingWithoutLockStatus :: TeamFeatureStatusValue -> Int32 -> Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages
       settingWithoutLockStatus stat tout =
@@ -395,7 +405,7 @@ testSelfDeletingMessages = do
 
   personalUser <- Util.randomUser
   Util.getFeatureConfig Public.TeamFeatureSelfDeletingMessages personalUser
-    !!! responseJsonEither === const (Right $ settingWithLockStatus TeamFeatureEnabled 0 Public.Locked)
+    !!! responseJsonEither === const (Right $ settingWithLockStatus TeamFeatureEnabled 0 defLockStatus)
 
   -- team users
   galley <- view tsGalley
@@ -427,6 +437,13 @@ testSelfDeletingMessages = do
           Util.setLockStatusInternal @'Public.TeamFeatureSelfDeletingMessages galley tid status
           !!! statusCode === const 200
 
+  -- test that the default lock status comes from `galley.yaml`.
+  -- use this to change `galley.integration.yaml` locally and manually test that conf file
+  -- parsing works as expected.
+  checkGet TeamFeatureEnabled 0 defLockStatus
+
+  -- now don't worry about what's in the config, write something to cassandra, and test with that.
+  checkSetLockStatus Public.Locked
   checkGet TeamFeatureEnabled 0 Public.Locked
   checkSet TeamFeatureDisabled 0 409
   checkGet TeamFeatureEnabled 0 Public.Locked

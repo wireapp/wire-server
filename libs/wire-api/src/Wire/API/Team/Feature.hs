@@ -490,7 +490,7 @@ defaultSelfDeletingMessagesStatus =
   TeamFeatureStatusWithConfigAndLockStatus
     TeamFeatureEnabled
     (TeamFeatureSelfDeletingMessagesConfig 0)
-    Locked
+    Unlocked
 
 ----------------------------------------------------------------------
 -- LockStatus

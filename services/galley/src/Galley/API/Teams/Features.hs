@@ -575,23 +575,29 @@ setConferenceCallingInternal =
   setFeatureStatusNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
 
 getSelfDeletingMessagesInternal ::
-  Member TeamFeatureStore r =>
+  forall r.
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureSelfDeletingMessages)
 getSelfDeletingMessagesInternal = \case
-  Left _ -> pure Public.defaultSelfDeletingMessagesStatus
+  Left _ -> getCfgDefault
   Right tid -> do
-    (maybeFeatureStatus, maybeLockStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
-    pure $ case (maybeLockStatus, maybeFeatureStatus) of
-      (Just Public.Unlocked, Just featureStatus) ->
+    cfgDefault <- getCfgDefault
+    let defLockStatus = Public.tfwcapsLockStatus cfgDefault
+    (maybeFeatureStatus, fromMaybe defLockStatus -> lockStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
+    pure $ case (lockStatus, maybeFeatureStatus) of
+      (Public.Unlocked, Just featureStatus) ->
         Public.TeamFeatureStatusWithConfigAndLockStatus
           (Public.tfwcStatus featureStatus)
           (Public.tfwcConfig featureStatus)
           Public.Unlocked
-      (Just Public.Unlocked, Nothing) ->
-        Public.defaultSelfDeletingMessagesStatus {Public.tfwcapsLockStatus = Public.Unlocked}
-      (Just Public.Locked, _) -> Public.defaultSelfDeletingMessagesStatus
-      (Nothing, _) -> Public.defaultSelfDeletingMessagesStatus
+      (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwcapsLockStatus = Public.Unlocked}
+      (Public.Locked, _) -> cfgDefault {Public.tfwcapsLockStatus = Public.Locked}
+  where
+    getCfgDefault :: Sem r (Public.TeamFeatureStatusWithConfigAndLockStatus Public.TeamFeatureSelfDeletingMessagesConfig)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
 setSelfDeletingMessagesInternal ::
   Members
