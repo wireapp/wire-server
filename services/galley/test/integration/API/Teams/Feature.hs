@@ -467,20 +467,30 @@ testSelfDeletingMessages = do
 -- features are there.
 testAllFeatures :: TestM ()
 testAllFeatures = do
+  defLockStatus :: Public.LockStatusValue <-
+    view
+      ( tsGConf
+          . optSettings
+          . setFeatureFlags
+          . flagSelfDeletingMessages
+          . unDefaults
+          . to Public.tfwcapsLockStatus
+      )
+
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   Util.getAllTeamFeatures member tid !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by default in galley -}))
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus {- determined by default in galley -}))
   Util.getAllTeamFeaturesPersonal member !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by default in galley -}))
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus{- determined by default in galley -}))
 
   randomPersonalUser <- Util.randomUser
   Util.getAllTeamFeaturesPersonal randomPersonalUser !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus{- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
-    expected confCalling =
+    expected confCalling lockState =
       object
         [ toS TeamFeatureLegalHold .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
           toS TeamFeatureSSO .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
@@ -502,7 +512,7 @@ testAllFeatures = do
             .= Public.TeamFeatureStatusWithConfigAndLockStatus @Public.TeamFeatureSelfDeletingMessagesConfig
               TeamFeatureEnabled
               (Public.TeamFeatureSelfDeletingMessagesConfig 0)
-              Public.Locked
+              lockState
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
