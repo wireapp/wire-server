@@ -1,3 +1,11 @@
+{{- $accessKey := "" }}
+{{- $secretKey := "" }}
+{{- range .Values.minio.users }}
+{{- if (eq .policy "consoleAdmin") }}
+{{- $accessKey = .accessKey }}
+{{- $secretKey = .secretKey }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,9 +35,8 @@ spec:
           echo 'Creating AWS resources'
           while true
           do
-              # TODO: Do not assume that the first user has consoleAdmin privileges
-              export AWS_SECRET_ACCESS_KEY={{ (index .Values.minio.users 0).secretKey }}
-              export AWS_ACCESS_KEY_ID={{ (index .Values.minio.users 0).accessKey }}
+              export AWS_SECRET_ACCESS_KEY={{ $secretKey }}
+              export AWS_ACCESS_KEY_ID={{ $accessKey }}
               {{- range .Values.minio.buckets }}
               aws s3 --endpoint http://{{ $.Values.minio.fullnameOverride }}:9000 mb s3://{{ .name }} | grep -ev "BucketAlreadyOwnedByYou"
               {{- end }}
