@@ -27,7 +27,12 @@ spec:
           echo 'Creating AWS resources'
           while true
           do
-              AWS_SECRET_ACCESS_KEY={{ .Values.minio.secretKey }} AWS_ACCESS_KEY_ID={{ .Values.minio.accessKey }} aws s3 --endpoint http://{{ .Values.minio.fullnameOverride }}:9000 mb s3://{{ .Values.minio.defaultBucket.name }} | grep -ev "BucketAlreadyOwnedByYou"
+              # TODO: Do not assume that the first user has consoleAdmin privileges
+              export AWS_SECRET_ACCESS_KEY={{ (index .Values.minio.users 0).secretKey }}
+              export AWS_ACCESS_KEY_ID={{ (index .Values.minio.users 0).accessKey }}
+              {{- range .Values.minio.buckets }}
+              aws s3 --endpoint http://{{ $.Values.minio.fullnameOverride }}:9000 mb s3://{{ .name }} | grep -ev "BucketAlreadyOwnedByYou"
+              {{- end }}
               sleep 10
           done
 
