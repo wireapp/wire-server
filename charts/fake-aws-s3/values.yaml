@@ -1,6 +1,7 @@
 # See defaults in https://github.com/helm/charts/tree/master/stable/minio
 minio:
   fullnameOverride: fake-aws-s3
+  mode: standalone
   users:
     - accessKey: dummykey
       secretKey: dummysecret
