@@ -17,13 +17,19 @@
 
 module Wire.API.Federation.API.Brig where
 
-import Data.Aeson
+import Control.Lens.Combinators hiding (element, enum)
+import qualified Data.Aeson as A
 import Data.Handle (Handle)
 import Data.Id
+import Data.Proxy
 import Data.Range
+import Data.Schema
+import Data.Singletons (sing)
+import qualified Data.Swagger as S
 import Imports
 import Servant.API
 import Servant.API.Generic
+import Servant.Swagger
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
@@ -34,15 +40,6 @@ import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
-import Wire.API.Util.Aeson (CustomEncoded (..))
-
-newtype SearchRequest = SearchRequest {term :: Text}
-  deriving (Show, Eq, Generic, Typeable)
-  deriving (Arbitrary) via (GenericUniform SearchRequest)
-
-instance ToJSON SearchRequest
-
-instance FromJSON SearchRequest
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 --
@@ -100,11 +97,28 @@ data BrigApi routes = BrigApi
   }
   deriving (Generic)
 
+newtype SearchRequest = SearchRequest {term :: Text}
+  deriving (Show, Eq, Generic, Typeable)
+  deriving (Arbitrary) via (GenericUniform SearchRequest)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema SearchRequest)
+
+instance ToSchema SearchRequest where
+  schema =
+    object "SearchRequest" $
+      SearchRequest
+        <$> term .= field "term" schema
+
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GetUserClients)
+
+instance ToSchema GetUserClients where
+  schema =
+    object "GetUserClients" $
+      GetUserClients
+        <$> gucUsers .= field "users" (array schema)
 
 -- NOTE: ConversationId for remote connections
 --
@@ -131,21 +145,53 @@ data NewConnectionRequest = NewConnectionRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
-  deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionRequest)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NewConnectionRequest)
+
+instance ToSchema NewConnectionRequest where
+  schema =
+    object "NewConnectionRequest" $
+      NewConnectionRequest
+        <$> ncrFrom .= field "from" schema
+        <*> ncrTo .= field "to" schema
+        <*> ncrAction .= field "action" schema
 
 data RemoteConnectionAction
   = RemoteConnect
   | RemoteRescind
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConnectionAction)
-  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConnectionAction)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema RemoteConnectionAction)
+
+instance ToSchema RemoteConnectionAction where
+  schema =
+    enum @Text "RemoteConnectionAction" $
+      mconcat
+        [ element "connect" RemoteConnect,
+          element "rescind" RemoteRescind
+        ]
+
+newtype NewConnectionRemoteAction = NewConnectionRemoteAction {unNCRA :: Maybe RemoteConnectionAction}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewConnectionRemoteAction)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NewConnectionRemoteAction)
+
+instance ToSchema NewConnectionRemoteAction where
+  schema =
+    object "NewConnectionRemoteAction" $
+      NewConnectionRemoteAction <$> unNCRA .= optField "remote_connection_action" (Just A.Null) schema
 
 data NewConnectionResponse
   = NewConnectionResponseUserNotActivated
-  | NewConnectionResponseOk (Maybe RemoteConnectionAction)
+  | NewConnectionResponseOk NewConnectionRemoteAction
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
-  deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NewConnectionResponse)
+
+instance ToSchema NewConnectionResponse where
+  schema =
+    named "NewConnectionResponse" $
+      tag _NewConnectionResponseUserNotActivated null_
+        <> tag _NewConnectionResponseOk (unnamed schema)
 
 type UserDeletedNotificationMaxConnections = 1000
 
@@ -157,4 +203,44 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema UserDeletedConnectionsNotification)
+
+instance ToSchema UserDeletedConnectionsNotification where
+  schema =
+    object "UserDeletedConnectionsNotification" $
+      UserDeletedConnectionsNotification
+        <$> udcnUser .= field "user" schema
+        <*> (fromRange . udcnConnections)
+          .= field "connections" (rangedSchema sing sing (array schema))
+
+type ServantAPI = ToServantApi BrigApi
+
+swaggerDoc :: S.Swagger
+swaggerDoc = toSwagger (Proxy @ServantAPI)
+
+-----------------------------------------------------------------------------
+-- Prisms for the ToSchema instance for NewConnectionResponse
+
+_NewConnectionResponseUserNotActivated ::
+  Prism' NewConnectionResponse ()
+_NewConnectionResponseUserNotActivated =
+  prism
+    (const NewConnectionResponseUserNotActivated)
+    ( \action ->
+        case action of
+          NewConnectionResponseUserNotActivated -> Right ()
+          _ -> Left action
+    )
+{-# INLINE _NewConnectionResponseUserNotActivated #-}
+
+_NewConnectionResponseOk ::
+  Prism' NewConnectionResponse NewConnectionRemoteAction
+_NewConnectionResponseOk =
+  prism
+    NewConnectionResponseOk
+    ( \action ->
+        case action of
+          NewConnectionResponseOk remoteAction -> Right remoteAction
+          _ -> Left action
+    )
+{-# INLINE _NewConnectionResponseOk #-}

@@ -348,7 +348,7 @@ receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction ex
     F.sendConnectionAction (fedBrigClient (qDomain quid2)) $
       F.NewConnectionRequest (qUnqualified quid2) uid1 action
   liftIO $ do
-    res @?= F.NewConnectionResponseOk expectedReaction
+    res @?= F.NewConnectionResponseOk (F.NewConnectionRemoteAction expectedReaction)
   assertConnectionQualified brig uid1 quid2 expectedRel
 
 sendConnectionAction ::
@@ -361,7 +361,7 @@ sendConnectionAction ::
   Relation ->
   Http ()
 sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
-  let mockConnectionResponse = F.NewConnectionResponseOk reaction
+  let mockConnectionResponse = F.NewConnectionResponseOk (F.NewConnectionRemoteAction reaction)
       mockResponse = encode mockConnectionResponse
   (res, reqs) <-
     liftIO . withTempMockFederator opts mockResponse $
@@ -388,7 +388,7 @@ sendConnectionUpdateAction ::
   Relation ->
   Http ()
 sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
-  let mockConnectionResponse = F.NewConnectionResponseOk reaction
+  let mockConnectionResponse = F.NewConnectionResponseOk (F.NewConnectionRemoteAction reaction)
       mockResponse = encode mockConnectionResponse
   void $
     liftIO . withTempMockFederator opts mockResponse $

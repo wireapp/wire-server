@@ -25,6 +25,7 @@ dependencies:
 - http-types
 - http2
 - imports
+- lens
 - lifted-base
 - metrics-wai
 - mtl
@@ -34,6 +35,8 @@ dependencies:
 - servant-client
 - servant-client-core
 - servant-server
+- servant-swagger
+- singletons
 - sop-core
 - streaming-commons
 - swagger2

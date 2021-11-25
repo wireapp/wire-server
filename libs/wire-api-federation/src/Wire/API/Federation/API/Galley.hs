@@ -17,16 +17,23 @@
 
 module Wire.API.Federation.API.Galley where
 
-import Data.Aeson (FromJSON, ToJSON)
+import Control.Lens (_Left, _Right)
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Id (ClientId, ConvId, UserId)
-import Data.Json.Util (Base64ByteString)
+import Data.Json.Util
 import Data.Misc (Milliseconds)
+import Data.Proxy
 import Data.Qualified
 import Data.Range
+import Data.Schema
+import Data.Singletons (sing)
+import qualified Data.Swagger as S
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic
+import Servant.Swagger
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
   ( Access,
@@ -42,7 +49,6 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.User.Client (UserClientMap)
-import Wire.API.Util.Aeson (CustomEncoded (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -109,7 +115,14 @@ data GetConversationsRequest = GetConversationsRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
-  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema GetConversationsRequest)
+
+instance ToSchema GetConversationsRequest where
+  schema =
+    object "GetConversationsRequest" $
+      GetConversationsRequest
+        <$> gcrUserId .= field "user_id" schema
+        <*> gcrConvIds .= field "conversation_ids" (array schema)
 
 data RemoteConvMembers = RemoteConvMembers
   { rcmSelfRole :: RoleName,
@@ -117,7 +130,14 @@ data RemoteConvMembers = RemoteConvMembers
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConvMembers)
-  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConvMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RemoteConvMembers)
+
+instance ToSchema RemoteConvMembers where
+  schema =
+    object "RemoteConvMembers" $
+      RemoteConvMembers
+        <$> rcmSelfRole .= field "self_role" schema
+        <*> rcmOthers .= field "other_members" (array schema)
 
 -- | A conversation hosted on a remote backend. This contains the same
 -- information as a 'Conversation', with the exception that conversation status
@@ -132,14 +152,27 @@ data RemoteConversation = RemoteConversation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConversation)
-  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversation)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RemoteConversation)
+
+instance ToSchema RemoteConversation where
+  schema =
+    object "RemoteConversation" $
+      RemoteConversation
+        <$> rcnvId .= field "conversation_id" schema
+        <*> rcnvMetadata .= field "metadata" schema
+        <*> rcnvMembers .= field "members" schema
 
 newtype GetConversationsResponse = GetConversationsResponse
   { gcresConvs :: [RemoteConversation]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
-  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema GetConversationsResponse)
+
+instance ToSchema GetConversationsResponse where
+  schema =
+    object "GetConversationsResponse" $
+      GetConversationsResponse <$> gcresConvs .= field "conversations" (array schema)
 
 -- | A record type describing a new federated conversation
 --
@@ -166,7 +199,22 @@ data NewRemoteConversation conv = NewRemoteConversation
     rcReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic, Functor)
-  deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (NewRemoteConversation conv))
+
+instance ToSchema conv => ToSchema (NewRemoteConversation conv) where
+  schema =
+    object "NewRemoteConversation" $
+      NewRemoteConversation
+        <$> (toUTCTimeMillis . rcTime) .= fmap fromUTCTimeMillis (field "time" schema)
+        <*> rcOrigUserId .= field "creator_user_id" schema
+        <*> rcCnvId .= field "conversation_id" schema
+        <*> rcCnvType .= field "conversation_type" schema
+        <*> rcCnvAccess .= field "access" (array schema)
+        <*> rcCnvAccessRole .= field "access_role" schema
+        <*> rcCnvName .= lax (field "conversation_name" (optWithDefault A.Null schema))
+        <*> rcNonCreatorMembers .= field "non_creator_members" (set schema)
+        <*> rcMessageTimer .= opt (field "message_timer" schema)
+        <*> rcReceiptMode .= opt (field "receipt_mode" schema)
 
 rcRemoteOrigUserId :: NewRemoteConversation (Remote ConvId) -> Remote UserId
 rcRemoteOrigUserId rc = qualifyAs (rcCnvId rc) (rcOrigUserId rc)
@@ -188,7 +236,17 @@ data ConversationUpdate = ConversationUpdate
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationUpdate)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ConversationUpdate)
+
+instance ToSchema ConversationUpdate where
+  schema =
+    object "ConversationUpdate" $
+      ConversationUpdate
+        <$> (toUTCTimeMillis . cuTime) .= fmap fromUTCTimeMillis (field "time" schema)
+        <*> cuOrigUserId .= field "qualified_creator_user_id" schema
+        <*> cuConvId .= field "conversation_id" schema
+        <*> cuAlreadyPresentUsers .= field "already_present_users" (array schema)
+        <*> cuAction .= field "action" schema
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which
@@ -199,7 +257,14 @@ data LeaveConversationRequest = LeaveConversationRequest
     lcLeaver :: UserId
   }
   deriving stock (Generic, Eq, Show)
-  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversationRequest)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LeaveConversationRequest)
+
+instance ToSchema LeaveConversationRequest where
+  schema =
+    object "LeaveConversationRequest" $
+      LeaveConversationRequest
+        <$> lcConvId .= field "conversation_id" schema
+        <*> lcLeaver .= field "leaver_id" schema
 
 -- | Error outcomes of the leave-conversation RPC.
 data RemoveFromConversationError
@@ -207,9 +272,22 @@ data RemoveFromConversationError
   | RemoveFromConversationErrorNotFound
   | RemoveFromConversationErrorUnchanged
   deriving stock (Eq, Show, Generic)
-  deriving
-    (ToJSON, FromJSON)
-    via (CustomEncoded RemoveFromConversationError)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema RemoveFromConversationError)
+
+instance ToSchema RemoveFromConversationError where
+  schema =
+    enum @Text "RemoveFromConversationError" $
+      mconcat
+        [ element
+            "removal-not-allowed"
+            RemoveFromConversationErrorRemovalNotAllowed,
+          element
+            "not-found"
+            RemoveFromConversationErrorNotFound,
+          element
+            "unchanged"
+            RemoveFromConversationErrorUnchanged
+        ]
 
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
@@ -228,7 +306,21 @@ data RemoteMessage conv = RemoteMessage
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
-  deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (RemoteMessage conv))
+
+instance ToSchema conv => ToSchema (RemoteMessage conv) where
+  schema =
+    object "RemoteMessage" $
+      RemoteMessage
+        <$> (toUTCTimeMillis . rmTime) .= fmap fromUTCTimeMillis (field "time" schema)
+        <*> rmData .= opt (field "data" schema)
+        <*> rmSender .= field "qualified_sender_id" schema
+        <*> rmSenderClient .= field "sender_client" schema
+        <*> rmConversation .= field "conversation" schema
+        <*> rmPriority .= opt (field "priority" schema)
+        <*> rmPush .= field "push" schema
+        <*> rmTransient .= field "transient" schema
+        <*> rmRecipients .= field "recipients" schema
 
 data MessageSendRequest = MessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows
@@ -241,24 +333,38 @@ data MessageSendRequest = MessageSendRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MessageSendRequest)
-  deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MessageSendRequest)
+
+instance ToSchema MessageSendRequest where
+  schema =
+    object "MessageSendRequest" $
+      MessageSendRequest
+        <$> msrConvId .= field "conversation_id" schema
+        <*> msrSender .= field "sender_id" schema
+        <*> msrRawMessage .= field "raw_message" schema
 
 newtype MessageSendResponse = MessageSendResponse
   {msResponse :: PostOtrResponse MessageSendingStatus}
   deriving stock (Eq, Show)
   deriving
-    (ToJSON, FromJSON)
+    (ToJSON, FromJSON, S.ToSchema)
     via ( Either
-            (CustomEncoded (MessageNotSent MessageSendingStatus))
+            (Schema (MessageNotSent MessageSendingStatus))
             MessageSendingStatus
         )
 
 newtype LeaveConversationResponse = LeaveConversationResponse
   {leaveResponse :: Either RemoveFromConversationError ()}
   deriving stock (Eq, Show)
-  deriving
-    (ToJSON, FromJSON)
-    via (Either (CustomEncoded RemoveFromConversationError) ())
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LeaveConversationResponse)
+
+instance ToSchema LeaveConversationResponse where
+  schema =
+    LeaveConversationResponse
+      <$> leaveResponse
+        .= named
+          "LeaveConversationResponse"
+          (tag _Left (unnamed schema) <> tag _Right null_)
 
 type UserDeletedNotificationMaxConvs = 1000
 
@@ -270,4 +376,17 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserDeletedConversationsNotification)
+
+instance ToSchema UserDeletedConversationsNotification where
+  schema =
+    object "UserDeletedConversationsNotification" $
+      UserDeletedConversationsNotification
+        <$> udcvUser .= field "user_id" schema
+        <*> (fromRange . udcvConversations)
+          .= field "conversation_ids" (rangedSchema sing sing (array schema))
+
+type ServantAPI = ToServantApi GalleyApi
+
+swaggerDoc :: S.Swagger
+swaggerDoc = toSwagger (Proxy @ServantAPI)

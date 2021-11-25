@@ -41,8 +41,9 @@ import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection (relationWithHistory)
 import Wire.API.Federation.API.Brig
-  ( NewConnectionResponse (..),
-    RemoteConnectionAction (..),
+  ( NewConnectionRemoteAction (..),
+    NewConnectionResponse (..),
+    RemoteConnectionAction (..)
   )
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
@@ -200,7 +201,7 @@ performLocalAction self mzcon other mconnection action = do
     mreaction <- fmap join . for (remoteAction action) $ \ra -> do
       response <- sendConnectionAction self other ra !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
-        NewConnectionResponseOk reaction -> pure reaction
+        NewConnectionResponseOk (NewConnectionRemoteAction reaction) -> pure reaction
         NewConnectionResponseUserNotActivated -> throwE (InvalidUser (qUntagged other))
     pure $
       fromMaybe rel1 $ do

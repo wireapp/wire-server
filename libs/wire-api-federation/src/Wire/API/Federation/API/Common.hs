@@ -20,7 +20,9 @@ module Wire.API.Federation.API.Common
   )
 where
 
-import Data.Aeson
+import qualified Data.Aeson as A
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports
 import Test.QuickCheck
 import Wire.API.Arbitrary
@@ -30,9 +32,7 @@ import Wire.API.Arbitrary
 data EmptyResponse = EmptyResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmptyResponse)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema EmptyResponse)
 
-instance FromJSON EmptyResponse where
-  parseJSON = withObject "EmptyResponse" . const $ pure EmptyResponse
-
-instance ToJSON EmptyResponse where
-  toJSON EmptyResponse = object []
+instance ToSchema EmptyResponse where
+  schema = object "EmptyResponse" $ pure EmptyResponse
