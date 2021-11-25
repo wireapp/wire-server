@@ -483,12 +483,12 @@ testAllFeatures = do
     responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus {- determined by default in galley -}))
   Util.getAllTeamFeaturesPersonal member !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus{- determined by default in galley -}))
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus {- determined by default in galley -}))
 
   randomPersonalUser <- Util.randomUser
   Util.getAllTeamFeaturesPersonal randomPersonalUser !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus{- determined by 'getAfcConferenceCallingDefNew' in brig -}))
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
     expected confCalling lockState =
       object
