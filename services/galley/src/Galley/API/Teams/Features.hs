@@ -507,7 +507,7 @@ getFeatureStatusWithDefaultConfig ::
 getFeatureStatusWithDefaultConfig lens' =
   maybe
     (Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig  @a getDef)
+    (getFeatureStatusNoConfig @a getDef)
   where
     getDef :: Sem r Public.TeamFeatureStatusValue
     getDef =

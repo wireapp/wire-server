@@ -40,11 +40,12 @@ data TeamFeatureStore m a where
   GetFeatureStatusNoConfig' ::
     forall (a :: TeamFeatureName) m.
     ( FeatureHasNoConfig 'WithoutPaymentStatus a,
+      MaybeHasPaymentStatusCol a,
       HasStatusCol a
     ) =>
     Proxy a ->
     TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
+    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a), Maybe PaymentStatusValue)
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   SetFeatureStatusNoConfig' ::
     forall (a :: TeamFeatureName) m.
@@ -89,9 +90,9 @@ makeSem ''TeamFeatureStore
 
 getFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutPaymentStatus a, HasStatusCol a) =>
+  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutPaymentStatus a, HasStatusCol a, MaybeHasPaymentStatusCol a) =>
   TeamId ->
-  Sem r (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
+  Sem r (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a), Maybe PaymentStatusValue)
 getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @a)
 
 setFeatureStatusNoConfig ::

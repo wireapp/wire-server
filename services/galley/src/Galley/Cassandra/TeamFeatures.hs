@@ -33,15 +33,16 @@ getFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) m.
   ( MonadClient m,
     FeatureHasNoConfig 'WithoutPaymentStatus a,
+    MaybeHasPaymentStatusCol a,
     HasStatusCol a
   ) =>
   Proxy a ->
   TeamId ->
-  m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a))
+  m (Maybe (TeamFeatureStatus 'WithoutPaymentStatus a), Maybe PaymentStatusValue)
 getFeatureStatusNoConfig _ tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  pure $ TeamFeatureStatusNoConfig <$> mStatusValue
+  pure (TeamFeatureStatusNoConfig <$> mStatusValue, error "todo")
   where
     select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
     select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
