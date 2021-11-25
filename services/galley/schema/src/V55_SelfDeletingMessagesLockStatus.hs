@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,9 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V55_SelfDeletingMessagesLockStatus
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 55
+migration :: Migration
+migration = Migration 55 "Add payment status config for self deleting messages team feature" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          self_deleting_messages_lock_status int
+        )
+     |]
