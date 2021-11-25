@@ -1,11 +1,3 @@
-{{- $accessKey := "" }}
-{{- $secretKey := "" }}
-{{- range .Values.minio.users }}
-{{- if (eq .policy "consoleAdmin") }}
-{{- $accessKey = .accessKey }}
-{{- $secretKey = .secretKey }}
-{{- end }}
-{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,21 +17,36 @@ spec:
       labels:
         app: {{ template "fullname" . }}-reaper
     spec:
+      volumes:
+      - name: minio-configuration
+        projected:
+          # These are created by the minio chart and used for create buckets and
+          # users after deployment.
+          sources:
+          - configMap:
+              name: {{ .Values.minio.fullnameOverride }}
+          - secret:
+              name: {{ .Values.minio.fullnameOverride }}
       containers:
       - name: initiate-fake-aws-s3
-        image: mesosphere/aws-cli:1.14.5
+        image: "{{ .Values.minio.mcImage.repository }}:{{ .Values.minio.mcImage.tag }}"
+        imagePullPolicy: {{ .Values.minio.mcImage.pullPolicy }}
         command: [/bin/sh]
         args:
         - -c
         - |
-          echo 'Creating AWS resources'
+          echo 'Creating MinIO Users and Buckets'
           while true
           do
-              export AWS_SECRET_ACCESS_KEY={{ $secretKey }}
-              export AWS_ACCESS_KEY_ID={{ $accessKey }}
-              {{- range .Values.minio.buckets }}
-              aws s3 --endpoint http://{{ $.Values.minio.fullnameOverride }}:9000 mb s3://{{ .name }} | grep -ev "BucketAlreadyOwnedByYou"
-              {{- end }}
+              /bin/sh /config/initialize
+              /bin/sh /config/add-user
               sleep 10
           done
-
+        env:
+        - name: MINIO_ENDPOINT
+          value: {{ .Values.minio.fullnameOverride | quote }}
+        - name: MINIO_PORT
+          value: {{ .Values.minio.service.port | quote }}
+        volumeMounts:
+        - name: minio-configuration
+          mountPath: /config
