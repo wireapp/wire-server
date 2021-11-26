@@ -21,6 +21,7 @@
    To make sure Haskell Language Server also builds all projects without optimization run this:
 
    ```bash
+   echo "optimization: False" > ./cabal.project.local
    ./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
    ```
 
