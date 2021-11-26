@@ -17,7 +17,6 @@
 
 module Wire.API.Federation.API.Brig where
 
-import Control.Monad.Except (MonadError (..))
 import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
@@ -25,13 +24,10 @@ import Data.Range
 import Imports
 import Servant.API
 import Servant.API.Generic
-import Servant.Client.Generic (AsClientT, genericClient)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
-import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -51,63 +47,53 @@ instance FromJSON SearchRequest
 -- | For conventions see /docs/developer/federation-api-conventions.md
 --
 -- Maybe this module should be called Brig
-data Api routes = Api
+data BrigApi routes = BrigApi
   { getUserByHandle ::
       routes
-        :- "federation"
-        :> "get-user-by-handle"
+        :- "get-user-by-handle"
         :> ReqBody '[JSON] Handle
         :> Post '[JSON] (Maybe UserProfile),
     getUsersByIds ::
       routes
-        :- "federation"
-        :> "get-users-by-ids"
+        :- "get-users-by-ids"
         :> ReqBody '[JSON] [UserId]
         :> Post '[JSON] [UserProfile],
     claimPrekey ::
       routes
-        :- "federation"
-        :> "claim-prekey"
+        :- "claim-prekey"
         :> ReqBody '[JSON] (UserId, ClientId)
         :> Post '[JSON] (Maybe ClientPrekey),
     claimPrekeyBundle ::
       routes
-        :- "federation"
-        :> "claim-prekey-bundle"
+        :- "claim-prekey-bundle"
         :> ReqBody '[JSON] UserId
         :> Post '[JSON] PrekeyBundle,
     claimMultiPrekeyBundle ::
       routes
-        :- "federation"
-        :> "claim-multi-prekey-bundle"
+        :- "claim-multi-prekey-bundle"
         :> ReqBody '[JSON] UserClients
         :> Post '[JSON] UserClientPrekeyMap,
     searchUsers ::
       routes
-        :- "federation"
-        :> "search-users"
+        :- "search-users"
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
         :> ReqBody '[JSON] SearchRequest
         :> Post '[JSON] [Contact],
     getUserClients ::
       routes
-        :- "federation"
-        :> "get-user-clients"
+        :- "get-user-clients"
         :> ReqBody '[JSON] GetUserClients
         :> Post '[JSON] (UserMap (Set PubClient)),
     sendConnectionAction ::
       routes
-        :- "federation"
-        :> "send-connection-action"
+        :- "send-connection-action"
         :> OriginDomainHeader
         :> ReqBody '[JSON] NewConnectionRequest
         :> Post '[JSON] NewConnectionResponse,
     onUserDeleted ::
       routes
-        :- "federation"
-        :> "on-user-deleted"
-        :> "connections"
+        :- "on-user-deleted-connections"
         :> OriginDomainHeader
         :> ReqBody '[JSON] UserDeletedConnectionsNotification
         :> Post '[JSON] EmptyResponse
@@ -172,6 +158,3 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
-
-clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
-clientRoutes = genericClient

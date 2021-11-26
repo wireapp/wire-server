@@ -139,22 +139,6 @@ source-repository-package
 
 source-repository-package
     type: git
-    location: https://github.com/wireapp/http2
-    tag: 7c465be1201e0945b106f7cc6176ac1b1193be13
-
-source-repository-package
-    type: git
-    location: https://github.com/wireapp/http2-grpc-haskell
-    tag: eea98418672626eafbace3181ca34bf44bee91c0
-    subdir: http2-client-grpc
-
-source-repository-package
-    type: git
-    location: https://github.com/wireapp/polysemy-mocks
-    tag: 8f687140a218ec8cc9e466259600d3c5839ed185
-
-source-repository-package
-    type: git
     location: https://github.com/wireapp/saml2-web-sso
     tag: 60398f375987b74d6b855b5d225e45dc3a96ac06
 

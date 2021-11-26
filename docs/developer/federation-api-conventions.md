@@ -5,9 +5,8 @@
 - All endpoints must start with `/federation/`
 - All path segments must be in kebab-case. The name the field in the record must
   be the same name in camelCase.
-- There can be either one or two path segments after `/federation/`, so
-  `/federation/foo` is valid, `/fedeartion/foo/bar` is valid, but
-  `/federation/foo/bar/baz` is not.
+- There must be exactly one segment after `/federation/`, so
+  `/federation/foo` is valid, but `/federation/foo/bar` is not.
 - All endpoints must be `POST`.
 - No query query params or captured path params, all information that needs to
   go must go in body.
@@ -20,7 +19,7 @@
   the content type of the body.
 - Ensure that paths don't collide between brig and galley federation API, this
   will be very helpful when we merge brig and galley.
-- Name of the first path segment after `/federation/` must be either
+- The name of the path segment after `/federation/` must be either
   `<imperative-verb>-<object>` or `on-<subject>-<past-tense-verb>`, e.g.
   `get-conversations` or `on-conversation-created`.
 
@@ -33,9 +32,3 @@
     this request has authority on, like a conversation got created, or a message
     is sent, then use the second format like `on-conversation-created` or
     `on-message-sent`
-- Path segment number 3 (so `/federation/not-this/but-this-one`), must only be
-  used in exceptional circumstances, like when there needs to be the same path
-  in brig and galley, e.g. `on-user-deleted`. In this case use the third segment
-  to express the difference. For `on-user-deleted` we came up with
-  `on-user-deleted/connections`for brig and `on-user-deleted/conversations` for
-  galley.

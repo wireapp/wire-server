@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 502683f56cc0fbb11b75807669858c1d4fdf146afa8a016fa18daec9f6a72e7a
+-- hash: d30922c0a34a67a88917ff9a91b5200013928deb3a7930e12361d25f7e5b2a74
 
 name:           wire-api-federation
 version:        0.1.0
@@ -22,17 +22,15 @@ extra-source-files:
 
 library
   exposed-modules:
+      Wire.API.Federation.API
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Common
       Wire.API.Federation.API.Galley
       Wire.API.Federation.Client
+      Wire.API.Federation.Component
       Wire.API.Federation.Domain
       Wire.API.Federation.Error
       Wire.API.Federation.Event
-      Wire.API.Federation.GRPC.Client
-      Wire.API.Federation.GRPC.Helper
-      Wire.API.Federation.GRPC.Types
-      Wire.API.Federation.Mock
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:
@@ -46,29 +44,31 @@ library
     , base >=4.6 && <5.0
     , bytestring
     , bytestring-conversion
+    , case-insensitive
+    , containers
     , either
     , errors
     , exceptions
     , http-types
-    , http2-client-grpc
+    , http2
     , imports
     , lifted-base
+    , metrics-wai
     , mtl
-    , mu-grpc-client
-    , mu-grpc-server
-    , mu-protobuf
-    , mu-rpc
-    , mu-schema
+    , network
     , servant >=0.16
     , servant-client
     , servant-client-core
+    , servant-server
     , sop-core
+    , streaming-commons
     , template-haskell
     , text >=0.11
     , time >=1.8
+    , time-manager
+    , tls
     , types-common
     , wai-utilities
-    , warp
     , wire-api
   default-language: Haskell2010
 
@@ -77,7 +77,6 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Test.Wire.API.Federation.API.BrigSpec
-      Test.Wire.API.Federation.ClientSpec
       Test.Wire.API.Federation.Golden.ConversationUpdate
       Test.Wire.API.Federation.Golden.GoldenSpec
       Test.Wire.API.Federation.Golden.LeaveConversationRequest
@@ -87,7 +86,6 @@ test-suite spec
       Test.Wire.API.Federation.Golden.NewConnectionResponse
       Test.Wire.API.Federation.Golden.NewRemoteConversation
       Test.Wire.API.Federation.Golden.Runner
-      Test.Wire.API.Federation.GRPC.TypesSpec
       Paths_wire_api_federation
   hs-source-dirs:
       test
@@ -104,35 +102,34 @@ test-suite spec
     , base >=4.6 && <5.0
     , bytestring
     , bytestring-conversion
+    , case-insensitive
     , containers
     , either
     , errors
     , exceptions
     , hspec
     , http-types
-    , http2-client-grpc
+    , http2
     , imports
     , lifted-base
     , metrics-wai
     , mtl
-    , mu-grpc-client
-    , mu-grpc-server
-    , mu-protobuf
-    , mu-rpc
-    , mu-schema
     , network
     , retry
     , servant >=0.16
     , servant-client
     , servant-client-core
+    , servant-server
     , sop-core
+    , streaming-commons
     , template-haskell
     , text >=0.11
     , time >=1.8
+    , time-manager
+    , tls
     , types-common
     , uuid
     , wai-utilities
-    , warp
     , wire-api
     , wire-api-federation
   default-language: Haskell2010

@@ -19,28 +19,30 @@ dependencies:
 - bytestring
 - bytestring-conversion
 - bytestring
+- case-insensitive
+- containers
 - either
 - errors
 - exceptions
 - http-types
-- http2-client-grpc
+- http2
 - imports
 - lifted-base
-- mu-rpc
-- mu-grpc-client
-- mu-grpc-server
-- mu-protobuf
-- mu-schema
+- metrics-wai
 - mtl
+- network
 - servant >=0.16
 - servant-client
 - servant-client-core
+- servant-server
 - sop-core
+- streaming-commons
 - template-haskell
 - text >=0.11
+- time-manager
+- tls
 - time >=1.8
 - types-common
-- warp
 - wai-utilities
 - wire-api
 library:

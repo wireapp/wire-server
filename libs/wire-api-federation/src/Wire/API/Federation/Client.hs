@@ -18,166 +18,218 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Client where
+module Wire.API.Federation.Client
+  ( FederatorClientEnv (..),
+    FederatorClient,
+    runFederatorClient,
+    performHTTP2Request,
+  )
+where
 
+import qualified Control.Exception as E
 import Control.Monad.Catch
-import Control.Monad.Except (ExceptT, MonadError (..), withExceptT)
-import Control.Monad.State (MonadState (..), StateT, evalStateT, gets)
-import Data.ByteString.Builder (toLazyByteString)
+import Control.Monad.Except
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
+import Data.ByteString.Builder
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
-import Data.Domain (Domain, domainText)
-import qualified Data.Text as T
+import Data.Domain
+import qualified Data.Sequence as Seq
+import Data.Streaming.Network
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
+import qualified Data.Text.Lazy.Encoding as LText
+import Foreign.Marshal.Alloc
 import Imports
-import Mu.GRpc.Client.TyApps
+import qualified Network.HPACK as HTTP2
+import qualified Network.HPACK.Token as HTTP2
 import qualified Network.HTTP.Types as HTTP
-import Servant.Client (ResponseF (..))
-import qualified Servant.Client as Servant
-import Servant.Client.Core (RequestBody (..), RequestF (..), RunClient (..))
+import qualified Network.HTTP2.Client as HTTP2
+import qualified Network.Socket as NS
+import Network.TLS as TLS
+import qualified Network.Wai.Utilities.Error as Wai
+import Servant.Client
+import Servant.Client.Core
+import qualified System.TimeManager
 import Util.Options (Endpoint (..))
-import Wire.API.Federation.GRPC.Client
-import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Federation.Component
+import Wire.API.Federation.Domain (originDomainHeaderName)
+import Wire.API.Federation.Error
 
--- FUTUREWORK: Remove originDomain from here and make it part of all the API
--- calls or figure out some smarter way of making API calls so it doesn't have
--- to be specified everywhere.
 data FederatorClientEnv = FederatorClientEnv
-  { grpcClient :: GrpcClient,
-    targetDomain :: Domain,
-    originDomain :: Domain
+  { ceOriginDomain :: Domain,
+    ceTargetDomain :: Domain,
+    ceFederator :: Endpoint
   }
 
--- the state monad is used to store the request path in case of servant errors
-newtype FederatorClient (component :: Proto.Component) m a = FederatorClient {runFederatorClient :: ReaderT FederatorClientEnv (StateT (Maybe ByteString) m) a}
-  deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadState (Maybe ByteString), MonadIO)
+newtype FederatorClient (c :: Component) a = FederatorClient
+  {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError IO) a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadReader FederatorClientEnv,
+      MonadError FederatorClientError,
+      MonadIO
+    )
 
-runFederatorClientWith :: Monad m => GrpcClient -> Domain -> Domain -> FederatorClient component m a -> m a
-runFederatorClientWith client targetDomain originDomain =
-  flip evalStateT Nothing
-    . flip runReaderT (FederatorClientEnv client targetDomain originDomain)
-    . runFederatorClient
+headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
+headersFromTable (headerList, _) = flip map headerList $ \(token, headerValue) ->
+  (HTTP2.tokenKey token, headerValue)
 
-class KnownComponent (c :: Proto.Component) where
-  componentVal :: Proto.Component
+connectSocket :: ByteString -> Int -> IO NS.Socket
+connectSocket hostname port =
+  handle (E.throw . FederatorClientConnectionError)
+    . fmap fst
+    $ getSocketFamilyTCP hostname port NS.AF_UNSPEC
 
-instance KnownComponent 'Proto.Brig where
-  componentVal = Proto.Brig
+performHTTP2Request ::
+  Maybe TLS.ClientParams ->
+  HTTP2.Request ->
+  ByteString ->
+  Int ->
+  IO (Either FederatorClientHTTP2Error (HTTP.Status, HTTP2.HeaderTable, Builder))
+performHTTP2Request mtlsConfig req hostname port = do
+  let drainResponse resp = go mempty
+        where
+          go acc = do
+            chunk <- HTTP2.getResponseBodyChunk resp
+            if BS.null chunk
+              then pure acc
+              else go (acc <> byteString chunk)
+  let clientConfig =
+        HTTP2.ClientConfig
+          "https"
+          hostname
+          {- cacheLimit: -} 20
+  flip
+    E.catches
+    [ -- catch FederatorClientHTTP2Error (e.g. connection and TLS errors)
+      E.Handler (pure . Left),
+      -- catch HTTP2 exceptions
+      E.Handler (pure . Left . FederatorClientHTTP2Exception)
+    ]
+    $ bracket (connectSocket hostname port) NS.close $ \sock -> do
+      let withHTTP2Config k = case mtlsConfig of
+            Nothing -> bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig k
+            -- FUTUREWORK(federation): Use openssl
+            Just tlsConfig -> do
+              ctx <- E.handle (E.throw . FederatorClientTLSException) $ do
+                ctx <- TLS.contextNew sock tlsConfig
+                TLS.handshake ctx
+                pure ctx
+              bracket (allocTLSConfig ctx 4096) freeTLSConfig k
+      withHTTP2Config $ \conf ->
+        HTTP2.run clientConfig conf $ \sendRequest -> do
+          sendRequest req $ \resp -> do
+            result <- drainResponse resp
+            pure $ case HTTP2.responseStatus resp of
+              Nothing -> Left FederatorClientNoStatusCode
+              Just status -> Right (status, HTTP2.responseHeaders resp, result)
 
-instance KnownComponent 'Proto.Galley where
-  componentVal = Proto.Galley
-
--- | expectedStatuses is ignored as we don't get any status from the federator,
--- all responses have '200 OK' as their status.
-instance (Monad m, MonadIO m, MonadError FederationClientFailure m, KnownComponent component) => RunClient (FederatorClient component m) where
-  runRequestAcceptStatus _expectedStatuses req = do
+instance KnownComponent c => RunClient (FederatorClient c) where
+  runRequestAcceptStatus expectedStatuses req = do
     env <- ask
-    let path = LBS.toStrict . toLazyByteString $ requestPath req
-        domain = targetDomain env
-        mkFailure = FederationClientFailure domain path
-        failure :: MonadError FederationClientFailure n => FederationClientError -> n x
-        failure = throwError . mkFailure
-        rpcFailure = failure . FederationClientRPCError
-        readBody = \case
-          RequestBodyLBS lbs -> pure $ LBS.toStrict lbs
-          RequestBodyBS bs -> pure bs
-          RequestBodySource _ -> failure FederationClientStreamingUnsupported
-    -- save path in the state, so that we can access it from throwClientError
-    -- if necessary
-    put (Just path)
-    body <- readBody . maybe (RequestBodyBS "") fst $ requestBody req
-    let call =
-          Proto.ValidatedFederatedRequest
-            domain
-            ( Proto.Request
-                (componentVal @component)
-                path
-                body
-                (domainText (originDomain env))
-            )
-    grpcResponse <- callRemote (grpcClient env) call
-    case grpcResponse of
-      GRpcTooMuchConcurrency _tmc -> rpcFailure "too much concurrency"
-      GRpcErrorCode code -> rpcFailure $ "grpc error code: " <> T.pack (show code)
-      GRpcErrorString msg -> rpcFailure $ "grpc error: " <> T.pack msg
-      GRpcClientError msg -> rpcFailure $ "grpc client error: " <> T.pack (show msg)
-      GRpcOk (Proto.OutwardResponseError err) -> failure (FederationClientOutwardError err)
-      GRpcOk (Proto.OutwardResponseInwardError err) -> failure (FederationClientInwardError err)
-      GRpcOk (Proto.OutwardResponseBody res) -> do
-        pure $
-          Response
-            { responseStatusCode = HTTP.ok200,
-              -- This is required so servant can parse the body
-              responseHeaders = [(HTTP.hContentType, "application/json")],
-              -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
-              -- really be used anywhere.
-              responseHttpVersion = HTTP.http11,
-              responseBody = LBS.fromStrict res
+    let baseUrlPath =
+          HTTP.encodePathSegments
+            [ "rpc",
+              domainText (ceTargetDomain env),
+              componentName (componentVal @c)
+            ]
+    let path = baseUrlPath <> requestPath req
+    body <- case requestBody req of
+      Just (RequestBodyLBS lbs, _) -> pure lbs
+      Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
+      Just (RequestBodySource _, _) ->
+        throwError FederatorClientStreamingNotSupported
+      Nothing -> pure mempty
+    let req' =
+          HTTP2.requestBuilder
+            (requestMethod req)
+            (LBS.toStrict (toLazyByteString path))
+            (toList (requestHeaders req) <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))])
+            (lazyByteString body)
+    let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
+    eresp <- liftIO $ performHTTP2Request Nothing req' hostname port
+    case eresp of
+      Left err -> throwError (FederatorClientHTTP2Error err)
+      Right (status, htable, result)
+        | maybe (HTTP.statusIsSuccessful status) (elem status) expectedStatuses ->
+          pure $
+            Response
+              { responseStatusCode = status,
+                responseHeaders = Seq.fromList (headersFromTable htable),
+                responseHttpVersion = HTTP.http20,
+                responseBody = toLazyByteString result
+              }
+        | otherwise ->
+          throwError $
+            FederatorClientError
+              ( mkFailureResponse
+                  status
+                  (ceTargetDomain env)
+                  (toLazyByteString (requestPath req))
+                  (toLazyByteString result)
+              )
+
+  throwClientError = throwError . FederatorClientServantError
+
+mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
+mkFailureResponse status domain path body =
+  (fromMaybe defaultError (Aeson.decode body))
+    { Wai.errorData =
+        Just
+          Wai.FederationErrorData
+            { Wai.federrDomain = domain,
+              Wai.federrPath =
+                "/federation"
+                  <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
             }
+    }
+  where
+    defaultError =
+      Wai.mkError
+        status
+        "unknown-federation-error"
+        (LText.decodeUtf8With Text.lenientDecode body)
 
-  throwClientError err = do
-    dom <- asks targetDomain
-    path <- gets (fromMaybe "")
-    throwError (FederationClientFailure dom path (FederationClientServantError err))
+runFederatorClient ::
+  KnownComponent c =>
+  FederatorClientEnv ->
+  FederatorClient c a ->
+  IO (Either FederatorClientError a)
+runFederatorClient env action = runExceptT (runReaderT (unFederatorClient action) env)
 
-instance (Monad m, MonadError FederationClientFailure m) => MonadError FederationClientFailure (FederatorClient c m) where
-  throwError = FederatorClient . throwError
-  catchError (FederatorClient action) f = FederatorClient $ catchError action (runFederatorClient . f)
+freeTLSConfig :: HTTP2.Config -> IO ()
+freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)
 
-data FederationError
-  = FederationUnavailable Text
-  | FederationNotImplemented
-  | FederationNotConfigured
-  | FederationCallFailure FederationClientFailure
-  | FederationUnexpectedBody Text
-  deriving (Show, Eq, Typeable)
-
-instance Exception FederationError
-
-data FederationClientFailure = FederationClientFailure
-  { fedFailDomain :: Domain,
-    fedFailPath :: ByteString,
-    fedFailError :: FederationClientError
-  }
-  deriving (Show, Eq, Typeable)
-
-data FederationClientError
-  = FederationClientInvalidMethod HTTP.Method
-  | FederationClientStreamingUnsupported
-  | FederationClientRPCError Text
-  | FederationClientOutwardError Proto.OutwardError
-  | FederationClientInwardError Proto.InwardError
-  | FederationClientServantError Servant.ClientError
-  deriving (Show, Eq, Typeable)
-
-callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
-callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
-
-class HasFederatorConfig m where
-  federatorEndpoint :: m (Maybe Endpoint)
-  federationDomain :: m Domain
-
--- FUTUREWORK: It would be nice to share the client across all calls to
--- federator and not call this function on every invocation of federated
--- requests, but there are some issues in http2-client which might need some
--- fixing first. More context here:
--- https://github.com/lucasdicioccio/http2-client/issues/37
--- https://github.com/lucasdicioccio/http2-client/issues/49
-mkFederatorClient ::
-  (MonadIO m, HasFederatorConfig m) =>
-  ExceptT FederationError m GrpcClient
-mkFederatorClient = do
-  mbFedEndpoint <- lift federatorEndpoint
-  Endpoint host port <- maybe (throwError FederationNotConfigured) pure mbFedEndpoint
-  let cfg = grpcClientConfigSimple (T.unpack host) (fromIntegral port) False
-  createGrpcClient cfg
-    >>= either (throwError . FederationUnavailable . reason) pure
-
-executeFederated ::
-  (MonadIO m, MonadMask m, HasFederatorConfig m) =>
-  Domain ->
-  FederatorClient component (ExceptT FederationClientFailure m) a ->
-  ExceptT FederationError m a
-executeFederated targetDomain action = do
-  originDomain <- lift federationDomain
-  bracket mkFederatorClient closeGrpcClient $ \federatorClient ->
-    withExceptT FederationCallFailure $
-      runFederatorClientWith federatorClient targetDomain originDomain action
+allocTLSConfig :: TLS.Context -> HTTP2.BufferSize -> IO HTTP2.Config
+allocTLSConfig ctx bufsize = do
+  buf <- mallocBytes bufsize
+  timmgr <- System.TimeManager.initialize $ 30 * 1000000
+  ref <- newIORef mempty
+  let readData :: Int -> IO ByteString
+      readData n = do
+        chunk <- readIORef ref
+        if BS.length chunk >= n
+          then case BS.splitAt n chunk of
+            (result, chunk') -> do
+              writeIORef ref chunk'
+              pure result
+          else do
+            chunk' <- TLS.recvData ctx
+            if BS.null chunk'
+              then pure chunk
+              else do
+                modifyIORef ref (<> chunk')
+                readData n
+  pure
+    HTTP2.Config
+      { HTTP2.confWriteBuffer = buf,
+        HTTP2.confBufferSize = bufsize,
+        HTTP2.confSendAll = TLS.sendData ctx . LBS.fromStrict,
+        HTTP2.confReadN = readData,
+        HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
+        HTTP2.confTimeoutManager = timmgr
+      }
