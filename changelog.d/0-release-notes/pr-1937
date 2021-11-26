@@ -1,1 +1,0 @@
-If you have `selfDeletingMessages` configured in `galley.yaml`, add `lockStatus: unlocked`.

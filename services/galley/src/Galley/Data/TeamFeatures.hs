@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Data.TeamFeatures (HasStatusCol (..), HasLockStatusCol (..), MaybeHasLockStatusCol (..)) where
+module Galley.Data.TeamFeatures (HasStatusCol (..)) where
 
 import Imports
 import Wire.API.Team.Feature
@@ -48,33 +48,3 @@ instance HasStatusCol 'TeamFeatureFileSharing where statusCol = "file_sharing"
 instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conference_calling"
 
 instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_deleting_messages_status"
-
-----------------------------------------------------------------------
-class HasLockStatusCol (a :: TeamFeatureName) where
-  lockStatusCol :: String
-
-class MaybeHasLockStatusCol (a :: TeamFeatureName) where
-  maybeLockStatusCol :: Maybe String
-
-instance {-# OVERLAPPABLE #-} HasLockStatusCol a => MaybeHasLockStatusCol a where
-  maybeLockStatusCol = Just (lockStatusCol @a)
-
-----------------------------------------------------------------------
-instance HasLockStatusCol 'TeamFeatureSelfDeletingMessages where
-  lockStatusCol = "self_deleting_messages_lock_status"
-
-instance MaybeHasLockStatusCol 'TeamFeatureLegalHold where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureSSO where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureSearchVisibility where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureValidateSAMLEmails where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureDigitalSignatures where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureAppLock where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureFileSharing where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureConferenceCalling where maybeLockStatusCol = Nothing

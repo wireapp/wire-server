@@ -623,7 +623,7 @@ data Api routes = Api
         :- FeatureStatusPut 'TeamFeatureSearchVisibility,
     teamFeatureStatusSearchVisibilityDeprecatedGet ::
       routes
-        :- FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility,
+        :- FeatureStatusDeprecatedGet 'TeamFeatureSearchVisibility,
     teamFeatureStatusSearchVisibilityDeprecatedPut ::
       routes
         :- FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility,
@@ -632,13 +632,13 @@ data Api routes = Api
         :- FeatureStatusGet 'TeamFeatureValidateSAMLEmails,
     teamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
       routes
-        :- FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
+        :- FeatureStatusDeprecatedGet 'TeamFeatureValidateSAMLEmails,
     teamFeatureStatusDigitalSignaturesGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureDigitalSignatures,
     teamFeatureStatusDigitalSignaturesDeprecatedGet ::
       routes
-        :- FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
+        :- FeatureStatusDeprecatedGet 'TeamFeatureDigitalSignatures,
     teamFeatureStatusAppLockGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureAppLock,
@@ -668,34 +668,34 @@ data Api routes = Api
         :- AllFeatureConfigsGet,
     featureConfigLegalHoldGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold,
+        :- FeatureConfigGet 'TeamFeatureLegalHold,
     featureConfigSSOGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO,
+        :- FeatureConfigGet 'TeamFeatureSSO,
     featureConfigSearchVisibilityGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility,
+        :- FeatureConfigGet 'TeamFeatureSearchVisibility,
     featureConfigValidateSAMLEmailsGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
+        :- FeatureConfigGet 'TeamFeatureValidateSAMLEmails,
     featureConfigDigitalSignaturesGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
+        :- FeatureConfigGet 'TeamFeatureDigitalSignatures,
     featureConfigAppLockGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureAppLock,
+        :- FeatureConfigGet 'TeamFeatureAppLock,
     featureConfigFileSharingGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureFileSharing,
+        :- FeatureConfigGet 'TeamFeatureFileSharing,
     featureConfigClassifiedDomainsGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
+        :- FeatureConfigGet 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+        :- FeatureConfigGet 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
-        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
+        :- FeatureConfigGet 'TeamFeatureSelfDeletingMessages
   }
   deriving (Generic)
 
@@ -708,7 +708,7 @@ type FeatureStatusGet featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
-    :> Get '[Servant.JSON] (TeamFeatureStatus 'WithLockStatus featureName)
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
 
 type FeatureStatusPut featureName =
   Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
@@ -717,18 +717,18 @@ type FeatureStatusPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
-    :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
-    :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type FeatureStatusDeprecatedGet ps featureName =
+type FeatureStatusDeprecatedGet featureName =
   Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> DeprecatedFeatureName featureName
-    :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
 type FeatureStatusDeprecatedPut featureName =
@@ -738,15 +738,15 @@ type FeatureStatusDeprecatedPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> DeprecatedFeatureName featureName
-    :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
-    :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
-type FeatureConfigGet ps featureName =
+type FeatureConfigGet featureName =
   Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "feature-configs"
     :> KnownTeamFeatureNameSymbol featureName
-    :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
 
 type AllFeatureConfigsGet =
   Summary "Get configurations of all features"

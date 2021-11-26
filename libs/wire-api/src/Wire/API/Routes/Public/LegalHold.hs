@@ -52,9 +52,9 @@ type PublicAPI =
 
 type InternalAPI =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] (TeamFeatureStatus 'WithLockStatus 'TeamFeatureLegalHold)
+    :> Get '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      :> ReqBody '[JSON] (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+      :> ReqBody '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
       :> Put '[] NoContent
 
 swaggerDoc :: Swagger
