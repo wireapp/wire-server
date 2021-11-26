@@ -20,7 +20,7 @@ module Wire.API.Federation.Error
     FederatorClientError (..),
     FederationError (..),
     federationErrorToWai,
-    federationClientHTTP2Error,
+    federationRemoteHTTP2Error,
     federationNotImplemented,
     federationNotConfigured,
   )
@@ -108,21 +108,34 @@ federationClientErrorToWai (FederatorClientServantError err) =
   federationServantErrorToWai err
 federationClientErrorToWai (FederatorClientError err) = err
 
-federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
-federationClientHTTP2Error FederatorClientNoStatusCode =
-  Wai.mkError HTTP.status500 "federation-http2-error" "No status code in HTTP2 response"
-federationClientHTTP2Error (FederatorClientHTTP2Exception e) =
+federationRemoteHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
+federationRemoteHTTP2Error FederatorClientNoStatusCode =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-http2-error"
+    "No status code in HTTP2 response"
+federationRemoteHTTP2Error (FederatorClientHTTP2Exception e) =
   Wai.mkError
     unexpectedFederationResponseStatus
     "federation-http2-error"
     (LT.pack (displayException e))
-federationClientHTTP2Error (FederatorClientTLSException e) =
+federationRemoteHTTP2Error (FederatorClientTLSException e) =
   Wai.mkError
     (HTTP.mkStatus 525 "SSL Handshake Failure")
     "tls-failure"
     (LT.fromStrict (displayTLSException e))
-federationClientHTTP2Error (FederatorClientConnectionError e) =
-  federationUnavailable (T.pack (displayException e))
+federationRemoteHTTP2Error (FederatorClientConnectionError e) =
+  Wai.mkError
+    federatorConnectionRefusedStatus
+    "federation-connection-refused"
+    (LT.pack (displayException e))
+
+federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
+federationClientHTTP2Error e =
+  Wai.mkError
+    HTTP.status500
+    "federator-client-error"
+    (LT.pack (displayException e))
 
 displayTLSException :: TLSException -> Text
 displayTLSException (Terminated _ reason err) = T.pack reason <> ": " <> displayTLSError err
@@ -173,8 +186,8 @@ noFederationStatus = status403
 unexpectedFederationResponseStatus :: Status
 unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Response"
 
-_federatorConnectionRefusedStatus :: Status
-_federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection Refused"
+federatorConnectionRefusedStatus :: Status
+federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection Refused"
 
 federationNotImplemented :: Wai.Error
 federationNotImplemented =

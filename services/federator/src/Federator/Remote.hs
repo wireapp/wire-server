@@ -18,53 +18,66 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.Remote
-  ( Remote,
+  ( Remote (..),
     RemoteError (..),
-    discoverAndCall,
     interpretRemote,
-    mkGrpcClient,
+    discoverAndCall,
     blessedCiphers,
   )
 where
 
 import Control.Lens ((^.))
-import Control.Monad.Except
+import Data.Binary.Builder
+import Data.ByteString.Conversion (toByteString')
+import qualified Data.ByteString.Lazy as LBS
 import Data.Default (def)
-import Data.Domain (Domain, domainText)
-import Data.String.Conversions (cs)
+import Data.Domain
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
 import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Discovery
 import Federator.Env (TLSSettings, caStore, creds)
-import Federator.Options
+import Federator.Error
 import Federator.Validation
 import Imports
-import Mu.GRpc.Client.Optics (GRpcReply)
-import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
-import Mu.GRpc.Client.TyApps (gRpcCall)
-import Network.GRPC.Client.Helpers
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.HTTP2.Client as HTTP2
 import Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
-import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.Input as Polysemy
-import qualified Polysemy.Reader as Polysemy
-import qualified Polysemy.Resource as Polysemy
-import Polysemy.TinyLog (TinyLog)
-import qualified Polysemy.TinyLog as Log
-import qualified System.Logger.Message as Log
-import Wire.API.Federation.GRPC.Client
-import Wire.API.Federation.GRPC.Types
-import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
+import Polysemy.Error
+import Polysemy.Input
+import Wire.API.Federation.Client
+import Wire.API.Federation.Component
+import Wire.API.Federation.Error
+import Wire.Network.DNS.SRV
 
-data RemoteError
-  = RemoteErrorDiscoveryFailure Domain LookupError
-  | RemoteErrorClientFailure SrvTarget GrpcClientErr
-  | RemoteErrorTLSException SrvTarget TLSException
-  deriving (Show, Eq)
+data RemoteError = RemoteError SrvTarget FederatorClientHTTP2Error
+  deriving (Show)
+
+instance AsWai RemoteError where
+  toWai (RemoteError _ e) = federationRemoteHTTP2Error e
+
+  waiErrorDescription (RemoteError tgt e) =
+    "Error while connecting to " <> displayTarget tgt <> ": "
+      <> Text.pack (displayException e)
+
+displayTarget :: SrvTarget -> Text
+displayTarget (SrvTarget hostname port) =
+  Text.decodeUtf8With Text.lenientDecode hostname
+    <> ":"
+    <> Text.pack (show port)
 
 data Remote m a where
-  DiscoverAndCall :: ValidatedFederatedRequest -> Remote m (Either RemoteError (GRpcReply InwardResponse))
+  DiscoverAndCall ::
+    Domain ->
+    Component ->
+    Text ->
+    [HTTP.Header] ->
+    Builder ->
+    Remote m (HTTP.Status, Builder)
 
 makeSem ''Remote
 
@@ -72,25 +85,51 @@ interpretRemote ::
   Members
     '[ Embed IO,
        DiscoverFederator,
-       TinyLog,
-       Polysemy.Reader RunSettings,
-       Polysemy.Input TLSSettings,
-       Polysemy.Resource
+       Error DiscoveryFailure,
+       Error RemoteError,
+       Input TLSSettings
      ]
     r =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall ValidatedFederatedRequest {..} -> Polysemy.runError . logRemoteErrors $ do
-    target <-
-      Polysemy.mapError (RemoteErrorDiscoveryFailure vDomain) $
-        discoverFederatorWithError vDomain
-    Polysemy.bracket (mkGrpcClient target) (embed @IO . closeGrpcClient) $ \client ->
-      callInward client vRequest
+  DiscoverAndCall domain component rpc headers body -> do
+    target@(SrvTarget hostname port) <- discoverFederatorWithError domain
+    settings <- input
+    let path =
+          LBS.toStrict . toLazyByteString $
+            HTTP.encodePathSegments ["federation", componentName component, rpc]
+        req' = HTTP2.requestBuilder HTTP.methodPost path headers body
+        tlsConfig = mkTLSConfig settings hostname port
+    (status, _, result) <-
+      mapError (RemoteError target) . (fromEither =<<) . embed $
+        performHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port)
+    pure (status, result)
 
-callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
-callInward client request =
-  liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
+mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
+mkTLSConfig settings hostname port =
+  ( defaultParamsClient
+      (Text.unpack (Text.decodeUtf8With Text.lenientDecode hostname))
+      (toByteString' port)
+  )
+    { TLS.clientSupported =
+        def
+          { TLS.supportedCiphers = blessedCiphers,
+            -- FUTUREWORK: Figure out if we can drop TLS 1.2
+            TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
+          },
+      TLS.clientHooks =
+        def
+          { TLS.onServerCertificate =
+              X509.validate
+                X509.HashSHA256
+                X509.defaultHooks {X509.hookValidateName = validateDomainName}
+                X509.defaultChecks {X509.checkLeafKeyPurpose = [X509.KeyUsagePurpose_ServerAuth]},
+            TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds)),
+            TLS.onSuggestALPN = pure (Just ["h2"]) -- we only support HTTP2
+          },
+      TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
+    }
 
 -- FUTUREWORK: get review on blessed ciphers
 -- (https://wearezeta.atlassian.net/browse/SQCORE-910)
@@ -109,72 +148,3 @@ blessedCiphers =
     TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
     TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
   ]
-
--- FUTUREWORK(federation): Consider using HsOpenSSL instead of tls for better
--- security and to avoid having to depend on cryptonite and override validation
--- hooks. This might involve forking http2-client: https://github.com/lucasdicioccio/http2-client/issues/76
--- FUTUREWORK(federation): Use openssl
---   See also https://github.com/lucasdicioccio/http2-client/issues/76
--- FUTUREWORK(federation): Cache this client and use it for many requests (https://wearezeta.atlassian.net/browse/SQCORE-901)
-mkGrpcClient ::
-  Members
-    '[ Embed IO,
-       Polysemy.Error RemoteError,
-       Polysemy.Input TLSSettings
-     ]
-    r =>
-  SrvTarget ->
-  Sem r GrpcClient
-mkGrpcClient target@(SrvTarget host port) = do
-  -- grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates
-  -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
-  --
-  let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
-
-  settings <- Polysemy.input
-
-  let tlsConfig =
-        (defaultParamsClient (cs host) (cs $ show port))
-          { TLS.clientSupported =
-              def
-                { TLS.supportedCiphers = blessedCiphers,
-                  -- FUTUREWORK: Figure out if we can drop TLS 1.2
-                  TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
-                },
-            TLS.clientHooks =
-              def
-                { TLS.onServerCertificate =
-                    X509.validate
-                      X509.HashSHA256
-                      X509.defaultHooks {X509.hookValidateName = validateDomainName}
-                      X509.defaultChecks {X509.checkLeafKeyPurpose = [X509.KeyUsagePurpose_ServerAuth]},
-                  TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds))
-                },
-            TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
-          }
-  let cfg' = cfg {_grpcClientConfigTLS = Just tlsConfig}
-  Polysemy.mapError (RemoteErrorClientFailure target)
-    . Polysemy.fromEither
-    =<< Polysemy.fromExceptionVia (RemoteErrorTLSException target) (createGrpcClient cfg')
-
-logRemoteErrors ::
-  Members '[Polysemy.Error RemoteError, TinyLog] r =>
-  Sem r x ->
-  Sem r x
-logRemoteErrors action = Polysemy.catch action $ \err -> do
-  Log.debug $
-    Log.msg ("Failed to connect to remote federator" :: ByteString)
-      . addFields err
-  Polysemy.throw err
-  where
-    addFields (RemoteErrorDiscoveryFailure domain err) =
-      Log.field "domain" (domainText domain)
-        . Log.field "error" (show err)
-    addFields (RemoteErrorClientFailure (SrvTarget host port) err) =
-      Log.field "host" host
-        . Log.field "port" port
-        . Log.field "error" (show err)
-    addFields (RemoteErrorTLSException (SrvTarget host port) err) =
-      Log.field "host" host
-        . Log.field "port" port
-        . Log.field "error" (show err)

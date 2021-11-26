@@ -1,7 +1,3 @@
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -19,125 +15,120 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.ExternalServer where
+module Federator.ExternalServer (callInward, serveInward, parseRequestData, RequestData (..)) where
 
-import Control.Lens (view)
-import Data.Aeson (decode)
-import Data.ByteString.Char8 as B8
+import qualified Data.ByteString as BS
+import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import Federator.App (Federator, runAppT)
 import Federator.Discovery
-import Federator.Env (Env, applog, dnsResolver, runSettings)
+import Federator.Env
+import Federator.Error.ServerError
 import Federator.Options (RunSettings)
-import Federator.Service (Service, interpretService, serviceCall)
-import Federator.Utils.PolysemyServerError (absorbServerError)
+import Federator.Response
+import Federator.Service
 import Federator.Validation
 import Imports
-import Mu.GRpc.Server (gRpcAppTrans, msgProtoBuf)
-import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
-import qualified Mu.Server as Mu
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Wai
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
-import qualified Polysemy.Error as Polysemy
-import Polysemy.IO (embedToMonadIO)
-import qualified Polysemy.Reader as Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
-import Wire.API.Federation.GRPC.Types
-import Wire.Network.DNS.Effect as Polysemy
+import Wire.API.Federation.Component
+import Wire.API.Federation.Domain
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
 -- for versioning schemas here. See https://wearezeta.atlassian.net/browse/SQCORE-883.
 
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
-callLocal ::
-  ( Members
-      '[ Service,
-         Embed IO,
-         TinyLog,
-         DiscoverFederator,
-         Polysemy.Reader RunSettings
-       ]
-      r
-  ) =>
-  Maybe ByteString ->
-  Request ->
-  Sem r InwardResponse
-callLocal mcert req@Request {..} = runInwardError $ do
+callInward ::
+  Members
+    '[ Service,
+       Embed IO,
+       TinyLog,
+       DiscoverFederator,
+       Error ValidationError,
+       Error DiscoveryFailure,
+       Error ServerError,
+       Input RunSettings
+     ]
+    r =>
+  Wai.Request ->
+  Sem r Wai.Response
+callInward wreq = do
+  req <- parseRequestData wreq
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
-      . Log.field "request" (show req)
+      . Log.field "originDomain" (rdOriginDomain req)
+      . Log.field "component" (show (rdComponent req))
+      . Log.field "rpc" (rdRPC req)
 
-  validatedDomain <- validateDomain mcert originDomain
-  validatedPath <- sanitizePath path
-  Log.debug $
-    Log.msg ("Path validation" :: ByteString)
-      . Log.field "original path:" (show path)
-      . Log.field "sanitized result:" (show validatedPath)
-  (resStatus, resBody) <- serviceCall component validatedPath body validatedDomain
+  validatedDomain <- validateDomain (rdCertificate req) (rdOriginDomain req)
+
+  let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
+
+  (status, body) <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
-      . Log.field "resStatus" (show resStatus)
-  case HTTP.statusCode resStatus of
-    200 -> pure $ maybe mempty LBS.toStrict resBody
-    404 ->
-      case Wai.label <$> (decode =<< resBody) of
-        Just "no-endpoint" -> throwInward IInvalidEndpoint (cs $ "component " <> show component <> "does not have an endpoint " <> cs validatedPath)
-        _ -> throwInward IOther (cs $ show resStatus)
-    code -> do
-      let description = "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus) <> " Response body: " <> maybe mempty cs resBody
-      throwInward IOther description
-  where
-    runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
-    runInwardError action = toResponse <$> Polysemy.runError action
+      . Log.field "status" (show status)
 
-    toResponse :: Either InwardError ByteString -> InwardResponse
-    toResponse (Left err) = InwardResponseError err
-    toResponse (Right bs) = InwardResponseBody bs
+  pure $ Wai.responseLBS status defaultHeaders (fromMaybe mempty body)
 
-routeToInternal ::
-  (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, DiscoverFederator, Polysemy.Reader RunSettings] r) =>
-  Maybe ByteString ->
-  SingleServerT info Inward (Sem r) _
-routeToInternal cert = singleService (Mu.method @"call" (callLocal cert))
+data RequestData = RequestData
+  { rdComponent :: Component,
+    rdRPC :: Text,
+    rdBody :: LByteString,
+    rdCertificate :: Maybe ByteString,
+    rdOriginDomain :: ByteString
+  }
+
+-- path format: /federation/<component>/<rpc-path>
+-- inward service removes <component> and forwards to component
+-- where component = brig|galley|..
+-- Headers:
+--   Wire-Origin-Domain
+--   X-SSL-Certificate
+--
+-- FUTUREWORK: use higher-level effects
+parseRequestData ::
+  Members '[Error ServerError, Embed IO] r =>
+  Wai.Request ->
+  Sem r RequestData
+parseRequestData req = do
+  -- only POST is supported
+  when (Wai.requestMethod req /= HTTP.methodPost) $
+    throw InvalidRoute
+  -- No query parameters are allowed
+  when (not . BS.null . Wai.rawQueryString $ req) $
+    throw InvalidRoute
+  -- check that the path has the expected form
+  (componentSeg, rpcPath) <- case Wai.pathInfo req of
+    ["federation", comp, rpc] -> pure (comp, rpc)
+    _ -> throw InvalidRoute
+  when (Text.null rpcPath) $
+    throw InvalidRoute
+
+  -- get component, domain and body
+  component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
+  domain <-
+    note NoOriginDomain $
+      lookup originDomainHeaderName (Wai.requestHeaders req)
+  body <- embed $ Wai.lazyRequestBody req
+  pure $
+    RequestData
+      { rdComponent = component,
+        rdRPC = rpcPath,
+        rdBody = body,
+        rdCertificate = lookupCertificate req,
+        rdOriginDomain = domain
+      }
+
+serveInward :: Env -> Int -> IO ()
+serveInward = serve callInward
 
 lookupCertificate :: Wai.Request -> Maybe ByteString
 lookupCertificate req = HTTP.urlDecode True <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)
-
-serveInward :: Env -> Int -> IO ()
-serveInward env port = do
-  let app req = gRpcAppTrans msgProtoBuf transformer (routeToInternal (lookupCertificate req)) req
-  Wai.run port app
-  where
-    transformer ::
-      Sem
-        '[ DiscoverFederator,
-           DNSLookup,
-           TinyLog,
-           Embed IO,
-           Polysemy.Error ServerError,
-           Service,
-           Polysemy.Reader RunSettings,
-           Embed Federator
-         ]
-        a ->
-      ServerErrorIO a
-    transformer action =
-      runAppT env
-        . runM @Federator
-        . Polysemy.runReader (view runSettings env)
-        . interpretService
-        . absorbServerError
-        . embedToMonadIO @Federator
-        . Log.runTinyLog (view applog env)
-        . Polysemy.runDNSLookupWithResolver (view dnsResolver env)
-        . runFederatorDiscovery
-        $ action

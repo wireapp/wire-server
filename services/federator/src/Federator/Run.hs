@@ -35,6 +35,8 @@ module Federator.Run
 where
 
 import qualified Bilge as RPC
+import Control.Concurrent.Async
+import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
@@ -49,10 +51,8 @@ import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
-import UnliftIO (bracket)
-import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
-import Wire.API.Federation.GRPC.Types
+import Wire.API.Federation.Component
 import qualified Wire.Network.DNS.Helper as DNS
 
 ------------------------------------------------------------------------------

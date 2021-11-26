@@ -26,40 +26,45 @@ import Control.Lens (view)
 import Data.Domain
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LText
-import Federator.App (Federator, liftAppIOToFederator)
-import Federator.Env (service)
+import Federator.App
+import Federator.Env
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Polysemy.Input
+import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Federation.GRPC.Types
 
 newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
   deriving (Eq, Show)
 
 data Service m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> ByteString -> Domain -> Service m (HTTP.Status, Maybe LByteString)
+  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service m (HTTP.Status, Maybe LByteString)
 
 makeSem ''Service
 
 -- FUTUREWORK(federation): Do we want to use servant client here? May make
 -- everything typed and safe
 --
--- FUTUREWORK: Avoid letting the IO errors escape into `Embed Federator` and
+-- FUTUREWORK: Avoid letting the IO errors escape into `Embed IO` and
 -- return them as `Left`
+--
+-- FUTUREWORK: unify this interpretation with similar ones in Galley
+--
+-- FUTUREWORK: does it make sense to use a lower level abstraction instead of bilge here?
 interpretService ::
-  Member (Embed Federator) r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (Service ': r) a ->
   Sem r a
 interpretService = interpret $ \case
-  ServiceCall component path body domain -> embed @Federator . liftAppIOToFederator $ do
+  ServiceCall component path body domain -> embedApp @IO $ do
     serviceReq <- view service <$> ask
     res <-
       rpc' (LText.pack (show component)) (serviceReq component) $
         RPC.method HTTP.POST
           . RPC.path path
-          . RPC.body (RPC.RequestBodyBS body)
+          . RPC.body (RPC.RequestBodyLBS body)
           . RPC.contentJson
           . RPC.header originDomainHeaderName (cs (domainText domain))
     pure (RPC.responseStatus res, RPC.responseBody res)

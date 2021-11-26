@@ -39,6 +39,7 @@ module Network.Wai.Utilities.Server
     onError,
     logError,
     logError',
+    logErrorMsg,
     logIO,
     runHandlers,
     restrict,
@@ -353,15 +354,16 @@ logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
 logError g mr = logError' g (lookupRequestId =<< mr)
 
 logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
-logError' g mr (Wai.Error c l m md) = liftIO $ Log.debug g logMsg
-  where
-    logMsg =
-      field "code" (statusCode c)
-        . field "label" l
-        . field "request" (fromMaybe "N/A" mr)
-        . fromMaybe id (fmap logErrorData md)
-        . msg (val "\"" +++ m +++ val "\"")
+logError' g mr e = liftIO $ Log.debug g (logErrorMsg mr e)
 
+logErrorMsg :: Maybe ByteString -> Wai.Error -> Msg -> Msg
+logErrorMsg mr (Wai.Error c l m md) =
+  field "code" (statusCode c)
+    . field "label" l
+    . field "request" (fromMaybe "N/A" mr)
+    . fromMaybe id (fmap logErrorData md)
+    . msg (val "\"" +++ m +++ val "\"")
+  where
     logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)
         . field "path" p
