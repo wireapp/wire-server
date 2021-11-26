@@ -150,7 +150,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
-import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
 

@@ -65,6 +65,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Federator.MockServer as Mock
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
@@ -87,10 +88,8 @@ import Util.AWS
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import qualified Wire.API.Federation.API.Brig as FedBrig
-import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse)
-import qualified Wire.API.Federation.Mock as Mock
+import qualified Wire.API.Federation.API.Brig as F
+import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
@@ -107,9 +106,9 @@ type Nginz = Request -> Request
 
 type Spar = Request -> Request
 
-type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
+type FedBrigClient = Domain -> F.BrigApi (AsClientT (HttpT IO))
 
-type FedGalleyClient = FedGalley.Api (AsClientT (HttpT IO))
+type FedGalleyClient = Domain -> F.GalleyApi (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -1039,21 +1038,21 @@ withMockedGalley opts handler action =
 withMockedFederatorAndGalley ::
   Opt.Opts ->
   Domain ->
-  (FederatedRequest -> OutwardResponse) ->
+  (Mock.FederatedRequest -> IO LByteString) ->
   (ReceivedRequest -> MockT IO Wai.Response) ->
   Session a ->
-  IO (a, Mock.ReceivedRequests, [ReceivedRequest])
-withMockedFederatorAndGalley opts domain fedResp galleyHandler action = do
+  IO (a, [Mock.FederatedRequest], [ReceivedRequest])
+withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
-      Mock.withTempMockFederator (Mock.initState domain) (pure . fedResp) $ \fedMockState -> do
+      Mock.withTempMockFederator fedResp $ \fedMockPort -> do
         let opts' =
               opts
                 { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),
-                  Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort fedMockState)))
+                  Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral fedMockPort))
                 }
         withSettingsOverrides opts' action
   pure (combineResults result)
   where
-    combineResults :: ((a, Mock.ReceivedRequests), [ReceivedRequest]) -> (a, Mock.ReceivedRequests, [ReceivedRequest])
+    combineResults :: ((a, [Mock.FederatedRequest]), [ReceivedRequest]) -> (a, [Mock.FederatedRequest], [ReceivedRequest])
     combineResults ((a, mrr), rr) = (a, mrr, rr)

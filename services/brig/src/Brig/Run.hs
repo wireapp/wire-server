@@ -24,7 +24,7 @@ module Brig.Run
 where
 
 import Brig.API (sitemap)
-import Brig.API.Federation (federationSitemap)
+import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
 import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
@@ -65,11 +65,9 @@ import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
 import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
-import Servant.API.Generic (ToServantApi, genericApi)
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
-import qualified Wire.API.Federation.API.Brig as FederationBrig
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -127,7 +125,7 @@ mkApp o = do
         ( swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
             :<|> Servant.hoistServer (Proxy @IAPI.API) (toServantHandler e) IAPI.servantSitemap
-            :<|> Servant.hoistServer (genericApi (Proxy @FederationBrig.Api)) (toServantHandler e) federationSitemap
+            :<|> Servant.hoistServer (Proxy @FederationAPI) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
 
@@ -135,7 +133,7 @@ type ServantCombinedAPI =
   ( SwaggerDocsAPI
       :<|> ServantAPI
       :<|> IAPI.API
-      :<|> ToServantApi FederationBrig.Api
+      :<|> FederationAPI
       :<|> Servant.Raw
   )
 

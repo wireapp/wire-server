@@ -26,6 +26,7 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
+import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
 import qualified Data.Map as Map
@@ -67,7 +68,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/on-user-deleted/connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient)
+        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -86,26 +87,26 @@ testSearchSuccess brig fedBrigClient = do
   put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
   refreshIndex brig
 
-  searchResult <- FedBrig.searchUsers fedBrigClient (SearchRequest (fromHandle handle))
+  searchResult <- FedBrig.searchUsers (fedBrigClient (Domain "example.com")) (SearchRequest (fromHandle handle))
   liftIO $ do
     let contacts = contactQualifiedId <$> searchResult
     assertEqual "should return only the first user id but not the identityThief" [quid] contacts
 
 testSearchNotFound :: FedBrigClient -> Http ()
 testSearchNotFound fedBrigClient = do
-  searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest "this-handle-should-not-exist"
+  searchResult <- FedBrig.searchUsers (fedBrigClient (Domain "example.com")) $ SearchRequest "this-handle-should-not-exist"
   liftIO $ assertEqual "should return empty array of users" [] searchResult
 
 testSearchNotFoundEmpty :: FedBrigClient -> Http ()
 testSearchNotFoundEmpty fedBrigClient = do
-  searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest ""
+  searchResult <- FedBrig.searchUsers (fedBrigClient (Domain "example.com")) $ SearchRequest ""
   liftIO $ assertEqual "should return empty array of users" [] searchResult
 
 testGetUserByHandleSuccess :: Brig -> FedBrigClient -> Http ()
 testGetUserByHandleSuccess brig fedBrigClient = do
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  maybeProfile <- FedBrig.getUserByHandle fedBrigClient handle
+  maybeProfile <- FedBrig.getUserByHandle (fedBrigClient (Domain "example.com")) handle
   liftIO $ do
     case maybeProfile of
       Nothing -> assertFailure "Expected to find profile, found Nothing"
@@ -116,7 +117,7 @@ testGetUserByHandleSuccess brig fedBrigClient = do
 testGetUserByHandleNotFound :: FedBrigClient -> Http ()
 testGetUserByHandleNotFound fedBrigClient = do
   hdl <- randomHandle
-  maybeProfile <- FedBrig.getUserByHandle fedBrigClient (Handle hdl)
+  maybeProfile <- FedBrig.getUserByHandle (fedBrigClient (Domain "example.com")) (Handle hdl)
   liftIO $ assertEqual "should not return any UserProfile" Nothing maybeProfile
 
 testGetUsersByIdsSuccess :: Brig -> FedBrigClient -> Http ()
@@ -127,7 +128,7 @@ testGetUsersByIdsSuccess brig fedBrigClient = do
       quid1 = userQualifiedId user1
       uid2 = userId user2
       quid2 = userQualifiedId user2
-  profiles <- FedBrig.getUsersByIds fedBrigClient [uid1, uid2]
+  profiles <- FedBrig.getUsersByIds (fedBrigClient (Domain "example.com")) [uid1, uid2]
   liftIO $ do
     assertEqual "should return correct user Id" (Set.fromList [quid1, quid2]) (Set.fromList $ profileQualifiedId <$> profiles)
     assertEqual "should not have email address" [Nothing, Nothing] (map profileEmail profiles)
@@ -136,7 +137,7 @@ testGetUsersByIdsPartial :: Brig -> FedBrigClient -> Http ()
 testGetUsersByIdsPartial brig fedBrigClient = do
   presentUser <- randomUser brig
   absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
-  profiles <- FedBrig.getUsersByIds fedBrigClient [userId presentUser, absentUserId]
+  profiles <- FedBrig.getUsersByIds (fedBrigClient (Domain "example.com")) [userId presentUser, absentUserId]
   liftIO $
     assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
 
@@ -144,7 +145,7 @@ testGetUsersByIdsNoneFound :: FedBrigClient -> Http ()
 testGetUsersByIdsNoneFound fedBrigClient = do
   absentUserId1 :: UserId <- Id <$> lift UUIDv4.nextRandom
   absentUserId2 :: UserId <- Id <$> lift UUIDv4.nextRandom
-  profiles <- FedBrig.getUsersByIds fedBrigClient [absentUserId1, absentUserId2]
+  profiles <- FedBrig.getUsersByIds (fedBrigClient (Domain "example.com")) [absentUserId1, absentUserId2]
   liftIO $
     assertEqual "should return empty list" [] profiles
 
@@ -154,7 +155,7 @@ testClaimPrekeySuccess brig fedBrigClient = do
   let uid = userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
-  mkey <- FedBrig.claimPrekey fedBrigClient (uid, clientId c)
+  mkey <- FedBrig.claimPrekey (fedBrigClient (Domain "example.com")) (uid, clientId c)
   liftIO $
     assertEqual
       "should return prekey 1"
@@ -166,7 +167,7 @@ testClaimPrekeyBundleSuccess brig fedBrigClient = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  bundle <- FedBrig.claimPrekeyBundle fedBrigClient (qUnqualified quid)
+  bundle <- FedBrig.claimPrekeyBundle (fedBrigClient (Domain "example.com")) (qUnqualified quid)
   liftIO $
     assertEqual
       "bundle should contain the clients"
@@ -184,7 +185,7 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
       ucm = mkUserClientPrekeyMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
-  ucmResponse <- FedBrig.claimMultiPrekeyBundle fedBrigClient uc
+  ucmResponse <- FedBrig.claimMultiPrekeyBundle (fedBrigClient (Domain "example.com")) uc
   liftIO $
     assertEqual
       "should return the UserClientMap"
@@ -202,7 +203,7 @@ testGetUserClients :: Brig -> FedBrigClient -> Http ()
 testGetUserClients brig fedBrigClient = do
   uid1 <- userId <$> randomUser brig
   clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
-  UserMap userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [uid1])
+  UserMap userClients <- FedBrig.getUserClients (fedBrigClient (Domain "example.com")) (GetUserClients [uid1])
   liftIO $
     assertEqual
       "client set for user should match"
@@ -212,7 +213,7 @@ testGetUserClients brig fedBrigClient = do
 testGetUserClientsNotFound :: FedBrigClient -> Http ()
 testGetUserClientsNotFound fedBrigClient = do
   absentUserId <- randomId
-  UserMap userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [absentUserId])
+  UserMap userClients <- FedBrig.getUserClients (fedBrigClient (Domain "example.com")) (GetUserClients [absentUserId])
   liftIO $
     assertEqual
       "client set for user should match"
@@ -236,8 +237,7 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
   void . WS.bracketRN cannon localUsers $ \[cc, pc, bc, uc] -> do
     _ <-
       FedBrig.onUserDeleted
-        fedBrigClient
-        (qDomain remoteUser)
+        (fedBrigClient (qDomain remoteUser))
         (UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers))
 
     WS.assertMatchN_ (5 # Second) [cc] $ matchDeleteUserNotification remoteUser

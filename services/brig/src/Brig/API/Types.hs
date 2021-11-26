@@ -44,7 +44,7 @@ import Data.Id
 import Data.Qualified
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
-import Wire.API.Federation.Client (FederationError)
+import Wire.API.Federation.Error
 
 -------------------------------------------------------------------------------
 -- Successes
