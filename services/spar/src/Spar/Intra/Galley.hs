@@ -31,13 +31,7 @@ import Imports
 import Network.HTTP.Types.Method
 import Spar.Error
 import qualified System.Logger.Class as Log
-import Wire.API.Team.Feature
-  ( IncludeLockStatus (..),
-    TeamFeatureName (..),
-    TeamFeatureStatus,
-    TeamFeatureStatusNoConfig (..),
-    TeamFeatureStatusValue (..),
-  )
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus, TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 
 ----------------------------------------------------------------------
 
@@ -94,7 +88,7 @@ isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
     ( (statusCode resp == 200)
-        && ( responseJsonMaybe @(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails) resp
+        && ( responseJsonMaybe @(TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) resp
                == Just (TeamFeatureStatusNoConfig TeamFeatureEnabled)
            )
     )
