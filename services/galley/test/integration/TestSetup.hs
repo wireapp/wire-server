@@ -46,16 +46,22 @@ import qualified Cassandra as Cql
 import Control.Lens (makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Aeson
+import Data.ByteString.Conversion
+import Data.Domain
 import qualified Data.Text as Text
 import qualified Galley.Aws as Aws
 import Galley.Options (Opts)
 import Imports
+import qualified Network.HTTP.Client as HTTP
 import qualified Servant.Client as Servant
+import Servant.Client.Core.BaseUrl
+import qualified Servant.Client.Core.Request as Client
 import Servant.Client.Generic (AsClientT)
 import qualified Servant.Client.Generic as Servant
 import Test.Tasty.HUnit
 import Util.Options
-import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Federation.API
+import Wire.API.Federation.Domain
 
 type GalleyR = Request -> Request
 
@@ -100,7 +106,7 @@ newtype TestM a = TestM {runTestM :: ReaderT TestSetup IO a}
       MonadFail
     )
 
-type FedGalleyClient = FedGalley.Api (AsClientT TestM)
+type FedGalleyClient = FedApi 'Galley (AsClientT TestM)
 
 data TestSetup = TestSetup
   { _tsGConf :: Opts,
@@ -112,7 +118,7 @@ data TestSetup = TestSetup
     _tsAwsEnv :: Maybe Aws.Env,
     _tsMaxConvSize :: Word16,
     _tsCass :: Cql.ClientState,
-    _tsFedGalleyClient :: FedGalleyClient
+    _tsFedGalleyClient :: Domain -> FedGalleyClient
   }
 
 makeLenses ''TestSetup
@@ -122,17 +128,24 @@ instance MonadHttp TestM where
     manager <- view tsManager
     liftIO $ withResponse req manager handler
 
-mkFedGalleyClient :: Endpoint -> FedGalleyClient
-mkFedGalleyClient galleyEndpoint = Servant.genericClientHoist servantClienMToHttp
+mkFedGalleyClient :: Endpoint -> Domain -> FedGalleyClient
+mkFedGalleyClient galleyEndpoint originDomain = Servant.genericClientHoist servantClienMToHttp
   where
     servantClienMToHttp :: Servant.ClientM a -> TestM a
     servantClienMToHttp act = do
-      let brigHost = Text.unpack $ galleyEndpoint ^. epHost
+      let galleyHost = Text.unpack $ galleyEndpoint ^. epHost
           brigPort = fromInteger . toInteger $ galleyEndpoint ^. epPort
-          baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort ""
+          baseUrl = Servant.BaseUrl Servant.Http galleyHost brigPort "/federation"
       mgr' <- view tsManager
-      let clientEnv = Servant.ClientEnv mgr' baseUrl Nothing Servant.defaultMakeClientRequest
+      let clientEnv = Servant.ClientEnv mgr' baseUrl Nothing makeClientRequest
       eitherRes <- liftIO $ Servant.runClientM act clientEnv
       case eitherRes of
         Right res -> pure res
         Left err -> liftIO $ assertFailure $ "Servant client failed with: " <> show err
+    makeClientRequest :: BaseUrl -> Client.Request -> HTTP.Request
+    makeClientRequest burl req =
+      let req' = Servant.defaultMakeClientRequest burl req
+       in req'
+            { HTTP.requestHeaders =
+                HTTP.requestHeaders req' <> [(originDomainHeaderName, toByteString' originDomain)]
+            }

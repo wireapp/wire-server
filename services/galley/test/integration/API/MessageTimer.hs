@@ -25,7 +25,6 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson (eitherDecode)
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import qualified Data.LegalHold as LH
@@ -33,6 +32,7 @@ import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc
 import Data.Qualified
+import Federator.MockServer (FederatedRequest (..))
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
@@ -47,7 +47,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
-import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Federation.Component
 import qualified Wire.API.Team.Member as Member
 
 tests :: IO TestSetup -> TestTree
@@ -167,10 +167,10 @@ messageTimerChangeWithRemotes = do
 
     req <- assertOne requests
     liftIO $ do
-      F.domain req @?= domainText remoteDomain
-      fmap F.component (F.request req) @?= Just F.Galley
-      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
-      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
         @?= ConversationActionMessageTimerUpdate

@@ -44,10 +44,10 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Event.Conversation
-import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationError)
-import Wire.API.Federation.Error (federationErrorToWai)
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
@@ -192,8 +192,9 @@ getRemoteClients remoteMembers =
   where
     getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
-        <$> FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
+        <$> getUserClients clientRoutes (GetUserClients uids)
 
+-- TODO: sender should be Local UserId
 postRemoteOtrMessage ::
   Members '[FederatorAccess] r =>
   Qualified UserId ->
@@ -202,13 +203,13 @@ postRemoteOtrMessage ::
   Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
-        FederatedGalley.MessageSendRequest
-          { FederatedGalley.msrConvId = tUnqualified conv,
-            FederatedGalley.msrSender = qUnqualified sender,
-            FederatedGalley.msrRawMessage = Base64ByteString rawMsg
+        MessageSendRequest
+          { msrConvId = tUnqualified conv,
+            msrSender = qUnqualified sender,
+            msrRawMessage = Base64ByteString rawMsg
           }
-      rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
-  FederatedGalley.msResponse <$> runFederated conv rpc
+      rpc = sendMessage clientRoutes msr
+  msResponse <$> runFederated conv rpc
 
 postQualifiedOtrMessage ::
   Members
@@ -397,18 +398,18 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
           mempty
           (Map.assocs messages)
       rm =
-        FederatedGalley.RemoteMessage
-          { FederatedGalley.rmTime = now,
-            FederatedGalley.rmData = mmData metadata,
-            FederatedGalley.rmSender = sender,
-            FederatedGalley.rmSenderClient = senderClient,
-            FederatedGalley.rmConversation = tUnqualified lcnv,
-            FederatedGalley.rmPriority = mmNativePriority metadata,
-            FederatedGalley.rmPush = mmNativePush metadata,
-            FederatedGalley.rmTransient = mmTransient metadata,
-            FederatedGalley.rmRecipients = UserClientMap rcpts
+        RemoteMessage
+          { rmTime = now,
+            rmData = mmData metadata,
+            rmSender = sender,
+            rmSenderClient = senderClient,
+            rmConversation = tUnqualified lcnv,
+            rmPriority = mmNativePriority metadata,
+            rmPush = mmNativePush metadata,
+            rmTransient = mmTransient metadata,
+            rmRecipients = UserClientMap rcpts
           }
-  let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes (tDomain lcnv) rm
+  let rpc = onMessageSent clientRoutes rm
   runFederatedEither domain rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))

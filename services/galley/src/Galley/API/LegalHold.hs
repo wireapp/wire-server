@@ -79,7 +79,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
