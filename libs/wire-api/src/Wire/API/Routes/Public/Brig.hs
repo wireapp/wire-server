@@ -135,6 +135,15 @@ data Api routes = Api
         :> "self"
         :> ReqBody '[JSON] DeleteUser
         :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
+    updateUserEmailValidation ::
+      routes
+        :- Summary "Resend email validation email."
+        :> Description "If the user has a pending email validation, the validation email will be resent."
+        :> ZUser
+        :> "users"
+        :> CaptureUserId "uid"
+        :> "email"
+        :> Put '[JSON] (),
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"

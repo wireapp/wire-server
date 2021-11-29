@@ -251,6 +251,7 @@ servantSitemap =
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.deleteSelf = deleteUser,
+        BrigAPI.updateUserEmailValidation = updateUserEmailValidation,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
@@ -1192,6 +1193,13 @@ verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
+
+updateUserEmailValidation :: UserId -> UserId -> Handler ()
+updateUserEmailValidation zuser emailOwner = do
+  _ <- error "check that zuser has new perm CanChangeMemberEmail"
+  _ <- error "todo: check that zuser is in the team of email owner"
+  email <- error "todo: retrieve email internally"
+  void $ API.changeSelfEmail emailOwner email API.AllowSCIMUpdates
 
 -- activation
 
