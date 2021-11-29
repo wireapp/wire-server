@@ -105,7 +105,7 @@ library:
   - warp >=3.0
 
 tests:
-  galley-types-tests:
+  galley-tests:
     main: Main.hs
     source-dirs: test/unit
     ghc-options:
