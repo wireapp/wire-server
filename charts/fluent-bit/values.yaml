@@ -9,3 +9,27 @@ fluent-bit:
     regex:
       - name: nginz
         regex: '^(?<remote_addr>[^ ]*) (?<remote_user>[^ ]*) "(?<thetime>[0-9\/a-zA-Z:]* [+][0-9]*)" "(?<path>.*)" (?<status>[0-9]*) (?<body_bytes_sent>[0-9]*) "(?<http_referer>[^ ])" "(?<http_user_agent>.*)" (?<http_x_forwarded_for>[^ ]*) (?<connection>[^ ]*) (?<request_time>[^ ]*) (?<upstream_response_time>[^ ]*) (?<upstream_cache_status>[^ ]*) (?<zauth_user>[^ ]*) (?<zauth_connection>[^ ]*) (?<request>[a-z0-9]*)'
+  rawConfig: |-
+    @INCLUDE fluent-bit-service.conf
+    @INCLUDE fluent-bit-input.conf
+    @INCLUDE fluent-bit-filter.conf
+    @INCLUDE fluent-bit-output.conf
+
+    # Uncomment the following if you want to enable and configure logging to syslog
+    #[OUTPUT]
+    #  name                 syslog
+    #  match                *
+    #  host                 192.168.12.5
+    #  port                 514
+    #  mode                 udp
+    #  syslog_format        rfc5424
+    #  # syslog_severity_key  severity
+    #  # syslog_facility_key  facility
+    #  syslog_hostname_key  host
+    #  syslog_appname_key   container_image
+    #  syslog_procid_key    pod_name
+    #  # syslog_msgid_key     msgid
+    #  syslog_sd_key        k8s
+    #  syslog_sd_key        labels
+    #  syslog_sd_key        annotation
+    #  syslog_message_key   log
