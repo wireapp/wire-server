@@ -455,13 +455,6 @@ packages:
   original:
     hackage: polysemy-mocks-0.2.0.0
 - completed:
-    hackage: http2-3.0.2@sha256:7ef3389c98243da89960dc5b874d20d56c335f4319ee040cda7eea2d4ded308f,15814
-    pantry-tree:
-      size: 46005
-      sha256: 3f10717aea3c86a91d3eda6f9ca0cd2fd5f5f058da804c2d46e71948fbe782d2
-  original:
-    hackage: http2-3.0.2
-- completed:
     hackage: warp-3.3.17@sha256:3a3ea203141d00d2244b511ee99174b8ed58fc862552755d470a25a44ce5275b,10910
     pantry-tree:
       size: 3973
@@ -648,16 +641,16 @@ packages:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
 - completed:
-    name: http2-client
-    version: 0.10.0.1
-    git: https://github.com/lucasdicioccio/http2-client
+    name: http2
+    version: 3.0.2
+    git: https://github.com/wireapp/http2
     pantry-tree:
-      size: 1545
-      sha256: d0b3ab62eee8ee4c0ddec7a90fea78090815a54884646ddcdc451ff51d7e262a
-    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+      size: 52771
+      sha256: dc6d3868a049d2ed38ef16ca6dd6aeb6b8e8a1e730c664ecdd243ffdb45ee750
+    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
   original:
-    git: https://github.com/lucasdicioccio/http2-client
-    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+    git: https://github.com/wireapp/http2
+    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
 - completed:
     name: snappy
     version: 0.2.0.2

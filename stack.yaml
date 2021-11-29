@@ -162,7 +162,6 @@ extra-deps:
 - wai-predicates-1.0.0
 - redis-io-1.1.0
 - polysemy-mocks-0.2.0.0
-- http2-3.0.2
 - warp-3.3.17
 
 # Not latest as last one breaks wai-routing
@@ -209,10 +208,10 @@ extra-deps:
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
-# Unreleased master.
-# Needed for https://github.com/lucasdicioccio/http2-client/pull/75
-- git: https://github.com/lucasdicioccio/http2-client
-  commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+# Fix for connection preface race condition
+# https://github.com/kazu-yamamoto/http2/pull/33
+- git: https://github.com/wireapp/http2
+  commit: 1ee1ce432d923839dab6782410e91dc17df2a880 # preface-race branch
 
 # Fix in PR: https://github.com/bos/snappy/pull/7
 - git: https://github.com/wireapp/snappy
