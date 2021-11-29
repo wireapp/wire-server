@@ -31,6 +31,8 @@ spec:
           value: "false"
         - name: "discovery.type"
           value: "single-node"
+        - name: "action.auto_create_index"
+          value: ".watches,.triggered_watches,.watcher-history-*"
         ports:
         - containerPort: 9200
           name: http
