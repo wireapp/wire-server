@@ -160,7 +160,7 @@ curl -X GET \
 ### get all users
 
 There is a way to do this in the SCIM protocol, but it's not
-implemented in wire for performance reasons.  If you need a complete
+implemented in wire for performance reasons. If you need a complete
 list of your team members, try the CSV download button in the team
 management app.
 
