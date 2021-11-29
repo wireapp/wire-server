@@ -23,6 +23,7 @@ module Wire.API.Federation.Client
     FederatorClient,
     runFederatorClient,
     performHTTP2Request,
+    headersFromTable,
   )
 where
 
@@ -89,7 +90,7 @@ performHTTP2Request ::
   HTTP2.Request ->
   ByteString ->
   Int ->
-  IO (Either FederatorClientHTTP2Error (HTTP.Status, HTTP2.HeaderTable, Builder))
+  IO (Either FederatorClientHTTP2Error (HTTP.Status, [HTTP.Header], Builder))
 performHTTP2Request mtlsConfig req hostname port = do
   let drainResponse resp = go mempty
         where
@@ -124,9 +125,10 @@ performHTTP2Request mtlsConfig req hostname port = do
         HTTP2.run clientConfig conf $ \sendRequest -> do
           sendRequest req $ \resp -> do
             result <- drainResponse resp
+            let headers = headersFromTable (HTTP2.responseHeaders resp)
             pure $ case HTTP2.responseStatus resp of
               Nothing -> Left FederatorClientNoStatusCode
-              Just status -> Right (status, HTTP2.responseHeaders resp, result)
+              Just status -> Right (status, headers, result)
 
 instance KnownComponent c => RunClient (FederatorClient c) where
   runRequestAcceptStatus expectedStatuses req = do
@@ -154,12 +156,12 @@ instance KnownComponent c => RunClient (FederatorClient c) where
     eresp <- liftIO $ performHTTP2Request Nothing req' hostname port
     case eresp of
       Left err -> throwError (FederatorClientHTTP2Error err)
-      Right (status, htable, result)
+      Right (status, headers, result)
         | maybe (HTTP.statusIsSuccessful status) (elem status) expectedStatuses ->
           pure $
             Response
               { responseStatusCode = status,
-                responseHeaders = Seq.fromList (headersFromTable htable),
+                responseHeaders = Seq.fromList headers,
                 responseHttpVersion = HTTP.http20,
                 responseBody = toLazyByteString result
               }

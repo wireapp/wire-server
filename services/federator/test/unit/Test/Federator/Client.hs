@@ -24,6 +24,7 @@ import Data.Domain
 import Federator.MockServer
 import Imports
 import Network.HTTP.Types as HTTP
+import qualified Network.HTTP2.Client as HTTP2
 import Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
@@ -42,14 +43,24 @@ targetDomain = Domain "target.example.com"
 originDomain :: Domain
 originDomain = Domain "origin.example.com"
 
+defaultHeaders :: [HTTP.Header]
+defaultHeaders = [("Content-Type", "application/json")]
+
 tests :: TestTree
 tests =
   testGroup
     "Federator.Client"
-    [ testCase "testClientSuccess" testClientSuccess,
-      testCase "testClientFailure" testClientFailure,
-      testCase "testClientException" testClientExceptions,
-      testCase "testClientConnectionError" testClientConnectionError
+    [ testGroup
+        "Servant"
+        [ testCase "testClientSuccess" testClientSuccess,
+          testCase "testClientFailure" testClientFailure,
+          testCase "testClientException" testClientExceptions,
+          testCase "testClientConnectionError" testClientConnectionError
+        ],
+      testGroup
+        "HTTP2 client"
+        [ testCase "testResponseHeaders" testResponseHeaders
+        ]
     ]
 
 newtype ResponseFailure = ResponseFailure Wai.Error
@@ -57,10 +68,11 @@ newtype ResponseFailure = ResponseFailure Wai.Error
 
 withMockFederatorClient ::
   KnownComponent c =>
+  [HTTP.Header] ->
   (FederatedRequest -> IO LByteString) ->
   FederatorClient c a ->
   IO (Either ResponseFailure a, [FederatedRequest])
-withMockFederatorClient resp action = withTempMockFederator resp $ \port -> do
+withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
@@ -79,7 +91,7 @@ testClientSuccess = do
   expectedResponse :: UserProfile <- generate arbitrary
 
   (actualResponse, sentRequests) <-
-    withMockFederatorClient (const (pure (Aeson.encode (Just expectedResponse)))) $
+    withMockFederatorClient defaultHeaders (const (pure (Aeson.encode (Just expectedResponse)))) $
       getUserByHandle clientRoutes handle
 
   sentRequests
@@ -98,7 +110,7 @@ testClientFailure = do
   handle <- generate arbitrary
 
   (actualResponse, _) <-
-    withMockFederatorClient (const (throw (MockErrorResponse HTTP.status403 "mock error"))) $ do
+    withMockFederatorClient defaultHeaders (const (throw (MockErrorResponse HTTP.status403 "mock error"))) $ do
       getUserByHandle clientRoutes handle
 
   case actualResponse of
@@ -112,7 +124,7 @@ testClientExceptions = do
   handle <- generate arbitrary
 
   (response, _) <-
-    withMockFederatorClient (const (evaluate (error "unhandled exception"))) $
+    withMockFederatorClient defaultHeaders (const (evaluate (error "unhandled exception"))) $
       getUserByHandle clientRoutes handle
 
   case response of
@@ -133,3 +145,21 @@ testClientConnectionError = do
     Left (FederatorClientHTTP2Error (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
     Right _ -> assertFailure "Expected connection with the server to fail"
+
+testResponseHeaders :: IO ()
+testResponseHeaders = do
+  (r, _) <- withTempMockFederator [("X-Foo", "bar")] (const mempty) $ \port -> do
+    let req =
+          HTTP2.requestBuilder
+            HTTP.methodPost
+            "/rpc/target.example.com/brig/test"
+            [("Wire-Origin-Domain", "origin.example.com")]
+            "body"
+    performHTTP2Request Nothing req "127.0.0.1" port
+  case r of
+    Left err ->
+      assertFailure $
+        "Unexpected error while connecting to mock federator: " <> show err
+    Right (status, headers, _) -> do
+      status @?= HTTP.status200
+      lookup "X-Foo" headers @?= Just "bar"

@@ -124,10 +124,11 @@ data FederatedRequest = FederatedRequest
 -- forwarding them to a remote federator.
 withTempMockFederator ::
   (MonadIO m, MonadMask m) =>
+  [HTTP.Header] ->
   (FederatedRequest -> IO LByteString) ->
   (Warp.Port -> m a) ->
   m (a, [FederatedRequest])
-withTempMockFederator resp action = do
+withTempMockFederator headers resp action = do
   remoteCalls <- newIORef []
 
   let handleException :: SomeException -> MockException
@@ -163,7 +164,7 @@ withTempMockFederator resp action = do
                 fromException @MockException
                   . handle (throw . handleException)
                   $ resp fedRequest
-              pure $ Wai.responseLBS HTTP.status200 [("Content-Type", "application/json")] body
+              pure $ Wai.responseLBS HTTP.status200 headers body
         respond response
   result <-
     bracket

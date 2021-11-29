@@ -66,18 +66,21 @@ import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
--- | Starts a server which will return the 'OutwardResponse' passed to this
+-- | Starts a server which will return the bytestring passed to this
 -- function, and makes the action passed to this function run in a modified brig
 -- which will contact this mocked federator instead of a real federator.
 withTempMockFederator :: Opt.Opts -> LByteString -> Session a -> IO (a, [Mock.FederatedRequest])
 withTempMockFederator opts resp action =
-  Mock.withTempMockFederator (const (pure resp)) $ \mockPort -> do
-    let opts' =
-          opts
-            { Opt.federatorInternal =
-                Just (Endpoint "127.0.0.1" (fromIntegral mockPort))
-            }
-    withSettingsOverrides opts' action
+  Mock.withTempMockFederator
+    [("Content-Type", "application/json")]
+    (const (pure resp))
+    $ \mockPort -> do
+      let opts' =
+            opts
+              { Opt.federatorInternal =
+                  Just (Endpoint "127.0.0.1" (fromIntegral mockPort))
+              }
+      withSettingsOverrides opts' action
 
 generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
 generateClientPrekeys brig prekeys = do

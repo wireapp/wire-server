@@ -1045,7 +1045,7 @@ withMockedFederatorAndGalley ::
 withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
-      Mock.withTempMockFederator fedResp $ \fedMockPort -> do
+      Mock.withTempMockFederator [("Content-Type", "application/json")] fedResp $ \fedMockPort -> do
         let opts' =
               opts
                 { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),

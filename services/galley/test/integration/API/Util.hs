@@ -2237,7 +2237,7 @@ withTempMockFederator' ::
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   opts <- viewGalleyOpts
-  Mock.withTempMockFederator resp $ \mockPort -> do
+  Mock.withTempMockFederator [("Content-Type", "application/json")] resp $ \mockPort -> do
     let opts' =
           opts & Opts.optFederator
             ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
