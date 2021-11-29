@@ -310,3 +310,25 @@ Solution
 
 Do not rely on case sensitivity of `IssuerID` or `NameID`, or on
 `NameID` qualifiers for distinguishing user identifiers.
+
+
+How to report problems
+----------------------
+
+If you have a problem you cannot resolve by yourself, please get in touch.  Add as much of the following details to your report as possible:
+
+* Are you on cloud or on-prem?  (If on-prem: which instance?)
+* XML IdP metadata
+* SSL Login code or IdP Issuer EntityID
+* NameID of the account that has the problem
+* SP metadata
+
+Problem description, including, but not limited to:
+
+* what happened?
+* what did you want to happen?
+* what does your idp config in the wire team management app look like?
+* what does your wire config in your IdP management app look like?
+* Please include screenshots *and* copied text (for cut&paste when we investigate) *and* further description and comments where feasible.
+
+(If you can't produce some of this information of course please get in touch anyway!  It'll merely be harder for us to resolve your issue quickly, and we may need to make a few extra rounds of data gathering together with you.)
