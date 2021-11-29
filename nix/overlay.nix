@@ -7,6 +7,7 @@ self: super: rec {
       svg2rlg = pself.callPackage ./python/svg2rlg.nix {};
       svglib = pself.callPackage ./python/svglib.nix {};
       sphinx-multiversion = pself.callPackage ./python/sphinx-multiversion.nix {};
+      sphinxcontrib-kroki = pself.callPackage ./python/sphinxcontrib-kroki.nix {};
     };
   });
 
