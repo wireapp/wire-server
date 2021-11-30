@@ -131,6 +131,11 @@ federationRemoteHTTP2Error (FederatorClientConnectionError e) =
     (LT.pack (displayException e))
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
+federationClientHTTP2Error (FederatorClientConnectionError e) =
+  Wai.mkError
+    HTTP.status500
+    "federation-not-available"
+    (LT.pack (displayException e))
 federationClientHTTP2Error e =
   Wai.mkError
     HTTP.status500
