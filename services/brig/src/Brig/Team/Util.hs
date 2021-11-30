@@ -27,16 +27,6 @@ import qualified Data.Set as Set
 import Galley.Types.Teams
 import Imports
 
-ensureHiddenPermissions :: UserId -> TeamId -> [HiddenPerm] -> ExceptT Error AppIO ()
-ensureHiddenPermissions u t perms = do
-  m <- lift $ Intra.getTeamMember u t
-  unless (check m) $
-    throwStd insufficientTeamPermissions
-  where
-    check :: Maybe TeamMember -> Bool
-    check (Just m) = and $ hasPermission m <$> perms
-    check Nothing = False
-
 ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error AppIO ()
 ensurePermissions u t perms = do
   m <- lift $ Intra.getTeamMember u t

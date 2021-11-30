@@ -51,7 +51,6 @@ module Brig.Code
     -- * Storage
     insert,
     lookup,
-    lookupEmail,
     verify,
     delete,
   )
@@ -64,7 +63,6 @@ import Brig.Types (Email, Phone)
 import Brig.Types.Code (Key (..), KeyValuePair (..), Timeout (..), Value (..))
 import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
-import Data.Id (UserId, toUUID)
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -247,14 +245,6 @@ insert c = do
     cql =
       "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
-
-lookupEmail :: MonadClient m => UserId -> m (Maybe Email)
-lookupEmail userId = fmap runIdentity <$> retry x1 (query1 cql (params LocalQuorum (Identity $ toUUID userId)))
-  where
-    cql :: PrepQuery R (Identity UUID) (Identity Email)
-    cql =
-      "SELECT email \
-      \FROM vcodes WHERE account = ?"
 
 -- | Lookup a pending code.
 lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)

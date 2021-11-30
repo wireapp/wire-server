@@ -38,14 +38,12 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
-import qualified Brig.Code as VCode
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
-import Brig.Team.Util (ensureHiddenPermissions)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..), User (userId))
@@ -82,7 +80,6 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
-import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -1199,20 +1196,19 @@ verifyDeleteUserH (r ::: _) = do
 
 updateUserEmailValidation :: UserId -> UserId -> Handler ()
 updateUserEmailValidation zuserId emailOwnerId = do
-  (Public.SelfProfile zuser) <- getSelf zuserId
-  (Public.SelfProfile emailOwner) <- getSelf emailOwnerId
-  checkPermissions zuser emailOwner
-  maybeEmail <- lift $ VCode.lookupEmail emailOwnerId
+  -- TODO(leif): check hidden permissions
+  maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
+  maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
+  checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
+  maybeEmail <- lift $ Data.lookupUserUnverifiedEmail emailOwnerId
   case maybeEmail of
     Just email -> void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
-    Nothing -> throwStd $ notFound "pending validation email of email owner not found"
+    Nothing -> throwStd $ conflict "the user doesn't have a pending email validation"
   where
-    checkPermissions zuser emailOwner =
-      void $ case (Public.userTeam zuser, Public.userTeam emailOwner) of
-        (Just zuserTeamId, Just emailOwnerTeamId) -> do
-          when (zuserTeamId /= emailOwnerTeamId) $ throwStd insufficientTeamPermissions
-          ensureHiddenPermissions zuserId zuserTeamId [Team.ChangeTeamMemberProfiles]
-        (_, _) -> throwStd insufficientTeamPermissions
+    checkSameTeam :: Maybe TeamId -> Maybe TeamId -> Handler ()
+    checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
+      when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd insufficientTeamPermissions
+    checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
 
 -- activation
 
