@@ -54,6 +54,7 @@ tests =
         "Servant"
         [ testCase "testClientSuccess" testClientSuccess,
           testCase "testClientFailure" testClientFailure,
+          testCase "testFederatorFailure" testFederatorFailure,
           testCase "testClientException" testClientExceptions,
           testCase "testClientConnectionError" testClientConnectionError
         ],
@@ -110,14 +111,34 @@ testClientFailure = do
   handle <- generate arbitrary
 
   (actualResponse, _) <-
-    withMockFederatorClient defaultHeaders (const (throw (MockErrorResponse HTTP.status403 "mock error"))) $ do
-      getUserByHandle clientRoutes handle
+    withMockFederatorClient
+      defaultHeaders
+      (const (throw (MockErrorResponse HTTP.status422 "wrong domain")))
+      $ do
+        getUserByHandle clientRoutes handle
 
   case actualResponse of
     Right _ -> assertFailure "unexpected success"
     Left (ResponseFailure werr) -> do
-      Wai.code werr @?= HTTP.status403
-      Wai.message werr @?= "mock error"
+      Wai.code werr @?= HTTP.status422
+      Wai.message werr @?= "wrong domain"
+
+testFederatorFailure :: IO ()
+testFederatorFailure = do
+  handle <- generate arbitrary
+
+  (actualResponse, _) <-
+    withMockFederatorClient
+      defaultHeaders
+      (const (throw (MockErrorResponse HTTP.status403 "invalid path")))
+      $ do
+        getUserByHandle clientRoutes handle
+
+  case actualResponse of
+    Right _ -> assertFailure "unexpected success"
+    Left (ResponseFailure werr) -> do
+      Wai.code werr @?= HTTP.status500
+      Wai.label werr @?= "federation-local-error"
 
 testClientExceptions :: IO ()
 testClientExceptions = do

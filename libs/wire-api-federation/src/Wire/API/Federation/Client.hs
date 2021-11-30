@@ -178,17 +178,32 @@ instance KnownComponent c => RunClient (FederatorClient c) where
   throwClientError = throwError . FederatorClientServantError
 
 mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
-mkFailureResponse status domain path body =
-  (fromMaybe defaultError (Aeson.decode body))
-    { Wai.errorData =
-        Just
-          Wai.FederationErrorData
-            { Wai.federrDomain = domain,
-              Wai.federrPath =
-                "/federation"
-                  <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
-            }
-    }
+mkFailureResponse status domain path body
+  -- If the outward federator fails with 403, that means that there was an
+  -- error at the level of the local federator (most likely due to a bug somewhere
+  -- in wire-server). It does not make sense to return this error directly to the
+  -- client, since it is always due to a server issue, so we map it to a 500
+  -- error.
+  | HTTP.statusCode status == 403 =
+    Wai.mkError
+      HTTP.status500
+      "federation-local-error"
+      ( "Local federator failure: "
+          <> LText.decodeUtf8With Text.lenientDecode body
+      )
+  -- Any other error is interpreted as a correctly formatted wai error, and
+  -- returned to the client.
+  | otherwise =
+    (fromMaybe defaultError (Aeson.decode body))
+      { Wai.errorData =
+          Just
+            Wai.FederationErrorData
+              { Wai.federrDomain = domain,
+                Wai.federrPath =
+                  "/federation"
+                    <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
+              }
+      }
   where
     defaultError =
       Wai.mkError
