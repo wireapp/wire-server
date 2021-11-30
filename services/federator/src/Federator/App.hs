@@ -73,12 +73,6 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
       withRunInIO $ \runner ->
         inner (runner . flip runReaderT r . unAppT)
 
--- instance MonadError ServerError (AppT ServerErrorIO) where
---   throwError = lift . throwError @_ @ServerErrorIO
---   catchError a f = do
---     env <- ask
---     lift $ catchError (runAppT env a) (runAppT env . f)
-
 instance MonadTrans AppT where
   lift = AppT . lift
 
