@@ -1202,7 +1202,7 @@ updateUserEmailValidation zuserId emailOwnerId = do
   (Public.SelfProfile zuser) <- getSelf zuserId
   (Public.SelfProfile emailOwner) <- getSelf emailOwnerId
   checkPermissions zuser emailOwner
-  maybeEmail <- lift $ VCode.lookupEmail $ toUUID emailOwnerId
+  maybeEmail <- lift $ VCode.lookupEmail emailOwnerId
   case maybeEmail of
     Just email -> void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
     Nothing -> throwStd $ notFound "pending validation email of email owner not found"
