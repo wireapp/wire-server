@@ -1195,11 +1195,16 @@ verifyDeleteUserH (r ::: _) = do
   return (setStatus status200 empty)
 
 updateUserEmailValidation :: UserId -> UserId -> Handler ()
-updateUserEmailValidation zuser emailOwner = do
+updateUserEmailValidation zuserId emailOwnerId = do
   _ <- error "check that zuser has new perm CanChangeMemberEmail"
-  _ <- error "todo: check that zuser is in the team of email owner"
+  usersAreInTheSameTeam
   email <- error "todo: retrieve email internally"
-  void $ API.changeSelfEmail emailOwner email API.AllowSCIMUpdates
+  void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
+  where
+    usersAreInTheSameTeam = do
+      (Public.SelfProfile zuser) <- getSelf zuserId
+      (Public.SelfProfile emailOwner) <- getSelf emailOwnerId
+      when (Public.userTeam zuser /= Public.userTeam emailOwner) $ throwStd insufficientTeamPermissions
 
 -- activation
 
