@@ -1199,7 +1199,8 @@ verifyDeleteUserH (r ::: _) = do
 updateUserEmailValidation :: UserId -> UserId -> Handler ()
 updateUserEmailValidation zuserId emailOwnerId = do
   maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
-  checkPerm maybeZuserTeamId
+  whenM (isNothing <$> runMaybeT (checkPerm maybeZuserTeamId)) $
+    throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   maybeEmail <- lift $ Data.lookupUserUnverifiedEmail emailOwnerId
@@ -1212,18 +1213,13 @@ updateUserEmailValidation zuserId emailOwnerId = do
       when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd insufficientTeamPermissions
     checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
 
-    checkPerm :: Maybe TeamId -> Handler ()
-    checkPerm =
-      \case
-        Just teamId -> do
-          maybeTeamMember <- lift $ Intra.getTeamMember zuserId teamId
-          case maybeTeamMember of
-            Just teamMember ->
-              if hasPermission teamMember ChangeTeamMemberProfiles
-                then pure ()
-                else throwStd insufficientTeamPermissions
-            Nothing -> throwStd insufficientTeamPermissions
-        Nothing -> throwStd insufficientTeamPermissions
+    checkPerm :: Maybe TeamId -> MaybeT Handler ()
+    checkPerm maybeTeamId = do
+      teamId <- hoistMaybe maybeTeamId
+      teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
+      if teamMember `hasPermission` ChangeTeamMemberProfiles
+        then pure ()
+        else throwStd insufficientTeamPermissions
 
 -- activation
 
