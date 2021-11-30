@@ -1204,7 +1204,6 @@ updateUserEmailValidation zuserId emailOwnerId = do
   checkPermissions zuser emailOwner
   maybeEmail <- lift $ VCode.lookupEmail $ toUUID emailOwnerId
   case maybeEmail of
-    -- TODO(leif): check if we should use AllowSCIMUpdates or ForbidSCIMUpdates
     Just email -> void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
     Nothing -> throwStd $ notFound "pending validation email of email owner not found"
   where
