@@ -38,6 +38,7 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
+import qualified Brig.Code as VCode
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -1201,13 +1202,16 @@ updateUserEmailValidation zuserId emailOwnerId = do
   (Public.SelfProfile zuser) <- getSelf zuserId
   (Public.SelfProfile emailOwner) <- getSelf emailOwnerId
   checkPermissions zuser emailOwner
-  email <- error "todo: retrieve email internally"
-  void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
+  maybeEmail <- lift $ VCode.lookupEmail $ toUUID emailOwnerId
+  case maybeEmail of
+    -- TODO(leif): check if we should use AllowSCIMUpdates or ForbidSCIMUpdates
+    Just email -> void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
+    Nothing -> throwStd $ notFound "pending validation email of email owner not found"
   where
     checkPermissions zuser emailOwner =
       void $ case (Public.userTeam zuser, Public.userTeam emailOwner) of
         (Just zuserTeamId, Just emailOwnerTeamId) -> do
-          unless (zuserTeamId == emailOwnerTeamId) $ throwStd insufficientTeamPermissions
+          when (zuserTeamId /= emailOwnerTeamId) $ throwStd insufficientTeamPermissions
           ensureHiddenPermissions zuserId zuserTeamId [Team.ChangeTeamMemberProfiles]
         (_, _) -> throwStd insufficientTeamPermissions
 

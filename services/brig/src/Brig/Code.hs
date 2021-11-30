@@ -51,6 +51,7 @@ module Brig.Code
     -- * Storage
     insert,
     lookup,
+    lookupEmail,
     verify,
     delete,
   )
@@ -245,6 +246,9 @@ insert c = do
     cql =
       "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+
+lookupEmail :: MonadClient m => UUID -> m (Maybe Email)
+lookupEmail = undefined
 
 -- | Lookup a pending code.
 lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
