@@ -137,7 +137,7 @@ data Api routes = Api
         :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
     updateUserEmailValidation ::
       routes
-        :- Summary "Resend email validation email."
+        :- Summary "Resend email address validation email."
         :> Description "If the user has a pending email validation, the validation email will be resent."
         :> ZUser
         :> "users"
