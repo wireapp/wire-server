@@ -14,15 +14,16 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
+- aeson
 - base
 - bytestring
+- cassandra-util
+- containers
+- exceptions
 - extra
-- aeson
 - imports
 - optparse-applicative
 - tinylog
-- exceptions
-- cassandra-util
 
 # for servant's 'ReqBodyCustomError' type defined here.
 - errors
