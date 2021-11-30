@@ -21,6 +21,7 @@ module Wire.API.Federation.Error
     FederationError (..),
     federationErrorToWai,
     federationRemoteHTTP2Error,
+    federationRemoteResponseError,
     federationNotImplemented,
     federationNotConfigured,
   )
@@ -38,7 +39,6 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
 
 -- | Transport-layer errors in federator client.
--- TODO: add TCP errors.
 data FederatorClientHTTP2Error
   = FederatorClientNoStatusCode
   | FederatorClientHTTP2Exception HTTP2.HTTP2Error
@@ -141,6 +141,15 @@ federationClientHTTP2Error e =
     HTTP.status500
     "federator-client-error"
     (LT.pack (displayException e))
+
+federationRemoteResponseError :: HTTP.Status -> Wai.Error
+federationRemoteResponseError status =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-remote-error"
+    ( "A remote federator failed with status code "
+        <> LT.pack (show (HTTP.statusCode status))
+    )
 
 displayTLSException :: TLSException -> Text
 displayTLSException (Terminated _ reason err) = T.pack reason <> ": " <> displayTLSError err

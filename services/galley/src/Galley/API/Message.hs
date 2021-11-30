@@ -194,7 +194,7 @@ getRemoteClients remoteMembers =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> getUserClients clientRoutes (GetUserClients uids)
 
--- TODO: sender should be Local UserId
+-- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
   Members '[FederatorAccess] r =>
   Qualified UserId ->

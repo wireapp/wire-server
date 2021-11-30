@@ -32,6 +32,7 @@ import Federator.Remote
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Test.Federator.Util
 import Test.Hspec
@@ -53,8 +54,10 @@ spec env = do
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
         (status, resp) <-
-          inwardBrigCallViaIngress "get-user-by-handle" $
-            (Aeson.fromEncoding (Aeson.toEncoding hdl))
+          runTestSem
+            . assertNoError @RemoteError
+            $ inwardBrigCallViaIngress "get-user-by-handle" $
+              (Aeson.fromEncoding (Aeson.toEncoding hdl))
         let actualProfile = Aeson.decode (toLazyByteString resp)
         liftIO $ do
           status `shouldBe` HTTP.status200
@@ -74,12 +77,21 @@ spec env = do
               { _creds = case _creds tlsSettings0 of
                   (_, privkey) -> (X509.CertificateChain [], privkey)
               }
-      (status, _) <-
-        inwardBrigCallViaIngressWithSettings tlsSettings "get-user-by-handle" $
-          (Aeson.fromEncoding (Aeson.toEncoding hdl))
-      -- FUTUREWORK: Make it more obvious from nginx that this error is due
-      -- to mTLS failure.
-      liftIO $ status `shouldBe` HTTP.status400
+      r <-
+        runTestSem
+          . runError @RemoteError
+          $ inwardBrigCallViaIngressWithSettings tlsSettings "get-user-by-handle" $
+            (Aeson.fromEncoding (Aeson.toEncoding hdl))
+      liftIO $ case r of
+        Right _ -> expectationFailure "Expected client certificate error, got response"
+        Left (RemoteError _ _) ->
+          expectationFailure "Expected client certificate error, got remote error"
+        Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+
+runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
+runTestSem action = do
+  e <- ask
+  liftIO . runM . runInputConst e $ action
 
 discoverConst :: SrvTarget -> Sem (DiscoverFederator ': r) a -> Sem r a
 discoverConst target = interpret $ \case
@@ -87,30 +99,28 @@ discoverConst target = interpret $ \case
   DiscoverAllFederators _ -> pure (Right (pure target))
 
 inwardBrigCallViaIngress ::
+  Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   Text ->
   Builder ->
-  TestFederator IO (HTTP.Status, Builder)
+  Sem r (HTTP.Status, Builder)
 inwardBrigCallViaIngress path payload = do
-  tlsSettings <- view teTLSSettings
+  tlsSettings <- inputs (view teTLSSettings)
   inwardBrigCallViaIngressWithSettings tlsSettings path payload
 
 inwardBrigCallViaIngressWithSettings ::
+  Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   TLSSettings ->
   Text ->
   Builder ->
-  TestFederator IO (HTTP.Status, Builder)
-inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload = do
-  Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
-  putStrLn $ "host: " <> show ingressHost <> " port: " <> show ingressPort <> " path: " <> show requestPath
-  originDomain <- cfgOriginDomain <$> view teTstOpts
-  let target = SrvTarget (cs ingressHost) ingressPort
-      headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
-
-  liftIO
-    . runM
-    . assertNoError @RemoteError
-    . runInputConst tlsSettings
-    . assertNoError @DiscoveryFailure
-    . discoverConst target
-    . interpretRemote
-    $ discoverAndCall (Domain "example.com") Brig requestPath headers payload
+  Sem r (HTTP.Status, Builder)
+inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
+  do
+    Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
+    originDomain <- cfgOriginDomain . view teTstOpts <$> input
+    let target = SrvTarget (cs ingressHost) ingressPort
+        headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
+    runInputConst tlsSettings
+      . assertNoError @DiscoveryFailure
+      . discoverConst target
+      . interpretRemote
+      $ discoverAndCall (Domain "example.com") Brig requestPath headers payload

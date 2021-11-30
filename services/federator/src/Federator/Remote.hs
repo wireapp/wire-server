@@ -54,15 +54,31 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV
 
-data RemoteError = RemoteError SrvTarget FederatorClientHTTP2Error
+-- | An error that can occur as a result of making a request to a remote
+-- federator.
+data RemoteError
+  = -- | This means that an error occurred while trying to make a request to a
+    -- remote federator.
+    RemoteError SrvTarget FederatorClientHTTP2Error
+  | -- | This means that a request to a remote federator returned an error
+    -- response. The error response could be due to an error in the remote
+    -- federator itself, or in the services it proxied to.
+    RemoteErrorResponse SrvTarget HTTP.Status LByteString
   deriving (Show)
 
 instance AsWai RemoteError where
   toWai (RemoteError _ e) = federationRemoteHTTP2Error e
+  toWai (RemoteErrorResponse _ status _) =
+    federationRemoteResponseError status
 
   waiErrorDescription (RemoteError tgt e) =
     "Error while connecting to " <> displayTarget tgt <> ": "
       <> Text.pack (displayException e)
+  waiErrorDescription (RemoteErrorResponse tgt status body) =
+    "Federator at " <> displayTarget tgt <> " failed with status code "
+      <> Text.pack (show (HTTP.statusCode status))
+      <> ": "
+      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict body)
 
 displayTarget :: SrvTarget -> Text
 displayTarget (SrvTarget hostname port) =
@@ -104,6 +120,8 @@ interpretRemote = interpret $ \case
     (status, _, result) <-
       mapError (RemoteError target) . (fromEither =<<) . embed $
         performHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port)
+    unless (HTTP.statusIsSuccessful status) $
+      throw $ RemoteErrorResponse target status (toLazyByteString result)
     pure (status, result)
 
 mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
