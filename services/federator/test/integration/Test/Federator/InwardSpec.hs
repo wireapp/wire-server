@@ -79,17 +79,19 @@ spec env =
             <!! const 404 === statusCode
         liftIO $ E.label err `shouldBe` "no-endpoint"
 
-    -- Note: most tests for forbidden endpoints are in the unit tests of the sanitizePath function
+    -- Note: most tests for forbidden endpoints are in the unit tests of ExternalService
     -- The integration tests are just another safeguard.
     it "should not accept invalid/disallowed paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
-        inwardCall "/federation/brig/../i/users" (encode o) !!! const 404 === statusCode
+        inwardCall "/federation/brig/../i/users" (encode o)
+          !!! const 403 === statusCode
 
     it "should only accept /federation/ paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
-        inwardCall "/i/users" (encode o) !!! const 404 === statusCode
+        inwardCall "/i/users" (encode o)
+          !!! const 403 === statusCode
 
     -- Matching client certificates against domain names is better tested in
     -- unit tests.

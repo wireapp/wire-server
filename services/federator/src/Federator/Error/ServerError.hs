@@ -34,9 +34,9 @@ instance Exception ServerError
 
 instance AsWai ServerError where
   toWai e@InvalidRoute =
-    Wai.mkError HTTP.status404 "no-endpoint" (LText.fromStrict (waiErrorDescription e))
+    Wai.mkError HTTP.status403 "invalid-endpoint" (LText.fromStrict (waiErrorDescription e))
   toWai e@(UnknownComponent _) =
-    Wai.mkError HTTP.status404 "unknown-component" (LText.fromStrict (waiErrorDescription e))
+    Wai.mkError HTTP.status403 "unknown-component" (LText.fromStrict (waiErrorDescription e))
   toWai e@NoOriginDomain =
     Wai.mkError HTTP.status403 "no-origin-domain" (LText.fromStrict (waiErrorDescription e))
 

@@ -61,8 +61,8 @@ testServerError =
     resp <- runM . TinyLog.discardLogs . runWaiError @ServerError $ throw InvalidRoute
     body <- Wai.lazyResponseBody resp
     let merr = Aeson.decode body
-    Wai.responseStatus resp @?= HTTP.status404
-    fmap Wai.label merr @?= Just "no-endpoint"
+    Wai.responseStatus resp @?= HTTP.status403
+    fmap Wai.label merr @?= Just "invalid-endpoint"
 
 testDiscoveryFailure :: TestTree
 testDiscoveryFailure =
