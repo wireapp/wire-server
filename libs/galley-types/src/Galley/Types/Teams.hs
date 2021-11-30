@@ -340,6 +340,7 @@ data HiddenPerm
     -- efficient this end-point is.  better not let all team members
     -- play with it unless we have to.
     DownloadTeamMembersCsv
+  | ChangeTeamMemberProfiles
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -367,6 +368,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureFileSharing,
             ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
             ChangeTeamFeature TeamFeatureSelfDeletingMessages,
+            ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,

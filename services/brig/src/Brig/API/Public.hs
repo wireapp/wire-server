@@ -44,6 +44,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
+import Brig.Team.Util (ensureHiddenPermissions)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..), User (userId))
@@ -80,6 +81,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -1196,15 +1198,18 @@ verifyDeleteUserH (r ::: _) = do
 
 updateUserEmailValidation :: UserId -> UserId -> Handler ()
 updateUserEmailValidation zuserId emailOwnerId = do
-  _ <- error "check that zuser has new perm CanChangeMemberEmail"
-  usersAreInTheSameTeam
+  (Public.SelfProfile zuser) <- getSelf zuserId
+  (Public.SelfProfile emailOwner) <- getSelf emailOwnerId
+  checkPermissions zuser emailOwner
   email <- error "todo: retrieve email internally"
   void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
   where
-    usersAreInTheSameTeam = do
-      (Public.SelfProfile zuser) <- getSelf zuserId
-      (Public.SelfProfile emailOwner) <- getSelf emailOwnerId
-      when (Public.userTeam zuser /= Public.userTeam emailOwner) $ throwStd insufficientTeamPermissions
+    checkPermissions zuser emailOwner =
+      void $ case (Public.userTeam zuser, Public.userTeam emailOwner) of
+        (Just zuserTeamId, Just emailOwnerTeamId) -> do
+          unless (zuserTeamId == emailOwnerTeamId) $ throwStd insufficientTeamPermissions
+          ensureHiddenPermissions zuserId zuserTeamId [Team.ChangeTeamMemberProfiles]
+        (_, _) -> throwStd insufficientTeamPermissions
 
 -- activation
 
