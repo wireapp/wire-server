@@ -1232,9 +1232,8 @@ getEmailForProfile profileOwner EmailVisibleIfOnTeam' =
     then userEmail profileOwner
     else Nothing
 getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, viewerTeamMember))) =
-  if ( Just viewerTeamId == userTeam profileOwner
-         && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
-     )
+  if Just viewerTeamId == userTeam profileOwner
+    && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
     then userEmail profileOwner
     else Nothing
 getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing

@@ -40,6 +40,7 @@ import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
+import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -80,6 +81,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -1196,8 +1198,8 @@ verifyDeleteUserH (r ::: _) = do
 
 updateUserEmailValidation :: UserId -> UserId -> Handler ()
 updateUserEmailValidation zuserId emailOwnerId = do
-  -- TODO(leif): check hidden permissions
   maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
+  checkPerm maybeZuserTeamId
   maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   maybeEmail <- lift $ Data.lookupUserUnverifiedEmail emailOwnerId
@@ -1209,6 +1211,19 @@ updateUserEmailValidation zuserId emailOwnerId = do
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
       when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd insufficientTeamPermissions
     checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
+
+    checkPerm :: Maybe TeamId -> Handler ()
+    checkPerm =
+      \case
+        Just teamId -> do
+          maybeTeamMember <- lift $ Intra.getTeamMember zuserId teamId
+          case maybeTeamMember of
+            Just teamMember ->
+              if hasPermission teamMember ChangeTeamMemberProfiles
+                then pure ()
+                else throwStd insufficientTeamPermissions
+            Nothing -> throwStd insufficientTeamPermissions
+        Nothing -> throwStd insufficientTeamPermissions
 
 -- activation
 
