@@ -59,10 +59,6 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- run/app
 
 -- FUTUREWORK(federation): Add metrics and status endpoints
--- (this probably requires using HTTP. A Servant API could be used; and the
--- internal grpc server converted to a WAI application, and the grpc application be
--- "merged" using Servant's 'Raw' type (like in 'brig') with servant's http
--- endpoints and exposed on the same port. See https://wearezeta.atlassian.net/browse/SQCORE-911.
 run :: Opts -> IO ()
 run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf

@@ -164,7 +164,6 @@ in pkgs.buildEnv {
     pkgs.cfssl
     pkgs.docker-compose
     pkgs.gnumake
-    pkgs.grpcurl
     pkgs.haskell-language-server
     pkgs.jq
     pkgs.ormolu

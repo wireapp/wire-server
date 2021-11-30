@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d30922c0a34a67a88917ff9a91b5200013928deb3a7930e12361d25f7e5b2a74
+-- hash: 8aa2d2b311b92915ab23a4fb07be411b474f2819936b62f46e15b64c31d027fe
 
 name:           wire-api-federation
 version:        0.1.0
@@ -17,8 +17,6 @@ copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
 build-type:     Simple
-extra-source-files:
-    proto/router.proto
 
 library
   exposed-modules:

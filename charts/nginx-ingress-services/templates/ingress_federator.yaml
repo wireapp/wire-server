@@ -1,9 +1,6 @@
 {{- if .Values.federator.enabled }}
-# We use a separate ingress for federator/grpc since we can't forward
-# both normal http1 traffic and grpc traffic in the same kubernetes ingress it appears.
-# Setting backend-protocol annotation to "GRPC" for everything is likely incorrect.
-# see also example https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/grpc/ingress.yaml
-# and docs https://kubernetes.github.io/ingress-nginx/examples/grpc/
+# We use a separate ingress for federator so that we can require client
+# certificates only for federation requests
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
