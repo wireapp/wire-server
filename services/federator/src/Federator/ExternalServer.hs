@@ -105,6 +105,10 @@ parseRequestData req = do
   (componentSeg, rpcPath) <- case Wai.pathInfo req of
     ["federation", comp, rpc] -> pure (comp, rpc)
     _ -> throw InvalidRoute
+
+  when (not (Text.all isAllowedRPCChar rpcPath)) $
+    throw InvalidRoute
+
   when (Text.null rpcPath) $
     throw InvalidRoute
 
@@ -122,6 +126,9 @@ parseRequestData req = do
         rdCertificate = lookupCertificate req,
         rdOriginDomain = domain
       }
+
+isAllowedRPCChar :: Char -> Bool
+isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
 
 serveInward :: Env -> Int -> IO ()
 serveInward = serve callInward

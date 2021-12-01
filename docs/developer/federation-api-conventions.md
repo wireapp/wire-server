@@ -3,8 +3,9 @@
 # Federation API Conventions
 
 - All endpoints must start with `/federation/`
-- All path segments must be in kebab-case. The name the field in the record must
-  be the same name in camelCase.
+- All path segments must be in kebab-case, and only consist of alphanumeric
+  characters. The name the field in the record must be the same name in
+  camelCase.
 - There must be exactly one segment after `/federation/`, so
   `/federation/foo` is valid, but `/federation/foo/bar` is not.
 - All endpoints must be `POST`.

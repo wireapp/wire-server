@@ -57,7 +57,6 @@ tests =
       requestNoCertificate,
       requestNoDomain,
       testInvalidPaths,
-      testPaths,
       testInvalidComponent,
       testMethod
     ]
@@ -230,7 +229,13 @@ testInvalidPaths = do
             "http://federation/stuff", -- contains scheme
             "federation.wire.link/federation/brig/stuff", -- contains domain
             "/federation/brig/rpc?bar[]=baz", -- queries not allowed
-            "/federation/brig/stuff?key=value" -- queries not allowed
+            "/federation/brig/stuff?key=value", -- queries not allowed
+            -- rpc names that don't match [0-9a-zA-Z-_]+
+            "/federation/brig/%2e%2e/i/users", -- percent-encoded '../'
+            "/federation/brig/%2E%2E/i/users",
+            "/federation/brig/..%2Fi%2Fusers", -- percent-encoded ../i/users
+            "/federation/brig/%252e%252e/i/users", -- double percent-encoded '../'
+            "/federation/brig/%c0%ae%c0%ae/i/users" -- weird-encoded '../'
           ]
 
     for_ invalidPaths $ \invalidPath -> do
@@ -256,39 +261,6 @@ testInvalidPaths = do
 
         actualCalls <- mockServiceCallCalls @IO
         embed $ assertEqual "no calls to any service should be made" [] actualCalls
-
-testPaths :: TestTree
-testPaths =
-  testCase "forwards requests with to services" $ do
-    let paths =
-          [ -- federator does not percent decode
-            ("/federation/brig/%2Fi%2Fusers", "/federation/%2Fi%2Fusers"),
-            -- This is an invalid URL, because it contains an invalid character.
-            -- warp and wai accept it anyway. The ExternalServer percent encodes
-            -- the RPC name before passing it to services.
-            ("/federation/brig/stuff#fragment", "/federation/stuff%23fragment")
-          ]
-    for_ paths $ \(federationPath, expectedServicePath) -> do
-      request <-
-        exampleRequest
-          "test/resources/unit/localhost.example.com.pem"
-          federationPath
-
-      runM . evalMock @Service @IO $ do
-        mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
-
-        _res <-
-          mock @Service @IO
-            . assertNoError @ValidationError
-            . assertNoError @DiscoveryFailure
-            . assertNoError @ServerError
-            . TinyLog.discardLogs
-            . mockDiscoveryTrivial
-            . runInputConst noClientCertSettings
-            $ callInward request
-
-        actualCalls <- mockServiceCallCalls @IO
-        embed $ assertEqual "one call with expected path" [(Brig, expectedServicePath, "\"foo\"", aValidDomain)] actualCalls
 
 testInvalidComponent :: TestTree
 testInvalidComponent =
