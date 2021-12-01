@@ -141,8 +141,25 @@ tests _ at opts p b c ch g aws =
       testGroup
         "temporary customer extensions"
         [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
+        ],
+      testGroup
+        "re-send activation email"
+        [ test' aws p "put /users/:uid/email" testReSendActivationEmail
         ]
     ]
+
+testReSendActivationEmail :: Http ()
+testReSendActivationEmail = do
+  -- create email owner user
+  -- create team admin user (same team, with permissions)
+  -- create team admin user (different team)
+  -- create user (same team, no permissions)
+  -- request activation (same team, with permissions) email should return status code 2xx
+  -- request activation (different team, _)) email should return status code 2xx
+  -- request activation (same team, no permissions) email should return status code 403
+  -- activate email
+  -- request activation (same team, with permissions) email should return 409
+  undefined
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserWithPreverified opts brig aws = do

@@ -481,7 +481,7 @@ lookupFeatureConferenceCalling uid = do
   pure $ ApiFt.TeamFeatureStatusNoConfig <$> mStatusValue
   where
     select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.TeamFeatureStatusValue))
-    select = fromString $ "select feature_conference_calling from user where id = ?"
+    select = fromString "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------
 -- Queries
