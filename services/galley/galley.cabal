@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 955ba4e571c8a43aab5b78d001425cbc40f17e59b95bfabb8ab5d42bae6500b5
+-- hash: 3186b74c21301ff760ffae6e280c4e15ee9d184c18aaaf106251cc8edc821c03
 
 name:           galley
 version:        0.83.0
@@ -465,7 +465,7 @@ executable galley-schema
     ld-options: -static
   default-language: Haskell2010
 
-test-suite galley-types-tests
+test-suite galley-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
