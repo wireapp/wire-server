@@ -1,0 +1,1 @@
+Use fluent-bit chart from fluent.github.io instead of deprecated charts.helm.sh. Previous fluent-bit values are not compatible with the new chart, the documentation for the new chart can be found [here](https://github.com/fluent/helm-charts/tree/main/charts/fluent-bit)
