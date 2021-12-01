@@ -57,7 +57,6 @@ library:
   - http-client-tls >=0.2.2
   - http-media
   - http-types >=0.8
-  - http2-client-grpc
   - insert-ordered-containers
   - lens >=4.4
   - memory
@@ -173,6 +172,7 @@ executables:
     - data-timeout
     - errors
     - exceptions
+    - federator
     - galley
     - galley-types
     - gundeck-types

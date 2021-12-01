@@ -18,26 +18,24 @@
 module Test.Federator.InwardSpec where
 
 import Bilge
+import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
-import qualified Data.Text as Text
+import Data.Text.Encoding
 import Federator.Options
 import Imports
-import Mu.GRpc.Client.TyApps
-import Network.GRPC.Client.Helpers
 import qualified Network.HTTP.Types as HTTP
+import qualified Network.Wai.Utilities.Error as E
 import Test.Federator.Util
 import Test.Hspec
-import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Client
-import Wire.API.Federation.GRPC.Types hiding (body, path)
-import qualified Wire.API.Federation.GRPC.Types as GRPC
+import Wire.API.Federation.Domain
 import Wire.API.User
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
@@ -46,7 +44,7 @@ import Wire.API.User
 --
 --  +----------+
 --  |federator-|          +------+--+
---  |integration  grpc    |federator|
+--  |integration  http    |federator|
 --  |          |--------->+         +
 --  |          |          +----+----+
 --  +----------+               |
@@ -69,93 +67,75 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        bdy <- asInwardBody =<< inwardBrigCall "federation/get-user-by-handle" (encode hdl)
+        bdy <-
+          responseJsonError =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
+            <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
-    it "should give an InvalidEndpoint error on a 404 'no-endpoint' response from Brig" $
+    it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
-        err <- asInwardError =<< inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
-        expectErr IInvalidEndpoint err
+        err <-
+          responseJsonError =<< inwardCall "/federation/brig/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
+            <!! const 404 === statusCode
+        liftIO $ E.label err `shouldBe` "no-endpoint"
 
-    -- Note: most tests for forbidden endpoints are in the unit tests of the sanitizePath function
+    -- Note: most tests for forbidden endpoints are in the unit tests of ExternalService
     -- The integration tests are just another safeguard.
     it "should not accept invalid/disallowed paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
-        err <- asInwardErrorUnsafe <$> inwardBrigCall "http://localhost:8080/i/users" (encode o)
-        expectErr IForbiddenEndpoint err
+        inwardCall "/federation/brig/../i/users" (encode o)
+          !!! const 403 === statusCode
 
     it "should only accept /federation/ paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
-        err <- asInwardErrorUnsafe <$> inwardBrigCall "i/users" (encode o)
-        expectErr IForbiddenEndpoint err
-
-    it "should only accept /federation/ paths (also when there are /../ segments)" $
-      runTestFederator env $ do
-        let o = object ["name" .= ("fakeNewUser" :: Text)]
-        err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/../i/users" (encode o)
-        expectErr IForbiddenEndpoint err
+        inwardCall "/i/users" (encode o)
+          !!! const 403 === statusCode
 
     -- Matching client certificates against domain names is better tested in
     -- unit tests.
     it "should reject requests without a client certificate" $
       runTestFederator env $ do
-        brig <- view teBrig <$> ask
-        user <- randomUser brig
+        originDomain <- cfgOriginDomain <$> view teTstOpts
         hdl <- randomHandle
-        _ <- putHandle brig (userId user) hdl
+        inwardCallWithHeaders
+          "federation/brig/get-user-by-handle"
+          [(originDomainHeaderName, toByteString' originDomain)]
+          (encode hdl)
+          !!! const 403 === statusCode
 
-        client <- viewFederatorExternalClientWithoutCert
-        err <- asInwardError =<< inwardBrigCallWithClient client "federation/get-user-by-handle" (encode hdl)
-        expectErr IAuthenticationFailed err
+inwardCallWithHeaders ::
+  (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
+  ByteString ->
+  [HTTP.Header] ->
+  LBS.ByteString ->
+  m (Response (Maybe LByteString))
+inwardCallWithHeaders requestPath hh payload = do
+  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  post
+    ( host (encodeUtf8 fedHost)
+        . port fedPort
+        . path requestPath
+        . foldr (uncurry (\k v r -> header k v . r)) id hh
+        . bytes (toByteString' payload)
+    )
 
--- Utility functions
---
-expectErr :: InwardErrorType -> InwardError -> TestFederator IO ()
-expectErr expectedType err =
-  unless (inwardErrorType err == expectedType)
-    . liftIO
-    $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
-
-inwardBrigCall :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
-inwardBrigCall requestPath payload = do
-  c <- viewFederatorExternalClient
-  inwardBrigCallWithClient c requestPath payload
-
-inwardBrigCallWithClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => GrpcClient -> ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
-inwardBrigCallWithClient c requestPath payload = do
+inwardCall ::
+  (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
+  ByteString ->
+  LBS.ByteString ->
+  m (Response (Maybe LByteString))
+inwardCall requestPath payload = do
+  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
   originDomain <- cfgOriginDomain <$> view teTstOpts
-  let brigCall =
-        GRPC.Request
-          { GRPC.component = Brig,
-            GRPC.path = requestPath,
-            GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = originDomain
-          }
-  liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
-
-viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
-viewFederatorExternalClient = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
-  exampleCert <- liftIO . BS.readFile . clientCertificate . optSettings =<< view teOpts
-  let cfg =
-        (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
-          { _grpcClientConfigHeaders = [("X-SSL-Certificate", HTTP.urlEncode True exampleCert)]
-          }
-  client <- createGrpcClient cfg
-  case client of
-    Left clientErr -> liftIO $ assertFailure (show clientErr)
-    Right cli -> pure cli
-
-viewFederatorExternalClientWithoutCert :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
-viewFederatorExternalClientWithoutCert = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
-  let cfg = grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False
-  client <- createGrpcClient cfg
-  case client of
-    Left clientErr -> liftIO $ assertFailure (show clientErr)
-    Right cli -> pure cli
-
-viewIngress :: (MonadReader TestEnv m, HasCallStack) => m Endpoint
-viewIngress = cfgNginxIngress . view teTstOpts <$> ask
+  clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
+  clientCert <- liftIO $ BS.readFile clientCertFilename
+  post
+    ( host (encodeUtf8 fedHost)
+        . port fedPort
+        . path requestPath
+        . header "X-SSL-Certificate" (HTTP.urlEncode True clientCert)
+        . header originDomainHeaderName (toByteString' originDomain)
+        . bytes (toByteString' payload)
+    )

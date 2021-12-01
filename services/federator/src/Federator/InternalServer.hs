@@ -20,137 +20,112 @@
 
 module Federator.InternalServer where
 
+import Control.Exception (bracketOnError)
+import qualified Control.Exception as E
 import Control.Lens (view)
+import Data.Binary.Builder
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS
+import Data.Default
 import Data.Domain (domainText)
 import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.X509.CertificateStore
-import Federator.App (Federator, runAppT)
-import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable), runFederatorDiscovery)
+import Federator.App (runAppT)
+import Federator.Discovery (DiscoverFederator, DiscoveryFailure (DiscoveryFailureDNSError, DiscoveryFailureSrvNotAvailable), runFederatorDiscovery)
 import Federator.Env (Env, TLSSettings, applog, caStore, dnsResolver, runSettings, tls)
+import Federator.Error.ServerError
 import Federator.Options (RunSettings)
-import Federator.Remote (Remote, RemoteError (..), discoverAndCall, interpretRemote)
-import Federator.Utils.PolysemyServerError (absorbServerError)
+import Federator.Remote
+import Federator.Response
 import Federator.Validation
+import Foreign (mallocBytes)
+import Foreign.Marshal (free)
 import Imports
-import Mu.GRpc.Client.Record (GRpcReply (..))
-import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
-import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
-import qualified Mu.Server as Mu
-import Network.HTTP2.Client.Exceptions (ClientError (..))
+import Network.HPACK (BufferSize)
+import Network.HTTP.Client.Internal (openSocketConnection)
+import Network.HTTP.Client.OpenSSL (withOpenSSL)
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.HTTP2.Client as HTTP2
+import Network.Socket (Socket)
+import qualified Network.Socket as NS
 import Network.TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
 import Polysemy
+import Polysemy.Error
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
+import Polysemy.Input
 import qualified Polysemy.Input as Polysemy
-import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
-import Wire.API.Federation.GRPC.Client (GrpcClientErr (..))
-import Wire.API.Federation.GRPC.Types
+import qualified System.TimeManager as T
+import qualified System.X509 as TLS
+import Wire.API.Federation.Component
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
-callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r OutwardResponse
+data RequestData = RequestData
+  { rdTargetDomain :: Text,
+    rdComponent :: Component,
+    rdRPC :: Text,
+    rdHeaders :: [HTTP.Header],
+    rdBody :: LByteString
+  }
+
+parseRequestData ::
+  Members '[Error ServerError, Embed IO] r =>
+  Wai.Request ->
+  Sem r RequestData
+parseRequestData req = do
+  -- only POST is supported
+  when (Wai.requestMethod req /= HTTP.methodPost) $
+    throw InvalidRoute
+  -- No query parameters are allowed
+  when (not . BS.null . Wai.rawQueryString $ req) $
+    throw InvalidRoute
+  -- check that the path has the expected form
+  (domain, componentSeg, rpcPath) <- case Wai.pathInfo req of
+    ["rpc", domain, comp, rpc] -> pure (domain, comp, rpc)
+    _ -> throw InvalidRoute
+  when (Text.null rpcPath) $
+    throw InvalidRoute
+
+  -- get component and body
+  component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
+  body <- embed $ Wai.lazyRequestBody req
+  pure $
+    RequestData
+      { rdTargetDomain = domain,
+        rdComponent = component,
+        rdRPC = rpcPath,
+        rdHeaders = Wai.requestHeaders req,
+        rdBody = body
+      }
+
+callOutward ::
+  Members '[Remote, Embed IO, Error ValidationError, Error ServerError, Input RunSettings] r =>
+  Wai.Request ->
+  Sem r Wai.Response
 callOutward req = do
-  case validateFederatedRequest req of
-    Success vReq -> do
-      allowedRemote <- federateWith (vDomain vReq)
-      if allowedRemote
-        then mkRemoteResponse <$> discoverAndCall vReq
-        else pure $ mkOutwardErr FederationDeniedLocally ("federating with domain [" <> domainText (vDomain vReq) <> "] is not allowed (see federator configuration)")
-    Failure errs ->
-      pure $ mkOutwardErr InvalidRequest ("validation failed with: " <> Text.pack (show errs))
-
--- FUTUREWORK(federation): Make these errors less stringly typed
-mkRemoteResponse :: Either RemoteError (GRpcReply InwardResponse) -> OutwardResponse
-mkRemoteResponse reply =
-  case reply of
-    Right (GRpcOk (InwardResponseBody res)) ->
-      OutwardResponseBody res
-    Right (GRpcOk (InwardResponseError err)) -> OutwardResponseInwardError err
-    Right (GRpcTooMuchConcurrency _) ->
-      mkOutwardErr TooMuchConcurrency "Too much concurrency"
-    Right (GRpcErrorCode code) ->
-      mkOutwardErr GrpcError ("code: " <> Text.pack (show code))
-    Right (GRpcErrorString msg) ->
-      mkOutwardErr GrpcError (Text.pack msg)
-    Right (GRpcClientError EarlyEndOfStream) -> mkOutwardErr GrpcError "Early end of stream"
-    Left (RemoteErrorDiscoveryFailure domain err) ->
-      case err of
-        LookupErrorSrvNotAvailable _srvDomain ->
-          mkOutwardErr RemoteNotFound ("domain=" <> domainText domain)
-        LookupErrorDNSError dnsErr ->
-          mkOutwardErr DiscoveryFailed ("domain=" <> domainText domain <> " error=" <> Text.decodeUtf8 dnsErr)
-    Left (RemoteErrorClientFailure (SrvTarget host port) (GrpcClientErr reason)) ->
-      mkOutwardErr
-        GrpcError
-        (reason <> " target=" <> Text.decodeUtf8 host <> ":" <> Text.pack (show port))
-    Left (RemoteErrorTLSException (SrvTarget host port) exc) ->
-      mkOutwardErr
-        TLSFailure
-        ( "Failed to establish TLS session with remote (target="
-            <> Text.decodeUtf8 host
-            <> ":"
-            <> Text.pack (show port)
-            <> "): "
-            <> showTLSException exc
-        )
-
-showTLSException :: TLSException -> Text
-showTLSException (Terminated _ reason err) = Text.pack reason <> ": " <> showTLSError err
-showTLSException (HandshakeFailed err) = Text.pack "handshake failed: " <> showTLSError err
-showTLSException ConnectionNotEstablished = Text.pack "connection not established"
-
-showTLSError :: TLSError -> Text
-showTLSError (Error_Misc msg) = Text.pack msg
-showTLSError (Error_Protocol (msg, _, _)) = "protocol error: " <> Text.pack msg
-showTLSError (Error_Certificate msg) = "certificate error: " <> Text.pack msg
-showTLSError (Error_HandshakePolicy msg) = "handshake policy error: " <> Text.pack msg
-showTLSError Error_EOF = "end-of-file error"
-showTLSError (Error_Packet msg) = "packet error: " <> Text.pack msg
-showTLSError (Error_Packet_unexpected actual expected) =
-  "unexpected packet: " <> Text.pack expected <> ", " <> "got " <> Text.pack actual
-showTLSError (Error_Packet_Parsing msg) = "packet parsing error: " <> Text.pack msg
-
-mkOutwardErr :: OutwardErrorType -> Text -> OutwardResponse
-mkOutwardErr typ msg = OutwardResponseError $ OutwardError typ msg
-
-outward :: (Members '[Remote, Polysemy.Error ServerError, Polysemy.Reader RunSettings] r) => SingleServerT info Outward (Sem r) _
-outward = singleService (Mu.method @"call" callOutward)
+  rd <- parseRequestData req
+  domain <- parseDomainText (rdTargetDomain rd)
+  ensureCanFederateWith domain
+  (status, result) <-
+    discoverAndCall
+      domain
+      (rdComponent rd)
+      (rdRPC rd)
+      (rdHeaders rd)
+      (fromLazyByteString (rdBody rd))
+  pure $ Wai.responseBuilder status defaultHeaders result
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward env port = do
-  runGRpcAppTrans msgProtoBuf port transformer outward
-  where
-    transformer ::
-      Sem
-        '[ Remote,
-           DiscoverFederator,
-           TinyLog,
-           DNSLookup,
-           Polysemy.Error ServerError,
-           Polysemy.Reader RunSettings,
-           Polysemy.Input TLSSettings,
-           Polysemy.Resource,
-           Embed IO,
-           Embed Federator
-         ]
-        a ->
-      ServerErrorIO a
-    transformer action =
-      runAppT env
-        . runM -- Embed Federator
-        . embedToMonadIO @Federator -- Embed IO
-        . Polysemy.runResource -- Resource
-        . Polysemy.runInputSem (embed @IO (readIORef (view tls env))) -- Input TLSSettings
-        . Polysemy.runReader (view runSettings env) -- Reader RunSettings
-        . absorbServerError
-        . Lookup.runDNSLookupWithResolver (view dnsResolver env)
-        . Log.runTinyLog (view applog env)
-        . runFederatorDiscovery
-        . interpretRemote
-        $ action
+serveOutward = serve callOutward

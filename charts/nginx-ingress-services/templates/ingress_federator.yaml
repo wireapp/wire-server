@@ -1,9 +1,6 @@
 {{- if .Values.federator.enabled }}
-# We use a separate ingress for federator/grpc since we can't forward
-# both normal http1 traffic and grpc traffic in the same kubernetes ingress it appears.
-# Setting backend-protocol annotation to "GRPC" for everything is likely incorrect.
-# see also example https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/grpc/ingress.yaml
-# and docs https://kubernetes.github.io/ingress-nginx/examples/grpc/
+# We use a separate ingress for federator so that we can require client
+# certificates only for federation requests
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -11,12 +8,12 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
     nginx.ingress.kubernetes.io/auth-tls-verify-depth: "{{ .Values.tls.verify_depth }}"
     nginx.ingress.kubernetes.io/auth-tls-secret: "{{ .Release.Namespace }}/federator-ca-secret"
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      grpc_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
+      proxy_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
 spec:
   tls:
   - hosts:

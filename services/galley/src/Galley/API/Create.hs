@@ -63,7 +63,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
-import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))

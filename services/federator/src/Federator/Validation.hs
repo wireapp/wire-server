@@ -16,51 +16,92 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.Validation
-  ( federateWith,
+  ( ensureCanFederateWith,
+    parseDomain,
+    parseDomainText,
     validateDomain,
-    throwInward,
-    sanitizePath,
     validateDomainName,
+    ValidationError (..),
   )
 where
 
-import Data.Bifunctor (first)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
-import Data.Domain (Domain, domainText, mkDomain)
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.ByteString.Conversion
+import Data.Domain
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.PEM as X509
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
+import qualified Data.Text.Lazy as LText
 import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Discovery
+import Federator.Error
 import Federator.Options
 import Imports
-import Polysemy (Member, Members, Sem)
-import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.Reader as Polysemy
-import URI.ByteString
-import Wire.API.Federation.GRPC.Types
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Wire.Network.DNS.SRV (SrvTarget (..))
+
+data ValidationError
+  = NoClientCertificate
+  | CertificateParseError Text
+  | DomainParseError Text
+  | AuthenticationFailure (NonEmpty [X509.FailedReason])
+  | FederationDenied Domain
+  deriving (Eq, Show, Typeable)
+
+instance Exception ValidationError
+
+instance AsWai ValidationError where
+  toWai err =
+    Wai.mkError HTTP.status403 (validationErrorLabel err)
+      . LText.fromStrict
+      $ waiErrorDescription err
+
+  waiErrorDescription :: ValidationError -> Text
+  waiErrorDescription NoClientCertificate = "no client certificate provided"
+  waiErrorDescription (CertificateParseError reason) =
+    "certificate parse failure: " <> reason
+  waiErrorDescription (DomainParseError domain) =
+    "domain parse failure for [" <> domain <> "]"
+  waiErrorDescription (AuthenticationFailure errs) =
+    "none of the domain names match the certificate, errors: "
+      <> Text.pack (show (toList errs))
+  waiErrorDescription (FederationDenied domain) =
+    "origin domain [" <> domainText domain <> "] not in the federation allow list"
+
+validationErrorLabel :: ValidationError -> LText
+validationErrorLabel NoClientCertificate = "no-client-certificate"
+validationErrorLabel (CertificateParseError _) = "certificate-parse-error"
+validationErrorLabel (DomainParseError _) = "domain-parse-error"
+validationErrorLabel (AuthenticationFailure _) = "authentication-failure"
+validationErrorLabel (FederationDenied _) = "federation-denied"
 
 -- | Validates an already-parsed domain against the allowList using the federator
 -- startup configuration.
-federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
-federateWith targetDomain = do
-  strategy <- Polysemy.asks federationStrategy
-  pure $ case strategy of
-    AllowAll -> True
-    AllowList (AllowedDomains domains) -> targetDomain `elem` domains
+ensureCanFederateWith ::
+  Members '[Input RunSettings, Error ValidationError] r =>
+  Domain ->
+  Sem r ()
+ensureCanFederateWith targetDomain = do
+  strategy <- inputs federationStrategy
+  case strategy of
+    AllowAll -> pure ()
+    AllowList (AllowedDomains domains) ->
+      unless (targetDomain `elem` domains) $
+        throw (FederationDenied targetDomain)
 
 decodeCertificate ::
-  Member (Polysemy.Error InwardError) r =>
+  Member (Error String) r =>
   ByteString ->
   Sem r X509.Certificate
 decodeCertificate =
-  Polysemy.fromEither
-    . first (InwardError IAuthenticationFailed . Text.pack)
+  fromEither
     . ( (pure . X509.getCertificate)
           <=< X509.decodeSignedCertificate
           <=< (pure . X509.pemContent)
@@ -73,96 +114,46 @@ decodeCertificate =
     expectOne _ [x] = pure x
     expectOne label _ = Left $ "found multiple " <> label <> "s"
 
+parseDomain :: Member (Error ValidationError) r => ByteString -> Sem r Domain
+parseDomain domain =
+  note (DomainParseError (Text.decodeUtf8With Text.lenientDecode domain)) $
+    fromByteString domain
+
+parseDomainText :: Member (Error ValidationError) r => Text -> Sem r Domain
+parseDomainText domain =
+  mapError @String (const (DomainParseError domain))
+    . fromEither
+    . mkDomain
+    $ domain
+
 -- | Validates an unknown domain string against the allowList using the
 -- federator startup configuration and checks that it matches the names reported
 -- by the client certificate
 validateDomain ::
   Members
-    '[ Polysemy.Reader RunSettings,
-       Polysemy.Error InwardError,
+    '[ Input RunSettings,
+       Error ValidationError,
+       Error DiscoveryFailure,
        DiscoverFederator
      ]
     r =>
   Maybe ByteString ->
-  Text ->
+  ByteString ->
   Sem r Domain
-validateDomain Nothing _ = throwInward IAuthenticationFailed "no client certificate provided"
+validateDomain Nothing _ = throw NoClientCertificate
 validateDomain (Just encodedCertificate) unparsedDomain = do
-  targetDomain <- case mkDomain unparsedDomain of
-    Left parseErr -> throwInward IAuthenticationFailed (errDomainParsing parseErr)
-    Right d -> pure d
+  targetDomain <- parseDomain unparsedDomain
 
   -- run discovery to find the hostname of the client federator
-  certificate <- decodeCertificate encodedCertificate
-  hostnames <-
-    srvTargetDomain
-      <$$> Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) (discoverAllFederatorsWithError targetDomain)
+  certificate <-
+    mapError (CertificateParseError . Text.pack) $
+      decodeCertificate encodedCertificate
+  hostnames <- srvTargetDomain <$$> discoverAllFederatorsWithError targetDomain
   let validationErrors = (\h -> validateDomainName (B8.unpack h) certificate) <$> hostnames
   unless (any null validationErrors) $
-    throwInward IAuthenticationFailed ("none of the domain names match the certificate, errrors: " <> (Text.pack . show . NonEmpty.toList $ validationErrors))
+    throw $ AuthenticationFailure validationErrors
 
-  passAllowList <- federateWith targetDomain
-  if passAllowList
-    then pure targetDomain
-    else throwInward IFederationDeniedByRemote (errAllowList targetDomain)
-  where
-    errDomainParsing :: String -> Text
-    errDomainParsing err = "Domain parse failure for [" <> unparsedDomain <> "]: " <> cs err
-
-    errAllowList :: Domain -> Text
-    errAllowList domain = "Origin domain [" <> domainText domain <> "] not in the federation allow list"
-
-    errDiscovery :: LookupError -> Text
-    errDiscovery (LookupErrorSrvNotAvailable msg) = "srv record not found: " <> Text.decodeUtf8 msg
-    errDiscovery (LookupErrorDNSError msg) = "DNS error: " <> Text.decodeUtf8 msg
-
-throwInward :: Members '[Polysemy.Error InwardError] r => InwardErrorType -> Text -> Sem r a
-throwInward errType errMsg = Polysemy.throw $ InwardError errType errMsg
-
--- | Normalize the path, and ensure the path begins with "federation/" after normalization
-sanitizePath :: Members '[Polysemy.Error InwardError] r => ByteString -> Sem r ByteString
-sanitizePath originalPath = do
-  when (BS.length originalPath > 200) $
-    throwInward IForbiddenEndpoint "path too long"
-  -- we parse the path using the URI.ByteString module to make use of its normalization functions
-  uriRef <- case parseRelativeRef strictURIParserOptions originalPath of
-    Left err -> throwInward IForbiddenEndpoint (cs $ show err <> cs originalPath)
-    Right ref -> pure ref
-
-  -- we don't expect any query parameters or other URL parts other than a plain path
-  when (queryPairs (rrQuery uriRef) /= []) $
-    throwInward IForbiddenEndpoint "query parameters not allowed"
-  when (isJust (rrFragment uriRef)) $
-    throwInward IForbiddenEndpoint "fragments not allowed"
-  when (isJust (rrAuthority uriRef)) $
-    throwInward IForbiddenEndpoint "authority not allowed"
-
-  -- Perform these normalizations:
-  -- - hTtP -> http
-  -- - eXaMpLe.org -> example.org
-  -- - If the scheme is known and the port is the default (e.g. 80 for http) it is removed.
-  -- - If the path is empty, set it to /
-  -- - Rewrite path from /foo//bar///baz to /foo/bar/baz
-  -- - Sorts parameters by parameter name
-  -- - Remove dot segments as per RFC3986 Section 5.2.4
-  let normalizedURI = normalizeURIRef' aggressiveNormalization uriRef
-  -- sometimes normalization above results in a path with a leading slash.
-  -- For consistency, remove a leading slash, if any
-  let withoutLeadingSlash = BS.stripPrefix "/" normalizedURI
-  let normalized = fromMaybe normalizedURI withoutLeadingSlash
-
-  -- to guard against double percent encoding, we disallow the '%' character
-  -- here, since we expect to only use POST requests on ASCII paths without any
-  -- query parameters
-  let (_, pTailEncoding) = BS.breakSubstring "%" normalized
-  unless (BS.null pTailEncoding) $
-    throwInward IForbiddenEndpoint "percent encoding not allowed"
-
-  -- Most importantly, only allow paths with the federation/ prefix.
-  unless ("federation/" `BS.isPrefixOf` normalized) $
-    throwInward IForbiddenEndpoint ("disallowed path: " <> cs originalPath)
-
-  pure normalized
+  ensureCanFederateWith targetDomain $> targetDomain
 
 -- | Match a hostname against the domain names of a certificate.
 --

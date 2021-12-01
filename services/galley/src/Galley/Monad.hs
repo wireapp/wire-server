@@ -26,13 +26,11 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Galley.Env
-import Galley.Options
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Input
 import System.Logger
 import qualified System.Logger.Class as LC
-import Wire.API.Federation.Client
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving
@@ -49,10 +47,6 @@ newtype App a = App {unApp :: ReaderT Env IO a}
 
 runApp :: Env -> App a -> IO a
 runApp env = flip runReaderT env . unApp
-
-instance HasFederatorConfig App where
-  federatorEndpoint = view federator
-  federationDomain = view (options . optSettings . setFederationDomain)
 
 instance HasRequestId App where
   getRequestId = App $ view reqId

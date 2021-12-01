@@ -105,7 +105,7 @@ spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
 -- | Path covered by this test:
 --
 -- +------+         +---------+        +---------+          +------+
--- | brig |   grpc  |federator| grpc   |federator|   http   | brig |
+-- | brig |  http2  |federator| http2  |federator|   http   | brig |
 -- |      +-------->+         +------->+         +--------->+      |
 -- +------+         +-+-------+        +---------+          +------+
 testHandleLookup :: Brig -> Brig -> Http ()

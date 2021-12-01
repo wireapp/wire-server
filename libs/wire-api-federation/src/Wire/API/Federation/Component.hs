@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,12 +15,32 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Federator.Types (FederatedRPC) where
+module Wire.API.Federation.Component where
 
-import Control.Monad.Except
-import Galley.Monad
-import Wire.API.Federation.Client
-import Wire.API.Federation.GRPC.Types
+import Imports
+import Test.QuickCheck (Arbitrary)
+import Wire.API.Arbitrary (GenericUniform (..))
 
-type FederatedRPC (c :: Component) =
-  FederatorClient c (ExceptT FederationClientFailure App)
+data Component
+  = Brig
+  | Galley
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform Component)
+
+parseComponent :: Text -> Maybe Component
+parseComponent "brig" = Just Brig
+parseComponent "galley" = Just Galley
+parseComponent _ = Nothing
+
+componentName :: Component -> Text
+componentName Brig = "brig"
+componentName Galley = "galley"
+
+class KnownComponent (c :: Component) where
+  componentVal :: Component
+
+instance KnownComponent 'Brig where
+  componentVal = Brig
+
+instance KnownComponent 'Galley where
+  componentVal = Galley

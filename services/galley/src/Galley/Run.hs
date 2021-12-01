@@ -34,7 +34,7 @@ import Data.Misc (portNumber)
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
-import Galley.API.Federation (federationSitemap)
+import Galley.API.Federation (FederationAPI, federationSitemap)
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
@@ -49,10 +49,8 @@ import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import Servant.API.Generic (ToServantApi)
 import qualified System.Logger as Log
 import Util.Options
-import qualified Wire.API.Federation.API.Galley as FederationGalley
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 run :: Opts -> IO ()
@@ -104,7 +102,7 @@ mkApp o = do
         )
         ( hoistServer' @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
             :<|> hoistServer' @Internal.ServantAPI (toServantHandler e) Internal.servantSitemap
-            :<|> hoistServer' @(ToServantApi FederationGalley.Api) (toServantHandler e) federationSitemap
+            :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
         r
@@ -144,7 +142,11 @@ bodyParserErrorFormatter' _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
+type CombinedAPI =
+  GalleyAPI.ServantAPI
+    :<|> Internal.ServantAPI
+    :<|> FederationAPI
+    :<|> Servant.Raw
 
 refreshMetrics :: App ()
 refreshMetrics = do

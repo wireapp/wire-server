@@ -19,18 +19,20 @@
 
 module Galley.Intra.Federator (interpretFederatorAccess) where
 
+import Control.Lens
 import Control.Monad.Except
 import Data.Bifunctor
 import Data.Qualified
 import Galley.Effects.FederatorAccess (FederatorAccess (..))
 import Galley.Env
-import Galley.Intra.Federator.Types
 import Galley.Monad
+import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Input
 import UnliftIO
 import Wire.API.Federation.Client
+import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
@@ -44,37 +46,52 @@ interpretFederatorAccess = interpret $ \case
   RunFederatedConcurrentlyEither rs f ->
     embedApp $
       runFederatedConcurrentlyEither rs f
-  IsFederationConfigured -> embedApp $ isJust <$> federatorEndpoint
+  IsFederationConfigured -> embedApp $ isJust <$> view federator
 
 runFederatedEither ::
+  KnownComponent c =>
   Remote x ->
-  FederatedRPC c a ->
+  FederatorClient c a ->
   App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
-  env <- ask
-  liftIO $ runApp env (runExceptT (executeFederated remoteDomain rpc))
+  ownDomain <- view (options . optSettings . setFederationDomain)
+  mfedEndpoint <- view federator
+  case mfedEndpoint of
+    Nothing -> pure (Left FederationNotConfigured)
+    Just fedEndpoint -> do
+      let ce =
+            FederatorClientEnv
+              { ceOriginDomain = ownDomain,
+                ceTargetDomain = remoteDomain,
+                ceFederator = fedEndpoint
+              }
+      liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 
 runFederated ::
+  KnownComponent c =>
   Remote x ->
-  FederatedRPC c a ->
+  FederatorClient c a ->
   App a
 runFederated dom rpc =
   runFederatedEither dom rpc
     >>= either (throwIO . federationErrorToWai) pure
 
 runFederatedConcurrently ::
-  (Foldable f, Functor f) =>
+  ( Foldable f,
+    Functor f,
+    KnownComponent c
+  ) =>
   f (Remote a) ->
-  (Remote [a] -> FederatedRPC c b) ->
+  (Remote [a] -> FederatorClient c b) ->
   App [Remote b]
 runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     qualifyAs r <$> runFederated r (rpc r)
 
 runFederatedConcurrentlyEither ::
-  (Foldable f, Functor f) =>
+  (Foldable f, Functor f, KnownComponent c) =>
   f (Remote a) ->
-  (Remote [a] -> FederatedRPC c b) ->
+  (Remote [a] -> FederatorClient c b) ->
   App [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->

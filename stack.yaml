@@ -162,6 +162,7 @@ extra-deps:
 - wai-predicates-1.0.0
 - redis-io-1.1.0
 - polysemy-mocks-0.2.0.0
+- warp-3.3.17
 
 # Not latest as last one breaks wai-routing
 - wai-route-0.4.0
@@ -207,40 +208,10 @@ extra-deps:
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
-# mu
-- mu-rpc-0.4.0.1
-- mu-optics-0.3.0.1
-- mu-avro-0.4.0.4
-- mu-protobuf-0.4.2.0
-- mu-schema-0.3.1.2
-- mu-grpc-server-0.4.0.0
-- mu-grpc-client-0.4.0.1
-- mu-grpc-common-0.4.0.0
-- compendium-client-0.2.1.1
-# dependencies of mu
-- http2-grpc-types-0.5.0.0
-- http2-grpc-proto3-wire-0.1.0.0
-- warp-grpc-0.4.0.1
-- proto3-wire-1.2.0
-- parameterized-0.5.0.0
-
-# Unreleased master.
-# Needed for https://github.com/lucasdicioccio/http2-client/pull/75
-- git: https://github.com/lucasdicioccio/http2-client
-  commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
-
-# Fix in PRs: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
-# and https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/46
-- git: https://github.com/wireapp/http2-grpc-haskell
-  commit: eea98418672626eafbace3181ca34bf44bee91c0
-  subdirs:
-    - http2-client-grpc
-
-# Fix for issue #27: https://github.com/kazu-yamamoto/http2/issues/27
-# PR here: https://github.com/kazu-yamamoto/http2/pull/28
-# Note: the commit used here is based on version 2.0.6 of http2
-- git: https://github.com/wireapp/http2 # (2021-06-09) branch: header-encoding-0-size-table-backport
-  commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+# Fix for connection preface race condition
+# https://github.com/kazu-yamamoto/http2/pull/33
+- git: https://github.com/wireapp/http2
+  commit: 1ee1ce432d923839dab6782410e91dc17df2a880 # preface-race branch
 
 # Fix in PR: https://github.com/bos/snappy/pull/7
 - git: https://github.com/wireapp/snappy
