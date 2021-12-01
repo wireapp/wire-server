@@ -180,3 +180,10 @@ You have two options:
 
 * Option 1. (recommended) Install wire-server on kubernetes using the configuration and instructions provided in [wire-server-deploy](https://github.com/wireapp/wire-server-deploy). This is the best option to run it on a server and recommended if you want to self-host wire-server.
 * Option 2. Compile everything in this repo, then you can use the [docker-compose based demo](deploy/services-demo/README.md). This option is intended as a way to try out wire-server on your local development machine and is less suited when you want to install wire-server on a server.
+
+
+# TODO
+
+- throw out everything that's not needed.  be generous, let the reviewer fight it.
+- note that `build-essential` is still needed for building wire even with nix.  (it shouldn't, but hey)
+- near `make integration`, point to how-to.md for running more than one backend.
