@@ -476,3 +476,19 @@ setTeamSearchVisibility galley tid typ =
     )
     !!! do
       const 204 === statusCode
+
+setUserEmail :: Brig -> UserId -> UserId -> Email -> Http ResponseLBS
+setUserEmail brig from uid email = do
+  put
+    ( brig
+        . paths ["users", toByteString' uid, "email"]
+        . zUser from
+        . zConn "conn"
+        . contentJson
+        . body
+          ( RequestBodyLBS . encode $
+              object
+                [ "email" .= show email
+                ]
+          )
+    )

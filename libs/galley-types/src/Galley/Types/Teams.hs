@@ -372,7 +372,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
-            DownloadTeamMembersCsv
+            DownloadTeamMembersCsv,
+            ChangeTeamMemberProfiles
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $

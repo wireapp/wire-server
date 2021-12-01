@@ -253,7 +253,7 @@ servantSitemap =
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.deleteSelf = deleteUser,
-        BrigAPI.updateUserEmailValidation = updateUserEmailValidation,
+        BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
@@ -1196,30 +1196,24 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
 
-updateUserEmailValidation :: UserId -> UserId -> Handler ()
-updateUserEmailValidation zuserId emailOwnerId = do
+updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> Handler ()
+updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
-  whenM (isNothing <$> runMaybeT (checkPerm maybeZuserTeamId)) $
-    throwStd insufficientTeamPermissions
+  whenM (not . fromMaybe False <$> runMaybeT (checkPerm maybeZuserTeamId)) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  maybeEmail <- lift $ Data.lookupUserUnverifiedEmail emailOwnerId
-  case maybeEmail of
-    Just email -> void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
-    Nothing -> throwStd $ conflict "the user doesn't have a pending email validation"
+  void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> Handler ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
-      when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd insufficientTeamPermissions
+      when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd $ notFound "user not found"
     checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
 
-    checkPerm :: Maybe TeamId -> MaybeT Handler ()
+    checkPerm :: Maybe TeamId -> MaybeT Handler Bool
     checkPerm maybeTeamId = do
       teamId <- hoistMaybe maybeTeamId
       teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
-      if teamMember `hasPermission` ChangeTeamMemberProfiles
-        then pure ()
-        else throwStd insufficientTeamPermissions
+      pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
 

@@ -144,22 +144,55 @@ tests _ at opts p b c ch g aws =
         ],
       testGroup
         "re-send activation email"
-        [ test' aws p "put /users/:uid/email" testReSendActivationEmail
+        [ test' aws p "put /users/:uid/email" $ testReSendActivationEmail b
         ]
     ]
 
-testReSendActivationEmail :: Http ()
-testReSendActivationEmail = do
-  -- create email owner user
-  -- create team admin user (same team, with permissions)
-  -- create team admin user (different team)
-  -- create user (same team, no permissions)
-  -- request activation (same team, with permissions) email should return status code 2xx
-  -- request activation (different team, _)) email should return status code 2xx
-  -- request activation (same team, no permissions) email should return status code 403
-  -- activate email
-  -- request activation (same team, with permissions) email should return 409
-  undefined
+testReSendActivationEmail :: Brig -> Http ()
+testReSendActivationEmail brig = do
+  (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  (teamOwnerDifferentTeam, _) <- createUserWithTeam' brig
+  newEmail <- randomEmail
+  initiateEmailUpdateNoSend brig newEmail (userId emailOwner) !!! (const 202 === statusCode)
+  checkActivationCode newEmail True
+  checkLetActivationExpire newEmail
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail True
+  checkLetActivationExpire newEmail
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  checkActivationCode newEmail False
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail True
+  activateEmail brig newEmail
+  -- apparently activating an email does not invalidate the activation code
+  checkLetActivationExpire newEmail
+  checkActivationCode newEmail False
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail False
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  checkActivationCode newEmail False
+  where
+    checkLetActivationExpire :: Email -> Http ()
+    checkLetActivationExpire email = do
+      -- assumption: email activation timeout is set to 5 sec, so we wait until it expires
+      threadDelay (5100 * 1000)
+      checkActivationCode email False
+
+    checkActivationCode :: Email -> Bool -> Http ()
+    checkActivationCode email shouldExist = do
+      maybeActivationCode <- Util.getActivationCode brig (Left email)
+      if shouldExist
+        then void $ lift $ assertBool "activation code should exists" (isJust maybeActivationCode)
+        else void $ lift $ assertBool "activation code should not exists" (isNothing maybeActivationCode)
+
+    checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
+    checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
+      setUserEmail brig (userId teamOwner) (userId emailOwner) email !!! (const expectedStatusCode === statusCode)
+
+    checkUnauthorizedRequests :: User -> User -> User -> Email -> Http ()
+    checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam email = do
+      setUserEmail brig (userId teamOwnerDifferentTeam) (userId emailOwner) email !!! (const 404 === statusCode)
+      setUserEmail brig (userId otherTeamMember) (userId emailOwner) email !!! (const 403 === statusCode)
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserWithPreverified opts brig aws = do

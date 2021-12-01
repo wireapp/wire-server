@@ -47,7 +47,6 @@ module Brig.Data.User
     lookupServiceUsers,
     lookupServiceUsersForTeam,
     lookupFeatureConferenceCalling,
-    lookupUserUnverifiedEmail,
 
     -- * Updates
     updateUser,
@@ -407,15 +406,6 @@ lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
-
-lookupUserUnverifiedEmail :: MonadClient m => UserId -> m (Maybe Email)
-lookupUserUnverifiedEmail userId =
-  (runIdentity =<<) <$> retry x1 (query1 cql (params LocalQuorum (Identity userId)))
-  where
-    cql :: PrepQuery R (Identity UserId) (Identity (Maybe Email))
-    cql =
-      "SELECT email \
-      \FROM vcodes WHERE account = ?"
 
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity u)))
