@@ -604,6 +604,7 @@ data CustomerExtensions = CustomerExtensions
   }
   deriving (Show, FromJSON, Generic)
 
+-- | See also: "Galley.API.CustomBackend", `galley.custom_backend`.
 newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
   deriving newtype (Show, FromJSON, Generic)
 
