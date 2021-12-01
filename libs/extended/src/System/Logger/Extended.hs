@@ -33,10 +33,11 @@ where
 
 import Cassandra (MonadClient)
 import Control.Monad.Catch
-import Data.Aeson
+import Data.Aeson as Aeson
 import Data.Aeson.Encoding (list, pair, text)
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.Map.Lazy as Map
 import Data.String.Conversions (cs)
 import GHC.Generics
 import Imports
@@ -50,7 +51,7 @@ instance FromJSON LC.Level
 instance ToJSON LC.Level
 
 -- | The log formats supported
-data LogFormat = JSON | Plain | Netstring
+data LogFormat = JSON | Plain | Netstring | StructuredJSON
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -76,6 +77,43 @@ collect = foldr go (Element' mempty [])
 
 jsonRenderer :: Renderer
 jsonRenderer _sep _dateFormat _logLevel = fromEncoding . elementToEncoding . collect
+
+data StructuredJSONOutput = StructuredJSONOutput {msgs :: [Text], fields :: Map Text [Text]}
+
+-- | Displays all the 'Bytes' segments in a list under key @msgs@ and 'Field'
+-- segments as key-value pair in a JSON
+--
+-- >>> logElems = [Bytes "I", Bytes "The message", Field "field1" "val1", Field "field2" "val2", Field "field1" "val1.1"]
+-- >>> B.toLazyByteString $ structuredJSONRenderer "," iso8601UTC Info logElems
+-- "{\"msgs\":[\"I\",\"The message\"],\"field1\":[\"val1\",\"val1.1\"],\"field2\":\"val2\",\"level\":\"Info\"}"
+structuredJSONRenderer :: Renderer
+structuredJSONRenderer _sep _dateFmt lvl logElems =
+  let structuredJSON = toStructuredJSONOutput logElems
+   in fromEncoding . toEncoding $
+        object
+          ( [ "level" Aeson..= lvl,
+              "msgs" Aeson..= msgs structuredJSON
+            ]
+              <> Map.foldMapWithKey (\k v -> [k Aeson..= renderTextList v]) (fields structuredJSON)
+          )
+  where
+    -- Renders List of Text as a String, if it only contains one element. This
+    -- should be most (if not all) of the cases
+    renderTextList :: [Text] -> Value
+    renderTextList [t] = String t
+    renderTextList xs = toJSON xs
+
+    builderToText :: Builder -> Text
+    builderToText = cs . eval
+
+    toStructuredJSONOutput :: [Element] -> StructuredJSONOutput
+    toStructuredJSONOutput =
+      foldr
+        ( \e o -> case e of
+            Bytes b -> o {msgs = builderToText b : msgs o}
+            Field k v -> o {fields = Map.insertWith (<>) (builderToText k) (map builderToText [v]) (fields o)}
+        )
+        (StructuredJSONOutput mempty mempty)
 
 -- | Here for backwards-compatibility reasons
 netStringsToLogFormat :: Bool -> LogFormat
@@ -124,6 +162,7 @@ simpleSettings lvl logFormat =
       Netstring -> \_separator _dateFormat _level -> Log.renderNetstr
       Plain -> \separator _dateFormat _level -> Log.renderDefault separator
       JSON -> jsonRenderer
+      StructuredJSON -> structuredJSONRenderer
 
 -- | Replace all whitespace characters in the output of a renderer by @' '@.
 -- Log output must be ASCII encoding.
