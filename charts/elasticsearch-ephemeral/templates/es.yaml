@@ -32,7 +32,7 @@ spec:
         - name: "discovery.type"
           value: "single-node"
         - name: "action.auto_create_index"
-          value: ".watches,.triggered_watches,.watcher-history-*"
+          value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
         ports:
         - containerPort: 9200
           name: http
