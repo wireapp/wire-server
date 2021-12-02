@@ -1199,7 +1199,7 @@ verifyDeleteUserH (r ::: _) = do
 updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> Handler ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
-  whenM (not . fromMaybe False <$> runMaybeT (checkPerm maybeZuserTeamId)) $ throwStd insufficientTeamPermissions
+  whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
@@ -1209,11 +1209,13 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd $ notFound "user not found"
     checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
 
-    checkPerm :: Maybe TeamId -> MaybeT Handler Bool
-    checkPerm maybeTeamId = do
-      teamId <- hoistMaybe maybeTeamId
-      teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
-      pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
+    assertHasPerm :: Maybe TeamId -> Handler Bool
+    assertHasPerm maybeTeamId = fromMaybe False <$> check
+      where
+        check = runMaybeT $ do
+          teamId <- hoistMaybe maybeTeamId
+          teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
+          pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
 

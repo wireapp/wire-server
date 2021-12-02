@@ -48,6 +48,7 @@ import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.User as Public
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
@@ -485,10 +486,5 @@ setUserEmail brig from uid email = do
         . zUser from
         . zConn "conn"
         . contentJson
-        . body
-          ( RequestBodyLBS . encode $
-              object
-                [ "email" .= show email
-                ]
-          )
+        . body (RequestBodyLBS . encode $ Public.EmailUpdate email)
     )

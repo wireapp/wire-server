@@ -143,34 +143,30 @@ tests _ at opts p b c ch g aws =
         [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
         ],
       testGroup
-        "re-send activation email"
-        [ test' aws p "put /users/:uid/email" $ testReSendActivationEmail b
+        "update user email by team owner"
+        [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
         ]
     ]
 
-testReSendActivationEmail :: Brig -> Http ()
-testReSendActivationEmail brig = do
+testUpdateUserEmailByTeamOwner :: Brig -> Http ()
+testUpdateUserEmailByTeamOwner brig = do
   (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   (teamOwnerDifferentTeam, _) <- createUserWithTeam' brig
   newEmail <- randomEmail
   initiateEmailUpdateNoSend brig newEmail (userId emailOwner) !!! (const 202 === statusCode)
   checkActivationCode newEmail True
   checkLetActivationExpire newEmail
-  checkSetUserEmail teamOwner emailOwner newEmail 200
-  checkActivationCode newEmail True
-  checkLetActivationExpire newEmail
-  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
   checkActivationCode newEmail False
   checkSetUserEmail teamOwner emailOwner newEmail 200
   checkActivationCode newEmail True
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
   activateEmail brig newEmail
-  -- apparently activating an email does not invalidate the activation code
-  checkLetActivationExpire newEmail
-  checkActivationCode newEmail False
+  -- apparently activating the email does not invalidate the activation code
+  -- ideally we would let the activation code expire again (which is too expensive time-wise)
+  -- and then assert that if the email is verified there is no new activation code created
+  -- when the set email function is called again (idempotency)
   checkSetUserEmail teamOwner emailOwner newEmail 200
-  checkActivationCode newEmail False
   checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
-  checkActivationCode newEmail False
   where
     checkLetActivationExpire :: Email -> Http ()
     checkLetActivationExpire email = do
@@ -181,9 +177,11 @@ testReSendActivationEmail brig = do
     checkActivationCode :: Email -> Bool -> Http ()
     checkActivationCode email shouldExist = do
       maybeActivationCode <- Util.getActivationCode brig (Left email)
-      void $ lift $ if shouldExist
-        then assertBool "activation code should exists" (isJust maybeActivationCode)
-        else assertBool "activation code should not exists" (isNothing maybeActivationCode)
+      void $
+        lift $
+          if shouldExist
+            then assertBool "activation code should exists" (isJust maybeActivationCode)
+            else assertBool "activation code should not exists" (isNothing maybeActivationCode)
 
     checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
     checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
