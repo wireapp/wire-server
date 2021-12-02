@@ -174,7 +174,7 @@ testReSendActivationEmail brig = do
   where
     checkLetActivationExpire :: Email -> Http ()
     checkLetActivationExpire email = do
-      -- assumption: email activation timeout is set to 5 sec, so we wait until it expires
+      -- assumption: `optSettings.setActivationTimeout = 5` in `brig.yaml`
       threadDelay (5100 * 1000)
       checkActivationCode email False
 
