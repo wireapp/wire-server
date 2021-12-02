@@ -181,9 +181,9 @@ testReSendActivationEmail brig = do
     checkActivationCode :: Email -> Bool -> Http ()
     checkActivationCode email shouldExist = do
       maybeActivationCode <- Util.getActivationCode brig (Left email)
-      if shouldExist
-        then void $ lift $ assertBool "activation code should exists" (isJust maybeActivationCode)
-        else void $ lift $ assertBool "activation code should not exists" (isNothing maybeActivationCode)
+      void $ lift $ if shouldExist
+        then assertBool "activation code should exists" (isJust maybeActivationCode)
+        else assertBool "activation code should not exists" (isNothing maybeActivationCode)
 
     checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
     checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
