@@ -47,50 +47,59 @@ import Wire.API.UserMap (UserMap)
 data BrigApi routes = BrigApi
   { getUserByHandle ::
       routes
-        :- "get-user-by-handle"
+        :- Summary "Get a user given their handle"
+        :> "get-user-by-handle"
         :> ReqBody '[JSON] Handle
         :> Post '[JSON] (Maybe UserProfile),
     getUsersByIds ::
       routes
-        :- "get-users-by-ids"
+        :- Summary "Get users by their identifiers"
+        :> "get-users-by-ids"
         :> ReqBody '[JSON] [UserId]
         :> Post '[JSON] [UserProfile],
     claimPrekey ::
       routes
-        :- "claim-prekey"
+        :- Summary "Claim a remote prekey for a user's client"
+        :> "claim-prekey"
         :> ReqBody '[JSON] (UserId, ClientId)
         :> Post '[JSON] (Maybe ClientPrekey),
     claimPrekeyBundle ::
       routes
-        :- "claim-prekey-bundle"
+        :- Summary "Claim a remote prekey bundle for a user"
+        :> "claim-prekey-bundle"
         :> ReqBody '[JSON] UserId
         :> Post '[JSON] PrekeyBundle,
     claimMultiPrekeyBundle ::
       routes
-        :- "claim-multi-prekey-bundle"
+        :- Summary "Claim a remote prekey bundle for multiple users"
+        :> "claim-multi-prekey-bundle"
         :> ReqBody '[JSON] UserClients
         :> Post '[JSON] UserClientPrekeyMap,
     searchUsers ::
       routes
-        :- "search-users"
+        :- Summary "Perform a search on a remote backend"
+        :> "search-users"
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
         :> ReqBody '[JSON] SearchRequest
         :> Post '[JSON] [Contact],
     getUserClients ::
       routes
-        :- "get-user-clients"
+        :- Summary "Get users' clients from a remote backend"
+        :> "get-user-clients"
         :> ReqBody '[JSON] GetUserClients
         :> Post '[JSON] (UserMap (Set PubClient)),
     sendConnectionAction ::
       routes
-        :- "send-connection-action"
+        :- Summary "Send a connection action to a remote backend"
+        :> "send-connection-action"
         :> OriginDomainHeader
         :> ReqBody '[JSON] NewConnectionRequest
         :> Post '[JSON] NewConnectionResponse,
     onUserDeleted ::
       routes
-        :- "on-user-deleted-connections"
+        :- Summary "Notify a remote backend that a user account got deleted"
+        :> "on-user-deleted-connections"
         :> OriginDomainHeader
         :> ReqBody '[JSON] UserDeletedConnectionsNotification
         :> Post '[JSON] EmptyResponse

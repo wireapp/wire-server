@@ -66,7 +66,8 @@ data GalleyApi routes = GalleyApi
         :> Post '[JSON] (),
     getConversations ::
       routes
-        :- "get-conversations"
+        :- Summary "Get a user's conversations"
+        :> "get-conversations"
         :> OriginDomainHeader
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
@@ -74,13 +75,15 @@ data GalleyApi routes = GalleyApi
     -- changes to the conversation
     onConversationUpdated ::
       routes
-        :- "on-conversation-updated"
+        :- Summary "Notify of a conversation update"
+        :> "on-conversation-updated"
         :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationUpdate
         :> Post '[JSON] (),
     leaveConversation ::
       routes
-        :- "leave-conversation"
+        :- Summary "Leave a conversation hosted on a remote backend"
+        :> "leave-conversation"
         :> OriginDomainHeader
         :> ReqBody '[JSON] LeaveConversationRequest
         :> Post '[JSON] LeaveConversationResponse,
@@ -88,7 +91,8 @@ data GalleyApi routes = GalleyApi
     -- remote conversation
     onMessageSent ::
       routes
-        :- "on-message-sent"
+        :- Summary "Notify a backend that a new message has been posted to a remote conversation"
+        :> "on-message-sent"
         :> OriginDomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] (),
@@ -96,13 +100,16 @@ data GalleyApi routes = GalleyApi
     -- this backend
     sendMessage ::
       routes
-        :- "send-message"
+        :- Summary "Send a message to a conversation owned by another backend"
+        :> "send-message"
         :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
         :> Post '[JSON] MessageSendResponse,
     onUserDeleted ::
       routes
+        :- Summary "Notify a remote backend's conversations that a user account got deleted"
         :- "on-user-deleted-conversations"
+        :> "conversations"
         :> OriginDomainHeader
         :> ReqBody '[JSON] UserDeletedConversationsNotification
         :> Post '[JSON] EmptyResponse
