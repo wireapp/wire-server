@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 040115252374cb428a08ab286b9a4eb9492a407e9197009e7944f163dc1bfdcc
+-- hash: 3aab57e8600541201e0b0f8cd7308f624eb479a4f5601e800399b4787656c449
 
 name:           extended
 version:        0.1.0
@@ -49,6 +49,42 @@ library
     , servant-server
     , servant-swagger
     , string-conversions
+    , tinylog
+    , wai
+  default-language: Haskell2010
+
+test-suite extended-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Test.System.Logger.ExtendedSpec
+      Paths_extended
+  hs-source-dirs:
+      test
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , cassandra-util
+    , containers
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , hspec
+    , http-types
+    , imports
+    , metrics-wai
+    , optparse-applicative
+    , servant
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , temporary
     , tinylog
     , wai
   default-language: Haskell2010

@@ -28,6 +28,7 @@ module System.Logger.Extended
     LoggerT (..),
     runWithLogger,
     netStringsToLogFormat,
+    structuredJSONRenderer,
   )
 where
 
@@ -78,20 +79,20 @@ collect = foldr go (Element' mempty [])
 jsonRenderer :: Renderer
 jsonRenderer _sep _dateFormat _logLevel = fromEncoding . elementToEncoding . collect
 
-data StructuredJSONOutput = StructuredJSONOutput {msgs :: [Text], fields :: Map Text [Text]}
+data StructuredJSONOutput = StructuredJSONOutput {lvl :: Maybe Level, msgs :: [Text], fields :: Map Text [Text]}
 
 -- | Displays all the 'Bytes' segments in a list under key @msgs@ and 'Field'
 -- segments as key-value pair in a JSON
 --
--- >>> logElems = [Bytes "I", Bytes "The message", Field "field1" "val1", Field "field2" "val2", Field "field1" "val1.1"]
+-- >>> logElems = [Bytes "W", Bytes "The message", Field "field1" "val1", Field "field2" "val2", Field "field1" "val1.1"]
 -- >>> B.toLazyByteString $ structuredJSONRenderer "," iso8601UTC Info logElems
--- "{\"msgs\":[\"I\",\"The message\"],\"field1\":[\"val1\",\"val1.1\"],\"field2\":\"val2\",\"level\":\"Info\"}"
+-- "{\"msgs\":[\"The message\"],\"field1\":[\"val1\",\"val1.1\"],\"field2\":\"val2\",\"level\":\"Warn\"}"
 structuredJSONRenderer :: Renderer
-structuredJSONRenderer _sep _dateFmt lvl logElems =
+structuredJSONRenderer _sep _dateFmt _lvlThreshold logElems =
   let structuredJSON = toStructuredJSONOutput logElems
    in fromEncoding . toEncoding $
         object
-          ( [ "level" Aeson..= lvl,
+          ( [ "level" Aeson..= lvl structuredJSON,
               "msgs" Aeson..= msgs structuredJSON
             ]
               <> Map.foldMapWithKey (\k v -> [k Aeson..= renderTextList v]) (fields structuredJSON)
@@ -106,14 +107,29 @@ structuredJSONRenderer _sep _dateFmt lvl logElems =
     builderToText :: Builder -> Text
     builderToText = cs . eval
 
+    -- We need to do this to work around https://gitlab.com/twittner/tinylog/-/issues/5
+    parseLevel :: Text -> Maybe Level
+    parseLevel = \case
+      "T" -> Just Trace
+      "D" -> Just Debug
+      "I" -> Just Info
+      "W" -> Just Warn
+      "E" -> Just Log.Error
+      "F" -> Just Fatal
+      _ -> Nothing
+
     toStructuredJSONOutput :: [Element] -> StructuredJSONOutput
     toStructuredJSONOutput =
       foldr
         ( \e o -> case e of
-            Bytes b -> o {msgs = builderToText b : msgs o}
+            Bytes b ->
+              let buildMsg = builderToText b
+               in case parseLevel buildMsg of
+                    Nothing -> o {msgs = builderToText b : msgs o}
+                    Just lvl -> o {lvl = Just lvl}
             Field k v -> o {fields = Map.insertWith (<>) (builderToText k) (map builderToText [v]) (fields o)}
         )
-        (StructuredJSONOutput mempty mempty)
+        (StructuredJSONOutput Nothing [] mempty)
 
 -- | Here for backwards-compatibility reasons
 netStringsToLogFormat :: Bool -> LogFormat
