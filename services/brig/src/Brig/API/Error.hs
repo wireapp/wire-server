@@ -354,9 +354,6 @@ newPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For provid
 notFound :: LText -> Wai.Error
 notFound = Wai.mkError status404 "not-found"
 
-conflict :: LText -> Wai.Error
-conflict = Wai.mkError status409 "conflict"
-
 invalidAccountStatus :: Wai.Error
 invalidAccountStatus = Wai.mkError status400 "invalid-status" "The specified account status cannot be set."
 
