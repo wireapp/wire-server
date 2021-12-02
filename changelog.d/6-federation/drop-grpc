@@ -1,1 +1,0 @@
-The server-to-server API now uses HTTP2 directly instead of gRPC

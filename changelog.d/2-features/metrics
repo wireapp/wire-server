@@ -1,1 +1,0 @@
-Use kube-prometheus-stack instead of prometheus-operator and update grafana dashboards for compatibility and add federation endpoints to relevant queries.

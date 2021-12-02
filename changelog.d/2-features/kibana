@@ -1,1 +1,0 @@
-Use kibana chart from helm.elastic.co instead of deprecated charts.helm.sh. Previous kibana values are not compatible with the new chart, the documentation for the new chart can be found [here](https://github.com/elastic/helm-charts/tree/main/kibana). This also upgrades kibana to version 6.8.18.
