@@ -162,11 +162,12 @@ testUpdateUserEmailByTeamOwner brig = do
   checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
   activateEmail brig newEmail
   -- apparently activating the email does not invalidate the activation code
-  -- ideally we would let the activation code expire again (which is too expensive time-wise)
-  -- and then assert that if the email is verified there is no new activation code created
-  -- when the set email function is called again
+  -- therefore we let the activation code expire again
+  checkLetActivationExpire newEmail
   checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail False
   checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  checkActivationCode newEmail False
   where
     checkLetActivationExpire :: Email -> Http ()
     checkLetActivationExpire email = do
