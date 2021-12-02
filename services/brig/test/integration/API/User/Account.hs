@@ -164,7 +164,7 @@ testUpdateUserEmailByTeamOwner brig = do
   -- apparently activating the email does not invalidate the activation code
   -- ideally we would let the activation code expire again (which is too expensive time-wise)
   -- and then assert that if the email is verified there is no new activation code created
-  -- when the set email function is called again (idempotency)
+  -- when the set email function is called again
   checkSetUserEmail teamOwner emailOwner newEmail 200
   checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
   where
