@@ -44,6 +44,9 @@ module Galley.Effects.BrigAccess
     getLegalHoldAuthToken,
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
+
+    -- * Features
+    getAccountFeatureConfigClient,
   )
 where
 
@@ -59,6 +62,7 @@ import Imports
 import Network.HTTP.Types.Status
 import Polysemy
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
@@ -106,6 +110,7 @@ data BrigAccess m a where
     LastPrekey ->
     BrigAccess m ClientId
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
+  GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
 
 makeSem ''BrigAccess
 

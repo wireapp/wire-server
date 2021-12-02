@@ -132,7 +132,6 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
-import Wire.API.Federation.Client (HasFederatorConfig (..))
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
@@ -496,10 +495,6 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
     AppT . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unAppT)
-
-instance HasFederatorConfig AppIO where
-  federatorEndpoint = view federator
-  federationDomain = viewFederationDomain
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

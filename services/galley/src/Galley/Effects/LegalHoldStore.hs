@@ -16,7 +16,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Effects.LegalHoldStore
-  ( LegalHoldStore (..),
+  ( -- * LegalHold store effect
+    LegalHoldStore (..),
+
+    -- * Store actions
     createSettings,
     getSettings,
     removeSettings,
@@ -27,14 +30,23 @@ module Galley.Effects.LegalHoldStore
     setTeamLegalholdWhitelisted,
     unsetTeamLegalholdWhitelisted,
     isTeamLegalholdWhitelisted,
+    validateServiceKey,
+
+    -- * Intra actions
+    makeVerifiedRequest,
+    makeVerifiedRequestFreshManager,
   )
 where
 
+import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Id
 import Data.LegalHold
+import Data.Misc
 import Galley.External.LegalHoldService.Types
 import Imports
+import qualified Network.HTTP.Client as Http
 import Polysemy
+import Wire.API.Provider.Service
 import Wire.API.User.Client.Prekey
 
 data LegalHoldStore m a where
@@ -48,5 +60,17 @@ data LegalHoldStore m a where
   SetTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m ()
   UnsetTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m ()
   IsTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m Bool
+  -- intra actions
+  MakeVerifiedRequestFreshManager ::
+    Fingerprint Rsa ->
+    HttpsUrl ->
+    (Http.Request -> Http.Request) ->
+    LegalHoldStore m (Http.Response LC8.ByteString)
+  MakeVerifiedRequest ::
+    Fingerprint Rsa ->
+    HttpsUrl ->
+    (Http.Request -> Http.Request) ->
+    LegalHoldStore m (Http.Response LC8.ByteString)
+  ValidateServiceKey :: ServiceKeyPEM -> LegalHoldStore m (Maybe (ServiceKey, Fingerprint Rsa))
 
 makeSem ''LegalHoldStore

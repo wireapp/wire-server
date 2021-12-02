@@ -18,14 +18,38 @@
 module Wire.API.Federation.Domain where
 
 import Data.Domain (Domain)
+import Data.Metrics.Servant
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits (Symbol, symbolVal)
 import Imports
-import Servant.API (Header', Required, Strict)
+import Servant.API (Header', Required, Strict, (:>))
+import Servant.Client
+import Servant.Server
+import Servant.Server.Internal (MkContextWithErrorFormatter)
 
 type OriginDomainHeaderName = "Wire-Origin-Domain" :: Symbol
 
-type OriginDomainHeader = Header' [Strict, Required] OriginDomainHeaderName Domain
+data OriginDomainHeader
+
+instance RoutesToPaths api => RoutesToPaths (OriginDomainHeader :> api) where
+  getRoutes = getRoutes @api
+
+instance HasClient m api => HasClient m (OriginDomainHeader :> api) where
+  type Client m (OriginDomainHeader :> api) = Client m api
+  clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
+
+type OriginDomainHeaderHasServer = Header' [Strict, Required] OriginDomainHeaderName Domain
+
+instance
+  ( HasServer api context,
+    HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters
+  ) =>
+  HasServer (OriginDomainHeader :> api) context
+  where
+  type ServerT (OriginDomainHeader :> api) m = Domain -> ServerT api m
+  route _pa = route (Proxy @(OriginDomainHeaderHasServer :> api))
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 originDomainHeaderName :: IsString a => a
 originDomainHeaderName = fromString $ symbolVal (Proxy @OriginDomainHeaderName)

@@ -31,7 +31,6 @@ import Brig.Types.Client
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))
-import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
@@ -42,18 +41,20 @@ import Galley.Effects
 import Galley.Env
 import Galley.External.LegalHoldService.Types
 import Galley.Intra.Util
+import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
+import Network.Wai.Utilities.Error hiding (Error)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Error
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
-lookupClients :: [UserId] -> IntraM UserClients
+lookupClients :: [UserId] -> App UserClients
 lookupClients uids = do
   r <-
     call Brig $
@@ -67,7 +68,7 @@ lookupClients uids = do
 -- | Calls 'Brig.API.internalListClientsFullH'.
 lookupClientsFull ::
   [UserId] ->
-  IntraM UserClientsFull
+  App UserClientsFull
 lookupClientsFull uids = do
   r <-
     call Brig $
@@ -83,7 +84,7 @@ notifyClientsAboutLegalHoldRequest ::
   UserId ->
   UserId ->
   LastPrekey ->
-  IntraM ()
+  App ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
   void . call Brig $
     method POST
@@ -93,13 +94,13 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
-  Members '[Embed IO, P.TinyLog, P.Reader Env] r =>
+  Members '[Embed IO, Error InternalError, P.TinyLog, Input Env] r =>
   UserId ->
   Maybe PlainTextPassword ->
   Sem r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   r <-
-    embedIntra . call Brig $
+    embedApp . call Brig $
       method POST
         . path "/i/legalhold-login"
         . queryItem "persist" "true"
@@ -108,7 +109,7 @@ getLegalHoldAuthToken uid pw = do
   case getCookieValue "zuid" r of
     Nothing -> do
       P.warn $ Logger.msg @Text "Response from login missing auth cookie"
-      embed $ throwM internalError
+      throw $ InternalErrorWithDescription "internal error"
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
 -- | Calls 'Brig.API.addClientInternalH'.
@@ -117,7 +118,7 @@ addLegalHoldClientToUser ::
   ConnId ->
   [Prekey] ->
   LastPrekey ->
-  IntraM ClientId
+  App ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
   clientId <$> brigAddClient uid connId lhClient
   where
@@ -136,7 +137,7 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser ::
   UserId ->
-  IntraM ()
+  App ()
 removeLegalHoldClientFromUser targetUid = do
   void . call Brig $
     method DELETE
@@ -145,7 +146,7 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> IntraM Client
+brigAddClient :: UserId -> ConnId -> NewClient -> App Client
 brigAddClient uid connId client = do
   r <-
     call Brig $

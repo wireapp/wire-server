@@ -31,11 +31,15 @@ module Galley.Effects.CodeStore
     -- * Code generation
     makeKey,
     generateCode,
+
+    -- * Configuration
+    getConversationCodeURI,
   )
 where
 
 import Brig.Types.Code
 import Data.Id
+import Data.Misc
 import Galley.Data.Types
 import Imports
 import Polysemy
@@ -46,5 +50,6 @@ data CodeStore m a where
   DeleteCode :: Key -> Scope -> CodeStore m ()
   MakeKey :: ConvId -> CodeStore m Key
   GenerateCode :: ConvId -> Scope -> Timeout -> CodeStore m Code
+  GetConversationCodeURI :: CodeStore m HttpsUrl
 
 makeSem ''CodeStore

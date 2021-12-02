@@ -58,10 +58,10 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
-import qualified Galley.App as Galley
 import Galley.Cassandra.Client
+import Galley.Cassandra.LegalHold
 import qualified Galley.Cassandra.LegalHold as LegalHoldData
-import Galley.External.LegalHoldService (validateServiceKey)
+import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams

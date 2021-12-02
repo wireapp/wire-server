@@ -38,7 +38,6 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API.Status
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Client (FederationError (..))
 import Wire.API.Federation.Error
 
 errorDescriptionToWai ::

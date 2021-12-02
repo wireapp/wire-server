@@ -23,9 +23,9 @@ where
 import Cassandra
 import Imports
 import Polysemy
-import Polysemy.Reader as P
+import Polysemy.Input
 
-embedClient :: Members '[Embed IO, P.Reader ClientState] r => Client a -> Sem r a
+embedClient :: Members '[Embed IO, Input ClientState] r => Client a -> Sem r a
 embedClient client = do
-  cs <- P.ask
+  cs <- input
   embed @IO $ runClient cs client

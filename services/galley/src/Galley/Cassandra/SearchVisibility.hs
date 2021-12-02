@@ -26,10 +26,10 @@ import Galley.Effects.SearchVisibilityStore (SearchVisibilityStore (..))
 import Galley.Types.Teams.SearchVisibility
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 interpretSearchVisibilityStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (SearchVisibilityStore ': r) a ->
   Sem r a
 interpretSearchVisibilityStoreToCassandra = interpret $ \case

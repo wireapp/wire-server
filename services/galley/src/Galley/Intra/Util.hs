@@ -19,8 +19,6 @@
 
 module Galley.Intra.Util
   ( IntraComponent (..),
-    IntraM,
-    embedIntra,
     call,
     asyncCall,
   )
@@ -29,8 +27,7 @@ where
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Bilge.Retry
-import Cassandra (MonadClient (..), runClient)
-import Control.Lens (locally, view, (^.))
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Lazy as LB
@@ -38,11 +35,10 @@ import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Galley.Env
+import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
-import Polysemy
-import qualified Polysemy.Reader as P
 import System.Logger
 import qualified System.Logger.Class as LC
 import Util.Options
@@ -74,53 +70,17 @@ componentRetryPolicy Brig = x1
 componentRetryPolicy Spar = x1
 componentRetryPolicy Gundeck = x3
 
-embedIntra ::
-  Members '[Embed IO, P.Reader Env] r =>
-  IntraM a ->
-  Sem r a
-embedIntra action = do
-  env <- P.ask
-  embed $ runHttpT (env ^. manager) (runReaderT (unIntraM action) env)
-
-newtype IntraM a = IntraM {unIntraM :: ReaderT Env Http a}
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadHttp,
-      MonadThrow,
-      MonadCatch,
-      MonadMask,
-      MonadReader Env,
-      MonadUnliftIO
-    )
-
-instance HasRequestId IntraM where
-  getRequestId = IntraM $ view reqId
-
-instance MonadClient IntraM where
-  liftClient m = do
-    cs <- view cstate
-    liftIO $ runClient cs m
-  localState f = locally cstate f
-
-instance LC.MonadLogger IntraM where
-  log lvl m = do
-    env <- ask
-    log (env ^. applog) lvl (reqIdMsg (env ^. reqId) . m)
-
 call ::
   IntraComponent ->
   (Request -> Request) ->
-  IntraM (Response (Maybe LB.ByteString))
+  App (Response (Maybe LB.ByteString))
 call comp r = do
   o <- view options
   let r0 = componentRequest comp o
   let n = LT.pack (componentName comp)
   recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
 
-asyncCall :: IntraComponent -> (Request -> Request) -> IntraM ()
+asyncCall :: IntraComponent -> (Request -> Request) -> App ()
 asyncCall comp req = void $ do
   let n = LT.pack (componentName comp)
   forkIO $ catches (void (call comp req)) (handlers n)

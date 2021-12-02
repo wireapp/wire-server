@@ -727,7 +727,7 @@ testConnectWithAnon :: Brig -> FedBrigClient -> Http ()
 testConnectWithAnon brig fedBrigClient = do
   fromUser <- randomId
   toUser <- userId <$> createAnonUser "anon1234" brig
-  res <- F.sendConnectionAction fedBrigClient (Domain "far-away.example.com") (F.NewConnectionRequest fromUser toUser F.RemoteConnect)
+  res <- F.sendConnectionAction (fedBrigClient (Domain "far-away.example.com")) (F.NewConnectionRequest fromUser toUser F.RemoteConnect)
   liftIO $
     assertEqual "The response should specify that the user is not activated" F.NewConnectionResponseUserNotActivated res
 
@@ -781,7 +781,7 @@ testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyCl
             gcrConvIds = [qUnqualified convId]
           }
 
-  res <- F.getConversations fedGalleyClient (qDomain quid2) request
+  res <- F.getConversations (fedGalleyClient (qDomain quid2)) request
   liftIO $
     fmap (fmap omQualifiedId . rcmOthers . rcnvMembers) (gcresConvs res) @?= [[]]
 

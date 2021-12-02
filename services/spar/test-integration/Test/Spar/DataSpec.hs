@@ -41,6 +41,7 @@ import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -93,24 +94,24 @@ spec = do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
               vid <- nextSAMLID
-              () <- runSpar $ AReqIDStore.storeVerdictFormat 1 vid vf
-              mvf <- runSpar $ AReqIDStore.getVerdictFormat vid
+              () <- runSpar $ VerdictFormatStore.store 1 vid vf
+              mvf <- runSpar $ VerdictFormatStore.get vid
               liftIO $ mvf `shouldBe` Just vf
         check
           `mapM_` [ VerdictFormatWeb,
                     VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|]
                   ]
       context "has timed out" $ do
-        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
+        it "VerdictFormatStore.get returns Nothing" $ do
           vid <- nextSAMLID
-          () <- runSpar $ AReqIDStore.storeVerdictFormat 1 vid VerdictFormatWeb
+          () <- runSpar $ VerdictFormatStore.store 1 vid VerdictFormatWeb
           liftIO $ threadDelay 2000000
-          mvf <- runSpar $ AReqIDStore.getVerdictFormat vid
+          mvf <- runSpar $ VerdictFormatStore.get vid
           liftIO $ mvf `shouldBe` Nothing
       context "does not exist" $ do
-        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
+        it "VerdictFormatStore.get returns Nothing" $ do
           vid <- nextSAMLID
-          mvf <- runSpar $ AReqIDStore.getVerdictFormat vid
+          mvf <- runSpar $ VerdictFormatStore.get vid
           liftIO $ mvf `shouldBe` Nothing
     describe "User" $ do
       context "user is new" $ do

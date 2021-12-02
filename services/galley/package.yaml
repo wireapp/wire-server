@@ -26,7 +26,6 @@ dependencies:
 
 library:
   source-dirs: src
-  ghc-options: -fplugin=Polysemy.Plugin
   dependencies:
   - aeson >=0.11
   - amazonka >=1.4.5
@@ -58,7 +57,6 @@ library:
   - http-client-tls >=0.2.2
   - http-media
   - http-types >=0.8
-  - http2-client-grpc
   - insert-ordered-containers
   - lens >=4.4
   - memory
@@ -67,7 +65,6 @@ library:
   - optparse-applicative >=0.10
   - pem
   - polysemy
-  - polysemy-plugin
   - polysemy-wire-zoo
   - protobuf >=0.2
   - proto-lens >=0.2
@@ -107,7 +104,7 @@ library:
   - warp >=3.0
 
 tests:
-  galley-types-tests:
+  galley-tests:
     main: Main.hs
     source-dirs: test/unit
     ghc-options:
@@ -175,6 +172,7 @@ executables:
     - data-timeout
     - errors
     - exceptions
+    - federator
     - galley
     - galley-types
     - gundeck-types

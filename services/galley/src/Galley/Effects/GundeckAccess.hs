@@ -20,6 +20,7 @@ module Galley.Effects.GundeckAccess
     GundeckAccess (..),
     push,
     push1,
+    pushSlowly,
   )
 where
 
@@ -29,6 +30,7 @@ import Polysemy
 
 data GundeckAccess m a where
   Push :: Foldable f => f G.Push -> GundeckAccess m ()
+  PushSlowly :: Foldable f => f G.Push -> GundeckAccess m ()
 
 makeSem ''GundeckAccess
 

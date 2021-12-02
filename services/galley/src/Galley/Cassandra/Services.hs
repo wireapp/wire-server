@@ -29,7 +29,7 @@ import Galley.Types.Bot
 import Galley.Types.Conversations.Members (newMember)
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 -- FUTUREWORK: support adding bots to a remote conversation
 addBotMember :: ServiceRef -> BotId -> ConvId -> Client BotMember
@@ -48,7 +48,7 @@ addBotMember s bot cnv = do
 -- Service --------------------------------------------------------------------
 
 interpretServiceStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState] r =>
   Sem (ServiceStore ': r) a ->
   Sem r a
 interpretServiceStoreToCassandra = interpret $ \case

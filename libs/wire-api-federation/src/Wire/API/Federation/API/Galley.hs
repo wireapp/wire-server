@@ -17,7 +17,6 @@
 
 module Wire.API.Federation.API.Galley where
 
-import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
@@ -27,8 +26,7 @@ import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, Summary, (:>))
-import Servant.API.Generic ((:-))
-import Servant.Client.Generic (AsClientT, genericClient)
+import Servant.API.Generic
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
   ( Access,
@@ -41,11 +39,8 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
-import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError)
 import Wire.API.User.Client (UserClientMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
@@ -54,20 +49,18 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- for the current list we need.
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
-data Api routes = Api
+data GalleyApi routes = GalleyApi
   { -- | Register a new conversation
     onConversationCreated ::
       routes
-        :- "federation"
-        :> Summary "Register users to be in a new remote conversation"
+        :- Summary "Register users to be in a new remote conversation"
         :> "on-conversation-created"
         :> OriginDomainHeader
         :> ReqBody '[JSON] (NewRemoteConversation ConvId)
         :> Post '[JSON] (),
     getConversations ::
       routes
-        :- "federation"
-        :> "get-conversations"
+        :- "get-conversations"
         :> OriginDomainHeader
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
@@ -75,15 +68,13 @@ data Api routes = Api
     -- changes to the conversation
     onConversationUpdated ::
       routes
-        :- "federation"
-        :> "on-conversation-updated"
+        :- "on-conversation-updated"
         :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationUpdate
         :> Post '[JSON] (),
     leaveConversation ::
       routes
-        :- "federation"
-        :> "leave-conversation"
+        :- "leave-conversation"
         :> OriginDomainHeader
         :> ReqBody '[JSON] LeaveConversationRequest
         :> Post '[JSON] LeaveConversationResponse,
@@ -91,8 +82,7 @@ data Api routes = Api
     -- remote conversation
     onMessageSent ::
       routes
-        :- "federation"
-        :> "on-message-sent"
+        :- "on-message-sent"
         :> OriginDomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] (),
@@ -100,16 +90,13 @@ data Api routes = Api
     -- this backend
     sendMessage ::
       routes
-        :- "federation"
-        :> "send-message"
+        :- "send-message"
         :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
         :> Post '[JSON] MessageSendResponse,
     onUserDeleted ::
       routes
-        :- "federation"
-        :> "on-user-deleted"
-        :> "conversations"
+        :- "on-user-deleted-conversations"
         :> OriginDomainHeader
         :> ReqBody '[JSON] UserDeletedConversationsNotification
         :> Post '[JSON] EmptyResponse
@@ -214,6 +201,16 @@ data LeaveConversationRequest = LeaveConversationRequest
   deriving stock (Generic, Eq, Show)
   deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversationRequest)
 
+-- | Error outcomes of the leave-conversation RPC.
+data RemoveFromConversationError
+  = RemoveFromConversationErrorRemovalNotAllowed
+  | RemoveFromConversationErrorNotFound
+  | RemoveFromConversationErrorUnchanged
+  deriving stock (Eq, Show, Generic)
+  deriving
+    (ToJSON, FromJSON)
+    via (CustomEncoded RemoveFromConversationError)
+
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
 -- federation RPC), and for conversations with an arbitrary Qualified or Remote id
@@ -267,13 +264,10 @@ type UserDeletedNotificationMaxConvs = 1000
 
 data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   { -- | This is qualified implicitly by the origin domain
-    udcnUser :: UserId,
+    udcvUser :: UserId,
     -- | These are qualified implicitly by the target domain
-    udcnConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
+    udcvConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
-
-clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
-clientRoutes = genericClient

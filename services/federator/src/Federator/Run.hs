@@ -35,6 +35,8 @@ module Federator.Run
 where
 
 import qualified Bilge as RPC
+import Control.Concurrent.Async
+import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
@@ -49,20 +51,14 @@ import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
-import UnliftIO (bracket)
-import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
-import Wire.API.Federation.GRPC.Types
+import Wire.API.Federation.Component
 import qualified Wire.Network.DNS.Helper as DNS
 
 ------------------------------------------------------------------------------
 -- run/app
 
 -- FUTUREWORK(federation): Add metrics and status endpoints
--- (this probably requires using HTTP. A Servant API could be used; and the
--- internal grpc server converted to a WAI application, and the grpc application be
--- "merged" using Servant's 'Raw' type (like in 'brig') with servant's http
--- endpoints and exposed on the same port. See https://wearezeta.atlassian.net/browse/SQCORE-911.
 run :: Opts -> IO ()
 run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf

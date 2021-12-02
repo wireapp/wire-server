@@ -22,17 +22,20 @@ where
 
 import Brig.Types.Code
 import Cassandra
+import Control.Lens
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Types
 import qualified Galley.Data.Types as Code
 import Galley.Effects.CodeStore (CodeStore (..))
+import Galley.Env
+import Galley.Options
 import Imports
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 
 interpretCodeStoreToCassandra ::
-  Members '[Embed IO, P.Reader ClientState] r =>
+  Members '[Embed IO, Input ClientState, Input Env] r =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
@@ -41,6 +44,8 @@ interpretCodeStoreToCassandra = interpret $ \case
   DeleteCode k s -> embedClient $ deleteCode k s
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
+  GetConversationCodeURI ->
+    view (options . optSettings . setConversationCodeURI) <$> input
 
 -- | Insert a conversation code
 insertCode :: Code -> Client ()

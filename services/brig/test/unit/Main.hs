@@ -21,7 +21,6 @@ module Main
 where
 
 import Imports
-import qualified Test.Brig.API.Error
 import qualified Test.Brig.Calling
 import qualified Test.Brig.Calling.Internal
 import qualified Test.Brig.Roundtrip
@@ -36,6 +35,5 @@ main =
       [ Test.Brig.User.Search.Index.Types.tests,
         Test.Brig.Calling.tests,
         Test.Brig.Calling.Internal.tests,
-        Test.Brig.API.Error.tests,
         Test.Brig.Roundtrip.tests
       ]

@@ -30,7 +30,7 @@ import Galley.Effects
 import Galley.Effects.ExternalAccess (ExternalAccess (..))
 import Galley.Env
 import Galley.Intra.User
-import Galley.Intra.Util
+import Galley.Monad
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Imports
@@ -38,7 +38,7 @@ import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
-import qualified Polysemy.Reader as P
+import Polysemy.Input
 import Ssl.Util (withVerifiedSslConnection)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
@@ -46,37 +46,37 @@ import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 
 interpretExternalAccess ::
-  Members '[Embed IO, P.Reader Env] r =>
+  Members '[Embed IO, Input Env] r =>
   Sem (ExternalAccess ': r) a ->
   Sem r a
 interpretExternalAccess = interpret $ \case
-  Deliver pp -> embedIntra $ deliver (toList pp)
-  DeliverAsync pp -> embedIntra $ deliverAsync (toList pp)
-  DeliverAndDeleteAsync cid pp -> embedIntra $ deliverAndDeleteAsync cid (toList pp)
+  Deliver pp -> embedApp $ deliver (toList pp)
+  DeliverAsync pp -> embedApp $ deliverAsync (toList pp)
+  DeliverAndDeleteAsync cid pp -> embedApp $ deliverAndDeleteAsync cid (toList pp)
 
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: [(BotMember, Event)] -> IntraM ()
+deliverAsync :: [(BotMember, Event)] -> App ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
-deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> IntraM ()
+deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> App ()
 deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
 
-deliver :: [(BotMember, Event)] -> IntraM [BotMember]
+deliver :: [(BotMember, Event)] -> App [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> IntraM Bool
+    exec :: (BotMember, Event) -> App Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
         Nothing -> return False
         Just s -> do
           deliver1 s b e
           return True
-    eval :: [BotMember] -> (BotMember, Async Bool) -> IntraM [BotMember]
+    eval :: [BotMember] -> (BotMember, Async Bool) -> App [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
       r <- waitCatch a
@@ -115,7 +115,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> IntraM ()
+deliver1 :: Service -> BotMember -> Event -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
     let t = toByteString' (s ^. serviceToken)
@@ -145,7 +145,7 @@ urlPort (HttpsUrl u) = do
   p <- a ^. authorityPortL
   return (fromIntegral (p ^. portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> IntraM ()
+sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->

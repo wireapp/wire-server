@@ -1,5 +1,48 @@
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
+# [2021-12-02]
+
+## Release notes
+
+* Breaking change to the `fake-aws-s3` (part of `fake-aws`) helm chart. We now use minio helm chart from https://charts.min.io. The options are documented [here](https://github.com/minio/minio/tree/master/helm/minio) (#1944)
+
+  Before running the upgrade, the operators must use `kubectl edit deployment fake-aws-s3` and explicitly set `spec.template.spec.containers[0].serviceAccount` and `spec.template.spec.containers[0].serviceAccountName` to null. (#1944)
+* Upgrade team-settings version to 4.3.0-v0.28.28-a2f11cf (#1856)
+* Upgrade webapp version to 2021-12-02-production.0-v0.28.29-0-ec2fa00 (#1954)
+
+## Features
+
+* By default install elasticsearch version 6.8.18 when using the elasticsearch-ephemeral chart (#1952)
+* Use fluent-bit chart from fluent.github.io instead of deprecated charts.helm.sh. Previous fluent-bit values are not compatible with the new chart, the documentation for the new chart can be found [here](https://github.com/fluent/helm-charts/tree/main/charts/fluent-bit) (#1952)
+* Use kibana chart from helm.elastic.co instead of deprecated charts.helm.sh. Previous kibana values are not compatible with the new chart, the documentation for the new chart can be found [here](https://github.com/elastic/helm-charts/tree/main/kibana). This also upgrades kibana to version 6.8.18. (#1952)
+* Use kube-prometheus-stack instead of prometheus-operator and update grafana dashboards for compatibility and add federation endpoints to relevant queries. (#1915)
+* Add log format called 'StructuredJSON' for easier log aggregation (#1951)
+
+## Bug fixes and other updates
+
+* elasticsearch-ephemeral: Disable automatic creation of indices (#1949)
+
+## Documentation
+
+* Document the wire-server PR process better. (#1934)
+* Remove documentation of unsupported scim end-point use case. (#1941)
+* Document servant setup and combinators (#1933)
+
+## Internal changes
+
+* Add in-memory interpreters for most Spar effects (#1920)
+* Use minio helm chart in fake-aws-s3 from charts.min.io instead of helm.min.io, the latter seems to be down (#1944)
+* Upgrade to polysemy-1.7.0.0
+   (#1932)
+* Replace Galley monad with polysemy's Sem throughout Galley (#1917)
+* Separate VerdictFormatStore effect from AReqIdStore effect (#1925)
+
+## Federation changes
+
+* The server-to-server API now uses HTTP2 directly instead of gRPC (#1930)
+* Errors when leaving a conversation are now correctly handled instead of resulting in a generic federation error. (#1928)
+
+
 # [2021-11-15]
 
 ## Release notes
@@ -32,7 +75,7 @@
 * Turn placeholder access effects into actual Polysemy effects. (#1904)
 * Fix a bug in the IdP.Mem interpreter, and added law tests for IdP (#1863)
 * Introduce fine-grained error types and polysemy error effects in Galley. (#1907)
-* Add polysemy store effects and split off Cassandra specific functionality from the Galley.Data module hierarchy (#1890, #1906). (#1890)
+* Add polysemy store effects and split off Cassandra specific functionality from the Galley.Data module hierarchy (#1890, #1906)
 * Make golden-tests in wire-api package a separate test suite (for faster feedback loop during development). (#1926)
 * Separate IdPRawMetadataStore effect from IdP effect (#1924)
 * Test sending message to multiple remote domains (#1899)
@@ -50,7 +93,7 @@
 ## Release notes
 
 * Upgrade SFT to 2.1.15 (#1849)
-* Upgrade team settings to Release: [v4.2.0](https://github.com/wireapp/wire-team-settings/releases/tag/v4.2.0) and image tag: 4.2.0-v0.28.28-1e2ef7 (#1856)
+* Upgrade team settings to Release: [v4.3.0](https://github.com/wireapp/wire-team-settings/releases/tag/v4.3.0) and image tag: 4.3.0-v0.28.28-a2f11cf (#1950)
 * Upgrade Webapp to image tag: 20021-10-28-federation-m1 (#1856)
 
 ## API changes

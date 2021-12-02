@@ -36,6 +36,7 @@ import Brig.Types.User.Auth hiding (user)
 import qualified Brig.Types.User.Auth as Auth
 import qualified CargoHold.Types.V3 as CHV3
 import Control.Arrow ((&&&))
+import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
@@ -45,7 +46,7 @@ import qualified Data.Aeson.Lens as AesonL
 import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import Data.Domain (Domain (..), domainText)
+import Data.Domain
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
@@ -63,6 +64,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
+import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports hiding (head)
@@ -80,8 +82,6 @@ import Web.Cookie (parseSetCookie)
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
-import Wire.API.Federation.GRPC.Types (OutwardResponse (OutwardResponseBody))
-import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.User (ListUsersQuery (..))
 import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
@@ -1225,7 +1225,7 @@ testDeleteWithRemotes opts brig = do
   sendConnectionAction brig opts (userId localUser) remote2UserBlocked (Just FedBrig.RemoteConnect) Accepted
   void $ putConnectionQualified brig (userId localUser) remote2UserBlocked Blocked
 
-  let fedMockResponse = const (OutwardResponseBody (cs $ Aeson.encode EmptyResponse))
+  let fedMockResponse _ = pure (Aeson.encode EmptyResponse)
   let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
       galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
         case (requestMethod, requestPath) of
@@ -1240,23 +1240,19 @@ testDeleteWithRemotes opts brig = do
         const 200 === statusCode
 
   liftIO $ do
-    remote1Call <- assertOne $ filter (\c -> F.domain c == domainText remote1Domain) rpcCalls
+    remote1Call <- assertOne $ filter (\c -> frTargetDomain c == remote1Domain) rpcCalls
     remote1Udn <- assertRight $ parseFedRequest remote1Call
     udcnUser remote1Udn @?= userId localUser
     sort (fromRange (udcnConnections remote1Udn))
       @?= sort (map qUnqualified [remote1UserConnected, remote1UserPending])
 
-    remote2Call <- assertOne $ filter (\c -> F.domain c == domainText remote2Domain) rpcCalls
+    remote2Call <- assertOne $ filter (\c -> frTargetDomain c == remote2Domain) rpcCalls
     remote2Udn <- assertRight $ parseFedRequest remote2Call
     udcnUser remote2Udn @?= userId localUser
     fromRange (udcnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
   where
-    parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
-    parseFedRequest fr =
-      case F.request fr of
-        Just r ->
-          (eitherDecode . cs) (F.body r)
-        Nothing -> Left "No request"
+    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
+    parseFedRequest = eitherDecode . frBody
 
 testDeleteWithRemotesAndFailedNotifications :: Opt.Opts -> Brig -> Cannon -> Http ()
 testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
@@ -1275,9 +1271,9 @@ testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
   sendConnectionAction brig opts (userId alice) carl (Just FedBrig.RemoteConnect) Accepted
 
   let fedMockResponse req =
-        if Domain (F.domain req) == bDomain
-          then F.OutwardResponseError (F.OutwardError F.ConnectionRefused "mocked connection problem with b domain")
-          else OutwardResponseBody (cs $ Aeson.encode EmptyResponse)
+        if frTargetDomain req == bDomain
+          then throw $ MockErrorResponse Http.status500 "mocked connection problem with b domain"
+          else pure (Aeson.encode EmptyResponse)
 
   let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
       galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
@@ -1295,18 +1291,14 @@ testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
       void . liftIO . WS.assertMatch (5 # Second) wsAlex $ matchDeleteUserNotification (userQualifiedId alice)
 
   liftIO $ do
-    rRpc <- assertOne $ filter (\c -> F.domain c == domainText cDomain) rpcCalls
+    rRpc <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
     cUdn <- assertRight $ parseFedRequest rRpc
     udcnUser cUdn @?= userId alice
     sort (fromRange (udcnConnections cUdn))
       @?= sort (map qUnqualified [carl])
   where
-    parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
-    parseFedRequest fr =
-      case F.request fr of
-        Just r ->
-          (eitherDecode . cs) (F.body r)
-        Nothing -> Left "No request"
+    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
+    parseFedRequest = eitherDecode . frBody
 
 testUpdateSSOId :: Brig -> Galley -> Http ()
 testUpdateSSOId brig galley = do

@@ -22,51 +22,48 @@ module Galley.API.Clients
   )
 where
 
-import Control.Lens (view)
 import Data.Id
-import Galley.App
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
-import Galley.Options
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Polysemy
 
 getClientsH ::
   Members '[BrigAccess, ClientStore] r =>
   UserId ->
-  Galley r Response
+  Sem r Response
 getClientsH usr = do
   json <$> getClients usr
 
 getClients ::
   Members '[BrigAccess, ClientStore] r =>
   UserId ->
-  Galley r [ClientId]
+  Sem r [ClientId]
 getClients usr = do
-  isInternal <- view $ options . optSettings . setIntraListing
+  isInternal <- E.useIntraClientListing
   clts <-
-    liftSem $
-      if isInternal
-        then fromUserClients <$> E.lookupClients [usr]
-        else E.getClients [usr]
+    if isInternal
+      then fromUserClients <$> E.lookupClients [usr]
+      else E.getClients [usr]
   return $ clientIds usr clts
 
 addClientH ::
   Member ClientStore r =>
   UserId ::: ClientId ->
-  Galley r Response
-addClientH (usr ::: clt) = liftSem $ do
+  Sem r Response
+addClientH (usr ::: clt) = do
   E.createClient usr clt
   return empty
 
 rmClientH ::
   Member ClientStore r =>
   UserId ::: ClientId ->
-  Galley r Response
-rmClientH (usr ::: clt) = liftSem $ do
+  Sem r Response
+rmClientH (usr ::: clt) = do
   E.deleteClient usr clt
   return empty

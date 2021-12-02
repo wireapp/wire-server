@@ -24,7 +24,6 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.App (Galley, liftSem)
 import Galley.Data.Conversation
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
@@ -38,8 +37,8 @@ iUpsertOne2OneConversation ::
   forall r.
   Members '[ConversationStore, MemberStore] r =>
   UpsertOne2OneConversationRequest ->
-  Galley r UpsertOne2OneConversationResponse
-iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = liftSem $ do
+  Sem r UpsertOne2OneConversationResponse
+iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
   let convId = fromMaybe (one2OneConvId (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooConvId
 
   let dolocal :: Local ConvId -> Sem r ()

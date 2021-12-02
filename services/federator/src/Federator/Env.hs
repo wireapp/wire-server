@@ -31,7 +31,7 @@ import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.TLS as TLS
 import qualified System.Logger.Class as LC
-import Wire.API.Federation.GRPC.Types
+import Wire.API.Federation.Component
 
 data TLSSettings = TLSSettings
   { _caStore :: CertificateStore,

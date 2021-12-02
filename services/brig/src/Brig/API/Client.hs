@@ -78,7 +78,7 @@ import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
-import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.Error
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
