@@ -48,7 +48,7 @@ instance AsWai DiscoveryFailure where
   toWai e = Wai.mkError status label (LText.fromStrict (waiErrorDescription e))
     where
       (status, label) = case e of
-        DiscoveryFailureSrvNotAvailable _ -> (HTTP.status422, "srv-record-not-found")
+        DiscoveryFailureSrvNotAvailable _ -> (HTTP.status422, "invalid-domain")
         DiscoveryFailureDNSError _ -> (HTTP.status500, "discovery-failure")
   waiErrorDescription :: DiscoveryFailure -> Text
   waiErrorDescription (DiscoveryFailureSrvNotAvailable msg) =

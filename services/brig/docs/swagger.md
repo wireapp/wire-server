@@ -42,46 +42,34 @@ For errors that are more likely to be transient, we suggest clients to retry wha
 
 ### Domain errors
 
-Errors in this category result from trying to communicate with a backend that is considered non-existent or invalid. They can result from invalid user input or client issues, but they can also be a symptom of misconfiguration in one or multiple backends.
+Errors in this category result from trying to communicate with a backend that is considered non-existent or invalid. They can result from invalid user input or client issues, but they can also be a symptom of misconfiguration in one or multiple backends. These errors have a 4xx status code.
 
- - **Remote backend not found** (status: 422, label: `srv-record-not-found`): This backend attempted to contact a backend which does not exist or is not properly configured. For the most part, clients can consider this error equivalent to a domain not existing, although it should be noted that certain mistakes in the DNS configuration on a remote backend can lead to the backend not being recognized, and hence to this error. It is therefore not advisable to take any destructive action upon encountering this error, such as deleting remote users from conversations.
- - **Federation denied locally** (status: 400, label: `federation-not-allowed`): This backend attempted an RPC to a non-whitelisted backend. Similar considerations as for the previous error apply.
+ - **Remote backend not found** (status: 422, label: `invalid-domain`): This backend attempted to contact a backend which does not exist or is not properly configured. For the most part, clients can consider this error equivalent to a domain not existing, although it should be noted that certain mistakes in the DNS configuration on a remote backend can lead to the backend not being recognized, and hence to this error. It is therefore not advisable to take any destructive action upon encountering this error, such as deleting remote users from conversations.
+ - **Federation denied locally** (status: 400, label: `federation-denied`): This backend attempted an RPC to a non-whitelisted backend. Similar considerations as for the previous error apply.
+ - **Federation not enabled** (status: 400, label: `federation-not-enabled`): Federation has not been configured for this backend. This will happen if a federation-aware client tries to talk to a backend for which federation is disabled, or if federation was disabled on the backend after reaching a federation-specific state (e.g. conversations with remote users). There is no way to cleanly recover from these errors at this point.
 
 ### Local federation errors
 
-An error in this category likely indicates an issue with configuration of federation on the local backend. Possibly transient errors are indicated explicitly below.
+An error in this category likely indicates an issue with the configuration of federation on the local backend. Possibly transient errors are indicated explicitly below. All these errors have a 500 status code.
 
- - **Federation not enabled** (status: 400, label: `federation-not-enabled`): Federation has not been configured for this backend. This will happen if a federation-aware client tries to talk to a backend for which federation is disabled, or if federation was disabled on the backend after reaching a federation-specific state (e.g. conversations with remote users). There is no way to cleanly recover from these errors at this point.
  - **Federation unavailable** (status: 500, label: `federation-not-available`): Federation is configured for this backend, but the local federator cannot be reached. This can be transient, so clients should retry the request.
- - **Federation not implemented** (status: 403, label: `federation-not-implemented`): Federated behaviour for a certain endpoint is not yet implemented.
- - **Federator discovery failed** (status: 500, label: `srv-lookup-dns-error`): A DNS error occurred during discovery of a remote backend. This can be transient, so clients should retry the request.
- - **Too much concurrency** (status: 533, label: `too-much-concurrency`): Too many concurrent requests from this backend. This can be transient, so clients should retry the request.
+ - **Federation not implemented** (status: 500, label: `federation-not-implemented`): Federated behaviour for a certain endpoint is not yet implemented.
+ - **Federator discovery failed** (status: 500, label: `discovery-failure`): A DNS error occurred during discovery of a remote backend. This can be transient, so clients should retry the request.
+ - **Local federation error** (status: 500, label: `federation-local-error`): An error occurred in the communication between this backend and its local federator. These errors are most likely caused by bugs in the backend, and should be reported as such.
 
 ### Remote federation errors
 
-Errors in this category are returned in case of communication issues between the local backend and a remote one, or if the remote side encountered an error while processing an RPC. Some errors in this category might be caused by incorrect client behaviour or wrong user input. All of these errors can be transient, so clients should retry the request that caused them.
+Errors in this category are returned in case of communication issues between the local backend and a remote one, or if the remote side encountered an error while processing an RPC. Some errors in this category might be caused by incorrect client behaviour, wrong user input, or incorrect certificate configuration. Possibly transient errors are indicated explicitly. We use non-standard 5xx status codes for these errors.
 
- - **gRPC error** (status: 533, label: `grpc-error`): The current federator encountered an error when making an RPC to a remote one. Check the error message for more details.
- - **Client RPC error** (status: 500, label: `client-rpc-error`): There was a non-specified error when making a request to another backend. Check the error message for more details.
- - **Connection refused** (status: 521, label: `cannot-connect-to-remote-federator`): The local federator could not connect to a remote one.
- - **Unknown remote error** (status: 500, label: `unknown-federation-error`): An RPC failed but no specific error was returned by the remote side. Check the error message for more details.
+ - **HTTP2 error** (status: 533, label: `federation-http2-error`): The current federator encountered an error when making an HTTP2 request to a remote one.  Check the error message for more details.
+ - **Connection refused** (status: 521, label: `federation-connection-refused`): The local federator could not connect to a remote one. This could be transient, so clients should retry the request.
+ - **TLS failure**: (status: 525, label: `federation-tls-error`): An error occurred during the TLS handshake between the local federator and a remote one. This is most likely due to an issue with the certificate on the remote end.
+ - **Remote federation error** (status: 533, label: `federation-remote-error`): The remote backend could not process a request coming from this backend. Check the error message for more details.
 
 ### Backend compatibility errors
 
 An error in this category will be returned when this backend makes an invalid or unsupported RPC to another backend. This can indicate some incompatibility between backends or a backend bug. These errors are unlikely to be transient, so retrying requests is *not* advised.
 
- - **Version mismatch** (status: 531): A remote backend is running an unsupported version of the federator.
- - **Invalid method** / **Streaming not supported** (status: 500, label: `federation-invalid-call`): There was an error in the communication between a service on this backend and the local federator.
- - **Invalid request** (status: 500, label: `invalid-request-to-federator`): The local federator made an invalid request to a remote one. Check the error message for more details.
- - **Invalid content type** (status: 503, label: `federation-invalid-content-type-header`): An RPC to another backend returned an invalid content type.
- - **Unsupported content type** (status: 503, label: `federation-unsupported-content-type`): An RPC to another backend returned an unsupported content type.
- - **Invalid origin domain** (status: 533, label: `invalid-origin-domain`): The current backend attempted an RPC with an invalid origin domain field.
- - **Forbidden endpoint** (status: 533, label: `forbidden-endpoint`): The current backend attempted an RPC to a forbidden or inaccessible remote endpoint.
- - **Unknown federation error** (status: 503, label: `unknown-federation-error`): The target of an RPC returned an unexpected reponse. Check the error message for more details.
-
-### Authentication errors
-
-The errors in this category relate to authentication or authorization issues between backends. These errors are unlikely to be transient, so retrying requests is *not* advised.
-
- - **TLS failure**: (status: 525): An error occurred during the TLS handshake between the local federator and a remote one. This is most likely due to an issue with the certificate on the remote end.
- - **Federation denied remotely** (status: 532): The current backend made an unauthorized request to a remote one.
+ - **Version mismatch** (status: 531, label: `federation-version-mismatch`): A remote backend is running an unsupported version of the federator.
+ - **Invalid content type** (status: 533, label: `federation-invalid-content-type`): An RPC to another backend returned with an invalid content type.
+ - **Unsupported content type** (status: 533, label: `federation-unsupported-content-type`): An RPC to another backend returned with an unsupported content type.

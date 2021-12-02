@@ -53,7 +53,7 @@
 --
 -- Immediate failures in the outward service of a federator (stage 2) result in
 -- a 403 status code being returned to the federator client, which is then
--- translated into an error with label federation-local-failure.
+-- translated into an error with label federation-local-error.
 --
 -- Failures which occurred while making a request to a remote federator (stages
 -- 3 to 6) are turned into 5xx errors by federator itself, and then passed on
@@ -172,7 +172,7 @@ federationRemoteHTTP2Error (FederatorClientHTTP2Exception e) =
 federationRemoteHTTP2Error (FederatorClientTLSException e) =
   Wai.mkError
     (HTTP.mkStatus 525 "SSL Handshake Failure")
-    "tls-failure"
+    "federation-tls-error"
     (LT.fromStrict (displayTLSException e))
 federationRemoteHTTP2Error (FederatorClientConnectionError e) =
   Wai.mkError
@@ -189,7 +189,7 @@ federationClientHTTP2Error (FederatorClientConnectionError e) =
 federationClientHTTP2Error e =
   Wai.mkError
     HTTP.status500
-    "federator-client-error"
+    "federation-local-error"
     (LT.pack (displayException e))
 
 federationRemoteResponseError :: HTTP.Status -> Wai.Error
@@ -219,11 +219,12 @@ displayTLSError (Error_Packet_Parsing msg) = "packet parsing error: " <> T.pack 
 
 federationServantErrorToWai :: ClientError -> Wai.Error
 federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg
+-- the following error is never thrown by federator client
 federationServantErrorToWai (FailureResponse _ _) = federationUnknownError
 federationServantErrorToWai (InvalidContentTypeHeader res) =
   Wai.mkError
     unexpectedFederationResponseStatus
-    "federation-invalid-content-type-header"
+    "federation-invalid-content-type"
     ("Content-type: " <> federationErrorContentType res)
 federationServantErrorToWai (UnsupportedContentType mediaType res) =
   Wai.mkError
@@ -244,9 +245,6 @@ federationErrorContentType =
     . find (\(name, _) -> name == "Content-Type")
     . responseHeaders
 
-noFederationStatus :: Status
-noFederationStatus = status403
-
 unexpectedFederationResponseStatus :: Status
 unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Response"
 
@@ -256,7 +254,7 @@ federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection 
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
   Wai.mkError
-    noFederationStatus
+    HTTP.status500
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
 
