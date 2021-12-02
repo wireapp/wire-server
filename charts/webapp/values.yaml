@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2021-12-02-production.0-v0.28.29-0-ec2fa00"
+  tag: "2021-12-02-federation-M1-spillover"
 service:
   https:
     externalPort: 443
