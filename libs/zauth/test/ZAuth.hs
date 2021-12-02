@@ -94,7 +94,7 @@ testNotExpired p = do
   liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
 
 -- The testExpired test conforms to the following testing standards:
--- @SF.Channel @TSFI.RESTfulAPI
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
 --
 -- Using an expired access token should fail
 testExpired :: V.Env -> Create ()

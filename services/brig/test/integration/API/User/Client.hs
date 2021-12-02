@@ -417,7 +417,7 @@ testMultiUserGetPrekeysQualified brig opts = do
       const (Right $ expectedUserClientMap) === responseJsonEither
 
 -- The testTooManyClients test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
@@ -440,7 +440,7 @@ testTooManyClients opts brig = do
       const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
 
 -- The testRemoveClient test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
@@ -482,7 +482,7 @@ testRemoveClient hasPwd brig cannon = do
         }
 
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
@@ -671,7 +671,7 @@ testMissingClient brig = do
       === map snd . filter ((== "Content-Type") . fst) . responseHeaders
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
