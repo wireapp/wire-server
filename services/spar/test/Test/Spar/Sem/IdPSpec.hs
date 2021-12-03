@@ -82,9 +82,7 @@ prop_storeStoreInterleave =
     s <- arbitrary
     s' <- arbitrary
     !_ <-
-      if s ^. SAML.idpId == s' ^. SAML.idpId
-        then discard
-        else pure ()
+      when (s ^. SAML.idpId == s' ^. SAML.idpId) discard
     pure
       ( do
           E.storeConfig s
