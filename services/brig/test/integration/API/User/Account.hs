@@ -141,8 +141,57 @@ tests _ at opts p b c ch g aws =
       testGroup
         "temporary customer extensions"
         [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
+        ],
+      testGroup
+        "update user email by team owner"
+        [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
         ]
     ]
+
+testUpdateUserEmailByTeamOwner :: Brig -> Http ()
+testUpdateUserEmailByTeamOwner brig = do
+  (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  (teamOwnerDifferentTeam, _) <- createUserWithTeam' brig
+  newEmail <- randomEmail
+  initiateEmailUpdateNoSend brig newEmail (userId emailOwner) !!! (const 202 === statusCode)
+  checkActivationCode newEmail True
+  checkLetActivationExpire newEmail
+  checkActivationCode newEmail False
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail True
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  activateEmail brig newEmail
+  -- apparently activating the email does not invalidate the activation code
+  -- therefore we let the activation code expire again
+  checkLetActivationExpire newEmail
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail False
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  checkActivationCode newEmail False
+  where
+    checkLetActivationExpire :: Email -> Http ()
+    checkLetActivationExpire email = do
+      -- assumption: `optSettings.setActivationTimeout = 5` in `brig.yaml`
+      threadDelay (5100 * 1000)
+      checkActivationCode email False
+
+    checkActivationCode :: Email -> Bool -> Http ()
+    checkActivationCode email shouldExist = do
+      maybeActivationCode <- Util.getActivationCode brig (Left email)
+      void $
+        lift $
+          if shouldExist
+            then assertBool "activation code should exists" (isJust maybeActivationCode)
+            else assertBool "activation code should not exists" (isNothing maybeActivationCode)
+
+    checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
+    checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
+      setUserEmail brig (userId teamOwner) (userId emailOwner) email !!! (const expectedStatusCode === statusCode)
+
+    checkUnauthorizedRequests :: User -> User -> User -> Email -> Http ()
+    checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam email = do
+      setUserEmail brig (userId teamOwnerDifferentTeam) (userId emailOwner) email !!! (const 404 === statusCode)
+      setUserEmail brig (userId otherTeamMember) (userId emailOwner) email !!! (const 403 === statusCode)
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserWithPreverified opts brig aws = do

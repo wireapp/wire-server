@@ -40,6 +40,7 @@ import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
+import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -80,6 +81,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -251,6 +253,7 @@ servantSitemap =
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.deleteSelf = deleteUser,
+        BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
@@ -1192,6 +1195,27 @@ verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
+
+updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> Handler ()
+updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
+  maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
+  whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
+  maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
+  checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
+  void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
+  where
+    checkSameTeam :: Maybe TeamId -> Maybe TeamId -> Handler ()
+    checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
+      when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd $ notFound "user not found"
+    checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
+
+    assertHasPerm :: Maybe TeamId -> Handler Bool
+    assertHasPerm maybeTeamId = fromMaybe False <$> check
+      where
+        check = runMaybeT $ do
+          teamId <- hoistMaybe maybeTeamId
+          teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
+          pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
 
