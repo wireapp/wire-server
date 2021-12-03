@@ -43,151 +43,62 @@ qualified.
 API between Federators
 -----------------------
 
-The layer between `Federators` acts as an envelope for communication between other
-components of wire server. It uses Protocol Buffers (protobuf from here onwards)
-for serialization over gRPC. The latest protobuf schema can be inspected at
-`the wire-server repository
-<https://github.com/wireapp/wire-server/blob/master/libs/wire-api-federation/proto/router.proto>`_.
-
-All gRPC calls are made via a :ref:`mutually authenticated TLS connection
-<authentication>` and subject to a :ref:`general <authorization>`, as well as a
-:ref:`per-request authorization <per-request-authorization>` step.
-
-The ``Inward`` service defined in the schema is used between `Federator`s. It
-supports one rpc called ``call`` which requires a ``Request`` and returns an
-``InwardResponse``. These objects looks like this:
+The layer between `Federator` acts as an envelope for communication between
+other components of wire server. The `Inward` service of `Federator` is an
+HTTP2 server which is responsible for accepting external requests coming from
+other backends, and forwarding them to the appropriate component (currently
+Brig or Galley).
 
 
-.. code-block:: protobuf
+`Federator` inspects the header of an incoming requests, performs discovery and
+authentication, as described in :ref:`Backend to backend communication
+<backend-to-backend-communication>`, then forwards the request as-is by
+repackaging its body into an HTTP request for the target component.
 
-    message Request {
-      Component component = 1;
-      bytes path = 2;
-      bytes body = 3;
-      string originDomain = 4
-    }
+The `Inward` service accepts only ``POST`` requests with a path of the form
+``/federation/:component/:rpc``, where `:component` is the lowercase name of
+the target component (i.e. ``brig`` or ``galley``), and ``:rpc`` is the name of
+the federation RPC to invoke. The arguments of the RPC are contained the body,
+which is assumed to be of content type ``application/json``.
 
-    enum Component {
-      Brig = 0;
-      Galley = 1;
-    }
-
-    message InwardResponse {
-      oneof response {
-        InwardError err = 1;
-        bytes body = 2;
-      }
-    }
-
-    message InwardError {
-      enum ErrorType {
-        IOther = 0;
-        IInvalidDomain = 1;
-        IFederationDeniedByRemote = 2;
-        IInvalidEndpoint = 3;
-        IForbiddenEndpoint = 4;
-      }
-
-      ErrorType type = 1;
-      string msg = 2;
-    }
-
-
-The ``component`` field in ``Request`` tells the `Federator` which components this
-request is meant for and the rest of the arguments are details of the HTTP
-request which must be made against the component. It intentionally supports a
-restricted set of parameters to ensure that the API is simple.
+See :ref:`below <api-from-federator-to-components>` for more details on RPCs
+and their paths.
 
 API From Components to Federator
 --------------------------------
 
 Between two federated backends, the components talk to each other via the
-`Federator` in the originating domain and `Ingress` in the receiving domain. 
-When making the call to the `Federator`, the
-components use protobuf over gRPC. They call the ``Outward`` service, which also
-supports one rpc called ``call``. This rpc requires a ``FederatedRequest``
-object, which contains a ``Request`` object as defined above, as well as the
-domain of the destination `Federator`. The rpc returns an ``OutwardResponse``,
-which can either contains a body with the returned information or an
-``OutwardError``, these objects look like this:
+`Federator` in the originating domain and `Ingress` in the receiving domain.
+When making the call to the `Federator`, the components use HTTP2. They call
+the ``Outward`` service, which accepts ``POST`` requests with path
+``/rpc/:domain/:component/:rpc``. Such a request will be forwarded to a remote
+federator with the given :ref:`Backend domain <Backend domains>`, and converted
+to the appropriate request for its ``Inward`` service.
 
-.. code-block:: protobuf
-
-    message FederatedRequest {
-      string domain = 1;
-      Request request = 2;
-    }
-
-    message OutwardResponse {
-      oneof response {
-        OutwardError err = 1;
-        bytes body = 2;
-      }
-    }
-
-    message OutwardError {
-      enum ErrorType {
-        RemoteNotFound = 0;
-        DiscoveryFailed = 1;
-        ConnectionRefused = 2;
-        TLSFailure = 3;
-        InvalidCertificate = 4;
-        VersionMismatch = 5;
-        FederationDeniedByRemote = 6;
-        FederationDeniedLocally = 7;
-        RemoteFederatorError = 8;
-        InvalidRequest = 9;
-      }
-
-      ErrorType type = 1;
-      ErrorPayload payload = 2;
-    }
-
-    message ErrorPayload {
-      string label = 1;
-      string msg = 2;
-    }
-
-.. _federator-component-api:
+.. _api-from-federator-to-components:
 
 API From Federator to Components
 --------------------------------
 
-The components expose a REST API over HTTP to be consumed by the `Federator`. All
-the paths start with ``/federation``. When a `Federator` recieves a request like
-this (shown as JSON for convenience):
+The components expose a REST API over HTTP to be consumed by the `Federator`.
+All the paths start with ``/federation``. When a `Federator` receives a
+``POST`` request to ``/federation/brig/get-user-by-handle``, it connects to a
+local Brig and forwards the request to it after changing its path to
+``/federation/get-user-by-handle``.
 
-.. code-block:: json
+The ``/federation`` prefix is kept in the path to allow the component to
+distinguish federated requests from requests by clients or other local
+components.
 
-   {
-     "component": "Brig",
-     "path": "federation/get-user-by-handle",
-     "body": "\"janedoe\"",
-     "originDomain": "somedomain.example.com"
-   }
+If this request succeeds, the response is directly used as a response for the
+original call to the ``Inward`` service. Otherwise, a response with a ``5xx``
+status code is returned, with a body containing a description of the error that
+has occurred.
 
-The `Federator` connects to Brig and makes an HTTP request which looks like this:
-
-.. code-block::
-
-   > POST /federation/get-user-by-handle
-   > Wire-Origin-Domain: somedomain.example.com
-   > Content-Type: application/json
-   >
-   > "janedoe"
-
-The ``/federation`` prefix to the path allows the component to distinguish
-federated requests from requests by clients or other local components.
-
-If this request succeeds with any status, the response is encoded as the
-``InwardResponse`` object and returned as a response to the ``Inward.call`` gRPC
-call.
-
-Note, that before the ``path`` field of the ``Request`` is concatenated with
-``/federation`` and used as a component of the HTTP request, its segments are
-normalized as described in Section 6.2.2.3 of `RFC 3986
-<https://datatracker.ietf.org/doc/html/rfc3986/#section-6.2.2.3>`_ to prevent
-path-traversal attacks such as ``/federation/../users/by-handle``.
+Note that the name of the RPC (``get-user-by-handle`` in the above example) is
+required to be a single path segment consisting of only ASCII characters within
+a restricted set. This prevents path-traversal attacks such as attempting to
+access ``/federation/../users/by-handle``.
 
 .. _api-endpoints:
 

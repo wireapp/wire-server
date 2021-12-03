@@ -17,6 +17,7 @@ from internal backend components to other, remote backends.
 .. image:: img/federated-backend-architecture.png
    :width: 100%
 
+.. _backend-domains:
 
 Backend domains
 ^^^^^^^^^^^^^^^
@@ -114,8 +115,6 @@ components. The `Federator` will, for incoming requests from remote backends
    backend's client certificate,
 #. if enabled, ensure that the backend domain of the other backend is in the
    :ref:`allow list <allow-list>`,
-#. normalize and sanitize the :ref:`path component <federator-component-api>` of
-   the incoming request to ensure it's recognizable as a federated request and
 #. forward requests to other wire-server components.
 
 .. _other-wire-server:
@@ -135,6 +134,7 @@ functions include:
 For more information of the functionalities provided to remote backends through
 their `Federator`, see the :ref:`federated API documentation<api-endpoints>`.
 
+.. _backend-to-backend-communication:
 
 Backend to backend communication
 --------------------------------------------
