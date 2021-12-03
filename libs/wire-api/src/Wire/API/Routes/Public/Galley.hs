@@ -660,6 +660,9 @@ data Api routes = Api
     teamFeatureStatusSelfDeletingMessagesGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureSelfDeletingMessages,
+    featureStatusGuestLinksGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureGuestLinks,
     teamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSelfDeletingMessages,
@@ -692,7 +695,7 @@ data Api routes = Api
         :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
         :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages

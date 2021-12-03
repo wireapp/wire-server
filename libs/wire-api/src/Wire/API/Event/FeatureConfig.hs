@@ -75,6 +75,7 @@ taggedEventDataSchema =
       TeamFeatureClassifiedDomains -> tag _EdFeatureClassifiedDomainsChanged (unnamed schema)
       TeamFeatureConferenceCalling -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
       TeamFeatureSelfDeletingMessages -> tag _EdFeatureSelfDeletingMessagesChanged (unnamed schema)
+      TeamFeatureGuestLinks -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =

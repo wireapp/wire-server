@@ -60,14 +60,14 @@ tests s =
     [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
-      test s "DigitalSignatures" $ testSimpleFlag @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
-      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
-      test s "FileSharing" $ testSimpleFlag @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
+      test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
+      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
+      test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "ConferenceCalling" $ testSimpleFlag @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
+      test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
       test s "SelfDeletingMessages" testSelfDeletingMessages
     ]
 
@@ -81,13 +81,13 @@ testSSO = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getSSO :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSO = assertFlagNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
+      getSSO = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
       getSSOFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSOFeatureConfig = assertFlagNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO $ Util.getFeatureConfig Public.TeamFeatureSSO member
+      getSSOFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getFeatureConfig Public.TeamFeatureSSO member
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSOInternal = assertFlagNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
+      getSSOInternal = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setSSOInternal = void . Util.putTeamFeatureFlagInternal @'Public.WithoutLockStatus @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
+      setSSOInternal = void . Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
 
   assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSSO nonMember tid
 
@@ -121,13 +121,13 @@ testLegalHold = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getLegalHold :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getLegalHold = assertFlagNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
+      getLegalHold = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
       getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getLegalHoldInternal = assertFlagNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
-      getLegalHoldFeatureConfig = assertFlagNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold $ Util.getFeatureConfig Public.TeamFeatureLegalHold member
+      getLegalHoldInternal = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
+      getLegalHoldFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getFeatureConfig Public.TeamFeatureLegalHold member
 
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
+      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
   getLegalHold Public.TeamFeatureDisabled
   getLegalHoldInternal Public.TeamFeatureDisabled
 
@@ -316,13 +316,13 @@ testClassifiedDomainsDisabled = do
     getClassifiedDomainsFeatureConfig member expected
 
 testSimpleFlag ::
-  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName).
+  forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Typeable a,
-    Public.FeatureHasNoConfig ps a,
+    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
     Public.KnownTeamFeatureName a,
     FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
-    ToJSON (Public.TeamFeatureStatus ps a)
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   Public.TeamFeatureStatusValue ->
   TestM ()
@@ -337,19 +337,19 @@ testSimpleFlag defaultValue = do
 
   let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlag expected =
-        flip (assertFlagNoConfig @ps @a) expected $ Util.getTeamFeatureFlag feature member tid
+        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
 
       getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFeatureConfig expected =
-        flip (assertFlagNoConfig @ps @a) expected $ Util.getFeatureConfig feature member
+        flip (assertFlagNoConfig @a) expected $ Util.getFeatureConfig feature member
 
       getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlagInternal expected =
-        flip (assertFlagNoConfig @ps @a) expected $ Util.getTeamFeatureFlagInternal feature tid
+        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlagInternal feature tid
 
       setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
       setFlagInternal statusValue =
-        void $ Util.putTeamFeatureFlagInternal @ps @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+        void $ Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
@@ -414,7 +414,7 @@ testSelfDeletingMessages = do
   let checkSet :: TeamFeatureStatusValue -> Int32 -> Int -> TestM ()
       checkSet stat tout expectedStatusCode =
         do
-          Util.putTeamFeatureFlagInternal @'Public.WithoutLockStatus @'Public.TeamFeatureSelfDeletingMessages
+          Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSelfDeletingMessages
             galley
             tid
             (settingWithoutLockStatus stat tout)
@@ -561,10 +561,10 @@ assertFlagForbidden res = do
     fmap label . responseJsonMaybe === const (Just "no-team-member")
 
 assertFlagNoConfig ::
-  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName).
+  forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
     Typeable a,
-    Public.FeatureHasNoConfig ps a,
+    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
     FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
     Public.KnownTeamFeatureName a
   ) =>
@@ -575,7 +575,7 @@ assertFlagNoConfig res expected = do
   res !!! do
     statusCode === const 200
     ( fmap Public.tfwoStatus
-        . responseJsonEither @(Public.TeamFeatureStatus ps a)
+        . responseJsonEither @(Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
       )
       === const (Right expected)
 

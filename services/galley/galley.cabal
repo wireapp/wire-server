@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a1c3b8a4df30c11f5be17b3ba16e33ebb8a41438a7cec720761222a90f271f4e
+-- hash: 7b6d6110c4a94aa87c7d65d1e004acb6cbc1ce6775be39cde27ff7e5eca83f59
 
 name:           galley
 version:        0.83.0
@@ -437,6 +437,7 @@ executable galley-schema
       V53_AddRemoteConvStatus
       V54_TeamFeatureSelfDeletingMessages
       V55_SelfDeletingMessagesLockStatus
+      V56_GuestLinksTeamFeatureStatus
       Paths_galley
   hs-source-dirs:
       schema/src

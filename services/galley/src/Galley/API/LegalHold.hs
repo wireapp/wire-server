@@ -103,7 +103,7 @@ isLegalHoldEnabledForTeam tid = do
       pure False
     FeatureLegalHoldDisabledByDefault -> do
       statusValue <-
-        Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold tid
+        Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
       return $ case statusValue of
         Just Public.TeamFeatureEnabled -> True
         Just Public.TeamFeatureDisabled -> False

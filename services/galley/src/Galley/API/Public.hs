@@ -170,6 +170,9 @@ servantSitemap =
         GalleyAPI.teamFeatureStatusSelfDeletingMessagesPut =
           setFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal
             . DoAuth,
+        GalleyAPI.featureStatusGuestLinksGet =
+          Features.getFeatureStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal
+            . DoAuth,
         GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
         GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,

@@ -29,6 +29,7 @@ module Wire.API.Team.Feature
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
+    TeamFeatureStatusNoConfigAndLockStatus (..),
     TeamFeatureStatusWithConfig (..),
     TeamFeatureStatusWithConfigAndLockStatus (..),
     HasDeprecatedFeatureName (..),
@@ -39,6 +40,7 @@ module Wire.API.Team.Feature
     defaultAppLockStatus,
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
+    defaultGuestLinksStatus,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -49,6 +51,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureClassifiedDomainsConfig,
     modelTeamFeatureSelfDeletingMessagesConfig,
     modelTeamFeatureStatusWithConfigAndLockStatus,
+    modelTeamFeatureStatusNoConfigAndLockStatus,
     modelForTeamFeature,
     modelLockStatus,
   )
@@ -134,6 +137,7 @@ data TeamFeatureName
   | TeamFeatureClassifiedDomains
   | TeamFeatureConferenceCalling
   | TeamFeatureSelfDeletingMessages
+  | TeamFeatureGuestLinks
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -181,6 +185,10 @@ instance KnownTeamFeatureName 'TeamFeatureSelfDeletingMessages where
   type KnownTeamFeatureNameSymbol 'TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
   knownTeamFeatureName = TeamFeatureSelfDeletingMessages
 
+instance KnownTeamFeatureName 'TeamFeatureGuestLinks where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureGuestLinks = "conversationGuestLinks"
+  knownTeamFeatureName = TeamFeatureGuestLinks
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -199,6 +207,7 @@ instance FromByteString TeamFeatureName where
         Right "classifiedDomains" -> pure TeamFeatureClassifiedDomains
         Right "conferenceCalling" -> pure TeamFeatureConferenceCalling
         Right "selfDeletingMessages" -> pure TeamFeatureSelfDeletingMessages
+        Right "conversationGuestLinks" -> pure TeamFeatureGuestLinks
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 -- TODO: how do we make this consistent with 'KnownTeamFeatureNameSymbol'?  add a test for
@@ -214,6 +223,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureClassifiedDomains = "classifiedDomains"
   builder TeamFeatureConferenceCalling = "conferenceCalling"
   builder TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
+  builder TeamFeatureGuestLinks = "conversationGuestLinks"
 
 instance ToSchema TeamFeatureName where
   schema =
@@ -305,8 +315,12 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus _ 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
+  TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureGuestLinks = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks = TeamFeatureStatusNoConfigAndLockStatus
 
-type FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) = (TeamFeatureStatus ps a ~ TeamFeatureStatusNoConfig) :: Constraint
+type family FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) :: Constraint where
+  FeatureHasNoConfig 'WithLockStatus a = (TeamFeatureStatus 'WithLockStatus a ~ TeamFeatureStatusNoConfigAndLockStatus)
+  FeatureHasNoConfig 'WithoutLockStatus a = (TeamFeatureStatus 'WithoutLockStatus a ~ TeamFeatureStatusNoConfig)
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
@@ -320,6 +334,7 @@ modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
 modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
+modelForTeamFeature TeamFeatureGuestLinks = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -340,6 +355,29 @@ instance ToSchema TeamFeatureStatusNoConfig where
     object "TeamFeatureStatusNoConfig" $
       TeamFeatureStatusNoConfig
         <$> tfwoStatus .= field "status" schema
+
+data TeamFeatureStatusNoConfigAndLockStatus = TeamFeatureStatusNoConfigAndLockStatus
+  { tfwoapsStatus :: TeamFeatureStatusValue,
+    tfwoapsLockStatus :: LockStatusValue
+  }
+  deriving stock (Eq, Show, Generic, Typeable)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfigAndLockStatus)
+
+instance Arbitrary TeamFeatureStatusNoConfigAndLockStatus where
+  arbitrary = TeamFeatureStatusNoConfigAndLockStatus <$> arbitrary <*> arbitrary
+
+modelTeamFeatureStatusNoConfigAndLockStatus :: Doc.Model
+modelTeamFeatureStatusNoConfigAndLockStatus = Doc.defineModel "TeamFeatureStatusNoConfigAndLockStatus" $ do
+  Doc.description "Team feature that has no configuration beyond the boolean on/off switch and a lock status"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description ""
+  Doc.property "lockStatus" typeLockStatusValue $ Doc.description ""
+
+instance ToSchema TeamFeatureStatusNoConfigAndLockStatus where
+  schema =
+    object "TeamFeatureStatusNoConfigAndLockStatus" $
+      TeamFeatureStatusNoConfigAndLockStatus
+        <$> tfwoapsStatus .= field "status" schema
+        <*> tfwoapsLockStatus .= field "lockStatus" schema
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
@@ -561,6 +599,12 @@ instance Cass.Cql LockStatusValue where
 
   toCql Locked = Cass.CqlInt 0
   toCql Unlocked = Cass.CqlInt 1
+
+----------------------------------------------------------------------
+-- guest links
+
+defaultGuestLinksStatus :: TeamFeatureStatusNoConfigAndLockStatus
+defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
 ----------------------------------------------------------------------
 -- internal
