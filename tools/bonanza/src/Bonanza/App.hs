@@ -37,6 +37,7 @@ import Data.Conduit (ConduitM, runConduit, (.|))
 import Data.Conduit.Binary (sinkHandle, sourceHandle)
 import qualified Data.Conduit.List as Conduit
 import qualified Data.Conduit.Zlib as Conduit
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as T
 import Data.Time
 import Data.Version (showVersion)
@@ -192,7 +193,10 @@ runBonanza =
         <$> newIORef 0
         <*> newIORef 0
         <*> newIORef 0
-    geoDB <- mkGeo geodat
+    geoConfig <- do
+      case geo of
+        [] -> pure Nothing
+        (g : gs) -> Just . (g :| gs,) <$> mkGeo geodat
     runConduit $
       sourceHandle stdin
         .| runDecompress decomp
@@ -207,7 +211,7 @@ runBonanza =
               modifyIORef' events_in (+ 1)
                 *> pure evt
           )
-        .| runGeo geo geoDB
+        .| runGeo geoConfig
         .| runAnonymise anon
         .| runCmd cmd
         .| runCompress comp
@@ -228,8 +232,8 @@ runBonanza =
     unless quiet $ do
       dumpStderr stats
   where
-    runGeo [] _ = Conduit.map id
-    runGeo tags db =
+    runGeo Nothing = Conduit.map id
+    runGeo (Just (tags, db)) =
       Conduit.map
         (\e -> foldl' (\e' t -> geolocate db (T.pack t) e') e tags)
     runAnonymise = Conduit.map . anonymise . map T.pack
