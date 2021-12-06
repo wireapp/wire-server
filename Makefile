@@ -19,6 +19,8 @@ BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
 
+EXE_SCHEMA := ./dist/$(package)-schema
+
 # This ensures that focused unit tests written in hspec fail. This is supposed
 # to help us avoid merging PRs with focused tests. This will not catch focused
 # integration tests as they are run in kubernetes where this Makefile doesn't
@@ -74,6 +76,18 @@ ifeq ("$(pattern)", "")
 else
 	make -C services/$(package) i-$(pattern)
 endif
+
+# reset db using cabal
+.PHONY: db-reset-package
+db-reset-package: c
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
+
+# migrate db using cabal
+# For using stack see the Makefile of the package, e.g. services/brig/Makefile
+# Usage: make db-migrate-package package=galley
+.PHONY: db-migrate-package
+db-migrate-package: c
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
@@ -230,11 +244,17 @@ run-docker-builder:
 	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
 	docker run --workdir /wire-server -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
 
-CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-reset
+git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
+
+CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
+.PHONY: git-add-cassandra-schema-impl
+git-add-cassandra-schema-impl:
 	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
 	git add ./docs/reference/cassandra-schema.cql
+
+.PHONY: git-add-cassandra-schema-cabal
+git-add-cassandra-schema-cabal: db-reset-cabal git-add-cassandra-schema-impl
 
 .PHONY: cqlsh
 cqlsh:
@@ -244,10 +264,17 @@ cqlsh:
 .PHONY: db-reset
 db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	make db-reset-package package=brig
+	make db-reset-package package=galley
+	make db-reset-package package=gundeck
+	make db-reset-package package=spar
+else
 	make -C services/brig db-reset
 	make -C services/galley db-reset
 	make -C services/gundeck db-reset
 	make -C services/spar db-reset
+endif
 
 #################################
 ## dependencies
