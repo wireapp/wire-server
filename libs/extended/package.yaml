@@ -36,4 +36,17 @@ dependencies:
 - wai
 library:
   source-dirs: src
+tests:
+  extended-tests:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    dependencies:
+    - hspec
+    - extended
+    - temporary
+    build-tools:
+    - hspec-discover:hspec-discover
 stability: experimental
