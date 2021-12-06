@@ -21,7 +21,6 @@
 module Federator.Env where
 
 import Bilge (RequestId)
-import qualified Bilge as RPC
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Data.X509.CertificateStore
@@ -31,6 +30,7 @@ import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.TLS as TLS
 import qualified System.Logger.Class as LC
+import Util.Options
 import Wire.API.Federation.Component
 
 data TLSSettings = TLSSettings
@@ -44,7 +44,7 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
-    _service :: Component -> RPC.Request,
+    _service :: Component -> Endpoint,
     _httpManager :: HTTP.Manager,
     _tls :: IORef TLSSettings
   }

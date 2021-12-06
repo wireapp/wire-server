@@ -103,7 +103,7 @@ type AllEffects =
   '[ Remote,
      DiscoverFederator,
      DNSLookup, -- needed by DiscoverFederator
-     ServiceLBS,
+     ServiceStreaming,
      Input RunSettings,
      Input TLSSettings, -- needed by Remote
      Input Env, -- needed by Service
@@ -130,7 +130,7 @@ runFederator env =
     . runInputConst env
     . runInputSem (embed @IO (readIORef (view tls env)))
     . runInputConst (view runSettings env)
-    . interpretService
+    . interpretServiceStreaming
     . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery
     . interpretRemote

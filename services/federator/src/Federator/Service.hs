@@ -25,13 +25,16 @@ import Bilge.RPC (rpc')
 import Control.Lens (view)
 import Data.Domain
 import Data.String.Conversions (cs)
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import Federator.App
 import Federator.Env
 import Imports
+import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Input
+import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 
@@ -39,6 +42,8 @@ newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
   deriving (Eq, Show)
 
 type ServiceLBS = Service (Maybe LByteString)
+
+type ServiceStreaming = Service BodyReader
 
 data Service body m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
@@ -61,12 +66,40 @@ interpretService ::
   Sem r a
 interpretService = interpret $ \case
   ServiceCall component path body domain -> embedApp @IO $ do
-    serviceReq <- view service <$> ask
+    endpoint <- (view service <$> ask) <*> pure component
     res <-
-      rpc' (LText.pack (show component)) (serviceReq component) $
+      rpc' (LText.pack (show component)) (mkEndpoint endpoint) $
         RPC.method HTTP.POST
           . RPC.path path
           . RPC.body (RPC.RequestBodyLBS body)
           . RPC.contentJson
           . RPC.header originDomainHeaderName (cs (domainText domain))
     pure (RPC.responseStatus res, RPC.responseBody res)
+  where
+    mkEndpoint s = RPC.host (Text.encodeUtf8 (_epHost s)) . RPC.port (_epPort s) $ RPC.empty
+
+interpretServiceStreaming ::
+  Members '[Embed IO, Input Env] r =>
+  Sem (ServiceStreaming ': r) a ->
+  Sem r a
+interpretServiceStreaming = interpret $ \case
+  ServiceCall component rpcPath body domain -> do
+    Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
+    manager <- inputs (view httpManager)
+    reqId <- inputs (view requestId)
+    let req =
+          defaultRequest
+            { method = HTTP.methodPost,
+              host = Text.encodeUtf8 serviceHost,
+              port = fromIntegral servicePort,
+              requestBody = RequestBodyLBS body,
+              path = rpcPath,
+              requestHeaders =
+                [ ("Content-Type", "application/json"),
+                  (originDomainHeaderName, cs (domainText domain)),
+                  (RPC.requestIdName, RPC.unRequestId reqId)
+                ]
+            }
+    resp <- embed $ responseOpen req manager
+    -- TODO: close response
+    pure (responseStatus resp, responseBody resp)

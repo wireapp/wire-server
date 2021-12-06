@@ -34,13 +34,11 @@ module Federator.Run
   )
 where
 
-import qualified Bilge as RPC
 import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
-import Data.Text.Encoding (encodeUtf8)
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
@@ -95,14 +93,12 @@ newEnv o _dnsResolver = do
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = Opt.optSettings o
-  let _service Brig = mkEndpoint (Opt.brig o)
-      _service Galley = mkEndpoint (Opt.galley o)
-      _service Cargohold = mkEndpoint (Opt.cargohold o)
+  let _service Brig = Opt.brig o
+      _service Galley = Opt.galley o
+      _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager
   _tls <- mkTLSSettingsOrThrow _runSettings >>= newIORef
   return Env {..}
-  where
-    mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

@@ -26,7 +26,7 @@ import qualified Data.Text.Encoding as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.ExternalServer
-import Federator.Service (Service (..), ServiceLBS)
+import Federator.Service (Service (..), ServiceStreaming)
 import Federator.Validation
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -77,11 +77,20 @@ data Call = Call
   }
   deriving (Eq, Show)
 
-mockService :: Member (Output Call) r => HTTP.Status -> Sem (ServiceLBS ': r) a -> Sem r a
+mockService ::
+  Members [Output Call, Embed IO] r =>
+  HTTP.Status ->
+  Sem (ServiceStreaming ': r) a ->
+  Sem r a
 mockService status = interpret $ \case
   ServiceCall comp path body domain -> do
     output (Call comp path body domain)
-    pure (status, Just "\"bar\"")
+    ref <- embed @IO (newIORef False)
+    let sbody = do
+          done <- readIORef ref
+          writeIORef ref True
+          pure $ if done then mempty else "\"bar\""
+    pure (status, sbody)
 
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
@@ -300,7 +309,7 @@ testMethod =
       res <-
         runM
           . runError @ServerError
-          . interpret @ServiceLBS (\_ -> embed $ assertFailure "unexpected call to service")
+          . interpret @ServiceStreaming (\_ -> embed $ assertFailure "unexpected call to service")
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
           . discardLogs

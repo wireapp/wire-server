@@ -18,7 +18,7 @@
 module Federator.ExternalServer (callInward, serveInward, parseRequestData, RequestData (..)) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import Federator.Discovery
@@ -43,7 +43,7 @@ import Wire.API.Federation.Domain
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
   Members
-    '[ ServiceLBS,
+    '[ ServiceStreaming,
        Embed IO,
        TinyLog,
        DiscoverFederator,
@@ -72,7 +72,15 @@ callInward wreq = do
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show status)
 
-  pure $ Wai.responseLBS status defaultHeaders (fromMaybe mempty body)
+  let streamingBody output flush = go
+        where
+          go = do
+            chunk <- body
+            unless (BS.null chunk) $ do
+              output (byteString chunk)
+              flush
+              go
+  pure $ Wai.responseStream status defaultHeaders streamingBody
 
 data RequestData = RequestData
   { rdComponent :: Component,
