@@ -98,11 +98,13 @@ prop_storeStoreInterleave =
       when (s ^. SAML.idpId == s' ^. SAML.idpId) discard
     pure $ Law
       { lawLhs = do
-          E.storeConfig $ s & SAML.idpId .~ s' ^. SAML.idpId
+          E.storeConfig s
+          E.storeConfig s'
       , lawRhs = do
           E.storeConfig s'
+          E.storeConfig s
       , lawPrelude = []
-      , lawPostlude = [E.getConfig $ s' ^. SAML.idpId]
+      , lawPostlude = [E.getConfig $ s ^. SAML.idpId, E.getConfig $ s' ^. SAML.idpId]
       }
 
 prop_storeGet ::
