@@ -193,6 +193,10 @@ The client will call `GET /api-versions` and pick any number in the
 intersection of the versions it supports and the ones the server
 supports (usually the largest).
 
+*Corner case:* if we want to distinguish between backend-to-backend
+and client-to-backend, we can do that in path suffixes (`GET
+/api-versions/{client,federation}` etc.).
+
 
 ### No shared api version
 
@@ -233,13 +237,42 @@ There are at least two ways to implement this:
 2 seems a lot less work to write, read, and understand.
 
 
-## Data migration (aka request and response marshalling)
+## Data migration (aka data marshalling)
 
-TODO
+If the shape of an end-point changes between versions (if a data type
+in the routing table becomes a type family), it is often possible to
+write marshalling functions that translate a value from an older
+version into one of a newer version or vice versa.
 
-you want to migrate in two directions (why?)
+These functions are called marshalling functions and are useful to
+define separately to keep the application logic clean.
 
-and you can!!  (can you?)
+For certain changes to a data type used in an API, marshalling is
+straight-forward in both directions.  The most common example is
+adding an optional attribute to a JSON object:
+
+- *backward migration*: remove the new attribute.
+- *forward migration*: set the new attribute to `null`.
+
+(This is what wire has traditionally done to accomplish client
+backwards compatibility without any API versioning.)
+
+If a mandatory attribute is added in a newer version, there may be a
+plausible default value that can be used in the forward migration
+(backward migration would still remove the field).
+
+In other cases, whether there is an automatic migration depends on the
+use case and the semantics.
+
+It may even be impossible to marshal either in one or in both
+directions.  In this case, you have 3 options:
+
+1. abandon compatibility;
+2. rethink your new version and craft it in a way that two-way
+   marshalling is possible;
+3. make the application work around the gap, eg. by gracefully
+   refusing to offer video conferencing in a client if it is not
+   supported on the server yet.
 
 
 ## Writing client code
