@@ -442,6 +442,15 @@ testSelfDeletingMessages = do
   -- parsing works as expected.
   checkGet TeamFeatureEnabled 0 defLockStatus
 
+  case defLockStatus of
+    Public.Locked -> do
+      checkSet TeamFeatureDisabled 0 409
+    Public.Unlocked -> do
+      checkSet TeamFeatureDisabled 0 200
+      checkGet TeamFeatureDisabled 0 Public.Unlocked
+      checkSet TeamFeatureEnabled 0 200
+      checkGet TeamFeatureEnabled 0 Public.Unlocked
+
   -- now don't worry about what's in the config, write something to cassandra, and test with that.
   checkSetLockStatus Public.Locked
   checkGet TeamFeatureEnabled 0 Public.Locked

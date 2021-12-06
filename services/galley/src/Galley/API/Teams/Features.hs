@@ -600,23 +600,27 @@ getSelfDeletingMessagesInternal = \case
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
 setSelfDeletingMessagesInternal ::
-  Members
-    '[ GundeckAccess,
-       TeamStore,
-       TeamFeatureStore,
-       P.TinyLog,
-       Error TeamFeatureError
-     ]
-    r =>
+  forall r.
+  ( Member GundeckAccess r,
+    Member TeamStore r,
+    Member TeamFeatureStore r,
+    Member P.TinyLog r,
+    Member (Error TeamFeatureError) r,
+    Member (Input Opts) r
+  ) =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesInternal tid st = do
-  guardLockStatus @'Public.TeamFeatureSelfDeletingMessages tid Public.Locked
+  dftLockStatus <- Public.tfwcapsLockStatus <$> getCfgDefault
+  guardLockStatus @'Public.TeamFeatureSelfDeletingMessages tid dftLockStatus
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
   TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
+  where
+    getCfgDefault :: Sem r (Public.TeamFeatureStatusWithConfigAndLockStatus Public.TeamFeatureSelfDeletingMessagesConfig)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::
