@@ -255,7 +255,7 @@ extra-deps:
 # Not on stackage yet
 - polysemy-1.7.0.0
 - polysemy-plugin-0.4.2.0
-- polysemy-check-0.8.1.0
+- polysemy-check-0.9.0.0
 
 ############################################################
 # Development tools

@@ -1,9 +1,13 @@
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DeriveDataTypeable          #-}
+{-# LANGUAGE QuantifiedConstraints       #-}
+{-# LANGUAGE StandaloneDeriving          #-}
+{-# OPTIONS_GHC -Wno-orphans             #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Test.Spar.Sem.IdPSpec where
 
+import Control.Arrow
+import Data.Data (Data)
 import Arbitrary ()
 import Control.Lens
 import Imports
@@ -20,28 +24,33 @@ import qualified Wire.API.User.IdentityProvider as IP
 
 deriveGenericK ''E.IdP
 
+deriving instance Data (E.GetIdPResult IdPId)
+deriving instance Data (IdPId)
+
 propsForInterpreter ::
-  Member E.IdP r =>
+  (Member E.IdP r, PropConstraints r f) =>
   String ->
-  (forall a. Sem r a -> IO (TypedState, a)) ->
+  (forall x. f x -> x) ->
+  (forall x. Show x  => Maybe (f x -> String)) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Spec
-propsForInterpreter interpreter lower = do
+propsForInterpreter interpreter extract labeler lower = do
   describe interpreter $ do
-    prop "deleteConfig/deleteConfig" $ prop_deleteDelete lower
-    prop "deleteConfig/getConfig" $ prop_deleteGet lower
-    prop "getConfig/StoreConfig" $ prop_getStore lower
-    prop "getConfig/getConfig" $ prop_getGet lower
-    prop "setReplacedBy/cleatReplacedBy" $ prop_setClear lower
-    prop "setReplacedBy/getReplacedBy" $ prop_setGet lower
-    prop "setReplacedBy/setReplacedBy" $ prop_setSet lower
-    prop "storeConfig/getConfig" $ prop_storeGet lower
-    prop "storeConfig/getIdByIssuerWithoutTeam" $ prop_storeGetByIssuer lower
-    prop "storeConfig/storeConfig (different keys)" $ prop_storeStore lower
-    prop "storeConfig/storeConfig (same keys)" $ prop_storeStore lower
+    prop "deleteConfig/deleteConfig" $ prop_deleteDelete Nothing lower
+    prop "deleteConfig/getConfig" $ prop_deleteGet labeler lower
+    prop "getConfig/storeConfig" $ prop_getStore (Just $ show . (() <$) . extract) lower
+    prop "getConfig/getConfig" $ prop_getGet (Just $ show . ((() <$) *** (() <$)) . extract) lower
+    prop "setReplacedBy/clearReplacedBy" $ prop_setClear labeler lower
+    prop "setReplacedBy/getReplacedBy" $ prop_setGet (Just $ show . (fmap (() <$)) . extract) lower
+    prop "setReplacedBy/setReplacedBy" $ prop_setSet (Just $ show . (fmap (() <$)) . extract) lower
+    prop "storeConfig/getConfig" $ prop_storeGet (Just $ show . (() <$) . extract) lower
+    prop "storeConfig/getIdByIssuerWithoutTeam" $ prop_storeGetByIssuer (Just $ constructorLabel . extract) lower
+    prop "storeConfig/storeConfig (different keys)" $ prop_storeStoreInterleave Nothing lower
+    prop "storeConfig/storeConfig (same keys)" $ prop_storeStore Nothing lower
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
-  propsForInterpreter "idPToMem" $ pure . run . idPToMem
+  propsForInterpreter "idPToMem" snd (Just $ show . snd) $ pure . run . idPToMem
 
 getReplacedBy :: Member E.IdP r => SAML.IdPId -> Sem r (Maybe (Maybe SAML.IdPId))
 getReplacedBy idpid = fmap (view $ SAML.idpExtraInfo . IP.wiReplacedBy) <$> E.getConfig idpid
@@ -50,32 +59,36 @@ getReplacedBy idpid = fmap (view $ SAML.idpExtraInfo . IP.wiReplacedBy) <$> E.ge
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 prop_storeStore ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f () -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeStore =
   prepropLaw @'[E.IdP] $ do
     s <- arbitrary
     s' <- arbitrary
-    pure
-      ( do
+    pure $ Law
+      { lawLhs = do
           E.storeConfig $ s & SAML.idpId .~ s' ^. SAML.idpId
-          E.storeConfig s',
-        do
           E.storeConfig s'
-      )
+      , lawRhs = do
+          E.storeConfig s'
+      , lawPrelude = []
+      , lawPostlude = [E.getConfig $ s' ^. SAML.idpId]
+      }
 
 prop_storeStoreInterleave ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f () -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeStoreInterleave =
   prepropLaw @'[E.IdP] $ do
@@ -85,162 +98,210 @@ prop_storeStoreInterleave =
       if s ^. SAML.idpId == s' ^. SAML.idpId
         then discard
         else pure ()
-    pure
-      ( do
-          E.storeConfig s
-          E.storeConfig s',
-        do
+    pure $ Law
+      { lawLhs = do
+          E.storeConfig $ s & SAML.idpId .~ s' ^. SAML.idpId
           E.storeConfig s'
-          E.storeConfig s
-      )
+      , lawRhs = do
+          E.storeConfig s'
+      , lawPrelude = []
+      , lawPostlude = [E.getConfig $ s' ^. SAML.idpId]
+      }
 
 prop_storeGet ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (Maybe IP.IdP) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeGet =
   prepropLaw @'[E.IdP] $
     do
       s <- arbitrary
-      pure
+      pure $ simpleLaw
         ( do
             E.storeConfig s
-            E.getConfig $ s ^. idpId,
-          do
+            E.getConfig $ s ^. idpId)
+        ( do
             E.storeConfig s
             pure (Just s)
         )
 
 prop_deleteGet ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (Maybe IP.IdP) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_deleteGet =
   prepropLaw @'[E.IdP] $ do
     s <- arbitrary
-    pure
-      ( do
+    pure $ Law
+      { lawLhs = do
           E.deleteConfig s
-          E.getConfig $ s ^. SAML.idpId,
-        do
+          E.getConfig $ s ^. SAML.idpId
+      , lawRhs = do
           E.deleteConfig s
           pure Nothing
-      )
+      , lawPrelude =
+          [ E.storeConfig s
+          ]
+      , lawPostlude = [] :: [Sem r ()]
+      }
 
 prop_deleteDelete ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f () -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_deleteDelete =
   prepropLaw @'[E.IdP] $ do
     s <- arbitrary
-    pure
+    pure $ simpleLaw
       ( do
           E.deleteConfig s
-          E.deleteConfig s,
-        do
+          E.deleteConfig s)
+      ( do
           E.deleteConfig s
       )
 
 prop_storeGetByIssuer ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (E.GetIdPResult IdPId) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeGetByIssuer =
   prepropLaw @'[E.IdP] $
     do
       s <- arbitrary
-      pure
+      pure $ simpleLaw
         ( do
             E.storeConfig s
-            E.getIdByIssuerWithoutTeam $ s ^. idpMetadata . edIssuer,
-          do
+            E.getIdByIssuerWithoutTeam $ s ^. idpMetadata . edIssuer)
+        ( do
             E.storeConfig s
             pure $ E.GetIdPFound $ s ^. idpId
         )
 
 prop_setClear ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (Maybe (Maybe IdPId)) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_setClear =
   prepropLaw @'[E.IdP] $
     do
-      replaced <- arbitrary
+      idp <- arbitrary
+      replaced_id <- arbitrary
+      let replaced = E.Replaced replaced_id
       replacing <- arbitrary
-      pure
-        ( do
+      pure $ Law
+        { lawLhs = do
             E.setReplacedBy replaced replacing
-            E.clearReplacedBy replaced,
-          do
             E.clearReplacedBy replaced
-        )
+            getReplacedBy replaced_id
+        , lawRhs = do
+            E.clearReplacedBy replaced
+            getReplacedBy replaced_id
+        , lawPrelude = [
+          E.storeConfig $ idp & SAML.idpId .~ replaced_id
+                       ]
+        , lawPostlude = [] @(Sem _ ())
+        }
 
 prop_getGet ::
-  PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  forall r f. PropConstraints r f =>
+  Maybe (f (Maybe IP.IdP, Maybe IP.IdP) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_getGet =
   prepropLaw @'[E.IdP] $
     do
       idpid <- arbitrary
-      pure
-        ( do
-            liftA2 (,) (E.getConfig idpid) (E.getConfig idpid),
-          do
+      idp <- arbitrary
+      pure $ Law
+        { lawLhs = do
+            liftA2 (,) (E.getConfig idpid) (E.getConfig idpid)
+        , lawRhs = do
             cfg <- E.getConfig idpid
             pure (cfg, cfg)
-        )
+        , lawPrelude =
+            [ E.storeConfig $ idp & SAML.idpId .~ idpid
+            ]
+        , lawPostlude = [] :: [Sem r ()]
+        }
 
 prop_getStore ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (Maybe IP.IdP) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_getStore =
   prepropLaw @'[E.IdP] $
     do
       idpid <- arbitrary
-      pure
-        ( do
-            E.getConfig idpid >>= maybe (pure ()) E.storeConfig,
-          do
-            pure ()
-        )
+      s <- arbitrary
+      let s' = s & SAML.idpId .~ idpid
+      pure $ Law
+        { lawLhs = do
+            r <- E.getConfig idpid
+            maybe (pure ()) E.storeConfig r
+            pure r
+        , lawRhs = do
+            E.getConfig idpid
+        , lawPrelude =
+            [E.storeConfig s']
+        , lawPostlude =
+            [E.getConfig idpid]
+        }
 
 prop_setSet ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (Maybe (Maybe IdPId)) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_setSet =
   prepropLaw @'[E.IdP] $
     do
-      replaced <- arbitrary
+      replaced_id <- arbitrary
+      s <- arbitrary
+      let s' = s & SAML.idpId .~ replaced_id
+      let replaced = E.Replaced replaced_id
       replacing <- arbitrary
       replacing' <- arbitrary
-      pure
-        ( do
+      pure $ Law
+        { lawLhs = do
             E.setReplacedBy replaced replacing
-            E.setReplacedBy replaced replacing',
-          do
             E.setReplacedBy replaced replacing'
-        )
+            getReplacedBy replaced_id
+        , lawRhs = do
+            E.setReplacedBy replaced replacing'
+            getReplacedBy replaced_id
+        , lawPrelude =
+            [E.storeConfig s']
+        , lawPostlude = [] @(Sem _ ())
+        }
 
 prop_setGet ::
   PropConstraints r f =>
-  (forall a. Sem r a -> IO (f a)) ->
+  Maybe (f (Maybe (Maybe IdPId)) -> String) ->
+  (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_setGet =
   prepropLaw @'[E.IdP] $
     do
+      idp <- arbitrary
       replaced_id <- arbitrary
       let replaced = E.Replaced replaced_id
       replacing_id <- arbitrary
       let replacing = E.Replacing replacing_id
-      pure
-        ( do
+      pure $ Law
+        { lawLhs = do
             E.setReplacedBy replaced replacing
-            getReplacedBy replaced_id,
-          do
+            getReplacedBy replaced_id
+        , lawRhs = do
             E.setReplacedBy replaced replacing
             (Just replacing_id <$) <$> E.getConfig replaced_id
-        )
+        , lawPrelude =
+            [ E.storeConfig $ idp & SAML.idpId .~ replaced_id
+            ]
+        , lawPostlude = [] :: [Sem r ()]
+        }
