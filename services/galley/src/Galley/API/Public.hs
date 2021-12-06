@@ -183,7 +183,8 @@ servantSitemap =
         GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
-        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
+        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
+        GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal
       }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()

@@ -698,7 +698,10 @@ data Api routes = Api
         :- FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
-        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    featureConfigGuestLinksGet ::
+      routes
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
   }
   deriving (Generic)
 
