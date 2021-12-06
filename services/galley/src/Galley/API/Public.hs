@@ -173,6 +173,9 @@ servantSitemap =
         GalleyAPI.featureStatusGuestLinksGet =
           Features.getFeatureStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal
             . DoAuth,
+        GalleyAPI.featureStatusGuestLinksPut =
+          Features.setFeatureStatus @'Public.TeamFeatureGuestLinks Features.setGuestLinkInternal
+            . DoAuth,
         GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
         GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,

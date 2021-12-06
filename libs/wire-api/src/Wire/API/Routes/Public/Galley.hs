@@ -660,12 +660,15 @@ data Api routes = Api
     teamFeatureStatusSelfDeletingMessagesGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureSelfDeletingMessages,
-    featureStatusGuestLinksGet ::
-      routes
-        :- FeatureStatusGet 'TeamFeatureGuestLinks,
     teamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSelfDeletingMessages,
+    featureStatusGuestLinksGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureGuestLinks,
+    featureStatusGuestLinksPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureGuestLinks,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,

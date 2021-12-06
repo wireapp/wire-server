@@ -41,6 +41,7 @@ module Galley.API.Teams.Features
     getSelfDeletingMessagesInternal,
     setSelfDeletingMessagesInternal,
     getGuestLinkInternal,
+    setGuestLinkInternal,
     setLockStatus,
     DoAuth (..),
     GetFeatureInternalParam,
@@ -643,6 +644,27 @@ getGuestLinkInternal = \case
           Public.Unlocked
       (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = Public.Unlocked}
       (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = Public.Locked}
+  where
+    getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+
+setGuestLinkInternal ::
+  forall r.
+  ( Member GundeckAccess r,
+    Member TeamStore r,
+    Member TeamFeatureStore r,
+    Member P.TinyLog r,
+    Member (Error TeamFeatureError) r,
+    Member (Input Opts) r
+  ) =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks)
+setGuestLinkInternal tid status = do
+  cfgDefault <- Public.tfwoapsLockStatus <$> getCfgDefault
+  guardLockStatus @'Public.TeamFeatureGuestLinks tid cfgDefault
+  -- TODO(leif): send push event
+  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid status
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
