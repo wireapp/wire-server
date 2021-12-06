@@ -97,6 +97,7 @@ newEnv o _dnsResolver = do
   let _runSettings = Opt.optSettings o
   let _service Brig = mkEndpoint (Opt.brig o)
       _service Galley = mkEndpoint (Opt.galley o)
+      _service Cargohold = mkEndpoint (Opt.cargohold o)
   _httpManager <- initHttpManager
   _tls <- mkTLSSettingsOrThrow _runSettings >>= newIORef
   return Env {..}
