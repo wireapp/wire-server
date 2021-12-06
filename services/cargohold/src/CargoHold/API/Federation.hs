@@ -22,6 +22,7 @@ module CargoHold.API.Federation
 where
 
 import CargoHold.App
+import Control.Error
 import Imports
 import Servant.API
 import Servant.API.Generic
@@ -30,6 +31,7 @@ import Servant.Server.Generic
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Cargohold as F
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.Error
 
 type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)
 
@@ -39,4 +41,4 @@ federationSitemap =
     F.CargoholdApi {F.getAsset = getAsset}
 
 getAsset :: () -> Handler EmptyResponse
-getAsset _ = pure EmptyResponse
+getAsset _ = throwE federationNotImplemented
