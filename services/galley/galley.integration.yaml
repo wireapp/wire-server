@@ -66,7 +66,7 @@ settings:
     conversationGuestLinks:
       defaults:
         status: enabled
-        lockStatus: locked
+        lockStatus: unlocked
 
 logLevel: Info
 logNetStrings: false

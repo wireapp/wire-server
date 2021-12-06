@@ -627,7 +627,7 @@ setSelfDeletingMessagesInternal tid st = do
 
 getGuestLinkInternal ::
   forall r.
-  (Member TeamFeatureStore r) =>
+  (Member (Input Opts) r, Member TeamFeatureStore r) =>
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
 getGuestLinkInternal = \case
@@ -645,7 +645,7 @@ getGuestLinkInternal = \case
       (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = Public.Locked}
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
-    getCfgDefault = pure Public.defaultGuestLinksStatus
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::

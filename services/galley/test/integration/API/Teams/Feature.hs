@@ -56,7 +56,8 @@ import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
 tests s =
-  testGroup "Feature Config API and Team Features API" $
+  testGroup
+    "Feature Config API and Team Features API"
     [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
@@ -68,7 +69,8 @@ tests s =
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
-      test s "SelfDeletingMessages" testSelfDeletingMessages
+      test s "SelfDeletingMessages" testSelfDeletingMessages,
+      test s "ConversationGuestLinks" testGuestLinks
     ]
 
 testSSO :: TestM ()
@@ -471,6 +473,19 @@ testSelfDeletingMessages = do
   checkSet TeamFeatureEnabled 50 409
   checkSetLockStatus Public.Unlocked
   checkGet TeamFeatureDisabled 30 Public.Unlocked
+
+testGuestLinks :: TestM ()
+testGuestLinks = do
+  galley <- view tsGalley
+  (owner, tid, []) <- Util.createBindingTeamWithNMembers 0
+  let expected = Public.TeamFeatureStatusNoConfigAndLockStatus Public.TeamFeatureEnabled Public.Unlocked
+
+      checkGet :: HasCallStack => TestM ()
+      checkGet =
+        do
+          Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner tid
+          !!! responseJsonEither === const (Right expected)
+  checkGet
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
