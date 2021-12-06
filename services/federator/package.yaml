@@ -111,7 +111,6 @@ tests:
     - directory
     - federator
     - interpolate
-    - polysemy-mocks
     - QuickCheck
     - servant-client
     - streaming-commons

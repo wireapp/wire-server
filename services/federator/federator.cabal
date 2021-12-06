@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2131bf1a367dd734cbccd900c4724c5b48e3f494501b2221e3f32ecaf0a12ec4
+-- hash: 8ec2a5fc6f4455c982250a20d74646d2fd273691c15f7b5dfb272b4ea13a0b0a
 
 name:           federator
 version:        1.0.0
@@ -316,7 +316,6 @@ test-suite federator-tests
     , network-uri
     , pem
     , polysemy
-    , polysemy-mocks
     , polysemy-wire-zoo
     , retry
     , servant

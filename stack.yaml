@@ -161,7 +161,6 @@ extra-deps:
 - markov-chain-usage-model-0.0.0
 - wai-predicates-1.0.0
 - redis-io-1.1.0
-- polysemy-mocks-0.2.0.0
 - warp-3.3.17
 
 # Not latest as last one breaks wai-routing

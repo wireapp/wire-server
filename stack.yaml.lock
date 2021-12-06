@@ -448,13 +448,6 @@ packages:
   original:
     hackage: redis-io-1.1.0
 - completed:
-    hackage: polysemy-mocks-0.2.0.0@sha256:ed7b4aa8ee29995d0b840ac0c131a141636ca46493b82706b7e5ec5e33b9ffa7,1441
-    pantry-tree:
-      size: 695
-      sha256: 8218e3dde278ca1f01d19009fad40f603e1b17993a519d15fe6319e3a827cc01
-  original:
-    hackage: polysemy-mocks-0.2.0.0
-- completed:
     hackage: warp-3.3.17@sha256:3a3ea203141d00d2244b511ee99174b8ed58fc862552755d470a25a44ce5275b,10910
     pantry-tree:
       size: 3973
