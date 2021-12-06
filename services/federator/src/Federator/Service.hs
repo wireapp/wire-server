@@ -38,9 +38,11 @@ import Wire.API.Federation.Domain (originDomainHeaderName)
 newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
   deriving (Eq, Show)
 
-data Service m a where
+type ServiceLBS = Service (Maybe LByteString)
+
+data Service body m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service m (HTTP.Status, Maybe LByteString)
+  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (HTTP.Status, body)
 
 makeSem ''Service
 
@@ -55,7 +57,7 @@ makeSem ''Service
 -- FUTUREWORK: does it make sense to use a lower level abstraction instead of bilge here?
 interpretService ::
   Members '[Embed IO, Input Env] r =>
-  Sem (Service ': r) a ->
+  Sem (ServiceLBS ': r) a ->
   Sem r a
 interpretService = interpret $ \case
   ServiceCall component path body domain -> embedApp @IO $ do

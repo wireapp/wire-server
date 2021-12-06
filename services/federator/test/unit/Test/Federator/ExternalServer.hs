@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -fprint-potential-instances #-}
 
 module Test.Federator.ExternalServer where
 
@@ -26,7 +26,7 @@ import qualified Data.Text.Encoding as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.ExternalServer
-import Federator.Service (Service)
+import Federator.Service (Service (..), ServiceLBS)
 import Federator.Validation
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -35,17 +35,14 @@ import qualified Network.Wai.Utilities.Server as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as TinyLog
+import Polysemy.Output
+import Polysemy.TinyLog
 import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Federator.Validation (mockDiscoveryTrivial)
-import Test.Polysemy.Mock (Mock (mock), evalMock)
-import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
-
-genMock ''Service
 
 tests :: TestTree
 tests =
@@ -72,59 +69,69 @@ exampleRequest certFile path = do
         trBody = "\"foo\""
       }
 
+data Call = Call
+  { cComponent :: Component,
+    cPath :: ByteString,
+    cBody :: LByteString,
+    cDomain :: Domain
+  }
+  deriving (Eq, Show)
+
+mockService :: Member (Output Call) r => HTTP.Status -> Sem (ServiceLBS ': r) a -> Sem r a
+mockService status = interpret $ \case
+  ServiceCall comp path body domain -> do
+    output (Call comp path body domain)
+    pure (status, Just "\"bar\"")
+
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
-  testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $ do
+  testCase "should forward response from brig when status is 200" $ do
     request <-
       exampleRequest
         "test/resources/unit/localhost.example.com.pem"
         "/federation/brig/get-user-by-handle"
-    runM . evalMock @Service @IO $ do
-      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
-
-      res <-
-        mock @Service @IO
-          . assertNoError @ValidationError
-          . assertNoError @DiscoveryFailure
-          . assertNoError @ServerError
-          . TinyLog.discardLogs
-          . mockDiscoveryTrivial
-          . runInputConst noClientCertSettings
-          $ callInward request
-      actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/federation/get-user-by-handle", "\"foo\"", aValidDomain)
-      embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ Wai.responseStatus res @?= HTTP.status200
-      body <- embed $ Wai.lazyResponseBody res
-      embed $ body @?= "\"bar\""
+    (actualCalls, res) <-
+      runM
+        . runOutputList
+        . mockService HTTP.ok200
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . assertNoError @ServerError
+        . discardLogs
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ callInward request
+    let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
+    assertEqual "one call to brig should be made" [expectedCall] actualCalls
+    Wai.responseStatus res @?= HTTP.status200
+    body <- Wai.lazyResponseBody res
+    body @?= "\"bar\""
 
 requestBrigFailure :: TestTree
 requestBrigFailure =
-  testCase "should translate response from brig to 'InwardResponseError' when response has status 404" $ do
+  testCase "should preserve the status code returned by the service" $ do
     request <-
       exampleRequest
         "test/resources/unit/localhost.example.com.pem"
         "/federation/brig/get-user-by-handle"
 
-    runM . evalMock @Service @IO $ do
-      let brigResponseBody = "response body"
-      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.notFound404, Just brigResponseBody))
-      res <-
-        mock @Service @IO
-          . assertNoError @ValidationError
-          . assertNoError @DiscoveryFailure
-          . assertNoError @ServerError
-          . TinyLog.discardLogs
-          . mockDiscoveryTrivial
-          . runInputConst noClientCertSettings
-          $ callInward request
+    (actualCalls, res) <-
+      runM
+        . runOutputList
+        . mockService HTTP.notFound404
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . assertNoError @ServerError
+        . discardLogs
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ callInward request
 
-      actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/federation/get-user-by-handle", "\"foo\"", aValidDomain)
-      embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ Wai.responseStatus res @?= HTTP.notFound404
-      body <- embed $ Wai.lazyResponseBody res
-      embed $ body @?= brigResponseBody
+    let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
+    assertEqual "one call to brig should be made" [expectedCall] actualCalls
+    Wai.responseStatus res @?= HTTP.notFound404
+    body <- Wai.lazyResponseBody res
+    body @?= "\"bar\""
 
 requestGalleySuccess :: TestTree
 requestGalleySuccess =
@@ -134,20 +141,18 @@ requestGalleySuccess =
         "test/resources/unit/localhost.example.com.pem"
         "/federation/galley/get-conversations"
 
-    runM . evalMock @Service @IO $ do
-      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
-
-      res <-
-        mock @Service @IO
+    runM $ do
+      (actualCalls, res) <-
+        runOutputList
+          . mockService HTTP.ok200
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
           . assertNoError @ServerError
-          . TinyLog.discardLogs
+          . discardLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request
-      actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Galley, "/federation/get-conversations", "\"foo\"", aValidDomain)
+      let expectedCall = Call Galley "/federation/get-conversations" "\"foo\"" aValidDomain
       embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
       embed $ Wai.responseStatus res @?= HTTP.status200
       body <- embed $ Wai.lazyResponseBody res
@@ -164,20 +169,18 @@ requestNoDomain =
             trPath = "/federation/brig/get-users"
           }
 
-    runM . evalMock @Service @IO $ do
-      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
-
-      res <-
-        runError
-          . mock @Service @IO
+    runM $ do
+      (actualCalls, res) <-
+        runOutputList @Call
+          . mockService HTTP.ok200
+          . runError
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
-          . TinyLog.discardLogs
+          . discardLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request
 
-      actualCalls <- mockServiceCallCalls @IO
       embed $ assertEqual "no calls to services should be made" [] actualCalls
       embed $ void res @?= Left NoOriginDomain
 
@@ -191,22 +194,20 @@ requestNoCertificate =
             trPath = "/federation/brig/get-users"
           }
 
-    runM . evalMock @Service @IO $ do
-      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
+    (actualCalls, res) <-
+      runM
+        . runOutputList @Call
+        . mockService HTTP.ok200
+        . runError
+        . assertNoError @ServerError
+        . assertNoError @DiscoveryFailure
+        . discardLogs
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ callInward request
 
-      res <-
-        runError
-          . mock @Service @IO
-          . assertNoError @ServerError
-          . assertNoError @DiscoveryFailure
-          . TinyLog.discardLogs
-          . mockDiscoveryTrivial
-          . runInputConst noClientCertSettings
-          $ callInward request
-
-      actualCalls <- mockServiceCallCalls @IO
-      embed $ assertEqual "no calls to services should be made" [] actualCalls
-      embed $ void res @?= Left NoClientCertificate
+    assertEqual "no calls to services should be made" [] actualCalls
+    void res @?= Left NoClientCertificate
 
 testInvalidPaths :: TestTree
 testInvalidPaths = do
@@ -244,23 +245,20 @@ testInvalidPaths = do
           "test/resources/unit/localhost.example.com.pem"
           invalidPath
 
-      runM . evalMock @Service @IO $ do
-        mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
+      (actualCalls, res) <-
+        runM
+          . runOutputList @Call
+          . mockService HTTP.ok200
+          . runError @ServerError
+          . assertNoError @ValidationError
+          . assertNoError @DiscoveryFailure
+          . discardLogs
+          . mockDiscoveryTrivial
+          . runInputConst noClientCertSettings
+          $ callInward request
 
-        res <-
-          runError @ServerError
-            . mock @Service @IO
-            . assertNoError @ValidationError
-            . assertNoError @DiscoveryFailure
-            . TinyLog.discardLogs
-            . mockDiscoveryTrivial
-            . runInputConst noClientCertSettings
-            $ callInward request
-
-        embed $ assertEqual ("Expected request with path \"" <> cs invalidPath <> "\" to fail") (Left InvalidRoute) (void res)
-
-        actualCalls <- mockServiceCallCalls @IO
-        embed $ assertEqual "no calls to any service should be made" [] actualCalls
+      assertEqual ("Expected request with path \"" <> cs invalidPath <> "\" to fail") (Left InvalidRoute) (void res)
+      assertEqual "no calls to any service should be made" [] actualCalls
 
 testInvalidComponent :: TestTree
 testInvalidComponent =
@@ -270,22 +268,20 @@ testInvalidComponent =
         "test/resources/unit/localhost.example.com.pem"
         "/federation/mast/get-users"
 
-    runM . evalMock @Service @IO $ do
-      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "\"bar\""))
+    (actualCalls, res) <-
+      runM
+        . runOutputList @Call
+        . mockService HTTP.ok200
+        . runError @ServerError
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . discardLogs
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ callInward request
 
-      res <-
-        runError @ServerError
-          . mock @Service @IO
-          . assertNoError @ValidationError
-          . assertNoError @DiscoveryFailure
-          . TinyLog.discardLogs
-          . mockDiscoveryTrivial
-          . runInputConst noClientCertSettings
-          $ callInward request
-
-      embed $ void res @?= Left (UnknownComponent "mast")
-      actualCalls <- mockServiceCallCalls @IO
-      embed $ assertEqual "no calls to any service should be made" [] actualCalls
+    void res @?= Left (UnknownComponent "mast")
+    assertEqual "no calls to any service should be made" [] actualCalls
 
 testMethod :: TestTree
 testMethod =
@@ -304,10 +300,10 @@ testMethod =
       res <-
         runM
           . runError @ServerError
-          . interpret @Service (\_ -> embed $ assertFailure "unexpected call to service")
+          . interpret @ServiceLBS (\_ -> embed $ assertFailure "unexpected call to service")
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
-          . TinyLog.discardLogs
+          . discardLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request

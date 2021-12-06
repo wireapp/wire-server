@@ -103,7 +103,7 @@ type AllEffects =
   '[ Remote,
      DiscoverFederator,
      DNSLookup, -- needed by DiscoverFederator
-     Service,
+     ServiceLBS,
      Input RunSettings,
      Input TLSSettings, -- needed by Remote
      Input Env, -- needed by Service

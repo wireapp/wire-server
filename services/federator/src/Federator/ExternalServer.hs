@@ -43,7 +43,7 @@ import Wire.API.Federation.Domain
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
   Members
-    '[ Service,
+    '[ ServiceLBS,
        Embed IO,
        TinyLog,
        DiscoverFederator,
