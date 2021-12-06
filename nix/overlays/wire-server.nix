@@ -13,7 +13,7 @@ self: super: {
           rev = "4067ad96b125942545dbdec8c1a89f1e1b65d013";
           sha256 = "1i9dlhw0xk1viglyhail9fb36v1awrypps8jmhrkz8k1bhx98ci3";
         };
-        cargoSha256 = "0zs8ibv7rinrrzp9naxd7yak7kn1gp3pjb3g8i4wf7xw2hkkq81z";
+        cargoSha256 = "sha256-Afr3ShCXDCwTQNdeCZbA5/aosRt+KFpGfT1mrob6cog=";
 
         patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libcryptobox.dylib $out/lib/libcryptobox.dylib
