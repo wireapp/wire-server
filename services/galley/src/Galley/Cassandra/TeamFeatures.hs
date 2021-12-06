@@ -45,6 +45,7 @@ getFeatureStatusNoConfigAndLockStatus _ tid = do
       fromString $
         "select "
           <> statusCol @a
+          <> ", "
           <> lockStatusCol @a
           <> " from team_features where team_id = ?"
 

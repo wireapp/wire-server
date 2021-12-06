@@ -521,7 +521,11 @@ testAllFeatures = do
             .= Public.TeamFeatureStatusWithConfigAndLockStatus @Public.TeamFeatureSelfDeletingMessagesConfig
               TeamFeatureEnabled
               (Public.TeamFeatureSelfDeletingMessagesConfig 0)
-              lockState
+              lockState,
+          toS TeamFeatureGuestLinks
+            .= Public.TeamFeatureStatusNoConfigAndLockStatus
+              TeamFeatureEnabled
+              Public.Unlocked
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'

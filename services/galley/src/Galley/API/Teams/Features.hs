@@ -232,7 +232,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
-        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal
       ]
 
 getAllFeaturesH ::
@@ -280,7 +281,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
-        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal
       ]
   where
     getStatus ::

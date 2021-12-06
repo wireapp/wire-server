@@ -389,6 +389,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureClassifiedDomains,
           ViewTeamFeature TeamFeatureConferenceCalling,
           ViewTeamFeature TeamFeatureSelfDeletingMessages,
+          ViewTeamFeature TeamFeatureGuestLinks,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]
