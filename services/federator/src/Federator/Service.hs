@@ -21,13 +21,10 @@ module Federator.Service where
 -- to brig so brig can do some authorization as required.
 
 import qualified Bilge as RPC
-import Bilge.RPC (rpc')
 import Control.Lens (view)
 import Data.Domain
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LText
-import Federator.App
 import Federator.Env
 import Imports
 import Network.HTTP.Client
@@ -59,25 +56,6 @@ makeSem ''Service
 --
 -- FUTUREWORK: unify this interpretation with similar ones in Galley
 --
--- FUTUREWORK: does it make sense to use a lower level abstraction instead of bilge here?
-interpretService ::
-  Members '[Embed IO, Input Env] r =>
-  Sem (ServiceLBS ': r) a ->
-  Sem r a
-interpretService = interpret $ \case
-  ServiceCall component path body domain -> embedApp @IO $ do
-    endpoint <- (view service <$> ask) <*> pure component
-    res <-
-      rpc' (LText.pack (show component)) (mkEndpoint endpoint) $
-        RPC.method HTTP.POST
-          . RPC.path path
-          . RPC.body (RPC.RequestBodyLBS body)
-          . RPC.contentJson
-          . RPC.header originDomainHeaderName (cs (domainText domain))
-    pure (RPC.responseStatus res, RPC.responseBody res)
-  where
-    mkEndpoint s = RPC.host (Text.encodeUtf8 (_epHost s)) . RPC.port (_epPort s) $ RPC.empty
-
 interpretServiceStreaming ::
   Members '[Embed IO, Input Env] r =>
   Sem (ServiceStreaming ': r) a ->
