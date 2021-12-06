@@ -29,6 +29,9 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Team.Feature
 
+-- TODO(leif): according to the specs it should only be supported to read the lock status via the api
+-- changes can only be made in the server configuration file
+-- we can probably remove the lock status from the db?
 getFeatureStatusNoConfigAndLockStatus ::
   forall (a :: TeamFeatureName) m.
   (MonadClient m, FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>
