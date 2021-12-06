@@ -187,4 +187,7 @@ in
   # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
   # which sets LD_LIBRARY_PATH and others correctly.
   cabal-wrapper
+
+  ## Pure Nix Build
+  pkgs.cabal2nix
 ]
