@@ -263,18 +263,17 @@ cqlsh:
 .PHONY: db-reset
 db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	make db-reset-package package=brig
+	make db-reset-package package=galley
+	make db-reset-package package=gundeck
+	make db-reset-package package=spar
+else
 	make -C services/brig db-reset
 	make -C services/galley db-reset
 	make -C services/gundeck db-reset
 	make -C services/spar db-reset
-
-.PHONY: db-reset-cabal
-db-reset-cabal:
-	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
-	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
-	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
-	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+endif
 
 #################################
 ## dependencies
