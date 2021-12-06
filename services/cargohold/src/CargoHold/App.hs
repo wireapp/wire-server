@@ -49,7 +49,8 @@ import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
 import CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
-import Control.Lens (makeLenses, set, view, (^.))
+import Control.Exception (throw)
+import Control.Lens (makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default (def)
@@ -58,10 +59,7 @@ import qualified Data.Metrics.Middleware as Metrics
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
-import Network.Wai (Request, ResponseReceived)
-import Network.Wai.Routing (Continue)
-import Network.Wai.Utilities (Error (..), lookupRequestId)
-import qualified Network.Wai.Utilities.Server as Server
+import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
@@ -185,7 +183,5 @@ runAppResourceT e rma = liftIO . runResourceT $ transResourceT (runAppT e) rma
 
 type Handler = ExceptT Error App
 
-runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
-runHandler e r h k =
-  let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-   in runAppT e' (exceptT (Server.onError (_appLogger e) [Right $ _metrics e] r k) return h)
+runHandler :: Env -> Handler a -> IO a
+runHandler e h = runAppT e (exceptT throw pure h)
