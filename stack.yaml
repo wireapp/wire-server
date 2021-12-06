@@ -181,7 +181,7 @@ extra-deps:
 
 # For changes from https://github.com/haskell-servant/servant/pull/1420
 # Not released to hackage yet
-- git: https://github.com/wireapp/servant.git
+- git: https://github.com/wireapp/servant
   commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   subdirs:
   - servant
