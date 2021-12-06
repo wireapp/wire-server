@@ -363,6 +363,11 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: ~* /i/teams/([^/]*)/features/([^/]*)/(un)?locked$
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     - path: ~* ^/feature-configs(.*)
       envs:
       - all
