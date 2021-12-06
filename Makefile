@@ -85,7 +85,7 @@ db-reset-package: c
 # migrate db using cabal
 # Usage: make db-migrate package=galley
 .PHONY: db-migrate
-db-migrate: c
+db-migrate-package: c
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
 
 # Build everything (Haskell services and nginz)
