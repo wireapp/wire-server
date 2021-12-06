@@ -63,6 +63,10 @@ settings:
     conferenceCalling:
       defaults:
         status: enabled
+    conversationGuestLinks:
+      defaults:
+        status: enabled
+        lockStatus: locked
 
 logLevel: Info
 logNetStrings: false

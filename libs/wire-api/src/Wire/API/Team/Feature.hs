@@ -604,7 +604,7 @@ instance Cass.Cql LockStatusValue where
 -- guest links
 
 defaultGuestLinksStatus :: TeamFeatureStatusNoConfigAndLockStatus
-defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
+defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Locked
 
 ----------------------------------------------------------------------
 -- internal
