@@ -87,4 +87,5 @@ joinCall:
 turnDiscoveryEnabled: false
 
 # Additional arguments to be passed to `sftd`
+# Note: this might be removed in the future.
 additionalArgs: ""
