@@ -83,6 +83,7 @@ db-reset-package: c
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
 
 # migrate db using cabal
+# For using stack see the Makefile of the package, e.g. services/brig/Makefile
 # Usage: make db-migrate package=galley
 .PHONY: db-migrate
 db-migrate-package: c
