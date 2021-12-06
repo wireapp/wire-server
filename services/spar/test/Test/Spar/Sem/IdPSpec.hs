@@ -95,13 +95,10 @@ prop_storeStoreInterleave =
     s <- arbitrary
     s' <- arbitrary
     !_ <-
-      if s ^. SAML.idpId == s' ^. SAML.idpId
-        then discard
-        else pure ()
+      when (s ^. SAML.idpId == s' ^. SAML.idpId) discard
     pure $ Law
       { lawLhs = do
           E.storeConfig $ s & SAML.idpId .~ s' ^. SAML.idpId
-          E.storeConfig s'
       , lawRhs = do
           E.storeConfig s'
       , lawPrelude = []
