@@ -30,7 +30,7 @@ import Data.Json.Util (ToJSONObject (..))
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureSelfDeletingMessagesConfig, TeamFeatureStatusNoConfig, TeamFeatureStatusWithConfig)
+import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureSelfDeletingMessagesConfig, TeamFeatureStatusNoConfig, TeamFeatureStatusNoConfigAndLockStatus, TeamFeatureStatusWithConfig)
 
 data Event = Event
   { _eventType :: EventType,
@@ -51,6 +51,7 @@ instance ToSchema EventType where
 
 data EventData
   = EdFeatureWithoutConfigChanged TeamFeatureStatusNoConfig
+  | EdFeatureWithoutConfigAndLockStatusChanged TeamFeatureStatusNoConfigAndLockStatus
   | EdFeatureApplockChanged (TeamFeatureStatusWithConfig TeamFeatureAppLockConfig)
   | EdFeatureClassifiedDomainsChanged (TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig)
   | EdFeatureSelfDeletingMessagesChanged (TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig)
@@ -75,7 +76,7 @@ taggedEventDataSchema =
       TeamFeatureClassifiedDomains -> tag _EdFeatureClassifiedDomainsChanged (unnamed schema)
       TeamFeatureConferenceCalling -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
       TeamFeatureSelfDeletingMessages -> tag _EdFeatureSelfDeletingMessagesChanged (unnamed schema)
-      TeamFeatureGuestLinks -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
+      TeamFeatureGuestLinks -> tag _EdFeatureWithoutConfigAndLockStatusChanged (unnamed schema)
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =

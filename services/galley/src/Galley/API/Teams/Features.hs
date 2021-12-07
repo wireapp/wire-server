@@ -663,8 +663,15 @@ setGuestLinkInternal ::
 setGuestLinkInternal tid status = do
   cfgDefault <- Public.tfwoapsLockStatus <$> getCfgDefault
   guardLockStatus @'Public.TeamFeatureGuestLinks tid cfgDefault
-  -- TODO(leif): send push event
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid status
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event
+            Event.Update
+            Public.TeamFeatureGuestLinks
+            ( EdFeatureWithoutConfigAndLockStatusChanged
+                (Public.TeamFeatureStatusNoConfigAndLockStatus (Public.tfwoStatus status) Public.Unlocked)
+            )
+  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid status <* pushEvent
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
