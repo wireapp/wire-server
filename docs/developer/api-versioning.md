@@ -1,6 +1,6 @@
 # Introduction
 
-Since upgrades cannot happen instantaneously, we need release wire
+Since upgrades cannot happen instantaneously, we need to release wire
 backends and wire client apps that work together accross releases.
 
 In the past, we have made sure that the api is changed in a way that
@@ -213,13 +213,16 @@ and server exceeds the agreed-upon limits (eg., 6 months).
 If the server is upgraded and some old supported versions are phased
 out, the client may be caught by surprise.
 
-The clients should therefore frequently (every 24h?) refetch
-/api-versions and possibly raise warnings if the intersection set gets
-too small.
+Servers should respond with status `404`, error label
+`unsupported-version`.  The versioning middleware can do that (see
+above).
 
-The client could also avoid that extra work and instead have a
-catch-all that will handle the specific response from the versioning
-middleware (see above), re-fetch `/api-versions` and try again.
+Client should install a catch-all that will handle this specific
+error, re-fetch `/api-versions`, and try again.
+
+This will only happen if backend and client grow apart in time beyond
+the supported limit, and there is some chance it will result in an
+empty set of compatible versions, so it's also ok to just fail here.
 
 
 ## Strongly typed versions
