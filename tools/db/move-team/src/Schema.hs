@@ -57,7 +57,7 @@ readBrigClientsAll Env {..} =
     paginateC selectBrigClientsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigClientsFull :: Env -> FilePath -> IO ()
-exportBrigClientsFull env@Env {..} path = do
+exportBrigClientsFull env path = do
   putStrLn $ "Exporting " <> "brig.clients" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -103,7 +103,7 @@ readBrigConnectionAll Env {..} =
     paginateC selectBrigConnectionAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigConnectionFull :: Env -> FilePath -> IO ()
-exportBrigConnectionFull env@Env {..} path = do
+exportBrigConnectionFull env path = do
   putStrLn $ "Exporting " <> "brig.connection" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -149,7 +149,7 @@ readBrigLoginCodesAll Env {..} =
     paginateC selectBrigLoginCodesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigLoginCodesFull :: Env -> FilePath -> IO ()
-exportBrigLoginCodesFull env@Env {..} path = do
+exportBrigLoginCodesFull env path = do
   putStrLn $ "Exporting " <> "brig.login_codes" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -195,7 +195,7 @@ readBrigPasswordResetAll Env {..} =
     paginateC selectBrigPasswordResetAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigPasswordResetFull :: Env -> FilePath -> IO ()
-exportBrigPasswordResetFull env@Env {..} path = do
+exportBrigPasswordResetFull env path = do
   putStrLn $ "Exporting " <> "brig.password_reset" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -241,7 +241,7 @@ readBrigPrekeysAll Env {..} =
     paginateC selectBrigPrekeysAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigPrekeysFull :: Env -> FilePath -> IO ()
-exportBrigPrekeysFull env@Env {..} path = do
+exportBrigPrekeysFull env path = do
   putStrLn $ "Exporting " <> "brig.prekeys" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -287,7 +287,7 @@ readBrigPropertiesAll Env {..} =
     paginateC selectBrigPropertiesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigPropertiesFull :: Env -> FilePath -> IO ()
-exportBrigPropertiesFull env@Env {..} path = do
+exportBrigPropertiesFull env path = do
   putStrLn $ "Exporting " <> "brig.properties" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -333,7 +333,7 @@ readBrigRichInfoAll Env {..} =
     paginateC selectBrigRichInfoAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigRichInfoFull :: Env -> FilePath -> IO ()
-exportBrigRichInfoFull env@Env {..} path = do
+exportBrigRichInfoFull env path = do
   putStrLn $ "Exporting " <> "brig.rich_info" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -379,7 +379,7 @@ readBrigUserAll Env {..} =
     paginateC selectBrigUserAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserFull :: Env -> FilePath -> IO ()
-exportBrigUserFull env@Env {..} path = do
+exportBrigUserFull env path = do
   putStrLn $ "Exporting " <> "brig.user" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -425,7 +425,7 @@ readBrigUserHandleAll Env {..} =
     paginateC selectBrigUserHandleAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserHandleFull :: Env -> FilePath -> IO ()
-exportBrigUserHandleFull env@Env {..} path = do
+exportBrigUserHandleFull env path = do
   putStrLn $ "Exporting " <> "brig.user_handle" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -471,7 +471,7 @@ readBrigUserKeysAll Env {..} =
     paginateC selectBrigUserKeysAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserKeysFull :: Env -> FilePath -> IO ()
-exportBrigUserKeysFull env@Env {..} path = do
+exportBrigUserKeysFull env path = do
   putStrLn $ "Exporting " <> "brig.user_keys" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -517,7 +517,7 @@ readBrigUserKeysHashAll Env {..} =
     paginateC selectBrigUserKeysHashAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserKeysHashFull :: Env -> FilePath -> IO ()
-exportBrigUserKeysHashFull env@Env {..} path = do
+exportBrigUserKeysHashFull env path = do
   putStrLn $ "Exporting " <> "brig.user_keys_hash" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -563,7 +563,7 @@ readGalleyBillingTeamMemberAll Env {..} =
     paginateC selectGalleyBillingTeamMemberAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyBillingTeamMemberFull :: Env -> FilePath -> IO ()
-exportGalleyBillingTeamMemberFull env@Env {..} path = do
+exportGalleyBillingTeamMemberFull env path = do
   putStrLn $ "Exporting " <> "galley.billing_team_member" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -609,7 +609,7 @@ readGalleyClientsAll Env {..} =
     paginateC selectGalleyClientsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyClientsFull :: Env -> FilePath -> IO ()
-exportGalleyClientsFull env@Env {..} path = do
+exportGalleyClientsFull env path = do
   putStrLn $ "Exporting " <> "galley.clients" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -655,7 +655,7 @@ readGalleyConversationAll Env {..} =
     paginateC selectGalleyConversationAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyConversationFull :: Env -> FilePath -> IO ()
-exportGalleyConversationFull env@Env {..} path = do
+exportGalleyConversationFull env path = do
   putStrLn $ "Exporting " <> "galley.conversation" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -701,7 +701,7 @@ readGalleyMemberAll Env {..} =
     paginateC selectGalleyMemberAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyMemberFull :: Env -> FilePath -> IO ()
-exportGalleyMemberFull env@Env {..} path = do
+exportGalleyMemberFull env path = do
   putStrLn $ "Exporting " <> "galley.member" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -747,7 +747,7 @@ readGalleyTeamAll Env {..} =
     paginateC selectGalleyTeamAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamFull :: Env -> FilePath -> IO ()
-exportGalleyTeamFull env@Env {..} path = do
+exportGalleyTeamFull env path = do
   putStrLn $ "Exporting " <> "galley.team" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -793,7 +793,7 @@ readGalleyTeamConvAll Env {..} =
     paginateC selectGalleyTeamConvAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamConvFull :: Env -> FilePath -> IO ()
-exportGalleyTeamConvFull env@Env {..} path = do
+exportGalleyTeamConvFull env path = do
   putStrLn $ "Exporting " <> "galley.team_conv" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -839,7 +839,7 @@ readGalleyTeamFeaturesAll Env {..} =
     paginateC selectGalleyTeamFeaturesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamFeaturesFull :: Env -> FilePath -> IO ()
-exportGalleyTeamFeaturesFull env@Env {..} path = do
+exportGalleyTeamFeaturesFull env path = do
   putStrLn $ "Exporting " <> "galley.team_features" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -885,7 +885,7 @@ readGalleyTeamMemberAll Env {..} =
     paginateC selectGalleyTeamMemberAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamMemberFull :: Env -> FilePath -> IO ()
-exportGalleyTeamMemberFull env@Env {..} path = do
+exportGalleyTeamMemberFull env path = do
   putStrLn $ "Exporting " <> "galley.team_member" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -931,7 +931,7 @@ readGalleyTeamNotificationsAll Env {..} =
     paginateC selectGalleyTeamNotificationsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamNotificationsFull :: Env -> FilePath -> IO ()
-exportGalleyTeamNotificationsFull env@Env {..} path = do
+exportGalleyTeamNotificationsFull env path = do
   putStrLn $ "Exporting " <> "galley.team_notifications" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -977,7 +977,7 @@ readGalleyUserAll Env {..} =
     paginateC selectGalleyUserAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyUserFull :: Env -> FilePath -> IO ()
-exportGalleyUserFull env@Env {..} path = do
+exportGalleyUserFull env path = do
   putStrLn $ "Exporting " <> "galley.user" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1023,7 +1023,7 @@ readGalleyUserTeamAll Env {..} =
     paginateC selectGalleyUserTeamAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyUserTeamFull :: Env -> FilePath -> IO ()
-exportGalleyUserTeamFull env@Env {..} path = do
+exportGalleyUserTeamFull env path = do
   putStrLn $ "Exporting " <> "galley.user_team" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1069,7 +1069,7 @@ readGundeckNotificationsAll Env {..} =
     paginateC selectGundeckNotificationsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGundeckNotificationsFull :: Env -> FilePath -> IO ()
-exportGundeckNotificationsFull env@Env {..} path = do
+exportGundeckNotificationsFull env path = do
   putStrLn $ "Exporting " <> "gundeck.notifications" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1115,7 +1115,7 @@ readSparScimExternalAll Env {..} =
     paginateC selectSparScimExternalAll (paramsP LocalQuorum () envPageSize) x5
 
 exportSparScimExternalFull :: Env -> FilePath -> IO ()
-exportSparScimExternalFull env@Env {..} path = do
+exportSparScimExternalFull env path = do
   putStrLn $ "Exporting " <> "spar.scim_external" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1161,7 +1161,7 @@ readSparScimUserTimesAll Env {..} =
     paginateC selectSparScimUserTimesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportSparScimUserTimesFull :: Env -> FilePath -> IO ()
-exportSparScimUserTimesFull env@Env {..} path = do
+exportSparScimUserTimesFull env path = do
   putStrLn $ "Exporting " <> "spar.scim_user_times" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1207,7 +1207,7 @@ readSparUserAll Env {..} =
     paginateC selectSparUserAll (paramsP LocalQuorum () envPageSize) x5
 
 exportSparUserFull :: Env -> FilePath -> IO ()
-exportSparUserFull env@Env {..} path = do
+exportSparUserFull env path = do
   putStrLn $ "Exporting " <> "spar.user" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
