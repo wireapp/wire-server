@@ -55,11 +55,11 @@ let
       pname = "stack";
       version = "2.3.1";
 
-      darwinAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v2.3.1/stack-2.3.1-osx-x86_64.tar.gz";
-      darwinAmd64Sha256 = "089nrb8mxf76a0r0hdccaxfvx1ly24b5zc0cy05gs4adybjygvkk";
+      darwinAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v2.7.3/stack-2.7.3-osx-x86_64.tar.gz";
+      darwinAmd64Sha256 = "0c7yx670h1qi2g5l4xx9s4552pz77k31lhjjd2rafi5g00501ra2";
 
-      linuxAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v2.3.1/stack-2.3.1-linux-x86_64-static.tar.gz";
-      linuxAmd64Sha256 = "0iqfqcd88rvlwgm2h8avs0rsi9f3pdxilvcacgrxskb1n8q8ibjb";
+      linuxAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v2.7.3/stack-2.7.3-linux-x86_64-static.tar.gz";
+      linuxAmd64Sha256 = "sha256-xbziTe+isrhvG7sUvtTx7oO+wUxu2fzIEXTVRz+/NFA=";
     };
 
     helm = staticBinaryInTarball {
@@ -120,7 +120,7 @@ let
       pkgs.gawk
       pkgs.git
 
-      pkgs.haskell.compiler.ghc884
+      pkgs.haskell.compiler.ghc8107
       pkgs.protobuf
 
       pkgs.cryptobox
@@ -163,7 +163,7 @@ in
   pkgs.cfssl
   pkgs.docker-compose
   pkgs.gnumake
-  pkgs.haskell-language-server
+  (pkgs.haskell-language-server.override {supportedGhcVersions = ["8107"];})
   pkgs.jq
   pkgs.ormolu
   pkgs.telepresence
@@ -187,4 +187,18 @@ in
   # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
   # which sets LD_LIBRARY_PATH and others correctly.
   cabal-wrapper
+  pkgs.haskellPackages.implicit-hie
+
+  # HLS needs these, TODO: extract variable and use for both cabal-wrapper and here.
+  pkgs.cryptobox
+  pkgs.geoip
+  pkgs.icu.out
+  pkgs.libsodium.out
+  pkgs.libxml2.out
+  pkgs.ncurses.out
+  pkgs.openssl.out
+  pkgs.pcre.out
+  pkgs.snappy.out
+  pkgs.zlib.out
+  pkgs.lzma.out
 ]
