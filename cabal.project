@@ -237,8 +237,6 @@ package rex
     ghc-options: -Werror
 package ropes
     ghc-options: -Werror
-package saml2-web-sso
-    ghc-options: -Werror
 package schema-profunctor
     ghc-options: -Werror
 package service-backfill
