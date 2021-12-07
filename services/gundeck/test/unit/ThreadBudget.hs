@@ -307,10 +307,10 @@ sm =
       STM.postcondition = postcondition,
       STM.invariant = Nothing,
       STM.generator = generator,
-      STM.distribution = Nothing,
       STM.shrinker = shrinker,
       STM.semantics = semantics,
-      STM.mock = mock
+      STM.mock = mock,
+      STM.cleanup = const (pure ())
     }
 
 -- | Remove resources created by the concrete 'STM.Commands', namely watcher and budgeted
