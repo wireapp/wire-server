@@ -243,6 +243,9 @@ extra-deps:
 - polysemy-plugin-0.4.2.0
 - polysemy-check-0.8.1.0
 
+# polysemy-check has this upper bound
+- kind-generics-0.4.1.0
+
 # ad-hoc additions (on 2021-10-10)
 - proto-lens-0.7.1.0
 - proto-lens-protoc-0.7.1.0

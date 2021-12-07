@@ -697,6 +697,13 @@ packages:
   original:
     hackage: polysemy-check-0.8.1.0
 - completed:
+    hackage: kind-generics-0.4.1.0@sha256:15e50867349de627c401af29f56b204dfb2ad2b12e83417132ffca3d5cd02462,1061
+    pantry-tree:
+      size: 390
+      sha256: 497a73c5243cd787c06b7b66258fccf6299e6a853fa44f050f72f0bf1967715f
+  original:
+    hackage: kind-generics-0.4.1.0
+- completed:
     hackage: proto-lens-0.7.1.0@sha256:b151890929e71db5b8c2ad86cd758bcdf1dfcf25f34eb6c9ce19e3d7cd4eae39,2959
     pantry-tree:
       size: 1857
