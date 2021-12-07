@@ -311,27 +311,78 @@ server.  In these cases, the function in `Man.ts` must raise a "server
 too old" exception, and gracefully shut down the new functionality.
 
 
-## Design Alternatives and Concerns
+## Concerns and design alternatives
 
-TODO:
-```
-separate version for each end-point?
-  - not so important for clients that hand-code everything:
-    => if clients write code manually, they only have to adjust the
-    end-points that show up in the swagger diff.
-  - for generation: interesting problem.  maybe this:
-     - generate new client
-     - look at the git diff
-     - take everything that's different, and handle it outside the
-       generated code.  take the code generated for old versions and
-       move it somewhere where it can't be re-generated (doesn't have
-       to).  the end?
-```
+### Why not version every end-point separately?
 
-TODO: what if the behavior changes?  => then either you can implement
-the new behavior in terms of the old one, or you can't offer the
-feature (yet!) in this version combination.  if server is old and
-client is new, it needs to hide new features.
+Yes, that would work in principle.  On the backend, it would make the
+entire routing table smaller (no need to concatenate the same
+end-point for many versions), which may result in shorter compile
+times.  On the clients, with a new API version it would be
+straight-forward to see which end-points need to be worked on, and
+which remain unchanged.
 
-TODO: client capabilities: we have those, but they are quadratic in
-complexity, and it's hard to uncleaer how to phase out old behavior.
+On the other hand, the routing table size may not be an issue, and if
+it is there are solutions (introduce a CCP switch to compile only the
+most recent API version that you're working on); and the client
+process is already quite straight-forward with the approach outlined
+above via diffing the swagger docs between most recent version and
+predecessor.
+
+Plus, if the entire API has one version, you get a few advantages:
+
+1. The fact that clients are forced to commit to a concrete API
+   version for all end-points when talking to the backend reduces
+   testing complexity.  If there is a mapping of end-points to
+   versions, the behavior of interacting parties is much less
+   restricted, and versions that have not been tested against each
+   other may be used together.  (This can be avoided, but it's less
+   obvious how to get it right, and testing complexity will likely be
+   worse.)
+
+2. The "one version" approach makes it obvious which end-points are in
+   the most recent API at any given point in time.  The "one version
+   per end-point" approach would either yeild a noisy union of all
+   supported versions, or there would have to be a mechanism for
+   reconstructing something close to what we get for free otherwise.
+
+3. The backend code is a good combinatin of concise and type-safe in
+   the "one version" approach.  If every end-point had its own
+   version, the routing table entry would either have to accept a
+   variable path segment for the version, and fail at run-time if the
+   version is not supported, or you would have to add one handler per
+   supported version (even if in the case where all versions call the
+   same handler function with slightly different parameters).
+
+
+### Syntactical vs. behavioral changes
+
+It is quite common that behavior of end-points changes together with
+the syntax, or even without a change in the syntax.
+
+This is not a fundamental problem: since the handler can be called
+with the version as a type parameter, there is no reason why it
+shouldn't change behavior with or without changing the syntax.  In
+each such case, it needs to be decided whether the difference is
+significant enough to justify a new API version.
+
+At the very least though it should result in diverging swagger docs
+that explains those differences.
+
+
+### Client capabilities
+
+Wire supports client capabilities to decide whether a client should be
+allowed to use certain parts of the API.
+
+This is another alternative to API versions, and it is in some ways
+more straight-forward to decide who to interpret capability sets.  But
+this approach has its own problems: Most importantly, the number of
+supported capability sets grows quadratically (not in practice,
+because historically clients will only ever support a small part of
+all possible combinations of capabilities, but that makes thigns
+worse: it makes the system more complex, and then doesn't use that
+complexity for anything).
+
+Therefore, the capabilities we're using in the wire code base should
+be gracefully phased out and replaced by API versions.
