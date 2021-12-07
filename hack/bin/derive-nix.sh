@@ -8,29 +8,45 @@ pkgDirs=$(find "$TOP_LEVEL" -name '*.cabal' | grep  -v dist-newstyle | xargs dir
 
 echo "$pkgDirs" | xargs -I{} bash -c 'cabal2nix {} > {}/default.nix'
 
-rm -rf "$TOP_LEVEL/nix/extra-deps"
-mkdir -p "$TOP_LEVEL/nix/extra-deps"
+extra_deps_path="$TOP_LEVEL/nix/extra-deps"
+rm -rf "$extra_deps_path"
+mkdir -p "$extra_deps_path"
 
 repos_without_subdirs=$(yq -r '.["extra-deps"][] | select(type == "object") | select (.subdirs == null) | .git' "$TOP_LEVEL/stack.yaml")
-echo "$repos_without_subdirs" | xargs -I {} bash -c 'cabal2nix {} > '"$TOP_LEVEL"'/nix/extra-deps/$(basename {}).nix'
+echo "$repos_without_subdirs" | xargs -I {} bash -c 'cabal2nix {} > '"$extra_deps_path"'/$(basename {}).nix'
 
 repos_with_subdirs=$(yq -r '.["extra-deps"][] | select(type == "object") | select (.subdirs != null) | .git' "$TOP_LEVEL/stack.yaml")
 while read repo; do
     yq -r '.["extra-deps"][] | select(type == "object") | select (.git == $repo) | .subdirs[]' "$TOP_LEVEL/stack.yaml" --arg repo "$repo" |
-        xargs -I {} bash -c 'cabal2nix '"$repo"' --subpath {} > '"$TOP_LEVEL"'/nix/extra-deps/'"$(basename "$repo")"'-$(basename {}).nix'
+        xargs -I {} bash -c 'cabal2nix '"$repo"' --subpath {} > '"$extra_deps_path"'/'"$(basename "$repo")"'-$(basename {}).nix'
 done <<<"$repos_with_subdirs"
+
+getName() {
+    grep 'pname = ' "$1" | sed 's|.*pname = "\(.*\)".*|\1|'
+}
 
 mkOverlay() {
     echo 'hself: hsuper: {'
-    echo "$pkgDirs" |
-        xargs -I{} bash -c 'echo \ \ $(basename {}) = hsuper.callPackage $(realpath --relative-to='"$TOP_LEVEL"'/nix/overlays {})/default.nix \{\}\;'
-    echo "$repos_without_subdirs" | xargs -n 1 basename |
-        xargs -I {} bash -c 'echo \ \ {} = hsuper.callPackage $(realpath --relative-to='"$TOP_LEVEL"'/nix/overlays '"$TOP_LEVEL"'/nix/extra-deps/{}.nix) \{\}\;'
+
+    while read pkgDir; do
+        drv_path="$pkgDir/default.nix"
+        name=$(getName "$drv_path")
+        echo "  $name = hsuper.callPackage $(realpath --relative-to="$TOP_LEVEL/nix/overlays" "$drv_path") {};"
+    done <<<"$pkgDirs"
+
     while read repo; do
+        drv_path="$extra_deps_path/$(basename $repo).nix"
+        name=$(getName "$drv_path")
+        echo "  $name = hsuper.callPackage $(realpath --relative-to="$TOP_LEVEL/nix/overlays" "$drv_path") {};"
+    done <<<"$repos_without_subdirs"
+
+    while read repo; do
+        subdirs=$(yq -r '.["extra-deps"][] | select(type == "object") | select (.git == $repo) | .subdirs[]' "$TOP_LEVEL/stack.yaml" --arg repo "$repo")
         while read subdir; do
-            name="$(basename "$repo")-$(basename "$subdir")"
-            echo "  $name = hsuper.callPackage $(realpath --relative-to="$TOP_LEVEL/nix/overlays" "$TOP_LEVEL/nix/extra-deps/$name.nix") {};"
-        done <<<"$(yq -r '.["extra-deps"][] | select(type == "object") | select (.git == $repo) | .subdirs[]' "$TOP_LEVEL/stack.yaml" --arg repo "$repo")"
+            drv_path="$extra_deps_path/$(basename "$repo")-$(basename "$subdir").nix"
+            name=$(getName "$drv_path")
+            echo "  $name = hsuper.callPackage $(realpath --relative-to="$TOP_LEVEL/nix/overlays" "$drv_path") {};"
+        done <<<"$subdirs"
     done <<<"$repos_with_subdirs"
     echo '}'
 }
