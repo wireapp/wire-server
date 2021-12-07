@@ -36,7 +36,7 @@ import Cassandra (MonadClient)
 import Control.Monad.Catch
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding (list, pair, text)
-import qualified Data.ByteString.Lazy.Builder as B
+import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Map.Lazy as Map
 import Data.String.Conversions (cs)
