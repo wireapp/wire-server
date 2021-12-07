@@ -17,8 +17,8 @@ mkDerivation {
   version = "0.18";
   src = fetchgit {
     url = "https://github.com/wireapp/saml2-web-sso";
-    sha256 = "0x1da015vkv7jrdk6rdnw6yy2kb25mkl4lci8ln0lsjkqp406hk2";
-    rev = "b8c0bad8e6297c2cfcd608d0f2f89a6129d16361";
+    sha256 = "0agdvnn20r5bdf769msrqi4zm44i0s5y574nzqqrs894bzim24fm";
+    rev = "4227e38be5c0810012dc472fc6931f6087fbce68";
     fetchSubmodules = true;
   };
   isLibrary = true;
