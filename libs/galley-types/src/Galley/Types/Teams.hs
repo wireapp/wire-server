@@ -372,6 +372,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureFileSharing,
             ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
             ChangeTeamFeature TeamFeatureSelfDeletingMessages,
+            ChangeTeamFeature TeamFeatureGuestLinks,
             ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,

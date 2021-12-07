@@ -149,6 +149,24 @@ getAllFeatureConfigsWithGalley galley uid = do
       . paths ["feature-configs"]
       . zUser uid
 
+putTeamFeatureFlagWithGalley ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+  ) =>
+  (Request -> Request) ->
+  UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
+  TestM ResponseLBS
+putTeamFeatureFlagWithGalley galley uid tid status =
+  put $
+    galley
+      . paths ["teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+      . json status
+      . zUser uid
+
 putTeamFeatureFlagInternal ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,

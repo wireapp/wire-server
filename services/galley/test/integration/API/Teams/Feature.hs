@@ -478,14 +478,22 @@ testGuestLinks :: TestM ()
 testGuestLinks = do
   galley <- view tsGalley
   (owner, tid, []) <- Util.createBindingTeamWithNMembers 0
-  let expected = Public.TeamFeatureStatusNoConfigAndLockStatus Public.TeamFeatureEnabled Public.Unlocked
-
-      checkGet :: HasCallStack => TestM ()
-      checkGet =
+  let checkGet :: HasCallStack => Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
+      checkGet status lock =
         do
           Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner tid
-          !!! responseJsonEither === const (Right expected)
-  checkGet
+          !!! responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus status lock))
+      checkSet :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      checkSet status =
+        do
+          Util.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner tid (Public.TeamFeatureStatusNoConfig status)
+          !!! statusCode === const 200
+
+  checkGet Public.TeamFeatureEnabled Public.Unlocked
+  checkSet Public.TeamFeatureDisabled
+  checkGet Public.TeamFeatureDisabled Public.Unlocked
+  checkSet Public.TeamFeatureEnabled
+  checkGet Public.TeamFeatureEnabled Public.Unlocked
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
