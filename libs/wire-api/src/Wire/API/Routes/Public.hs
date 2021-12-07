@@ -129,7 +129,7 @@ type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
-      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
+      & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
       & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
     where
       secScheme =
