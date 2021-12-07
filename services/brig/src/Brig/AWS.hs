@@ -97,13 +97,9 @@ newtype Amazon a = Amazon
       MonadCatch,
       MonadMask,
       MonadReader Env,
-      MonadResource
+      MonadResource,
+      MonadUnliftIO
     )
-
-instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon . ReaderT $ \r ->
-    withUnliftIO $ \u ->
-      return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
