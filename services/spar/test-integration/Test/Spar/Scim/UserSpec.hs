@@ -35,7 +35,7 @@ import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.Random (Random (randomRIO))
+import Control.Monad.Random (randomRIO)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)

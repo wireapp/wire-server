@@ -44,7 +44,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
-import Control.Monad.Random (Random (randomRIO))
+import Control.Monad.Random (randomRIO)
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
