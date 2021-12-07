@@ -37,6 +37,8 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output
 import Polysemy.TinyLog
+import qualified Servant.Client.Core as Servant
+import Servant.Types.SourceT
 import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Federator.Validation (mockDiscoveryTrivial)
@@ -85,12 +87,13 @@ mockService ::
 mockService status = interpret $ \case
   ServiceCall comp path body domain -> do
     output (Call comp path body domain)
-    ref <- embed @IO (newIORef False)
-    let sbody = do
-          done <- readIORef ref
-          writeIORef ref True
-          pure $ if done then mempty else "\"bar\""
-    pure (status, [], sbody)
+    pure
+      Servant.Response
+        { Servant.responseStatusCode = status,
+          Servant.responseHeaders = mempty,
+          Servant.responseHttpVersion = HTTP.http11,
+          Servant.responseBody = source ["\"bar\""]
+        }
 
 requestBrigSuccess :: TestTree
 requestBrigSuccess =

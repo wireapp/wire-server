@@ -36,6 +36,8 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
+import qualified Servant.Client.Core as Servant
+import Servant.Types.SourceT
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -67,19 +69,17 @@ callInward wreq = do
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
 
-  (status, headers, body) <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
+  resp <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
+  let ctHeaders = filter (\(name, _) -> name == "Content-Type") (toList (Servant.responseHeaders resp))
+      status = Servant.responseStatusCode resp
+      streamingBody output flush =
+        foreach
+          (const (pure ()))
+          (\chunk -> output (byteString chunk) *> flush)
+          (Servant.responseBody resp)
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show status)
-  let ctHeaders = filter (\(name, _) -> name == "Content-Type") headers
-      streamingBody output flush = go
-        where
-          go = do
-            chunk <- body
-            unless (BS.null chunk) $ do
-              output (byteString chunk)
-              flush
-              go
   pure $ Wai.responseStream status ctHeaders streamingBody
 
 data RequestData = RequestData

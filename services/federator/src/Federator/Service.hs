@@ -15,14 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Service where
+module Federator.Service
+  ( Service (..),
+    ServiceStreaming,
+    interpretServiceHTTP,
+    serviceCall,
+  )
+where
 
 -- FUTUREWORK(federation): Once we authenticate the call, we should send authentication data
 -- to brig so brig can do some authorization as required.
 
 import qualified Bilge as RPC
+import Control.Exception
 import Control.Lens (view)
+import Control.Monad.Codensity
+import qualified Data.ByteString as BS
 import Data.Domain
+import qualified Data.Sequence as Seq
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
 import Federator.Env
@@ -32,22 +42,29 @@ import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
+import qualified Servant.Client.Core as Servant
+import Servant.Types.SourceT
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 
-newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
-  deriving (Eq, Show)
-
-type ServiceLBS = Service (Maybe LByteString)
-
-type ServiceStreaming = Service BodyReader
+type ServiceStreaming = Service (SourceT IO ByteString)
 
 data Service body m a where
   -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (HTTP.Status, [HTTP.Header], body)
+  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (Servant.ResponseF body)
 
 makeSem ''Service
+
+bodyReaderToStreamT :: Monad m => m ByteString -> SourceT m ByteString
+bodyReaderToStreamT action = fromStepT go
+  where
+    go = Effect $ do
+      chunk <- action
+      pure $
+        if BS.null chunk
+          then Stop
+          else Yield chunk go
 
 -- FUTUREWORK(federation): Do we want to use servant client here? May make
 -- everything typed and safe
@@ -57,11 +74,11 @@ makeSem ''Service
 --
 -- FUTUREWORK: unify this interpretation with similar ones in Galley
 --
-interpretServiceStreaming ::
-  Members '[Embed IO, Input Env, TinyLog] r =>
+interpretServiceHTTP ::
+  Members '[Embed (Codensity IO), Input Env, TinyLog] r =>
   Sem (ServiceStreaming ': r) a ->
   Sem r a
-interpretServiceStreaming = interpret $ \case
+interpretServiceHTTP = interpret $ \case
   ServiceCall component rpcPath body domain -> do
     Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
     manager <- inputs (view httpManager)
@@ -80,7 +97,13 @@ interpretServiceStreaming = interpret $ \case
                 ]
             }
 
-    resp <- embed $ responseOpen req manager
-
-    -- TODO: close response
-    pure (responseStatus resp, responseHeaders resp, responseBody resp)
+    embed $
+      Codensity $ \k ->
+        bracket (responseOpen req manager) responseClose $ \resp ->
+          k $
+            Servant.Response
+              { Servant.responseStatusCode = responseStatus resp,
+                Servant.responseHeaders = Seq.fromList (responseHeaders resp),
+                Servant.responseHttpVersion = HTTP.http11,
+                Servant.responseBody = bodyReaderToStreamT (responseBody resp)
+              }

@@ -24,6 +24,7 @@ module Federator.Response
 where
 
 import Control.Lens
+import Control.Monad.Codensity
 import Federator.Discovery
 import Federator.Env
 import Federator.Error
@@ -39,6 +40,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import Polysemy
+import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
@@ -96,8 +98,7 @@ serve action env port =
   where
     app :: Wai.Application
     app req respond =
-      runFederator env (action req)
-        >>= respond
+      runCodensity (runFederator env (action req)) respond
 
 type AllEffects =
   '[ Remote,
@@ -112,14 +113,16 @@ type AllEffects =
      Error ServerError,
      Error DiscoveryFailure,
      TinyLog,
-     Embed IO
+     Embed IO,
+     Embed (Codensity IO)
    ]
 
 -- | Run Sem action containing HTTP handlers. All errors have to been handled
 -- already by this point.
-runFederator :: Env -> Sem AllEffects Wai.Response -> IO Wai.Response
+runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
 runFederator env =
-  runM @IO
+  runM
+    . runEmbedded @IO @(Codensity IO) liftIO
     . runTinyLog (view applog env) -- FUTUREWORK: add request id
     . runWaiErrors
       @'[ ValidationError,
@@ -130,7 +133,7 @@ runFederator env =
     . runInputConst env
     . runInputSem (embed @IO (readIORef (view tls env)))
     . runInputConst (view runSettings env)
-    . interpretServiceStreaming
+    . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery
     . interpretRemote
