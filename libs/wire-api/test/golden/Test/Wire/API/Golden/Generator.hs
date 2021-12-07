@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generator where
 
 import Data.Id
 import Imports
-import System.IO (Handle, hPutStr, hPutStrLn, openFile)
+import System.IO (Handle, hPutStr, hPutStrLn)
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
