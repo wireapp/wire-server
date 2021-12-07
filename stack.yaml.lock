@@ -294,12 +294,12 @@ packages:
   original:
     hackage: template-0.2.0.10
 - completed:
-    hackage: HaskellNet-0.5.2@sha256:77fb8466fcbeb76f17366ffd7deb37550b6ea08a4d08bf721d0b597c2573336d,2069
+    hackage: HaskellNet-0.5.3@sha256:23d4fe0a09dfdbbd4bc7ef05479b8d60f3f600d3fce93d553aef056fdc0ed3a3,2122
     pantry-tree:
       size: 1499
-      sha256: 20f0361675729e606fb37b8a1865f4bd49d952f2d0148693b62f68fadf5801d5
+      sha256: a7e1aef4f0dbf840f4f8a2d325b25527862b5aa0f88cb70c711170805e154a58
   original:
-    hackage: HaskellNet-0.5.2
+    hackage: HaskellNet-0.5.3
 - completed:
     hackage: smtp-mail-0.2.0.0@sha256:b91c81f6dbb41a9ceee8c443385118684ecec55006b77f7d3c0e49cffd2468cf,1211
     pantry-tree:
@@ -525,53 +525,53 @@ packages:
     subdir: servant
     name: servant
     version: 0.18.2
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     pantry-tree:
       size: 2809
       sha256: 22348fceac7bca97f5c349d9db0b157e401ed273d151d8cbcbd767f4d06791e8
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-server
     name: servant-server
     version: 0.18.2
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     pantry-tree:
       size: 2727
       sha256: 55d3c9747550555f3861b5fabfe7cc0385c64ccaf3e5b051aa3064bddb8661ad
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-server
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-client
     name: servant-client
     version: 0.18.2
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     pantry-tree:
       size: 1346
       sha256: 9245621a9097c0b4d5ecbd61616d00c69112e1539db8803a0fda010de484e7ba
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-client
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-client-core
     name: servant-client-core
     version: 0.18.2
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     pantry-tree:
       size: 1444
       sha256: b5a7abf78d2ee0887bf05d7d4ba71e3c689b65a9b2e7386c394f4bdb6ff8e55d
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-client-core
-    git: https://github.com/wireapp/servant.git
+    git: https://github.com/wireapp/servant
     commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
@@ -696,6 +696,20 @@ packages:
       sha256: bc880fb3405307ed251c02358d604979d8014040b78c2ffe6319076431f93509
   original:
     hackage: polysemy-check-0.8.1.0
+- completed:
+    hackage: network-3.1.2.0@sha256:3ace4c1cab0d8f7a0029188e0887a0526f0e148dccb4473eec65806c81df3a1d,4962
+    pantry-tree:
+      size: 3971
+      sha256: fc7599404df3c29a28e73a298b6469b5be4511738cc4697f0372b2c755c7d89f
+  original:
+    hackage: network-3.1.2.0
+- completed:
+    hackage: focus-1.0.3@sha256:3d3912de7412272a76f76fa16644ac3550dbcc7fb2d504fa1d80a209dd18114f,2646
+    pantry-tree:
+      size: 325
+      sha256: 3e0247e5dfe683ec67b00bbf8582418435bbf74d9f5d5bf734149e80f70722c1
+  original:
+    hackage: focus-1.0.3
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

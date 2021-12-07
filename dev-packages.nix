@@ -163,7 +163,7 @@ in
   pkgs.cfssl
   pkgs.docker-compose
   pkgs.gnumake
-  pkgs.haskell-language-server
+  # pkgs.haskell-language-server
   pkgs.jq
   pkgs.ormolu
   pkgs.telepresence

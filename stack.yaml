@@ -137,7 +137,7 @@ extra-deps:
 
 # Dropped from upstream snapshot
 - template-0.2.0.10
-- HaskellNet-0.5.2
+- HaskellNet-0.5.3
 - smtp-mail-0.2.0.0
 - stm-containers-1.1.0.4 # Latest: lts-15.16
 - redis-resp-1.0.0
@@ -227,6 +227,10 @@ extra-deps:
 - polysemy-1.7.0.0
 - polysemy-plugin-0.4.2.0
 - polysemy-check-0.8.1.0
+
+# Marked as broken
+- network-3.1.2.0
+- focus-1.0.3
 
 ############################################################
 # Development tools
