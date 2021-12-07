@@ -28,7 +28,6 @@ import Control.Monad.Catch (MonadCatch, catch)
 import Data.Metrics.Middleware (metrics)
 import Data.String.Conversions (cs)
 import Data.Time
-import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
 import Gundeck.Options
 import Gundeck.ThreadBudget.Internal
