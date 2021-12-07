@@ -31,6 +31,7 @@ import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
@@ -43,8 +44,8 @@ type ServiceLBS = Service (Maybe LByteString)
 type ServiceStreaming = Service BodyReader
 
 data Service body m a where
-  -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (HTTP.Status, body)
+  -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
+  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (HTTP.Status, [HTTP.Header], body)
 
 makeSem ''Service
 
@@ -57,7 +58,7 @@ makeSem ''Service
 -- FUTUREWORK: unify this interpretation with similar ones in Galley
 --
 interpretServiceStreaming ::
-  Members '[Embed IO, Input Env] r =>
+  Members '[Embed IO, Input Env, TinyLog] r =>
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceStreaming = interpret $ \case
@@ -78,6 +79,8 @@ interpretServiceStreaming = interpret $ \case
                   (RPC.requestIdName, RPC.unRequestId reqId)
                 ]
             }
+
     resp <- embed $ responseOpen req manager
+
     -- TODO: close response
-    pure (responseStatus resp, responseBody resp)
+    pure (responseStatus resp, responseHeaders resp, responseBody resp)

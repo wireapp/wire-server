@@ -93,7 +93,7 @@ data Remote m a where
     Text ->
     [HTTP.Header] ->
     Builder ->
-    Remote m (HTTP.Status, Builder)
+    Remote m (HTTP.Status, [HTTP.Header], Builder)
 
 makeSem ''Remote
 
@@ -117,12 +117,12 @@ interpretRemote = interpret $ \case
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers body
         tlsConfig = mkTLSConfig settings hostname port
-    (status, _, result) <-
+    (status, hdrs, result) <-
       mapError (RemoteError target) . (fromEither =<<) . embed $
         performHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port)
     unless (HTTP.statusIsSuccessful status) $
       throw $ RemoteErrorResponse target status (toLazyByteString result)
-    pure (status, result)
+    pure (status, hdrs, result)
 
 mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
 mkTLSConfig settings hostname port =

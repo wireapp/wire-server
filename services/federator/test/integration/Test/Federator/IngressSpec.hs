@@ -53,7 +53,7 @@ spec env = do
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        (status, resp) <-
+        (status, _, resp) <-
           runTestSem
             . assertNoError @RemoteError
             $ inwardBrigCallViaIngress "get-user-by-handle" $
@@ -102,7 +102,7 @@ inwardBrigCallViaIngress ::
   Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   Text ->
   Builder ->
-  Sem r (HTTP.Status, Builder)
+  Sem r (HTTP.Status, [HTTP.Header], Builder)
 inwardBrigCallViaIngress path payload = do
   tlsSettings <- inputs (view teTLSSettings)
   inwardBrigCallViaIngressWithSettings tlsSettings path payload
@@ -112,7 +112,7 @@ inwardBrigCallViaIngressWithSettings ::
   TLSSettings ->
   Text ->
   Builder ->
-  Sem r (HTTP.Status, Builder)
+  Sem r (HTTP.Status, [HTTP.Header], Builder)
 inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
   do
     Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input

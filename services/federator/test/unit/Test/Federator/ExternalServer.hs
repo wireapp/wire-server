@@ -90,7 +90,7 @@ mockService status = interpret $ \case
           done <- readIORef ref
           writeIORef ref True
           pure $ if done then mempty else "\"bar\""
-    pure (status, sbody)
+    pure (status, [], sbody)
 
 requestBrigSuccess :: TestTree
 requestBrigSuccess =

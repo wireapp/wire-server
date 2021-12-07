@@ -67,12 +67,12 @@ callInward wreq = do
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
 
-  (status, body) <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
+  (status, headers, body) <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show status)
-
-  let streamingBody output flush = go
+  let ctHeaders = filter (\(name, _) -> name == "Content-Type") headers
+      streamingBody output flush = go
         where
           go = do
             chunk <- body
@@ -80,7 +80,7 @@ callInward wreq = do
               output (byteString chunk)
               flush
               go
-  pure $ Wai.responseStream status defaultHeaders streamingBody
+  pure $ Wai.responseStream status ctHeaders streamingBody
 
 data RequestData = RequestData
   { rdComponent :: Component,

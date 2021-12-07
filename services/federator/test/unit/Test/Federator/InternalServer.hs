@@ -78,7 +78,7 @@ federatedRequestSuccess =
             rpc @?= "get-user-by-handle"
             headers @?= requestHeaders
             toLazyByteString body @?= "\"foo\""
-            pure (HTTP.status200, fromLazyByteString "\"bar\"")
+            pure (HTTP.status200, [],fromLazyByteString "\"bar\"")
     res <-
       runM
         . interpretCall
@@ -107,7 +107,7 @@ federatedRequestFailureAllowList =
 
     let checkRequest :: Sem (Remote ': r) a -> Sem r a
         checkRequest = interpret $ \case
-          DiscoverAndCall {} -> pure (HTTP.status200, fromLazyByteString "\"bar\"")
+          DiscoverAndCall {} -> pure (HTTP.status200, [], fromLazyByteString "\"bar\"")
 
     eith <-
       runM
