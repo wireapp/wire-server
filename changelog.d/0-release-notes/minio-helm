@@ -1,1 +1,0 @@
-Breaking change to the `fake-aws-s3` helm chart. We now use minio helm chart from https://charts.min.io. The options are documented here: https://github.com/minio/minio/tree/master/helm/minio

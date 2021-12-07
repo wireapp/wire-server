@@ -20,9 +20,8 @@
 
 module Federator.App
   ( AppT,
-    Federator,
     runAppT,
-    liftAppIOToFederator,
+    embedApp,
   )
 where
 
@@ -33,7 +32,8 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Federator.Env (Env, applog, httpManager, requestId)
 import Imports
-import Mu.Server (ServerError, ServerErrorIO)
+import Polysemy
+import Polysemy.Input
 import Servant.API.Generic ()
 import Servant.Server ()
 import System.Logger.Class as LC
@@ -55,8 +55,6 @@ newtype AppT m a = AppT
       MonadReader Env
     )
 
-type Federator = AppT ServerErrorIO
-
 instance MonadIO m => LC.MonadLogger (AppT m) where
   log l m = do
     g <- view applog
@@ -75,12 +73,6 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
       withRunInIO $ \runner ->
         inner (runner . flip runReaderT r . unAppT)
 
-instance MonadError ServerError (AppT ServerErrorIO) where
-  throwError = lift . throwError @_ @ServerErrorIO
-  catchError a f = do
-    env <- ask
-    lift $ catchError (runAppT env a) (runAppT env . f)
-
 instance MonadTrans AppT where
   lift = AppT . lift
 
@@ -92,7 +84,7 @@ instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
 runAppT :: forall m a. Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
-liftAppIOToFederator :: AppT IO a -> Federator a
-liftAppIOToFederator (AppT action) = do
-  env <- ask
-  lift . lift $ runReaderT action env
+embedApp :: Members '[Embed m, Input Env] r => AppT m a -> Sem r a
+embedApp (AppT action) = do
+  env <- input
+  embed $ runReaderT action env

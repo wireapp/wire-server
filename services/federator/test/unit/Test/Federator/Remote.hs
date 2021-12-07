@@ -1,5 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -19,8 +17,11 @@
 
 module Test.Federator.Remote where
 
-import Data.Streaming.Network (bindRandomPortTCP)
+import Control.Exception (bracket)
+import Data.Domain
+import Federator.Discovery
 import Federator.Env (TLSSettings)
+import Federator.MockServer (startMockServer)
 import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
@@ -28,28 +29,25 @@ import Imports
 import Network.HTTP.Types (status200)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.WarpTLS as WarpTLS
+import qualified Network.Wai.Handler.WarpTLS as Warp
 import Polysemy
-import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.Input as Polysemy
-import qualified Polysemy.Resource as Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Test.Federator.Options (defRunSettings)
+import Test.Federator.Util
 import Test.Tasty
 import Test.Tasty.HUnit
-import UnliftIO (bracket, timeout)
-import qualified UnliftIO.Async as Async
-import Wire.API.Federation.GRPC.Client
+import Wire.API.Federation.Component
+import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
 
 tests :: TestTree
 tests =
   testGroup
     "Federator.Remote"
-    [ testGroup
-        "mkGrpcClient"
-        [ testValidatesCertificateSuccess,
-          testValidatesCertificateWrongHostname
-        ]
+    [ testValidatesCertificateSuccess,
+      testValidatesCertificateWrongHostname,
+      testConnectionError
     ]
 
 settings :: RunSettings
@@ -62,41 +60,58 @@ settings =
       remoteCAStore = Just "test/resources/unit/unit-ca.pem"
     }
 
-assertNoError :: IO (Either RemoteError x) -> IO x
-assertNoError action =
+discoverLocalhost :: Int -> Sem (DiscoverFederator ': r) a -> Sem r a
+discoverLocalhost port = interpret $ \case
+  DiscoverAllFederators (Domain "localhost") ->
+    pure (Right (pure (SrvTarget "localhost" (fromIntegral port))))
+  DiscoverAllFederators _ -> pure (Left (DiscoveryFailureSrvNotAvailable "only localhost is supported"))
+  DiscoverFederator (Domain "localhost") ->
+    pure (Right (SrvTarget "localhost" (fromIntegral port)))
+  DiscoverFederator _ -> pure (Left (DiscoveryFailureSrvNotAvailable "only localhost is supported"))
+
+assertNoRemoteError :: IO (Either RemoteError x) -> IO x
+assertNoRemoteError action =
   action >>= \case
-    Left err -> assertFailure $ "Unexpected error: " <> show err
+    Left err -> assertFailure $ "Unexpected remote error: " <> show err
     Right x -> pure x
 
-mkTestGrpcClient :: TLSSettings -> Int -> IO (Either RemoteError ())
-mkTestGrpcClient tlsSettings port =
-  Polysemy.runM
-    . Polysemy.runResource
-    . Polysemy.runError
-    . Polysemy.runInputConst tlsSettings
-    $ do
-      Polysemy.bracket
-        (mkGrpcClient (SrvTarget "localhost" (fromIntegral port)))
-        (embed @IO . closeGrpcClient)
-        (const (pure ()))
+mkTestCall :: TLSSettings -> Int -> IO (Either RemoteError ())
+mkTestCall tlsSettings port =
+  runM
+    . runError @RemoteError
+    . void
+    . runInputConst tlsSettings
+    . discoverLocalhost port
+    . assertNoError @DiscoveryFailure
+    . interpretRemote
+    $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
+
+withMockServer :: Warp.TLSSettings -> (Warp.Port -> IO a) -> IO a
+withMockServer tls k =
+  bracket
+    (startMockServer (Just tls) app)
+    fst
+    (k . snd)
+  where
+    app _req respond = respond $ responseLBS status200 [] "mock body"
 
 testValidatesCertificateSuccess :: TestTree
 testValidatesCertificateSuccess =
   testGroup
     "can get response with valid certificate"
-    [ testCase "when hostname=localhost and certificate-for=localhost" $ do
-        bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
+    [ testCase "when hostname=localhost and certificate-for=localhost" $
+        withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          assertNoError (mkTestGrpcClient tlsSettings port),
-      testCase "when hostname=localhost. and certificate-for=localhost" $ do
-        bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
+          assertNoRemoteError (mkTestCall tlsSettings port),
+      testCase "when hostname=localhost. and certificate-for=localhost" $
+        withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          assertNoError (mkTestGrpcClient tlsSettings port),
+          assertNoRemoteError (mkTestCall tlsSettings port),
       -- This is a limitation of the TLS library, this test just exists to document that.
-      testCase "when hostname=localhost. and certificate-for=localhost." $ do
-        bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
+      testCase "when hostname=localhost. and certificate-for=localhost." $
+        withMockServer certForLocalhostDot $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          eitherClient <- mkTestGrpcClient tlsSettings port
+          eitherClient <- mkTestCall tlsSettings port
           case eitherClient of
             Left _ -> pure ()
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
@@ -107,58 +122,43 @@ testValidatesCertificateWrongHostname =
   testGroup
     "refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
-        bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
+        withMockServer certForWrongDomain $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          eitherClient <- mkTestGrpcClient tlsSettings port
+          eitherClient <- mkTestCall tlsSettings port
           case eitherClient of
-            Left (RemoteErrorTLSException _ _) -> pure ()
+            Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail",
       testCase "when the server's certificate does not have the server key usage flag" $
-        bracket (startMockServer certWithoutServerKeyUsage) (Async.cancel . fst) $ \(_, port) -> do
+        withMockServer certWithoutServerKeyUsage $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          eitherClient <- mkTestGrpcClient tlsSettings port
+          eitherClient <- mkTestCall tlsSettings port
           case eitherClient of
-            Left (RemoteErrorTLSException _ _) -> pure ()
+            Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
 
-certForLocalhost :: WarpTLS.TLSSettings
-certForLocalhost = WarpTLS.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem"
+testConnectionError :: TestTree
+testConnectionError = testCase "connection failures are reported correctly" $ do
+  tlsSettings <- mkTLSSettingsOrThrow settings
+  result <- mkTestCall tlsSettings 1
+  case result of
+    Left (RemoteError _ (FederatorClientConnectionError _)) -> pure ()
+    Left x -> assertFailure $ "Expected connection error, got: " <> show x
+    Right _ -> assertFailure "Expected connection with the server to fail"
 
-certForLocalhostDot :: WarpTLS.TLSSettings
-certForLocalhostDot = WarpTLS.tlsSettings "test/resources/unit/localhost-dot.pem" "test/resources/unit/localhost-dot-key.pem"
+certForLocalhost :: Warp.TLSSettings
+certForLocalhost = Warp.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem"
 
-certForWrongDomain :: WarpTLS.TLSSettings
-certForWrongDomain = WarpTLS.tlsSettings "test/resources/unit/localhost.example.com.pem" "test/resources/unit/localhost.example.com-key.pem"
+certForLocalhostDot :: Warp.TLSSettings
+certForLocalhostDot = Warp.tlsSettings "test/resources/unit/localhost-dot.pem" "test/resources/unit/localhost-dot-key.pem"
 
-certWithoutServerKeyUsage :: WarpTLS.TLSSettings
+certForWrongDomain :: Warp.TLSSettings
+certForWrongDomain = Warp.tlsSettings "test/resources/unit/localhost.example.com.pem" "test/resources/unit/localhost.example.com-key.pem"
+
+certWithoutServerKeyUsage :: Warp.TLSSettings
 certWithoutServerKeyUsage =
-  WarpTLS.tlsSettings
+  Warp.tlsSettings
     "test/resources/unit/localhost.client-only.pem"
     "test/resources/unit/localhost.client-only-key.pem"
-
-startMockServer :: MonadIO m => WarpTLS.TLSSettings -> m (Async.Async (), Warp.Port)
-startMockServer tlsSettings = liftIO $ do
-  (port, sock) <- bindRandomPortTCP "*6"
-  serverStarted <- newEmptyMVar
-  let wsettings =
-        Warp.defaultSettings
-          & Warp.setPort port
-          & Warp.setGracefulCloseTimeout2 0 -- Defaults to 2 seconds, causes server stop to take very long
-          & Warp.setBeforeMainLoop (putMVar serverStarted ())
-      app _req respond = respond $ responseLBS status200 [] "dragons be here"
-
-  serverThread <- Async.async $ WarpTLS.runTLSSocket tlsSettings wsettings sock app
-  serverStartedSignal <- timeout 10_000_000 (readMVar serverStarted)
-  case serverStartedSignal of
-    Nothing -> do
-      maybeException <- Async.poll serverThread
-      case maybeException of
-        Just (Left err) -> assertFailure $ "mock server errored while starting: \n" <> show err
-        _ -> pure ()
-      liftIO $ Async.cancel serverThread
-      assertFailure $ "Failed to start the mock server within 10 seconds on port: " <> show port
-    _ -> do
-      pure (serverThread, port)

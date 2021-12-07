@@ -455,6 +455,13 @@ packages:
   original:
     hackage: polysemy-mocks-0.2.0.0
 - completed:
+    hackage: warp-3.3.17@sha256:3a3ea203141d00d2244b511ee99174b8ed58fc862552755d470a25a44ce5275b,10910
+    pantry-tree:
+      size: 3973
+      sha256: 49b90267427705454477f4d2fa5755d0006826ede89e931cd84b4a0a658bd525
+  original:
+    hackage: warp-3.3.17
+- completed:
     hackage: wai-route-0.4.0@sha256:ee52f13d2945e4a56147e91e515e184f840654f2e3d9071c73bec3d8aa1f4444,2119
     pantry-tree:
       size: 566
@@ -634,127 +641,16 @@ packages:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
 - completed:
-    hackage: mu-rpc-0.5.0.1@sha256:6ff07f30d3d8283c71852cb1fa952c9e34a7108b619ec4a92619a96835912f88,1391
+    name: http2
+    version: 3.0.2
+    git: https://github.com/wireapp/http2
     pantry-tree:
-      size: 445
-      sha256: bce492cc34a5da696f53482020a216566c053e19091ec779a0b21e1899a74f13
+      size: 52771
+      sha256: dc6d3868a049d2ed38ef16ca6dd6aeb6b8e8a1e730c664ecdd243ffdb45ee750
+    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
   original:
-    hackage: mu-rpc-0.5.0.1
-- completed:
-    hackage: mu-optics-0.3.0.1@sha256:c3494c71c6300e6a0dcb77c9782481150956e912c1b47fccd69cbb795e461d52,1068
-    pantry-tree:
-      size: 172
-      sha256: 6f8275b8db1dce6136ebd2eb831495af39774d9560d8d07e60d5da09a5f3ed99
-  original:
-    hackage: mu-optics-0.3.0.1
-- completed:
-    hackage: mu-avro-0.4.0.4@sha256:10e317c633c5152a26e89becba749456b76f70eb640d1c0b2ccdc0e45a7ef5da,2096
-    pantry-tree:
-      size: 541
-      sha256: 26fd2a714615b6c2c0459178fb5f350848ce64be5c33076c4ddaff9c74adb278
-  original:
-    hackage: mu-avro-0.4.0.4
-- completed:
-    hackage: mu-protobuf-0.4.2.0@sha256:4787a2688abdda107e150736433b61448acdf0b71eb0c174232239b4c143f78b,2119
-    pantry-tree:
-      size: 640
-      sha256: ad3ec2fa09fea08c1c7c5181db7ed4440c030cc6c9dbc708a9a58155c13ca8fa
-  original:
-    hackage: mu-protobuf-0.4.2.0
-- completed:
-    hackage: mu-schema-0.3.1.2@sha256:c05e58de29d50376638d19dd3357cd3644d39f984664484f3568d5305b3034d9,1933
-    pantry-tree:
-      size: 1061
-      sha256: 07d5d0ab3fc6db8e7492311caacbd92f33a343fd173cb51d2915522b3aea8073
-  original:
-    hackage: mu-schema-0.3.1.2
-- completed:
-    hackage: mu-grpc-server-0.5.0.0@sha256:c67bd7c5dcc87e11ec34ac07b4d18fb1f6de036f58db4176274e6826099fe0a8,2749
-    pantry-tree:
-      size: 334
-      sha256: e7bed965e015b625216ee54db107f1ecb313ffb6bf2f75898853253d96cf6762
-  original:
-    hackage: mu-grpc-server-0.5.0.0
-- completed:
-    hackage: mu-grpc-client-0.4.0.1@sha256:b09dcf69f0650e0cfd86d6f67544a6350590574f4757f5ee459c57828c3a41ff,2079
-    pantry-tree:
-      size: 562
-      sha256: 94e32cdfdee230f090684804fee5ef254c6063f985b913c8efaadbe1dfceafef
-  original:
-    hackage: mu-grpc-client-0.4.0.1
-- completed:
-    hackage: mu-grpc-common-0.4.0.0@sha256:568b5879cd67c0bc0e956d53fb87552bb6d9a6287c5d1b09e2284ed5b04de418,1394
-    pantry-tree:
-      size: 281
-      sha256: 7e745ded1cb622178392ae2d5a6d5591af9743b58506de5ed2e17d7d698b0d18
-  original:
-    hackage: mu-grpc-common-0.4.0.0
-- completed:
-    hackage: compendium-client-0.2.1.1@sha256:cd477438d507273b34b82581ade333921ae997c1618b48af0c1da2a4968623e0,1203
-    pantry-tree:
-      size: 181
-      sha256: 18996ce535e40483ca2e29397e606aae551552608f96a6a8cc647ce24e24e937
-  original:
-    hackage: compendium-client-0.2.1.1
-- completed:
-    hackage: http2-grpc-types-0.5.0.0@sha256:4d34edc06a48496130f19245817a7cd7ea15c78ac8815570c3795ffc4503cf27,1445
-    pantry-tree:
-      size: 405
-      sha256: 3a1a94b87acd230b2f750f0077dc47177f37e46a2984b5764390207a83c4d5e4
-  original:
-    hackage: http2-grpc-types-0.5.0.0
-- completed:
-    hackage: http2-grpc-proto3-wire-0.1.0.0@sha256:4f6c0d27048756155b82ebf7385a20cc8241c7bd854e96d1dd6a1827e75fa410,1504
-    pantry-tree:
-      size: 341
-      sha256: d07d5bb883860e3bf928c00312df133a4c195c99bb397865bd67f433f75387b8
-  original:
-    hackage: http2-grpc-proto3-wire-0.1.0.0
-- completed:
-    hackage: warp-grpc-0.4.0.1@sha256:3859190e4fa23b944cf93ac691b3cec78c2adf4eaff6a4e8070c89fd17915add,1759
-    pantry-tree:
-      size: 709
-      sha256: f542ef3e7e03b9cd0b2c0e0c436ce4e68ab37f56195740639034cc3cd28a6b9f
-  original:
-    hackage: warp-grpc-0.4.0.1
-- completed:
-    hackage: proto3-wire-1.2.2@sha256:06cfbd240071099b01c78f90d540a6276e4b40626a97cae9e8668ace5d773864,2756
-    pantry-tree:
-      size: 1009
-      sha256: dd8a00722794fa6aee7e3d3fda5f10f518951664a7f8ae880c7d017599972c5e
-  original:
-    hackage: proto3-wire-1.2.2
-- completed:
-    hackage: parameterized-0.5.0.0@sha256:880717fbb958de1bac015f0a375ab6636f162a72483d987a11e305da6fac6c97,1969
-    pantry-tree:
-      size: 1019
-      sha256: 843aed822e03279edf00a2595dfb22038b306f4f0acd6984bd108024c5102f90
-  original:
-    hackage: parameterized-0.5.0.0
-- completed:
-    name: http2-client
-    version: 0.10.0.1
-    git: https://github.com/lucasdicioccio/http2-client
-    pantry-tree:
-      size: 1545
-      sha256: d0b3ab62eee8ee4c0ddec7a90fea78090815a54884646ddcdc451ff51d7e262a
-    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
-  original:
-    git: https://github.com/lucasdicioccio/http2-client
-    commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
-- completed:
-    subdir: http2-client-grpc
-    name: http2-client-grpc
-    version: 0.8.0.0
-    git: https://github.com/wireapp/http2-grpc-haskell
-    pantry-tree:
-      size: 455
-      sha256: 5599a7b9b801d669e2063ffd4ab767bb8bbf12d20069de0cbd8862bca78d7e42
-    commit: eea98418672626eafbace3181ca34bf44bee91c0
-  original:
-    subdir: http2-client-grpc
-    git: https://github.com/wireapp/http2-grpc-haskell
-    commit: eea98418672626eafbace3181ca34bf44bee91c0
+    git: https://github.com/wireapp/http2
+    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
 - completed:
     name: snappy
     version: 0.2.0.2

@@ -71,9 +71,10 @@ import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
-import Wire.API.Federation.API.Galley (gcresConvs)
-import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley hiding (getConversations)
+import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 
@@ -203,13 +204,13 @@ getRemoteConversationsWithFailures ::
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote FederatedGalley.RemoteConversation -> Conversation
+  let remoteView :: Remote RemoteConversation -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
           ( Map.findWithDefault
               defMemberStatus
-              (fmap FederatedGalley.rcnvId rconv)
+              (fmap rcnvId rconv)
               statusMap
           )
           rconv
@@ -219,18 +220,18 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes (tDomain lusr)
+  let rpc = F.getConversations clientRoutes
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
-      rpc $ FederatedGalley.GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
+      rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
   bimap (localFailures <>) (map remoteView . concat)
     . partitionEithers
     <$> traverse handleFailure resp
   where
     handleFailure ::
       Members '[P.TinyLog] r =>
-      Either (Remote [ConvId], FederationError) (Remote FederatedGalley.GetConversationsResponse) ->
-      Sem r (Either FailedGetConversation [Remote FederatedGalley.RemoteConversation])
+      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
+      Sem r (Either FailedGetConversation [Remote RemoteConversation])
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)

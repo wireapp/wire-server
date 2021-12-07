@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -F -pgmF hspec-discover #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -16,13 +16,3 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Galley.Intra.Federator.Types (FederatedRPC) where
-
-import Control.Monad.Except
-import Galley.Monad
-import Wire.API.Federation.Client
-import Wire.API.Federation.GRPC.Types
-
-type FederatedRPC (c :: Component) =
-  FederatorClient c (ExceptT FederationClientFailure App)

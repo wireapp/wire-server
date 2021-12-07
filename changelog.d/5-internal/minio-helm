@@ -1,1 +1,0 @@
-Use minio helm chart in fake-aws-s3 from charts.min.io instead of helm.min.io, the latter seems to be down

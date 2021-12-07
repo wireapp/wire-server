@@ -1,6 +1,6 @@
 image:
   repository: elasticsearch
-  tag: 6.7.1
+  tag: 6.8.18
 
 service:
   httpPort: 9200

@@ -81,7 +81,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
 import Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.FeatureConfig as Event
-import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 

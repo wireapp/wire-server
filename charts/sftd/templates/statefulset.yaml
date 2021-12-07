@@ -87,6 +87,7 @@ spec:
                       -I "${POD_IP}" \
                       -M "${POD_IP}" \
                       ${ACCESS_ARGS} \
+                      {{ .Values.additionalArgs }} \
                       {{ if .Values.turnDiscoveryEnabled }}-T{{ end }} \
                       -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
           ports:

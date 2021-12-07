@@ -905,6 +905,13 @@ instance FromJSON LocaleUpdate where
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema EmailUpdate)
+
+instance ToSchema EmailUpdate where
+  schema =
+    object "EmailUpdate" $
+      EmailUpdate
+        <$> euEmail .= field "email" schema
 
 modelEmailUpdate :: Doc.Model
 modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do

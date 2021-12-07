@@ -404,7 +404,7 @@ lookupRichInfoMultiUsers users = do
 -- successful login.
 lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u =
-  join . fmap runIdentity
+  (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
 
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
@@ -471,7 +471,7 @@ lookupFeatureConferenceCalling uid = do
   pure $ ApiFt.TeamFeatureStatusNoConfig <$> mStatusValue
   where
     select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.TeamFeatureStatusValue))
-    select = fromString $ "select feature_conference_calling from user where id = ?"
+    select = fromString "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------
 -- Queries

@@ -150,7 +150,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
-import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
 
@@ -1232,9 +1232,8 @@ getEmailForProfile profileOwner EmailVisibleIfOnTeam' =
     then userEmail profileOwner
     else Nothing
 getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, viewerTeamMember))) =
-  if ( Just viewerTeamId == userTeam profileOwner
-         && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
-     )
+  if Just viewerTeamId == userTeam profileOwner
+    && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
     then userEmail profileOwner
     else Nothing
 getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing

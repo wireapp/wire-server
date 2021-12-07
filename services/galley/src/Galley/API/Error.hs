@@ -35,7 +35,6 @@ import Servant.API.Status (KnownStatus (..))
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (Action)
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
 ----------------------------------------------------------------------------

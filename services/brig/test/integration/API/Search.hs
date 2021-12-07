@@ -56,7 +56,6 @@ import Test.Tasty.HUnit
 import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
-import Wire.API.Federation.GRPC.Types
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
@@ -449,7 +448,7 @@ testSearchOtherDomain opts brig = do
   -- We cannot assert on a real federated request here, so we make a request to
   -- a mocked federator started and stopped during this test
   otherSearchResult :: [Contact] <- liftIO $ generate arbitrary
-  let mockResponse = OutwardResponseBody (cs $ Aeson.encode otherSearchResult)
+  let mockResponse = Aeson.encode otherSearchResult
   (results, _) <- liftIO . withTempMockFederator opts mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   let expectedResult =

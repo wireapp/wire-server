@@ -72,8 +72,9 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
+import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Galley as F
-import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 
@@ -523,7 +524,7 @@ notifyConversationAction quid con lcnv targets action = do
 
   -- notify remote participants
   E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-    F.onConversationUpdated F.clientRoutes (tDomain lcnv) $
+    F.onConversationUpdated clientRoutes $
       F.ConversationUpdate now quid (tUnqualified lcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots

@@ -95,9 +95,9 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
 import Wire.API.ErrorDescription
-import Wire.API.Federation.API.Galley (ConversationUpdate (..), UserDeletedConversationsNotification (UserDeletedConversationsNotification))
-import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.Federation.Client (FederationError)
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley hiding (getConversations)
+import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZLocalUser, ZOptConn)
@@ -597,15 +597,15 @@ rmUser lusr conn = do
                 cuAlreadyPresentUsers = tUnqualified remotes,
                 cuAction = ConversationActionRemoveMembers (pure qUser)
               }
-      let rpc = FedGalley.onConversationUpdated FedGalley.clientRoutes (tDomain lusr) convUpdate
+      let rpc = onConversationUpdated clientRoutes convUpdate
       runFederatedEither remotes rpc
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
-    leaveRemoteConversations :: Range 1 FedGalley.UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
+    leaveRemoteConversations :: Range 1 UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
     leaveRemoteConversations cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = FedGalley.onUserDeleted FedGalley.clientRoutes (tDomain lusr) userDelete
+        let rpc = onUserDeleted clientRoutes userDelete
         runFederatedEither remoteConvs rpc
           >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 
