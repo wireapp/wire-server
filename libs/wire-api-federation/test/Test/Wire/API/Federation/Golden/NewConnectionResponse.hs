@@ -21,13 +21,13 @@ import Imports
 import Wire.API.Federation.API.Brig
 
 testObject_NewConnectionResponse1 :: NewConnectionResponse
-testObject_NewConnectionResponse1 = NewConnectionResponseOk Nothing
+testObject_NewConnectionResponse1 = NewConnectionResponseOk (NewConnectionRemoteAction Nothing)
 
 testObject_NewConnectionResponse2 :: NewConnectionResponse
-testObject_NewConnectionResponse2 = NewConnectionResponseOk (Just RemoteConnect)
+testObject_NewConnectionResponse2 = NewConnectionResponseOk (NewConnectionRemoteAction (Just RemoteConnect))
 
 testObject_NewConnectionResponse3 :: NewConnectionResponse
-testObject_NewConnectionResponse3 = NewConnectionResponseOk (Just RemoteRescind)
+testObject_NewConnectionResponse3 = NewConnectionResponseOk (NewConnectionRemoteAction (Just RemoteRescind))
 
 testObject_NewConnectionResponse4 :: NewConnectionResponse
 testObject_NewConnectionResponse4 = NewConnectionResponseUserNotActivated

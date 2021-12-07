@@ -67,6 +67,7 @@ module Wire.API.Message
 where
 
 import Control.Lens (view, (.~), (?~))
+import Control.Lens.Prism
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -570,6 +571,17 @@ data MessageNotSent a
   deriving
     (AsUnion (MessageNotSentResponses a))
     via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
+  deriving (S.ToSchema) via (Schema (MessageNotSent a))
+
+instance ToSchema a => ToSchema (MessageNotSent a) where
+  schema =
+    named "MessageNotSent" $
+      mconcat
+        [ tag _MessageNotSentConversationNotFound null_,
+          tag _MessageNotSentUnknownClient null_,
+          tag _MessageNotSentLegalhold null_,
+          tag _MessageNotSentClientMissing (unnamed schema)
+        ]
 
 instance GSOP.Generic (MessageNotSent a)
 
@@ -630,3 +642,56 @@ instance FromHttpApiData ReportMissing where
     "true" -> Right ReportMissingAll
     "false" -> Right $ ReportMissingList mempty
     list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
+
+-----------------------------------------------------------------------------
+-- Prisms for the ToSchema instance for MessageNotSent
+
+_MessageNotSentConversationNotFound ::
+  Prism' (MessageNotSent a) ()
+_MessageNotSentConversationNotFound =
+  prism
+    (const MessageNotSentConversationNotFound)
+    ( \x ->
+        case x of
+          MessageNotSentConversationNotFound -> Right ()
+          _ -> Left x
+    )
+{-# INLINE _MessageNotSentConversationNotFound #-}
+
+_MessageNotSentUnknownClient ::
+  Prism' (MessageNotSent a) ()
+_MessageNotSentUnknownClient =
+  prism
+    (const MessageNotSentUnknownClient)
+    ( \x ->
+        case x of
+          MessageNotSentUnknownClient -> Right ()
+          _ -> Left x
+    )
+{-# INLINE _MessageNotSentUnknownClient #-}
+
+_MessageNotSentLegalhold ::
+  Prism' (MessageNotSent a) ()
+_MessageNotSentLegalhold =
+  prism
+    (const MessageNotSentLegalhold)
+    ( \x ->
+        case x of
+          MessageNotSentLegalhold -> Right ()
+          _ -> Left x
+    )
+{-# INLINE _MessageNotSentLegalhold #-}
+
+_MessageNotSentClientMissing ::
+  Prism (MessageNotSent a) (MessageNotSent b) a b
+_MessageNotSentClientMissing =
+  prism
+    MessageNotSentClientMissing
+    ( \case
+        MessageNotSentConversationNotFound ->
+          Left MessageNotSentConversationNotFound
+        MessageNotSentUnknownClient -> Left MessageNotSentUnknownClient
+        MessageNotSentLegalhold -> Left MessageNotSentLegalhold
+        MessageNotSentClientMissing c -> Right c
+    )
+{-# INLINE _MessageNotSentClientMissing #-}

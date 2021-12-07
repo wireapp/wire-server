@@ -170,6 +170,12 @@ toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop
 -- <https://github.com/bos/aeson/issues/126>.  See test suite for more details.
 newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: L.ByteString}
   deriving (Eq, Show, Generic)
+  deriving (S.ToSchema) via (Schema Base64ByteString)
+
+instance ToSchema Base64ByteString where
+  schema = mkSchema sDoc parseJSON (pure . toJSON)
+    where
+      sDoc = schemaDoc $ text "Base64ByteString"
 
 instance FromJSON Base64ByteString where
   parseJSON (A.String st) = handleError . B64L.decode . stToLbs $ st

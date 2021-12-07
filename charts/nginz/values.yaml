@@ -100,6 +100,10 @@ nginx_conf:
       disable_zauth: true
       envs:
       - all
+    - path: /api/federation/version
+      disable_zauth: true
+      envs:
+      - all
     - path: /self
       envs:
       - all

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8aa2d2b311b92915ab23a4fb07be411b474f2819936b62f46e15b64c31d027fe
+-- hash: a79559f97b9e6f8634ee7e36c7b30781062405f562f0e7428ebe3fcc1501317a
 
 name:           wire-api-federation
 version:        0.1.0
@@ -50,16 +50,21 @@ library
     , http-types
     , http2
     , imports
+    , lens
     , lifted-base
     , metrics-wai
     , mtl
     , network
+    , schema-profunctor
     , servant >=0.16
     , servant-client
     , servant-client-core
     , servant-server
+    , servant-swagger
+    , singletons
     , sop-core
     , streaming-commons
+    , swagger2
     , template-haskell
     , text >=0.11
     , time >=1.8
@@ -109,17 +114,22 @@ test-suite spec
     , http-types
     , http2
     , imports
+    , lens
     , lifted-base
     , metrics-wai
     , mtl
     , network
     , retry
+    , schema-profunctor
     , servant >=0.16
     , servant-client
     , servant-client-core
     , servant-server
+    , servant-swagger
+    , singletons
     , sop-core
     , streaming-commons
+    , swagger2
     , template-haskell
     , text >=0.11
     , time >=1.8

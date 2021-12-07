@@ -96,7 +96,7 @@ import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Galley hiding (getConversations)
+import Wire.API.Federation.API.Galley hiding (ServantAPI, getConversations)
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)

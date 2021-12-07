@@ -26,10 +26,15 @@ import Servant.API (Header', Required, Strict, (:>))
 import Servant.Client
 import Servant.Server
 import Servant.Server.Internal (MkContextWithErrorFormatter)
+import Servant.Swagger
 
 type OriginDomainHeaderName = "Wire-Origin-Domain" :: Symbol
 
 data OriginDomainHeader
+
+instance HasSwagger api => HasSwagger (OriginDomainHeader :> api) where
+  -- TODO(md)
+  toSwagger = undefined
 
 instance RoutesToPaths api => RoutesToPaths (OriginDomainHeader :> api) where
   getRoutes = getRoutes @api

@@ -21,6 +21,7 @@ module Brig.API.Public
   ( sitemap,
     apiDocs,
     servantSitemap,
+    versionAPISitemap,
     swaggerDocsAPI,
     ServantAPI,
     SwaggerDocsAPI,
@@ -100,10 +101,13 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
+import qualified Wire.API.Federation.API.Brig as BrigFedAPI
+import qualified Wire.API.Federation.API.Galley as GalleyFedAPI
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import qualified Wire.API.Routes.Public.Federation as VersionAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
@@ -131,7 +135,7 @@ type ServantAPI = BrigAPI.ServantAPI
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
+    swaggerCombined
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
       & S.security %~ nub
@@ -148,17 +152,40 @@ swaggerDocsAPI =
         . S._Inline
         %~ sanitise
   where
+    swaggerCombined =
+      mconcat
+        [ BrigAPI.swagger,
+          BrigFedAPI.swaggerDoc,
+          GalleyAPI.swaggerDoc,
+          GalleyFedAPI.swaggerDoc,
+          LegalHoldAPI.swaggerDoc,
+          SparAPI.swaggerDoc,
+          VersionAPI.swaggerDoc
+        ]
     sanitise :: S.Schema -> S.Schema
     sanitise =
       (S.properties . traverse . S._Inline %~ sanitise)
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
+    apiVersion = VersionAPI.federationVersion @VersionAPI.FederationVersion @Word
     desc =
       Text.pack
         [QQ.i|
 ## General
 
-**NOTE**: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints.
+**NOTE**: This is a partial view of endpoints, as the backend team has been migrating endpoints to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints.
+
+All endpoints that are deprecated have "deprecated" in their summary line. Conversely, if the summary line does not have "deprecated" in it, the endpoint is recommended for use. If there are multiple candidate endpoints, prefer an endpoint with qualified identifiers, e.g., with a conversation identifier qualified by its domain.
+
+## API Version
+
+The Wire-Server API version is given by a natural number. The initial version is 1. The version of this API is #{apiVersion}.
+
+### Version Compatibility
+
+The API is known to be backward comptabile with the following API versions: 1.
+
+A Wire-Server API version `m` is forward compatible with a more recent version `n` if and only if version `n` is backward compatible with version `m`. Therefore, for forward compatibility with a more recent version, check the backward compatibility of that other version.
 
 ## SSO Endpoints
 
@@ -287,6 +314,17 @@ servantSitemap =
         BrigAPI.updateConnection = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
+
+-- | The API for exposing a server-to-server API version. It comprises only one
+-- endpoint and it does not have its own package.
+versionAPISitemap :: Monad m => ServerT VersionAPI.ServantAPI m
+versionAPISitemap =
+  genericServerT $
+    VersionAPI.Api
+      { getAPIVersion = getVersion
+      }
+  where
+    getVersion = return $ VersionAPI.FederationVersionResponse @VersionAPI.FederationVersion
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

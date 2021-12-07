@@ -84,7 +84,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
       let other = toRemoteUnsafe originDomain ncrFrom
       mconnection <- lift $ Data.lookupConnection self (qUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
-      pure $ NewConnectionResponseOk maction
+      pure $ NewConnectionResponseOk (NewConnectionRemoteAction maction)
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
