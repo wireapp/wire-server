@@ -39,6 +39,7 @@ import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 (List1, list1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -79,17 +80,21 @@ instance
 -- | We want plug in custom generators for all occurences of '[]' and 'List1'.
 type CustomSizedOpts =
   Generic.Options
+    'Generic.INCOHERENT
     'Generic.Sized
-    (Generic.Gen1 [] :+ Generic.Gen1 List1 :+ ())
+    (Generic.Gen1 [] :+ Generic.Gen1 NonEmpty :+ ())
 
 customSizedOpts :: CustomSizedOpts
 customSizedOpts =
   Generic.setGenerators
-    (Generic.Gen1 listOf' :+ Generic.Gen1 list1Of' :+ ())
+    (Generic.Gen1 listOf' :+ Generic.Gen1 nonEmptyListOf' :+ ())
     Generic.sizedOpts
 
 list1Of' :: Gen a -> Gen (List1 a)
 list1Of' g = list1 <$> g <*> Generic.listOf' g
+
+nonEmptyListOf' :: Gen a -> Gen (NonEmpty a)
+nonEmptyListOf' g = (:|) <$> g <*> listOf' g
 
 setOf' :: Ord a => Gen a -> Gen (Set a)
 setOf' g = Set.fromList <$> Generic.listOf' g
