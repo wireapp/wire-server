@@ -17,7 +17,8 @@ COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /u
 COPY --from=cryptobox-builder /tmp/cryptobox-c/src/cbox.h /usr/include/cbox.h
 
 # development packages required for wire-server Haskell services
-RUN apt-get update \
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update \
     && apt-get install -y \
         ca-certificates \
         build-essential \
