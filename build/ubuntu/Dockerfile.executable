@@ -1,0 +1,22 @@
+ARG intermediate=quay.io/wire/ubuntu20-intermediate
+ARG deps=quay.io/wire/ubuntu20-deps
+
+#--- Intermediate stage ---
+FROM ${intermediate} as intermediate
+
+#--- Minified stage ---
+FROM ${deps}
+
+ARG executable
+
+COPY --from=intermediate /dist/${executable} /usr/bin/${executable}
+
+# TODO: only if executable=brig, also copy templates. Docker image conditionals seem hacky:
+# https://stackoverflow.com/questions/31528384/conditional-copy-add-in-dockerfile
+# For now, adds ~2 MB of additional files into every container
+COPY --from=intermediate /dist/templates/ /usr/share/wire/templates/
+
+# ARGs are not available at runtime, create symlink at build time
+# more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
+RUN ln -s /usr/bin/${executable} /usr/bin/service
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/bin/service"]

@@ -1,0 +1,18 @@
+ARG builder=quay.io/wire/ubuntu20-builder
+ARG deps=quay.io/wire/ubuntu-deps
+
+#--- Builder stage ---
+FROM ${builder} as builder
+
+WORKDIR /wire-server/
+
+COPY . /wire-server/
+
+RUN make clean fast
+
+#--- Minified stage ---
+FROM ${deps}
+
+COPY --from=builder /wire-server/dist/ /dist/
+# brig also needs some templates.
+COPY --from=builder /wire-server/services/brig/deb/opt/brig/templates/ /dist/templates/
