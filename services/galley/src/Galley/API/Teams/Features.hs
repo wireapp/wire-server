@@ -636,8 +636,8 @@ getGuestLinkInternal = \case
   Right tid -> do
     cfgDefault <- getCfgDefault
     let defLockStatus = Public.tfwoapsLockStatus cfgDefault
-    (maybeFeatureStatus, fromMaybe defLockStatus -> lockStatus) <- TeamFeatures.getFeatureStatusNoConfigAndLockStatus @'Public.TeamFeatureGuestLinks tid
-    pure $ case (lockStatus, maybeFeatureStatus) of
+    maybeFeatureStatus <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid
+    pure $ case (defLockStatus, maybeFeatureStatus) of
       (Public.Unlocked, Just featureStatus) ->
         Public.TeamFeatureStatusNoConfigAndLockStatus
           (Public.tfwoStatus featureStatus)

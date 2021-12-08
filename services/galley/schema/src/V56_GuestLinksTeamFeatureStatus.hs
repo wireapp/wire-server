@@ -28,7 +28,6 @@ migration :: Migration
 migration = Migration 56 "team feature status for guest links" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
-          guest_links_status int,
-          guest_links_lock_status int
+          guest_links_status int
         )
      |]
