@@ -39,7 +39,8 @@ RUN apk add --no-cache \
         git \
         ncurses \
         ncurses-dev \
-        sed
+        sed \
+        binutils-gold
 
 # get static version of Haskell Stack and use system ghc by default
 ARG STACK_ALPINE_VERSION=2.7.3
