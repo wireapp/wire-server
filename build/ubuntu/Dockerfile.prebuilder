@@ -63,3 +63,5 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
   | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_GHC_VERSION=${GHC_VERSION} sh
 
 ENV PATH=/root/.ghcup/bin:${PATH}
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
