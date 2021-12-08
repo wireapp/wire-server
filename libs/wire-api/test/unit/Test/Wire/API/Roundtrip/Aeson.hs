@@ -210,6 +210,7 @@ tests =
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Feature.LockStatusValue,
       testRoundTrip @Team.Feature.LockStatus,
+      testRoundTrip @Team.Feature.TeamFeatureStatusNoConfigAndLockStatus,
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,
