@@ -58,6 +58,8 @@ import Wire.API.User.Auth
 
 type BrigReq = Request -> Request
 
+type CargoholdReq = Request -> Request
+
 newtype TestFederator m a = TestFederator {unwrapTestFederator :: ReaderT TestEnv m a}
   deriving newtype
     ( Functor,
@@ -88,6 +90,7 @@ data TestEnv = TestEnv
   { _teMgr :: Manager,
     _teTLSSettings :: TLSSettings,
     _teBrig :: BrigReq,
+    _teCargohold :: CargoholdReq,
     -- | federator config
     _teOpts :: Opts,
     -- | integration test config
@@ -98,6 +101,7 @@ type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint,
+    cfgCargohold :: Endpoint,
     cfgFederatorExternal :: Endpoint,
     cfgNginxIngress :: Endpoint,
     cfgOriginDomain :: Text
@@ -145,6 +149,7 @@ mkEnv _teTstOpts _teOpts = do
   let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
   _teMgr :: Manager <- newManager managerSettings
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
+      _teCargohold = endpointToReq (cfgCargohold _teTstOpts)
   _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
   pure TestEnv {..}
 

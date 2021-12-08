@@ -21,24 +21,34 @@ module CargoHold.Run
 where
 
 import CargoHold.API (sitemap)
+import CargoHold.API.Federation
 import CargoHold.App
 import CargoHold.Options
-import Control.Lens ((^.))
+import Control.Lens (set, (^.))
 import Control.Monad.Catch (finally)
+import Data.Default
+import Data.Id
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Proxy
 import Data.Text (unpack)
 import Imports
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
+import Servant (hoistServer)
+import qualified Servant
+import Servant.API
 import Util.Options
+
+type CombinedAPI = FederationAPI :<|> Servant.Raw
 
 run :: Opts -> IO ()
 run o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  runSettingsWithShutdown s (middleware e $ serve e) 5
+  runSettingsWithShutdown s (middleware e $ servantApp e) 5
     `finally` closeEnv e
   where
     rtree = compile sitemap
@@ -48,4 +58,15 @@ run o = do
       waiPrometheusMiddleware sitemap
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
-    serve e r k = runHandler e r (Server.route rtree r k) k
+    serve e r k = runHandler e (Server.route rtree r k)
+    servantApp e0 r =
+      let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
+       in Servant.serve
+            (Proxy @CombinedAPI)
+            ( hoistServer (Proxy @FederationAPI) (toServantHandler e) federationSitemap
+                :<|> Servant.Tagged (serve e)
+            )
+            r
+
+toServantHandler :: Env -> Handler a -> Servant.Handler a
+toServantHandler env = liftIO . runHandler env

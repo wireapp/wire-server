@@ -24,17 +24,20 @@ import Wire.API.Arbitrary (GenericUniform (..))
 data Component
   = Brig
   | Galley
+  | Cargohold
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform Component)
 
 parseComponent :: Text -> Maybe Component
 parseComponent "brig" = Just Brig
 parseComponent "galley" = Just Galley
+parseComponent "cargohold" = Just Cargohold
 parseComponent _ = Nothing
 
 componentName :: Component -> Text
 componentName Brig = "brig"
 componentName Galley = "galley"
+componentName Cargohold = "cargohold"
 
 class KnownComponent (c :: Component) where
   componentVal :: Component
@@ -44,3 +47,6 @@ instance KnownComponent 'Brig where
 
 instance KnownComponent 'Galley where
   componentVal = Galley
+
+instance KnownComponent 'Cargohold where
+  componentVal = Cargohold
