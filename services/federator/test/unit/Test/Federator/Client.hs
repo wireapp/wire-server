@@ -20,13 +20,17 @@ module Test.Federator.Client (tests) where
 import Control.Exception hiding (handle)
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor (first)
+import qualified Data.ByteString as BS
+import Data.ByteString.Builder (byteString)
 import Data.Domain
 import Federator.MockServer
 import Imports
 import Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
-import Network.Wai.Utilities.Error as Wai
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Core
+import Servant.Types.SourceT
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -61,7 +65,8 @@ tests =
         ],
       testGroup
         "HTTP2 client"
-        [ testCase "testResponseHeaders" testResponseHeaders
+        [ testCase "testResponseHeaders" testResponseHeaders,
+          testCase "testStreaming" testStreaming
         ]
     ]
 
@@ -185,3 +190,31 @@ testResponseHeaders = do
     Right resp -> do
       responseStatusCode resp @?= HTTP.status200
       lookup "X-Foo" (toList (responseHeaders resp)) @?= Just "bar"
+
+testStreaming :: IO ()
+testStreaming = bracket (startMockServer Nothing app) fst $ \(_, port) -> do
+  let req = HTTP2.requestBuilder HTTP.methodPost "test" [] mempty
+  withHTTP2Request Nothing req "127.0.0.1" port $ \resp -> do
+    let expected = "Hello\nHello\nHello\n"
+    actual <- takeSourceT (BS.length expected) (responseBody resp)
+    actual @?= expected
+  where
+    takeStepT :: Monad m => Int -> StepT m ByteString -> m ByteString
+    takeStepT _ Stop = pure mempty
+    takeStepT _ (Error _) = pure mempty
+    takeStepT s (Skip next) = takeStepT s next
+    takeStepT s (Yield chunk next)
+      | BS.length chunk >= s =
+        pure (BS.take s chunk)
+      | otherwise =
+        fmap
+          (chunk <>)
+          (takeStepT (s - BS.length chunk) next)
+    takeStepT s (Effect m) = m >>= takeStepT s
+
+    takeSourceT :: Monad m => Int -> SourceT m ByteString -> m ByteString
+    takeSourceT s m = unSourceT m (takeStepT s)
+
+    app _ k = k $
+      Wai.responseStream HTTP.ok200 mempty $ \write flush ->
+        let go = write (byteString "Hello\n") *> flush *> go in go
