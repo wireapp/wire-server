@@ -57,6 +57,7 @@ import qualified V51_FeatureFileSharing
 import qualified V52_FeatureConferenceCalling
 import qualified V53_AddRemoteConvStatus
 import qualified V54_TeamFeatureSelfDeletingMessages
+import qualified V55_SelfDeletingMessagesLockStatus
 
 main :: IO ()
 main = do
@@ -99,9 +100,10 @@ main = do
       V51_FeatureFileSharing.migration,
       V52_FeatureConferenceCalling.migration,
       V53_AddRemoteConvStatus.migration,
-      V54_TeamFeatureSelfDeletingMessages.migration
+      V54_TeamFeatureSelfDeletingMessages.migration,
+      V55_SelfDeletingMessagesLockStatus.migration
       -- When adding migrations here, don't forget to update
-      -- 'schemaVersion' in Galley.Data
+      -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
       --
       -- FUTUREWORK: once #1726 has made its way to master/production,

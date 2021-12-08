@@ -355,7 +355,7 @@ testEnableSSOPerTeam = do
   assertQueue "create team" tActivate
   let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
         liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
@@ -382,10 +382,10 @@ testEnableSSOPerTeam = do
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
   g <- view tsGalley
-  (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
+  (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
   let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
@@ -1877,7 +1877,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (201, 200, 0, (x : xs)) -> return (x, xs)
         (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining -1) ((uid, cid) : acc) pk
         (403, 403, _, []) -> error "Need to connect with at least 1 user"
-        (403, 403, _, (x : xs)) -> return (x, xs)
+        (403, 403, _, x : xs) -> return (x, xs)
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
@@ -1892,7 +1892,7 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal tid statusValue = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.WithoutLockStatus @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do
