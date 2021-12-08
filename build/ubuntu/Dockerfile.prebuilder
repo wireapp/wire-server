@@ -27,7 +27,7 @@ RUN apt-get update \
         libgeoip-dev \
         libglib2.0-dev \
         libicu-dev \
-        libleveldb1 \
+        libleveldb1d \
         libleveldb-dev \
         libossp-uuid-dev \
         libpcre3-dev \
