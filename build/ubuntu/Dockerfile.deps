@@ -16,13 +16,13 @@ FROM ubuntu:20.04
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
 
 RUN apt-get update && apt-get install -y \
-            libsodium \
-            libssl \
+            libsodium23 \
+            libssl1.1 \
             libgmp10 \
-            libffi8 \
-            libicu67 \
+            libffi7 \
+            libicu66 \
             geoip-bin \
             ca-certificates \
             dumb-init \
             libxml2 \
-            ncurses
+            libncurses6
