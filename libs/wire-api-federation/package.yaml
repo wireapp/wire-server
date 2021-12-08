@@ -25,6 +25,7 @@ dependencies:
 - http-types
 - http2
 - imports
+- kan-extensions
 - lifted-base
 - metrics-wai
 - mtl

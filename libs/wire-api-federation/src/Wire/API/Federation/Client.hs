@@ -30,6 +30,7 @@ where
 
 import qualified Control.Exception as E
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Control.Monad.Except
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
@@ -67,7 +68,7 @@ data FederatorClientEnv = FederatorClientEnv
   }
 
 newtype FederatorClient (c :: Component) a = FederatorClient
-  {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError IO) a}
+  {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError (Codensity IO)) a}
   deriving newtype
     ( Functor,
       Applicative,
@@ -145,47 +146,77 @@ withHTTP2Request mtlsConfig req hostname port k = do
 
 instance KnownComponent c => RunClient (FederatorClient c) where
   runRequestAcceptStatus expectedStatuses req = do
-    env <- ask
-    let baseUrlPath =
-          HTTP.encodePathSegments
-            [ "rpc",
-              domainText (ceTargetDomain env),
-              componentName (componentVal @c)
-            ]
-    let path = baseUrlPath <> requestPath req
-    body <- case requestBody req of
-      Just (RequestBodyLBS lbs, _) -> pure lbs
-      Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
-      Just (RequestBodySource _, _) ->
-        throwError FederatorClientStreamingNotSupported
-      Nothing -> pure mempty
-    let req' =
-          HTTP2.requestBuilder
-            (requestMethod req)
-            (LBS.toStrict (toLazyByteString path))
-            (toList (requestHeaders req) <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))])
-            (lazyByteString body)
-    let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
-    eresp <- liftIO $ performHTTP2Request Nothing req' hostname port
-    case eresp of
-      Left err -> throwError (FederatorClientHTTP2Error err)
-      Right resp
-        | maybe
-            (HTTP.statusIsSuccessful (responseStatusCode resp))
-            (elem (responseStatusCode resp))
-            expectedStatuses ->
-          pure $ fmap toLazyByteString resp
-        | otherwise ->
-          throwError $
+    let successfulStatus status =
+          maybe
+            (HTTP.statusIsSuccessful status)
+            (elem status)
+            expectedStatuses
+    withHTTP2StreamingRequest successfulStatus req $ \resp -> do
+      bdy <-
+        fmap (either (const mempty) (toLazyByteString . foldMap byteString))
+          . runExceptT
+          . runSourceT
+          . responseBody
+          $ resp
+      pure $ resp $> bdy
+
+  throwClientError = throwError . FederatorClientServantError
+
+instance KnownComponent c => RunStreamingClient (FederatorClient c) where
+  withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
+
+withHTTP2StreamingRequest ::
+  forall c a.
+  KnownComponent c =>
+  (HTTP.Status -> Bool) ->
+  Request ->
+  (StreamingResponse -> IO a) ->
+  FederatorClient c a
+withHTTP2StreamingRequest successfulStatus req k = do
+  env <- ask
+  let baseUrlPath =
+        HTTP.encodePathSegments
+          [ "rpc",
+            domainText (ceTargetDomain env),
+            componentName (componentVal @c)
+          ]
+  let path = baseUrlPath <> requestPath req
+  body <- case requestBody req of
+    Just (RequestBodyLBS lbs, _) -> pure lbs
+    Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
+    Just (RequestBodySource _, _) ->
+      throwError FederatorClientStreamingNotSupported
+    Nothing -> pure mempty
+  let req' =
+        HTTP2.requestBuilder
+          (requestMethod req)
+          (LBS.toStrict (toLazyByteString path))
+          (toList (requestHeaders req) <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))])
+          (lazyByteString body)
+  let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
+  ex <- liftIO . E.try . E.handle (E.throw . FederatorClientHTTP2Error) $
+    withHTTP2Request Nothing req' hostname port $ \resp -> do
+      if successfulStatus (responseStatusCode resp)
+        then k resp
+        else do
+          -- in case of an error status code, read the whole body to construct the error
+          bdy <-
+            fmap (either stringUtf8 (foldMap byteString))
+              . runExceptT
+              . runSourceT
+              . responseBody
+              $ resp
+          E.throw $
             FederatorClientError
               ( mkFailureResponse
                   (responseStatusCode resp)
                   (ceTargetDomain env)
                   (toLazyByteString (requestPath req))
-                  (toLazyByteString (responseBody resp))
+                  (toLazyByteString bdy)
               )
-
-  throwClientError = throwError . FederatorClientServantError
+  case ex of
+    Left err -> throwError err
+    Right x -> pure x
 
 mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
 mkFailureResponse status domain path body
@@ -221,12 +252,17 @@ mkFailureResponse status domain path body
         "unknown-federation-error"
         (LText.decodeUtf8With Text.lenientDecode body)
 
+-- | Run federator client synchronously.
 runFederatorClient ::
   KnownComponent c =>
   FederatorClientEnv ->
   FederatorClient c a ->
   IO (Either FederatorClientError a)
-runFederatorClient env action = runExceptT (runReaderT (unFederatorClient action) env)
+runFederatorClient env =
+  lowerCodensity
+    . runExceptT
+    . flip runReaderT env
+    . unFederatorClient
 
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 621c254076cf520b525269ca4fc550df57f410aea52a288f6cb68bd2d6f1ada3
+-- hash: f62744549c34b54e9900b31c33a4ebad5c51ac13ec44010ad2da6c6ca67fdc29
 
 name:           wire-api-federation
 version:        0.1.0
@@ -51,6 +51,7 @@ library
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lifted-base
     , metrics-wai
     , mtl
@@ -110,6 +111,7 @@ test-suite spec
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lifted-base
     , metrics-wai
     , mtl
