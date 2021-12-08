@@ -49,6 +49,7 @@ import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Servant.Client.Core
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -93,7 +94,7 @@ data Remote m a where
     Text ->
     [HTTP.Header] ->
     Builder ->
-    Remote m (HTTP.Status, [HTTP.Header], Builder)
+    Remote m (ResponseF Builder)
 
 makeSem ''Remote
 
@@ -117,12 +118,16 @@ interpretRemote = interpret $ \case
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers body
         tlsConfig = mkTLSConfig settings hostname port
-    (status, hdrs, result) <-
+    resp <-
       mapError (RemoteError target) . (fromEither =<<) . embed $
         performHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port)
-    unless (HTTP.statusIsSuccessful status) $
-      throw $ RemoteErrorResponse target status (toLazyByteString result)
-    pure (status, hdrs, result)
+    unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $
+      throw $
+        RemoteErrorResponse
+          target
+          (responseStatusCode resp)
+          (toLazyByteString (responseBody resp))
+    pure resp
 
 mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
 mkTLSConfig settings hostname port =

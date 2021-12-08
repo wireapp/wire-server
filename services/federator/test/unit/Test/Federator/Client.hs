@@ -26,6 +26,7 @@ import Imports
 import Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import Network.Wai.Utilities.Error as Wai
+import Servant.Client.Core
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -181,6 +182,6 @@ testResponseHeaders = do
     Left err ->
       assertFailure $
         "Unexpected error while connecting to mock federator: " <> show err
-    Right (status, headers, _) -> do
-      status @?= HTTP.status200
-      lookup "X-Foo" headers @?= Just "bar"
+    Right resp -> do
+      responseStatusCode resp @?= HTTP.status200
+      lookup "X-Foo" (toList (responseHeaders resp)) @?= Just "bar"

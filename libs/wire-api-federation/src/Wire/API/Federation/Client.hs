@@ -23,6 +23,7 @@ module Wire.API.Federation.Client
     FederatorClient,
     runFederatorClient,
     performHTTP2Request,
+    withHTTP2Request,
     headersFromTable,
   )
 where
@@ -52,6 +53,7 @@ import Network.TLS as TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
 import Servant.Client.Core
+import Servant.Types.SourceT
 import qualified System.TimeManager
 import Util.Options (Endpoint (..))
 import Wire.API.Federation.Component
@@ -90,45 +92,56 @@ performHTTP2Request ::
   HTTP2.Request ->
   ByteString ->
   Int ->
-  IO (Either FederatorClientHTTP2Error (HTTP.Status, [HTTP.Header], Builder))
-performHTTP2Request mtlsConfig req hostname port = do
-  let drainResponse resp = go mempty
-        where
-          go acc = do
-            chunk <- HTTP2.getResponseBodyChunk resp
-            if BS.null chunk
-              then pure acc
-              else go (acc <> byteString chunk)
+  IO (Either FederatorClientHTTP2Error (ResponseF Builder))
+performHTTP2Request mtlsConfig req hostname port = try $ do
+  withHTTP2Request mtlsConfig req hostname port $ \resp -> do
+    b <-
+      fmap (either (const mempty) id)
+        . runExceptT
+        . runSourceT
+        . responseBody
+        $ resp
+    pure $ resp $> foldMap byteString b
+
+withHTTP2Request ::
+  Maybe TLS.ClientParams ->
+  HTTP2.Request ->
+  ByteString ->
+  Int ->
+  (StreamingResponse -> IO a) ->
+  IO a
+withHTTP2Request mtlsConfig req hostname port k = do
   let clientConfig =
         HTTP2.ClientConfig
           "https"
           hostname
           {- cacheLimit: -} 20
-  flip
-    E.catches
-    [ -- catch FederatorClientHTTP2Error (e.g. connection and TLS errors)
-      E.Handler (pure . Left),
-      -- catch HTTP2 exceptions
-      E.Handler (pure . Left . FederatorClientHTTP2Exception)
-    ]
-    $ bracket (connectSocket hostname port) NS.close $ \sock -> do
-      let withHTTP2Config k = case mtlsConfig of
-            Nothing -> bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig k
+  E.handle (E.throw . FederatorClientHTTP2Exception) $
+    bracket (connectSocket hostname port) NS.close $ \sock -> do
+      let withHTTP2Config k' = case mtlsConfig of
+            Nothing -> bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig k'
             -- FUTUREWORK(federation): Use openssl
             Just tlsConfig -> do
               ctx <- E.handle (E.throw . FederatorClientTLSException) $ do
                 ctx <- TLS.contextNew sock tlsConfig
                 TLS.handshake ctx
                 pure ctx
-              bracket (allocTLSConfig ctx 4096) freeTLSConfig k
+              bracket (allocTLSConfig ctx 4096) freeTLSConfig k'
       withHTTP2Config $ \conf ->
         HTTP2.run clientConfig conf $ \sendRequest -> do
           sendRequest req $ \resp -> do
-            result <- drainResponse resp
             let headers = headersFromTable (HTTP2.responseHeaders resp)
-            pure $ case HTTP2.responseStatus resp of
-              Nothing -> Left FederatorClientNoStatusCode
-              Just status -> Right (status, headers, result)
+                result = fromAction BS.null (HTTP2.getResponseBodyChunk resp)
+            case HTTP2.responseStatus resp of
+              Nothing -> E.throw FederatorClientNoStatusCode
+              Just status ->
+                k
+                  Response
+                    { responseStatusCode = status,
+                      responseHeaders = Seq.fromList headers,
+                      responseHttpVersion = HTTP.http20,
+                      responseBody = result
+                    }
 
 instance KnownComponent c => RunClient (FederatorClient c) where
   runRequestAcceptStatus expectedStatuses req = do
@@ -156,23 +169,20 @@ instance KnownComponent c => RunClient (FederatorClient c) where
     eresp <- liftIO $ performHTTP2Request Nothing req' hostname port
     case eresp of
       Left err -> throwError (FederatorClientHTTP2Error err)
-      Right (status, headers, result)
-        | maybe (HTTP.statusIsSuccessful status) (elem status) expectedStatuses ->
-          pure $
-            Response
-              { responseStatusCode = status,
-                responseHeaders = Seq.fromList headers,
-                responseHttpVersion = HTTP.http20,
-                responseBody = toLazyByteString result
-              }
+      Right resp
+        | maybe
+            (HTTP.statusIsSuccessful (responseStatusCode resp))
+            (elem (responseStatusCode resp))
+            expectedStatuses ->
+          pure $ fmap toLazyByteString resp
         | otherwise ->
           throwError $
             FederatorClientError
               ( mkFailureResponse
-                  status
+                  (responseStatusCode resp)
                   (ceTargetDomain env)
                   (toLazyByteString (requestPath req))
-                  (toLazyByteString result)
+                  (toLazyByteString (responseBody resp))
               )
 
   throwClientError = throwError . FederatorClientServantError
