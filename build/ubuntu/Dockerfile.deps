@@ -15,7 +15,9 @@ FROM ubuntu:20.04
 
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
 
-RUN apt-get update && apt-get install -y \
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y \
             libsodium23 \
             libssl1.1 \
             libgmp10 \
