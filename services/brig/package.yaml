@@ -10,8 +10,18 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 ghc-options:
 - -funbox-strict-fields
+custom-setup:
+  dependencies:
+    - Cabal
+    - base
+    - containers
+    - directory
+    - filepath
 library:
   source-dirs: src
+  other-modules:
+    - Paths_brig
+    - Brig.Docs.Swagger
   dependencies:
   - aeson >=0.11
   - amazonka >=1.3.7
@@ -63,7 +73,6 @@ library:
   - http-types >=0.8
   - imports
   - insert-ordered-containers
-  - interpolate
   - iproute >=1.5
   - iso639 >=0.1
   - lens >=3.8
