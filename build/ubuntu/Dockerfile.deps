@@ -1,0 +1,26 @@
+FROM ubuntu:20.04 as cryptobox-builder
+
+# compile cryptobox-c
+RUN apt-get update && apt-get install -y cargo file libsodium-dev git && \
+    cd /tmp && \
+    git clone https://github.com/wireapp/cryptobox-c.git && \
+    cd cryptobox-c && \
+    export SODIUM_USE_PKG_CONFIG=1 && \
+    cargo build --release
+
+# Minimal dependencies for alpine-compiled, dynamically linked wire-server Haskell services
+FROM ubuntu:20.04
+
+COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
+
+RUN apt-get update && apt-get install -y \
+            libsodium \
+            libssl \
+            libgmp10 \
+            libffi8 \
+            libicu67 \
+            geoip-bin \
+            ca-certificates \
+            dumb-init \
+            libxml2 \
+            ncurses
