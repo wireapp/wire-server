@@ -42,12 +42,12 @@ RUN apk add --no-cache \
         sed
 
 # get static version of Haskell Stack and use system ghc by default
-ARG STACK_ALPINE_VERSION=2.3.1
+ARG STACK_ALPINE_VERSION=2.7.3
 RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_ALPINE_VERSION}/stack-${STACK_ALPINE_VERSION}-linux-x86_64-static.tar.gz \
     | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack && \
     stack config set system-ghc --global true
 
-ARG GHC_VERSION=8.8.4
+ARG GHC_VERSION=8.10.7
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
   | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_GHC_VERSION=${GHC_VERSION} sh
 
