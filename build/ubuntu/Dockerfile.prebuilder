@@ -5,7 +5,6 @@ RUN apt-get update && apt-get install -y cargo file libsodium-dev git && \
     cd /tmp && \
     git clone https://github.com/wireapp/cryptobox-c.git && \
     cd cryptobox-c && \
-    export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
 FROM ubuntu:20.04
