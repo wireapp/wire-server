@@ -78,7 +78,7 @@ federatedRequestSuccess =
             rpc @?= "get-user-by-handle"
             headers @?= requestHeaders
             toLazyByteString body @?= "\"foo\""
-            pure (HTTP.status200, [],fromLazyByteString "\"bar\"")
+            pure (HTTP.status200, [], fromLazyByteString "\"bar\"")
     res <-
       runM
         . interpretCall
