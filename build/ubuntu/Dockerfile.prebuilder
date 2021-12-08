@@ -20,7 +20,7 @@ COPY --from=cryptobox-builder /tmp/cryptobox-c/src/cbox.h /usr/include/cbox.h
 RUN apt-get update \
     && apt-get install -y \
         ca-certificates \
-        build-essentials \
+        build-essential \
         clang \
         debhelper \
         dh-autoreconf \
@@ -44,7 +44,7 @@ RUN apt-get update \
         wget \
         git \
         libffi-dev \
-        libffi6\
+        libffi7 \
         libgmp-dev\
         libgmp10\
         libncurses-dev\
