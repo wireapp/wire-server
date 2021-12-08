@@ -1,7 +1,9 @@
 FROM ubuntu:20.04 as cryptobox-builder
 
 # compile cryptobox-c
-RUN apt-get update && apt-get install -y cargo file libsodium-dev git pkg-config && \
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y cargo file libsodium-dev git pkg-config && \
     cd /tmp && \
     git clone https://github.com/wireapp/cryptobox-c.git && \
     cd cryptobox-c && \
