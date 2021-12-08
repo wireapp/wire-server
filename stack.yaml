@@ -253,6 +253,10 @@ extra-deps:
 - proto-lens-setup-0.4.0.5
 - tracing-0.0.7.2
 
+# This is supposed to alredy be present in the snapshot but CI fails for some
+# reason. TODO: investigate
+- integer-gmp-1.0.3.0@sha256:514e81647473ce380cf1814821664c0dcedc2801ad8dbf41b19a10f916e1cc75,2138
+
 ############################################################
 # Development tools
 ############################################################
