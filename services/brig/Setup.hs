@@ -22,6 +22,7 @@ import Data.Maybe
 import Distribution.Simple
 import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
+import Distribution.Types.PackageDescription
 import System.Directory
 import System.FilePath
 
@@ -30,11 +31,17 @@ main =
   defaultMainWithHooks
     simpleUserHooks
       { buildHook = \desc info hooks flags -> do
-          withLibLBI desc info $ \_ lib -> do
-            let base = autogenComponentModulesDir info lib </> "Brig" </> "Docs"
-            generateDocs base "swagger.md"
-          buildHook simpleUserHooks desc info hooks flags
+          generate desc info
+          buildHook simpleUserHooks desc info hooks flags,
+        replHook = \desc info hooks flags args -> do
+          generate desc info
+          replHook simpleUserHooks desc info hooks flags args
       }
+
+generate :: PackageDescription -> LocalBuildInfo -> IO ()
+generate desc info = withLibLBI desc info $ \_ lib -> do
+  let base = autogenComponentModulesDir info lib </> "Brig" </> "Docs"
+  generateDocs base "swagger.md"
 
 generateDocs :: FilePath -> FilePath -> IO ()
 generateDocs base src = do
