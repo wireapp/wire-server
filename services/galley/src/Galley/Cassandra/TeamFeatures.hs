@@ -211,9 +211,9 @@ interpretTeamFeatureStoreToCassandra ::
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  GetFeatureStatusNoConfig' p tid -> embedClient $ getFeatureStatusNoConfig p tid
-  GetFeatureStatusNoConfigAndLockStatus' p tid -> embedClient $ getFeatureStatusNoConfigAndLockStatus p tid
-  SetFeatureStatusNoConfig' p tid value -> embedClient $ setFeatureStatusNoConfig p tid value
+  GetFeatureStatusNoConfig' tfn tid -> embedClient $ getFeatureStatusNoConfig tfn tid
+  GetFeatureStatusNoConfigAndLockStatus' tfn tid -> embedClient $ getFeatureStatusNoConfigAndLockStatus tfn tid
+  SetFeatureStatusNoConfig' tfn tid value -> embedClient $ setFeatureStatusNoConfig tfn tid value
   SetLockStatus' p tid value -> embedClient $ setLockStatus p tid value
   GetLockStatus' p tid -> embedClient $ getLockStatus p tid
   GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid
