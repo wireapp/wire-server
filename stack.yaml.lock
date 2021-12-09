@@ -739,12 +739,12 @@ packages:
   original:
     hackage: tracing-0.0.7.2
 - completed:
-    hackage: integer-gmp-1.0.3.0@sha256:514e81647473ce380cf1814821664c0dcedc2801ad8dbf41b19a10f916e1cc75,2138
+    hackage: integer-simple-0.1.1.1@sha256:edfa49fb19eb8e14ce4e0edd03327f13dfb71d186295df9f8dcd4ca59321c0a8,1002
     pantry-tree:
-      size: 1109
-      sha256: 5b3253cddae6067147ee898921258b5b3ffec16f280e86ffb872f129556f6f12
+      size: 487
+      sha256: d20ef6171d3ae1459afcdf238b152404fe7f1eaaab37ab04333f04de8a2dd082
   original:
-    hackage: integer-gmp-1.0.3.0@sha256:514e81647473ce380cf1814821664c0dcedc2801ad8dbf41b19a10f916e1cc75,2138
+    hackage: integer-simple-0.1.1.1@sha256:edfa49fb19eb8e14ce4e0edd03327f13dfb71d186295df9f8dcd4ca59321c0a8,1002
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

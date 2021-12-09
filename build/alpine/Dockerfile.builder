@@ -18,6 +18,7 @@ RUN set -x && \
     cd /wire-server && \
     stack update && \
     echo "allow-different-user: true" >> /root/.stack/config.yaml && \
+    ./hack/bin/alpine-stack-patch.sh
     stack build --haddock --dependencies-only haskell-src-exts && \
     stack build --haddock --no-haddock-hyperlink-source haskell-src-exts && \
     stack build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only -j${THREADS} && \
