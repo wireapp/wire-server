@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE QuantifiedConstraints       #-}
+{-# OPTIONS_GHC -Wno-orphans             #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Test.Spar.Sem.IdPRawMetadataStoreSpec where
@@ -15,97 +16,105 @@ import Test.QuickCheck
 
 deriveGenericK ''E.IdPRawMetadataStore
 
+class
+  (Functor f, Member E.IdPRawMetadataStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  PropConstraints r f
+
+instance
+  (Functor f, Member E.IdPRawMetadataStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  PropConstraints r f
+
 prop_storeGetRaw ::
-  Member E.IdPRawMetadataStore r =>
-  (forall a. Sem r a -> IO (RawState, a)) ->
+  PropConstraints r f =>
+  Maybe (f (Maybe Text) -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_storeGetRaw x =
+prop_storeGetRaw =
   prepropLaw @'[E.IdPRawMetadataStore]
     ( do
         idpid <- arbitrary
         t <- arbitrary
-        pure
+        pure $ simpleLaw
           ( do
               E.store idpid t
-              E.get idpid,
-            do
+              E.get idpid)
+          ( do
               E.store idpid t
               pure (Just t)
           )
     )
-    x
 
 prop_storeStoreRaw ::
-  Member E.IdPRawMetadataStore r =>
-  (forall a. Sem r a -> IO (RawState, a)) ->
+  PropConstraints r f =>
+  Maybe (f () -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_storeStoreRaw x =
+prop_storeStoreRaw =
   prepropLaw @'[E.IdPRawMetadataStore]
     ( do
         idpid <- arbitrary
         t1 <- arbitrary
         t2 <- arbitrary
-        pure
+        pure $ simpleLaw
           ( do
               E.store idpid t1
-              E.store idpid t2,
-            do
+              E.store idpid t2)
+            (do
               E.store idpid t2
           )
     )
-    x
 
 prop_storeDeleteRaw ::
-  Member E.IdPRawMetadataStore r =>
-  (forall a. Sem r a -> IO (RawState, a)) ->
+  PropConstraints r f =>
+  Maybe (f () -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_storeDeleteRaw x =
-  prepropLaw @'[E.IdPRawMetadataStore]
-    ( do
+prop_storeDeleteRaw =
+  prepropLaw @'[E.IdPRawMetadataStore] $
+    do
         idpid <- arbitrary
         t <- arbitrary
-        pure
+        pure $ simpleLaw
           ( do
               E.store idpid t
-              E.delete idpid,
-            do
+              E.delete idpid)
+          ( do
               E.delete idpid
           )
-    )
-    x
 
 prop_deleteGetRaw ::
-  Member E.IdPRawMetadataStore r =>
-  (forall a. Sem r a -> IO (RawState, a)) ->
+  PropConstraints r f =>
+  Maybe (f (Maybe Text) -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
   Property
-prop_deleteGetRaw x =
+prop_deleteGetRaw =
   prepropLaw @'[E.IdPRawMetadataStore]
     ( do
         idpid <- arbitrary
-        pure
+        pure $ simpleLaw
           ( do
               E.delete idpid
-              E.get idpid,
-            do
+              E.get idpid)
+          ( do
               E.delete idpid
               pure Nothing
           )
     )
-    x
 
 testInterpreter :: Sem '[E.IdPRawMetadataStore] a -> IO (RawState, a)
 testInterpreter = pure . run . idpRawMetadataStoreToMem
 
 propsForInterpreter ::
-  Member E.IdPRawMetadataStore r =>
-  (forall a. Sem r a -> IO (RawState, a)) ->
+  PropConstraints r f =>
+  (forall x. f x -> x) ->
+  (forall a. Sem r a -> IO (f a)) ->
   Spec
-propsForInterpreter lower = do
-  prop "store/store" $ prop_storeStoreRaw lower
-  prop "store/get" $ prop_storeGetRaw lower
-  prop "store/deleteRawMetadata" $ prop_storeDeleteRaw lower
-  prop "deleteRawMetadata/get" $ prop_deleteGetRaw lower
+propsForInterpreter extract lower = do
+  prop "store/store" $ prop_storeStoreRaw Nothing lower
+  prop "store/get" $ prop_storeGetRaw (Just $ constructorLabel . extract) lower
+  prop "store/deleteRawMetadata" $ prop_storeDeleteRaw Nothing lower
+  prop "deleteRawMetadata/get" $ prop_deleteGetRaw (Just $ constructorLabel . extract) lower
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
-  propsForInterpreter testInterpreter
+  propsForInterpreter snd testInterpreter
