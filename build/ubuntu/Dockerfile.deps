@@ -27,4 +27,5 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             ca-certificates \
             dumb-init \
             libxml2 \
-            libncurses6
+            libncurses6 \
+            zlib1g

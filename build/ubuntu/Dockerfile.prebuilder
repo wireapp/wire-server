@@ -40,6 +40,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         upx-ucl \
         zlib1g-dev \
         libbz2-dev \
+        liblzma-dev \
+        liblzma5 \
         libpq-dev \
         curl \
         wget \
