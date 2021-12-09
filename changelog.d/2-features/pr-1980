@@ -1,0 +1,1 @@
+If guest links team feature is disabled `post /conversations/:cnv/code` and `get /conversations/:cnv/code` will return an error.
