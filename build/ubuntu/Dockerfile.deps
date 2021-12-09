@@ -10,7 +10,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
-# Minimal dependencies for alpine-compiled, dynamically linked wire-server Haskell services
+# Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
 FROM ubuntu:20.04
 
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
