@@ -19,6 +19,7 @@ BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
 
+package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
 
 # This ensures that focused unit tests written in hspec fail. This is supposed
@@ -44,7 +45,7 @@ install: init
 ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
-	./hack/bin/cabal-install-all-artefacts.sh
+	./hack/bin/cabal-install-artefacts.sh all
 else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 endif
@@ -71,11 +72,7 @@ endif
 # Usage: make ci package=brig test=1
 .PHONY: ci
 ci: c
-ifeq ("$(pattern)", "")
-	make -C services/$(package) i
-else
-	make -C services/$(package) i-$(pattern)
-endif
+	./hack/bin/cabal-run-integration.sh $(package) $(pattern)
 
 # reset db using cabal
 .PHONY: db-reset-package
