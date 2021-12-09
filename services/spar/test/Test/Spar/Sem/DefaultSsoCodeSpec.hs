@@ -13,6 +13,8 @@ import Spar.Sem.DefaultSsoCode.Mem
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import SAML2.WebSSO.Types
+
 
 deriveGenericK ''E.DefaultSsoCode
 
@@ -23,13 +25,13 @@ propsForInterpreter ::
   Spec
 propsForInterpreter interpreter lower = do
   describe interpreter $ do
-    prop "delete/delete" $ prop_deleteDelete lower
-    prop "delete/get" $ prop_deleteGet lower
-    prop "delete/store" $ prop_deleteStore lower
-    prop "get/store" $ prop_getStore lower
-    prop "store/delete" $ prop_storeStore lower
-    prop "store/get" $ prop_storeGet lower
-    prop "store/store" $ prop_storeStore lower
+    prop "delete/delete" $ prop_deleteDelete Nothing lower
+    prop "delete/get" $ prop_deleteGet Nothing lower
+    prop "delete/store" $ prop_deleteStore Nothing lower
+    prop "get/store" $ prop_getStore Nothing lower
+    prop "store/delete" $ prop_storeStore Nothing lower
+    prop "store/get" $ prop_storeGet Nothing lower
+    prop "store/store" $ prop_storeStore Nothing lower
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
@@ -39,113 +41,120 @@ spec = modifyMaxSuccess (const 1000) $ do
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Member E.DefaultSsoCode r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.DefaultSsoCode r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Member E.DefaultSsoCode r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.DefaultSsoCode r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 prop_storeGet ::
   PropConstraints r f =>
+  Maybe (f (Maybe IdPId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_storeGet =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
-    pure
+    pure $ simpleLaw
       ( do
           E.store s
-          E.get,
-        do
+          E.get)
+      ( do
           E.store s
           pure (Just s)
       )
 
 prop_getStore ::
   PropConstraints r f =>
+  Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_getStore =
   prepropLaw @'[E.DefaultSsoCode] $ do
-    pure
+    pure $ simpleLaw
       ( do
-          E.get >>= maybe (pure ()) E.store,
-        do
+          E.get >>= maybe (pure ()) E.store)
+      ( do
           pure ()
       )
 
 prop_storeDelete ::
   PropConstraints r f =>
+  Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_storeDelete =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
-    pure
+    pure $ simpleLaw
       ( do
           E.store s
-          E.delete,
-        do
+          E.delete)
+      ( do
           E.delete
       )
 
 prop_deleteStore ::
   PropConstraints r f =>
+  Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_deleteStore =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
-    pure
+    pure $ simpleLaw
       ( do
           E.delete
-          E.store s,
-        do
+          E.store s)
+      ( do
           E.store s
       )
 
 prop_storeStore ::
   PropConstraints r f =>
+  Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_storeStore =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
     s' <- arbitrary
-    pure
+    pure $ simpleLaw
       ( do
           E.store s
-          E.store s',
-        do
+          E.store s')
+      ( do
           E.store s'
       )
 
 prop_deleteDelete ::
   PropConstraints r f =>
+  Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_deleteDelete =
   prepropLaw @'[E.DefaultSsoCode] $ do
-    pure
+    pure $ simpleLaw
       ( do
           E.delete
-          E.delete,
-        do
+          E.delete)
+      ( do
           E.delete
       )
 
 prop_deleteGet ::
   PropConstraints r f =>
+  Maybe (f (Maybe IdPId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_deleteGet =
   prepropLaw @'[E.DefaultSsoCode] $ do
-    pure
+    pure $ simpleLaw
       ( do
           E.delete
-          E.get,
-        do
+          E.get)
+      ( do
           E.delete
           pure Nothing
       )
