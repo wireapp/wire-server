@@ -52,11 +52,12 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         git \
         libffi-dev \
         libffi7 \
-        libgmp-dev\
-        libgmp10\
-        libncurses-dev\
-        libncurses5\
-        libtinfo5
+        libgmp-dev \
+        libgmp10 \
+        libncurses-dev \
+        libncurses5 \
+        libtinfo5 \
+        protobuf-compiler
 
 # get static version of Haskell Stack and use system ghc by default
 ARG STACK_ALPINE_VERSION=2.7.3
