@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9cb4007a4aa28024c1ac5077eb0840c877b7fd3a7afee0b48a9c218a54afc40a
+-- hash: 2131bf1a367dd734cbccd900c4724c5b48e3f494501b2221e3f32ecaf0a12ec4
 
 name:           federator
 version:        1.0.0
@@ -41,15 +41,18 @@ library
       Federator.App
       Federator.Discovery
       Federator.Env
+      Federator.Error
+      Federator.Error.ServerError
       Federator.ExternalServer
       Federator.InternalServer
+      Federator.MockServer
       Federator.Monitor
       Federator.Monitor.Internal
       Federator.Options
       Federator.Remote
+      Federator.Response
       Federator.Run
       Federator.Service
-      Federator.Utils.PolysemyServerError
       Federator.Validation
   other-modules:
       Paths_federator
@@ -58,12 +61,14 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
-    , aeson
+      aeson
+    , async
     , base
     , bilge
+    , binary
     , bytestring
+    , bytestring-conversion
+    , constraints
     , containers
     , data-default
     , dns
@@ -76,16 +81,13 @@ library
     , http-client
     , http-client-openssl
     , http-types
-    , http2-client
-    , http2-client-grpc
+    , http2
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , mtl
-    , mu-grpc-client
-    , mu-grpc-server
-    , mu-rpc
+    , network
     , network-uri
     , pem
     , polysemy
@@ -93,18 +95,20 @@ library
     , retry
     , servant
     , servant-server
+    , streaming-commons
     , string-conversions
     , text
+    , time-manager
     , tinylog
     , tls
     , types-common
     , unix
-    , unliftio
     , uri-bytestring
     , uuid
     , wai
     , wai-utilities
     , warp
+    , warp-tls
     , wire-api
     , wire-api-federation
     , x509
@@ -122,12 +126,14 @@ executable federator
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
-    , aeson
+      aeson
+    , async
     , base
     , bilge
+    , binary
     , bytestring
+    , bytestring-conversion
+    , constraints
     , containers
     , data-default
     , dns
@@ -141,16 +147,13 @@ executable federator
     , http-client
     , http-client-openssl
     , http-types
-    , http2-client
-    , http2-client-grpc
+    , http2
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , mtl
-    , mu-grpc-client
-    , mu-grpc-server
-    , mu-rpc
+    , network
     , network-uri
     , pem
     , polysemy
@@ -158,18 +161,20 @@ executable federator
     , retry
     , servant
     , servant-server
+    , streaming-commons
     , string-conversions
     , text
+    , time-manager
     , tinylog
     , tls
     , types-common
     , unix
-    , unliftio
     , uri-bytestring
     , uuid
     , wai
     , wai-utilities
     , warp
+    , warp-tls
     , wire-api
     , wire-api-federation
     , x509
@@ -191,18 +196,22 @@ executable federator-integration
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
-    , aeson
+      aeson
+    , async
     , base
     , bilge
+    , binary
     , bytestring
+    , bytestring-conversion
+    , connection
+    , constraints
     , containers
     , cryptonite
     , data-default
     , dns
     , dns-util
     , either
+    , errors
     , exceptions
     , extended
     , federator
@@ -211,17 +220,15 @@ executable federator-integration
     , hspec
     , http-client
     , http-client-openssl
+    , http-client-tls
     , http-types
-    , http2-client
-    , http2-client-grpc
+    , http2
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , mtl
-    , mu-grpc-client
-    , mu-grpc-server
-    , mu-rpc
+    , network
     , network-uri
     , optparse-applicative
     , pem
@@ -231,20 +238,22 @@ executable federator-integration
     , retry
     , servant
     , servant-server
+    , streaming-commons
     , string-conversions
     , tasty
     , tasty-hunit
     , text
+    , time-manager
     , tinylog
     , tls
     , types-common
     , unix
-    , unliftio
     , uri-bytestring
     , uuid
     , wai
     , wai-utilities
     , warp
+    , warp-tls
     , wire-api
     , wire-api-federation
     , x509
@@ -258,11 +267,14 @@ test-suite federator-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Federator.Client
       Test.Federator.ExternalServer
       Test.Federator.InternalServer
       Test.Federator.Monitor
       Test.Federator.Options
       Test.Federator.Remote
+      Test.Federator.Response
+      Test.Federator.Util
       Test.Federator.Validation
       Paths_federator
   hs-source-dirs:
@@ -270,12 +282,15 @@ test-suite federator-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
+      QuickCheck
     , aeson
+    , async
     , base
     , bilge
+    , binary
     , bytestring
+    , bytestring-conversion
+    , constraints
     , containers
     , data-default
     , directory
@@ -290,17 +305,14 @@ test-suite federator-tests
     , http-client
     , http-client-openssl
     , http-types
-    , http2-client
-    , http2-client-grpc
+    , http2
     , imports
     , interpolate
     , lens
     , metrics-core
     , metrics-wai
     , mtl
-    , mu-grpc-client
-    , mu-grpc-server
-    , mu-rpc
+    , network
     , network-uri
     , pem
     , polysemy
@@ -308,6 +320,7 @@ test-suite federator-tests
     , polysemy-wire-zoo
     , retry
     , servant
+    , servant-client
     , servant-server
     , streaming-commons
     , string-conversions
@@ -316,15 +329,16 @@ test-suite federator-tests
     , tasty-quickcheck
     , temporary
     , text
+    , time-manager
     , tinylog
     , tls
     , transformers
     , types-common
     , unix
-    , unliftio
     , uri-bytestring
     , uuid
     , wai
+    , wai-extra
     , wai-utilities
     , warp
     , warp-tls

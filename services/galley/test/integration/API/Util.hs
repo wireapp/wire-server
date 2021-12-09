@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -28,6 +27,7 @@ import Brig.Types
 import Brig.Types.Intra (UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
+import Control.Exception (throw)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, finally)
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -63,9 +63,12 @@ import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy.Encoding as T
 import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import Federator.MockServer (FederatedRequest (..))
+import qualified Federator.MockServer as Mock
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -89,10 +92,10 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
-import Network.HTTP.Types (methodPost, status200)
+import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as Test
+import qualified Network.Wai.Test as Wai
 import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (AsServerT, genericServerT)
@@ -113,10 +116,8 @@ import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersL
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
-import qualified Wire.API.Federation.GRPC.Types as F
-import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
@@ -572,7 +573,7 @@ postConvWithRemoteUsers ::
   UserId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers u n = do
+postConvWithRemoteUsers u n =
   fmap fst $
     withTempMockFederator (const ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
@@ -630,7 +631,7 @@ postO2OConv u1 u2 n = do
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
 postConnectConv a b name msg email = do
-  qb <- Qualified <$> pure b <*> viewFederationDomain
+  qb <- pure (Qualified b) <*> viewFederationDomain
   g <- view tsGalley
   post $
     g
@@ -685,9 +686,9 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> FederatedBrig.Api (AsServerT Handler)) ->
-  (Domain -> FederatedGalley.Api (AsServerT Handler)) ->
-  TestM (ResponseLBS, Mock.ReceivedRequests)
+  (Domain -> FederatedBrig.BrigApi (AsServerT Handler)) ->
+  (Domain -> FederatedGalley.GalleyApi (AsServerT Handler)) ->
+  TestM (ResponseLBS, [FederatedRequest])
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
   withTempServantMockFederator brigApi galleyApi localDomain $
@@ -1248,19 +1249,18 @@ registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   FederatedGalley.onConversationCreated
-    fedGalleyClient
-    (qDomain convId)
+    (fedGalleyClient (qDomain convId))
     ( FederatedGalley.NewRemoteConversation
-        { rcTime = now,
-          rcOrigUserId = originUser,
-          rcCnvId = qUnqualified convId,
-          rcCnvType = RegularConv,
-          rcCnvAccess = [],
-          rcCnvAccessRole = ActivatedAccessRole,
-          rcCnvName = name,
-          rcNonCreatorMembers = othMembers,
-          rcMessageTimer = Nothing,
-          rcReceiptMode = Nothing
+        { FederatedGalley.rcTime = now,
+          FederatedGalley.rcOrigUserId = originUser,
+          FederatedGalley.rcCnvId = qUnqualified convId,
+          FederatedGalley.rcCnvType = RegularConv,
+          FederatedGalley.rcCnvAccess = [],
+          FederatedGalley.rcCnvAccessRole = ActivatedAccessRole,
+          FederatedGalley.rcCnvName = name,
+          FederatedGalley.rcNonCreatorMembers = othMembers,
+          FederatedGalley.rcMessageTimer = Nothing,
+          FederatedGalley.rcReceiptMode = Nothing
         }
     )
 
@@ -1500,11 +1500,11 @@ assertNoMsg ws f = do
     Left _ -> return () -- expected
     Right _ -> assertFailure "Unexpected message"
 
-assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertRemoveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
-  F.path req @?= "/federation/on-conversation-updated"
-  F.originDomain req @?= (domainText . qDomain) qconvId
-  let Just cu = decodeStrict (F.body req)
+  frRPC req @?= "on-conversation-updated"
+  frOriginDomain req @?= qDomain qconvId
+  let Just cu = decode (frBody req)
   FederatedGalley.cuOrigUserId cu @?= remover
   FederatedGalley.cuConvId cu @?= qUnqualified qconvId
   sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
@@ -2227,85 +2227,78 @@ withTempMockFederator ::
   (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
   (FederatedRequest -> a) ->
   SessionT m b ->
-  m (b, Mock.ReceivedRequests)
-withTempMockFederator resp = withTempMockFederator' (pure . oresp)
-  where
-    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
+  m (b, [FederatedRequest])
+withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
 
 withTempMockFederator' ::
   (MonadIO m, HasGalley m, MonadMask m) =>
-  (FederatedRequest -> IO F.OutwardResponse) ->
+  (FederatedRequest -> IO LByteString) ->
   SessionT m b ->
-  m (b, Mock.ReceivedRequests)
+  m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   opts <- viewGalleyOpts
-  assertRightT
-    . Mock.withTempMockFederator st0 (lift . resp)
-    $ \st -> lift $ do
-      let opts' =
-            opts & Opts.optFederator
-              ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
-      withSettingsOverrides opts' action
-  where
-    st0 = Mock.initState (Domain "example.com")
+  Mock.withTempMockFederator [("Content-Type", "application/json")] resp $ \mockPort -> do
+    let opts' =
+          opts & Opts.optFederator
+            ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
+    withSettingsOverrides opts' action
 
+-- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  (Domain -> FederatedBrig.Api (AsServerT Handler)) ->
-  (Domain -> FederatedGalley.Api (AsServerT Handler)) ->
+  (Domain -> FederatedBrig.BrigApi (AsServerT Handler)) ->
+  (Domain -> FederatedGalley.GalleyApi (AsServerT Handler)) ->
   Domain ->
   SessionT m b ->
-  m (b, Mock.ReceivedRequests)
+  m (b, [FederatedRequest])
 withTempServantMockFederator brigApi galleyApi originDomain =
   withTempMockFederator' mock
   where
     server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
     server d = genericServerT (brigApi d) :<|> genericServerT (galleyApi d)
 
-    mock :: F.FederatedRequest -> IO F.OutwardResponse
+    mock :: FederatedRequest -> IO LByteString
     mock req =
-      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (Domain (F.domain req))) req
+      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
 
-type CombinedBrigAndGalleyAPI = ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api
+type CombinedBrigAndGalleyAPI = ToServantApi FederatedBrig.BrigApi :<|> ToServantApi FederatedGalley.GalleyApi
 
+-- Starts a servant Application in Network.Wai.Test session and runs the
+-- FederatedRequest against it.
 makeFedRequestToServant ::
   forall (api :: *).
   HasServer api '[] =>
   Domain ->
   Server api ->
-  F.FederatedRequest ->
-  IO F.OutwardResponse
-makeFedRequestToServant originDomain server fedRequest =
-  Test.runSession session app
+  FederatedRequest ->
+  IO LByteString
+makeFedRequestToServant originDomain server fedRequest = do
+  sresp <- Wai.runSession session app
+  let status = Wai.simpleStatus sresp
+      bdy = Wai.simpleBody sresp
+  if HTTP.statusIsSuccessful status
+    then pure bdy
+    else throw (Mock.MockErrorResponse status (T.decodeUtf8 bdy))
   where
     app :: Application
     app = serve (Proxy @api) server
 
-    session :: Test.Session F.OutwardResponse
+    session :: Wai.Session Wai.SResponse
     session = do
-      let req = fromMaybe (error "no request") (F.request fedRequest)
-      response <-
-        Test.srequest
-          ( Test.SRequest
-              (toRequestWithoutBody req)
-              (cs . F.body $ req)
-          )
-      if Test.simpleStatus response == status200
-        then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
-        else do
-          pure (F.OutwardResponseError (F.OutwardError F.GrpcError (cs (Test.simpleBody response))))
-
-    toRequestWithoutBody :: F.Request -> Wai.Request
-    toRequestWithoutBody req =
-      defaultRequest
-        { Wai.requestMethod = methodPost,
-          Wai.pathInfo = fmap cs . drop 1 . C.split '/' . F.path $ req,
-          Wai.requestHeaders =
-            [ (CI.mk "Content-Type", "application/json"),
-              (CI.mk "Accept", "application/json"),
-              (originDomainHeaderName, cs . domainText $ originDomain)
-            ]
-        }
+      Wai.srequest
+        ( Wai.SRequest
+            ( defaultRequest
+                { Wai.requestMethod = HTTP.methodPost,
+                  Wai.pathInfo = [frRPC fedRequest],
+                  Wai.requestHeaders =
+                    [ (CI.mk "Content-Type", "application/json"),
+                      (CI.mk "Accept", "application/json"),
+                      (originDomainHeaderName, cs . domainText $ originDomain)
+                    ]
+                }
+            )
+            (frBody fedRequest)
+        )
 
 assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
 assertRight = \case
@@ -2432,44 +2425,35 @@ checkTimeout = 3 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
-mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Maybe Value
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Maybe Value
 mockedFederatedBrigResponse users req
-  | fmap F.component (F.request req) == Just F.Brig =
+  | frComponent req == Brig =
     Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
   | otherwise = Nothing
 
 -- | Combine two mocked services such that for a given request a JSON response
 -- is produced.
 joinMockedFederatedResponses ::
-  (F.FederatedRequest -> Maybe Value) ->
-  (F.FederatedRequest -> Maybe Value) ->
-  F.FederatedRequest ->
+  (FederatedRequest -> Maybe Value) ->
+  (FederatedRequest -> Maybe Value) ->
+  FederatedRequest ->
   Value
 joinMockedFederatedResponses service1 service2 req =
   fromMaybe (toJSON ()) (service1 req <|> service2 req)
 
 -- | Only Brig is mocked.
-onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Value
+onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Value
 onlyMockedFederatedBrigResponse users =
   joinMockedFederatedResponses
     (mockedFederatedBrigResponse users)
     (const Nothing)
 
-fedRequestsForDomain :: HasCallStack => Domain -> F.Component -> [F.FederatedRequest] -> [F.Request]
+fedRequestsForDomain :: HasCallStack => Domain -> Component -> [FederatedRequest] -> [FederatedRequest]
 fedRequestsForDomain domain component =
-  map (fromJust . F.request)
-    . filter
-      ( \req ->
-          F.domain req == domainText domain
-            && fmap F.component (F.request req) == Just component
-      )
+  filter $ \req -> frTargetDomain req == domain && frComponent req == component
 
-parseFedRequest :: FromJSON a => F.FederatedRequest -> Either String a
-parseFedRequest fr =
-  case F.request fr of
-    Just r ->
-      (eitherDecode . cs) (F.body r)
-    Nothing -> Left "No request"
+parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
+parseFedRequest fr = eitherDecode (frBody fr)
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
@@ -2513,7 +2497,7 @@ generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
     then pure (qTagUnsafe other, convId)
     else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
 
-matchFedRequest :: Domain -> ByteString -> FederatedRequest -> Bool
+matchFedRequest :: Domain -> Text -> FederatedRequest -> Bool
 matchFedRequest domain reqpath req =
-  F.domain req == domainText domain
-    && fmap F.path (F.request req) == Just reqpath
+  frTargetDomain req == domain
+    && frRPC req == reqpath

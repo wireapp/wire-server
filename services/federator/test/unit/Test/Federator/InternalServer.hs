@@ -19,35 +19,36 @@
 
 module Test.Federator.InternalServer (tests) where
 
-import Data.Domain (Domain (Domain))
-import Federator.Discovery (LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable))
+import Data.Binary.Builder
+import Data.ByteString.Conversion
+import Data.Default
+import Data.Domain
+import Federator.Error.ServerError
 import Federator.InternalServer (callOutward)
 import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
-import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
+import Federator.Remote
+import Federator.Validation
 import Imports
-import Mu.GRpc.Client.Record
-import qualified Network.HTTP2.Client as HTTP2
-import Polysemy (embed, runM)
-import qualified Polysemy.Reader as Polysemy
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Utilities.Server as Wai
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
+import Polysemy.TinyLog
 import Test.Federator.Options (noClientCertSettings)
-import Test.Polysemy.Mock (Mock (mock), evalMock)
-import Test.Polysemy.Mock.TH (genMock)
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
-import Wire.API.Federation.GRPC.Types
-
-genMock ''Remote
+import Test.Federator.Util
+import Test.Tasty
+import Test.Tasty.HUnit
+import Wire.API.Federation.Component
+import Wire.API.Federation.Domain
 
 tests :: TestTree
 tests =
-  testGroup "Federate" $
+  testGroup
+    "Federate"
     [ testGroup "with remote" $
         [ federatedRequestSuccess,
-          federatedRequestFailureTMC,
-          federatedRequestFailureErrCode,
-          federatedRequestFailureErrStr,
-          federatedRequestFailureNoRemote,
-          federatedRequestFailureDNS,
           federatedRequestFailureAllowList
         ]
     ]
@@ -58,122 +59,63 @@ settingsWithAllowList domains =
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
-  testCase "should successfully return success response" $
-    runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (InwardResponseBody "success!"))))
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-
-      res <-
-        mock @Remote @IO . Polysemy.runReader noClientCertSettings $
-          callOutward federatedRequest
-
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
-      embed $ assertEqual "one remote call should be made" [expectedCall] actualCalls
-      embed $ assertEqual "successful response should be returned" (OutwardResponseBody "success!") res
-
--- FUTUREWORK(federation): This is probably not ideal, we should figure out what this error
--- means and act accordingly.
-federatedRequestFailureTMC :: TestTree
-federatedRequestFailureTMC =
-  testCase "should respond with error when facing GRpcTooMuchConcurrency" $
-    runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (HTTP2.TooMuchConcurrency 2))))
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-
-      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
-
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
-      embed $ do
-        assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType TooMuchConcurrency res
-
-federatedRequestFailureErrCode :: TestTree
-federatedRequestFailureErrCode =
-  testCase "should respond with error when facing GRpcErrorCode" $
-    runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorCode 77))) -- TODO: Maybe use some legit HTTP2 error code?
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-
-      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
-
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
-      embed $ do
-        assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType GrpcError res
-
-federatedRequestFailureErrStr :: TestTree
-federatedRequestFailureErrStr =
-  testCase "should respond with error when facing GRpcErrorString" $
-    runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorString "some grpc error")))
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-
-      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
-
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
-      embed $ do
-        assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType GrpcError res
-
-federatedRequestFailureNoRemote :: TestTree
-federatedRequestFailureNoRemote =
-  testCase "should respond with error when SRV record is not found" $
-    runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (Domain "example.com") (LookupErrorSrvNotAvailable "_something._tcp.example.com")))
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-
-      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
-
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
-      embed $ do
-        assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteNotFound res
-
-federatedRequestFailureDNS :: TestTree
-federatedRequestFailureDNS =
-  testCase "should respond with error when SRV lookup fails due to DNSError" $
-    runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (Domain "example.com") (LookupErrorDNSError "No route to 1.1.1.1")))
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-
-      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
-
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
-      embed $ do
-        assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType DiscoveryFailed res
+  testCase "should successfully return success response" $ do
+    let settings = noClientCertSettings
+    let targetDomain = Domain "target.example.com"
+        requestHeaders = [(originDomainHeaderName, "origin.example.com")]
+    request <-
+      testRequest
+        def
+          { trPath = "/rpc/" <> toByteString' targetDomain <> "/brig/get-user-by-handle",
+            trBody = "\"foo\"",
+            trExtraHeaders = requestHeaders
+          }
+    let interpretCall :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
+        interpretCall = interpret $ \case
+          DiscoverAndCall domain component rpc headers body -> embed @IO $ do
+            domain @?= targetDomain
+            component @?= Brig
+            rpc @?= "get-user-by-handle"
+            headers @?= requestHeaders
+            toLazyByteString body @?= "\"foo\""
+            pure (HTTP.status200, fromLazyByteString "\"bar\"")
+    res <-
+      runM
+        . interpretCall
+        . assertNoError @ValidationError
+        . assertNoError @ServerError
+        . discardLogs
+        . runInputConst settings
+        $ callOutward request
+    Wai.responseStatus res @?= HTTP.status200
+    body <- Wai.lazyResponseBody res
+    body @?= "\"bar\""
 
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
-  testCase "should not make a call when target domain not in the allowList" $
-    runM . evalMock @Remote @IO $ do
-      let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-      let settings = settingsWithAllowList [Domain "hello.world"]
-      res <- mock @Remote @IO . Polysemy.runReader settings $ callOutward federatedRequest
+  testCase "should not make a call when target domain not in the allowList" $ do
+    let settings = settingsWithAllowList [Domain "hello.world"]
+    let targetDomain = Domain "target.example.com"
+        headers = [(originDomainHeaderName, "origin.example.com")]
+    request <-
+      testRequest
+        def
+          { trPath = "/rpc/" <> toByteString' targetDomain <> "/brig/get-user-by-handle",
+            trBody = "\"foo\"",
+            trExtraHeaders = headers
+          }
 
-      actualCalls <- mockDiscoverAndCallCalls @IO
-      embed $ do
-        assertEqual "no remote calls should be made" [] actualCalls
-        assertResponseErrorWithType FederationDeniedLocally res
+    let checkRequest :: Sem (Remote ': r) a -> Sem r a
+        checkRequest = interpret $ \case
+          DiscoverAndCall {} -> pure (HTTP.status200, fromLazyByteString "\"bar\"")
 
-assertResponseErrorWithType :: HasCallStack => OutwardErrorType -> OutwardResponse -> IO ()
-assertResponseErrorWithType expectedType res =
-  case res of
-    OutwardResponseBody _ ->
-      assertFailure $ "Expected response to be error, but it was not: " <> show res
-    OutwardResponseInwardError err ->
-      assertFailure $ "Expected response to be outward error, but it was not: " <> show err
-    OutwardResponseError (OutwardError actualType _) ->
-      assertEqual "Unexpected error type" expectedType actualType
-
-validLocalPart :: Request
-validLocalPart = Request Brig "/users" "\"foo\"" "foo.domain"
-
-validDomainText :: Text
-validDomainText = "example.com"
+    eith <-
+      runM
+        . runError @ValidationError
+        . void
+        . checkRequest
+        . assertNoError @ServerError
+        . discardLogs
+        . runInputConst settings
+        $ callOutward request
+    eith @?= Left (FederationDenied targetDomain)

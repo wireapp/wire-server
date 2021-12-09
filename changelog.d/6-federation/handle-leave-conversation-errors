@@ -1,1 +1,0 @@
-Errors when leaving a conversation are now correctly handled instead of resulting in a generic federation error.

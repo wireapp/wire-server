@@ -66,8 +66,9 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
-import Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 
 type JSON = Media "application" "json"
 
@@ -734,7 +735,7 @@ registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->
-    FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
+    onConversationCreated clientRoutes rc
 
 --------------------------------------------------------------------------------
 -- Legalhold

@@ -17,43 +17,35 @@
 
 module Test.Federator.IngressSpec where
 
-import Bilge
-import Control.Lens (view, (^.))
-import Control.Monad.Catch
-import Data.Aeson
-import qualified Data.ByteString.Lazy as LBS
-import Data.Default (def)
+import Control.Lens (view)
+import qualified Data.Aeson as Aeson
+import Data.Binary.Builder
+import Data.Domain
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.String.Conversions (cs)
+import qualified Data.Text.Encoding as Text
 import qualified Data.X509 as X509
-import qualified Data.X509.Validation as X509
-import Federator.Env (caStore)
-import Federator.Options
-import Federator.Remote (RemoteError, blessedCiphers, mkGrpcClient)
+import Federator.Discovery
+import Federator.Env
+import Federator.Remote
 import Imports
-import Mu.GRpc.Client.TyApps
-import Network.GRPC.Client.Helpers (_grpcClientConfigTLS)
-import qualified Network.TLS as TLS
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.Input as Polysemy
-import qualified Polysemy.Reader as Polysemy
-import Polysemy.TinyLog (discardLogs)
+import qualified Network.HTTP.Types as HTTP
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Test.Federator.Util
 import Test.Hspec
-import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Client (closeGrpcClient, createGrpcClient)
-import Wire.API.Federation.GRPC.Types hiding (body, path)
-import qualified Wire.API.Federation.GRPC.Types as GRPC
+import Wire.API.Federation.Component
+import Wire.API.Federation.Domain
 import Wire.API.User
 import Wire.Network.DNS.SRV
 
 spec :: TestEnv -> Spec
-spec env =
+spec env = do
   describe "Ingress" $ do
-    it "should be accessible using grpc client and forward to the local brig" $
+    it "should be accessible using http2 and forward to the local brig" $
       runTestFederator env $ do
         brig <- view teBrig <$> ask
         user <- randomUser brig
@@ -61,81 +53,74 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        bdy <- asInwardBody =<< inwardBrigCallViaIngress "federation/get-user-by-handle" (encode hdl)
-        liftIO $ bdy `shouldBe` expectedProfile
+        (status, resp) <-
+          runTestSem
+            . assertNoError @RemoteError
+            $ inwardBrigCallViaIngress "get-user-by-handle" $
+              (Aeson.fromEncoding (Aeson.toEncoding hdl))
+        let actualProfile = Aeson.decode (toLazyByteString resp)
+        liftIO $ do
+          status `shouldBe` HTTP.status200
+          actualProfile `shouldBe` (Just expectedProfile)
 
-    it "should not be accessible without a client certificate" $
-      runTestFederator env $ do
-        brig <- view teBrig <$> ask
-        user <- randomUser brig
-        hdl <- randomHandle
-        _ <- putHandle brig (userId user) hdl
+  it "should not be accessible without a client certificate" $
+    runTestFederator env $ do
+      brig <- view teBrig <$> ask
+      user <- randomUser brig
+      hdl <- randomHandle
+      _ <- putHandle brig (userId user) hdl
 
-        -- Create a client which has the right CA but not client certs
-        Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
-        tlsSettings <- view teTLSSettings
-        let cfg = grpcClientConfigSimple (cs ingressHost) (fromInteger $ toInteger ingressPort) True
-            tlsConfig =
-              (TLS.defaultParamsClient (cs ingressHost) (cs $ show ingressPort))
-                { TLS.clientSupported =
-                    def
-                      { TLS.supportedCiphers = blessedCiphers,
-                        -- FUTUREWORK: Figure out if we can drop TLS 1.2
-                        TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
-                      },
-                  TLS.clientShared = def {TLS.sharedCAStore = tlsSettings ^. caStore},
-                  TLS.clientHooks =
-                    def
-                      { TLS.onServerCertificate =
-                          X509.validate X509.HashSHA256 X509.defaultHooks X509.defaultChecks
-                      }
-                }
-        let cfg' = cfg {_grpcClientConfigTLS = Just tlsConfig}
-        Right client <- createGrpcClient cfg'
-        grpcReply <- inwardBrigCallViaIngressWithClient client "federation/get-user-by-handle" (encode hdl)
-        liftIO $ case grpcReply of
-          -- FUTUREWORK: Make it more obvious from nginx that this error is due
-          -- to mTLS failure.
-          GRpcErrorString err -> err `shouldBe` "GRPC status indicates failure: status-code=INTERNAL, status-message=\"HTTP Status 400\""
-          _ -> assertFailure $ "Expect HTTP 400, got: " <> show grpcReply
+      -- Remove client certificate from settings
+      tlsSettings0 <- view teTLSSettings
+      let tlsSettings =
+            tlsSettings0
+              { _creds = case _creds tlsSettings0 of
+                  (_, privkey) -> (X509.CertificateChain [], privkey)
+              }
+      r <-
+        runTestSem
+          . runError @RemoteError
+          $ inwardBrigCallViaIngressWithSettings tlsSettings "get-user-by-handle" $
+            (Aeson.fromEncoding (Aeson.toEncoding hdl))
+      liftIO $ case r of
+        Right _ -> expectationFailure "Expected client certificate error, got response"
+        Left (RemoteError _ _) ->
+          expectationFailure "Expected client certificate error, got remote error"
+        Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+
+runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
+runTestSem action = do
+  e <- ask
+  liftIO . runM . runInputConst e $ action
+
+discoverConst :: SrvTarget -> Sem (DiscoverFederator ': r) a -> Sem r a
+discoverConst target = interpret $ \case
+  DiscoverFederator _ -> pure (Right target)
+  DiscoverAllFederators _ -> pure (Right (pure target))
 
 inwardBrigCallViaIngress ::
-  ( MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    MonadReader TestEnv m,
-    HasCallStack
-  ) =>
-  ByteString ->
-  LBS.ByteString ->
-  m (GRpcReply InwardResponse)
-inwardBrigCallViaIngress requestPath payload = do
-  Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
-  let target = SrvTarget (cs ingressHost) ingressPort
-  runSettings <- optSettings . view teOpts <$> ask
-  tlsSettings <- view teTLSSettings
-  bracket
-    ( liftIO
-        . Polysemy.runM
-        . Polysemy.runError @RemoteError
-        . discardLogs
-        . Polysemy.runInputConst tlsSettings
-        . Polysemy.runReader runSettings
-        $ mkGrpcClient target
-    )
-    (either (const (pure ())) closeGrpcClient)
-    $ \case
-      Left clientErr -> liftIO $ assertFailure (show clientErr)
-      Right client -> inwardBrigCallViaIngressWithClient client requestPath payload
+  Members [Input TestEnv, Embed IO, Error RemoteError] r =>
+  Text ->
+  Builder ->
+  Sem r (HTTP.Status, Builder)
+inwardBrigCallViaIngress path payload = do
+  tlsSettings <- inputs (view teTLSSettings)
+  inwardBrigCallViaIngressWithSettings tlsSettings path payload
 
-inwardBrigCallViaIngressWithClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => GrpcClient -> ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
-inwardBrigCallViaIngressWithClient client requestPath payload = do
-  originDomain <- cfgOriginDomain <$> view teTstOpts
-  let brigCall =
-        GRPC.Request
-          { GRPC.component = Brig,
-            GRPC.path = requestPath,
-            GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = originDomain
-          }
-  liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client brigCall
+inwardBrigCallViaIngressWithSettings ::
+  Members [Input TestEnv, Embed IO, Error RemoteError] r =>
+  TLSSettings ->
+  Text ->
+  Builder ->
+  Sem r (HTTP.Status, Builder)
+inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
+  do
+    Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
+    originDomain <- cfgOriginDomain . view teTstOpts <$> input
+    let target = SrvTarget (cs ingressHost) ingressPort
+        headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
+    runInputConst tlsSettings
+      . assertNoError @DiscoveryFailure
+      . discoverConst target
+      . interpretRemote
+      $ discoverAndCall (Domain "example.com") Brig requestPath headers payload

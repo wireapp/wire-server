@@ -123,8 +123,9 @@ import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
-import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
@@ -1095,24 +1096,20 @@ removeMemberFromRemoteConv ::
   Sem r (Maybe Event)
 removeMemberFromRemoteConv cnv lusr victim
   | qUntagged lusr == victim = do
-    let lc = FederatedGalley.LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
-    let rpc =
-          FederatedGalley.leaveConversation
-            FederatedGalley.clientRoutes
-            (qDomain victim)
-            lc
-    (either handleError handleSuccess =<<) . fmap FederatedGalley.leaveResponse $
+    let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
+    let rpc = leaveConversation clientRoutes lc
+    (either handleError handleSuccess =<<) . fmap leaveResponse $
       E.runFederated cnv rpc
   | otherwise = throw (ActionDenied RemoveConversationMember)
   where
     handleError ::
       Members '[Error ActionError, Error ConversationError] r =>
-      FederatedGalley.RemoveFromConversationError ->
+      RemoveFromConversationError ->
       Sem r (Maybe Event)
-    handleError FederatedGalley.RemoveFromConversationErrorRemovalNotAllowed =
+    handleError RemoveFromConversationErrorRemovalNotAllowed =
       throw (ActionDenied RemoveConversationMember)
-    handleError FederatedGalley.RemoveFromConversationErrorNotFound = throw ConvNotFound
-    handleError FederatedGalley.RemoveFromConversationErrorUnchanged = pure Nothing
+    handleError RemoveFromConversationErrorNotFound = throw ConvNotFound
+    handleError RemoveFromConversationErrorUnchanged = pure Nothing
 
     handleSuccess :: Member (Input UTCTime) r => () -> Sem r (Maybe Event)
     handleSuccess _ = do

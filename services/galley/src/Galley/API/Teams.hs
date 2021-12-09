@@ -129,7 +129,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
@@ -1522,7 +1522,7 @@ canUserJoinTeam tid = do
 getTeamSearchVisibilityAvailableInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
   TeamId ->
-  Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
   defConfig <- do

@@ -48,6 +48,7 @@ import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.User as Public
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
@@ -476,3 +477,14 @@ setTeamSearchVisibility galley tid typ =
     )
     !!! do
       const 204 === statusCode
+
+setUserEmail :: Brig -> UserId -> UserId -> Email -> Http ResponseLBS
+setUserEmail brig from uid email = do
+  put
+    ( brig
+        . paths ["users", toByteString' uid, "email"]
+        . zUser from
+        . zConn "conn"
+        . contentJson
+        . body (RequestBodyLBS . encode $ Public.EmailUpdate email)
+    )

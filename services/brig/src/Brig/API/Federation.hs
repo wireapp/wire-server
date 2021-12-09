@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Federation (federationSitemap) where
+module Brig.API.Federation (federationSitemap, FederationAPI) where
 
 import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
@@ -42,12 +42,12 @@ import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
+import Servant.API
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import UnliftIO.Async (pooledForConcurrentlyN_)
-import Wire.API.Federation.API.Brig hiding (Api (..))
-import qualified Wire.API.Federation.API.Brig as Federated
-import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import Wire.API.Federation.API.Brig hiding (BrigApi (..))
+import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Common
 import Wire.API.Message (UserClients)
 import Wire.API.Routes.Internal.Brig.Connection
@@ -58,19 +58,21 @@ import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 
-federationSitemap :: ServerT (ToServantApi Federated.Api) Handler
+type FederationAPI = "federation" :> ToServantApi F.BrigApi
+
+federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
   genericServerT $
-    FederationAPIBrig.Api
-      { Federated.getUserByHandle = getUserByHandle,
-        Federated.getUsersByIds = getUsersByIds,
-        Federated.claimPrekey = claimPrekey,
-        Federated.claimPrekeyBundle = claimPrekeyBundle,
-        Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
-        Federated.searchUsers = searchUsers,
-        Federated.getUserClients = getUserClients,
-        Federated.sendConnectionAction = sendConnectionAction,
-        Federated.onUserDeleted = onUserDeleted
+    F.BrigApi
+      { F.getUserByHandle = getUserByHandle,
+        F.getUsersByIds = getUsersByIds,
+        F.claimPrekey = claimPrekey,
+        F.claimPrekeyBundle = claimPrekeyBundle,
+        F.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
+        F.searchUsers = searchUsers,
+        F.getUserClients = getUserClients,
+        F.sendConnectionAction = sendConnectionAction,
+        F.onUserDeleted = onUserDeleted
       }
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse

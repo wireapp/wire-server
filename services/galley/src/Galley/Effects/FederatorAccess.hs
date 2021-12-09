@@ -28,42 +28,41 @@ module Galley.Effects.FederatorAccess
 where
 
 import Data.Qualified
-import Galley.Intra.Federator.Types
 import Imports
 import Polysemy
 import Wire.API.Federation.Client
-import Wire.API.Federation.GRPC.Types
+import Wire.API.Federation.Component
+import Wire.API.Federation.Error
 
 data FederatorAccess m a where
   RunFederated ::
-    forall (c :: Component) a m x.
+    KnownComponent c =>
     Remote x ->
-    FederatedRPC c a ->
+    FederatorClient c a ->
     FederatorAccess m a
   RunFederatedEither ::
-    forall (c :: Component) a m x.
+    KnownComponent c =>
     Remote x ->
-    FederatedRPC c a ->
+    FederatorClient c a ->
     FederatorAccess m (Either FederationError a)
   RunFederatedConcurrently ::
-    forall (c :: Component) f a m x.
-    (Foldable f, Functor f) =>
+    (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
-    (Remote [x] -> FederatedRPC c a) ->
+    (Remote [x] -> FederatorClient c a) ->
     FederatorAccess m [Remote a]
   RunFederatedConcurrentlyEither ::
     forall (c :: Component) f a m x.
-    (Foldable f, Functor f) =>
+    (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
-    (Remote [x] -> FederatedRPC c a) ->
+    (Remote [x] -> FederatorClient c a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
   IsFederationConfigured :: FederatorAccess m Bool
 
 makeSem ''FederatorAccess
 
 runFederatedConcurrently_ ::
-  (Foldable f, Functor f, Member FederatorAccess r) =>
+  (KnownComponent c, Foldable f, Functor f, Member FederatorAccess r) =>
   f (Remote a) ->
-  (Remote [a] -> FederatedRPC c ()) ->
+  (Remote [a] -> FederatorClient c ()) ->
   Sem r ()
 runFederatedConcurrently_ xs = void . runFederatedConcurrently xs

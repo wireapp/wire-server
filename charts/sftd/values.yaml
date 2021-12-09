@@ -85,3 +85,7 @@ joinCall:
 # trying to establish a connection to clients
 # DOCS: https://docs.wire.com/understand/sft.html#prerequisites
 turnDiscoveryEnabled: false
+
+# Additional arguments to be passed to `sftd`
+# Note: this might be removed in the future.
+additionalArgs: ""

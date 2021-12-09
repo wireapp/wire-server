@@ -11,4 +11,8 @@ pkgName=${1:-Please specify package name}
 pkgDir=$(find "$TOP_LEVEL" -name "$pkgName.cabal" | grep -v dist-newstyle | head -1 | xargs -n 1 dirname)
 cd "$pkgDir"
 
-cabal-plan list-bins "$pkgName"':test:*' | awk '{print $2}' | xargs --no-run-if-empty -n 1 bash -c
+test_suites=$(cabal-plan list-bins "$pkgName"':test:*' | awk '{print $2}')
+
+for test_suite in $test_suites; do
+    $test_suite "${@:2}"
+done

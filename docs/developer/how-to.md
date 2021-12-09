@@ -183,6 +183,18 @@ Note that this runs your *locally* compiled `brig-integration`, so this allows t
 2. recompile: `make -C services/brig fast`
 3. run `./services/brig/federation-tests.sh test-$USER` again.
 
+### Run selected integration tests on kuberentes
+
+To run selective tests from brig-integration:
+
+```
+helm -n $NAMESPACE get hooks $NAMESPACE-wire-server | yq '.' | jq -r 'select(.metadata.name | contains("brig-integration"))' > /tmp/integration-pod
+
+# optional: edit the test pattern /tmp/integration-pod
+
+kubectl apply -n $NAMESPACE -f /tmp/integration-pod
+```
+
 ## 4 Teardown
 
 To destroy all the resources on the kubernetes cluster that have been created run

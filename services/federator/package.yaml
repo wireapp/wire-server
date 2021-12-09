@@ -11,9 +11,13 @@ license: AGPL-3
 extra-source-files: test/resources/**/*
 dependencies:
 - aeson
+- async
 - base
 - bilge
+- binary
 - bytestring
+- bytestring-conversion
+- constraints
 - containers
 - data-default
 - dns
@@ -23,21 +27,16 @@ dependencies:
 - extended
 - filepath
 - hinotify
-- HsOpenSSL
-- HsOpenSSL-x509-system
-- http2-client
-- http2-client-grpc
 - http-client
 - http-client-openssl
 - http-types
+- http2
 - imports
 - lens
 - metrics-core
 - metrics-wai
 - mtl
-- mu-grpc-client
-- mu-grpc-server
-- mu-rpc
+- network
 - network-uri
 - pem
 - polysemy
@@ -45,18 +44,20 @@ dependencies:
 - retry
 - servant
 - servant-server
+- streaming-commons
 - string-conversions
 - text
+- time-manager
 - tinylog
 - tls
 - types-common
 - unix
-- unliftio
 - uri-bytestring
 - uuid
 - wai
 - wai-utilities
 - warp
+- warp-tls
 - wire-api
 - wire-api-federation
 - x509
@@ -83,15 +84,18 @@ executables:
     main: Main.hs
     source-dirs: test/integration
     dependencies:
+    - connection
+    - cryptonite
+    - errors
     - federator
+    - hspec
+    - http-client-tls
+    - mtl
+    - optparse-applicative
+    - random
+    - retry
     - tasty
     - tasty-hunit
-    - hspec
-    - random
-    - cryptonite
-    - mtl
-    - retry
-    - optparse-applicative
     - types-common
     - yaml
 
@@ -108,13 +112,16 @@ tests:
     - federator
     - interpolate
     - polysemy-mocks
+    - QuickCheck
+    - servant-client
     - streaming-commons
     - tasty
-    - tasty-quickcheck
     - tasty-hunit
+    - tasty-quickcheck
     - temporary
     - transformers
     - wai
+    - wai-extra
     - warp
     - warp-tls
     - yaml

@@ -1,0 +1,1 @@
+A new endpoint is added to Brig (`put /users/:uid/email`) that allows a team owner to initiate changing/setting a user email by (re-)sending an activation email.

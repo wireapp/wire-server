@@ -32,32 +32,33 @@ import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.Aeson.Types as Aeson
-import Data.Bifunctor (first)
 import qualified Data.ByteString.Char8 as C8
-import Data.Data (typeRep)
 import Data.Id
 import Data.Misc
-import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Yaml as Yaml
-import Federator.Env (TLSSettings (..))
+import Federator.Env
 import Federator.Options
-import Federator.Run (mkTLSSettingsOrThrow)
+import Federator.Run
 import Imports
-import Mu.GRpc.Client.TyApps
+import qualified Network.Connection
+import Network.HTTP.Client.TLS
 import qualified Options.Applicative as OPA
+import Polysemy
+import Polysemy.Error
 import System.Random
 import Test.Federator.JSON
 import Test.Tasty.HUnit
 import Util.Options
-import Wire.API.Federation.GRPC.Types (InwardError, InwardResponse (..))
 import Wire.API.User
 import Wire.API.User.Auth
 
 type BrigReq = Request -> Request
+
+type CargoholdReq = Request -> Request
 
 newtype TestFederator m a = TestFederator {unwrapTestFederator :: ReaderT TestEnv m a}
   deriving newtype
@@ -89,6 +90,7 @@ data TestEnv = TestEnv
   { _teMgr :: Manager,
     _teTLSSettings :: TLSSettings,
     _teBrig :: BrigReq,
+    _teCargohold :: CargoholdReq,
     -- | federator config
     _teOpts :: Opts,
     -- | integration test config
@@ -99,6 +101,7 @@ type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint,
+    cfgCargohold :: Endpoint,
     cfgFederatorExternal :: Endpoint,
     cfgNginxIngress :: Endpoint,
     cfgOriginDomain :: Text
@@ -143,8 +146,10 @@ cliOptsParser =
 -- | Create an environment for integration tests from integration and federator config files.
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
-  _teMgr :: Manager <- newManager defaultManagerSettings
+  let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
+  _teMgr :: Manager <- newManager managerSettings
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
+      _teCargohold = endpointToReq (cfgCargohold _teTstOpts)
   _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
   pure TestEnv {..}
 
@@ -153,39 +158,6 @@ destroyEnv _ = pure ()
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
 endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
-
--- grpc utilities
-
-asInwardBody :: forall a. (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> TestFederator IO a
-asInwardBody = either (liftIO . assertFailure) pure . asInwardBodyEither
-
-asInwardBodyUnsafe :: (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> a
-asInwardBodyUnsafe = either err id . asInwardBodyEither
-  where
-    err parserErr = error . unwords $ ["asInwardBodyUnsafe:"] <> [parserErr]
-
-asInwardBodyEither :: forall a. (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> Either String a
-asInwardBodyEither (GRpcOk (InwardResponseError err)) = Left (show err)
-asInwardBodyEither (GRpcOk (InwardResponseBody bdy)) = first addTypeInfo $ eitherDecodeStrict bdy
-  where
-    addTypeInfo :: String -> String
-    addTypeInfo = (("Could not parse InwardResponseBody as '" <> show (typeRep (Proxy @a)) <> "': ") <>)
-asInwardBodyEither other = Left $ "GRpc call failed unexpectedly: " <> show other
-
-asInwardError :: HasCallStack => GRpcReply InwardResponse -> TestFederator IO InwardError
-asInwardError = either err pure . asInwardErrorEither
-  where
-    err parserErr = liftIO $ assertFailure (unwords $ ["asInwardError:"] <> [parserErr])
-
-asInwardErrorUnsafe :: HasCallStack => GRpcReply InwardResponse -> InwardError
-asInwardErrorUnsafe = either err id . asInwardErrorEither
-  where
-    err parserErr = error . unwords $ ["asInwardErrorUnsafe:"] <> [parserErr]
-
-asInwardErrorEither :: HasCallStack => GRpcReply InwardResponse -> Either String InwardError
-asInwardErrorEither (GRpcOk (InwardResponseError err)) = Right err
-asInwardErrorEither (GRpcOk (InwardResponseBody bdy)) = Left ("expected InwardError, but got InwardResponseBody: " <> show bdy)
-asInwardErrorEither other = Left $ "GRpc call failed unexpectedly: " <> show other
 
 -- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests
@@ -363,3 +335,9 @@ randomHandle :: MonadIO m => m Text
 randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
   return (Text.pack (map chr nrs))
+
+assertNoError :: (Show e, Member (Embed IO) r) => Sem (Error e ': r) x -> Sem r x
+assertNoError =
+  runError >=> \case
+    Left err -> embed @IO . assertFailure $ "Unexpected error: " <> show err
+    Right x -> pure x

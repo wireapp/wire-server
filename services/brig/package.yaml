@@ -10,8 +10,18 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 ghc-options:
 - -funbox-strict-fields
+custom-setup:
+  dependencies:
+    - Cabal
+    - base
+    - containers
+    - directory
+    - filepath
 library:
   source-dirs: src
+  other-modules:
+    - Paths_brig
+    - Brig.Docs.Swagger
   dependencies:
   - aeson >=0.11
   - amazonka >=1.3.7
@@ -63,7 +73,6 @@ library:
   - http-types >=0.8
   - imports
   - insert-ordered-containers
-  - interpolate
   - iproute >=1.5
   - iso639 >=0.1
   - lens >=3.8
@@ -75,7 +84,6 @@ library:
   - MonadRandom >=0.5
   - mmorph
   - mtl >=2.1
-  - mu-grpc-client
   - multihash >=0.1.3
   - mwc-random
   - network >=2.4
@@ -204,6 +212,7 @@ executables:
     - data-timeout
     - email-validate
     - exceptions
+    - federator
     - filepath >=1.4
     - galley-types
     - gundeck-types
@@ -221,8 +230,6 @@ executables:
     - mime >=0.4
     - MonadRandom >= 0.5
     - mtl
-    - mu-grpc-server
-    - mu-rpc
     - network
     - optparse-applicative
     - pem

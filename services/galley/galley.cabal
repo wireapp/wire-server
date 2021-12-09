@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3186b74c21301ff760ffae6e280c4e15ee9d184c18aaaf106251cc8edc821c03
+-- hash: 7b6d6110c4a94aa87c7d65d1e004acb6cbc1ce6775be39cde27ff7e5eca83f59
 
 name:           galley
 version:        0.83.0
@@ -106,7 +106,6 @@ library
       Galley.Intra.Client
       Galley.Intra.Effects
       Galley.Intra.Federator
-      Galley.Intra.Federator.Types
       Galley.Intra.Journal
       Galley.Intra.Push
       Galley.Intra.Push.Internal
@@ -164,7 +163,6 @@ library
     , http-client-tls >=0.2.2
     , http-media
     , http-types >=0.8
-    , http2-client-grpc
     , imports
     , insert-ordered-containers
     , lens >=4.4
@@ -298,6 +296,7 @@ executable galley-integration
     , exceptions
     , extended
     , extra >=1.3
+    , federator
     , galley
     , galley-types
     , gundeck-types
@@ -437,6 +436,8 @@ executable galley-schema
       V52_FeatureConferenceCalling
       V53_AddRemoteConvStatus
       V54_TeamFeatureSelfDeletingMessages
+      V55_SelfDeletingMessagesLockStatus
+      V56_GuestLinksTeamFeatureStatus
       Paths_galley
   hs-source-dirs:
       schema/src

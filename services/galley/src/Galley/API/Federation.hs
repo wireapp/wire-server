@@ -52,6 +52,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
+import Servant.API
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified System.Logger.Class as Log
@@ -60,16 +61,19 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
-federationSitemap :: ServerT (ToServantApi F.Api) (Sem GalleyEffects)
+type FederationAPI = "federation" :> ToServantApi (FedApi 'Galley)
+
+federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   genericServerT $
-    F.Api
+    F.GalleyApi
       { F.onConversationCreated = onConversationCreated,
         F.getConversations = getConversations,
         F.onConversationUpdated = onConversationUpdated,
@@ -366,9 +370,9 @@ onUserDeleted ::
   F.UserDeletedConversationsNotification ->
   Sem r EmptyResponse
 onUserDeleted origDomain udcn = do
-  let deletedUser = toRemoteUnsafe origDomain (F.udcnUser udcn)
+  let deletedUser = toRemoteUnsafe origDomain (F.udcvUser udcn)
       untaggedDeletedUser = qUntagged deletedUser
-      convIds = F.udcnConversations udcn
+      convIds = F.udcvConversations udcn
 
   E.spawnMany $
     fromRange convIds <&> \c -> do

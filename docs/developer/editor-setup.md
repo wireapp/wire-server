@@ -99,3 +99,15 @@ If you use sdiehl's module, you you need to collect the language extensions from
 If you want to be playful, you can look at how `tools/ormolu.sh`
 collects the language extensions automatically and see if you can get
 it to work here.
+
+## VSCode
+
+The project can be loaded into the [Haskell Language Server](https://github.com/haskell/haskell-language-server). 
+This gives type checking, code completion, HLint hints, formatting with Ormolu, lookup of definitions and references, etc..
+All needed dependencies (like the `haskell-language-server` and `stack` binaries) are provided by `shell.nix`.
+
+Setup steps:
+- Install the plugins `Haskell` (Haskell Language Server support), `Haskell Syntax` and `Nix Environment Selector`
+- Generate the `hie.yaml` file: `make hie.yaml`
+- Select the nix environment from `shell.nix` with the command `Nix-Env: Select environment`.
+- Reload the window as proposed by the `Nix Environment Selector` plugin

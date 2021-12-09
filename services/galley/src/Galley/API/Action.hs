@@ -37,10 +37,12 @@ module Galley.API.Action
 where
 
 import qualified Brig.Types.User as User
+import Control.Arrow
 import Control.Lens
 import Data.Id
 import Data.Kind
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
@@ -72,8 +74,9 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
+import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Galley as F
-import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 
@@ -164,8 +167,6 @@ instance IsConversationAction ConversationJoin where
 
     addMembersToLocalConversation lcnv newMembers role
     where
-      userIsMember u = (^. userId . to (== u))
-
       checkLocals ::
         Members
           '[ BrigAccess,
@@ -180,8 +181,10 @@ instance IsConversationAction ConversationJoin where
         [UserId] ->
         Sem r ()
       checkLocals lusr (Just tid) newUsers = do
-        tms <- E.selectTeamMembers tid newUsers
-        let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
+        tms <-
+          Map.fromList . map (view userId &&& id)
+            <$> E.selectTeamMembers tid newUsers
+        let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
         ensureAccessRole (convAccessRole conv) userMembershipMap
         ensureConnectedOrSameTeam lusr newUsers
       checkLocals lusr Nothing newUsers = do
@@ -523,7 +526,7 @@ notifyConversationAction quid con lcnv targets action = do
 
   -- notify remote participants
   E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-    F.onConversationUpdated F.clientRoutes (tDomain lcnv) $
+    F.onConversationUpdated clientRoutes $
       F.ConversationUpdate now quid (tUnqualified lcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots

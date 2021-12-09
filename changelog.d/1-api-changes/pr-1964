@@ -1,0 +1,1 @@
+A new public Galley endpoint was added to dis-/enable the conversation guest link feature. The feature can only be configured through the public API if the lock status is unlocked in the server config.
