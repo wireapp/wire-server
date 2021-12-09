@@ -21,7 +21,7 @@ minio:
       memory: 200Mi
   buckets:
     - name: dummy-bucket
-      purge: true
+      purge: false
       policy: none
     - name: assets
       purge: false
