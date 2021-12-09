@@ -1,13 +1,13 @@
-cabal-version: 1.24
+cabal-version: 2.0
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c37f84d005641650921717e1f340e18d82edd30045196f89649cefd53e549dfb
+-- hash: 513c0f5104342fb14b0246f7c44733a84ec36fae97633fc55cb209e0e0bcd087
 
 name:           brig
-version:        1.35.0
+version:        2.0
 synopsis:       User Service
 category:       Network
 author:         Wire Swiss GmbH
@@ -16,6 +16,8 @@ copyright:      (c) 2017 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
 build-type:     Custom
+extra-source-files:
+    docs/swagger.md
 
 custom-setup
   setup-depends:
@@ -119,6 +121,8 @@ library
       Main
   other-modules:
       Paths_brig
+      Brig.Docs.Swagger
+  autogen-modules:
       Brig.Docs.Swagger
   hs-source-dirs:
       src
