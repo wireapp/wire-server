@@ -17,6 +17,7 @@
 
 module Galley.API.Teams.Features
   ( getFeatureStatus,
+    getFeatureStatusNoConfig,
     setFeatureStatus,
     getFeatureConfig,
     getAllFeatureConfigs,
