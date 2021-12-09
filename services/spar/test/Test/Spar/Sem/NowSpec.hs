@@ -28,7 +28,7 @@ propsForInterpreter ::
   Spec
 propsForInterpreter interpreter lower = do
   describe interpreter $ do
-    prop "now/now" $ prop_nowNow lower
+    prop "now/now" $ prop_nowNow Nothing lower
 
 someTime :: Time
 someTime = Time (UTCTime (fromJulianYearAndDay 1990 209) (secondsToDiffTime 0))
@@ -43,15 +43,16 @@ spec = do
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 prop_nowNow ::
   PropConstraints r f =>
+  Maybe (f Bool -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_nowNow =
@@ -62,7 +63,7 @@ prop_nowNow =
   -- results! And we can't keep it empty, because that triggers a crash in
   -- @polysemy-check@. Thus @Input ()@, which isn't beautiful, but works fine.
   prepropLaw @'[Input ()] $ do
-    pure
-      ( liftA2 (<=) E.get E.get,
-        pure True
+    pure $ simpleLaw
+      ( liftA2 (<=) E.get E.get)
+      ( pure True
       )
