@@ -75,7 +75,7 @@ spec env =
     it "should be able to call cargohold" $
       runTestFederator env $ do
         inwardCall "/federation/cargohold/get-asset" (encode ())
-          !!! const 403 === statusCode
+          !!! const 500 === statusCode
 
     it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
