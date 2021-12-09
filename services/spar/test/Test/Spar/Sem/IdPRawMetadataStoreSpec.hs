@@ -46,7 +46,7 @@ prop_storeGetRaw =
 
 prop_storeStoreRaw ::
   PropConstraints r f =>
-  Maybe (f () -> String) ->
+  Maybe (f (Maybe Text) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_storeStoreRaw =
@@ -58,15 +58,18 @@ prop_storeStoreRaw =
         pure $ simpleLaw
           ( do
               E.store idpid t1
-              E.store idpid t2)
+              E.store idpid t2
+              E.get idpid
+          )
             (do
               E.store idpid t2
+              E.get idpid
           )
     )
 
 prop_storeDeleteRaw ::
   PropConstraints r f =>
-  Maybe (f () -> String) ->
+  Maybe (f (Maybe Text) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
 prop_storeDeleteRaw =
@@ -77,9 +80,12 @@ prop_storeDeleteRaw =
         pure $ simpleLaw
           ( do
               E.store idpid t
-              E.delete idpid)
+              E.delete idpid
+              E.get idpid
+          )
           ( do
               E.delete idpid
+              E.get idpid
           )
 
 prop_deleteGetRaw ::
@@ -91,14 +97,19 @@ prop_deleteGetRaw =
   prepropLaw @'[E.IdPRawMetadataStore]
     ( do
         idpid <- arbitrary
-        pure $ simpleLaw
-          ( do
+        t <- arbitrary
+        pure $ Law
+          { lawLhs = do
               E.delete idpid
-              E.get idpid)
-          ( do
+              E.get idpid
+          , lawRhs = do
               E.delete idpid
               pure Nothing
-          )
+          , lawPrelude =
+              [ E.store idpid t
+              ]
+          , lawPostlude = [] @(Sem _ ())
+          }
     )
 
 testInterpreter :: Sem '[E.IdPRawMetadataStore] a -> IO (RawState, a)
@@ -110,11 +121,12 @@ propsForInterpreter ::
   (forall a. Sem r a -> IO (f a)) ->
   Spec
 propsForInterpreter extract lower = do
-  prop "store/store" $ prop_storeStoreRaw Nothing lower
+  prop "store/store" $ prop_storeStoreRaw (Just $ constructorLabel . extract) lower
   prop "store/get" $ prop_storeGetRaw (Just $ constructorLabel . extract) lower
-  prop "store/deleteRawMetadata" $ prop_storeDeleteRaw Nothing lower
-  prop "deleteRawMetadata/get" $ prop_deleteGetRaw (Just $ constructorLabel . extract) lower
+  prop "store/delete" $ prop_storeDeleteRaw (Just $ constructorLabel . extract) lower
+  prop "delete/get" $ prop_deleteGetRaw (Just $ constructorLabel . extract) lower
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter snd testInterpreter
+
