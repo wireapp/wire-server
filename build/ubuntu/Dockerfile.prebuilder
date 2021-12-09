@@ -45,6 +45,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         libsodium-dev \
         libsodium23 \
         libpq-dev \
+        libxml2-dev \
+        libxml2 \
         curl \
         wget \
         git \
