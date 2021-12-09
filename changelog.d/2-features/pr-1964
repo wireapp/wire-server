@@ -1,0 +1,10 @@
+Team and server wide config for conversation guest link feature to configure feature status and lock status. If the feature is not configured on the server, the defaults will be:
+
+```txt
+  featureFlags:
+    ...
+    conversationGuestLinks:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+```

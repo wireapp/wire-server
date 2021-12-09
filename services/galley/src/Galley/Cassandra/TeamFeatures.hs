@@ -29,17 +29,39 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Team.Feature
 
-getFeatureStatusNoConfig ::
-  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) m.
-  ( MonadClient m,
-    FeatureHasNoConfig ps a,
-    HasStatusCol a
-  ) =>
-  Proxy ps ->
+-- TODO(leif): according to the specs it should only be supported to read the lock status via the api
+-- changes can only be made in the server configuration file
+-- we can probably remove the lock status from the db?
+getFeatureStatusNoConfigAndLockStatus ::
+  forall (a :: TeamFeatureName) m.
+  (MonadClient m, FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>
   Proxy a ->
   TeamId ->
-  m (Maybe (TeamFeatureStatus ps a))
-getFeatureStatusNoConfig _ _ tid = do
+  m (Maybe (TeamFeatureStatus 'WithoutLockStatus a), Maybe LockStatusValue)
+getFeatureStatusNoConfigAndLockStatus _ tid = do
+  let q = query1 select (params LocalQuorum (Identity tid))
+  mTuple <- retry x1 q
+  pure (mTuple >>= (fmap TeamFeatureStatusNoConfig . fst), mTuple >>= snd)
+  where
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe LockStatusValue)
+    select =
+      fromString $
+        "select "
+          <> statusCol @a
+          <> ", "
+          <> lockStatusCol @a
+          <> " from team_features where team_id = ?"
+
+getFeatureStatusNoConfig ::
+  forall (a :: TeamFeatureName) m.
+  ( MonadClient m,
+    FeatureHasNoConfig 'WithoutLockStatus a,
+    HasStatusCol a
+  ) =>
+  Proxy a ->
+  TeamId ->
+  m (Maybe (TeamFeatureStatus 'WithoutLockStatus a))
+getFeatureStatusNoConfig _ tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
@@ -48,17 +70,16 @@ getFeatureStatusNoConfig _ _ tid = do
     select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
 
 setFeatureStatusNoConfig ::
-  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) m.
+  forall (a :: TeamFeatureName) m.
   ( MonadClient m,
-    FeatureHasNoConfig ps a,
+    FeatureHasNoConfig 'WithoutLockStatus a,
     HasStatusCol a
   ) =>
-  Proxy ps ->
   Proxy a ->
   TeamId ->
-  TeamFeatureStatus ps a ->
-  m (TeamFeatureStatus ps a)
-setFeatureStatusNoConfig _ _ tid status = do
+  TeamFeatureStatus 'WithoutLockStatus a ->
+  m (TeamFeatureStatus 'WithoutLockStatus a)
+setFeatureStatusNoConfig _ tid status = do
   let flag = tfwoStatus status
   retry x5 $ write insert (params LocalQuorum (tid, flag))
   pure status
@@ -190,8 +211,9 @@ interpretTeamFeatureStoreToCassandra ::
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  GetFeatureStatusNoConfig' ps tfn tid -> embedClient $ getFeatureStatusNoConfig ps tfn tid
-  SetFeatureStatusNoConfig' ps tfn tid value -> embedClient $ setFeatureStatusNoConfig ps tfn tid value
+  GetFeatureStatusNoConfig' tfn tid -> embedClient $ getFeatureStatusNoConfig tfn tid
+  GetFeatureStatusNoConfigAndLockStatus' tfn tid -> embedClient $ getFeatureStatusNoConfigAndLockStatus tfn tid
+  SetFeatureStatusNoConfig' tfn tid value -> embedClient $ setFeatureStatusNoConfig tfn tid value
   SetLockStatus' p tid value -> embedClient $ setLockStatus p tid value
   GetLockStatus' p tid -> embedClient $ getLockStatus p tid
   GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid

@@ -49,6 +49,8 @@ instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conferenc
 
 instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_deleting_messages_status"
 
+instance HasStatusCol 'TeamFeatureGuestLinks where statusCol = "guest_links_status"
+
 ----------------------------------------------------------------------
 class HasLockStatusCol (a :: TeamFeatureName) where
   lockStatusCol :: String
@@ -62,6 +64,8 @@ instance {-# OVERLAPPABLE #-} HasLockStatusCol a => MaybeHasLockStatusCol a wher
 ----------------------------------------------------------------------
 instance HasLockStatusCol 'TeamFeatureSelfDeletingMessages where
   lockStatusCol = "self_deleting_messages_lock_status"
+
+instance MaybeHasLockStatusCol 'TeamFeatureGuestLinks where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureLegalHold where maybeLockStatusCol = Nothing
 

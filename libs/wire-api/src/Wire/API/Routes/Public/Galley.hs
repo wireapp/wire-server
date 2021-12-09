@@ -663,6 +663,12 @@ data Api routes = Api
     teamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSelfDeletingMessages,
+    featureStatusGuestLinksGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureGuestLinks,
+    featureStatusGuestLinksPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureGuestLinks,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
@@ -692,10 +698,13 @@ data Api routes = Api
         :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
-        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    featureConfigGuestLinksGet ::
+      routes
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
   }
   deriving (Generic)
 
