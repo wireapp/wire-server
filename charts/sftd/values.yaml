@@ -86,6 +86,10 @@ joinCall:
 # DOCS: https://docs.wire.com/understand/sft.html#prerequisites
 turnDiscoveryEnabled: false
 
-# Additional arguments to be passed to `sftd`
-# Note: this might be removed in the future.
-additionalArgs: ""
+# Allow establishing calls involving remote SFT servers (e.g. for Federation)
+# Requires appVersion 3.0.9 or later
+multiSFT:
+  enabled: False
+  # Required. URL that provides TURN connection configuration. These configured
+  # TURN servers will be used to connect to remote SFT servers.
+  turnDiscoveryURL: ""
