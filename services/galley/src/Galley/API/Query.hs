@@ -525,9 +525,8 @@ getConversationByReusableCode lusr key value = do
         }
 
     getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
-    getDefaultFeatureStatus = do
-      status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
-      pure $ tfwoapsStatus status
+    getDefaultFeatureStatus =
+      input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to tfwoapsStatus)
 
     getFeatureStatus :: Data.Conversation -> Sem r TeamFeatureStatusValue
     getFeatureStatus conv = do
