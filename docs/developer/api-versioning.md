@@ -349,7 +349,7 @@ Plus, if the entire API has one version, you get a few advantages:
    supported versions, or there would have to be a mechanism for
    reconstructing something close to what we get for free otherwise.
 
-3. The backend code is a good combinatin of concise and type-safe in
+3. The backend code is a good combination of concise and type-safe in
    the "one version" approach.  If every end-point had its own
    version, the routing table entry would either have to accept a
    variable path segment for the version, and fail at run-time if the
