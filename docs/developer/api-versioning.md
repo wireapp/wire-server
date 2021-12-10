@@ -362,6 +362,31 @@ server.  In these cases, the function in `Man.ts` must raise a "server
 too old" exception, and gracefully shut down the new functionality.)
 
 
+### Open questions
+
+It will be interesting to develop a good flow for doing this given the
+concrete tooling that's in place: Should every API version get its own
+library, or just a source module?  Where is the diff to be applied
+exactly?  On the swagger?  Or on the generated code?  How do we make
+sure the old versions replaced with new versions that have not changed
+aren't in the way?
+
+For the user apps, the task here is to write (or construct) query
+function that picks a version and either succeeds or fails.  In the
+context of federation, the task is to write handlers for all version
+(or a handler that can handle all versions).  Inside this handler,
+when calling other backends as a client, it is not guaranteed that
+those backends can be called in the version the handler is operating
+under.
+
+In the simple cases, this can (probably?) be solved by writing
+version-oblivious query functions that intially are just aliases for
+the generated client functions, but are manually adjusted to being
+able to call other servers on all the supported versions.  But it will
+be interesting to see where the hard cases happen, and if we'll see
+them when they do.
+
+
 ## Concerns and design alternatives
 
 ### Why not version every end-point separately?
