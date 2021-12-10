@@ -16,7 +16,7 @@
 
 ## Features
 
-* Team and server wide config for conversation guest link feature to configure feature status and lock status. If the feature is not configured on the server, the defaults will be:
+* Team and server wide config for conversation guest link feature to configure feature status and lock status (#1964). If the feature is not configured on the server, the defaults will be:
 
   ```txt
     featureFlags:
@@ -25,7 +25,7 @@
         defaults:
           status: enabled
           lockStatus: unlocked
-  ``` (#1964)
+  ```
 * Lock status for the self deleting messages feature can be set internally by ibis and customer support (#1963)
 
 ## Bug fixes and other updates
