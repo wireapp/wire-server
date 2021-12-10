@@ -356,10 +356,10 @@ If you generate, say, typescript or kotlin or swift from swagger:
    marshalling of request and response (see above).
 
 It will happen that a new client will not be able to accomplish
-something with an old API (example: if video calling is introduced in
+something with an old API.  (Example: if video calling is introduced in
 `"v12"`, you can't emulate `POST /video-call` when talking to a `"v9"`
 server.  In these cases, the function in `Man.ts` must raise a "server
-too old" exception, and gracefully shut down the new functionality.
+too old" exception, and gracefully shut down the new functionality.)
 
 
 ## Concerns and design alternatives
