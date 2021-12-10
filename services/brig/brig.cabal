@@ -16,8 +16,6 @@ copyright:      (c) 2017 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
 build-type:     Custom
-data-files:
-    docs/swagger.md
 
 custom-setup
   setup-depends:
