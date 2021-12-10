@@ -1,3 +1,9 @@
+# Status of this document
+
+This is a proposal for API versioning that we may adopt in the future.
+If you don't find any trace of it in the code base, that means you're
+not to late to submit a PR yourself!  :)
+
 # Introduction
 
 Since upgrades cannot happen instantaneously, we need to release wire
@@ -6,23 +12,33 @@ backends and wire client apps that work together accross releases.
 In the past, we have made sure that the api is changed in a way that
 the backend can be newer than the client, and then releasing the
 change on the backend first.  This worked well on the cloud where we
-had control, but fails a lot in the on-prem setting, and will get
-worse with federation taking off: if we add a new end-point to the
-API, the backend will still be able to handle older clients that
-simply don't know about that end-point, but the client won't handle
-old backends well, since it will try to call the end-point, and fail.
+had control, but fails a lot in the on-prem setting: if we add a new
+end-point to the API, the backend will still be able to handle older
+clients that simply don't know about that end-point, but the client
+won't handle old backends well, since it will try to call the
+end-point, and fail.
 
-The new approach outlined here therefore supports API versions.  Every
-API version is only compatible with itself, but every node in the
-network can support a *set of API versions*.  A HTTP client can query
-the set of supported versions from an HTTP server, and then pick one
-that works for it.
+The problem becomes more complicated still if you think about backends
+talking to other backends in the context of federation: An HTTP server
+will act as a client inside the handler function, and the version it
+responds with may differ from the version it talks to another backend
+it needs to query.
+
+The new approach outlined here introduces API versions to address this
+problem.  Every API version is only compatible with itself, but every
+node in the network can support a *set of API versions*.  A HTTP
+client can query the set of supported versions from an HTTP server,
+and then pick one that works for it.
+
+We believe this is a good approach to solve all our API compatibility
+problems both between apps and backends and between backends in the
+context of federation, but we also list some open questions (and
+probably forget to list more).
 
 In the following, we will refer to HTTP clients as "clients", no
-matter whether it is a backend talking to another backend
+matter whether it is an app or a backend talking to another backend
 (federation); and to HTTP servers as "server", no matter which API is
-it serving (federation or app).  This approach is intended to work for
-both.
+it serving (federation or app).
 
 
 # Versions and servant routing tables
