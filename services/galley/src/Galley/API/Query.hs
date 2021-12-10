@@ -45,6 +45,7 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Debug.Trace
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
@@ -531,5 +532,5 @@ getConversationByReusableCode lusr key value = do
     getFeatureStatus :: Data.Conversation -> Sem r TeamFeatureStatusValue
     getFeatureStatus conv = do
       defaultStatus <- getDefaultFeatureStatus
-      maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
+      maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` (traceShowId $ Data.convTeam conv)
       pure $ maybe defaultStatus tfwoStatus maybeFeatureStatus

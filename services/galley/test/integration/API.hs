@@ -33,6 +33,8 @@ import qualified API.Teams.Feature as TeamFeature
 import qualified API.Teams.LegalHold as Teams.LegalHold
 import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
+import qualified API.Util as Util
+import API.Util.TeamFeature as TeamFeatures
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
@@ -93,6 +95,7 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -218,6 +221,7 @@ tests s =
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
           test s "cannot join private conversation" postJoinConvFail,
+          test s "join conversation when guest links are disabled" testJoinConvGuestLinksDisabled,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
@@ -1235,6 +1239,27 @@ testJoinCodeConv = do
   eve <- ephemeralUser
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 403 === statusCode
+
+testJoinConvGuestLinksDisabled :: TestM ()
+testJoinConvGuestLinksDisabled = do
+  galley <- view tsGalley
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  userNotInTeam <- randomUser
+  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+    const 200 === statusCode
+
+  -- TODO(leif): this assertion fails because the team is not found in the server implementation
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const 409 === statusCode
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
