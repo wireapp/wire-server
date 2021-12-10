@@ -119,6 +119,22 @@ You can remove 'ConversationV', rename `ConversationV4` to Conversation,
 and use it in the routing table instead of `ConversationV` again, as
 before `"v4"`.
 
+### Open questions
+
+Adding/removing a new version now requires to touch a lot of type
+families.  The changes are trivial and the compiler will lead us to
+all of them, but there are potentially many.
+
+It would be nice to have a default type that is used for all versions
+that don't explicitly mention a given type, then future versions would
+only have to be touched if a type actually changes.  However, (a) it's
+not clear to us how to accomplish that (open type families plus
+multi-param type classes plus overlapping instances?  type-level
+'Maybe' with type-level default type?); and (b) it is less robust and
+transparent, and depending on the solution carries the risk of missing
+a spot where we want to update a type, but the compiler picks the
+wrong default.
+
 
 ## Changing structure
 
