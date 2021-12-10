@@ -32,6 +32,7 @@ module Galley.Types.Teams
     flagClassifiedDomains,
     flagConferenceCalling,
     flagSelfDeletingMessages,
+    flagConversationGuestLinks,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -212,11 +213,12 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
-    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing)),
-    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling)),
-    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'TeamFeatureSelfDeletingMessages))
+    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock)),
+    _flagClassifiedDomains :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains),
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureFileSharing)),
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
+    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
+    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks))
   }
   deriving (Eq, Show, Generic)
 
@@ -263,9 +265,10 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
+      <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling selfDeletingMessages) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling selfDeletingMessages guestLinks) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
@@ -274,7 +277,8 @@ instance ToJSON FeatureFlags where
         "classifiedDomains" .= classifiedDomains,
         "fileSharing" .= fileSharing,
         "conferenceCalling" .= conferenceCalling,
-        "selfDeletingMessages" .= selfDeletingMessages
+        "selfDeletingMessages" .= selfDeletingMessages,
+        "conversationGuestLinks" .= guestLinks
       ]
 
 instance FromJSON FeatureSSO where
@@ -340,6 +344,7 @@ data HiddenPerm
     -- efficient this end-point is.  better not let all team members
     -- play with it unless we have to.
     DownloadTeamMembersCsv
+  | ChangeTeamMemberProfiles
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -367,6 +372,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureFileSharing,
             ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
             ChangeTeamFeature TeamFeatureSelfDeletingMessages,
+            ChangeTeamFeature TeamFeatureGuestLinks,
+            ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
@@ -387,6 +394,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureClassifiedDomains,
           ViewTeamFeature TeamFeatureConferenceCalling,
           ViewTeamFeature TeamFeatureSelfDeletingMessages,
+          ViewTeamFeature TeamFeatureGuestLinks,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

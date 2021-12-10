@@ -72,6 +72,11 @@ spec env =
             <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
+    it "should be able to call cargohold" $
+      runTestFederator env $ do
+        inwardCall "/federation/cargohold/get-asset" (encode ())
+          !!! const 500 === statusCode
+
     it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
         err <-

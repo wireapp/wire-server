@@ -1522,7 +1522,7 @@ canUserJoinTeam tid = do
 getTeamSearchVisibilityAvailableInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
   TeamId ->
-  Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
   defConfig <- do

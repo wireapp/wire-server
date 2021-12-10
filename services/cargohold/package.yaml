@@ -49,6 +49,8 @@ library:
   - optparse-applicative >=0.10
   - retry >=0.5
   - resourcet >=1.1
+  - servant
+  - servant-server
   - swagger >=0.2
   - time >=1.4
   - tinylog >=0.10
@@ -63,6 +65,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16.1
   - wire-api
+  - wire-api-federation
 executables:
   cargohold-integration:
     main: Main.hs

@@ -37,7 +37,6 @@ module Galley.App
 
     -- * Running Galley effects
     GalleyEffects,
-    runGalley,
     evalGalley,
     ask,
     DeleteItem (..),
@@ -95,7 +94,6 @@ import Network.HTTP.Client.OpenSSL
 import Network.HTTP.Media.RenderHeader (RenderHeader (..))
 import Network.HTTP.Types (hContentType)
 import Network.HTTP.Types.Status (statusCode, statusMessage)
-import Network.Wai
 import qualified Network.Wai.Utilities as Wai
 import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.Session as Ssl
@@ -188,11 +186,6 @@ initHttpManager o = do
         managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
       }
 
-runGalley :: Env -> Request -> Sem GalleyEffects a -> IO a
-runGalley e r m =
-  let e' = reqId .~ lookupReqId r $ e
-   in evalGalley e' m
-
 interpretTinyLog ::
   Members '[Embed IO] r =>
   Env ->
@@ -200,9 +193,6 @@ interpretTinyLog ::
   Sem r a
 interpretTinyLog e = interpret $ \case
   P.Polylog l m -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
-
-lookupReqId :: Request -> RequestId
-lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler env galley = do

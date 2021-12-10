@@ -6,4 +6,13 @@ TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 DIST="$TOP_LEVEL/dist"
 
-cabal-plan list-bins "$1"':exe:*' | awk '{print $2}' | xargs -I '{}' rsync -a {} "$DIST"
+if [[ "$1" == "all" ]]; then
+  pattern='*'
+else
+  pattern="$1"
+fi
+
+cabal-plan list-bins "$pattern:exe:*" |
+  awk '{print $2}' |
+  xargs -i sh -c 'test -f {} && echo {} || true' |
+  xargs -P8 -i rsync -a {} "$DIST"
