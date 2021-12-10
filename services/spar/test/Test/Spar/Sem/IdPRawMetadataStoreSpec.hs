@@ -1,5 +1,5 @@
-{-# LANGUAGE QuantifiedConstraints       #-}
-{-# OPTIONS_GHC -Wno-orphans             #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Test.Spar.Sem.IdPRawMetadataStoreSpec where
@@ -34,14 +34,16 @@ prop_storeGetRaw =
     ( do
         idpid <- arbitrary
         t <- arbitrary
-        pure $ simpleLaw
-          ( do
-              E.store idpid t
-              E.get idpid)
-          ( do
-              E.store idpid t
-              pure (Just t)
-          )
+        pure $
+          simpleLaw
+            ( do
+                E.store idpid t
+                E.get idpid
+            )
+            ( do
+                E.store idpid t
+                pure (Just t)
+            )
     )
 
 prop_storeStoreRaw ::
@@ -55,16 +57,17 @@ prop_storeStoreRaw =
         idpid <- arbitrary
         t1 <- arbitrary
         t2 <- arbitrary
-        pure $ simpleLaw
-          ( do
-              E.store idpid t1
-              E.store idpid t2
-              E.get idpid
-          )
-            (do
-              E.store idpid t2
-              E.get idpid
-          )
+        pure $
+          simpleLaw
+            ( do
+                E.store idpid t1
+                E.store idpid t2
+                E.get idpid
+            )
+            ( do
+                E.store idpid t2
+                E.get idpid
+            )
     )
 
 prop_storeDeleteRaw ::
@@ -75,9 +78,10 @@ prop_storeDeleteRaw ::
 prop_storeDeleteRaw =
   prepropLaw @'[E.IdPRawMetadataStore] $
     do
-        idpid <- arbitrary
-        t <- arbitrary
-        pure $ simpleLaw
+      idpid <- arbitrary
+      t <- arbitrary
+      pure $
+        simpleLaw
           ( do
               E.store idpid t
               E.delete idpid
@@ -98,18 +102,19 @@ prop_deleteGetRaw =
     ( do
         idpid <- arbitrary
         t <- arbitrary
-        pure $ Law
-          { lawLhs = do
-              E.delete idpid
-              E.get idpid
-          , lawRhs = do
-              E.delete idpid
-              pure Nothing
-          , lawPrelude =
-              [ E.store idpid t
-              ]
-          , lawPostlude = [] @(Sem _ ())
-          }
+        pure $
+          Law
+            { lawLhs = do
+                E.delete idpid
+                E.get idpid,
+              lawRhs = do
+                E.delete idpid
+                pure Nothing,
+              lawPrelude =
+                [ E.store idpid t
+                ],
+              lawPostlude = [] @(Sem _ ())
+            }
     )
 
 testInterpreter :: Sem '[E.IdPRawMetadataStore] a -> IO (RawState, a)
@@ -129,4 +134,3 @@ propsForInterpreter extract lower = do
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter snd testInterpreter
-

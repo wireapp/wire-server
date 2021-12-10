@@ -8,13 +8,12 @@ import Arbitrary ()
 import Imports
 import Polysemy
 import Polysemy.Check
+import SAML2.WebSSO.Types
 import qualified Spar.Sem.DefaultSsoCode as E
 import Spar.Sem.DefaultSsoCode.Mem
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import SAML2.WebSSO.Types
-
 
 deriveGenericK ''E.DefaultSsoCode
 
@@ -56,14 +55,16 @@ prop_storeGet ::
 prop_storeGet =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.store s
-          E.get)
-      ( do
-          E.store s
-          pure (Just s)
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.store s
+            E.get
+        )
+        ( do
+            E.store s
+            pure (Just s)
+        )
 
 prop_getStore ::
   PropConstraints r f =>
@@ -72,12 +73,14 @@ prop_getStore ::
   Property
 prop_getStore =
   prepropLaw @'[E.DefaultSsoCode] $ do
-    pure $ simpleLaw
-      ( do
-          E.get >>= maybe (pure ()) E.store)
-      ( do
-          pure ()
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.get >>= maybe (pure ()) E.store
+        )
+        ( do
+            pure ()
+        )
 
 prop_storeDelete ::
   PropConstraints r f =>
@@ -87,13 +90,15 @@ prop_storeDelete ::
 prop_storeDelete =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.store s
-          E.delete)
-      ( do
-          E.delete
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.store s
+            E.delete
+        )
+        ( do
+            E.delete
+        )
 
 prop_deleteStore ::
   PropConstraints r f =>
@@ -103,13 +108,15 @@ prop_deleteStore ::
 prop_deleteStore =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.delete
-          E.store s)
-      ( do
-          E.store s
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.delete
+            E.store s
+        )
+        ( do
+            E.store s
+        )
 
 prop_storeStore ::
   PropConstraints r f =>
@@ -120,13 +127,15 @@ prop_storeStore =
   prepropLaw @'[E.DefaultSsoCode] $ do
     s <- arbitrary
     s' <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.store s
-          E.store s')
-      ( do
-          E.store s'
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.store s
+            E.store s'
+        )
+        ( do
+            E.store s'
+        )
 
 prop_deleteDelete ::
   PropConstraints r f =>
@@ -135,13 +144,15 @@ prop_deleteDelete ::
   Property
 prop_deleteDelete =
   prepropLaw @'[E.DefaultSsoCode] $ do
-    pure $ simpleLaw
-      ( do
-          E.delete
-          E.delete)
-      ( do
-          E.delete
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.delete
+            E.delete
+        )
+        ( do
+            E.delete
+        )
 
 prop_deleteGet ::
   PropConstraints r f =>
@@ -150,11 +161,13 @@ prop_deleteGet ::
   Property
 prop_deleteGet =
   prepropLaw @'[E.DefaultSsoCode] $ do
-    pure $ simpleLaw
-      ( do
-          E.delete
-          E.get)
-      ( do
-          E.delete
-          pure Nothing
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.delete
+            E.get
+        )
+        ( do
+            E.delete
+            pure Nothing
+        )

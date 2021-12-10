@@ -63,7 +63,8 @@ prop_nowNow =
   -- results! And we can't keep it empty, because that triggers a crash in
   -- @polysemy-check@. Thus @Input ()@, which isn't beautiful, but works fine.
   prepropLaw @'[Input ()] $ do
-    pure $ simpleLaw
-      ( liftA2 (<=) E.get E.get)
-      ( pure True
-      )
+    pure $
+      simpleLaw
+        (liftA2 (<=) E.get E.get)
+        ( pure True
+        )

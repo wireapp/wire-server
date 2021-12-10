@@ -5,6 +5,7 @@
 module Test.Spar.Sem.ScimExternalIdStoreSpec where
 
 import Arbitrary ()
+import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Check
@@ -13,7 +14,6 @@ import Spar.Sem.ScimExternalIdStore.Mem
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Data.Id
 
 deriveGenericK ''E.ScimExternalIdStore
 
@@ -58,14 +58,16 @@ prop_insertLookup =
     tid <- arbitrary
     email <- arbitrary
     uid <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.insert tid email uid
-          E.lookup tid email)
-      ( do
-          E.insert tid email uid
-          pure (Just uid)
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.insert tid email uid
+            E.lookup tid email
+        )
+        ( do
+            E.insert tid email uid
+            pure (Just uid)
+        )
 
 prop_lookupInsert ::
   PropConstraints r f =>
@@ -76,12 +78,14 @@ prop_lookupInsert =
   prepropLaw @'[E.ScimExternalIdStore] $ do
     tid <- arbitrary
     email <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.lookup tid email >>= maybe (pure ()) (E.insert tid email))
-      ( do
-          pure ()
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.lookup tid email >>= maybe (pure ()) (E.insert tid email)
+        )
+        ( do
+            pure ()
+        )
 
 prop_insertDelete ::
   PropConstraints r f =>
@@ -93,13 +97,15 @@ prop_insertDelete =
     tid <- arbitrary
     email <- arbitrary
     uid <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.insert tid email uid
-          E.delete tid email)
-      ( do
-          E.delete tid email
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.insert tid email uid
+            E.delete tid email
+        )
+        ( do
+            E.delete tid email
+        )
 
 prop_deleteInsert ::
   PropConstraints r f =>
@@ -111,13 +117,15 @@ prop_deleteInsert =
     tid <- arbitrary
     email <- arbitrary
     uid <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.delete tid email
-          E.insert tid email uid)
-      ( do
-          E.insert tid email uid
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.delete tid email
+            E.insert tid email uid
+        )
+        ( do
+            E.insert tid email uid
+        )
 
 prop_insertInsert ::
   PropConstraints r f =>
@@ -130,16 +138,17 @@ prop_insertInsert =
     email <- arbitrary
     uid <- arbitrary
     uid' <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.insert tid email uid
-          E.insert tid email uid'
-          E.lookup tid email
-      )
-      ( do
-          E.insert tid email uid'
-          E.lookup tid email
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.insert tid email uid
+            E.insert tid email uid'
+            E.lookup tid email
+        )
+        ( do
+            E.insert tid email uid'
+            E.lookup tid email
+        )
 
 prop_deleteDelete ::
   PropConstraints r f =>
@@ -150,13 +159,15 @@ prop_deleteDelete =
   prepropLaw @'[E.ScimExternalIdStore] $ do
     tid <- arbitrary
     email <- arbitrary
-    pure $ simpleLaw
-      ( do
-          E.delete tid email
-          E.delete tid email)
-      ( do
-          E.delete tid email
-      )
+    pure $
+      simpleLaw
+        ( do
+            E.delete tid email
+            E.delete tid email
+        )
+        ( do
+            E.delete tid email
+        )
 
 prop_deleteLookup ::
   PropConstraints r f =>
@@ -168,13 +179,14 @@ prop_deleteLookup =
     tid <- arbitrary
     email <- arbitrary
     uid <- arbitrary
-    pure $ Law
-      { lawLhs = do
-          E.delete tid email
-          E.lookup tid email
-      , lawRhs = do
-          E.delete tid email
-          pure Nothing
-      , lawPrelude = [E.insert tid email uid]
-      , lawPostlude = [] @(Sem _ ())
-      }
+    pure $
+      Law
+        { lawLhs = do
+            E.delete tid email
+            E.lookup tid email,
+          lawRhs = do
+            E.delete tid email
+            pure Nothing,
+          lawPrelude = [E.insert tid email uid],
+          lawPostlude = [] @(Sem _ ())
+        }
