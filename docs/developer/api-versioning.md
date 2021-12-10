@@ -148,13 +148,18 @@ others, their record fields in the servant routing type needs to be
 present for all versions, but in some versions should behave as if it
 weren't.
 
-This is best solved by a new type alias:
+This is best solved by a new data type:
 
 ```haskell
-type NotInThisVersion = Verb 'NOTINTHISVERSION '[] NoContent
+data NotInThisVersion = NotInThisVersion
+  -- (The value constructor may be needed to implement the handler)
+  -- (Or something involving `Verb 'NOTINTHISVERSION`?)
 ```
 
-Then we can write a type family that can crawl a `ServantAPI` (not the
+The entire route will then be a type family over the version that maps
+all unsupported versions to `NotInThisVersion`.
+
+Now we can write a type family that can crawl a `ServantAPI` (not the
 record one, the one with `:<|>`) and drop all the routes marked as not
 existing.
 
