@@ -1,7 +1,7 @@
 defaults:
   local: ../../package-defaults.yaml
 name: brig
-version: '1.35.0'
+version: '2.0'
 synopsis: User Service
 category: Network
 author: Wire Swiss GmbH
@@ -17,10 +17,11 @@ custom-setup:
     - containers
     - directory
     - filepath
+extra-source-files:
+  - docs/*
 library:
   source-dirs: src
-  other-modules:
-    - Paths_brig
+  generated-other-modules:
     - Brig.Docs.Swagger
   dependencies:
   - aeson >=0.11
