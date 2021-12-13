@@ -207,10 +207,9 @@ extra-deps:
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
-# Fix for connection preface race condition
-# https://github.com/kazu-yamamoto/http2/pull/33
+# Fix for server sending too many empty data frames
 - git: https://github.com/wireapp/http2
-  commit: 1ee1ce432d923839dab6782410e91dc17df2a880 # preface-race branch
+  commit: aa3501ad58e1abbd196781fac25a84f41ec2a787 # avoid-empty-data branch
 
 # Fix in PR: https://github.com/bos/snappy/pull/7
 - git: https://github.com/wireapp/snappy

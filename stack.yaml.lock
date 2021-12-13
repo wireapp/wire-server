@@ -639,11 +639,11 @@ packages:
     git: https://github.com/wireapp/http2
     pantry-tree:
       size: 52771
-      sha256: dc6d3868a049d2ed38ef16ca6dd6aeb6b8e8a1e730c664ecdd243ffdb45ee750
-    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
+      sha256: 71040c20c8e6a766b6b309c03dbc970062b15e450a63e05f8d095a87cdb5082f
+    commit: aa3501ad58e1abbd196781fac25a84f41ec2a787
   original:
     git: https://github.com/wireapp/http2
-    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
+    commit: aa3501ad58e1abbd196781fac25a84f41ec2a787
 - completed:
     name: snappy
     version: 0.2.0.2
