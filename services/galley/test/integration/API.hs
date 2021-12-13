@@ -520,11 +520,36 @@ postCryptoMessage4 = do
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
+foo :: TestM ()
+foo = do
+  localDomain <- viewFederationDomain
+  cannon <- view tsCannon
+  (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+  (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
+  (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
+  connectUsers alice (list1 bob [eve])
+  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  let qalice = Qualified alice localDomain
+      qconv = Qualified conv localDomain
+
+  (chad, _) <- randomUserWithClient (someLastPrekeys !! 3)
+
+  WS.bracketR3 cannon bob eve chad $ \(wsBob, wsEve, wsChad) -> do
+    let msg =
+          [ (bob, bc, toBase64Text "ciphertext2")
+          ]
+    postOtrMessage id alice ac conv msg !!! do
+      const 201 === statusCode
+      assertMismatch [] [] []
+    void . liftIO $ WS.assertMatch (5 # Second) wsBob (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
+    void . liftIO $ WS.assertMatch (5 # Second) wsEve (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
+    assertNoMsg wsChad (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext2"))
+
 -- | This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
 -- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postMessageRejectIfMissingClients :: TestM ()
-postMessageRejectIfMissingClients = do
+postMessageMissingClients :: TestM ()
+postMessageMissingClients = do
   (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
   let (receiver1, receiverClient1) : otherReceivers = allReceivers
   connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
