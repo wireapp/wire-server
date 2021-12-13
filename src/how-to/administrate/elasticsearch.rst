@@ -6,6 +6,9 @@ Elasticsearch
 For more information, see the `elasticsearch
 documentation <https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html>`__
 
+
+.. _restart-elasticsearch:
+
 How to rolling-restart an elasticsearch cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

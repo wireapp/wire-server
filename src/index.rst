@@ -25,6 +25,7 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    Single-sign-on background (fragment) <understand/single-sign-on/design.rst>
    How to set up user provisioning with LDAP or SCIM <how-to/scim/index.rst>
    Client API documentation <understand/api-client-perspective/index.rst>
+   Security responses <security-responses/index.rst>
 
 ..   Overview <understand/overview>
 
