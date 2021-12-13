@@ -440,7 +440,6 @@ testTooManyClients opts brig = do
 
 -- The testRemoveClient test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
   u <- randomUser' hasPwd brig
