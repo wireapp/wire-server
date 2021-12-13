@@ -518,8 +518,8 @@ postCryptoMessage4 = do
     !!! const 403 === statusCode
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postMessageMissingClients :: TestM ()
-postMessageMissingClients = do
+postMessageRejectIfMissingClients :: TestM ()
+postMessageRejectIfMissingClients = do
   (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
   let (receiver1, receiverClient1) : otherReceivers = allReceivers
   connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
