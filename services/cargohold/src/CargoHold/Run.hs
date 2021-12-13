@@ -42,7 +42,12 @@ import qualified Servant
 import Servant.API
 import Util.Options
 
-type CombinedAPI = FederationAPI :<|> Servant.Raw
+-- import qualified Wire.API.Routes.Public.Cargohold as Public
+
+type CombinedAPI =
+  FederationAPI
+    -- :<|> Public.ServantAPI
+    :<|> Servant.Raw
 
 run :: Opts -> IO ()
 run o = do
