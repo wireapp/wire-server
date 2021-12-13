@@ -25,6 +25,7 @@ module Wire.API.Federation.Client
     runFederatorClientToCodensity,
     performHTTP2Request,
     withHTTP2Request,
+    streamingResponseStrictBody,
     headersFromTable,
   )
 where
@@ -169,6 +170,14 @@ instance KnownComponent c => RunClient (FederatorClient c) where
 instance KnownComponent c => RunStreamingClient (FederatorClient c) where
   withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
 
+streamingResponseStrictBody :: StreamingResponse -> IO Builder
+streamingResponseStrictBody resp =
+  fmap (either stringUtf8 (foldMap byteString))
+    . runExceptT
+    . runSourceT
+    . responseBody
+    $ resp
+
 withHTTP2StreamingRequest ::
   forall c a.
   KnownComponent c =>
@@ -201,23 +210,15 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
   resp <-
     (either throwError pure =<<) . liftCodensity $
       Codensity $ \k ->
-        E.catches
+        E.catch
           (withHTTP2Request Nothing req' hostname port (k . Right))
-          [ E.Handler (k . Left),
-            E.Handler (k . Left . FederatorClientHTTP2Error)
-          ]
+          (k . Left . FederatorClientHTTP2Error)
 
   if successfulStatus (responseStatusCode resp)
     then liftIO $ handleResponse resp
     else do
       -- in case of an error status code, read the whole body to construct the error
-      bdy <-
-        liftIO
-          . fmap (either stringUtf8 (foldMap byteString))
-          . runExceptT
-          . runSourceT
-          . responseBody
-          $ resp
+      bdy <- liftIO $ streamingResponseStrictBody resp
       throwError $
         FederatorClientError
           ( mkFailureResponse

@@ -26,7 +26,9 @@ module Federator.Remote
   )
 where
 
+import qualified Control.Exception as E
 import Control.Lens ((^.))
+import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
@@ -94,13 +96,13 @@ data Remote m a where
     Text ->
     [HTTP.Header] ->
     Builder ->
-    Remote m (ResponseF Builder)
+    Remote m StreamingResponse
 
 makeSem ''Remote
 
 interpretRemote ::
   Members
-    '[ Embed IO,
+    '[ Embed (Codensity IO),
        DiscoverFederator,
        Error DiscoveryFailure,
        Error RemoteError,
@@ -118,15 +120,20 @@ interpretRemote = interpret $ \case
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers body
         tlsConfig = mkTLSConfig settings hostname port
-    resp <-
-      mapError (RemoteError target) . (fromEither =<<) . embed $
-        performHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port)
-    unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $
+
+    resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
+      Codensity $ \k ->
+        E.catch
+          (withHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port) (k . Right))
+          (k . Left)
+
+    unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
+      bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp
       throw $
         RemoteErrorResponse
           target
           (responseStatusCode resp)
-          (toLazyByteString (responseBody resp))
+          (toLazyByteString bdy)
     pure resp
 
 mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams

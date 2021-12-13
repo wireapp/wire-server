@@ -119,7 +119,6 @@ callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
   ensureCanFederateWith domain
-  -- (status, headers, result) <-
   resp <-
     discoverAndCall
       domain
@@ -127,11 +126,7 @@ callOutward req = do
       (rdRPC rd)
       (rdHeaders rd)
       (fromLazyByteString (rdBody rd))
-  pure $
-    Wai.responseBuilder
-      (responseStatusCode resp)
-      (toList (responseHeaders resp))
-      (responseBody resp)
+  pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward = serve callOutward

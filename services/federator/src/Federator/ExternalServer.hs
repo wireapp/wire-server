@@ -20,6 +20,7 @@ module Federator.ExternalServer (callInward, serveInward, parseRequestData, Requ
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import Federator.Discovery
 import Federator.Env
@@ -36,8 +37,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
-import qualified Servant.Client.Core as Servant
-import Servant.Types.SourceT
+import Servant.Client.Core
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -70,17 +70,17 @@ callInward wreq = do
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
 
   resp <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
-  let ctHeaders = filter (\(name, _) -> name == "Content-Type") (toList (Servant.responseHeaders resp))
-      status = Servant.responseStatusCode resp
-      streamingBody output flush =
-        foreach
-          (const (pure ()))
-          (\chunk -> output (byteString chunk) *> flush)
-          (Servant.responseBody resp)
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
-      . Log.field "status" (show status)
-  pure $ Wai.responseStream status ctHeaders streamingBody
+      . Log.field "status" (show (responseStatusCode resp))
+  pure $
+    streamingResponseToWai
+      resp
+        { responseHeaders =
+            Seq.filter
+              (\(name, _) -> name == "Content-Type")
+              (responseHeaders resp)
+        }
 
 data RequestData = RequestData
   { rdComponent :: Component,

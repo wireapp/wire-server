@@ -37,6 +37,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Servant.Client.Core
+import Servant.Types.SourceT
 import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Tasty
@@ -84,7 +85,7 @@ federatedRequestSuccess =
                 { responseStatusCode = HTTP.ok200,
                   responseHeaders = mempty,
                   responseHttpVersion = HTTP.http20,
-                  responseBody = byteString "\"bar\""
+                  responseBody = source ["\"bar\""]
                 }
     res <-
       runM
@@ -120,7 +121,7 @@ federatedRequestFailureAllowList =
                 { responseStatusCode = HTTP.ok200,
                   responseHeaders = mempty,
                   responseHttpVersion = HTTP.http20,
-                  responseBody = byteString "\"bar\""
+                  responseBody = source ["\"bar\""]
                 }
 
     eith <-

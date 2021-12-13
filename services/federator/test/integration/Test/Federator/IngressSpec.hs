@@ -18,6 +18,7 @@
 module Test.Federator.IngressSpec where
 
 import Control.Lens (view)
+import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Binary.Builder
 import Data.Domain
@@ -32,12 +33,14 @@ import Federator.Remote
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Servant.Client.Core
 import Test.Federator.Util
 import Test.Hspec
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.User
@@ -59,8 +62,9 @@ spec env = do
             . assertNoError @RemoteError
             $ inwardBrigCallViaIngress "get-user-by-handle" $
               (Aeson.fromEncoding (Aeson.toEncoding hdl))
-        let actualProfile = Aeson.decode (toLazyByteString (responseBody resp))
         liftIO $ do
+          bdy <- streamingResponseStrictBody resp
+          let actualProfile = Aeson.decode (toLazyByteString bdy)
           responseStatusCode resp `shouldBe` HTTP.status200
           actualProfile `shouldBe` (Just expectedProfile)
 
@@ -103,7 +107,7 @@ inwardBrigCallViaIngress ::
   Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   Text ->
   Builder ->
-  Sem r (ResponseF Builder)
+  Sem r StreamingResponse
 inwardBrigCallViaIngress path payload = do
   tlsSettings <- inputs (view teTLSSettings)
   inwardBrigCallViaIngressWithSettings tlsSettings path payload
@@ -113,7 +117,7 @@ inwardBrigCallViaIngressWithSettings ::
   TLSSettings ->
   Text ->
   Builder ->
-  Sem r (ResponseF Builder)
+  Sem r StreamingResponse
 inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
   do
     Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
@@ -123,5 +127,6 @@ inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
     runInputConst tlsSettings
       . assertNoError @DiscoveryFailure
       . discoverConst target
+      . runEmbedded @(Codensity IO) @IO lowerCodensity
       . interpretRemote
       $ discoverAndCall (Domain "example.com") Brig requestPath headers payload
