@@ -911,7 +911,6 @@ testRemoveCookiesByLabelAndId b = do
 
 -- The testTooManyCookies test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
 testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
   u <- randomUser b
