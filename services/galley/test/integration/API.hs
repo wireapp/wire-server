@@ -221,7 +221,8 @@ tests s =
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
-          test s "post message - reject if missing client" postMessageRejectIfMissingClients
+          test s "post message - reject if missing client" postMessageRejectIfMissingClients,
+          test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg
         ]
 
 emptyFederatedBrig :: F.BrigApi (AsServerT Handler)
@@ -520,36 +521,37 @@ postCryptoMessage4 = do
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
-foo :: TestM ()
-foo = do
+-- | This test verifies the following scenario.
+-- A client sends a message to all clients of a group and one more who is not part of the group.
+-- The server must not send this message to client ids not part of the group.
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+postMessageClientNotInGroupDoesNotReceiveMsg :: TestM ()
+postMessageClientNotInGroupDoesNotReceiveMsg = do
   localDomain <- viewFederationDomain
   cannon <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
-  connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  (chad, cc) <- randomUserWithClient (someLastPrekeys !! 3)
+  connectUsers alice (list1 bob [eve, chad])
+  conversationWithAllButChad <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   let qalice = Qualified alice localDomain
-      qconv = Qualified conv localDomain
-
-  (chad, _) <- randomUserWithClient (someLastPrekeys !! 3)
-
+      qconv = Qualified conversationWithAllButChad localDomain
   WS.bracketR3 cannon bob eve chad $ \(wsBob, wsEve, wsChad) -> do
-    let msg =
-          [ (bob, bc, toBase64Text "ciphertext2")
-          ]
-    postOtrMessage id alice ac conv msg !!! do
-      const 201 === statusCode
-      assertMismatch [] [] []
-    void . liftIO $ WS.assertMatch (5 # Second) wsBob (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
-    void . liftIO $ WS.assertMatch (5 # Second) wsEve (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
-    assertNoMsg wsChad (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext2"))
+    let msgToAllIncludingChad = [(bob, bc, toBase64Text "ciphertext2"), (eve, ec, toBase64Text "ciphertext2"), (chad, cc, toBase64Text "ciphertext2")]
+    postOtrMessage id alice ac conversationWithAllButChad msgToAllIncludingChad !!! const 201 === statusCode
+    let checkBobGetsMsg = void . liftIO $ WS.assertMatch (5 # Second) wsBob (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
+    let checkEveGetsMsg = void . liftIO $ WS.assertMatch (5 # Second) wsEve (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
+    let checkChadDoesNotGetMsg = assertNoMsg wsChad (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext2"))
+    checkBobGetsMsg
+    checkEveGetsMsg
+    checkChadDoesNotGetMsg
 
 -- | This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
 -- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postMessageMissingClients :: TestM ()
-postMessageMissingClients = do
+postMessageRejectIfMissingClients :: TestM ()
+postMessageRejectIfMissingClients = do
   (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
   let (receiver1, receiverClient1) : otherReceivers = allReceivers
   connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
