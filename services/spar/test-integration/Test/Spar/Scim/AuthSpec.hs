@@ -148,7 +148,7 @@ testNumIdPs = do
     !!! checkErr 400 (Just "more-than-one-idp")
 
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
--- | Test that a token can only be created as a team owner
+-- Test that a token can only be created as a team owner
 testCreateTokenAuthorizesOnlyAdmins :: TestSpar ()
 testCreateTokenAuthorizesOnlyAdmins = do
   env <- ask
