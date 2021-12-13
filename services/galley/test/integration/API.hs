@@ -220,7 +220,8 @@ tests s =
           test s "cannot join private conversation" postJoinConvFail,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
-          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests
+          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
+          test s "missing clients" postMessageMissingClients
         ]
 
 emptyFederatedBrig :: F.BrigApi (AsServerT Handler)
@@ -515,6 +516,29 @@ postCryptoMessage4 = do
   let m = otrRecipients [(bob, [(bc, ciphertext)])]
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+postMessageMissingClients :: TestM ()
+postMessageMissingClients = do
+  (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
+  let (receiver1, receiverClient1) : otherReceivers = allReceivers
+  connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
+  conv <- decodeConvId <$> postConv sender (receiver1 : (fst <$> otherReceivers)) (Just "gossip") [] Nothing Nothing
+  let msgToAllClients = mkMsg "hello!" <$> allReceivers
+  let msgMissingClients = mkMsg "hello!" <$> drop 1 allReceivers
+
+  let checkSendToAllClientShouldBeSuccessful =
+        postOtrMessage id sender senderClient conv msgToAllClients !!! const 201 === statusCode
+  let checkSendWitMissingClientsShouldFail =
+        postOtrMessage id sender senderClient conv msgMissingClients !!! do
+          const 412 === statusCode
+          assertMismatch [(receiver1, Set.singleton receiverClient1)] [] []
+
+  checkSendToAllClientShouldBeSuccessful
+  checkSendWitMissingClientsShouldFail
+  where
+    mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
+    mkMsg text (userId, clientId) = (userId, clientId, toBase64Text text)
 
 -- | This test verifies behaviour under various values of ignore_missing and
 -- report_missing. Only tests the JSON endpoint.
