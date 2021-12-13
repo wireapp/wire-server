@@ -221,7 +221,7 @@ tests s =
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
-          test s "missing clients" postMessageMissingClients
+          test s "missing clients" postMessageRejectIfMissingClients
         ]
 
 emptyFederatedBrig :: F.BrigApi (AsServerT Handler)
