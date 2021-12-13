@@ -68,8 +68,8 @@ tests _cl _at conf p b c g =
 
 -- The next line contains a mapping from the testHandleUpdate test to the following test standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
--- | Test changes to the user's handle.
+--
+-- Test changes to the user's handle.
 testHandleUpdate :: Brig -> Cannon -> Http ()
 testHandleUpdate brig cannon = do
   user <- randomUser brig
