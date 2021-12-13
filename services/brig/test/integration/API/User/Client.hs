@@ -669,7 +669,6 @@ testMissingClient brig = do
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
 testAddMultipleTemporary brig galley = do
