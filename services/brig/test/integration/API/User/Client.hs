@@ -482,7 +482,6 @@ testRemoveClient hasPwd brig cannon = do
 
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
   u <- randomUser brig
