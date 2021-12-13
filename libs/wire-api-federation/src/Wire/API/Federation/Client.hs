@@ -22,6 +22,7 @@ module Wire.API.Federation.Client
   ( FederatorClientEnv (..),
     FederatorClient,
     runFederatorClient,
+    runFederatorClientToCodensity,
     performHTTP2Request,
     withHTTP2Request,
     headersFromTable,
@@ -78,6 +79,9 @@ newtype FederatorClient (c :: Component) a = FederatorClient
       MonadIO
     )
 
+liftCodensity :: Codensity IO a -> FederatorClient c a
+liftCodensity = FederatorClient . lift . lift
+
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ \(token, headerValue) ->
   (HTTP2.tokenKey token, headerValue)
@@ -128,8 +132,8 @@ withHTTP2Request mtlsConfig req hostname port k = do
                 TLS.handshake ctx
                 pure ctx
               bracket (allocTLSConfig ctx 4096) freeTLSConfig k'
-      withHTTP2Config $ \conf ->
-        HTTP2.run clientConfig conf $ \sendRequest -> do
+      withHTTP2Config $ \conf -> do
+        HTTP2.run clientConfig conf $ \sendRequest ->
           sendRequest req $ \resp -> do
             let headers = headersFromTable (HTTP2.responseHeaders resp)
                 result = fromAction BS.null (HTTP2.getResponseBodyChunk resp)
@@ -172,7 +176,7 @@ withHTTP2StreamingRequest ::
   Request ->
   (StreamingResponse -> IO a) ->
   FederatorClient c a
-withHTTP2StreamingRequest successfulStatus req k = do
+withHTTP2StreamingRequest successfulStatus req handleResponse = do
   env <- ask
   let baseUrlPath =
         HTTP.encodePathSegments
@@ -194,29 +198,34 @@ withHTTP2StreamingRequest successfulStatus req k = do
           (toList (requestHeaders req) <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))])
           (lazyByteString body)
   let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
-  ex <- liftIO . E.try . E.handle (E.throw . FederatorClientHTTP2Error) $
-    withHTTP2Request Nothing req' hostname port $ \resp -> do
-      if successfulStatus (responseStatusCode resp)
-        then k resp
-        else do
-          -- in case of an error status code, read the whole body to construct the error
-          bdy <-
-            fmap (either stringUtf8 (foldMap byteString))
-              . runExceptT
-              . runSourceT
-              . responseBody
-              $ resp
-          E.throw $
-            FederatorClientError
-              ( mkFailureResponse
-                  (responseStatusCode resp)
-                  (ceTargetDomain env)
-                  (toLazyByteString (requestPath req))
-                  (toLazyByteString bdy)
-              )
-  case ex of
-    Left err -> throwError err
-    Right x -> pure x
+  resp <-
+    (either throwError pure =<<) . liftCodensity $
+      Codensity $ \k ->
+        E.catches
+          (withHTTP2Request Nothing req' hostname port (k . Right))
+          [ E.Handler (k . Left),
+            E.Handler (k . Left . FederatorClientHTTP2Error)
+          ]
+
+  if successfulStatus (responseStatusCode resp)
+    then liftIO $ handleResponse resp
+    else do
+      -- in case of an error status code, read the whole body to construct the error
+      bdy <-
+        liftIO
+          . fmap (either stringUtf8 (foldMap byteString))
+          . runExceptT
+          . runSourceT
+          . responseBody
+          $ resp
+      throwError $
+        FederatorClientError
+          ( mkFailureResponse
+              (responseStatusCode resp)
+              (ceTargetDomain env)
+              (toLazyByteString (requestPath req))
+              (toLazyByteString bdy)
+          )
 
 mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
 mkFailureResponse status domain path body
@@ -260,7 +269,15 @@ runFederatorClient ::
   IO (Either FederatorClientError a)
 runFederatorClient env =
   lowerCodensity
-    . runExceptT
+    . runFederatorClientToCodensity env
+
+runFederatorClientToCodensity ::
+  KnownComponent c =>
+  FederatorClientEnv ->
+  FederatorClient c a ->
+  Codensity IO (Either FederatorClientError a)
+runFederatorClientToCodensity env =
+  runExceptT
     . flip runReaderT env
     . unFederatorClient
 
