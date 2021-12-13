@@ -401,7 +401,6 @@ testThrottleLogins conf b = do
 
 -- The testLimitRetries test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
 testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
   let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
