@@ -363,8 +363,8 @@ testSendLoginCode brig = do
 
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
--- | Test that trying to log in with a wrong password or non-existent email fails.
+--
+-- Test that trying to log in with a wrong password or non-existent email fails.
 testLoginFailure :: Brig -> Http ()
 testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
