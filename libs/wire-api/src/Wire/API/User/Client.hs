@@ -74,7 +74,8 @@ module Wire.API.User.Client
 where
 
 import qualified Cassandra as Cql
-import Control.Lens (view, (?~), (^.))
+import Control.Applicative
+import Control.Lens (over, view, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Bifunctor (second)
@@ -180,12 +181,14 @@ newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList ::
 instance ToSchema ClientCapabilityList where
   schema =
     object "ClientCapabilityList" $
-      ClientCapabilityList <$> fromClientCapabilityList .= capabilitiesFieldSchema
+      ClientCapabilityList <$> fromClientCapabilityList .= fmap runIdentity capabilitiesFieldSchema
 
-capabilitiesFieldSchema :: ObjectSchema SwaggerDoc (Set ClientCapability)
+capabilitiesFieldSchema ::
+  FieldFunctor SwaggerDoc f =>
+  ObjectSchemaP SwaggerDoc (Set ClientCapability) (f (Set ClientCapability))
 capabilitiesFieldSchema =
   Set.toList
-    .= fieldWithDocModifier "capabilities" mods (Set.fromList <$> array schema)
+    .= fieldWithDocModifierF "capabilities" mods (Set.fromList <$> array schema)
   where
     mods =
       description
@@ -218,14 +221,22 @@ modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
 instance ToSchema a => ToSchema (UserClientMap a) where
   schema = userClientMapSchema schema
 
+class WrapName doc where
+  wrapName :: doc -> (Text -> Text) -> SwaggerDoc -> doc
+
+instance WrapName SwaggerDoc where
+  wrapName _ _ = id
+
+instance WrapName NamedSwaggerDoc where
+  wrapName d f = fmap (Swagger.NamedSchema (Just (f (maybe "" ("_" <>) (getName d)))))
+
 userClientMapSchema ::
-  ValueSchema NamedSwaggerDoc a ->
-  ValueSchema NamedSwaggerDoc (UserClientMap a)
+  (WrapName doc, HasSchemaRef doc) =>
+  ValueSchema doc a ->
+  ValueSchema doc (UserClientMap a)
 userClientMapSchema sch =
-  named nm $
+  over doc (wrapName (schemaDoc sch) ("UserClientMap" <>)) $
     UserClientMap <$> userClientMap .= map_ (map_ sch)
-  where
-    nm = "UserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
 
 newtype UserClientPrekeyMap = UserClientPrekeyMap
   {getUserClientPrekeyMap :: UserClientMap (Maybe Prekey)}
@@ -236,12 +247,21 @@ newtype UserClientPrekeyMap = UserClientPrekeyMap
 mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe Prekey)) -> UserClientPrekeyMap
 mkUserClientPrekeyMap = coerce
 
+optionalSchema ::
+  ValueSchemaP SwaggerDoc a b ->
+  ValueSchemaP SwaggerDoc (Maybe a) (Maybe b)
+optionalSchema s =
+  mconcat
+    [ Just <$> maybeWithDefault A.Null s,
+      const () .= null_ $> Nothing
+    ]
+
 instance ToSchema UserClientPrekeyMap where
   schema = UserClientPrekeyMap <$> getUserClientPrekeyMap .= addDoc sch
     where
       sch =
-        named "UserClientPrekeyMap" . unnamed $
-          userClientMapSchema (optWithDefault A.Null schema)
+        named "UserClientPrekeyMap" $
+          userClientMapSchema (optionalSchema (unnamed schema))
       addDoc =
         Swagger.schema . Swagger.example
           ?~ toJSON
@@ -442,12 +462,12 @@ instance ToSchema Client where
         <$> clientId .= field "id" schema
         <*> clientType .= field "type" schema
         <*> clientTime .= field "time" schema
-        <*> clientClass .= opt (field "class" schema)
-        <*> clientLabel .= opt (field "label" schema)
-        <*> clientCookie .= opt (field "cookie" schema)
-        <*> clientLocation .= opt (field "location" schema)
-        <*> clientModel .= opt (field "model" schema)
-        <*> clientCapabilities .= (field "capabilities" schema <|> pure mempty)
+        <*> clientClass .= maybe_ (optField "class" schema)
+        <*> clientLabel .= maybe_ (optField "label" schema)
+        <*> clientCookie .= maybe_ (optField "cookie" schema)
+        <*> clientLocation .= maybe_ (optField "location" schema)
+        <*> clientModel .= maybe_ (optField "model" schema)
+        <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -654,10 +674,10 @@ instance ToSchema NewClient where
                    \When a temporary client already exists, it is replaced."
             )
             schema
-        <*> newClientLabel .= opt (field "label" schema)
+        <*> newClientLabel .= maybe_ (optField "label" schema)
         <*> newClientClass
-          .= opt
-            ( fieldWithDocModifier
+          .= maybe_
+            ( optFieldWithDocModifier
                 "class"
                 ( description
                     ?~ "The device class this client belongs to. \
@@ -666,15 +686,15 @@ instance ToSchema NewClient where
                 schema
             )
         <*> newClientCookie
-          .= opt
-            ( fieldWithDocModifier
+          .= maybe_
+            ( optFieldWithDocModifier
                 "cookie"
                 (description ?~ "The cookie label, i.e. the label used when logging in.")
                 schema
             )
         <*> newClientPassword
-          .= opt
-            ( fieldWithDocModifier
+          .= maybe_
+            ( optFieldWithDocModifier
                 "password"
                 ( description
                     ?~ "The password of the authenticated user for verification. \
@@ -682,8 +702,8 @@ instance ToSchema NewClient where
                 )
                 schema
             )
-        <*> newClientModel .= opt (field "model" schema)
-        <*> newClientCapabilities .= opt capabilitiesFieldSchema
+        <*> newClientModel .= maybe_ (optField "model" schema)
+        <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -717,30 +737,29 @@ instance ToSchema UpdateClient where
   schema =
     object "UpdateClient" $
       UpdateClient
-        <$> (Just . updateClientPrekeys)
+        <$> updateClientPrekeys
           .= ( fromMaybe []
-                 <$> opt
-                   ( fieldWithDocModifier
-                       "prekeys"
-                       (description ?~ "New prekeys for other clients to establish OTR sessions.")
-                       (array schema)
-                   )
+                 <$> ( optFieldWithDocModifier
+                         "prekeys"
+                         (description ?~ "New prekeys for other clients to establish OTR sessions.")
+                         (array schema)
+                     )
              )
         <*> updateClientLastKey
-          .= opt
-            ( fieldWithDocModifier
+          .= maybe_
+            ( optFieldWithDocModifier
                 "lastkey"
                 (description ?~ "New last-resort prekey.")
                 schema
             )
         <*> updateClientLabel
-          .= opt
-            ( fieldWithDocModifier
+          .= maybe_
+            ( optFieldWithDocModifier
                 "label"
                 (description ?~ "A new name for this client.")
                 schema
             )
-        <*> updateClientCapabilities .= opt capabilitiesFieldSchema
+        <*> updateClientCapabilities .= maybe_ capabilitiesFieldSchema
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do
@@ -781,12 +800,11 @@ instance ToSchema RmClient where
         <$> rmPassword
         .= optFieldWithDocModifier
           "password"
-          (Just A.Null)
           ( description
               ?~ "The password of the authenticated user for verification. \
                  \The password is not required for deleting temporary clients."
           )
-          schema
+          (maybeWithDefault A.Null schema)
 
 modelDeleteClient :: Doc.Model
 modelDeleteClient = Doc.defineModel "DeleteClient" $ do

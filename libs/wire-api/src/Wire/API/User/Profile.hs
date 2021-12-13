@@ -126,7 +126,7 @@ instance ToSchema Asset where
     object "UserAsset" $
       ImageAsset
         <$> assetKey .= field "key" schema
-        <*> assetSize .= opt (field "size" schema)
+        <*> assetSize .= maybe_ (optField "size" schema)
         <* const () .= field "type" typeSchema
     where
       typeSchema :: ValueSchema NamedSwaggerDoc ()
