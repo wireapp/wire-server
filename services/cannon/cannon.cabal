@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b07ae5c495341a9df61f795c31dcf889dae7b24aca0a5910de133e015e8eb472
+-- hash: d5099fe0b4b7931455272a2a8e65ba86cb3bad30537a5485372a049a7f9ffd4b
 
 name:           cannon
 version:        0.31.0
@@ -126,7 +126,7 @@ test-suite cannon-tests
     , wai-utilities
   default-language: Haskell2010
 
-benchmark gundeck-bench
+benchmark cannon-bench
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:

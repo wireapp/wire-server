@@ -89,7 +89,7 @@ tests:
     - uuid
     - wai-utilities
 benchmarks:
-  gundeck-bench:
+  cannon-bench:
     main: Main.hs
     source-dirs: bench
     ghc-options:
