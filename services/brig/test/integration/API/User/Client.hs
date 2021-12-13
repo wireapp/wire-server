@@ -418,7 +418,6 @@ testMultiUserGetPrekeysQualified brig opts = do
 
 -- The testTooManyClients test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
