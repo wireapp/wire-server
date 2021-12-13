@@ -1,13 +1,13 @@
-cabal-version: 1.12
+cabal-version: 2.0
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 33acd5be229059e16903857f1923a9afcf55f285461298721a15d8d8c5b88a12
+-- hash: 513c0f5104342fb14b0246f7c44733a84ec36fae97633fc55cb209e0e0bcd087
 
 name:           brig
-version:        1.35.0
+version:        2.0
 synopsis:       User Service
 category:       Network
 author:         Wire Swiss GmbH
@@ -15,7 +15,17 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
-build-type:     Simple
+build-type:     Custom
+extra-source-files:
+    docs/swagger.md
+
+custom-setup
+  setup-depends:
+      Cabal
+    , base
+    , containers
+    , directory
+    , filepath
 
 library
   exposed-modules:
@@ -111,6 +121,9 @@ library
       Main
   other-modules:
       Paths_brig
+      Brig.Docs.Swagger
+  autogen-modules:
+      Brig.Docs.Swagger
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
@@ -167,7 +180,6 @@ library
     , http-types >=0.8
     , imports
     , insert-ordered-containers
-    , interpolate
     , iproute >=1.5
     , iso639 >=0.1
     , lens >=3.8
@@ -178,7 +190,6 @@ library
     , mime-mail >=0.4
     , mmorph
     , mtl >=2.1
-    , mu-grpc-client
     , multihash >=0.1.3
     , mwc-random
     , network >=2.4
@@ -324,10 +335,10 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
-    , cql-io
     , data-timeout
     , email-validate
     , exceptions
+    , federator
     , filepath >=1.4
     , galley-types
     , gundeck-types
@@ -341,8 +352,7 @@ executable brig-integration
     , lens-aeson
     , metrics-wai
     , mime >=0.4
-    , mu-grpc-server
-    , mu-rpc
+    , mtl
     , network
     , optparse-applicative
     , pem
@@ -466,7 +476,6 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Test.Brig.API.Error
       Test.Brig.Calling
       Test.Brig.Calling.Internal
       Test.Brig.Roundtrip

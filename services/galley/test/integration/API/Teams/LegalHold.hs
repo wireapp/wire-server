@@ -64,10 +64,10 @@ import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Clock as Time
-import qualified Galley.App as Galley
-import qualified Galley.Data as Data
-import qualified Galley.Data.LegalHold as LegalHoldData
-import Galley.External.LegalHoldService (validateServiceKey)
+import Galley.Cassandra.Client
+import Galley.Cassandra.LegalHold
+import qualified Galley.Cassandra.LegalHold as LegalHoldData
+import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
@@ -324,7 +324,7 @@ testApproveLegalHoldDevice = do
         renewToken authToken
       cassState <- view tsCass
       liftIO $ do
-        clients' <- Cql.runClient cassState $ Data.lookupClients [member]
+        clients' <- Cql.runClient cassState $ lookupClients [member]
         assertBool "Expect clientId to be saved on the user" $
           Clients.contains member someClientId clients'
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -566,14 +566,14 @@ testEnablePerTeam = withTeam $ \owner tid -> do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
-    status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   do
-    status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
@@ -585,7 +585,7 @@ testEnablePerTeam = withTeam $ \owner tid -> do
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
       putEnabled' id tid Public.TeamFeatureDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
-      status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
       let statusValue = Public.tfwoStatus status
       liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.TeamFeatureEnabled
 
@@ -941,7 +941,9 @@ data GroupConvAdmin
 testNoConsentRemoveFromGroupConv :: GroupConvAdmin -> HasCallStack => TestM ()
 testNoConsentRemoveFromGroupConv whoIsAdmin = do
   (legalholder :: UserId, tid) <- createBindingTeam
+  qLegalHolder <- Qualified <$> pure legalholder <*> viewFederationDomain
   (peer :: UserId, teamPeer) <- createBindingTeam
+  qPeer <- Qualified <$> pure peer <*> viewFederationDomain
   galley <- view tsGalley
 
   let enableLHForLegalholder :: HasCallStack => TestM ()
@@ -963,41 +965,40 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
     convId <- do
       let (inviter, tidInviter, invitee, inviteeRole) =
             case whoIsAdmin of
-              LegalholderIsAdmin -> (legalholder, tid, peer, roleNameWireMember)
-              PeerIsAdmin -> (peer, teamPeer, legalholder, roleNameWireMember)
-              BothAreAdmins -> (legalholder, tid, peer, roleNameWireAdmin)
+              LegalholderIsAdmin -> (qLegalHolder, tid, qPeer, roleNameWireMember)
+              PeerIsAdmin -> (qPeer, teamPeer, qLegalHolder, roleNameWireMember)
+              BothAreAdmins -> (qLegalHolder, tid, qPeer, roleNameWireAdmin)
 
-      convId <- createTeamConvWithRole inviter tidInviter [invitee] (Just "group chat with external peer") Nothing Nothing inviteeRole
+      convId <- createTeamConvWithRole (qUnqualified inviter) tidInviter [qUnqualified invitee] (Just "group chat with external peer") Nothing Nothing inviteeRole
       mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) ([inviter] <> [invitee | whoIsAdmin == BothAreAdmins])
       mapM_ (assertConvMemberWithRole roleNameWireMember convId) [invitee | whoIsAdmin /= BothAreAdmins]
       pure convId
+    qconvId <- Qualified <$> pure convId <*> viewFederationDomain
 
     checkConvCreateEvent convId legalholderWs
     checkConvCreateEvent convId peerWs
 
-    assertConvMember legalholder convId
-    assertConvMember peer convId
+    assertConvMember qLegalHolder convId
+    assertConvMember qPeer convId
 
     void enableLHForLegalholder
 
-    localdomain <- viewFederationDomain
-
     case whoIsAdmin of
       LegalholderIsAdmin -> do
-        assertConvMember legalholder convId
+        assertConvMember qLegalHolder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
+        checkConvMemberLeaveEvent qconvId qPeer legalholderWs
+        checkConvMemberLeaveEvent qconvId qPeer peerWs
       PeerIsAdmin -> do
-        assertConvMember peer convId
+        assertConvMember qPeer convId
         assertNotConvMember legalholder convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) peerWs
+        checkConvMemberLeaveEvent qconvId qLegalHolder legalholderWs
+        checkConvMemberLeaveEvent qconvId qLegalHolder peerWs
       BothAreAdmins -> do
-        assertConvMember legalholder convId
+        assertConvMember qLegalHolder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
+        checkConvMemberLeaveEvent qconvId qPeer legalholderWs
+        checkConvMemberLeaveEvent qconvId qPeer peerWs
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
@@ -1006,8 +1007,11 @@ testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase ->
 testGroupConvInvitationHandlesLHConflicts inviteCase = do
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
+  qLegalHolder <- Qualified <$> pure legalholder <*> viewFederationDomain
   userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
-  userWithConsent2 <- (^. userId) <$> addUserToTeam legalholder tid
+  userWithConsent2 <- do
+    uid <- (^. userId) <$> addUserToTeam legalholder tid
+    Qualified <$> pure uid <*> viewFederationDomain
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
@@ -1037,10 +1041,10 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
 
     case inviteCase of
       InviteOnlyConsenters -> do
-        API.Util.postMembers userWithConsent (List1.list1 legalholder [userWithConsent2]) convId
+        API.Util.postMembers userWithConsent (List1.list1 legalholder [qUnqualified userWithConsent2]) convId
           !!! const 200 === statusCode
 
-        assertConvMember legalholder convId
+        assertConvMember qLegalHolder convId
         assertConvMember userWithConsent2 convId
         assertNotConvMember peer convId
       InviteAlsoNonConsenters -> do

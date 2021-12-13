@@ -150,7 +150,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
-import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
 
@@ -1054,7 +1054,8 @@ deleteAccount account@(accountUser -> user) = do
   Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
-  Intra.onUserEvent uid Nothing (UserDeleted uid)
+  luid <- qualifyLocal uid
+  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   Data.deleteConnections uid
@@ -1231,9 +1232,8 @@ getEmailForProfile profileOwner EmailVisibleIfOnTeam' =
     then userEmail profileOwner
     else Nothing
 getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, viewerTeamMember))) =
-  if ( Just viewerTeamId == userTeam profileOwner
-         && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
-     )
+  if Just viewerTeamId == userTeam profileOwner
+    && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
     then userEmail profileOwner
     else Nothing
 getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing

@@ -62,7 +62,7 @@ pageSize = 1000
 
 -- | Get users from Galley
 getUsers :: ConduitM () [(Maybe ProviderId, Maybe ServiceId, BotId, ConvId)] Client ()
-getUsers = paginateC cql (paramsP Quorum () pageSize) x5
+getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (Maybe ProviderId, Maybe ServiceId, BotId, ConvId)
     cql = "SELECT provider, service, user, conv FROM member"
@@ -72,7 +72,7 @@ resolveBot ::
   (Maybe ProviderId, Maybe ServiceId, BotId, ConvId) ->
   Client (Maybe (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId))
 resolveBot (Just pid, Just sid, bid, cid) = do
-  tid <- retry x5 $ query1 teamSelect (params Quorum (Identity cid))
+  tid <- retry x5 $ query1 teamSelect (params LocalQuorum (Identity cid))
   pure (Just (pid, sid, bid, cid, join (fmap runIdentity tid)))
   where
     teamSelect :: PrepQuery R (Identity ConvId) (Identity (Maybe TeamId))
@@ -85,7 +85,7 @@ writeBots ::
   Client ()
 writeBots [] = pure ()
 writeBots xs = retry x5 . batch $ do
-  setConsistency Quorum
+  setConsistency LocalQuorum
   setType BatchLogged
   forM_ xs $ \(pid, sid, bid, cid, mbTid) -> do
     addPrepQuery writeUser (pid, sid, bid, cid, mbTid)

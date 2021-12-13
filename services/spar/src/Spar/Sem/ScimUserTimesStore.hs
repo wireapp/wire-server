@@ -8,7 +8,7 @@ import Web.Scim.Schema.Common (WithId)
 import Web.Scim.Schema.Meta (WithMeta)
 
 data ScimUserTimesStore m a where
-  Write :: WithMeta (WithId UserId a) -> ScimUserTimesStore m ()
+  Write :: WithMeta (WithId UserId t) -> ScimUserTimesStore m ()
   Read :: UserId -> ScimUserTimesStore m (Maybe (UTCTimeMillis, UTCTimeMillis))
   Delete :: UserId -> ScimUserTimesStore m ()
 

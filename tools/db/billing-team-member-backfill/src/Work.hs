@@ -61,7 +61,7 @@ pageSize = 1000
 
 -- | Get team members from Galley
 getTeamMembers :: ConduitM () [(TeamId, UserId, Maybe Permissions)] Client ()
-getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
+getTeamMembers = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (TeamId, UserId, Maybe Permissions)
     cql = "SELECT team, user, perms FROM team_member"
@@ -70,7 +70,7 @@ createBillingTeamMembers :: [(TeamId, UserId)] -> Client ()
 createBillingTeamMembers pairs =
   retry x5 . batch $ do
     setType BatchLogged
-    setConsistency Quorum
+    setConsistency LocalQuorum
     mapM_ (addPrepQuery cql) pairs
   where
     cql :: PrepQuery W (TeamId, UserId) ()

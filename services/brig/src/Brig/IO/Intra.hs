@@ -60,6 +60,9 @@ module Brig.IO.Intra
 
     -- * Legalhold
     guardLegalhold,
+
+    -- * Low Level API for Notifications
+    notify,
   )
 where
 
@@ -70,29 +73,37 @@ import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
+import qualified Brig.Data.Connection as Data
+import Brig.Federation.Client (notifyUserDeleted)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadThrow (throwM))
-import Control.Monad.Trans.Except (throwE)
+import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import Data.Coerce (coerce)
+import qualified Data.Conduit.List as C
 import qualified Data.Currency as Currency
+import Data.Domain
+import Data.Either.Combinators (whenLeft)
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
+import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import GHC.TypeLits
 import Galley.Types (Connect (..), Conversation)
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
@@ -106,9 +117,10 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.API.Brig
+import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 
 -----------------------------------------------------------------------------
@@ -234,10 +246,45 @@ dispatchNotifications orig conn e = case e of
   UserDeleted {} -> do
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
-    recipients <- list1 orig <$> lookupContactList orig
-    notify event orig Push.RouteDirect conn (pure recipients)
+    notifyUserDeletionLocals orig conn event
+    notifyUserDeletionRemotes orig
   where
     event = singleton $ UserEvent e
+
+notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> AppIO ()
+notifyUserDeletionLocals deleted conn event = do
+  recipients <- list1 deleted <$> lookupContactList deleted
+  notify event deleted Push.RouteDirect conn (pure recipients)
+
+notifyUserDeletionRemotes :: UserId -> AppIO ()
+notifyUserDeletionRemotes deleted = do
+  runConduit $
+    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
+      .| C.mapM_ fanoutNotifications
+  where
+    fanoutNotifications :: [Remote UserId] -> AppIO ()
+    fanoutNotifications = mapM_ notifyBackend . bucketRemote
+
+    notifyBackend :: Remote [UserId] -> AppIO ()
+    notifyBackend uids = do
+      case tUnqualified (checked <$> uids) of
+        Nothing ->
+          -- The user IDs cannot be more than 1000, so we can assume the range
+          -- check will only fail because there are 0 User Ids.
+          pure ()
+        Just rangedUids -> do
+          luidDeleted <- qualifyLocal deleted
+          eitherFErr <- runExceptT (notifyUserDeleted luidDeleted (qualifyAs uids rangedUids))
+          whenLeft eitherFErr $
+            logFederationError (tDomain uids)
+
+    logFederationError :: Domain -> FederationError -> AppT IO ()
+    logFederationError domain fErr =
+      Log.err $
+        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
+          . Log.field "user_id" (show deleted)
+          . Log.field "domain" (domainText domain)
+          . Log.field "error" (show fErr)
 
 -- | Push events to other users.
 push ::
@@ -312,7 +359,7 @@ rawPush (toList -> events) usrs orig route conn = do
 -- | (Asynchronously) notifies other users of events.
 notify ::
   List1 Event ->
-  -- | Origin user.
+  -- | Origin user, TODO: Delete
   UserId ->
   -- | Push routing strategy.
   Push.Route ->
@@ -442,11 +489,12 @@ toPushFormat (UserEvent (UserResumed i)) =
       [ "type" .= ("user.resume" :: Text),
         "id" .= i
       ]
-toPushFormat (UserEvent (UserDeleted i)) =
+toPushFormat (UserEvent (UserDeleted qid)) =
   Just $
     M.fromList
       [ "type" .= ("user.delete" :: Text),
-        "id" .= i
+        "id" .= qUnqualified qid,
+        "qualified_id" .= qid
       ]
 toPushFormat (UserEvent (UserLegalHoldDisabled i)) =
   Just $
@@ -919,7 +967,7 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'TeamFeatureLegalHold)
+getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"

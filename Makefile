@@ -8,16 +8,19 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed for integration tests on kubernetes
-CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
+CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
+
+package ?= all
+EXE_SCHEMA := ./dist/$(package)-schema
 
 # This ensures that focused unit tests written in hspec fail. This is supposed
 # to help us avoid merging PRs with focused tests. This will not catch focused
@@ -39,12 +42,49 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	cabal build all
+	./hack/bin/cabal-run-all-tests.sh
+	./hack/bin/cabal-install-artefacts.sh all
+else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+endif
 
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	make install
+else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+endif
+
+# Usage: make c package=brig test=1
+.PHONY: c
+c:
+	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
+ifeq ($(test), 1)
+	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
+endif
+	./hack/bin/cabal-install-artefacts.sh $(package)
+
+# ci here doesn't refer to continuous integration, but to cabal-integration
+# Usage: make ci package=brig test=1
+.PHONY: ci
+ci: c
+	./hack/bin/cabal-run-integration.sh $(package) $(pattern)
+
+# reset db using cabal
+.PHONY: db-reset-package
+db-reset-package: c
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
+
+# migrate db using cabal
+# For using stack see the Makefile of the package, e.g. services/brig/Makefile
+# Usage: make db-migrate-package package=galley
+.PHONY: db-migrate-package
+db-migrate-package: c
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
@@ -54,12 +94,12 @@ services: init install
 # Build haddocks
 .PHONY: haddock
 haddock:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal" make fast
 
 # Build haddocks only for wire-server
 .PHONY: haddock-shallow
 haddock-shallow:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal --no-haddock-deps" make fast
 
 # formats all Haskell files (which don't contain CPP)
 .PHONY: format
@@ -201,11 +241,17 @@ run-docker-builder:
 	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
 	docker run --workdir /wire-server -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
 
-CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-reset
+git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
+
+CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
+.PHONY: git-add-cassandra-schema-impl
+git-add-cassandra-schema-impl:
 	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
 	git add ./docs/reference/cassandra-schema.cql
+
+.PHONY: git-add-cassandra-schema-cabal
+git-add-cassandra-schema-cabal: db-reset-cabal git-add-cassandra-schema-impl
 
 .PHONY: cqlsh
 cqlsh:
@@ -215,10 +261,17 @@ cqlsh:
 .PHONY: db-reset
 db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	make db-reset-package package=brig
+	make db-reset-package package=galley
+	make db-reset-package package=gundeck
+	make db-reset-package package=spar
+else
 	make -C services/brig db-reset
 	make -C services/galley db-reset
 	make -C services/gundeck db-reset
 	make -C services/spar db-reset
+endif
 
 #################################
 ## dependencies
@@ -232,14 +285,15 @@ libzauth:
 #
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
-hie.yaml: stack-dev.yaml
-	stack build implicit-hie
-	stack exec gen-hie | nix-shell --command 'yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml'
-
-.PHONY: stack-dev.yaml
-stack-dev.yaml:
+hie.yaml:
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	echo -e 'cradle:\n  cabal: {}' > hie.yaml
+else
 	cp stack.yaml stack-dev.yaml
 	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
+	stack build implicit-hie
+	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
+endif
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
@@ -276,6 +330,10 @@ kube-integration-test:
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown-federation.sh
+
+.PHONY: kube-integration-e2e-telepresence
+kube-integration-e2e-telepresence:
+	./services/brig/federation-tests.sh $(NAMESPACE)
 
 .PHONY: kube-integration-setup-sans-federation
 kube-integration-setup-sans-federation: guard-tag charts-integration

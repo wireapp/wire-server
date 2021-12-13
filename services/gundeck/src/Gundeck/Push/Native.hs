@@ -187,7 +187,7 @@ deleteTokens tokens new = do
       let oldTok = a ^. addrToken
       let newArn = a' ^. addrEndpoint
       let newTok = a' ^. addrToken
-      xs <- Data.lookup u Data.Quorum
+      xs <- Data.lookup u Data.LocalQuorum
       forM_ xs $ \x ->
         when (x ^. addrEndpoint == oldArn) $ do
           Data.insert

@@ -44,13 +44,11 @@ import Data.Qualified (Qualified (..))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
+import qualified Federator.MockServer as Mock
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
-import Mu.GRpc.Server (msgProtoBuf, runGRpcApp)
-import Mu.Server (ServerErrorIO, SingleServerT)
-import qualified Mu.Server as Mu
 import qualified Network.HTTP.Client as HTTP
 import Network.Socket
 import Network.Wai.Handler.Warp (Port)
@@ -66,36 +64,23 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation (Conversation (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Federation.GRPC.Types (FederatedRequest, Outward, OutwardResponse (..))
-import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
--- | Starts a grpc server which will return the 'OutwardResponse' passed to this
+-- | Starts a server which will return the bytestring passed to this
 -- function, and makes the action passed to this function run in a modified brig
 -- which will contact this mocked federator instead of a real federator.
-withMockFederator :: Opt.Opts -> IORef Mock.MockState -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
-withMockFederator opts ref resp action = assertRightT
-  . Mock.withMockFederator ref (const (pure resp))
-  $ \st -> lift $ do
-    let opts' =
-          opts
-            { Opt.federatorInternal =
-                Just (Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st)))
-            }
-    withSettingsOverrides opts' action
-
-withTempMockFederator :: Opt.Opts -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
-withTempMockFederator opts resp action = assertRightT
-  . Mock.withTempMockFederator st0 (const (pure resp))
-  $ \st -> lift $ do
-    let opts' =
-          opts
-            { Opt.federatorInternal =
-                Just (Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st)))
-            }
-    withSettingsOverrides opts' action
-  where
-    st0 = Mock.initState (Domain "example.com")
+withTempMockFederator :: Opt.Opts -> LByteString -> Session a -> IO (a, [Mock.FederatedRequest])
+withTempMockFederator opts resp action =
+  Mock.withTempMockFederator
+    [("Content-Type", "application/json")]
+    (const (pure resp))
+    $ \mockPort -> do
+      let opts' =
+            opts
+              { Opt.federatorInternal =
+                  Just (Endpoint "127.0.0.1" (fromIntegral mockPort))
+              }
+      withSettingsOverrides opts' action
 
 generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
 generateClientPrekeys brig prekeys = do
@@ -105,11 +90,6 @@ generateClientPrekeys brig prekeys = do
       mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
   clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
   pure (quser, zipWith mkClientPrekey prekeys clients)
-
-assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
-assertRight = \case
-  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
-  Right x -> pure x
 
 assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
 assertRightT = assertRight <=< runExceptT

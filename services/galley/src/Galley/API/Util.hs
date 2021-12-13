@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -22,11 +23,8 @@ module Galley.API.Util where
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Arrow (Arrow (second), second)
-import Control.Error (ExceptT, hoistEither, note)
 import Control.Lens (set, view, (.~), (^.))
-import Control.Monad.Catch
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Extra (allM, anyM, eitherM)
+import Control.Monad.Extra (allM, anyM)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -36,51 +34,58 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
-import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
-import Galley.App
-import qualified Galley.Data as Data
-import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
-import qualified Galley.External as External
+import Galley.Effects
+import Galley.Effects.BrigAccess
+import Galley.Effects.CodeStore
+import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
+import Galley.Effects.FederatorAccess
+import Galley.Effects.GundeckAccess
+import Galley.Effects.LegalHoldStore
+import Galley.Effects.MemberStore
+import Galley.Effects.TeamStore
 import Galley.Intra.Push
-import Galley.Intra.User
-import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
+import Galley.Options
 import Galley.Types
 import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event, MemberJoin, self)
 import Galley.Types.UserList
-import Imports
+import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
-import Network.Wai.Utilities
-import UnliftIO.Async
+import qualified Network.Wai.Utilities as Wai
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import qualified Wire.API.Conversation as Public
-import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
-import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
-import Wire.API.Federation.Error (federationErrorToWai, federationNotImplemented)
-import Wire.API.Federation.GRPC.Types (Component (..))
-import qualified Wire.API.User as User
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 
 type JSON = Media "application" "json"
 
-ensureAccessRole :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
+ensureAccessRole ::
+  Members '[BrigAccess, Error NotATeamMember, Error ConversationError] r =>
+  AccessRole ->
+  [(UserId, Maybe TeamMember)] ->
+  Sem r ()
 ensureAccessRole role users = case role of
-  PrivateAccessRole -> throwErrorDescriptionType @ConvAccessDenied
+  PrivateAccessRole -> throw ConvAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throwErrorDescriptionType @NotATeamMember
+      throwED @NotATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
-      throwErrorDescriptionType @ConvAccessDenied
+      throw ConvAccessDenied
   NonActivatedAccessRole -> return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
@@ -88,208 +93,205 @@ ensureAccessRole role users = case role of
 --
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
-ensureConnectedOrSameTeam :: Qualified UserId -> [UserId] -> Galley ()
+ensureConnectedOrSameTeam ::
+  Members '[BrigAccess, TeamStore, Error ActionError] r =>
+  Local UserId ->
+  [UserId] ->
+  Sem r ()
 ensureConnectedOrSameTeam _ [] = pure ()
-ensureConnectedOrSameTeam (Qualified u domain) uids = do
-  -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
-  localDomain <- viewFederationDomain
-  when (localDomain == domain) $ do
-    uTeams <- Data.userTeams u
-    -- We collect all the relevant uids from same teams as the origin user
-    sameTeamUids <- forM uTeams $ \team ->
-      fmap (view userId) <$> Data.teamMembersLimited team uids
-    -- Do not check connections for users that are on the same team
-    ensureConnectedToLocals u (uids \\ join sameTeamUids)
+ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
+  uTeams <- getUserTeams u
+  -- We collect all the relevant uids from same teams as the origin user
+  sameTeamUids <- forM uTeams $ \team ->
+    fmap (view userId) <$> selectTeamMembers team uids
+  -- Do not check connections for users that are on the same team
+  ensureConnectedToLocals u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: Local UserId -> UserList UserId -> Galley ()
+ensureConnected ::
+  Members '[BrigAccess, Error ActionError] r =>
+  Local UserId ->
+  UserList UserId ->
+  Sem r ()
 ensureConnected self others = do
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
   ensureConnectedToRemotes self (ulRemotes others)
 
-ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
+ensureConnectedToLocals ::
+  Members '[BrigAccess, Error ActionError] r =>
+  UserId ->
+  [UserId] ->
+  Sem r ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnectionsUnqualified [u] (Just uids) (Just Accepted)
-      `concurrently` getConnectionsUnqualified uids (Just [u]) (Just Accepted)
+    getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwErrorDescriptionType @NotConnected
+    throw NotConnected
 
-ensureConnectedToRemotes :: Local UserId -> [Remote UserId] -> Galley ()
+ensureConnectedToRemotes ::
+  Members '[BrigAccess, Error ActionError] r =>
+  Local UserId ->
+  [Remote UserId] ->
+  Sem r ()
 ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map qUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
-    throwErrorDescriptionType @NotConnected
+    throw NotConnected
 
-ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
+ensureReAuthorised ::
+  Members
+    '[ BrigAccess,
+       Error AuthenticationError
+     ]
+    r =>
+  UserId ->
+  Maybe PlainTextPassword ->
+  Sem r ()
 ensureReAuthorised u secret = do
-  reAuthed <- reAuthUser u (ReAuthUser secret)
+  reAuthed <- reauthUser u (ReAuthUser secret)
   unless reAuthed $
-    throwM reAuthFailed
+    throw ReAuthFailed
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, throw
 -- 'operationDenied'.
-ensureActionAllowed :: IsConvMember mem => Action -> mem -> Galley ()
+ensureActionAllowed ::
+  (IsConvMember mem, Members '[Error ActionError, Error InvalidInput] r) =>
+  Action ->
+  mem ->
+  Sem r ()
 ensureActionAllowed action self = case isActionAllowed action (convMemberRole self) of
   Just True -> pure ()
-  Just False -> throwErrorDescription (actionDenied action)
+  Just False -> throw (ActionDenied action)
   -- Actually, this will "never" happen due to the
   -- fact that there can be no custom roles at the moment
-  Nothing -> throwM (badRequest "Custom roles not supported")
+  Nothing -> throw CustomRolesNotSupported
 
--- | Comprehensive permission check, taking action-specific logic into account.
-ensureConversationActionAllowed ::
-  IsConvMember mem =>
-  ConversationAction ->
-  Data.Conversation ->
-  mem ->
-  Galley ()
-ensureConversationActionAllowed action conv self = do
-  loc <- qualifyLocal ()
-  let tag = conversationActionTag (convMemberId loc self) action
-  -- general action check
-  ensureActionAllowed tag self
-  -- check if it is a group conversation (except for rename actions)
-  when (tag /= ModifyConversationName) $
-    ensureGroupConvThrowing conv
-  -- extra action-specific checks
-  case action of
-    ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
-    ConversationActionDelete -> do
-      case Data.convTeam conv of
-        Just tid -> do
-          foldQualified
-            loc
-            ( \lusr -> do
-                void $
-                  Data.teamMember tid (tUnqualified lusr)
-                    >>= ifNothing (errorDescriptionTypeToWai @NotATeamMember)
-            )
-            (\_ -> throwM federationNotImplemented)
-            (convMemberId loc self)
-        Nothing -> pure ()
-    ConversationActionAccessUpdate target -> do
-      -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
-      -- so on; users are not supposed to be able to make other conversations
-      -- have 'PrivateAccessRole'
-      when
-        ( PrivateAccess `elem` Public.cupAccess target
-            || PrivateAccessRole == Public.cupAccessRole target
-        )
-        $ throwErrorDescriptionType @InvalidTargetAccess
-      -- Team conversations incur another round of checks
-      case Data.convTeam conv of
-        Just tid -> do
-          -- Access mode change for managed conversation is not allowed
-          tcv <- Data.teamConversation tid (Data.convId conv)
-          when (maybe False (view managedConversation) tcv) $
-            throwM invalidManagedConvOp
-          -- Access mode change might result in members being removed from the
-          -- conversation, so the user must have the necessary permission flag
-          ensureActionAllowed RemoveConversationMember self
-        Nothing ->
-          when (Public.cupAccessRole target == TeamAccessRole) $
-            throwErrorDescriptionType @InvalidTargetAccess
-    _ -> pure ()
-
-ensureGroupConvThrowing :: Data.Conversation -> Galley ()
-ensureGroupConvThrowing conv = case Data.convType conv of
-  SelfConv -> throwM invalidSelfOp
-  One2OneConv -> throwM invalidOne2OneOp
-  ConnectConv -> throwM invalidConnectOp
-  _ -> pure ()
+ensureGroupConversation :: Member (Error ActionError) r => Data.Conversation -> Sem r ()
+ensureGroupConversation conv = do
+  let ty = Data.convType conv
+  when (ty /= RegularConv) $ throw (InvalidOp ty)
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: IsConvMember mem => mem -> RoleName -> Galley ()
+ensureConvRoleNotElevated ::
+  (IsConvMember mem, Members '[Error InvalidInput, Error ActionError] r) =>
+  mem ->
+  RoleName ->
+  Sem r ()
 ensureConvRoleNotElevated origMember targetRole = do
   case (roleNameToActions targetRole, roleNameToActions (convMemberRole origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
-        throwM invalidActions
+        throw InvalidAction
     (_, _) ->
-      throwM (badRequest "Custom roles not supported")
+      throw CustomRolesNotSupported
 
 -- | If a team member is not given throw 'notATeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return the team member.
-permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
-permissionCheck p = \case
-  Just m -> do
-    if m `hasPermission` p
-      then pure m
-      else throwErrorDescription (operationDenied p)
-  Nothing -> throwErrorDescriptionType @NotATeamMember
+permissionCheck ::
+  (IsPerm perm, Show perm, Members '[Error ActionError, Error NotATeamMember] r) =>
+  perm ->
+  Maybe TeamMember ->
+  Sem r TeamMember
+permissionCheck p =
+  \case
+    Just m -> do
+      if m `hasPermission` p
+        then pure m
+        else throw (OperationDenied (show p))
+    Nothing -> throwED @NotATeamMember
 
-assertTeamExists :: TeamId -> Galley ()
+assertTeamExists :: Members '[Error TeamError, TeamStore] r => TeamId -> Sem r ()
 assertTeamExists tid = do
-  teamExists <- isJust <$> Data.team tid
+  teamExists <- isJust <$> getTeam tid
   if teamExists
     then pure ()
-    else throwM teamNotFound
+    else throw TeamNotFound
 
-assertOnTeam :: UserId -> TeamId -> Galley ()
-assertOnTeam uid tid = do
-  Data.teamMember tid uid >>= \case
-    Nothing -> throwErrorDescriptionType @NotATeamMember
+assertOnTeam :: Members '[Error NotATeamMember, TeamStore] r => UserId -> TeamId -> Sem r ()
+assertOnTeam uid tid =
+  getTeamMember tid uid >>= \case
+    Nothing -> throwED @NotATeamMember
     Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
-permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
+permissionCheckTeamConv ::
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error NotATeamMember,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  ConvId ->
+  Perm ->
+  Sem r ()
 permissionCheckTeamConv zusr cnv perm =
-  Data.conversation cnv >>= \case
+  getConversation cnv >>= \case
     Just cnv' -> case Data.convTeam cnv' of
-      Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
+      Just tid -> void $ permissionCheck perm =<< getTeamMember tid zusr
       Nothing -> pure ()
-    Nothing -> throwErrorDescriptionType @ConvNotFound
+    Nothing -> throw ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
-acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
-acceptOne2One usr conv conn = do
-  lusr <- qualifyLocal usr
-  lcid <- qualifyLocal cid
+acceptOne2One ::
+  Members
+    '[ ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error InternalError,
+       GundeckAccess,
+       Input UTCTime,
+       MemberStore
+     ]
+    r =>
+  Local UserId ->
+  Data.Conversation ->
+  Maybe ConnId ->
+  Sem r Data.Conversation
+acceptOne2One lusr conv conn = do
+  let lcid = qualifyAs lusr cid
   case Data.convType conv of
     One2OneConv ->
-      if usr `isMember` mems
+      if tUnqualified lusr `isMember` mems
         then return conv
         else do
-          mm <- Data.addMember lcid lusr
+          mm <- createMember lcid lusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
-      [_, _] | usr `isMember` mems -> promote
-      [_, _] -> throwErrorDescriptionType @ConvNotFound
+      [_, _] | tUnqualified lusr `isMember` mems -> promote
+      [_, _] -> throw ConvNotFound
       _ -> do
         when (length mems > 2) $
-          throwM badConvState
-        now <- liftIO getCurrentTime
-        mm <- Data.addMember lcid lusr
+          throw . BadConvState $ cid
+        now <- input
+        mm <- createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
-        conv' <- if isJust (find ((usr /=) . lmId) mems) then promote else pure conv
+        conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
+        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
-    _ -> throwM $ invalidOp "accept: invalid conversation type"
+    x -> throw . InvalidOp $ x
   where
     cid = Data.convId conv
     mems = Data.convLocalMembers conv
     promote = do
-      Data.acceptConnect cid
+      acceptConnectConversation cid
       return $ conv {Data.convType = One2OneConv}
-    badConvState =
-      mkError status500 "bad-state" $
-        "Connect conversation with more than 2 members: "
-          <> LT.pack (show cid)
 
 memberJoinEvent ::
   Local UserId ->
@@ -430,7 +432,7 @@ localBotsAndUsers = foldMap botOrUser
       Nothing -> ([], [m])
 
 location :: ToByteString a => a -> Response -> Response
-location = addHeader hLocation . toByteString'
+location = Wai.addHeader hLocation . toByteString'
 
 nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
 nonTeamMembers cm tm = filter (not . isMemberOfTeam . lmId) cm
@@ -449,84 +451,51 @@ membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
--- | Note that we use 2 nearly identical functions but slightly different
--- semantics; when using `getSelfMemberFromLocals`, if that user is _not_ part
--- of the conversation, we don't want to disclose that such a conversation with
--- that id exists.
 getSelfMemberFromLocals ::
-  (Foldable t, Monad m) =>
+  (Foldable t, Member (Error ConversationError) r) =>
   UserId ->
   t LocalMember ->
-  ExceptT ConvNotFound m LocalMember
-getSelfMemberFromLocals = getLocalMember (mkErrorDescription :: ConvNotFound)
-
--- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley monad.
-getSelfMemberFromLocalsLegacy ::
-  Foldable t =>
-  UserId ->
-  t LocalMember ->
-  Galley LocalMember
-getSelfMemberFromLocalsLegacy usr lmems =
-  eitherM throwErrorDescription pure . runExceptT $ getSelfMemberFromLocals usr lmems
+  Sem r LocalMember
+getSelfMemberFromLocals usr lmems =
+  getMember lmId ConvNotFound usr lmems
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
 ensureOtherMember ::
+  Member (Error ConversationError) r =>
   Local a ->
   Qualified UserId ->
   Data.Conversation ->
-  Galley (Either LocalMember RemoteMember)
+  Sem r (Either LocalMember RemoteMember)
 ensureOtherMember loc quid conv =
-  maybe (throwErrorDescriptionType @ConvMemberNotFound) pure $
-    (Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv))
-      <|> (Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv))
+  note ConvMemberNotFound $
+    Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv)
+      <|> Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv)
 
 getSelfMemberFromRemotes ::
-  (Foldable t, Monad m) =>
+  (Foldable t, Member (Error ConversationError) r) =>
   Remote UserId ->
   t RemoteMember ->
-  ExceptT ConvNotFound m RemoteMember
-getSelfMemberFromRemotes = getRemoteMember (mkErrorDescription :: ConvNotFound)
-
-getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
-getSelfMemberFromRemotesLegacy usr rmems =
-  eitherM throwErrorDescription pure . runExceptT $
-    getSelfMemberFromRemotes usr rmems
-
--- | Since we search by local user ID, we know that the member must be local.
-getLocalMember ::
-  (Foldable t, Monad m) =>
-  e ->
-  UserId ->
-  t LocalMember ->
-  ExceptT e m LocalMember
-getLocalMember = getMember lmId
-
--- | Since we search by remote user ID, we know that the member must be remote.
-getRemoteMember ::
-  (Foldable t, Monad m) =>
-  e ->
-  Remote UserId ->
-  t RemoteMember ->
-  ExceptT e m RemoteMember
-getRemoteMember = getMember rmId
+  Sem r RemoteMember
+getSelfMemberFromRemotes usr rmems =
+  getMember rmId ConvNotFound usr rmems
 
 getQualifiedMember ::
-  Monad m =>
+  Member (Error e) r =>
   Local x ->
   e ->
   Qualified UserId ->
   Data.Conversation ->
-  ExceptT e m (Either LocalMember RemoteMember)
+  Sem r (Either LocalMember RemoteMember)
 getQualifiedMember loc e qusr conv =
   foldQualified
     loc
-    (\lusr -> Left <$> getLocalMember e (tUnqualified lusr) (Data.convLocalMembers conv))
-    (\rusr -> Right <$> getRemoteMember e rusr (Data.convRemoteMembers conv))
+    (\lusr -> Left <$> getMember lmId e (tUnqualified lusr) (Data.convLocalMembers conv))
+    (\rusr -> Right <$> getMember rmId e rusr (Data.convRemoteMembers conv))
     qusr
 
 getMember ::
-  (Foldable t, Eq userId, Monad m) =>
+  (Foldable t, Eq userId, Member (Error e) r) =>
   -- | A projection from a member type to its user ID
   (mem -> userId) ->
   -- | An error to throw in case the user is not in the list
@@ -535,33 +504,34 @@ getMember ::
   userId ->
   -- | A list of members to search
   t mem ->
-  ExceptT e m mem
-getMember p ex u = hoistEither . note ex . find ((u ==) . p)
+  Sem r mem
+getMember p ex u = note ex . find ((u ==) . p)
 
-getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
-getConversationAndCheckMembership uid cnv = do
+getConversationAndCheckMembership ::
+  Members '[ConversationStore, Error ConversationError] r =>
+  UserId ->
+  Local ConvId ->
+  Sem r Data.Conversation
+getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
-      (errorDescriptionTypeToWai @ConvAccessDenied)
+      ConvAccessDenied
       uid
-      cnv
+      lcnv
   pure conv
 
 getConversationAndMemberWithError ::
-  IsConvMemberId uid mem =>
-  Error ->
+  (Members '[ConversationStore, Error ConversationError] r, IsConvMemberId uid mem) =>
+  ConversationError ->
   uid ->
-  ConvId ->
-  Galley (Data.Conversation, mem)
-getConversationAndMemberWithError ex usr convId = do
-  c <- Data.conversation convId >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+  Local ConvId ->
+  Sem r (Data.Conversation, mem)
+getConversationAndMemberWithError ex usr lcnv = do
+  c <- getConversation (tUnqualified lcnv) >>= note ConvNotFound
   when (DataTypes.isConvDeleted c) $ do
-    Data.deleteConversation convId
-    throwErrorDescriptionType @ConvNotFound
-  loc <- qualifyLocal ()
-  member <-
-    either throwM pure . note ex $
-      getConvMember loc c usr
+    deleteConversation (tUnqualified lcnv)
+    throw ConvNotFound
+  member <- note ex $ getConvMember lcnv c usr
   pure (c, member)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
@@ -582,88 +552,75 @@ canDeleteMember deleter deletee
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
 -- | Send an event to local users and bots
-pushConversationEvent :: Foldable f => Maybe ConnId -> Event -> f UserId -> f BotMember -> Galley ()
-pushConversationEvent conn e users bots = do
-  localDomain <- viewFederationDomain
-  for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
+pushConversationEvent ::
+  (Members '[GundeckAccess, ExternalAccess] r, Foldable f) =>
+  Maybe ConnId ->
+  Event ->
+  Local (f UserId) ->
+  f BotMember ->
+  Sem r ()
+pushConversationEvent conn e lusers bots = do
+  for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
     push1 $ p & set pushConn conn
-  void . forkIO $ void $ External.deliver (toList bots `zip` repeat e)
+  deliverAsync (toList bots `zip` repeat e)
 
-verifyReusableCode :: ConversationCode -> Galley DataTypes.Code
+verifyReusableCode ::
+  Members '[CodeStore, Error CodeError] r =>
+  ConversationCode ->
+  Sem r DataTypes.Code
 verifyReusableCode convCode = do
   c <-
-    Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode
-      >>= ifNothing (errorDescriptionTypeToWai @CodeNotFound)
+    getCode (conversationKey convCode) DataTypes.ReusableCode
+      >>= note CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    throwM (errorDescriptionTypeToWai @CodeNotFound)
+    throw CodeNotFound
   return c
 
-ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation
+ensureConversationAccess ::
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ConversationError,
+       Error NotATeamMember,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  ConvId ->
+  Access ->
+  Sem r Data.Conversation
 ensureConversationAccess zusr cnv access = do
-  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+  conv <-
+    getConversation cnv >>= note ConvNotFound
   ensureAccess conv access
-  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
+  zusrMembership <-
+    maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   pure conv
 
-ensureAccess :: Data.Conversation -> Access -> Galley ()
+ensureAccess ::
+  Member (Error ConversationError) r =>
+  Data.Conversation ->
+  Access ->
+  Sem r ()
 ensureAccess conv access =
   unless (access `elem` Data.convAccess conv) $
-    throwErrorDescriptionType @ConvAccessDenied
+    throw ConvAccessDenied
+
+ensureLocal :: Member (Error FederationError) r => Local x -> Qualified a -> Sem r (Local a)
+ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
 
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m Domain
-viewFederationDomain = view (options . optSettings . setFederationDomain)
+qualifyLocal :: Member (Input (Local ())) r => a -> Sem r (Local a)
+qualifyLocal a = toLocalUnsafe <$> fmap getDomain input <*> pure a
+  where
+    getDomain :: Local () -> Domain
+    getDomain = tDomain
 
-qualifyLocal :: MonadReader Env m => a -> m (Local a)
-qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
-
-checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
-checkRemoteUsersExist =
-  -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
-  traverse_ checkRemotesFor . bucketRemote
-
-checkRemotesFor :: Remote [UserId] -> Galley ()
-checkRemotesFor (qUntagged -> Qualified uids domain) = do
-  let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-  users <- runFederatedBrig domain rpc
-  let uids' =
-        map
-          (qUnqualified . User.profileQualifiedId)
-          (filter (not . User.profileDeleted) users)
-  unless (Set.fromList uids == Set.fromList uids') $
-    throwM unknownRemoteUser
-
-type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley) a
-
-runFederatedGalley :: Domain -> FederatedGalleyRPC 'Galley a -> Galley a
-runFederatedGalley = runFederated @'Galley
-
-runFederatedBrig :: Domain -> FederatedGalleyRPC 'Brig a -> Galley a
-runFederatedBrig = runFederated @'Brig
-
-runFederated :: forall (c :: Component) a. Domain -> FederatorClient c (ExceptT FederationClientFailure Galley) a -> Galley a
-runFederated remoteDomain rpc = do
-  runExceptT (executeFederated remoteDomain rpc)
-    >>= either (throwM . federationErrorToWai) pure
-
-runFederatedConcurrently ::
-  (Foldable f, Functor f) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatedGalleyRPC c b) ->
-  Galley [Remote b]
-runFederatedConcurrently xs rpc =
-  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
-    qualifyAs r <$> runFederated (tDomain r) (rpc r)
-
-runFederatedConcurrently_ ::
-  (Foldable f, Functor f) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatedGalleyRPC c ()) ->
-  Galley ()
-runFederatedConcurrently_ xs = void . runFederatedConcurrently xs
+runLocalInput :: Local x -> Sem (Input (Local ()) ': r) a -> Sem r a
+runLocalInput = runInputConst . void
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
 -- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
@@ -690,7 +647,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       rcCnvAccess = convAccess,
       rcCnvAccessRole = convAccessRole,
       rcCnvName = convName,
-      rcMembers = toMembers convLocalMembers convRemoteMembers,
+      rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = convMessageTimer,
       rcReceiptMode = convReceiptMode
     }
@@ -714,7 +671,7 @@ fromNewRemoteConversation ::
   NewRemoteConversation (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
-  let membersView = fmap (second Set.toList) . setHoles $ rcMembers
+  let membersView = fmap (second Set.toList) . setHoles $ rcNonCreatorMembers
       creatorOther =
         OtherMember
           (qUntagged (rcRemoteOrigUserId rc))
@@ -735,7 +692,7 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
     toMember :: OtherMember -> Public.Member
     toMember m =
       Public.Member
-        { memId = qUnqualified . omQualifiedId $ m,
+        { memId = omQualifiedId m,
           memService = omService m,
           memOtrMutedStatus = Nothing,
           memOtrMutedRef = Nothing,
@@ -767,17 +724,18 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::
+  Member FederatorAccess r =>
   -- | The time stamp when the conversation was created
   UTCTime ->
   -- | The domain of the user that created the conversation
   Domain ->
   Data.Conversation ->
-  Galley ()
+  Sem r ()
 registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->
-    FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
+    onConversationCreated clientRoutes rc
 
 --------------------------------------------------------------------------------
 -- Legalhold
@@ -799,54 +757,89 @@ consentGiven = \case
   UserLegalHoldEnabled -> ConsentGiven
   UserLegalHoldNoConsent -> ConsentNotGiven
 
-checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
+checkConsent ::
+  Member TeamStore r =>
+  Map UserId TeamId ->
+  UserId ->
+  Sem r ConsentGiven
 checkConsent teamsOfUsers other = do
   consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
 
 -- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
 -- doesn't belong to a team.
-getLHStatus :: Maybe TeamId -> UserId -> Galley UserLegalHoldStatus
+getLHStatus ::
+  Member TeamStore r =>
+  Maybe TeamId ->
+  UserId ->
+  Sem r UserLegalHoldStatus
 getLHStatus teamOfUser other = do
   case teamOfUser of
     Nothing -> pure defUserLegalHoldStatus
     Just team -> do
-      mMember <- Data.teamMember team other
+      mMember <- getTeamMember team other
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
-anyLegalholdActivated :: [UserId] -> Galley Bool
+anyLegalholdActivated ::
+  Members '[Input Opts, TeamStore] r =>
+  [UserId] ->
+  Sem r Bool
 anyLegalholdActivated uids = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+  opts <- input
+  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
   where
     check = do
       flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsOfUsers <- Data.usersTeams uidsPage
+        teamsOfUsers <- getUsersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
-allLegalholdConsentGiven :: [UserId] -> Galley Bool
+allLegalholdConsentGiven ::
+  Members '[Input Opts, LegalHoldStore, TeamStore] r =>
+  [UserId] ->
+  Sem r Bool
 allLegalholdConsentGiven uids = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+  opts <- input
+  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsOfUsers <- Data.usersTeams uidsPage
+        teamsOfUsers <- getUsersTeams uidsPage
         allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       -- For this feature the implementation is more efficient. Being part of
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
-        allM isTeamLegalholdWhitelisted teamsPage
+        teamsPage <- nub . Map.elems <$> getUsersTeams uidsPage
+        allM (isTeamLegalholdWhitelisted) teamsPage
 
 -- | Add to every uid the legalhold status
-getLHStatusForUsers :: [UserId] -> Galley [(UserId, UserLegalHoldStatus)]
+getLHStatusForUsers ::
+  Member TeamStore r =>
+  [UserId] ->
+  Sem r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
   mconcat
     <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
-            teamsOfUsers <- Data.usersTeams uidsChunk
+            teamsOfUsers <- getUsersTeams uidsChunk
             for uidsChunk $ \uid -> do
               (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
         )
+
+getTeamMembersForFanout :: Member TeamStore r => TeamId -> Sem r TeamMemberList
+getTeamMembersForFanout tid = do
+  lim <- fanoutLimit
+  getTeamMembersWithLimit tid lim
+
+ensureMemberLimit ::
+  (Foldable f, Members '[Error ConversationError, Input Opts] r) =>
+  [LocalMember] ->
+  f a ->
+  Sem r ()
+ensureMemberLimit old new = do
+  o <- input
+  let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
+  when (length old + length new > maxSize) $
+    throw TooManyMembers

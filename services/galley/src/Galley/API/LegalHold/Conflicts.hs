@@ -19,22 +19,24 @@ module Galley.API.LegalHold.Conflicts where
 
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
-import Control.Monad.Error.Class (throwError)
-import Control.Monad.Trans.Except (runExceptT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.Map as Map
 import Data.Misc
+import Data.Qualified
 import qualified Data.Set as Set
 import Galley.API.Util
-import Galley.App
-import qualified Galley.Data as Data
-import qualified Galley.Intra.Client as Intra
-import Galley.Intra.User (getUser)
+import Galley.Effects
+import Galley.Effects.BrigAccess
+import Galley.Effects.TeamStore
 import Galley.Options
 import Galley.Types.Teams hiding (self)
 import Imports
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Team.LegalHold
 import Wire.API.User
@@ -42,9 +44,21 @@ import Wire.API.User.Client as Client
 
 data LegalholdConflicts = LegalholdConflicts
 
-guardQualifiedLegalholdPolicyConflicts :: LegalholdProtectee -> QualifiedUserClients -> Galley (Either LegalholdConflicts ())
+guardQualifiedLegalholdPolicyConflicts ::
+  Members
+    '[ BrigAccess,
+       Error LegalholdConflicts,
+       Input (Local ()),
+       Input Opts,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  LegalholdProtectee ->
+  QualifiedUserClients ->
+  Sem r ()
 guardQualifiedLegalholdPolicyConflicts protectee qclients = do
-  localDomain <- viewFederationDomain
+  localDomain <- tDomain <$> qualifyLocal ()
   guardLegalholdPolicyConflicts protectee
     . UserClients
     . Map.findWithDefault mempty localDomain
@@ -57,18 +71,41 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 --
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
-guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley (Either LegalholdConflicts ())
-guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure . pure $ ()
-guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure . pure $ ()
+guardLegalholdPolicyConflicts ::
+  Members
+    '[ BrigAccess,
+       Error LegalholdConflicts,
+       Input Opts,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  LegalholdProtectee ->
+  UserClients ->
+  Sem r ()
+guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure ()
+guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+  opts <- input
+  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
-      FutureWork () -> pure . pure $ () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
+      FutureWork () -> pure () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
 
-guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley (Either LegalholdConflicts ())
-guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
+guardLegalholdPolicyConflictsUid ::
+  forall r.
+  Members
+    '[ BrigAccess,
+       Error LegalholdConflicts,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  UserId ->
+  UserClients ->
+  Sem r ()
+guardLegalholdPolicyConflictsUid self otherClients = do
   let otherCids :: [ClientId]
       otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
 
@@ -76,7 +113,7 @@ guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
       otherUids = nub $ Map.keys . userClients $ otherClients
 
   when (nub otherUids /= [self {- if all other clients belong to us, there can be no conflict -}]) $ do
-    allClients :: UserClientsFull <- lift $ Intra.lookupClientsFull (nub $ self : otherUids)
+    allClients :: UserClientsFull <- lookupClientsFull (nub $ self : otherUids)
 
     let selfClients :: [Client.Client] =
           allClients
@@ -111,34 +148,33 @@ guardLegalholdPolicyConflictsUid self otherClients = runExceptT $ do
                 . Client.fromClientCapabilityList
                 . Client.clientCapabilities
 
-        checkConsentMissing :: Galley Bool
+        checkConsentMissing :: Sem r Bool
         checkConsentMissing = do
           -- (we could also get the profile from brig.  would make the code slightly more
           -- concise, but not really help with the rpc back-and-forth, so, like, why?)
           mbUser <- accountUser <$$> getUser self
-          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`Data.teamMember` self)
+          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`getTeamMember` self)
           let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
           pure (lhStatus == UserLegalHoldNoConsent)
 
-    lift $
-      Log.debug $
-        Log.field "self" (toByteString' self)
-          Log.~~ Log.field "otherClients" (toByteString' $ show otherClients)
-          Log.~~ Log.field "otherClientHasLH" (toByteString' otherClientHasLH)
-          Log.~~ Log.field "checkSelfHasOldClients" (toByteString' checkSelfHasOldClients)
-          Log.~~ Log.field "checkSelfHasLHClients" (toByteString' checkSelfHasLHClients)
-          Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
+    P.debug $
+      Log.field "self" (toByteString' self)
+        Log.~~ Log.field "otherClients" (toByteString' $ show otherClients)
+        Log.~~ Log.field "otherClientHasLH" (toByteString' otherClientHasLH)
+        Log.~~ Log.field "checkSelfHasOldClients" (toByteString' checkSelfHasOldClients)
+        Log.~~ Log.field "checkSelfHasLHClients" (toByteString' checkSelfHasLHClients)
+        Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
 
     -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
     when otherClientHasLH $ do
       when checkSelfHasOldClients $ do
-        lift $ Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: old clients" :: Text)
-        throwError LegalholdConflicts
+        P.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: old clients" :: Text)
+        throw LegalholdConflicts
 
       unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
-        whenM (lift checkConsentMissing) $ do
+        whenM checkConsentMissing $ do
           -- We assume this is impossible, since conversations are automatically
           -- blocked if LH consent is missing of any participant.
           -- We add this check here as an extra failsafe.
-          lift $ Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
-          throwError LegalholdConflicts
+          P.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
+          throw LegalholdConflicts

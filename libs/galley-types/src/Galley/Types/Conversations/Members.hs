@@ -22,6 +22,8 @@ module Galley.Types.Conversations.Members
     remoteMemberToOther,
     LocalMember (..),
     localMemberToOther,
+    newMember,
+    newMemberWithRole,
     MemberStatus (..),
     defMemberStatus,
   )
@@ -32,7 +34,7 @@ import Data.Id as Id
 import Data.Qualified
 import Imports
 import Wire.API.Conversation
-import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Provider.Service (ServiceRef)
 
 -- | Internal (cassandra) representation of a remote conversation member.
@@ -58,6 +60,18 @@ data LocalMember = LocalMember
     lmConvRoleName :: RoleName
   }
   deriving stock (Show)
+
+newMember :: UserId -> LocalMember
+newMember u = newMemberWithRole (u, roleNameWireAdmin)
+
+newMemberWithRole :: (UserId, RoleName) -> LocalMember
+newMemberWithRole (u, r) =
+  LocalMember
+    { lmId = u,
+      lmService = Nothing,
+      lmStatus = defMemberStatus,
+      lmConvRoleName = r
+    }
 
 localMemberToOther :: Domain -> LocalMember -> OtherMember
 localMemberToOther domain x =

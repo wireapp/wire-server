@@ -23,15 +23,18 @@
 module Arbitrary where
 
 import Data.Aeson
-import Data.Id ()
+import Data.Id (TeamId)
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger hiding (Header (..))
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
+import SAML2.WebSSO.Types
 import Servant.API.ContentTypes
 import Spar.Scim
+import qualified Spar.Sem.IdP as E
 import Test.QuickCheck
+import URI.ByteString
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 
@@ -85,3 +88,30 @@ instance ToJSON NoContent where
 
 instance ToSchema NoContent where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance Arbitrary E.Replacing where
+  arbitrary = E.Replacing <$> arbitrary
+
+instance Arbitrary E.Replaced where
+  arbitrary = E.Replaced <$> arbitrary
+
+instance CoArbitrary a => CoArbitrary (E.GetIdPResult a)
+
+instance CoArbitrary IdPId
+
+instance CoArbitrary WireIdP
+
+instance CoArbitrary WireIdPAPIVersion
+
+instance CoArbitrary TeamId
+
+instance CoArbitrary Issuer where
+  coarbitrary (Issuer ur) = coarbitrary $ show ur
+
+instance CoArbitrary a => CoArbitrary (URIRef a) where
+  coarbitrary = coarbitrary . show
+
+instance CoArbitrary (IdPConfig WireIdP)
+
+instance CoArbitrary IdPMetadata where
+  coarbitrary = coarbitrary . show

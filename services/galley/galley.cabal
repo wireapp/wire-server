@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1daf2eec8d6d9666168a442a3c2856c2d453361e3bbffcc4a17c55d8bbf914f4
+-- hash: 7b6d6110c4a94aa87c7d65d1e004acb6cbc1ce6775be39cde27ff7e5eca83f59
 
 name:           galley
 version:        0.83.0
@@ -25,6 +25,7 @@ flag static
 library
   exposed-modules:
       Galley.API
+      Galley.API.Action
       Galley.API.Clients
       Galley.API.Create
       Galley.API.CustomBackend
@@ -45,29 +46,79 @@ library
       Galley.API.Util
       Galley.App
       Galley.Aws
-      Galley.Data
-      Galley.Data.CustomBackend
-      Galley.Data.Instances
-      Galley.Data.LegalHold
-      Galley.Data.Queries
-      Galley.Data.SearchVisibility
+      Galley.Cassandra
+      Galley.Cassandra.Access
+      Galley.Cassandra.Client
+      Galley.Cassandra.Code
+      Galley.Cassandra.Conversation
+      Galley.Cassandra.Conversation.Members
+      Galley.Cassandra.ConversationList
+      Galley.Cassandra.CustomBackend
+      Galley.Cassandra.Instances
+      Galley.Cassandra.LegalHold
+      Galley.Cassandra.Paging
+      Galley.Cassandra.Queries
+      Galley.Cassandra.ResultSet
+      Galley.Cassandra.SearchVisibility
+      Galley.Cassandra.Services
+      Galley.Cassandra.Store
+      Galley.Cassandra.Team
+      Galley.Cassandra.TeamFeatures
+      Galley.Cassandra.TeamNotifications
+      Galley.Data.Conversation
+      Galley.Data.Conversation.Types
+      Galley.Data.Scope
       Galley.Data.Services
       Galley.Data.TeamFeatures
       Galley.Data.TeamNotifications
       Galley.Data.Types
+      Galley.Effects
+      Galley.Effects.BotAccess
+      Galley.Effects.BrigAccess
+      Galley.Effects.ClientStore
+      Galley.Effects.CodeStore
+      Galley.Effects.ConversationStore
+      Galley.Effects.CustomBackendStore
+      Galley.Effects.ExternalAccess
+      Galley.Effects.FederatorAccess
+      Galley.Effects.FireAndForget
+      Galley.Effects.GundeckAccess
+      Galley.Effects.LegalHoldStore
+      Galley.Effects.ListItems
+      Galley.Effects.MemberStore
+      Galley.Effects.Paging
+      Galley.Effects.Queue
+      Galley.Effects.RemoteConversationListStore
+      Galley.Effects.SearchVisibilityStore
+      Galley.Effects.ServiceStore
+      Galley.Effects.SparAccess
+      Galley.Effects.TeamFeatureStore
+      Galley.Effects.TeamMemberStore
+      Galley.Effects.TeamNotificationStore
+      Galley.Effects.TeamStore
+      Galley.Effects.WaiRoutes
+      Galley.Effects.WaiRoutes.IO
+      Galley.Env
       Galley.External
       Galley.External.LegalHoldService
+      Galley.External.LegalHoldService.Internal
+      Galley.External.LegalHoldService.Types
       Galley.Intra.Client
+      Galley.Intra.Effects
+      Galley.Intra.Federator
       Galley.Intra.Journal
       Galley.Intra.Push
+      Galley.Intra.Push.Internal
       Galley.Intra.Spar
       Galley.Intra.Team
       Galley.Intra.User
       Galley.Intra.Util
+      Galley.Monad
       Galley.Options
       Galley.Queue
       Galley.Run
       Galley.Types.Clients
+      Galley.Types.ToUserRole
       Galley.Types.UserList
       Galley.Validation
       Main
@@ -112,7 +163,6 @@ library
     , http-client-tls >=0.2.2
     , http-media
     , http-types >=0.8
-    , http2-client-grpc
     , imports
     , insert-ordered-containers
     , lens >=4.4
@@ -121,6 +171,8 @@ library
     , mtl >=2.2
     , optparse-applicative >=0.10
     , pem
+    , polysemy
+    , polysemy-wire-zoo
     , proto-lens >=0.2
     , protobuf >=0.2
     , raw-strings-qq >=1.0
@@ -131,6 +183,7 @@ library
     , saml2-web-sso >=0.18
     , servant
     , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
     , servant-swagger-ui
@@ -146,7 +199,7 @@ library
     , time >=1.4
     , tinylog >=0.10
     , tls >=1.3.10
-    , transformers >=0.3
+    , transformers
     , types-common >=0.16
     , types-common-journal >=0.1
     , unliftio >=0.2
@@ -186,6 +239,7 @@ executable galley
     , servant-client
     , ssl-util
     , tagged
+    , transformers
     , types-common
     , wire-api
     , wire-api-federation
@@ -236,13 +290,13 @@ executable galley-integration
     , cereal
     , containers
     , cookie
-    , cql-io
     , currency-codes
     , data-timeout
     , errors
     , exceptions
     , extended
     , extra >=1.3
+    , federator
     , galley
     , galley-types
     , gundeck-types
@@ -283,6 +337,7 @@ executable galley-integration
     , time
     , tinylog
     , tls >=1.3.8
+    , transformers
     , types-common
     , types-common-journal
     , unliftio
@@ -334,6 +389,7 @@ executable galley-migrate-data
     , text
     , time
     , tinylog
+    , transformers
     , types-common
     , unliftio
     , wire-api
@@ -379,6 +435,9 @@ executable galley-schema
       V51_FeatureFileSharing
       V52_FeatureConferenceCalling
       V53_AddRemoteConvStatus
+      V54_TeamFeatureSelfDeletingMessages
+      V55_SelfDeletingMessagesLockStatus
+      V56_GuestLinksTeamFeatureStatus
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -400,13 +459,14 @@ executable galley-schema
     , tagged
     , text
     , tinylog
+    , transformers
     , wire-api
     , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
 
-test-suite galley-types-tests
+test-suite galley-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
@@ -444,6 +504,7 @@ test-suite galley-types-tests
     , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
+    , transformers
     , types-common
     , wai
     , wai-predicates

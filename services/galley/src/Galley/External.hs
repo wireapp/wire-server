@@ -15,48 +15,68 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.External
-  ( deliver,
-  )
-where
+module Galley.External (interpretExternalAccess) where
 
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
 import Control.Lens
 import Control.Retry
 import Data.ByteString.Conversion.To
+import Data.Id
 import Data.Misc
-import Galley.App
+import Galley.Cassandra.Services
 import Galley.Data.Services (BotMember, botMemId, botMemService)
-import qualified Galley.Data.Services as Data
+import Galley.Effects
+import Galley.Effects.ExternalAccess (ExternalAccess (..))
+import Galley.Env
+import Galley.Intra.User
+import Galley.Monad
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
+import Polysemy
+import Polysemy.Input
 import Ssl.Util (withVerifiedSslConnection)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 
--- | Deliver events to external (bot) services.
+interpretExternalAccess ::
+  Members '[Embed IO, Input Env] r =>
+  Sem (ExternalAccess ': r) a ->
+  Sem r a
+interpretExternalAccess = interpret $ \case
+  Deliver pp -> embedApp $ deliver (toList pp)
+  DeliverAsync pp -> embedApp $ deliverAsync (toList pp)
+  DeliverAndDeleteAsync cid pp -> embedApp $ deliverAndDeleteAsync cid (toList pp)
+
+-- | Like deliver, but ignore orphaned bots and return immediately.
 --
--- Returns those bots which are found to be orphaned by the external
--- service, e.g. when the service tells us that it no longer knows about the
--- bot.
-deliver :: [(BotMember, Event)] -> Galley [BotMember]
+-- FUTUREWORK: Check if this can be removed.
+deliverAsync :: [(BotMember, Event)] -> App ()
+deliverAsync = void . forkIO . void . deliver
+
+-- | Like deliver, but remove orphaned bots and return immediately.
+deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> App ()
+deliverAndDeleteAsync cnv pushes = void . forkIO $ do
+  gone <- deliver pushes
+  mapM_ (deleteBot cnv . botMemId) gone
+
+deliver :: [(BotMember, Event)] -> App [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> Galley Bool
+    exec :: (BotMember, Event) -> App Bool
     exec (b, e) =
-      Data.lookupService (botMemService b) >>= \case
+      lookupService (botMemService b) >>= \case
         Nothing -> return False
         Just s -> do
           deliver1 s b e
           return True
-    eval :: [BotMember] -> (BotMember, Async Bool) -> Galley [BotMember]
+    eval :: [BotMember] -> (BotMember, Async Bool) -> App [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
       r <- waitCatch a
@@ -95,7 +115,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> Galley ()
+deliver1 :: Service -> BotMember -> Event -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
     let t = toByteString' (s ^. serviceToken)
@@ -125,7 +145,7 @@ urlPort (HttpsUrl u) = do
   p <- a ^. authorityPortL
   return (fromIntegral (p ^. portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley ()
+sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->

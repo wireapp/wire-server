@@ -159,12 +159,10 @@ curl -X GET \
 
 ### get all users
 
-```bash
-curl -X GET \
-  --header "Authorization: Bearer $SCIM_TOKEN" \
-  --header 'Content-Type: application/json;charset=utf-8' \
-  $WIRE_BACKEND/scim/v2/Users/
-```
+There is a way to do this in the SCIM protocol, but it's not
+implemented in wire for performance reasons. If you need a complete
+list of your team members, try the CSV download button in the team
+management app.
 
 ### update user
 

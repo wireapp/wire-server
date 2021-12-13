@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e1e1abfd9d2fd00bd96a693a9466a13e0b7aef15677f0506941f662094a340a1
+-- hash: 34138a2c7fa249191ae03bc1581a7c95c94b12080f104da084a9bc37ac54c9ad
 
 name:           spar
 version:        0.1
@@ -38,22 +38,30 @@ library
       Spar.Scim.User
       Spar.Sem.AReqIDStore
       Spar.Sem.AReqIDStore.Cassandra
+      Spar.Sem.AReqIDStore.Mem
       Spar.Sem.AssIDStore
       Spar.Sem.AssIDStore.Cassandra
+      Spar.Sem.AssIDStore.Mem
       Spar.Sem.BindCookieStore
       Spar.Sem.BindCookieStore.Cassandra
+      Spar.Sem.BindCookieStore.Mem
       Spar.Sem.BrigAccess
       Spar.Sem.BrigAccess.Http
       Spar.Sem.DefaultSsoCode
       Spar.Sem.DefaultSsoCode.Cassandra
+      Spar.Sem.DefaultSsoCode.Mem
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
       Spar.Sem.IdP
       Spar.Sem.IdP.Cassandra
       Spar.Sem.IdP.Mem
+      Spar.Sem.IdPRawMetadataStore
+      Spar.Sem.IdPRawMetadataStore.Cassandra
+      Spar.Sem.IdPRawMetadataStore.Mem
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
       Spar.Sem.Now
+      Spar.Sem.Now.Input
       Spar.Sem.Now.IO
       Spar.Sem.Random
       Spar.Sem.Random.IO
@@ -65,12 +73,19 @@ library
       Spar.Sem.SamlProtocolSettings.Servant
       Spar.Sem.SAMLUserStore
       Spar.Sem.SAMLUserStore.Cassandra
+      Spar.Sem.SAMLUserStore.Mem
       Spar.Sem.ScimExternalIdStore
       Spar.Sem.ScimExternalIdStore.Cassandra
+      Spar.Sem.ScimExternalIdStore.Mem
       Spar.Sem.ScimTokenStore
       Spar.Sem.ScimTokenStore.Cassandra
+      Spar.Sem.ScimTokenStore.Mem
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
+      Spar.Sem.ScimUserTimesStore.Mem
+      Spar.Sem.VerdictFormatStore
+      Spar.Sem.VerdictFormatStore.Cassandra
+      Spar.Sem.VerdictFormatStore.Mem
   other-modules:
       Paths_spar
   hs-source-dirs:
@@ -499,6 +514,8 @@ test-suite spec
       Test.Spar.Intra.BrigSpec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
+      Test.Spar.Sem.IdPRawMetadataStoreSpec
+      Test.Spar.Sem.IdPSpec
       Test.Spar.TypesSpec
       Paths_spar
   hs-source-dirs:
@@ -547,6 +564,7 @@ test-suite spec
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check
     , polysemy-plugin
     , raw-strings-qq
     , retry

@@ -14,19 +14,21 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
+- aeson
 - base
 - bytestring
+- cassandra-util
+- containers
+- exceptions
 - extra
-- aeson
 - imports
 - optparse-applicative
 - tinylog
-- cql-io
-- exceptions
 
 # for servant's 'ReqBodyCustomError' type defined here.
 - errors
 - http-types
+- metrics-wai
 - servant
 - servant-server
 - servant-swagger
@@ -34,4 +36,17 @@ dependencies:
 - wai
 library:
   source-dirs: src
+tests:
+  extended-tests:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    dependencies:
+    - hspec
+    - extended
+    - temporary
+    build-tools:
+    - hspec-discover:hspec-discover
 stability: experimental

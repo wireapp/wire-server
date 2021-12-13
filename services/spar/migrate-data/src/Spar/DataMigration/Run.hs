@@ -100,7 +100,7 @@ latestMigrationVersion Env {..} =
   MigrationVersion . maybe 0 fromIntegral
     <$> C.runClient
       sparCassandra
-      (C.query1 cql (C.params C.Quorum ()))
+      (C.query1 cql (C.params C.LocalQuorum ()))
   where
     cql :: C.QueryString C.R () (Identity Int32)
     cql = "select version from data_migration where id=1 order by version desc limit 1"
@@ -108,7 +108,7 @@ latestMigrationVersion Env {..} =
 persistVersion :: Env -> MigrationVersion -> Text -> UTCTime -> IO ()
 persistVersion Env {..} (MigrationVersion v) desc time =
   C.runClient sparCassandra $
-    C.write cql (C.params C.Quorum (fromIntegral v, desc, time))
+    C.write cql (C.params C.LocalQuorum (fromIntegral v, desc, time))
   where
     cql :: C.QueryString C.W (Int32, Text, UTCTime) ()
     cql = "insert into data_migration (id, version, descr, date) values (1,?,?,?)"

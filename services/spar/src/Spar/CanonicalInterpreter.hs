@@ -26,6 +26,8 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
+import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
+import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Spar.Sem.Now (Now)
@@ -46,6 +48,8 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
+import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
 
@@ -55,11 +59,13 @@ type CanonicalEffs =
      BindCookieStore,
      AssIDStore,
      AReqIDStore,
+     VerdictFormatStore,
      ScimExternalIdStore,
      ScimUserTimesStore,
      ScimTokenStore,
      DefaultSsoCode,
      IdPEffect.IdP,
+     IdPRawMetadataStore,
      SAMLUserStore,
      Embed (Cas.Client),
      BrigAccess,
@@ -95,11 +101,13 @@ runSparToIO ctx action =
     . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
     . interpretClientToIO (sparCtxCas ctx)
     . samlUserStoreToCassandra
+    . idpRawMetadataStoreToCassandra
     . idPToCassandra
     . defaultSsoCodeToCassandra
     . scimTokenStoreToCassandra
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
+    . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
     . assIDStoreToCassandra
     . bindCookieStoreToCassandra

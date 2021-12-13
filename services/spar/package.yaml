@@ -99,6 +99,7 @@ tests:
       - QuickCheck
       - spar
       - uri-bytestring
+      - polysemy-check
 
 executables:
   spar:

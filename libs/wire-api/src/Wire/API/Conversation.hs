@@ -441,7 +441,7 @@ data AccessRole
 instance ToSchema AccessRole where
   schema =
     (S.schema . description ?~ "Which users can join conversations") $
-      enum @Text "Access" $
+      enum @Text "AccessRole" $
         mconcat
           [ element "private" PrivateAccessRole,
             element "team" TeamAccessRole,

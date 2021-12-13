@@ -1,17 +1,27 @@
 # See defaults in https://github.com/helm/charts/tree/master/stable/minio
 minio:
+  mcImage:
+    repository: quay.io/minio/mc
+    tag: RELEASE.2021-10-07T04-19-58Z
+    pullPolicy: IfNotPresent
   fullnameOverride: fake-aws-s3
-  accessKey: dummykey
-  secretKey: dummysecret
+  service:
+    port: "9000"
+  mode: standalone
+  users:
+    - accessKey: dummykey
+      secretKey: dummysecret
+      policy: consoleAdmin
   persistence:
     enabled: false
   environment:
     MINIO_BROWSER: "off"
-  defaultBucket:
-    name: dummy-bucket
+  resources:
+    requests:
+      memory: 200Mi
   buckets:
     - name: dummy-bucket
-      purge: true
+      purge: false
       policy: none
     - name: assets
       purge: false

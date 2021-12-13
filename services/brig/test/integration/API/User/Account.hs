@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
+{-# LANGUAGE NumericUnderscores #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -16,6 +15,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.User.Account
   ( tests,
@@ -36,6 +36,7 @@ import Brig.Types.User.Auth hiding (user)
 import qualified Brig.Types.User.Auth as Auth
 import qualified CargoHold.Types.V3 as CHV3
 import Control.Arrow ((&&&))
+import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
@@ -45,12 +46,14 @@ import qualified Data.Aeson.Lens as AesonL
 import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import Data.Domain
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
+import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
@@ -61,9 +64,12 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
+import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports hiding (head)
+import qualified Network.HTTP.Types as Http
+import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -73,6 +79,9 @@ import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
+import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.User (ListUsersQuery (..))
 import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
@@ -129,10 +138,16 @@ tests _ at opts p b c ch g aws =
       test' aws p "delete/anonymous" $ testDeleteAnonUser b,
       test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
+      test' aws p "delete with connected remote users" $ testDeleteWithRemotes opts b,
+      test' aws p "delete with connected remote users and failed remote notifcations" $ testDeleteWithRemotesAndFailedNotifications opts b c,
       test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
       testGroup
         "temporary customer extensions"
         [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
+        ],
+      testGroup
+        "update user email by team owner"
+        [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
         ]
     ]
 
@@ -161,6 +176,51 @@ testCreateUserWithInvalidVerificationCode brig = do
             "email_code" .= code
           ]
   postUserRegister' regEmail brig !!! const 404 === statusCode
+
+testUpdateUserEmailByTeamOwner :: Brig -> Http ()
+testUpdateUserEmailByTeamOwner brig = do
+  (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  (teamOwnerDifferentTeam, _) <- createUserWithTeam' brig
+  newEmail <- randomEmail
+  initiateEmailUpdateNoSend brig newEmail (userId emailOwner) !!! (const 202 === statusCode)
+  checkActivationCode newEmail True
+  checkLetActivationExpire newEmail
+  checkActivationCode newEmail False
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail True
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  activateEmail brig newEmail
+  -- apparently activating the email does not invalidate the activation code
+  -- therefore we let the activation code expire again
+  checkLetActivationExpire newEmail
+  checkSetUserEmail teamOwner emailOwner newEmail 200
+  checkActivationCode newEmail False
+  checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
+  checkActivationCode newEmail False
+  where
+    checkLetActivationExpire :: Email -> Http ()
+    checkLetActivationExpire email = do
+      -- assumption: `optSettings.setActivationTimeout = 5` in `brig.yaml`
+      threadDelay (5100 * 1000)
+      checkActivationCode email False
+
+    checkActivationCode :: Email -> Bool -> Http ()
+    checkActivationCode email shouldExist = do
+      maybeActivationCode <- Util.getActivationCode brig (Left email)
+      void $
+        lift $
+          if shouldExist
+            then assertBool "activation code should exists" (isJust maybeActivationCode)
+            else assertBool "activation code should not exists" (isNothing maybeActivationCode)
+
+    checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
+    checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
+      setUserEmail brig (userId teamOwner) (userId emailOwner) email !!! (const expectedStatusCode === statusCode)
+
+    checkUnauthorizedRequests :: User -> User -> User -> Email -> Http ()
+    checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam email = do
+      setUserEmail brig (userId teamOwnerDifferentTeam) (userId emailOwner) email !!! (const 404 === statusCode)
+      setUserEmail brig (userId otherTeamMember) (userId emailOwner) email !!! (const 403 === statusCode)
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserWithPreverified opts brig aws = do
@@ -844,6 +904,9 @@ testPhoneUpdateBlacklisted brig = do
     const 200 === statusCode
     const (Right Nothing) === fmap userPhone . responseJsonEither
 
+  -- cleanup to avoid other tests failing sporadically
+  deletePrefix brig (phonePrefix prefix)
+
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateAccountPendingActivationKey _ brig = do
@@ -1171,7 +1234,7 @@ testDeleteUserByPassword brig cannon aws = do
     !!! const 200 === statusCode
   n1 <- countCookies brig uid1 defCookieLabel
   liftIO $ Just 1 @=? n1
-  setHandleAndDeleteUser brig cannon u [] aws $
+  setHandleAndDeleteUser brig cannon u [uid2, uid3] aws $
     \uid -> deleteUser uid (Just defPassword) brig !!! const 200 === statusCode
   -- Activating the new email address now should not work
   act <- getActivationCode brig (Left eml)
@@ -1243,9 +1306,6 @@ testDeleteInternal brig cannon aws = do
   setHandleAndDeleteUser brig cannon u [] aws $
     \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
 
--- Check that user deletion is also triggered
--- liftIO $ Util.assertUserJournalQueue "user deletion testDeleteInternal2: " aws (userDeleteJournaled $ userId u)
-
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
   uid <- userId <$> createAnonUser "anon" brig
@@ -1261,6 +1321,96 @@ testDeleteWithProfilePic brig cargohold = do
   deleteUser uid Nothing brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
   downloadAsset cargohold uid (toByteString' (ast ^. CHV3.assetKey)) !!! const 404 === statusCode
+
+testDeleteWithRemotes :: Opt.Opts -> Brig -> Http ()
+testDeleteWithRemotes opts brig = do
+  localUser <- randomUser brig
+
+  let remote1Domain = Domain "remote1.example.com"
+      remote2Domain = Domain "remote2.example.com"
+  remote1UserConnected <- Qualified <$> randomId <*> pure remote1Domain
+  remote1UserPending <- Qualified <$> randomId <*> pure remote1Domain
+  remote2UserBlocked <- Qualified <$> randomId <*> pure remote2Domain
+
+  sendConnectionAction brig opts (userId localUser) remote1UserConnected (Just FedBrig.RemoteConnect) Accepted
+  sendConnectionAction brig opts (userId localUser) remote1UserPending Nothing Sent
+  sendConnectionAction brig opts (userId localUser) remote2UserBlocked (Just FedBrig.RemoteConnect) Accepted
+  void $ putConnectionQualified brig (userId localUser) remote2UserBlocked Blocked
+
+  let fedMockResponse _ = pure (Aeson.encode EmptyResponse)
+  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
+      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
+        case (requestMethod, requestPath) of
+          (_methodDelete, ["i", "user"]) -> do
+            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
+            pure response
+          _ -> error "not mocked"
+
+  (_, rpcCalls, _galleyCalls) <- liftIO $
+    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
+      deleteUser (userId localUser) (Just defPassword) brig !!! do
+        const 200 === statusCode
+
+  liftIO $ do
+    remote1Call <- assertOne $ filter (\c -> frTargetDomain c == remote1Domain) rpcCalls
+    remote1Udn <- assertRight $ parseFedRequest remote1Call
+    udcnUser remote1Udn @?= userId localUser
+    sort (fromRange (udcnConnections remote1Udn))
+      @?= sort (map qUnqualified [remote1UserConnected, remote1UserPending])
+
+    remote2Call <- assertOne $ filter (\c -> frTargetDomain c == remote2Domain) rpcCalls
+    remote2Udn <- assertRight $ parseFedRequest remote2Call
+    udcnUser remote2Udn @?= userId localUser
+    fromRange (udcnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
+  where
+    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
+    parseFedRequest = eitherDecode . frBody
+
+testDeleteWithRemotesAndFailedNotifications :: Opt.Opts -> Brig -> Cannon -> Http ()
+testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
+  alice <- randomUser brig
+  alex <- randomUser brig
+  let localDomain = qDomain (userQualifiedId alice)
+
+  let bDomain = Domain "b.example.com"
+      cDomain = Domain "c.example.com"
+  bob <- Qualified <$> randomId <*> pure bDomain
+  carl <- Qualified <$> randomId <*> pure cDomain
+
+  postConnection brig (userId alice) (userId alex) !!! const 201 === statusCode
+  putConnection brig (userId alex) (userId alice) Accepted !!! const 200 === statusCode
+  sendConnectionAction brig opts (userId alice) bob (Just FedBrig.RemoteConnect) Accepted
+  sendConnectionAction brig opts (userId alice) carl (Just FedBrig.RemoteConnect) Accepted
+
+  let fedMockResponse req =
+        if frTargetDomain req == bDomain
+          then throw $ MockErrorResponse Http.status500 "mocked connection problem with b domain"
+          else pure (Aeson.encode EmptyResponse)
+
+  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
+      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
+        case (Http.parseMethod requestMethod, requestPath) of
+          (Right Http.DELETE, ["i", "user"]) -> do
+            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
+            pure response
+          _ -> error "not mocked"
+
+  (_, rpcCalls, _galleyCalls) <- WS.bracketR cannon (userId alex) $ \wsAlex -> do
+    let action = withMockedFederatorAndGalley opts localDomain fedMockResponse galleyHandler $ do
+          deleteUser (userId alice) (Just defPassword) brig !!! do
+            const 200 === statusCode
+    liftIO action <* do
+      void . liftIO . WS.assertMatch (5 # Second) wsAlex $ matchDeleteUserNotification (userQualifiedId alice)
+
+  liftIO $ do
+    rRpc <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
+    cUdn <- assertRight $ parseFedRequest rRpc
+    udcnUser cUdn @?= userId alice
+    sort (fromRange (udcnConnections cUdn))
+      @?= sort (map qUnqualified [carl])
+  where
+    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
+    parseFedRequest = eitherDecode . frBody
 
 testUpdateSSOId :: Brig -> Galley -> Http ()
 testUpdateSSOId brig galley = do
@@ -1414,12 +1564,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Delete the user
   WS.bracketRN cannon (uid : others) $ \wss -> do
     execDelete uid
-    void . liftIO . WS.assertMatchN (5 # Second) wss $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
-      let etype = j ^? key "type" . _String
-      let euser = j ^? key "id" . _String
-      etype @?= Just "user.delete"
-      euser @?= Just (UUID.toText (toUUID uid))
+    void . liftIO . WS.assertMatchN (5 # Second) wss $ matchDeleteUserNotification quid
     liftIO $ Util.assertUserJournalQueue "user deletion, setHandleAndDeleteUser: " aws (userDeleteJournaled uid)
   -- Cookies are gone
   n2 <- countCookies brig uid defCookieLabel

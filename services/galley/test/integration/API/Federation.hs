@@ -34,12 +34,16 @@ import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
-import Data.Qualified (Qualified (..))
+import Data.Qualified
+import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
+import Federator.MockServer (FederatedRequest (..))
 import Galley.Types
+import Galley.Types.Conversations.Intra
 import Gundeck.Types.Notification
 import Imports
 import Test.QuickCheck (arbitrary, generate)
@@ -51,9 +55,10 @@ import TestSetup
 import Wire.API.Conversation.Action (ConversationAction (..))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
-import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Federation.Component
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
@@ -77,47 +82,65 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about access update" notifyAccess,
       test s "POST /federation/on-conversation-updated : Notify local users about a deleted conversation" notifyDeletedConversation,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
+      test s "POST /federation/leave-conversation : Non-existent" leaveConversationNonExistent,
+      test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
-      test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
+      test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
+      test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted
     ]
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
-  bob <- randomUser
-
-  -- create & get group conv
-  aliceQ <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  bobQ <- randomQualifiedUser
+  let bob = qUnqualified bobQ
+      lBob = toLocalUnsafe (qDomain bobQ) (qUnqualified bobQ)
+  (rAlice, cnv1Id) <- generateRemoteAndConvId True lBob
+  let aliceQ = qUntagged rAlice
   carlQ <- randomQualifiedUser
 
   connectUsers bob (singleton (qUnqualified carlQ))
   connectWithRemoteUser bob aliceQ
 
+  -- create & get group conv
   cnv2 <-
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
         defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
-  getConvs bob (Just $ Left [qUnqualified (cnvQualifiedId cnv2)]) Nothing !!! do
-    const 200 === statusCode
-    const (Just (Just [cnvQualifiedId cnv2]))
-      === fmap (fmap (map cnvQualifiedId . convList)) . responseJsonMaybe
+  -- create a one-to-one conversation between bob and alice
+  do
+    let createO2O =
+          UpsertOne2OneConversationRequest
+            { uooLocalUser = lBob,
+              uooRemoteUser = rAlice,
+              uooActor = LocalActor,
+              uooActorDesiredMembership = Included,
+              uooConvId = Just cnv1Id
+            }
+    UpsertOne2OneConversationResponse cnv1IdReturned <-
+      responseJsonError
+        =<< iUpsertOne2OneConversation createO2O
+    liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
 
-  -- FUTUREWORK: also create a one2one conversation
+  getConvs bob (Just . Left . fmap qUnqualified $ [cnv1Id, cnvQualifiedId cnv2]) Nothing !!! do
+    const 200 === statusCode
+    const (Just . Just . sort $ [cnv1Id, cnvQualifiedId cnv2])
+      === fmap (fmap (sort . map cnvQualifiedId . convList)) . responseJsonMaybe
 
   -- get conversations
 
   fedGalleyClient <- view tsFedGalleyClient
-  GetConversationsResponse cs <-
+
+  GetConversationsResponse convs <-
     FedGalley.getConversations
-      fedGalleyClient
-      (qDomain aliceQ)
+      (fedGalleyClient (qDomain aliceQ))
       ( GetConversationsRequest
           (qUnqualified aliceQ)
-          (map (qUnqualified . cnvQualifiedId) [cnv2])
+          (map qUnqualified [cnv1Id, cnvQualifiedId cnv2])
       )
 
-  let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . rcnvId) cs
+  let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . rcnvId) convs
 
   liftIO $ do
     assertEqual
@@ -147,12 +170,11 @@ getConversationsNotPartOf = do
   fedGalleyClient <- view tsFedGalleyClient
   localDomain <- viewFederationDomain
   rando <- Id <$> liftIO nextRandom
-  GetConversationsResponse cs <-
+  GetConversationsResponse convs <-
     FedGalley.getConversations
-      fedGalleyClient
-      localDomain
+      (fedGalleyClient localDomain)
       (GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1])
-  liftIO $ assertEqual "conversation list not empty" [] cs
+  liftIO $ assertEqual "conversation list not empty" [] convs
 
 onConvCreated :: TestM ()
 onConvCreated = do
@@ -174,7 +196,7 @@ onConvCreated = do
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") requestMembers
     liftIO $ do
-      let expectedSelf = alice
+      let expectedSelf = qAlice
           expectedOthers = [(qBob, roleNameWireAdmin), (qDee, roleNameWireMember)]
           expectedFrom = qBob
       -- since Charlie is not connected to Bob; expect a conversation with Alice&Bob only
@@ -213,7 +235,7 @@ addLocalUser = do
               ConversationActionAddMembers (qalice :| [qdee]) roleNameWireMember
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $
         wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
@@ -250,7 +272,7 @@ addUnconnectedUsersOnly = do
     -- Remote Bob creates a conversation with local Alice
     registerRemoteConv qconv (qUnqualified qBob) (Just "gossip") requestMembers
     liftIO $ do
-      let expectedSelf = alice
+      let expectedSelf = qAlice
           expectedOthers = [(qBob, roleNameWireAdmin)]
           expectedFrom = qBob
       WS.assertMatch_ (5 # Second) wsA $
@@ -267,7 +289,7 @@ addUnconnectedUsersOnly = do
                 ConversationActionAddMembers (qCharlie :| []) roleNameWireMember
             }
     -- Alice receives no notifications from this
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) cu
     WS.assertNoEvent (5 # Second) [wsA]
 
 -- | This test invokes the federation endpoint:
@@ -312,9 +334,9 @@ removeLocalUser = do
 
   connectWithRemoteUser alice qBob
   WS.bracketR c alice $ \ws -> do
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain cuAdd
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) cuAdd
     afterAddition <- listRemoteConvs remoteDomain alice
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain cuRemove
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) cuRemove
     liftIO $ do
       void . WS.assertMatch (3 # Second) ws $
         wsAssertMemberJoinWithRole qconv qBob [qAlice] roleNameWireMember
@@ -375,21 +397,21 @@ removeRemoteUser = do
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain (cuRemove qEve)
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) (cuRemove qEve)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA, wsD] $
         wsAssertMembersLeave qconv qBob [qEve]
       WS.assertNoEvent (1 # Second) [wsC, wsF]
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain (cuRemove qDee)
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) (cuRemove qDee)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA, wsD] $
         wsAssertMembersLeave qconv qBob [qDee]
       WS.assertNoEvent (1 # Second) [wsC, wsF]
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain (cuRemove qFlo)
+    FedGalley.onConversationUpdated (fedGalleyClient remoteDomain) (cuRemove qFlo)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA] $
         wsAssertMembersLeave qconv qBob [qFlo]
@@ -426,7 +448,7 @@ notifyUpdate extras action etype edata = do
             FedGalley.cuAction = action
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
-    FedGalley.onConversationUpdated fedGalleyClient bdom cu
+    FedGalley.onConversationUpdated (fedGalleyClient bdom) cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
         let e = List1.head (WS.unpackPayload n)
@@ -526,7 +548,7 @@ notifyDeletedConversation = do
               FedGalley.cuAlreadyPresentUsers = [alice],
               FedGalley.cuAction = ConversationActionDelete
             }
-    FedGalley.onConversationUpdated fedGalleyClient bobDomain cu
+    FedGalley.onConversationUpdated (fedGalleyClient bobDomain) cu
 
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
@@ -584,7 +606,7 @@ addRemoteUser = do
               ConversationActionAddMembers (qdee :| [qeve, qflo]) roleNameWireMember
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
-    FedGalley.onConversationUpdated fedGalleyClient bdom cu
+    FedGalley.onConversationUpdated (fedGalleyClient bdom) cu
     void . liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsA, wsD] $
         wsAssertMemberJoinWithRole qconv qbob [qeve, qdee] roleNameWireMember
@@ -608,15 +630,15 @@ leaveConversationSuccess = do
   connectWithRemoteUser alice qEve
 
   let mockedResponse fedReq = do
-        let success :: ToJSON a => a -> IO F.OutwardResponse
-            success = pure . F.OutwardResponseBody . LBS.toStrict . A.encode
-            getUsersPath = Just "/federation/get-users-by-ids"
-        case (F.domain fedReq, F.path <$> F.request fedReq) of
+        let success :: ToJSON a => a -> IO LByteString
+            success = pure . A.encode
+            getUsersRPC = "get-users-by-ids"
+        case (frTargetDomain fedReq, frRPC fedReq) of
           (d, mp)
-            | d == domainText remoteDomain1 && mp == getUsersPath ->
+            | d == remoteDomain1 && mp == getUsersRPC ->
               success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
           (d, mp)
-            | d == domainText remoteDomain2 && mp == getUsersPath ->
+            | d == remoteDomain2 && mp == getUsersRPC ->
               success [mkProfile qEve (Name "Eve")]
           _ -> success ()
 
@@ -652,10 +674,55 @@ leaveConversationSuccess = do
           void . WS.assertMatch (3 # Second) wsBob $
             wsAssertMembersLeave qconvId qChad [qChad]
 
-  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 F.Galley federatedRequests
-      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
+  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 Galley federatedRequests
+      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
   assertRemoveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
   assertRemoveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
+
+leaveConversationNonExistent :: TestM ()
+leaveConversationNonExistent = do
+  let remoteDomain = Domain "far-away.example.com"
+  alice <- randomQualifiedId remoteDomain
+  conv <- randomId
+
+  g <- viewGalley
+  let leaveRequest = FedGalley.LeaveConversationRequest conv (qUnqualified alice)
+  resp <-
+    fmap FedGalley.leaveResponse $
+      responseJsonError
+        =<< post
+          ( g
+              . paths ["federation", "leave-conversation"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' remoteDomain)
+              . json leaveRequest
+          )
+        <!! const 200 === statusCode
+  liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorNotFound
+
+leaveConversationInvalidType :: TestM ()
+leaveConversationInvalidType = do
+  let remoteDomain = Domain "far-away.example.com"
+  alice <- qTagUnsafe <$> randomQualifiedUser
+
+  (bob, conv) <- generateRemoteAndConvIdWithDomain remoteDomain True alice
+  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  createOne2OneConvWithRemote alice bob
+
+  g <- viewGalley
+  let leaveRequest = FedGalley.LeaveConversationRequest (qUnqualified conv) (tUnqualified bob)
+  resp <-
+    fmap FedGalley.leaveResponse $
+      responseJsonError
+        =<< post
+          ( g
+              . paths ["federation", "leave-conversation"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' remoteDomain)
+              . json leaveRequest
+          )
+        <!! const 200 === statusCode
+  liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorRemovalNotAllowed
 
 onMessageSent :: TestM ()
 onMessageSent = do
@@ -687,7 +754,7 @@ onMessageSent = do
             FedGalley.cuAction =
               ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
-  FedGalley.onConversationUpdated fedGalleyClient bdom cu
+  FedGalley.onConversationUpdated (fedGalleyClient bdom) cu
 
   let txt = "Hello from another backend"
       msg client = Map.fromList [(client, txt)]
@@ -709,7 +776,7 @@ onMessageSent = do
 
   -- send message to alice and check reception
   WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
-    FedGalley.onMessageSent fedGalleyClient bdom rm
+    FedGalley.onMessageSent (fedGalleyClient bdom) rm
     liftIO $ do
       -- alice should receive the message on her first client
       WS.assertMatch_ (5 # Second) wsA1 $ \n -> do
@@ -763,7 +830,7 @@ sendMessage = do
   connectWithRemoteUser aliceId chad
   -- conversation
   let responses1 req
-        | fmap F.component (F.request req) == Just F.Brig =
+        | frComponent req == Brig =
           toJSON [bobProfile, chadProfile]
         | otherwise = toJSON ()
   (convId, requests1) <-
@@ -780,8 +847,8 @@ sendMessage = do
     [galleyReq] <- case requests1 of
       xs@[_] -> pure xs
       _ -> assertFailure "unexpected number of requests"
-    fmap F.component (F.request galleyReq) @?= Just F.Galley
-    fmap F.path (F.request galleyReq) @?= Just "/federation/on-conversation-created"
+    frComponent galleyReq @?= Galley
+    frRPC galleyReq @?= "on-conversation-created"
   let conv = Qualified convId localDomain
 
   -- we use bilge instead of the federation client to make a federated request
@@ -801,7 +868,7 @@ sendMessage = do
                 (LBS.fromStrict (Protolens.encodeMessage msg))
           }
   let responses2 req
-        | fmap F.component (F.request req) == Just F.Brig =
+        | frComponent req == Brig =
           toJSON
             ( Map.fromList
                 [ (chadId, Set.singleton (PubClient chadClient Nothing)),
@@ -840,11 +907,132 @@ sendMessage = do
     [_clientReq, receiveReq] <- case requests2 of
       xs@[_, _] -> pure xs
       _ -> assertFailure "unexpected number of requests"
-    fmap F.component (F.request receiveReq) @?= Just F.Galley
-    fmap F.path (F.request receiveReq) @?= Just "/federation/on-message-sent"
-    rm <- case A.decode . LBS.fromStrict . F.body =<< F.request receiveReq of
+    frComponent receiveReq @?= Galley
+    frRPC receiveReq @?= "on-message-sent"
+    rm <- case A.decode (frBody receiveReq) of
       Nothing -> assertFailure "invalid federated request body"
       Just x -> pure (x :: FedGalley.RemoteMessage ConvId)
     FedGalley.rmSender rm @?= bob
     Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
       @?= Set.singleton chadId
+
+-- | There are 3 backends in action here:
+--
+-- - Backend A (local) has Alice and Alex
+-- - Backend B has Bob and Bart
+-- - Backend C has Carl
+--
+-- Bob is in these convs:
+-- - One2One Conv with Alice (ooConvId)
+-- - Group conv with all users (groupConvId)
+--
+-- When bob gets deleted, backend A gets an RPC from bDomain stating that bob is
+-- deleted and they would like bob to leave these converstaions:
+-- - ooConvId -> Causes Alice to be notified
+-- - groupConvId -> Causes Alice and Alex to be notified
+-- - extraConvId -> Ignored
+-- - noBobConvId -> Ignored
+onUserDeleted :: TestM ()
+onUserDeleted = do
+  cannon <- view tsCannon
+  let bDomain = Domain "b.far-away.example.com"
+      cDomain = Domain "c.far-away.example.com"
+
+  alice <- qTagUnsafe <$> randomQualifiedUser
+  alex <- randomQualifiedUser
+  (bob, ooConvId) <- generateRemoteAndConvIdWithDomain bDomain True alice
+  bart <- randomQualifiedId bDomain
+  carl <- randomQualifiedId cDomain
+
+  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  connectUsers (tUnqualified alice) (pure (qUnqualified alex))
+  connectWithRemoteUser (tUnqualified alice) bart
+  connectWithRemoteUser (tUnqualified alice) carl
+
+  -- create 1-1 conversation between alice and bob
+  createOne2OneConvWithRemote alice bob
+
+  -- create group conversation with everybody
+  groupConvId <-
+    decodeQualifiedConvId
+      <$> ( postConvWithRemoteUsers
+              (tUnqualified alice)
+              defNewConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
+              <!! const 201 === statusCode
+          )
+
+  -- extraneous conversation
+  extraConvId <- randomId
+
+  -- conversation without bob
+  noBobConvId <-
+    fmap decodeQualifiedConvId $
+      postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [alex]}
+        <!! const 201 === statusCode
+
+  WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do
+    (resp, rpcCalls) <- withTempMockFederator (const ()) $ do
+      let udcn =
+            FedGalley.UserDeletedConversationsNotification
+              { FedGalley.udcvUser = tUnqualified bob,
+                FedGalley.udcvConversations =
+                  unsafeRange
+                    [ qUnqualified ooConvId,
+                      qUnqualified groupConvId,
+                      extraConvId,
+                      qUnqualified noBobConvId
+                    ]
+              }
+      g <- viewGalley
+      responseJsonError
+        =<< post
+          ( g
+              . paths ["federation", "on-user-deleted-conversations"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' (tDomain bob))
+              . json udcn
+          )
+        <!! const 200 === statusCode
+
+    ooConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) ooConvId <!! const 200 === statusCode
+    groupConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) groupConvId <!! const 200 === statusCode
+
+    liftIO $ do
+      resp @?= EmptyResponse
+
+      -- Assert that bob gets removed from the conversation
+      cmOthers (cnvMembers ooConvAfterDel) @?= []
+      sort (map omQualifiedId (cmOthers (cnvMembers groupConvAfterDel))) @?= sort [alex, bart, carl]
+
+      -- Assert that local user's get notifications only for the conversation
+      -- bob was part of and it wasn't a One2OneConv
+      void . WS.assertMatch (3 # Second) wsAlice $
+        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+      void . WS.assertMatch (3 # Second) wsAlex $
+        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+      -- Alice shouldn't get any other notifications because we don't notify
+      -- on One2One convs.
+      --
+      -- Alex shouldn't get any other notifications because alex was
+      -- not part of any other conversations with bob.
+      WS.assertNoEvent (1 # Second) [wsAlice, wsAlex]
+
+      -- There should be only 2 RPC calls made only for groupConvId: 1 for bob's
+      -- domain and 1 for eve's domain
+      assertEqual ("Expected 2 RPC calls, got: " <> show rpcCalls) 2 (length rpcCalls)
+
+      -- Assertions about RPC to bDomain
+      bobDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == bDomain) rpcCalls
+      bobDomainRPCReq <- assertRight $ parseFedRequest bobDomainRPC
+      FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
+      FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
+      sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
+      FedGalley.cuAction bobDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
+
+      -- Assertions about RPC to 'cDomain'
+      cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
+      cDomainRPCReq <- assertRight $ parseFedRequest cDomainRPC
+      FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
+      FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
+      FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
+      FedGalley.cuAction cDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)

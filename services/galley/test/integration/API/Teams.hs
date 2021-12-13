@@ -51,7 +51,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
 import qualified Data.Vector as V
-import qualified Galley.App as Galley
+import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import Galley.Types.Conversations.Roles
@@ -355,7 +355,7 @@ testEnableSSOPerTeam = do
   assertQueue "create team" tActivate
   let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
         liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
@@ -382,10 +382,10 @@ testEnableSSOPerTeam = do
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
   g <- view tsGalley
-  (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
+  (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
   let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
@@ -790,9 +790,10 @@ testAddTeamConvLegacy = do
   mem2 <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [extern, mem2 ^. userId])
   tid <- Util.createNonBindingTeam "foo" owner [mem2]
-  let allUserIds = [owner, extern, mem1 ^. userId, mem2 ^. userId]
-  WS.bracketRN c allUserIds $ \wss -> do
-    cid <- Util.createTeamConvLegacy owner tid allUserIds (Just "blaa")
+  allUserIds <- for [owner, extern, mem1 ^. userId, mem2 ^. userId] $
+    \u -> Qualified <$> pure u <*> viewFederationDomain
+  WS.bracketRN c (qUnqualified <$> allUserIds) $ \wss -> do
+    cid <- Util.createTeamConvLegacy owner tid (qUnqualified <$> allUserIds) (Just "blaa")
     mapM_ (checkConvCreateEvent cid) wss
     -- All members become admin by default
     mapM_ (assertConvMemberWithRole roleNameWireAdmin cid) allUserIds
@@ -802,7 +803,9 @@ testAddTeamConvWithRole :: TestM ()
 testAddTeamConvWithRole = do
   c <- view tsCannon
   owner <- Util.randomUser
+  qOwner <- Qualified <$> pure owner <*> viewFederationDomain
   extern <- Util.randomUser
+  qExtern <- Qualified <$> pure extern <*> viewFederationDomain
   let p = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
   mem1 <- newTeamMember' p <$> Util.randomUser
   mem2 <- newTeamMember' p <$> Util.randomUser
@@ -813,13 +816,13 @@ testAddTeamConvWithRole = do
     cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
     checkConvCreateEvent cid2 wsOwner
     checkConvCreateEvent cid2 wsExtern
-    mapM_ (assertConvMemberWithRole roleNameWireAdmin cid2) [owner, extern]
+    mapM_ (assertConvMemberWithRole roleNameWireAdmin cid2) [qOwner, qExtern]
     -- Regular conversation (using member role for participants):
     cid3 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireMember
     checkConvCreateEvent cid3 wsOwner
     checkConvCreateEvent cid3 wsExtern
-    assertConvMemberWithRole roleNameWireAdmin cid3 owner
-    assertConvMemberWithRole roleNameWireMember cid3 extern
+    assertConvMemberWithRole roleNameWireAdmin cid3 qOwner
+    assertConvMemberWithRole roleNameWireMember cid3 qExtern
     -- mem2 is not a conversation member and no longer receives
     -- an event that a new team conversation has been created
 
@@ -879,13 +882,18 @@ testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
   personalUser <- Util.randomUser
   ownerT1 <- Util.randomUser
+  qOwnerT1 <- Qualified <$> pure ownerT1 <*> viewFederationDomain
   let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
   mem1T1 <- newTeamMember' p <$> Util.randomUser
+  qMem1T1 <- Qualified <$> pure (mem1T1 ^. userId) <*> viewFederationDomain
   mem2T1 <- newTeamMember' p <$> Util.randomUser
+  qMem2T1 <- Qualified <$> pure (mem2T1 ^. userId) <*> viewFederationDomain
   mem3T1 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
   mem4T1 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
   ownerT2 <- Util.randomUser
+  qOwnerT2 <- Qualified <$> pure ownerT2 <*> viewFederationDomain
   mem1T2 <- newTeamMember' p <$> Util.randomUser
+  qMem1T2 <- Qualified <$> pure (mem1T2 ^. userId) <*> viewFederationDomain
   Util.connectUsers ownerT1 (list1 (mem1T1 ^. userId) [mem2T1 ^. userId, mem3T1 ^. userId, ownerT2, personalUser])
   tidT1 <- Util.createNonBindingTeam "foo" ownerT1 [mem1T1, mem2T1, mem3T1]
   tidT2 <- Util.createBindingTeamInternal "foo" ownerT2
@@ -902,9 +910,9 @@ testAddTeamMemberToConv = do
   Util.assertNotConvMember (mem2T1 ^. userId) cidT1
   -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
   -- since conversation roles trump any team roles. Note that all users are admins by default
-  Util.assertConvMember ownerT1 cidT1
+  Util.assertConvMember qOwnerT1 cidT1
   Util.postMembers ownerT1 (list1 (mem2T1 ^. userId) []) cidT1 !!! const 200 === statusCode
-  Util.assertConvMember (mem2T1 ^. userId) cidT1
+  Util.assertConvMember qMem2T1 cidT1
   -- The following tests check the logic: users can add other users to a conversation
   -- iff:
   --    - *the adding user is connected to the users being added*
@@ -913,24 +921,24 @@ testAddTeamMemberToConv = do
 
   -- Now we add someone from T2 that we are connected to
   Util.postMembers ownerT1 (list1 ownerT2 []) cidT1 !!! const 200 === statusCode
-  Util.assertConvMember ownerT2 cidT1
+  Util.assertConvMember qOwnerT2 cidT1
   -- And they can add their own team members
   Util.postMembers ownerT2 (list1 (mem1T2 ^. userId) []) cidT1 !!! const 200 === statusCode
-  Util.assertConvMember (mem1T2 ^. userId) cidT1
+  Util.assertConvMember qMem1T2 cidT1
   -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
   Util.postMembers ownerT2 (list1 (mem4T1 ^. userId) []) cidT1 !!! const 403 === statusCode
   Util.assertNotConvMember (mem4T1 ^. userId) cidT1
   -- Now let's look at convs hosted on team2
   -- ownerT2 *is* connected to ownerT1
   Util.postMembers ownerT2 (list1 ownerT1 []) cidT2 !!! const 200 === statusCode
-  Util.assertConvMember ownerT1 cidT2
+  Util.assertConvMember qOwnerT1 cidT2
   -- and mem1T2 is on the same team, but mem1T1 is *not*
   Util.postMembers ownerT2 (list1 (mem1T2 ^. userId) [mem1T1 ^. userId]) cidT2 !!! const 403 === statusCode
   Util.assertNotConvMember (mem1T1 ^. userId) cidT2
   Util.assertNotConvMember (mem1T2 ^. userId) cidT2
   -- mem1T2 is on the same team, so that is fine too
   Util.postMembers ownerT2 (list1 (mem1T2 ^. userId) []) cidT2 !!! const 200 === statusCode
-  Util.assertConvMember (mem1T2 ^. userId) cidT2
+  Util.assertConvMember qMem1T2 cidT2
   -- ownerT2 is *NOT* connected to mem3T1 and not on the same team, so should not be allowed to add
   Util.postMembers ownerT2 (list1 (mem3T1 ^. userId) []) cidT2 !!! const 403 === statusCode
   Util.assertNotConvMember (mem3T1 ^. userId) cidT2
@@ -938,19 +946,19 @@ testAddTeamMemberToConv = do
 
   -- Can add connected users
   Util.postMembers personalUser (list1 ownerT1 []) cidPersonal !!! const 200 === statusCode
-  Util.assertConvMember ownerT1 cidPersonal
+  Util.assertConvMember qOwnerT1 cidPersonal
   -- Can *not* add users that are *not* connected
   Util.postMembers personalUser (list1 ownerT2 []) cidPersonal !!! const 403 === statusCode
   Util.assertNotConvMember ownerT2 cidPersonal
   -- Users of the same team can add one another
   Util.postMembers ownerT1 (list1 (mem1T1 ^. userId) []) cidPersonal !!! const 200 === statusCode
-  Util.assertConvMember (mem1T1 ^. userId) cidPersonal
+  Util.assertConvMember qMem1T1 cidPersonal
   -- Users can not add across teams if *not* connected
   Util.postMembers (mem1T1 ^. userId) (list1 ownerT2 []) cidPersonal !!! const 403 === statusCode
   Util.assertNotConvMember ownerT2 cidPersonal
   -- Users *can* add across teams if *connected*
   Util.postMembers ownerT1 (list1 ownerT2 []) cidPersonal !!! const 200 === statusCode
-  Util.assertConvMember ownerT2 cidPersonal
+  Util.assertConvMember qOwnerT2 cidPersonal
 
 testUpdateTeamConv ::
   -- | Team role of the user who creates the conversation
@@ -976,20 +984,24 @@ testDeleteTeam = do
   g <- view tsGalley
   c <- view tsCannon
   owner <- Util.randomUser
+  qOwner <- Qualified <$> pure owner <*> viewFederationDomain
   let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
   member <- newTeamMember' p <$> Util.randomUser
+  qMember <- Qualified <$> pure (member ^. userId) <*> viewFederationDomain
   extern <- Util.randomUser
+  qExtern <- Qualified <$> pure extern <*> viewFederationDomain
+
   let members = [owner, member ^. userId]
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   cid2 <- Util.createTeamConv owner tid members (Just "blup") Nothing Nothing
-  Util.assertConvMember owner cid2
-  Util.assertConvMember (member ^. userId) cid2
+  Util.assertConvMember qOwner cid2
+  Util.assertConvMember qMember cid2
   Util.assertNotConvMember extern cid2
   Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
-  Util.assertConvMember owner cid1
-  Util.assertConvMember extern cid1
+  Util.assertConvMember qOwner cid1
+  Util.assertConvMember qExtern cid1
   Util.assertNotConvMember (member ^. userId) cid1
   void . WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
     delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn")
@@ -1163,20 +1175,23 @@ testDeleteTeamConv = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   owner <- Util.randomUser
+  qOwner <- Qualified <$> pure owner <*> viewFederationDomain
   let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
   member <- newTeamMember' p <$> Util.randomUser
-  let members = [owner, member ^. userId]
+  qMember <- Qualified <$> pure (member ^. userId) <*> viewFederationDomain
+  let members = [qOwner, qMember]
   extern <- Util.randomUser
+  qExtern <- Qualified <$> pure extern <*> viewFederationDomain
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) ActivatedAccessRole
   putAccessUpdate owner cid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
-  cid2 <- Util.createTeamConv owner tid members (Just "blup") Nothing Nothing
+  cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
   Util.postMembers owner (list1 extern [member ^. userId]) cid1 !!! const 200 === statusCode
-  for_ [owner, member ^. userId, extern] $ \u -> Util.assertConvMember u cid1
-  for_ [owner, member ^. userId] $ \u -> Util.assertConvMember u cid2
+  for_ (qExtern : members) $ \u -> Util.assertConvMember u cid1
+  for_ members $ flip Util.assertConvMember cid2
   WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
     deleteTeamConv tid cid2 (member ^. userId)
       !!! const 200 === statusCode
@@ -1862,7 +1877,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (201, 200, 0, (x : xs)) -> return (x, xs)
         (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining -1) ((uid, cid) : acc) pk
         (403, 403, _, []) -> error "Need to connect with at least 1 user"
-        (403, 403, _, (x : xs)) -> return (x, xs)
+        (403, 403, _, x : xs) -> return (x, xs)
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
@@ -1877,7 +1892,7 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal tid statusValue = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

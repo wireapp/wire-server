@@ -22,6 +22,7 @@ module Wire.API.Routes.QualifiedCapture
 where
 
 import Data.Domain
+import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger
 import GHC.TypeLits
@@ -96,3 +97,11 @@ instance
   clientWithRoute pm _ req (Qualified value domain) =
     clientWithRoute pm (Proxy @(WithDomain mods capture a api)) req domain value
   hoistClientMonad pm _ f cl = hoistClientMonad pm (Proxy @api) f . cl
+
+instance (RoutesToPaths api, KnownSymbol (AppendSymbol capture "_domain"), KnownSymbol capture) => RoutesToPaths (QualifiedCapture' mods capture a :> api) where
+  getRoutes =
+    getRoutes
+      @( Capture' mods (AppendSymbol capture "_domain") Domain
+           :> Capture' mods capture a
+           :> api
+       )

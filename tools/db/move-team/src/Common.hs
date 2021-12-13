@@ -22,7 +22,6 @@ import Conduit
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Conduit.Combinators as C
-import Database.CQL.Protocol (Tuple)
 import Imports
 import System.IO
 
@@ -44,5 +43,5 @@ sinkTableRows insertQuery = go
       case mbTuple of
         Nothing -> pure ()
         Just tuple -> do
-          lift $ write insertQuery (params Quorum tuple)
+          lift $ write insertQuery (params LocalQuorum tuple)
           go

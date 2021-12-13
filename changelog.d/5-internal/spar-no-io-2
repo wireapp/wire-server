@@ -1,1 +1,0 @@
-Replace the `Spar` newtype, instead using `Sem` directly.

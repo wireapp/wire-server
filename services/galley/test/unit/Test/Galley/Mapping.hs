@@ -25,7 +25,7 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Galley.API.Mapping
-import qualified Galley.Data as Data
+import qualified Galley.Data.Conversation as Data
 import Galley.Types.Conversations.Members
 import Imports
 import Test.Tasty
@@ -42,31 +42,31 @@ tests =
   testGroup
     "ConversationMapping"
     [ testProperty "conversation view for a valid user is non-empty" $
-        \(ConvWithLocalUser c uid) dom -> isJust (conversationViewMaybe dom uid c),
+        \(ConvWithLocalUser c luid) -> isJust (conversationViewMaybe luid c),
       testProperty "self user in conversation view is correct" $
-        \(ConvWithLocalUser c uid) dom ->
-          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe dom uid c)
-            == Just uid,
+        \(ConvWithLocalUser c luid) ->
+          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe luid c)
+            == Just (qUntagged luid),
       testProperty "conversation view metadata is correct" $
-        \(ConvWithLocalUser c uid) dom ->
-          fmap cnvMetadata (conversationViewMaybe dom uid c)
+        \(ConvWithLocalUser c luid) ->
+          fmap cnvMetadata (conversationViewMaybe luid c)
             == Just (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
-        \(ConvWithLocalUser c uid) dom -> case conversationViewMaybe dom uid c of
+        \(ConvWithLocalUser c luid) -> case conversationViewMaybe luid c of
           Nothing -> False
           Just cnv ->
             not
-              ( Qualified uid dom
+              ( qUntagged luid
                   `elem` (map omQualifiedId (cmOthers (cnvMembers cnv)))
               ),
       testProperty "conversation view contains all users" $
-        \(ConvWithLocalUser c uid) dom ->
-          fmap (sort . cnvUids dom) (conversationViewMaybe dom uid c)
-            == Just (sort (convUids dom c)),
+        \(ConvWithLocalUser c luid) ->
+          fmap (sort . cnvUids) (conversationViewMaybe luid c)
+            == Just (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
-        \(RandomConversation c) dom uid ->
-          not (elem uid (map lmId (Data.convLocalMembers c)))
-            ==> isNothing (conversationViewMaybe dom uid c),
+        \(RandomConversation c) luid ->
+          not (elem (tUnqualified luid) (map lmId (Data.convLocalMembers c)))
+            ==> isNothing (conversationViewMaybe luid c),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (qUntagged ruid) /= dom
@@ -91,10 +91,10 @@ tests =
               )
     ]
 
-cnvUids :: Domain -> Conversation -> [Qualified UserId]
-cnvUids dom c =
+cnvUids :: Conversation -> [Qualified UserId]
+cnvUids c =
   let mems = cnvMembers c
-   in Qualified (memId (cmSelf mems)) dom :
+   in memId (cmSelf mems) :
       map omQualifiedId (cmOthers mems)
 
 convUids :: Domain -> Data.Conversation -> [Qualified UserId]
@@ -136,14 +136,16 @@ newtype RandomConversation = RandomConversation
 instance Arbitrary RandomConversation where
   arbitrary = RandomConversation <$> genConversation
 
-data ConvWithLocalUser = ConvWithLocalUser Data.Conversation UserId
+data ConvWithLocalUser = ConvWithLocalUser Data.Conversation (Local UserId)
   deriving (Show)
 
 instance Arbitrary ConvWithLocalUser where
   arbitrary = do
     member <- genLocalMember
-    ConvWithLocalUser <$> genConv member <*> pure (lmId member)
+    ConvWithLocalUser <$> genConv member <*> genLocal (lmId member)
     where
+      genLocal :: x -> Gen (Local x)
+      genLocal v = flip toLocalUnsafe v <$> arbitrary
       genConv m = uniqueMembers m . unRandomConversation <$> arbitrary
       uniqueMembers :: LocalMember -> Data.Conversation -> Data.Conversation
       uniqueMembers m c =

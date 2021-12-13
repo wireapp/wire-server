@@ -213,7 +213,6 @@ data UserProfile = UserProfile
     -- i.e. it is a "bot".
     profileService :: Maybe ServiceRef,
     profileHandle :: Maybe Handle,
-    profileLocale :: Maybe Locale,
     profileExpire :: Maybe UTCTimeMillis,
     profileTeam :: Maybe TeamId,
     profileEmail :: Maybe Email,
@@ -238,7 +237,6 @@ instance ToSchema UserProfile where
           .= fmap (fromMaybe False) (opt (field "deleted" schema))
         <*> profileService .= opt (field "service" schema)
         <*> profileHandle .= opt (field "handle" schema)
-        <*> profileLocale .= opt (field "locale" schema)
         <*> profileExpire .= opt (field "expires_at" schema)
         <*> profileTeam .= opt (field "team" schema)
         <*> profileEmail .= opt (field "email" schema)
@@ -429,7 +427,6 @@ connectedProfile u legalHoldStatus =
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
       profileService = userService u,
-      profileLocale = Just (userLocale u),
       profileDeleted = userDeleted u,
       profileExpire = userExpire u,
       profileTeam = userTeam u,
@@ -459,8 +456,7 @@ publicProfile u legalHoldStatus =
           profileLegalholdStatus
         } = connectedProfile u legalHoldStatus
    in UserProfile
-        { profileLocale = Nothing,
-          profileEmail = Nothing,
+        { profileEmail = Nothing,
           profileQualifiedId,
           profileHandle,
           profileName,
@@ -909,6 +905,13 @@ instance FromJSON LocaleUpdate where
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema EmailUpdate)
+
+instance ToSchema EmailUpdate where
+  schema =
+    object "EmailUpdate" $
+      EmailUpdate
+        <$> euEmail .= field "email" schema
 
 modelEmailUpdate :: Doc.Model
 modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do

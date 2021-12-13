@@ -132,7 +132,6 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
-import Wire.API.Federation.Client (HasFederatorConfig (..))
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
@@ -395,20 +394,21 @@ initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
   c <-
     maybe
-      (Cas.initialContactsPlain ((Opt.cassandra o) ^. casEndpoint . epHost))
+      (Cas.initialContactsPlain (Opt.cassandra o ^. casEndpoint . epHost))
       (Cas.initialContactsDisco "cassandra_brig")
       (unpack <$> Opt.discoUrl o)
   p <-
     Cas.init $
       Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
         . Cas.setContacts (NE.head c) (NE.tail c)
-        . Cas.setPortNumber (fromIntegral ((Opt.cassandra o) ^. casEndpoint . epPort))
-        . Cas.setKeyspace (Keyspace ((Opt.cassandra o) ^. casKeyspace))
+        . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. casEndpoint . epPort))
+        . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. casKeyspace))
         . Cas.setMaxConnections 4
         . Cas.setPoolStripes 4
         . Cas.setSendTimeout 3
         . Cas.setResponseTimeout 10
         . Cas.setProtocolVersion Cas.V4
+        . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. casFilterNodesByDatacentre))
         $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   return p
@@ -495,10 +495,6 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
     AppT . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unAppT)
-
-instance HasFederatorConfig AppIO where
-  federatorEndpoint = view federator
-  federationDomain = viewFederationDomain
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

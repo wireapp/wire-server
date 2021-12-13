@@ -37,22 +37,25 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
-import Data.Domain (Domain, domainText)
+import Data.Domain
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
+import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import Data.Range (unsafeRange)
-import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Federation.Util (withTempMockFederator)
+import Federator.MockServer (FederatedRequest (..))
+import Gundeck.Types (Notification (..))
 import Imports
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
+import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
-import Wire.API.Federation.GRPC.Types hiding (body, path)
-import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
@@ -342,7 +345,7 @@ receiveConnectionAction ::
   Http ()
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
-    F.sendConnectionAction fedBrigClient (qDomain quid2) $
+    F.sendConnectionAction (fedBrigClient (qDomain quid2)) $
       F.NewConnectionRequest (qUnqualified quid2) uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction
@@ -359,18 +362,18 @@ sendConnectionAction ::
   Http ()
 sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
   let mockConnectionResponse = F.NewConnectionResponseOk reaction
-      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+      mockResponse = encode mockConnectionResponse
   (res, reqs) <-
     liftIO . withTempMockFederator opts mockResponse $
       postConnectionQualified brig uid1 quid2
 
   liftIO $ do
     req <- assertOne reqs
-    F.domain req @?= domainText (qDomain quid2)
-    fmap F.component (F.request req) @?= Just F.Brig
-    fmap F.path (F.request req) @?= Just "/federation/send-connection-action"
-    eitherDecode . cs . F.body <$> F.request req
-      @?= Just (Right (F.NewConnectionRequest uid1 (qUnqualified quid2) F.RemoteConnect))
+    frTargetDomain req @?= qDomain quid2
+    frComponent req @?= Brig
+    frRPC req @?= "send-connection-action"
+    eitherDecode (frBody req)
+      @?= Right (F.NewConnectionRequest uid1 (qUnqualified quid2) F.RemoteConnect)
 
   liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
   assertConnectionQualified brig uid1 quid2 expectedRel
@@ -386,7 +389,7 @@ sendConnectionUpdateAction ::
   Http ()
 sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
   let mockConnectionResponse = F.NewConnectionResponseOk reaction
-      mockResponse = OutwardResponseBody (cs $ encode mockConnectionResponse)
+      mockResponse = encode mockConnectionResponse
   void $
     liftIO . withTempMockFederator opts mockResponse $
       putConnectionQualified brig uid1 quid2 expectedRel !!! const 200 === statusCode
@@ -450,3 +453,25 @@ deleteLegalHoldDevice brig uid =
     brig
       . paths ["i", "clients", "legalhold", toByteString' uid]
       . contentJson
+
+matchDeleteUserNotification :: Qualified UserId -> Notification -> Assertion
+matchDeleteUserNotification quid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eUnqualifiedId = maybeFromJSON =<< j ^? key "id"
+  let eQualifiedId = maybeFromJSON =<< j ^? key "qualified_id"
+  etype @?= Just "user.delete"
+  eUnqualifiedId @?= Just (qUnqualified quid)
+  eQualifiedId @?= Just quid
+
+matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+matchConvLeaveNotification conv remover removeds n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  Conv.evtConv e @?= conv
+  Conv.evtType e @?= Conv.MemberLeave
+  Conv.evtFrom e @?= remover
+  sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList removeds))
+  where
+    sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave (Conv.QualifiedUserIdList (sort m))
+    sorted x = x

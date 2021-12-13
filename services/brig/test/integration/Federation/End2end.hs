@@ -18,7 +18,7 @@
 module Federation.End2end where
 
 import API.Search.Util
-import API.User.Util (getUserClientsQualified)
+import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
@@ -98,13 +98,14 @@ spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
         test mg "leave a remote conversation" $ leaveRemoteConversation brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
         test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
-        test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon
+        test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon,
+        test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon
       ]
 
 -- | Path covered by this test:
 --
 -- +------+         +---------+        +---------+          +------+
--- | brig |   grpc  |federator| grpc   |federator|   http   | brig |
+-- | brig |  http2  |federator| http2  |federator|   http   | brig |
 -- |      +-------->+         +------->+         +--------->+      |
 -- +------+         +-+-------+        +---------+          +------+
 testHandleLookup :: Brig -> Brig -> Http ()
@@ -595,3 +596,26 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
         @?= EdOtrMessage
           ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
           )
+
+testDeleteUser :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
+testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
+  alice <- userQualifiedId <$> randomUser brig1
+  bobDel <- userQualifiedId <$> randomUser brig2
+
+  connectUsersEnd2End brig1 brig2 alice bobDel
+
+  conv1 <-
+    fmap cnvQualifiedId . responseJsonError
+      =<< createConversation galley1 (qUnqualified alice) [bobDel]
+        <!! const 201 === statusCode
+
+  conv2 <-
+    fmap cnvQualifiedId . responseJsonError
+      =<< createConversation galley2 (qUnqualified bobDel) [alice]
+        <!! const 201 === statusCode
+
+  WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
+    deleteUser (qUnqualified bobDel) (Just defPassword) brig2 !!! const 200 === statusCode
+    WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
+    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
+    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]

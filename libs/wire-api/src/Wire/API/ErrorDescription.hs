@@ -3,6 +3,7 @@ module Wire.API.ErrorDescription where
 import Control.Lens (at, (%~), (.~), (<>~), (?~))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
+import Data.Metrics.Servant
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
@@ -44,6 +45,9 @@ instance
 
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+
+instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
+  getRoutes = getRoutes @api
 
 errorDescriptionAddToSwagger ::
   forall (code :: Nat) (label :: Symbol) (desc :: Symbol).
@@ -226,10 +230,13 @@ noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code 
 
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 
-operationDenied :: Show perm => perm -> OperationDenied
-operationDenied p =
+operationDeniedSpecialized :: String -> OperationDenied
+operationDeniedSpecialized p =
   ErrorDescription $
-    "Insufficient permissions (missing " <> Text.pack (show p) <> ")"
+    "Insufficient permissions (missing " <> Text.pack p <> ")"
+
+operationDenied :: Show perm => perm -> OperationDenied
+operationDenied = operationDeniedSpecialized . show
 
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
@@ -286,12 +293,6 @@ type MissingLegalholdConsent =
     "missing-legalhold-consent"
     "Failed to connect to a user or to invite a user to a group because somebody \
     \is under legalhold and somebody else has not granted consent."
-
-type CustomRolesNotSupported =
-  ErrorDescription
-    400
-    "bad-request"
-    "Custom roles not supported"
 
 type InvalidOp desc =
   ErrorDescription

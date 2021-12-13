@@ -51,7 +51,7 @@ insertAccount ::
   m ProviderId
 insertAccount name pass url descr = do
   pid <- randomId
-  retry x5 $ write cql $ params Quorum (pid, name, pass, url, descr)
+  retry x5 $ write cql $ params LocalQuorum (pid, name, pass, url, descr)
   return pid
   where
     cql :: PrepQuery W (ProviderId, Name, Password, HttpsUrl, Text) ()
@@ -66,7 +66,7 @@ updateAccountProfile ::
   m ()
 updateAccountProfile p name url descr = retry x5 . batch $ do
   setType BatchUnLogged
-  setConsistency Quorum
+  setConsistency LocalQuorum
   for_ name $ \x -> addPrepQuery cqlName (x, p)
   for_ url $ \x -> addPrepQuery cqlUrl (x, p)
   for_ descr $ \x -> addPrepQuery cqlDescr (x, p)
@@ -83,7 +83,7 @@ lookupAccountData ::
   MonadClient m =>
   ProviderId ->
   m (Maybe (Name, Maybe Email, HttpsUrl, Text))
-lookupAccountData p = retry x1 $ query1 cql $ params Quorum (Identity p)
+lookupAccountData p = retry x1 $ query1 cql $ params LocalQuorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId) (Name, Maybe Email, HttpsUrl, Text)
     cql = "SELECT name, email, url, descr FROM provider WHERE id = ?"
@@ -112,7 +112,7 @@ lookupPassword p =
   fmap (fmap runIdentity) $
     retry x1 $
       query1 cql $
-        params Quorum (Identity p)
+        params LocalQuorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId) (Identity Password)
     cql = "SELECT password FROM provider WHERE id = ?"
@@ -121,7 +121,7 @@ deleteAccount ::
   MonadClient m =>
   ProviderId ->
   m ()
-deleteAccount pid = retry x5 $ write cql $ params Quorum (Identity pid)
+deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
   where
     cql :: PrepQuery W (Identity ProviderId) ()
     cql = "DELETE FROM provider WHERE id = ?"
@@ -133,7 +133,7 @@ updateAccountPassword ::
   m ()
 updateAccountPassword pid pwd = do
   p <- liftIO $ mkSafePassword pwd
-  retry x5 $ write cql $ params Quorum (p, pid)
+  retry x5 $ write cql $ params LocalQuorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
     cql = "UPDATE provider SET password = ? where id = ?"
@@ -148,7 +148,7 @@ insertKey ::
   EmailKey ->
   m ()
 insertKey p old new = retry x5 . batch $ do
-  setConsistency Quorum
+  setConsistency LocalQuorum
   setType BatchLogged
   for_ old $ \old' -> addPrepQuery cqlKeyDelete (Identity (emailKeyUniq old'))
   addPrepQuery cqlKeyInsert (emailKeyUniq new, p)
@@ -169,13 +169,13 @@ lookupKey k =
   fmap (fmap runIdentity) $
     retry x1 $
       query1 cql $
-        params Quorum (Identity (emailKeyUniq k))
+        params LocalQuorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery R (Identity Text) (Identity ProviderId)
     cql = "SELECT provider FROM provider_keys WHERE key = ?"
 
 deleteKey :: MonadClient m => EmailKey -> m ()
-deleteKey k = retry x5 $ write cql $ params Quorum (Identity (emailKeyUniq k))
+deleteKey k = retry x5 $ write cql $ params LocalQuorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery W (Identity Text) ()
     cql = "DELETE FROM provider_keys WHERE key = ?"
@@ -202,7 +202,7 @@ insertService pid name summary descr url token key fprint assets tags = do
   retry x5 $
     write cql $
       params
-        Quorum
+        LocalQuorum
         (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
   return sid
   where
@@ -237,7 +237,7 @@ lookupService pid sid =
   fmap (fmap mk) $
     retry x1 $
       query1 cql $
-        params Quorum (pid, sid)
+        params LocalQuorum (pid, sid)
   where
     cql ::
       PrepQuery
@@ -258,7 +258,7 @@ listServices p =
   fmap (map mk) $
     retry x1 $
       query cql $
-        params Quorum (Identity p)
+        params LocalQuorum (Identity p)
   where
     cql ::
       PrepQuery
@@ -286,7 +286,7 @@ updateService ::
   Bool ->
   m ()
 updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 . batch $ do
-  setConsistency Quorum
+  setConsistency LocalQuorum
   setType BatchUnLogged
   -- If there is a name change, update the service name; if enabled, update indexes
   for_ nameChange $ \(oldName, newName) -> do
@@ -331,7 +331,7 @@ deleteService pid sid name tags = do
   -- consumers won't be able to retry a half-done 'deleteService' call.
   deleteServiceWhitelist Nothing pid sid
   retry x5 . batch $ do
-    setConsistency Quorum
+    setConsistency LocalQuorum
     setType BatchUnLogged
     addPrepQuery cql (pid, sid)
     deleteServicePrefix sid name
@@ -408,7 +408,7 @@ lookupServiceConn pid sid =
   fmap (fmap mk) $
     retry x1 $
       query1 cql $
-        params Quorum (pid, sid)
+        params LocalQuorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, List1 ServiceToken, List1 (Fingerprint Rsa), Bool)
     cql =
@@ -427,7 +427,7 @@ updateServiceConn ::
   Maybe Bool ->
   m ()
 updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
-  setConsistency Quorum
+  setConsistency LocalQuorum
   setType BatchLogged
   for_ url $ \x -> addPrepQuery cqlBaseUrl (x, pid, sid)
   for_ tokens $ \x -> addPrepQuery cqlTokens (x, pid, sid)
@@ -459,7 +459,7 @@ insertServiceIndexes ::
   m ()
 insertServiceIndexes pid sid name tags =
   retry x5 . batch $ do
-    setConsistency Quorum
+    setConsistency LocalQuorum
     setType BatchLogged
     insertServicePrefix pid sid name
     insertServiceTags pid sid name tags
@@ -473,7 +473,7 @@ deleteServiceIndexes ::
   m ()
 deleteServiceIndexes pid sid name tags =
   retry x5 . batch $ do
-    setConsistency Quorum
+    setConsistency LocalQuorum
     setType BatchLogged
     deleteServicePrefix sid name
     deleteServiceTags pid sid name tags
@@ -740,16 +740,16 @@ insertServiceWhitelist tid pid sid =
 deleteServiceWhitelist :: MonadClient m => Maybe TeamId -> ProviderId -> ServiceId -> m ()
 deleteServiceWhitelist mbTid pid sid = case mbTid of
   Nothing -> do
-    teams <- retry x5 $ query lookupRev $ params Quorum (pid, sid)
+    teams <- retry x5 $ query lookupRev $ params LocalQuorum (pid, sid)
     retry x5 . batch $ do
       setType BatchLogged
-      setConsistency Quorum
+      setConsistency LocalQuorum
       addPrepQuery deleteAllRev (pid, sid)
       for_ teams $ \(Identity tid) -> addPrepQuery delete1 (tid, pid, sid)
   Just tid ->
     retry x5 . batch $ do
       setType BatchLogged
-      setConsistency Quorum
+      setConsistency LocalQuorum
       addPrepQuery delete1 (tid, pid, sid)
       addPrepQuery delete1Rev (tid, pid, sid)
   where

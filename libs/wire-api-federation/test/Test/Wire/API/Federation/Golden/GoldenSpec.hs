@@ -25,6 +25,7 @@ import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as Le
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
 import qualified Test.Wire.API.Federation.Golden.NewConnectionRequest as NewConnectionRequest
 import qualified Test.Wire.API.Federation.Golden.NewConnectionResponse as NewConnectionResponse
+import qualified Test.Wire.API.Federation.Golden.NewRemoteConversation as NewRemoteConversation
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
 
 spec :: Spec
@@ -46,10 +47,6 @@ spec =
       [ (LeaveConversationResponse.testObject_LeaveConversationResponse1, "testObject_LeaveConversationResponse1.json"),
         (LeaveConversationResponse.testObject_LeaveConversationResponse2, "testObject_LeaveConversationResponse2.json"),
         (LeaveConversationResponse.testObject_LeaveConversationResponse3, "testObject_LeaveConversationResponse3.json"),
-        (LeaveConversationResponse.testObject_LeaveConversationResponse4, "testObject_LeaveConversationResponse4.json"),
-        (LeaveConversationResponse.testObject_LeaveConversationResponse5, "testObject_LeaveConversationResponse5.json"),
-        (LeaveConversationResponse.testObject_LeaveConversationResponse6, "testObject_LeaveConversationResponse6.json"),
-        (LeaveConversationResponse.testObject_LeaveConversationResponse7, "testObject_LeaveConversationResponse7.json"),
         (LeaveConversationResponse.testObject_LeaveConversationResponse8, "testObject_LeaveConversationResponse8.json")
       ]
     testObjects
@@ -61,4 +58,8 @@ spec =
         (NewConnectionResponse.testObject_NewConnectionResponse2, "testObject_NewConnectionResponse2.json"),
         (NewConnectionResponse.testObject_NewConnectionResponse3, "testObject_NewConnectionResponse3.json"),
         (NewConnectionResponse.testObject_NewConnectionResponse4, "testObject_NewConnectionResponse4.json")
+      ]
+    testObjects
+      [ (NewRemoteConversation.testObject_NewRemoteConversation1, "testObject_NewRemoteConversation1.json"),
+        (NewRemoteConversation.testObject_NewRemoteConversation2, "testObject_NewRemoteConversation2.json")
       ]

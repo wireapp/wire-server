@@ -8,28 +8,39 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
         "type": "dashboard"
       }
     ]
   },
   "editable": true,
+  "fiscalYearStartMonth": 0,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 11,
-  "iteration": 1556873852486,
+  "iteration": 1636449155094,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
-      "content": "# Haskell Service Statistics\n## Change the $(service) and $(namespace) variables to filter stats",
+      "datasource": null,
       "gridPos": {
-        "h": 3,
+        "h": 4,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "id": 97,
       "links": [],
-      "mode": "markdown",
+      "options": {
+        "content": "# Haskell Service Statistics\n## Change the $(service) and $(namespace) variables to filter stats",
+        "mode": "markdown"
+      },
+      "pluginVersion": "8.2.3",
       "timeFrom": null,
       "timeShift": null,
       "title": "README",
@@ -38,11 +49,16 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 4
       },
       "id": 89,
       "panels": [],
@@ -54,13 +70,16 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
+      "datasource": null,
       "fill": 1,
+      "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 5
       },
+      "hiddenSeries": false,
       "id": 23,
       "legend": {
         "avg": false,
@@ -75,8 +94,12 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
       "paceLength": 10,
       "percentage": false,
+      "pluginVersion": "8.2.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -86,8 +109,11 @@
       "steppedLine": false,
       "targets": [
         {
+          "exemplar": false,
           "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", namespace=\"$namespace\"}[5m])) by (role)",
           "format": "time_series",
+          "instant": false,
+          "interval": "",
           "intervalFactor": 5,
           "legendFormat": "{{role}}",
           "refId": "A"
@@ -137,12 +163,13 @@
     {
       "cacheTimeout": null,
       "columns": [],
+      "datasource": null,
       "fontSize": "100%",
       "gridPos": {
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 5
       },
       "id": 98,
       "interval": "",
@@ -157,12 +184,14 @@
       "styles": [
         {
           "alias": "Time",
+          "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "pattern": "Time",
           "type": "hidden"
         },
         {
           "alias": "",
+          "align": "auto",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -179,6 +208,7 @@
         },
         {
           "alias": "",
+          "align": "auto",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -194,9 +224,11 @@
       ],
       "targets": [
         {
+          "exemplar": false,
           "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", namespace=\"$namespace\"}[$__range])) by (role, handler)",
           "format": "table",
           "instant": true,
+          "interval": "",
           "intervalFactor": 1,
           "legendFormat": "# 5XXs",
           "refId": "A"
@@ -206,15 +238,20 @@
       "timeShift": null,
       "title": "5XX/s per handler (current time range) - all services",
       "transform": "table",
-      "type": "table"
+      "type": "table-old"
     },
     {
       "collapsed": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 11
+        "y": 12
       },
       "id": 91,
       "panels": [],
@@ -230,13 +267,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": null,
       "fill": 4,
+      "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 13
       },
+      "hiddenSeries": false,
       "id": 18,
       "legend": {
         "avg": false,
@@ -251,8 +291,12 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
       "paceLength": 10,
       "percentage": false,
+      "pluginVersion": "8.2.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -333,12 +377,13 @@
     {
       "cacheTimeout": null,
       "columns": [],
+      "datasource": null,
       "fontSize": "100%",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 12
+        "y": 13
       },
       "id": 20,
       "interval": "",
@@ -353,12 +398,14 @@
       "styles": [
         {
           "alias": "Time",
+          "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "pattern": "Time",
           "type": "hidden"
         },
         {
           "alias": "",
+          "align": "auto",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -375,6 +422,7 @@
         },
         {
           "alias": "",
+          "align": "auto",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -402,17 +450,18 @@
       "timeShift": null,
       "title": "4XX/s per handler (current time range) - $service",
       "transform": "table",
-      "type": "table"
+      "type": "table-old"
     },
     {
       "cacheTimeout": null,
       "columns": [],
+      "datasource": null,
       "fontSize": "100%",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 12
+        "y": 13
       },
       "id": 21,
       "interval": "",
@@ -427,12 +476,14 @@
       "styles": [
         {
           "alias": "Time",
+          "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "pattern": "Time",
           "type": "hidden"
         },
         {
           "alias": "",
+          "align": "auto",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -449,6 +500,7 @@
         },
         {
           "alias": "",
+          "align": "auto",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -476,7 +528,7 @@
       "timeShift": null,
       "title": "5XX/s per handler (current time range) - $service",
       "transform": "table",
-      "type": "table"
+      "type": "table-old"
     },
     {
       "aliasColors": {},
@@ -487,13 +539,15 @@
       "editable": true,
       "error": false,
       "fill": 2,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 21
       },
+      "hiddenSeries": false,
       "id": 2,
       "legend": {
         "avg": false,
@@ -508,8 +562,12 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "alertThreshold": true
+      },
       "paceLength": 10,
       "percentage": false,
+      "pluginVersion": "8.2.3",
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
@@ -519,9 +577,11 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(container_network_receive_bytes_total{pod_name=~\"$service.*\", namespace=\"$namespace\"}[5m])) by (pod_name)",
+          "exemplar": true,
+          "expr": "sum(rate(container_network_receive_bytes_total{pod=~\"$service.*\", namespace=\"$namespace\"}[5m])) by (pod_name)",
           "format": "time_series",
           "hide": false,
+          "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{pod_name}}",
           "refId": "A",
@@ -571,11 +631,16 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 28
       },
       "id": 27,
       "panels": [],
@@ -592,13 +657,15 @@
       "editable": true,
       "error": false,
       "fill": 2,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 29
       },
+      "hiddenSeries": false,
       "id": 4,
       "legend": {
         "avg": false,
@@ -613,8 +680,12 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "alertThreshold": true
+      },
       "paceLength": 10,
       "percentage": false,
+      "pluginVersion": "8.2.3",
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
@@ -624,10 +695,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(container_cpu_load_average_10s{pod_name=~\"$service.*\", namespace=\"$namespace\"}) by (pod_name) * 100",
+          "exemplar": true,
+          "expr": "sum(container_cpu_load_average_10s{pod=~\"$service.*\", namespace=\"$namespace\"}) by (pod_name) * 100",
           "format": "time_series",
           "hide": false,
           "instant": false,
+          "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{ pod_name }}",
           "refId": "B",
@@ -685,13 +758,15 @@
       "editable": true,
       "error": false,
       "fill": 1,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 29
       },
+      "hiddenSeries": false,
       "id": 5,
       "legend": {
         "avg": false,
@@ -708,8 +783,12 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "alertThreshold": true
+      },
       "paceLength": 10,
       "percentage": true,
+      "pluginVersion": "8.2.3",
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
@@ -728,25 +807,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(container_memory_usage_bytes{namespace=\"$namespace\", pod_name=~\"$service.*\", namespace=\"$namespace\"}) by (pod_name) / (1024 * 1024)",
+          "exemplar": true,
+          "expr": "sum(container_memory_usage_bytes{namespace=\"$namespace\", pod=~\"$service.*\", namespace=\"$namespace\"}) by (pod_name) / (1024 * 1024)",
           "format": "time_series",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{ pod_name }}",
           "refId": "A",
-          "step": 2400,
-          "target": "alias(scale(averageSeries(gundeck.*.eu-west-1.compute.internal.memory.memory.used), 0.000001), 'used')"
-        },
-        {
-          "expr": "sum(container_spec_memory_limit_bytes{namespace=\"staging\", pod_name=~\"brig.*\", namespace=\"$namespace\"}) / (1024 * 1024)",
-          "format": "time_series",
-          "hide": true,
-          "instant": false,
-          "intervalFactor": 2,
-          "legendFormat": "Memory Limit (MB)",
-          "metric": "",
-          "refId": "C",
           "step": 2400,
           "target": "alias(scale(averageSeries(gundeck.*.eu-west-1.compute.internal.memory.memory.used), 0.000001), 'used')"
         }
@@ -799,12 +867,14 @@
       "dashes": false,
       "datasource": "default",
       "fill": 2,
+      "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 35
       },
+      "hiddenSeries": false,
       "id": 25,
       "legend": {
         "avg": false,
@@ -819,8 +889,12 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
       "paceLength": 10,
       "percentage": false,
+      "pluginVersion": "8.2.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -880,7 +954,7 @@
     }
   ],
   "refresh": false,
-  "schemaVersion": 18,
+  "schemaVersion": 31,
   "style": "dark",
   "tags": [],
   "templating": {
@@ -888,10 +962,12 @@
       {
         "allValue": null,
         "current": {
-          "tags": [],
+          "selected": true,
           "text": "brig",
           "value": "brig"
         },
+        "description": null,
+        "error": null,
         "hide": 0,
         "includeAll": false,
         "label": "service",
@@ -899,7 +975,7 @@
         "name": "service",
         "options": [
           {
-            "selected": false,
+            "selected": true,
             "text": "brig",
             "value": "brig"
           },
@@ -929,36 +1005,47 @@
             "value": "spar"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "proxy",
             "value": "proxy"
+          },
+          {
+            "selected": false,
+            "text": "federator",
+            "value": "federator"
           }
         ],
-        "query": "brig,galley,cannon,gundeck,cargohold,spar,proxy",
+        "query": "brig,galley,cannon,gundeck,cargohold,spar,proxy,federator",
+        "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"
       },
       {
         "allValue": null,
         "current": {
-          "text": "staging",
-          "value": "staging"
+          "selected": true,
+          "text": "wire-a",
+          "value": "wire-a"
         },
         "datasource": "Prometheus",
         "definition": "kube_namespace_labels",
+        "description": null,
+        "error": null,
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "namespace",
         "options": [],
-        "query": "kube_namespace_labels",
+        "query": {
+          "query": "kube_namespace_labels",
+          "refId": "Prometheus-namespace-Variable-Query"
+        },
         "refresh": 1,
         "regex": "/namespace=\"([^\"]+)\"/",
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -966,7 +1053,7 @@
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -1003,5 +1090,5 @@
   "timezone": "browser",
   "title": "Wire Services",
   "uid": "000000043",
-  "version": 17
+  "version": 1
 }

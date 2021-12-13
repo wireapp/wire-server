@@ -39,6 +39,7 @@ module Network.Wai.Utilities.Server
     onError,
     logError,
     logError',
+    logErrorMsg,
     logIO,
     runHandlers,
     restrict,
@@ -170,7 +171,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
     messageStr (Just t) = char7 ':' <> char7 ' ' <> byteString t
     messageStr Nothing = mempty
 
-route :: (MonadCatch m, MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
+route :: MonadIO m => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
 route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
   where
     noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
@@ -353,15 +354,16 @@ logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
 logError g mr = logError' g (lookupRequestId =<< mr)
 
 logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
-logError' g mr (Wai.Error c l m md) = liftIO $ Log.debug g logMsg
-  where
-    logMsg =
-      field "code" (statusCode c)
-        . field "label" l
-        . field "request" (fromMaybe "N/A" mr)
-        . fromMaybe id (fmap logErrorData md)
-        . msg (val "\"" +++ m +++ val "\"")
+logError' g mr e = liftIO $ Log.debug g (logErrorMsg mr e)
 
+logErrorMsg :: Maybe ByteString -> Wai.Error -> Msg -> Msg
+logErrorMsg mr (Wai.Error c l m md) =
+  field "code" (statusCode c)
+    . field "label" l
+    . field "request" (fromMaybe "N/A" mr)
+    . fromMaybe id (fmap logErrorData md)
+    . msg (val "\"" +++ m +++ val "\"")
+  where
     logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)
         . field "path" p

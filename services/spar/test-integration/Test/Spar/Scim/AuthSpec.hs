@@ -278,7 +278,7 @@ testPlaintextTokensAreConverted = do
       wrapMonadClient $ do
         retry x5 . batch $ do
           setType BatchLogged
-          setConsistency Quorum
+          setConsistency LocalQuorum
           addPrepQuery insByToken (ScimTokenLookupKeyPlaintext token, teamId, tokenId, now, Nothing, descr)
           addPrepQuery insByTeam (ScimTokenLookupKeyPlaintext token, teamId, tokenId, now, Nothing, descr)
       pure token
@@ -300,7 +300,7 @@ testPlaintextTokensAreConverted = do
     countTokensInDB :: ScimTokenLookupKey -> TestSpar Int64
     countTokensInDB key =
       wrapMonadClient $ do
-        count <- runIdentity <$$> (retry x1 . query1 selByKey $ params Quorum (Identity key))
+        count <- runIdentity <$$> (retry x1 . query1 selByKey $ params LocalQuorum (Identity key))
         pure $ fromMaybe 0 count
 
     selByKey :: PrepQuery R (Identity ScimTokenLookupKey) (Identity Int64)

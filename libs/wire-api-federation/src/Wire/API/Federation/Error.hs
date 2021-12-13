@@ -15,7 +15,67 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Error where
+-- | Map federation errors to client-facing errors.
+--
+-- This module contains most of the error-mapping logic that turns the various
+-- possible errors that can occur while making a federated request into errors
+-- that are meaningful for the clients.
+--
+-- There are three types of errors, from lowest level to highest:
+--
+--  * 'FederatorClientHTTP2Error': this is thrown when something fails while
+--     connecting or making a request to the local federator.
+--  * 'FederatorClientError': this is the most common type of error,
+--     corresponding to a failure at the level of the federator client. It
+--     includes, for example, a failure to reach a remote federator, or an
+--     error on the remote side.
+--  * 'FederatorError': this is created by users of the federator client. It
+--     can either wrap a 'FederatorClientError', or be an error that is outside
+--     the scope of the client, such as when a federated request succeeds with
+--     an unexpected result.
+--
+-- A general federated request is normally performed as a chain of HTTP
+-- requests (some of which are HTTP2). Errors can occur at each node of the
+-- chain, as well as in the communication between two adjacent nodes. A
+-- successful request goes through the following stages:
+--
+--  1) a service (say brig) makes a request to (the outward service of) the
+--     local federator (HTTP2);
+--  2) the local federator processes this request;
+--  3) the local federator makes a request to (the inward service of) a remote
+--     one (HTTP2);
+--  4) the remote federator processes this request;
+--  5) from the remote federator to a service on that backend (HTTP);
+--  6) the remote service processes this request.
+--
+-- Failures at step 1 in the chain result in 'FederatorClientHTTP2Error', while
+-- any other failure results in a 'FederatorClientError'.
+--
+-- Immediate failures in the outward service of a federator (stage 2) result in
+-- a 403 status code being returned to the federator client, which is then
+-- translated into an error with label federation-local-error.
+--
+-- Failures which occurred while making a request to a remote federator (stages
+-- 3 to 6) are turned into 5xx errors by federator itself, and then passed on
+-- through without any further mapping. This includes issues in stage 4,
+-- which are seen by the local federator as 403 status codes returned by the
+-- remote, as well as arbitrary error codes returned by a service.
+--
+-- Note that the federation API follows the convention that any error should be
+-- returned as part of a successful response with status code 200. Therefore any
+-- error response from services during a federated call should be considered a bug
+-- in the implementation of the federation API, and is therefore wrapped in a 533.
+module Wire.API.Federation.Error
+  ( FederatorClientHTTP2Error (..),
+    FederatorClientError (..),
+    FederationError (..),
+    federationErrorToWai,
+    federationRemoteHTTP2Error,
+    federationRemoteResponseError,
+    federationNotImplemented,
+    federationNotConfigured,
+  )
+where
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -23,62 +83,167 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
+import qualified Network.HTTP2.Frame as HTTP2
+import Network.TLS
 import qualified Network.Wai.Utilities.Error as Wai
-import qualified Servant.Client as Servant
-import Wire.API.Federation.Client
-  ( FederationClientError (..),
-    FederationClientFailure (..),
-    FederationError (..),
-  )
-import qualified Wire.API.Federation.GRPC.Types as Proto
+import Servant.Client
+
+-- | Transport-layer errors in federator client.
+data FederatorClientHTTP2Error
+  = FederatorClientNoStatusCode
+  | FederatorClientHTTP2Exception HTTP2.HTTP2Error
+  | FederatorClientTLSException TLSException
+  | FederatorClientConnectionError IOException
+  deriving (Show, Typeable)
+
+instance Exception FederatorClientHTTP2Error
+
+-- | Possible errors resulting from a use of the federator client.
+data FederatorClientError
+  = -- | An error that occurred when establishing a connection to or
+    -- communicating with the local federator.
+    FederatorClientHTTP2Error FederatorClientHTTP2Error
+  | -- | Federator client does not currently support streaming, so this error
+    -- will be thrown when using federator client to call APIs that contain a
+    -- streaming body.
+    FederatorClientStreamingNotSupported
+  | -- | This error will be thrown when the response received from federator
+    -- cannot be parsed by the servant machinery (e.g. its content type is
+    -- malformed or unsupported).
+    FederatorClientServantError ClientError
+  | -- | This error will be thrown when federator returns an error response.
+    FederatorClientError Wai.Error
+  deriving (Show, Typeable)
+
+instance Exception FederatorClientError
+
+-- | High level federation errors. When something goes wrong during a federated
+-- call, this error type should be used to represent the failure that occurred.
+--
+-- Note that federator client itself can only throw errors of type
+-- 'FederatorClientError', corresponding to the 'FederationCallFailure'
+-- constructor of 'FederationError'.
+data FederationError
+  = -- | To be used by endpoints to signal federation code paths that haven't
+    -- been fully implemented yet.
+    FederationNotImplemented
+  | -- | No federator endpoint has been set, so no call to federator client can
+    -- be made.
+    FederationNotConfigured
+  | -- | An error occurred while invoking federator client (see
+    -- 'FederatorClientError' for more details).
+    FederationCallFailure FederatorClientError
+  | -- | Federator client was invoked successfully, but the returned value is
+    -- incorrect. For example, if a single conversation was requested from the
+    -- remote backend, but multiple conversations have been returned. This can
+    -- indicate a bug in either backend, or an incompatibility in the
+    -- server-to-server API.
+    FederationUnexpectedBody Text
+  deriving (Show, Typeable)
+
+instance Exception FederationError
 
 federationErrorToWai :: FederationError -> Wai.Error
-federationErrorToWai (FederationUnavailable err) = federationUnavailable err
 federationErrorToWai FederationNotImplemented = federationNotImplemented
 federationErrorToWai FederationNotConfigured = federationNotConfigured
-federationErrorToWai (FederationCallFailure failure) = addErrorData $
-  case fedFailError failure of
-    FederationClientRPCError msg ->
-      Wai.mkError
-        HTTP.status500
-        "client-rpc-error"
-        (LT.fromStrict msg)
-    FederationClientInvalidMethod mth ->
-      federationInvalidCall
-        ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
-    FederationClientStreamingUnsupported -> federationInvalidCall "Streaming unsupported"
-    FederationClientOutwardError outwardErr -> federationRemoteError outwardErr
-    FederationClientInwardError inwardErr -> federationRemoteInwardError inwardErr
-    FederationClientServantError (Servant.DecodeFailure msg _) -> federationInvalidBody msg
-    FederationClientServantError (Servant.FailureResponse _ _) ->
-      Wai.mkError unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
-    FederationClientServantError (Servant.InvalidContentTypeHeader res) ->
-      Wai.mkError
-        unexpectedFederationResponseStatus
-        "federation-invalid-content-type-header"
-        ("Content-type: " <> contentType res)
-    FederationClientServantError (Servant.UnsupportedContentType mediaType res) ->
-      Wai.mkError
-        unexpectedFederationResponseStatus
-        "federation-unsupported-content-type"
-        ("Content-type: " <> contentType res <> ", Media-Type: " <> LT.pack (show mediaType))
-    FederationClientServantError (Servant.ConnectionError exception) ->
-      federationUnavailable . T.pack . show $ exception
-  where
-    contentType = LT.fromStrict . T.decodeUtf8 . maybe "" snd . find (\(name, _) -> name == "Content-Type") . Servant.responseHeaders
-    addErrorData :: Wai.Error -> Wai.Error
-    addErrorData err =
-      err
-        { Wai.errorData =
-            Just
-              Wai.FederationErrorData
-                { Wai.federrDomain = fedFailDomain failure,
-                  Wai.federrPath = T.decodeUtf8 (fedFailPath failure)
-                }
-        }
+federationErrorToWai (FederationCallFailure err) = federationClientErrorToWai err
+federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 
-noFederationStatus :: Status
-noFederationStatus = status403
+federationClientErrorToWai :: FederatorClientError -> Wai.Error
+federationClientErrorToWai (FederatorClientHTTP2Error e) =
+  federationClientHTTP2Error e
+federationClientErrorToWai FederatorClientStreamingNotSupported =
+  Wai.mkError HTTP.status500 "internal-error" "Federated streaming not implemented"
+federationClientErrorToWai (FederatorClientServantError err) =
+  federationServantErrorToWai err
+federationClientErrorToWai (FederatorClientError err) = err
+
+federationRemoteHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
+federationRemoteHTTP2Error FederatorClientNoStatusCode =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-http2-error"
+    "No status code in HTTP2 response"
+federationRemoteHTTP2Error (FederatorClientHTTP2Exception e) =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-http2-error"
+    (LT.pack (displayException e))
+federationRemoteHTTP2Error (FederatorClientTLSException e) =
+  Wai.mkError
+    (HTTP.mkStatus 525 "SSL Handshake Failure")
+    "federation-tls-error"
+    (LT.fromStrict (displayTLSException e))
+federationRemoteHTTP2Error (FederatorClientConnectionError e) =
+  Wai.mkError
+    federatorConnectionRefusedStatus
+    "federation-connection-refused"
+    (LT.pack (displayException e))
+
+federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
+federationClientHTTP2Error (FederatorClientConnectionError e) =
+  Wai.mkError
+    HTTP.status500
+    "federation-not-available"
+    (LT.pack (displayException e))
+federationClientHTTP2Error e =
+  Wai.mkError
+    HTTP.status500
+    "federation-local-error"
+    (LT.pack (displayException e))
+
+federationRemoteResponseError :: HTTP.Status -> Wai.Error
+federationRemoteResponseError status =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-remote-error"
+    ( "A remote federator failed with status code "
+        <> LT.pack (show (HTTP.statusCode status))
+    )
+
+displayTLSException :: TLSException -> Text
+displayTLSException (Terminated _ reason err) = T.pack reason <> ": " <> displayTLSError err
+displayTLSException (HandshakeFailed err) = T.pack "handshake failed: " <> displayTLSError err
+displayTLSException ConnectionNotEstablished = T.pack "connection not established"
+
+displayTLSError :: TLSError -> Text
+displayTLSError (Error_Misc msg) = T.pack msg
+displayTLSError (Error_Protocol (msg, _, _)) = "protocol error: " <> T.pack msg
+displayTLSError (Error_Certificate msg) = "certificate error: " <> T.pack msg
+displayTLSError (Error_HandshakePolicy msg) = "handshake policy error: " <> T.pack msg
+displayTLSError Error_EOF = "end-of-file error"
+displayTLSError (Error_Packet msg) = "packet error: " <> T.pack msg
+displayTLSError (Error_Packet_unexpected actual expected) =
+  "unexpected packet: " <> T.pack expected <> ", " <> "got " <> T.pack actual
+displayTLSError (Error_Packet_Parsing msg) = "packet parsing error: " <> T.pack msg
+
+federationServantErrorToWai :: ClientError -> Wai.Error
+federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg
+-- the following error is never thrown by federator client
+federationServantErrorToWai (FailureResponse _ _) = federationUnknownError
+federationServantErrorToWai (InvalidContentTypeHeader res) =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-invalid-content-type"
+    ("Content-type: " <> federationErrorContentType res)
+federationServantErrorToWai (UnsupportedContentType mediaType res) =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-unsupported-content-type"
+    ( "Content-type: " <> federationErrorContentType res
+        <> ", Media-Type: "
+        <> LT.pack (show mediaType)
+    )
+federationServantErrorToWai (ConnectionError e) =
+  federationUnavailable . T.pack . displayException $ e
+
+federationErrorContentType :: ResponseF a -> LT.Text
+federationErrorContentType =
+  LT.fromStrict
+    . T.decodeUtf8
+    . maybe "" snd
+    . find (\(name, _) -> name == "Content-Type")
+    . responseHeaders
 
 unexpectedFederationResponseStatus :: Status
 unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Response"
@@ -89,16 +254,9 @@ federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection 
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
   Wai.mkError
-    noFederationStatus
+    HTTP.status500
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
-
-federationInvalidCode :: Word32 -> Wai.Error
-federationInvalidCode code =
-  Wai.mkError
-    unexpectedFederationResponseStatus
-    "federation-invalid-code"
-    ("Invalid response code from remote federator: " <> LT.pack (show code))
 
 federationInvalidBody :: Text -> Wai.Error
 federationInvalidBody msg =
@@ -128,38 +286,9 @@ federationUnavailable err =
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
-federationRemoteInwardError :: Proto.InwardError -> Wai.Error
-federationRemoteInwardError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
-  where
-    msg = Proto.inwardErrorMsg err
-    (status, label) = case Proto.inwardErrorType err of
-      Proto.IInvalidEndpoint -> (HTTP.Status 531 "Version Mismatch", "inward-invalid-endpoint")
-      Proto.IFederationDeniedByRemote -> (HTTP.Status 532 "Federation Denied", "federation-denied-by-remote")
-      Proto.IAuthenticationFailed -> (unexpectedFederationResponseStatus, "server-to-server-authentication-failed")
-      Proto.IForbiddenEndpoint -> (unexpectedFederationResponseStatus, "forbidden-endpoint")
-      Proto.IDiscoveryFailed -> (HTTP.status500, "remote-discovery-failure")
-      Proto.IOther -> (unexpectedFederationResponseStatus, "inward-other")
-
-federationRemoteError :: Proto.OutwardError -> Wai.Error
-federationRemoteError err = case Proto.outwardErrorType err of
-  Proto.RemoteNotFound -> mkErr HTTP.status422 "srv-record-not-found"
-  Proto.DiscoveryFailed -> mkErr HTTP.status500 "srv-lookup-dns-error"
-  Proto.ConnectionRefused ->
-    mkErr
-      (HTTP.Status 521 "Web Server Is Down")
-      "cannot-connect-to-remote-federator"
-  Proto.TLSFailure -> mkErr (HTTP.Status 525 "SSL Handshake Failure") "tls-failure"
-  Proto.VersionMismatch -> mkErr (HTTP.Status 531 "Version Mismatch") "version-mismatch"
-  Proto.FederationDeniedByRemote ->
-    mkErr
-      (HTTP.Status 532 "Federation Denied")
-      "federation-denied-remotely"
-  Proto.FederationDeniedLocally -> mkErr HTTP.status400 "federation-not-allowed"
-  Proto.TooMuchConcurrency -> mkErr unexpectedFederationResponseStatus "too-much-concurrency"
-  Proto.GrpcError -> mkErr unexpectedFederationResponseStatus "grpc-error"
-  Proto.InvalidRequest -> mkErr HTTP.status500 "invalid-request-to-federator"
-  where
-    mkErr status label = Wai.mkError status label (LT.fromStrict (Proto.outwardErrorMessage err))
-
-federationInvalidCall :: LText -> Wai.Error
-federationInvalidCall = Wai.mkError HTTP.status500 "federation-invalid-call"
+federationUnknownError :: Wai.Error
+federationUnknownError =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "unknown-federation-error"
+    "Unknown federation error"

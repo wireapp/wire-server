@@ -23,13 +23,13 @@ import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson (eitherDecode)
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Qualified
 import qualified Data.Set as Set
+import Federator.MockServer (FederatedRequest (..))
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Gundeck.Types.Notification (Notification (..))
@@ -43,7 +43,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Action
 import qualified Wire.API.Federation.API.Galley as F
-import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Federation.Component
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -93,7 +93,7 @@ handleConversationRoleAdmin = do
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice alice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -135,7 +135,7 @@ handleConversationRoleMember = do
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice alice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -196,10 +196,10 @@ roleUpdateRemoteMember = do
               misConvRoleName = Just roleNameWireMember
             }
     liftIO $ do
-      F.domain req @?= domainText remoteDomain
-      fmap F.component (F.request req) @?= Just F.Galley
-      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
-      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
         @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember))
@@ -265,10 +265,10 @@ roleUpdateWithRemotes = do
               misConvRoleName = Just roleNameWireAdmin
             }
     liftIO $ do
-      F.domain req @?= domainText remoteDomain
-      fmap F.component (F.request req) @?= Just F.Galley
-      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
-      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
         @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin))
@@ -309,10 +309,10 @@ accessUpdateWithRemotes = do
 
     req <- assertOne requests
     liftIO $ do
-      F.domain req @?= domainText remoteDomain
-      fmap F.component (F.request req) @?= Just F.Galley
-      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
-      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu @?= ConversationActionAccessUpdate access
       F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]

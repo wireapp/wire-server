@@ -21,21 +21,26 @@
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client where
 
-import Brig.App (AppIO)
+import Brig.App
 import Brig.Types (PrekeyBundle)
 import Brig.Types.Client (PubClient)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
-import Control.Monad.Trans.Except (ExceptT (..))
+import Control.Lens
+import Control.Monad
+import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
+import Data.Range (Range)
 import qualified Data.Text as T
 import Imports
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.Client (FederationError (..), executeFederated)
+import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
 import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
@@ -93,4 +98,28 @@ sendConnectionAction ::
 sendConnectionAction self (qUntagged -> other) action = do
   let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
   Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
-  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes (tDomain self) req
+  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes req
+
+notifyUserDeleted ::
+  Local UserId ->
+  Remote (Range 1 1000 [UserId]) ->
+  FederationAppIO ()
+notifyUserDeleted self remotes = do
+  let remoteConnections = tUnqualified remotes
+  let fedRPC =
+        FederatedBrig.onUserDeleted clientRoutes $
+          UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+  void $ executeFederated (tDomain remotes) fedRPC
+
+executeFederated :: Domain -> FederatorClient 'Brig a -> FederationAppIO a
+executeFederated targetDomain action = do
+  ownDomain <- viewFederationDomain
+  endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
+  let env =
+        FederatorClientEnv
+          { ceOriginDomain = ownDomain,
+            ceTargetDomain = targetDomain,
+            ceFederator = endpoint
+          }
+  liftIO (runFederatorClient env action)
+    >>= either (throwE . FederationCallFailure) pure

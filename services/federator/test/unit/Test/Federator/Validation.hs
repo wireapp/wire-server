@@ -20,23 +20,23 @@
 module Test.Federator.Validation where
 
 import qualified Data.ByteString as BS
+import Data.ByteString.Conversion
 import Data.Domain (Domain (..), domainText)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.String.Conversions
 import qualified Data.Text.Encoding as Text
-import Federator.Discovery (DiscoverFederator (..), LookupError (..))
+import qualified Data.X509.Validation as X509
+import Federator.Discovery
 import Federator.Options
 import Federator.Validation
 import Imports
-import Polysemy (Sem, run)
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.Reader as Polysemy
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Test.Federator.InternalServer ()
 import Test.Federator.Options (noClientCertSettings)
+import Test.Federator.Util
 import Test.Tasty
 import Test.Tasty.HUnit
-import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
 mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
@@ -51,12 +51,12 @@ mockDiscoveryMapping origin targets = Polysemy.interpret $ \case
     pure $
       if dom == origin
         then Right $ fmap (`SrvTarget` 443) targets
-        else Left $ LookupErrorSrvNotAvailable "invalid origin domain"
+        else Left $ DiscoveryFailureSrvNotAvailable "invalid origin domain"
 
 mockDiscoveryFailure :: HasCallStack => Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryFailure = Polysemy.interpret $ \case
   DiscoverFederator _ -> error "Not mocked"
-  DiscoverAllFederators _ -> pure . Left $ LookupErrorDNSError "mock DNS error"
+  DiscoverAllFederators _ -> pure . Left $ DiscoveryFailureDNSError "mock DNS error"
 
 tests :: TestTree
 tests =
@@ -76,51 +76,56 @@ tests =
           validateDomainMultipleFederators,
           validateDomainDiscoveryFailed,
           validateDomainNonIdentitySRV
-        ],
-      testGroup "validatePath - Success" validatePathSuccess,
-      testGroup "validatePath - Normalize" validatePathNormalize,
-      testGroup "validatePath - Forbid" validatePathForbidden
+        ]
     ]
 
 federateWithAllowListSuccess :: TestTree
 federateWithAllowListSuccess =
   testCase "should give True when target domain is in the list" $ do
     let settings = settingsWithAllowList [Domain "hello.world"]
-        res = run . Polysemy.runReader settings $ federateWith (Domain "hello.world")
-    assertBool "federating should be allowed" res
+    runM
+      . assertNoError @ValidationError
+      . runInputConst settings
+      $ ensureCanFederateWith (Domain "hello.world")
 
 federateWithAllowListFail :: TestTree
 federateWithAllowListFail =
   testCase "should give False when target domain is not in the list" $ do
     let settings = settingsWithAllowList [Domain "only.other.domain"]
-        res = run . Polysemy.runReader settings $ federateWith (Domain "hello.world")
-    assertBool "federating should not be allowed" (not res)
+    eith :: Either ValidationError () <-
+      runM
+        . runError @ValidationError
+        . runInputConst settings
+        $ ensureCanFederateWith (Domain "hello.world")
+    assertBool "federating should not be allowed" (isLeft eith)
 
 validateDomainAllowListFailSemantic :: TestTree
 validateDomainAllowListFailSemantic =
   testCase "semantic validation" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.pem"
     let settings = settingsWithAllowList [Domain "only.other.domain"]
-        res :: Either InwardError Domain =
-          run
-            . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader settings
-            $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
-    res @?= Left (InwardError IAuthenticationFailed "Domain parse failure for [invalid//.><-semantic-&@-domain]: Failed reading: Invalid domain name: cannot be dotless domain")
+    res <-
+      runM
+        . runError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst settings
+        $ validateDomain (Just exampleCert) "invalid//.><-semantic-&@-domain"
+    res @?= Left (DomainParseError "invalid//.><-semantic-&@-domain")
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
     let settings = settingsWithAllowList [Domain "only.other.domain"]
-        res :: Either InwardError Domain =
-          run
-            . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader settings
-            $ validateDomain (Just exampleCert) ("localhost.example.com" :: Text)
-    res @?= Left (InwardError IFederationDeniedByRemote "Origin domain [localhost.example.com] not in the federation allow list")
+    res <-
+      runM
+        . runError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst settings
+        $ validateDomain (Just exampleCert) "localhost.example.com"
+    res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
@@ -128,56 +133,62 @@ validateDomainAllowListSuccess =
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
     let domain = Domain "localhost.example.com"
         settings = settingsWithAllowList [domain]
-        res :: Either InwardError Domain =
-          run
-            . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader settings
-            $ validateDomain (Just exampleCert) (domainText domain)
-    assertEqual "validateDomain should give 'localhost.example.com' as domain" (Right domain) res
+    res <-
+      runM
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst settings
+        $ validateDomain (Just exampleCert) (toByteString' domain)
+    assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
 
 validateDomainCertMissing :: TestTree
 validateDomainCertMissing =
   testCase "should fail if no client certificate is provided" $ do
-    let res :: Either InwardError Domain =
-          run . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader noClientCertSettings
-            $ validateDomain Nothing "foo.example.com"
-    res @?= Left (InwardError IAuthenticationFailed "no client certificate provided")
+    res <-
+      runM . runError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ validateDomain Nothing "foo.example.com"
+    res @?= Left NoClientCertificate
 
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do
-    let res :: Either InwardError Domain =
-          run . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader noClientCertSettings
-            $ validateDomain (Just "not a certificate") "foo.example.com"
-    res @?= Left (InwardError IAuthenticationFailed "no certificate found")
+    res <-
+      runM . runError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just "not a certificate") "foo.example.com"
+    res @?= Left (CertificateParseError "no certificate found")
 
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
-    let res :: Either InwardError Domain =
-          run . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader noClientCertSettings
-            $ validateDomain (Just exampleCert) "foo.example.com"
-    res @?= Left (InwardError IAuthenticationFailed "none of the domain names match the certificate, errrors: [[NameMismatch \"foo.example.com\"]]")
+    res <-
+      runM . runError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just exampleCert) "foo.example.com"
+    res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
   testCase "should succeed if the certificate has subject CN but no SAN" $ do
     exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
     let domain = Domain "foo.example.com"
-        res :: Either InwardError Domain =
-          run . Polysemy.runError
-            . mockDiscoveryTrivial
-            . Polysemy.runReader noClientCertSettings
-            $ validateDomain (Just exampleCert) (domainText domain)
-    res @?= Right domain
+    res <-
+      runM
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just exampleCert) (toByteString' domain)
+    res @?= domain
 
 validateDomainMultipleFederators :: TestTree
 validateDomainMultipleFederators =
@@ -185,115 +196,47 @@ validateDomainMultipleFederators =
     localhostExampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
     secondExampleCert <- BS.readFile "test/resources/unit/second-federator.example.com.pem"
     let runValidation =
-          run
-            . Polysemy.runError
+          runM
+            . assertNoError @ValidationError
+            . assertNoError @DiscoveryFailure
             . mockDiscoveryMapping domain ("localhost.example.com" :| ["second-federator.example.com"])
-            . Polysemy.runReader noClientCertSettings
+            . runInputConst noClientCertSettings
         domain = Domain "foo.example.com"
-        resFirst :: Either InwardError Domain =
-          runValidation $ validateDomain (Just localhostExampleCert) (domainText domain)
-    resFirst @?= Right domain
-    let resSecond :: Either InwardError Domain =
-          runValidation $ validateDomain (Just secondExampleCert) (domainText domain)
-    resSecond @?= Right domain
+    resFirst <-
+      runValidation $
+        validateDomain (Just localhostExampleCert) (toByteString' domain)
+    resFirst @?= domain
+    resSecond <-
+      runValidation $
+        validateDomain (Just secondExampleCert) (toByteString' domain)
+    resSecond @?= domain
 
+-- FUTUREWORK: is this test really necessary?
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =
   testCase "should fail if discovery fails" $ do
     exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
-    let res :: Either InwardError Domain =
-          run . Polysemy.runError
-            . mockDiscoveryFailure
-            . Polysemy.runReader noClientCertSettings
-            $ validateDomain (Just exampleCert) "example.com"
-    res @?= Left (InwardError IDiscoveryFailed "DNS error: mock DNS error")
+    res <-
+      runM . runError
+        . assertNoError @ValidationError
+        . mockDiscoveryFailure
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just exampleCert) "example.com"
+    res @?= Left (DiscoveryFailureDNSError "mock DNS error")
 
 validateDomainNonIdentitySRV :: TestTree
 validateDomainNonIdentitySRV =
   testCase "should run discovery to look up the federator domain" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
     let domain = Domain "foo.example.com"
-        res :: Either InwardError Domain =
-          run . Polysemy.runError
-            . mockDiscoveryMapping domain ("localhost.example.com" :| [])
-            . Polysemy.runReader noClientCertSettings
-            $ validateDomain (Just exampleCert) (domainText domain)
-    res @?= Right domain
-
-validatePathSuccess :: [TestTree]
-validatePathSuccess = do
-  let paths =
-        [ "federation/get-user-by-handle",
-          "federation/get-conversations"
-        ]
-  expectOk <$> paths
-  where
-    expectOk :: ByteString -> TestTree
-    expectOk path = testCase ("should allow " <> cs path) $ do
-      runSanitize path @?= Right path
-
-validatePathNormalize :: [TestTree]
-validatePathNormalize = do
-  let paths =
-        [ ("federation//stuff", "federation/stuff"),
-          ("/federation/get-user-by-handle", "federation/get-user-by-handle"),
-          ("federation/../federation/stuff", "federation/stuff")
-        ]
-  expectNormalized <$> paths
-  where
-    expectNormalized :: (ByteString, ByteString) -> TestTree
-    expectNormalized (input, output) = do
-      testCase ("Should allow " <> cs input <> " and normalize to " <> cs output) $ do
-        runSanitize input @?= Right output
-
-validatePathForbidden :: [TestTree]
-validatePathForbidden = do
-  let paths =
-        [ "",
-          "/",
-          "///",
-          -- disallowed paths
-          "federation",
-          "/federation",
-          "/federation/",
-          "i/users",
-          "/i/users",
-          -- path traversals to avoid
-          "../i/users",
-          "federation/../i/users",
-          "federation/%2e%2e/i/users", -- percent-encoded '../'
-          "federation/%2E%2E/i/users",
-          "federation/%252e%252e/i/users", -- double percent-encoded '../'
-          "federation/%c0%ae%c0%ae/i/users", -- weird-encoded '../'
-          -- syntax we don't wish to support
-          "federation/é", -- not ASCII
-          "federation/stuff?bar[]=baz", -- not parseable as URI
-          "http://federation.wire.link/federation/stuff", -- contains scheme and domain
-          "http://federation/stuff", -- contains scheme
-          "federation.wire.link/federation/stuff", -- contains domain
-          "federation/stuff?key=value", -- contains query parameter
-          "federation/stuff%3fkey%3dvalue", -- contains query parameter
-          "federation/stuff#fragment", -- contains fragment
-          "federation/stuff%23fragment", -- contains fragment
-          "federation/this-url-is-waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay-too-long"
-        ]
-  expectForbidden <$> paths
-  where
-    expectForbidden :: ByteString -> TestTree
-    expectForbidden input = do
-      testCase ("Should forbid '" <> cs (BS.take 40 input) <> "'") $ do
-        let res = runSanitize input
-        expectErr IForbiddenEndpoint res
-
-runSanitize :: ByteString -> Either InwardError ByteString
-runSanitize = run . Polysemy.runError @InwardError . sanitizePath
-
-expectErr :: InwardErrorType -> Either InwardError ByteString -> IO ()
-expectErr expectedType (Right bdy) = do
-  assertFailure $ "expected error '" <> show expectedType <> "' but got a valid body: " <> show bdy
-expectErr expectedType (Left err) =
-  unless (inwardErrorType err == expectedType) $ do
-    assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
+    res <-
+      runM
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryMapping domain ("localhost.example.com" :| [])
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just exampleCert) (toByteString' domain)
+    res @?= domain
 
 settingsWithAllowList :: [Domain] -> RunSettings
 settingsWithAllowList domains =

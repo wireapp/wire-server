@@ -89,7 +89,8 @@ mainBotNet n = do
   meetup <- runBotSession ally $ do
     let others = bill : carl : goons
     conv <- qUnqualified . cnvQualifiedId <$> createConv (map botId others) (Just "Meetup")
-    assertConvCreated conv ally others
+    lconv <- qualifyLocal conv
+    assertConvCreated lconv ally others
     return conv
   info $ msg "Bill updates his member state"
   localDomain <- viewFederationDomain

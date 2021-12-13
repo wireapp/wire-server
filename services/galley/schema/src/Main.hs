@@ -56,6 +56,9 @@ import qualified V50_AddLegalholdWhitelisted
 import qualified V51_FeatureFileSharing
 import qualified V52_FeatureConferenceCalling
 import qualified V53_AddRemoteConvStatus
+import qualified V54_TeamFeatureSelfDeletingMessages
+import qualified V55_SelfDeletingMessagesLockStatus
+import qualified V56_GuestLinksTeamFeatureStatus
 
 main :: IO ()
 main = do
@@ -97,9 +100,12 @@ main = do
       V50_AddLegalholdWhitelisted.migration,
       V51_FeatureFileSharing.migration,
       V52_FeatureConferenceCalling.migration,
-      V53_AddRemoteConvStatus.migration
+      V53_AddRemoteConvStatus.migration,
+      V54_TeamFeatureSelfDeletingMessages.migration,
+      V55_SelfDeletingMessagesLockStatus.migration,
+      V56_GuestLinksTeamFeatureStatus.migration
       -- When adding migrations here, don't forget to update
-      -- 'schemaVersion' in Galley.Data
+      -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
       --
       -- FUTUREWORK: once #1726 has made its way to master/production,
