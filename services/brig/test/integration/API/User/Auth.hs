@@ -575,8 +575,8 @@ testNoUserSsoLogin brig = do
 
 -- The testInvalidCookie test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
-
--- | Test that invalid and expired tokens do not work.
+--
+-- Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
 testInvalidCookie z b = do
   -- Syntactically invalid
