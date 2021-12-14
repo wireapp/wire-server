@@ -295,7 +295,7 @@ class IsResponseList cs as where
   responseListStatuses :: [Status]
 
 instance IsResponseList cs '[] where
-  responseListRender _ x = case x of {}
+  responseListRender _ x = case x of
   responseListUnrender _ _ = empty
   responseListStatuses = []
 
@@ -398,7 +398,7 @@ class InjectBefore as bs where
   injectBefore :: Union as -> Union (as .++ bs)
 
 instance InjectBefore '[] bs where
-  injectBefore x = case x of {}
+  injectBefore x = case x of
 
 instance InjectBefore as bs => InjectBefore (a ': as) bs where
   injectBefore (Z x) = Z x
@@ -455,8 +455,8 @@ class AsConstructors xss rs where
   fromSOP :: SOP I xss -> Union (ResponseTypes rs)
 
 instance AsConstructors '[] '[] where
-  toSOP x = case x of {}
-  fromSOP x = case x of {}
+  toSOP x = case x of
+  fromSOP x = case x of
 
 instance AsConstructor '[a] (Respond code desc a) where
   toConstructor x = I x :* Nil
@@ -515,7 +515,7 @@ instance
 
   fromUnion (Z (I ())) = False
   fromUnion (S (Z (I ()))) = True
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S x)) = case x of
 
 -- | A handler for a pair of responses where the first is empty can be
 -- implemented simply by returning a 'Maybe' value. The convention is that the
@@ -531,7 +531,7 @@ instance
 
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I x))) = Just x
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S x)) = case x of
 
 instance
   (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>
