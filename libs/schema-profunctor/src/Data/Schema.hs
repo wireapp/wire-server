@@ -36,6 +36,7 @@ module Data.Schema
     schemaIn,
     schemaOut,
     HasDoc (..),
+    doc',
     HasSchemaRef (..),
     withParser,
     SwaggerDoc,
@@ -248,6 +249,9 @@ instance Choice (SchemaP doc v v') where
 
 instance HasDoc (SchemaP doc v v' a b) (SchemaP doc' v v' a b) doc doc' where
   doc = lens schemaDoc $ \(SchemaP d i o) d' -> SchemaP (Lens.set doc d' d) i o
+
+doc' :: Lens' (SchemaP doc v w a b) doc
+doc' = doc
 
 withParser :: SchemaP doc v w a b -> (b -> A.Parser b') -> SchemaP doc v w a b'
 withParser (SchemaP (SchemaDoc d) (SchemaIn p) (SchemaOut o)) q =

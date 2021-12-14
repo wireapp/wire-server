@@ -57,7 +57,7 @@ module Wire.API.Asset.V3
 where
 
 import qualified Codec.MIME.Type as MIME
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString.Char8
@@ -146,9 +146,8 @@ instance ToByteString AssetKey where
 instance ToSchema AssetKey where
   schema =
     (T.decodeUtf8 . toByteString')
-      .= parsedText
-        "AssetKey"
-        (runParser parser . T.encodeUtf8)
+      .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
+        & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
 
 --------------------------------------------------------------------------------
 -- AssetToken
@@ -156,7 +155,14 @@ instance ToSchema AssetKey where
 -- | Asset tokens are bearer tokens that grant access to a single asset.
 newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
   deriving stock (Eq, Show)
-  deriving newtype (FromByteString, ToByteString, ToSchema, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (FromByteString, ToByteString, Arbitrary)
+  deriving (FromJSON, ToJSON) via (Schema AssetToken)
+
+instance ToSchema AssetToken where
+  schema =
+    AssetToken <$> assetTokenAscii
+      .= schema
+        & doc' . S.schema . S.example ?~ toJSON ("aGVsbG8" :: Text)
 
 -- | A newly (re)generated token for an existing asset.
 newtype NewAssetToken = NewAssetToken
