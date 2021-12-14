@@ -57,7 +57,7 @@ invalidLength :: Error
 invalidLength = errorDescriptionTypeToWai @InvalidLength
 
 assetNotFound :: Error
-assetNotFound = mkError status404 "not-found" "Asset not found."
+assetNotFound = errorDescriptionTypeToWai @AssetNotFound
 
 invalidMD5 :: Error
 invalidMD5 = mkError status400 "client-error" "Invalid MD5."

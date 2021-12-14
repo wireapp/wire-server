@@ -66,7 +66,7 @@ import Servant.API.ContentTypes
 import Servant.API.ResponseHeaders
 import Servant.API.Status (KnownStatus (..))
 import Servant.Client
-import Servant.Client.Core
+import Servant.Client.Core hiding (addHeader)
 import Servant.Server
 import Servant.Server.Internal
 import Servant.Swagger as S
@@ -213,6 +213,12 @@ data WithHeaders (hs :: [*]) (a :: *) (r :: *)
 class AsHeaders hs a b where
   fromHeaders :: Headers hs a -> Maybe b
   toHeaders :: b -> Headers hs a
+
+instance (KnownSymbol name, ToHttpApiData a) => AsHeaders '[Header name a] () a where
+  toHeaders a = addHeader a ()
+  fromHeaders h = case lookupResponseHeader @name h of
+    Header a -> Just a
+    _ -> Nothing
 
 instance AsHeaders hs a (Headers hs a) where
   fromHeaders = pure

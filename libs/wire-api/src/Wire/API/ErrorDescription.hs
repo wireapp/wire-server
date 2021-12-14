@@ -314,3 +314,5 @@ type InvalidTargetAccess = InvalidOp "invalid target access"
 type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
 
 type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
+
+type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"

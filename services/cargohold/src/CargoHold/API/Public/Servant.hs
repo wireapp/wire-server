@@ -32,6 +32,7 @@ import qualified Data.Text.Encoding.Error as Text
 import Imports hiding (head)
 import Servant.Server hiding (Handler)
 import Servant.Server.Generic
+import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Public.Cargohold
@@ -40,7 +41,8 @@ servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   genericServerT $
     Api
-      { postAsset = uploadAssetV3
+      { postAsset = uploadAssetV3,
+        downloadAsset = downloadAssetV3
       }
 
 uploadAssetV3 :: Local UserId -> AssetSource -> Handler (Asset, AssetLocation)
@@ -53,3 +55,8 @@ uploadAssetV3 usr req = do
         V3.BotPrincipal {} -> "/bot/assets/" <> key
         V3.ProviderPrincipal {} -> "/provider/assets/" <> key
   pure (asset, AssetLocation loc)
+
+downloadAssetV3 :: Local UserId -> AssetKey -> Maybe AssetToken -> Handler (Maybe AssetLocation)
+downloadAssetV3 usr key tok = do
+  url <- V3.download (V3.UserPrincipal (tUnqualified usr)) key tok
+  pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url

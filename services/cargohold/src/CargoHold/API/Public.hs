@@ -57,22 +57,6 @@ sitemap = do
   ---------------------------------------------------------------------------
   -- User API
 
-  --- Download
-
-  get "/assets/v3/:key" (continue downloadAssetV3) $
-    header "Z-User"
-      .&. capture "key"
-      .&. opt (header "Asset-Token" .|. query "asset_token")
-  document "GET" "downloadAsset" $ do
-    Doc.summary "Download an asset"
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.parameter Doc.Header "Asset-Token" Doc.bytes' $ do
-      Doc.description "Asset token"
-      Doc.optional
-    Doc.errorResponse Error.assetNotFound
-    Doc.response 302 "Asset found" Doc.end
-
   --- Token Management
 
   post "/assets/v3/:key/token" (continue renewTokenV3) $
@@ -179,12 +163,6 @@ apiDocs = do
 
 -----------------------------------------------------------------------------
 -- User API Handlers
-
--- FUTUREWORK: make these types more descriptive than 'Request' -> 'Response'
-downloadAssetV3 :: UserId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
-downloadAssetV3 (usr ::: key ::: tok) = do
-  url <- V3.download (V3.UserPrincipal usr) key tok
-  redirect url
 
 deleteAssetV3 :: UserId ::: Public.AssetKey -> Handler Response
 deleteAssetV3 (usr ::: key) = do

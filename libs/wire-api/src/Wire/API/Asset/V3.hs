@@ -61,18 +61,22 @@ import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString.Char8
+import Data.Bifunctor
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
+import qualified Data.Text as T
 import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+import Servant
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -149,6 +153,12 @@ instance ToSchema AssetKey where
       .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
         & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
 
+instance S.ToParamSchema AssetKey where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData AssetKey where
+  parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
+
 --------------------------------------------------------------------------------
 -- AssetToken
 
@@ -163,6 +173,12 @@ instance ToSchema AssetToken where
     AssetToken <$> assetTokenAscii
       .= schema
         & doc' . S.schema . S.example ?~ toJSON ("aGVsbG8" :: Text)
+
+instance S.ToParamSchema AssetToken where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData AssetToken where
+  parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
 
 -- | A newly (re)generated token for an existing asset.
 newtype NewAssetToken = NewAssetToken

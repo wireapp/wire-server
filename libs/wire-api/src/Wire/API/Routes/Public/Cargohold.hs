@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -31,11 +33,16 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
 
 newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
+  deriving newtype
+    ( ToHttpApiData,
+      FromHttpApiData,
+      Swagger.ToParamSchema
+    )
 
-instance KnownSymbol name => AsHeaders '[Header name Text] Asset (Asset, AssetLocation) where
-  toHeaders (asset, loc) = addHeader (getAssetLocation loc) asset
+instance KnownSymbol name => AsHeaders '[Header name AssetLocation] Asset (Asset, AssetLocation) where
+  toHeaders (asset, loc) = addHeader loc asset
   fromHeaders h = case lookupResponseHeader @name h of
-    Header loc -> Just (getResponse h, AssetLocation loc)
+    Header loc -> Just (getResponse h, loc)
     _ -> Nothing
 
 data Api routes = Api
@@ -53,11 +60,28 @@ data Api routes = Api
              'POST
              '[JSON]
              '[ WithHeaders
-                  '[DescHeader "Location" "Asset location" Text]
+                  '[DescHeader "Location" "Asset location" AssetLocation]
                   (Asset, AssetLocation)
                   (Respond 201 "Asset posted" Asset)
               ]
-             (Asset, AssetLocation)
+             (Asset, AssetLocation),
+    downloadAsset ::
+      routes :- Summary "Download an asset"
+        :> ZLocalUser
+        :> "assets"
+        :> "v3"
+        :> Capture "key" AssetKey
+        :> Header "Asset-Token" AssetToken
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ AssetNotFound,
+                WithHeaders
+                  '[DescHeader "Location" "Asset location" AssetLocation]
+                  AssetLocation
+                  (RespondEmpty 302 "Asset found")
+              ]
+             (Maybe AssetLocation)
   }
   deriving (Generic)
 
