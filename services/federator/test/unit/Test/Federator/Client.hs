@@ -224,7 +224,6 @@ testStreaming = withInfiniteMockServer $ \port -> do
   withHTTP2Request Nothing req "127.0.0.1" port $ \resp -> do
     let expected = mconcat (replicate 512 "Hello\n")
     actual <- takeSourceT (fromIntegral (LBS.length expected)) (responseBody resp)
-    putStrLn "go!"
     actual @?= expected
 
 withInfiniteMockServer :: (Int -> IO a) -> IO a
