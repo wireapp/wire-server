@@ -18,14 +18,7 @@
 module Main where
 
 import Bench
-import qualified Cannon.API
-import Data.Metrics.Test (pathsConsistencyCheck)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Imports
-import Network.Wai.Utilities.Server (compile)
-import qualified Test.Cannon.Dict as D
-import Test.Tasty
-import Test.Tasty.HUnit
 
 main :: IO ()
 main = benchmark
