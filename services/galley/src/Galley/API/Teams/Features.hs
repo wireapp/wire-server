@@ -56,6 +56,7 @@ import Data.Id
 import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Time.Clock
+import Debug.Trace
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
@@ -632,18 +633,19 @@ getGuestLinkInternal ::
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
 getGuestLinkInternal = \case
-  Left _ -> getCfgDefault
+  Left _ -> do
+    traceM "internal param user"
+    getCfgDefault
   Right tid -> do
     cfgDefault <- getCfgDefault
     let defLockStatus = Public.tfwoapsLockStatus cfgDefault
     maybeFeatureStatus <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid
-    pure $ case (defLockStatus, maybeFeatureStatus) of
-      (Public.Unlocked, Just featureStatus) ->
+    pure $ case maybeFeatureStatus of
+      Just featureStatus ->
         Public.TeamFeatureStatusNoConfigAndLockStatus
           (Public.tfwoStatus featureStatus)
-          Public.Unlocked
-      (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = Public.Unlocked}
-      (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = Public.Locked}
+          defLockStatus
+      Nothing -> cfgDefault
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
@@ -657,12 +659,12 @@ setGuestLinkInternal ::
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r
   ) =>
+  Bool ->
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks)
-setGuestLinkInternal tid status = do
-  cfgDefault <- Public.tfwoapsLockStatus <$> getCfgDefault
-  guardLockStatus @'Public.TeamFeatureGuestLinks tid cfgDefault
+setGuestLinkInternal force tid status = do
+  unless force $ getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureGuestLinks tid
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event
@@ -673,8 +675,8 @@ setGuestLinkInternal tid status = do
             )
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid status <* pushEvent
   where
-    getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+    getDftLockStatus :: Sem r Public.LockStatusValue
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to Public.tfwoapsLockStatus)
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::

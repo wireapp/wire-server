@@ -70,7 +70,8 @@ tests s =
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
-      test s "ConversationGuestLinks" testGuestLinks
+      test s "ConversationGuestLinks - public API" testGuestLinksPublic,
+      test s "ConversationGuestLinks - internal API" testGuestLinksInternal
     ]
 
 testSSO :: TestM ()
@@ -474,19 +475,35 @@ testSelfDeletingMessages = do
   checkSetLockStatus Public.Unlocked
   checkGet TeamFeatureDisabled 30 Public.Unlocked
 
-testGuestLinks :: TestM ()
-testGuestLinks = do
+testGuestLinksInternal :: TestM ()
+testGuestLinksInternal = do
   galley <- view tsGalley
+  testGuestLinks
+    (const $ Util.getTeamFeatureFlagInternal Public.TeamFeatureGuestLinks)
+    (const $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureGuestLinks galley)
+
+testGuestLinksPublic :: TestM ()
+testGuestLinksPublic = do
+  galley <- view tsGalley
+  testGuestLinks
+    (Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley)
+    (Util.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley)
+
+testGuestLinks ::
+  (UserId -> TeamId -> TestM ResponseLBS) ->
+  (UserId -> TeamId -> Public.TeamFeatureStatusNoConfig -> TestM ResponseLBS) ->
+  TestM ()
+testGuestLinks getStatus putStatus = do
   (owner, tid, []) <- Util.createBindingTeamWithNMembers 0
   let checkGet :: HasCallStack => Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
       checkGet status lock =
         do
-          Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner tid
+          getStatus owner tid
           !!! responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus status lock))
       checkSet :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       checkSet status =
         do
-          Util.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner tid (Public.TeamFeatureStatusNoConfig status)
+          putStatus owner tid (Public.TeamFeatureStatusNoConfig status)
           !!! statusCode === const 200
 
   checkGet Public.TeamFeatureEnabled Public.Unlocked
