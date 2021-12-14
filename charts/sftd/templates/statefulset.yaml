@@ -30,9 +30,12 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: {{ include "sftd.fullname" . }}
       volumes:
         - name: external-ip
+          emptyDir: {}
+        - name: multi-sft-config
           emptyDir: {}
       initContainers:
         - name: get-external-ip
@@ -54,6 +57,47 @@ spec:
                 addr=$(kubectl get node $HOSTNAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
               fi
               echo -n "$addr" | tee /dev/stderr > /external-ip/ip
+        - name: get-multi-sft-config
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+
+          volumeMounts:
+            - name: multi-sft-config
+              mountPath: /multi-sft-config
+
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              {{- if .Values.multiSFT.enabled }}
+
+              response=$(curl "{{ .Values.multiSFT.turnDiscoveryURL }}")
+              if [ -z "$response" ]; then
+                 echo "No response from restund server."
+                 exit 1
+              fi
+
+              echo "$response" | jq -r '.username' > /multi-sft-config/username
+              if [ ! -s /multi-sft-config/username ]; then
+                echo "Response does not contain a username"
+                exit 1
+              fi
+
+              echo "$response" | jq -r '.password' > /multi-sft-config/password
+              if [ ! -s /multi-sft-config/password ]; then
+                echo "Response does not contain a password"
+                exit 1
+              fi
+
+              echo "$response" | jq -r '.uris[0]' > /multi-sft-config/turn_server
+              if [ ! -s /multi-sft-config/turn_server ]; then
+                echo "Response does not contain a turn server"
+                exit 1
+              fi
+
+              {{- end }}
+
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -72,6 +116,8 @@ spec:
           volumeMounts:
             - name: external-ip
               mountPath: /external-ip
+            - name: multi-sft-config
+              mountPath: /multi-sft-config
           command:
             - /bin/sh
             - -c
@@ -83,11 +129,20 @@ spec:
               else
                 ACCESS_ARGS="-A ${EXTERNAL_IP}"
               fi
+
+              {{- if .Values.multiSFT.enabled }}
+              MULTI_SFT_ARGS="-t \"$(cat /multi-sft-config/turn_server)\" \
+              -x \"$(cat /multi-sft-config/username)\" \
+              -c \"$(cat /multi-sft-config/password)\""
+              {{- else }}
+              MULTI_SFT_ARGS=""
+              {{- end }}
+
               exec sftd \
                       -I "${POD_IP}" \
                       -M "${POD_IP}" \
                       ${ACCESS_ARGS} \
-                      {{ .Values.additionalArgs }} \
+                      ${MULTI_SFT_ARGS} \
                       {{ if .Values.turnDiscoveryEnabled }}-T{{ end }} \
                       -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
           ports:
