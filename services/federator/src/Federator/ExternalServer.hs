@@ -18,8 +18,9 @@
 module Federator.ExternalServer (callInward, serveInward, parseRequestData, RequestData (..)) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import Federator.Discovery
 import Federator.Env
@@ -36,6 +37,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
+import Servant.Client.Core
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -43,7 +45,7 @@ import Wire.API.Federation.Domain
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
   Members
-    '[ Service,
+    '[ ServiceStreaming,
        Embed IO,
        TinyLog,
        DiscoverFederator,
@@ -67,12 +69,18 @@ callInward wreq = do
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
 
-  (status, body) <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
+  resp <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
-      . Log.field "status" (show status)
-
-  pure $ Wai.responseLBS status defaultHeaders (fromMaybe mempty body)
+      . Log.field "status" (show (responseStatusCode resp))
+  pure $
+    streamingResponseToWai
+      resp
+        { responseHeaders =
+            Seq.filter
+              (\(name, _) -> name == "Content-Type")
+              (responseHeaders resp)
+        }
 
 data RequestData = RequestData
   { rdComponent :: Component,

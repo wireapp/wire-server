@@ -34,8 +34,6 @@ import Federator.Env (Env, applog, httpManager, requestId)
 import Imports
 import Polysemy
 import Polysemy.Input
-import Servant.API.Generic ()
-import Servant.Server ()
 import System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 

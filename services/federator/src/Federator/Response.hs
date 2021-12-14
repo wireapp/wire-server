@@ -20,10 +20,13 @@ module Federator.Response
     serve,
     runWaiError,
     runWaiErrors,
+    streamingResponseToWai,
   )
 where
 
 import Control.Lens
+import Control.Monad.Codensity
+import Data.ByteString.Builder
 import Federator.Discovery
 import Federator.Env
 import Federator.Error
@@ -39,10 +42,13 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import Polysemy
+import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
+import Servant.Client.Core
+import Servant.Types.SourceT
 import Wire.Network.DNS.Effect
 
 defaultHeaders :: [HTTP.Header]
@@ -96,14 +102,13 @@ serve action env port =
   where
     app :: Wai.Application
     app req respond =
-      runFederator env (action req)
-        >>= respond
+      runCodensity (runFederator env (action req)) respond
 
 type AllEffects =
   '[ Remote,
      DiscoverFederator,
      DNSLookup, -- needed by DiscoverFederator
-     Service,
+     ServiceStreaming,
      Input RunSettings,
      Input TLSSettings, -- needed by Remote
      Input Env, -- needed by Service
@@ -112,14 +117,16 @@ type AllEffects =
      Error ServerError,
      Error DiscoveryFailure,
      TinyLog,
-     Embed IO
+     Embed IO,
+     Embed (Codensity IO)
    ]
 
 -- | Run Sem action containing HTTP handlers. All errors have to been handled
 -- already by this point.
-runFederator :: Env -> Sem AllEffects Wai.Response -> IO Wai.Response
+runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
 runFederator env =
-  runM @IO
+  runM
+    . runEmbedded @IO @(Codensity IO) liftIO
     . runTinyLog (view applog env) -- FUTUREWORK: add request id
     . runWaiErrors
       @'[ ValidationError,
@@ -130,7 +137,18 @@ runFederator env =
     . runInputConst env
     . runInputSem (embed @IO (readIORef (view tls env)))
     . runInputConst (view runSettings env)
-    . interpretService
+    . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery
     . interpretRemote
+
+streamingResponseToWai :: StreamingResponse -> Wai.Response
+streamingResponseToWai resp =
+  let headers = toList (responseHeaders resp)
+      status = responseStatusCode resp
+      streamingBody output flush =
+        foreach
+          (const (pure ()))
+          (\chunk -> output (byteString chunk) *> flush)
+          (responseBody resp)
+   in Wai.responseStream status headers streamingBody

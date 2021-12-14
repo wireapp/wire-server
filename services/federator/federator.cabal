@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2131bf1a367dd734cbccd900c4724c5b48e3f494501b2221e3f32ecaf0a12ec4
+-- hash: 371580e0c3adbdb4994c74a23ada11c91023bc654f2f0fe304ead7e88a3b8ba6
 
 name:           federator
 version:        1.0.0
@@ -83,6 +83,7 @@ library
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lens
     , metrics-core
     , metrics-wai
@@ -94,7 +95,7 @@ library
     , polysemy-wire-zoo
     , retry
     , servant
-    , servant-server
+    , servant-client-core
     , streaming-commons
     , string-conversions
     , text
@@ -149,6 +150,7 @@ executable federator
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lens
     , metrics-core
     , metrics-wai
@@ -160,7 +162,7 @@ executable federator
     , polysemy-wire-zoo
     , retry
     , servant
-    , servant-server
+    , servant-client-core
     , streaming-commons
     , string-conversions
     , text
@@ -224,6 +226,7 @@ executable federator-integration
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lens
     , metrics-core
     , metrics-wai
@@ -237,7 +240,7 @@ executable federator-integration
     , random
     , retry
     , servant
-    , servant-server
+    , servant-client-core
     , streaming-commons
     , string-conversions
     , tasty
@@ -308,6 +311,7 @@ test-suite federator-tests
     , http2
     , imports
     , interpolate
+    , kan-extensions
     , lens
     , metrics-core
     , metrics-wai
@@ -316,12 +320,11 @@ test-suite federator-tests
     , network-uri
     , pem
     , polysemy
-    , polysemy-mocks
     , polysemy-wire-zoo
     , retry
     , servant
     , servant-client
-    , servant-server
+    , servant-client-core
     , streaming-commons
     , string-conversions
     , tasty

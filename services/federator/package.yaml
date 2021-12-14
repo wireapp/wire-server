@@ -31,6 +31,7 @@ dependencies:
 - http-client-openssl
 - http-types
 - http2
+- kan-extensions
 - imports
 - lens
 - metrics-core
@@ -43,7 +44,7 @@ dependencies:
 - polysemy-wire-zoo
 - retry
 - servant
-- servant-server
+- servant-client-core
 - streaming-commons
 - string-conversions
 - text
@@ -111,7 +112,6 @@ tests:
     - directory
     - federator
     - interpolate
-    - polysemy-mocks
     - QuickCheck
     - servant-client
     - streaming-commons

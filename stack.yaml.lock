@@ -448,13 +448,6 @@ packages:
   original:
     hackage: redis-io-1.1.0
 - completed:
-    hackage: polysemy-mocks-0.2.0.0@sha256:ed7b4aa8ee29995d0b840ac0c131a141636ca46493b82706b7e5ec5e33b9ffa7,1441
-    pantry-tree:
-      size: 695
-      sha256: 8218e3dde278ca1f01d19009fad40f603e1b17993a519d15fe6319e3a827cc01
-  original:
-    hackage: polysemy-mocks-0.2.0.0
-- completed:
     hackage: warp-3.3.17@sha256:3a3ea203141d00d2244b511ee99174b8ed58fc862552755d470a25a44ce5275b,10910
     pantry-tree:
       size: 3973
@@ -646,11 +639,11 @@ packages:
     git: https://github.com/wireapp/http2
     pantry-tree:
       size: 52771
-      sha256: dc6d3868a049d2ed38ef16ca6dd6aeb6b8e8a1e730c664ecdd243ffdb45ee750
-    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
+      sha256: 71040c20c8e6a766b6b309c03dbc970062b15e450a63e05f8d095a87cdb5082f
+    commit: aa3501ad58e1abbd196781fac25a84f41ec2a787
   original:
     git: https://github.com/wireapp/http2
-    commit: 1ee1ce432d923839dab6782410e91dc17df2a880
+    commit: aa3501ad58e1abbd196781fac25a84f41ec2a787
 - completed:
     name: snappy
     version: 0.2.0.2

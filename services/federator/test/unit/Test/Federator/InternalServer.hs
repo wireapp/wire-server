@@ -19,7 +19,7 @@
 
 module Test.Federator.InternalServer (tests) where
 
-import Data.Binary.Builder
+import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
@@ -36,6 +36,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Servant.Client.Core
+import Servant.Types.SourceT
 import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Tasty
@@ -78,7 +80,13 @@ federatedRequestSuccess =
             rpc @?= "get-user-by-handle"
             headers @?= requestHeaders
             toLazyByteString body @?= "\"foo\""
-            pure (HTTP.status200, fromLazyByteString "\"bar\"")
+            pure
+              Response
+                { responseStatusCode = HTTP.ok200,
+                  responseHeaders = mempty,
+                  responseHttpVersion = HTTP.http20,
+                  responseBody = source ["\"bar\""]
+                }
     res <-
       runM
         . interpretCall
@@ -107,7 +115,14 @@ federatedRequestFailureAllowList =
 
     let checkRequest :: Sem (Remote ': r) a -> Sem r a
         checkRequest = interpret $ \case
-          DiscoverAndCall {} -> pure (HTTP.status200, fromLazyByteString "\"bar\"")
+          DiscoverAndCall {} ->
+            pure
+              Response
+                { responseStatusCode = HTTP.ok200,
+                  responseHeaders = mempty,
+                  responseHttpVersion = HTTP.http20,
+                  responseBody = source ["\"bar\""]
+                }
 
     eith <-
       runM
