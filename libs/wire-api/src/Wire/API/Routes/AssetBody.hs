@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -15,35 +17,47 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.AssetBody (AssetBody) where
+module Wire.API.Routes.AssetBody
+  ( AssetBody,
+    AssetSource (..),
+  )
+where
 
-import Control.Lens
-import Data.Proxy
+import Conduit
+import qualified Data.ByteString.Lazy as LBS
 import Data.Swagger
-import Data.Swagger.Declare
+import Data.Swagger.Internal.Schema
 import Imports
+import Network.HTTP.Media ((//))
 import Servant
-import Servant.Swagger
-import Servant.Swagger.Internal
-import Wire.API.Asset
+import Servant.Conduit ()
+import Servant.Swagger.Internal.Orphans ()
 
-data AssetBody
+data MultipartMixed
 
-instance HasSwagger api => HasSwagger (AssetBody :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & addConsumes [contentType (Proxy @JSON), contentType (Proxy @OctetStream)]
-      & definitions <>~ defs
-      & addParam
-        ( mempty
-            & name .~ "asset"
-            & description
-              ?~ "A body with content type `multipart/mixed body`. The first section's \
-                 \content type should be `application/json`. The second section's content \
-                 \type should be always be `application/octet-stream`. Other content types \
-                 \will be ignored by the server."
-            & required ?~ True
-            & schema .~ ParamBody ref
-        )
-    where
-      (defs, ref) = runDeclare (declareSchemaRef (Proxy @Asset)) mempty
+instance Accept MultipartMixed where
+  contentType _ = "multipart" // "mixed"
+
+instance MimeUnrender MultipartMixed ByteString where
+  mimeUnrender _ = pure . LBS.toStrict
+
+newtype AssetSource = AssetSource
+  { getAssetSource ::
+      ConduitT () ByteString (ResourceT IO) ()
+  }
+  deriving newtype (FromSourceIO ByteString)
+
+instance ToSchema AssetSource where
+  declareNamedSchema _ = pure $ named "AssetSource" $ mempty
+
+type AssetBody =
+  StreamBody'
+    '[ Description
+         "A body with content type `multipart/mixed body`. The first section's \
+         \content type should be `application/json`. The second section's content \
+         \type should be always be `application/octet-stream`. Other content types \
+         \will be ignored by the server."
+     ]
+    NoFraming
+    MultipartMixed
+    AssetSource

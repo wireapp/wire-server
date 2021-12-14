@@ -211,11 +211,11 @@ data WithHeaders (hs :: [*]) (a :: *) (r :: *)
 -- | This is used to convert a response containing headers to a custom type
 -- including the information in the headers.
 class AsHeaders hs a b where
-  fromHeaders :: Headers hs a -> b
+  fromHeaders :: Headers hs a -> Maybe b
   toHeaders :: b -> Headers hs a
 
 instance AsHeaders hs a (Headers hs a) where
-  fromHeaders = id
+  fromHeaders = pure
   toHeaders = id
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
@@ -268,7 +268,9 @@ instance
   responseUnrender c output = do
     x <- responseUnrender @cs @r c output
     let headers = Headers x (buildHeadersTo @(ServantHeaders hs) (roHeaders output))
-    pure (fromHeaders headers)
+    case fromHeaders headers of
+      Just r -> pure r
+      Nothing -> UnrenderError "Failed to parse headers"
 
 instance
   (AllToResponseHeader hs, IsSwaggerResponse r) =>
@@ -293,7 +295,7 @@ class IsResponseList cs as where
   responseListStatuses :: [Status]
 
 instance IsResponseList cs '[] where
-  responseListRender _ x = case x of
+  responseListRender _ x = case x of {}
   responseListUnrender _ _ = empty
   responseListStatuses = []
 
@@ -378,7 +380,7 @@ instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
 instance AsUnion '[RespondEmpty code desc] () where
   toUnion () = Z (I ())
   fromUnion (Z (I ())) = ()
-  fromUnion (S x) = case x of
+  fromUnion (S x) = case x of {}
 
 class InjectAfter as bs where
   injectAfter :: Union bs -> Union (as .++ bs)
@@ -393,7 +395,7 @@ class InjectBefore as bs where
   injectBefore :: Union as -> Union (as .++ bs)
 
 instance InjectBefore '[] bs where
-  injectBefore x = case x of
+  injectBefore x = case x of {}
 
 instance InjectBefore as bs => InjectBefore (a ': as) bs where
   injectBefore (Z x) = Z x
@@ -450,8 +452,8 @@ class AsConstructors xss rs where
   fromSOP :: SOP I xss -> Union (ResponseTypes rs)
 
 instance AsConstructors '[] '[] where
-  toSOP x = case x of
-  fromSOP x = case x of
+  toSOP x = case x of {}
+  fromSOP x = case x of {}
 
 instance AsConstructor '[a] (Respond code desc a) where
   toConstructor x = I x :* Nil
@@ -510,7 +512,12 @@ instance
 
   fromUnion (Z (I ())) = False
   fromUnion (S (Z (I ()))) = True
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
+
+-- | A handler with a single response.
+instance (ResponseType r ~ a) => AsUnion '[r] a where
+  toUnion = Z . I
+  fromUnion = unI . unZ
 
 -- | A handler for a pair of responses where the first is empty can be
 -- implemented simply by returning a 'Maybe' value. The convention is that the
@@ -526,7 +533,7 @@ instance
 
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I x))) = Just x
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
 
 instance
   (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>

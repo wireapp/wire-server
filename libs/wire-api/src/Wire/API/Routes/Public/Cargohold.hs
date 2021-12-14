@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Cargohold where
 
 import qualified Data.Swagger as Swagger
+import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.Generic (ToServantApi, (:-))
@@ -28,26 +29,37 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
 
+newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
+
+instance KnownSymbol name => AsHeaders '[Header name Text] Asset (Asset, AssetLocation) where
+  toHeaders (asset, loc) = addHeader (getAssetLocation loc) asset
+  fromHeaders h = case lookupResponseHeader @name h of
+    Header loc -> Just (getResponse h, AssetLocation loc)
+    _ -> Nothing
+
 data Api routes = Api
-  { postAsset ::
+  { -- Simple (one-step) Upload
+    --
+    -- Doc.errorResponse Error.assetTooLarge
+    -- Doc.errorResponse Error.invalidLength
+    -- Doc.consumes "multipart/mixed"
+    postAsset ::
       routes
         :- Summary
-             "Upload an asset.\n\nIn the multipart/mixed body, the first section's content type \
-             \should be `application/json`. The second section's content type should be always \
-             \be `application/octet-stream`. Other content types will be ignored by the server."
+             "Upload an asset."
         :> ZLocalUser
         :> "assets"
-        :> "v4"
+        :> "v3"
         :> AssetBody
         :> MultiVerb
              'POST
              '[JSON]
              '[ WithHeaders
                   '[DescHeader "Location" "Asset location" Text]
-                  Asset
+                  (Asset, AssetLocation)
                   (Respond 201 "Asset posted" Asset)
               ]
-             Asset
+             (Asset, AssetLocation)
   }
   deriving (Generic)
 

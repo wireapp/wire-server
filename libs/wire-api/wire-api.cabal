@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a24c71ad1c6528c76c8b340c90a1e345567630c7a8334d4b508f33eb6614ba3d
+-- hash: 80606059441fcf0f725386078aef563bf04549ce657002575a6559ae37544964
 
 name:           wire-api
 version:        0.1.0
@@ -115,6 +115,7 @@ library
     , cassava >=0.5
     , cereal
     , comonad
+    , conduit
     , containers >=0.5
     , cookie
     , cryptonite
@@ -155,6 +156,7 @@ library
     , servant
     , servant-client
     , servant-client-core
+    , servant-conduit
     , servant-multipart
     , servant-server
     , servant-swagger

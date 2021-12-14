@@ -48,7 +48,7 @@ import Wire.API.Team.Feature
 instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
   -- FUTUREWORK: use addHeader
   toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
-  fromHeaders = getResponse
+  fromHeaders = pure . getResponse
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 

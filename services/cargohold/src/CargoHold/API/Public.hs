@@ -49,23 +49,13 @@ import qualified Wire.API.Asset as Public
 -- FUTUREWORK: restore (and servantify) resumable upload functionality, removed
 -- in https://github.com/wireapp/wire-server/pull/1998
 
+--------------------------------------------------------------------------------
+-- Wai routes
+
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   ---------------------------------------------------------------------------
   -- User API
-
-  -- Simple (one-step) Upload
-
-  post "/assets/v3" (continue uploadAssetV3) $
-    header "Z-User"
-      .&. contentType "multipart" "mixed"
-      .&. request
-  document "POST" "uploadAsset" $ do
-    Doc.summary "Upload an asset. In the multipart/mixed body, the first section's content type should be application/json. The second section's content type should be always application/octet-stream. Other content types will be ignored by the server."
-    Doc.consumes "multipart/mixed"
-    Doc.errorResponse Error.assetTooLarge
-    Doc.errorResponse Error.invalidLength
-    Doc.response 201 "Asset posted" Doc.end
 
   --- Download
 
@@ -191,11 +181,6 @@ apiDocs = do
 -- User API Handlers
 
 -- FUTUREWORK: make these types more descriptive than 'Request' -> 'Response'
-uploadAssetV3 :: UserId ::: Media "multipart" "mixed" ::: Request -> Handler Response
-uploadAssetV3 (usr ::: _ ::: req) = do
-  let principal = V3.UserPrincipal usr
-  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
-
 downloadAssetV3 :: UserId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
 downloadAssetV3 (usr ::: key ::: tok) = do
   url <- V3.download (V3.UserPrincipal usr) key tok

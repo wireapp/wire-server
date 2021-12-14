@@ -17,10 +17,12 @@
 
 module CargoHold.API
   ( sitemap,
+    servantSitemap,
   )
 where
 
 import qualified CargoHold.API.Public as Public
+import CargoHold.API.Public.Servant
 import CargoHold.App (Handler)
 import Data.Predicate (true)
 import qualified Data.Swagger.Build.Api as Doc
