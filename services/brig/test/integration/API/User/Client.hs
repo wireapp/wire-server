@@ -418,6 +418,11 @@ testMultiUserGetPrekeysQualified brig opts = do
 
 -- The testTooManyClients test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test validates the upper bound on the number of permanent clients per
+-- user. It does so by trying to create one permanent client more than allowed.
+-- The expected outcome is that all the clients up to the limit are successfully
+-- created, but the one over the limit is not (error `404 too-many-clients`).
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
@@ -440,6 +445,10 @@ testTooManyClients opts brig = do
 
 -- The testRemoveClient test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- This test validates creating and deleting a client. A client is created and
+-- consequently deleted. Deleting a second time yields response 404 not found.
+-- Prekeys and cookies are not there anymore once the client is deleted.
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
   u <- randomUser' hasPwd brig
@@ -481,6 +490,10 @@ testRemoveClient hasPwd brig cannon = do
 
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test checks if a client can be deleted by providing a too short password.
+-- This is done by using a single-character password, whereas the minimum is 6
+-- characters. The client deletion attempt fails as expected.
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
   u <- randomUser brig
@@ -670,6 +683,11 @@ testMissingClient brig = do
 -- The testAddMultipleTemporary test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Legacy (galley)
+--
+-- Add temporary client, check that all services (both galley and
+-- brig) have registered it.  Add second temporary client, check
+-- again.  (NB: temp clients replace each other, there can always be
+-- at most one per account.)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
 testAddMultipleTemporary brig galley = do
   uid <- userId <$> randomUser brig

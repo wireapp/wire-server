@@ -400,7 +400,15 @@ testThrottleLogins conf b = do
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 -- The testLimitRetries test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- The following test tests the login retries. It checks that a user can make
+-- only a prespecified number of attempts to log in with an invalid password,
+-- after which the user is unable to try again for a configured amount of time.
+-- After the configured amount of time has passed, the test asserts the user can
+-- successfully log in again. Furthermore, the test asserts that another
+-- unrelated user can successfully log-in in parallel to the failed attempts of
+-- the aforementioned user.
 testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
   let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
@@ -910,6 +918,12 @@ testRemoveCookiesByLabelAndId b = do
 
 -- The testTooManyCookies test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test asserts that there is an upper limit for the number of user cookies
+-- per cookie type. It does that by concurrently attempting to create more
+-- persistent and session cookies than the configured maximum.
+-- Creation of new cookies beyond the limit causes deletion of the
+-- oldest cookies.
 testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
   u <- randomUser b
