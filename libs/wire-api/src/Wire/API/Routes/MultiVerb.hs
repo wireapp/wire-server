@@ -377,10 +377,13 @@ instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
 
-instance AsUnion '[RespondEmpty code desc] () where
-  toUnion () = Z (I ())
-  fromUnion (Z (I ())) = ()
-  fromUnion (S x) = case x of {}
+-- | A handler with a single response.
+instance (ResponseType r ~ a) => AsUnion '[r] a where
+  toUnion = Z . I
+  fromUnion = unI . unZ
+
+_foo :: Union '[Int]
+_foo = toUnion @'[Respond 200 "test" Int] @Int 3
 
 class InjectAfter as bs where
   injectAfter :: Union bs -> Union (as .++ bs)
@@ -513,11 +516,6 @@ instance
   fromUnion (Z (I ())) = False
   fromUnion (S (Z (I ()))) = True
   fromUnion (S (S x)) = case x of {}
-
--- | A handler with a single response.
-instance (ResponseType r ~ a) => AsUnion '[r] a where
-  toUnion = Z . I
-  fromUnion = unI . unZ
 
 -- | A handler for a pair of responses where the first is empty can be
 -- implemented simply by returning a 'Maybe' value. The convention is that the

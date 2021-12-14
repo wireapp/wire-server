@@ -32,3 +32,4 @@ data:
     settings:
       maxTotalBytes: 5368709120
       downloadLinkTTL: 300      # Seconds
+      federationDomain: {{ .settings.federationDomain }}

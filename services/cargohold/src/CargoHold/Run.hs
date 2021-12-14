@@ -68,8 +68,7 @@ run o = do
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            -- TODO: use actual federation domain here
-            (Domain "example.com" :. Servant.EmptyContext)
+            ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
             ( hoistServer' @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServer' @Public.ServantAPI (toServantHandler e) servantSitemap
                 :<|> Servant.Tagged (app e)
