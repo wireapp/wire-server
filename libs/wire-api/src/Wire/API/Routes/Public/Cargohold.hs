@@ -25,6 +25,7 @@ import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Asset
+import Wire.API.ErrorDescription
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
@@ -39,14 +40,11 @@ instance KnownSymbol name => AsHeaders '[Header name Text] Asset (Asset, AssetLo
 
 data Api routes = Api
   { -- Simple (one-step) Upload
-    --
-    -- Doc.errorResponse Error.assetTooLarge
-    -- Doc.errorResponse Error.invalidLength
-    -- Doc.consumes "multipart/mixed"
     postAsset ::
       routes
-        :- Summary
-             "Upload an asset."
+        :- Summary "Upload an asset"
+        :> CanThrow AssetTooLarge
+        :> CanThrow InvalidLength
         :> ZLocalUser
         :> "assets"
         :> "v3"
