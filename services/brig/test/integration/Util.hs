@@ -60,6 +60,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Qualified
 import Data.Range
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -76,6 +77,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Test (Session)
 import qualified Network.Wai.Test as WaiTest
+import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Servant.Client.Generic (AsClientT)
 import System.Random (randomIO, randomRIO)
 import qualified System.Timeout as System
@@ -83,6 +85,7 @@ import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.AWS
 import Util.Options (Endpoint (Endpoint))
@@ -739,6 +742,12 @@ randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
   return $ fromMaybe (error "Invalid random phone#") phone
+
+randomActivationCode :: (HasCallStack, MonadIO m) => m ActivationCode
+randomActivationCode =
+  liftIO $
+    ActivationCode . Ascii.unsafeFromText . T.pack . printf "%06d"
+      <$> randIntegerZeroToNMinusOne 1000000
 
 updatePhone :: HasCallStack => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do

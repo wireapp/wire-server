@@ -416,6 +416,8 @@ testMultiUserGetPrekeysQualified brig opts = do
       const 200 === statusCode
       const (Right $ expectedUserClientMap) === responseJsonEither
 
+-- The testTooManyClients test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
@@ -436,6 +438,8 @@ testTooManyClients opts brig = do
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
       const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
 
+-- The testRemoveClient test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
   u <- randomUser' hasPwd brig
@@ -475,6 +479,8 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
+-- The testRemoveClientShortPwd test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
   u <- randomUser brig
@@ -661,6 +667,8 @@ testMissingClient brig = do
     const ["text/plain;charset=utf-8"]
       === map snd . filter ((== "Content-Type") . fst) . responseHeaders
 
+-- The testAddMultipleTemporary test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
 testAddMultipleTemporary brig galley = do

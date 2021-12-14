@@ -90,9 +90,12 @@ tests _ at opts p b c ch g aws =
   testGroup
     "account"
     [ test' aws p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b aws,
+      test' aws p "post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test' aws p "post /register - 201" $ testCreateUser b g,
       test' aws p "post /register - 201 + no email" $ testCreateUserNoEmailNoPassword b,
       test' aws p "post /register - 201 anonymous" $ testCreateUserAnon b g,
+      test' aws p "post /register - 400 empty name" $ testCreateUserEmptyName b,
+      test' aws p "post /register - 400 name too long" $ testCreateUserLongName b,
       test' aws p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
       test' aws p "post /register - 201 pending" $ testCreateUserPending opts b,
       test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey opts b,
@@ -147,6 +150,32 @@ tests _ at opts p b c ch g aws =
         [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
         ]
     ]
+
+-- The testCreateUserWithInvalidVerificationCode test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Registering with an invalid verification code and valid account details should fail.
+testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
+testCreateUserWithInvalidVerificationCode brig = do
+  -- Attempt to register (pre verified) user with phone
+  p <- randomPhone
+  code <- randomActivationCode -- incorrect but syntactically valid activation code
+  let Object regPhone =
+        object
+          [ "name" .= Name "Alice",
+            "phone" .= fromPhone p,
+            "phone_code" .= code
+          ]
+  postUserRegister' regPhone brig !!! const 404 === statusCode
+  -- Attempt to register (pre verified) user with email
+  e <- randomEmail
+  let Object regEmail =
+        object
+          [ "name" .= Name "Alice",
+            "email" .= fromEmail e,
+            "email_code" .= code
+          ]
+  postUserRegister' regEmail brig !!! const 404 === statusCode
 
 testUpdateUserEmailByTeamOwner :: Brig -> Http ()
 testUpdateUserEmailByTeamOwner brig = do
@@ -263,6 +292,33 @@ testCreateUser brig galley = do
       b <- responseBody r
       b ^? key "conversations" . nth 0 . key "type" >>= maybeFromJSON
 
+-- The testCreateUserEmptyName test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- An empty name is not allowed on registration
+testCreateUserEmptyName :: Brig -> Http ()
+testCreateUserEmptyName brig = do
+  let p =
+        RequestBodyLBS . encode $
+          object
+            ["name" .= ("" :: Text)]
+  post (brig . path "/register" . contentJson . body p)
+    !!! const 400 === statusCode
+
+-- The testCreateUserLongName test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- a name with > 128 characters is not allowed.
+testCreateUserLongName :: Brig -> Http ()
+testCreateUserLongName brig = do
+  let nameTooLong = cs $ concat $ replicate 129 "a"
+  let p =
+        RequestBodyLBS . encode $
+          object
+            ["name" .= (nameTooLong :: Text)]
+  post (brig . path "/register" . contentJson . body p)
+    !!! const 400 === statusCode
+
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
   let p =
@@ -348,7 +404,10 @@ testCreateUserNoEmailNoPassword brig = do
     getPhoneLoginCode brig p
   initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
 
--- | email address must not be taken on @/register@.
+-- The testCreateUserConflict test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
 testCreateUserConflict (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserConflict _ brig = do
@@ -378,6 +437,10 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
+-- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
 testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
 testCreateUserInvalidEmailOrPhone (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserInvalidEmailOrPhone _ brig = do
