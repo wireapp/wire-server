@@ -17,9 +17,6 @@
 
 module CargoHold.API.Error where
 
-import CargoHold.Types.V3.Resumable (Offset, TotalSize)
-import Data.Text.Lazy.Builder
-import Data.Text.Lazy.Builder.Int
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -48,18 +45,6 @@ requestTimeout =
     \but none was sent over an extended period of time. Idle connections \
     \will be closed."
 
-invalidOffset :: Offset -> Offset -> Error
-invalidOffset expected given =
-  mkError status409 "invalid-offset" $
-    toLazyText $
-      "Invalid offset: "
-        <> "expected: "
-        <> decimal expected
-        <> ", "
-        <> "given: "
-        <> decimal given
-        <> "."
-
 uploadTooSmall :: Error
 uploadTooSmall =
   mkError
@@ -75,18 +60,6 @@ uploadTooLarge =
     "client-error"
     "The current chunk size + offset \
     \is larger than the full upload size."
-
-uploadIncomplete :: TotalSize -> TotalSize -> Error
-uploadIncomplete expected actual =
-  mkError status403 "client-error" $
-    toLazyText $
-      "The upload is incomplete: "
-        <> "expected size: "
-        <> decimal expected
-        <> ", "
-        <> "current size: "
-        <> decimal actual
-        <> "."
 
 clientError :: LText -> Error
 clientError = mkError status400 "client-error"

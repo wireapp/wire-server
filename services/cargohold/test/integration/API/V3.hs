@@ -17,16 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.V3 where
+module API.V3 (tests) where
 
 import Bilge hiding (body)
 import Bilge.Assert
 import qualified CargoHold.Types.V3 as V3
-import qualified CargoHold.Types.V3.Resumable as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding (sets)
-import Data.Aeson hiding (json)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
@@ -41,7 +39,7 @@ import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status (status200, status204)
+import Network.HTTP.Types.Status (status200)
 import Network.Wai.Utilities (Error (label))
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -57,17 +55,6 @@ tests s =
           test s "tokens" testSimpleTokens,
           test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
           test s "client-compatibility" testUploadCompatibility
-        ],
-      testGroup
-        "RealAWS"
-        [ testGroup
-            "resumable"
-            [ test s "small" testResumableSmall,
-              test s "large" testResumableBig,
-              test s "last-small" testResumableLastSmall,
-              test s "stepwise-small" testResumableStepSmall,
-              test s "stepwise-big" testResumableStepBig
-            ]
         ]
     ]
 
@@ -241,68 +228,6 @@ testUploadCompatibility c = do
       \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
       \\r\n"
 
---------------------------------------------------------------------------------
--- Resumable (multi-step) uploads
-
-testResumableSmall :: TestSignature ()
-testResumableSmall c = assertRandomResumable c totalSize chunkSize UploadFull
-  where
-    totalSize = 100 -- 100 B
-    chunkSize = 100 * 1024 -- 100 KiB
-
-testResumableBig :: TestSignature ()
-testResumableBig c = assertRandomResumable c totalSize chunkSize UploadFull
-  where
-    totalSize = 25 * 1024 * 1024 -- 25 MiB
-    chunkSize = 1 * 1024 * 1024 --  1 MiB
-
-testResumableLastSmall :: TestSignature ()
-testResumableLastSmall c = assertRandomResumable c totalSize chunkSize UploadFull
-  where
-    totalSize = 250 * 1024 + 12345 -- 250 KiB + 12345 B
-    chunkSize = 100 * 1024 -- 100 KiB
-
-testResumableStepSmall :: TestSignature ()
-testResumableStepSmall c = assertRandomResumable c totalSize chunkSize UploadStepwise
-  where
-    totalSize = 500 * 1024 + 12345 -- 500 KiB + 12345 B
-    chunkSize = 100 * 1024 -- 100 KiB
-
--- This should use the S3 multipart upload behind the scenes.
-testResumableStepBig :: TestSignature ()
-testResumableStepBig c = assertRandomResumable c totalSize chunkSize UploadStepwise
-  where
-    totalSize = 26 * 1024 * 1024 -- 26 MiB
-    chunkSize = 5 * 1024 * 1024 -- 5 MiB
-
--- Assertions -----------------------------------------------------------------
-
-data UploadType = UploadFull | UploadStepwise
-
-assertRandomResumable ::
-  HasCallStack => CargoHold -> V3.TotalSize -> V3.ChunkSize -> UploadType -> Http ()
-assertRandomResumable c totalSize chunkSize typ = do
-  (uid, dat, ast) <- randomResumable c totalSize
-  let key = ast ^. V3.resumableAsset . V3.assetKey
-  liftIO $ assertEqual "chunksize" chunkSize (ast ^. V3.resumableChunkSize)
-  case typ of
-    UploadStepwise -> uploadStepwise c uid key chunkSize dat
-    UploadFull -> void $ uploadResumable c uid key 0 dat
-  r <- downloadAsset c uid key Nothing
-  liftIO $ do
-    assertEqual "status" status200 (responseStatus r)
-    assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r)
-    assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r)
-    assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r)
-
-randomResumable :: CargoHold -> V3.TotalSize -> Http (UserId, ByteString, V3.ResumableAsset)
-randomResumable c size = do
-  uid <- liftIO $ Id <$> nextRandom
-  let sets = V3.mkResumableSettings V3.AssetPersistent True textPlain
-  let dat = C8.replicate (fromIntegral size) 'a'
-  ast <- createResumable c uid sets size
-  return (uid, dat, ast)
-
 -- API Calls ------------------------------------------------------------------
 
 uploadSimple ::
@@ -329,102 +254,16 @@ uploadRaw c usr bs =
       . content "multipart/mixed"
       . lbytes bs
 
-createResumable ::
-  HasCallStack =>
-  CargoHold ->
-  UserId ->
-  V3.ResumableSettings ->
-  V3.TotalSize ->
-  Http V3.ResumableAsset
-createResumable c u sets size = do
-  rsp <-
-    post
-      ( c
-          . path "/assets/v3/resumable"
-          . zUser u
-          . header "Content-Type" "application/json"
-          . header "Upload-Length" (toByteString' size)
-          . lbytes (encode sets)
-      )
-      <!! const 201
-      === statusCode
-  let Just ast = responseJsonMaybe @V3.ResumableAsset rsp
-  let Just loc = getHeader "Location" rsp
-  let loc' = "/assets/v3/resumable/" <> toByteString' (ast ^. V3.resumableAsset . V3.assetKey)
-  liftIO $ assertEqual "Location" loc' loc
-  return ast
-
-getResumableStatus :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Http V3.Offset
-getResumableStatus c u k = do
-  r <-
-    head
-      ( c
-          . paths ["assets", "v3", "resumable", toByteString' k]
-          . zUser u
-      )
-      <!! const 200
-      === statusCode
-  return $ getOffset r
-
-uploadResumable :: CargoHold -> UserId -> V3.AssetKey -> V3.Offset -> ByteString -> Http V3.Offset
-uploadResumable c u k off bs = do
-  r <-
-    patch
-      ( c
-          . paths ["assets", "v3", "resumable", toByteString' k]
-          . header "Upload-Offset" (toByteString' off)
-          . header "Content-Type" applicationOffset
-          . zUser u
-          . bytes bs
-      )
-  liftIO $ assertEqual "status" status204 (responseStatus r)
-  return $ getOffset r
-
-uploadStepwise :: CargoHold -> UserId -> V3.AssetKey -> V3.ChunkSize -> ByteString -> Http ()
-uploadStepwise c u k s d = next 0 d
-  where
-    totalSize = fromIntegral (C8.length d)
-    chunkSize = fromIntegral s
-    next pos dat = do
-      off <- uploadResumable c u k pos (C8.take chunkSize dat)
-      unless (V3.offsetBytes off == totalSize) $ do
-        off' <- getResumableStatus c u k
-        liftIO $ assertEqual "offset" off off'
-        next off (C8.drop (fromIntegral (off - pos)) dat)
-
-getAsset :: CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
-getAsset c u k t =
-  get $
-    c
-      . paths ["assets", "v3", toByteString' k]
-      . zUser u
-      . maybe id (header "Asset-Token" . toByteString') t
-      . noRedirect
-
-downloadAsset :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
-downloadAsset c u k t = do
-  r <-
-    getAsset c u k t <!! do
-      const 302 === statusCode
-      const Nothing === responseBody
-  l <- parseUrlThrow (C8.unpack (getHeader' "Location" r))
-  get' l id
-
 deleteAsset :: CargoHold -> UserId -> V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
 deleteAsset c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' k]
 
 -- Utilities ------------------------------------------------------------------
-
-type ContentType = ByteString
 
 decodeHeader :: FromByteString a => HeaderName -> Response b -> a
 decodeHeader h =
   fromMaybe (error $ "decodeHeader: missing or invalid header: " ++ show h)
     . fromByteString
     . getHeader' h
-
-getOffset :: Response b -> V3.Offset
-getOffset = decodeHeader "Upload-Offset"
 
 getContentType :: Response a -> Maybe MIME.Type
 getContentType = MIME.parseContentType . decodeLatin1 . getHeader' "Content-Type"
@@ -434,12 +273,6 @@ applicationText = MIME.Type (MIME.Application "text") []
 
 applicationOctetStream :: MIME.Type
 applicationOctetStream = MIME.Type (MIME.Application "octet-stream") []
-
-textPlain :: MIME.Type
-textPlain = MIME.Type (MIME.Text "plain") []
-
-applicationOffset :: ContentType
-applicationOffset = "application/offset+octet-stream"
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . UUID.toASCIIBytes . toUUID

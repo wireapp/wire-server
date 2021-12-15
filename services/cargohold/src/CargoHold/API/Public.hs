@@ -24,13 +24,10 @@ where
 import qualified CargoHold.API.Error as Error
 import qualified CargoHold.API.Legacy as LegacyAPI
 import qualified CargoHold.API.V3 as V3
-import qualified CargoHold.API.V3.Resumable as Resumable
 import CargoHold.App
-import CargoHold.Options
-import qualified CargoHold.TUS as TUS
 import qualified CargoHold.Types.V3 as V3 (Principal (..))
 import Control.Error
-import Control.Lens (view, (^.))
+import Control.Lens ((^.))
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate
@@ -66,35 +63,6 @@ sitemap = do
     Doc.errorResponse Error.assetTooLarge
     Doc.errorResponse Error.invalidLength
     Doc.response 201 "Asset posted" Doc.end
-
-  --- Resumable (multi-step) Upload
-
-  -- TODO: swagger doc
-  options "/assets/v3/resumable" (continue resumableOptionsV3) $
-    header "Z-User"
-
-  -- TODO (Compliance): Require and check Tus-Resumable header
-  -- against supported version(s).
-  post "/assets/v3/resumable" (continue createResumableV3) $
-    header "Z-User"
-      .&. header "Upload-Length"
-      .&. jsonRequest @Public.ResumableSettings
-
-  -- TODO (Compliance): Require and check Tus-Resumable header
-  -- against supported version(s).
-  head "/assets/v3/resumable/:key" (continue statusResumableV3) $
-    header "Z-User"
-      .&. capture "key"
-
-  -- TODO (Compliance): Require and check Tus-Resumable header
-  -- against supported version(s).
-  patch "/assets/v3/resumable/:key" (continue uploadResumableV3) $
-    header "Z-User"
-      .&. header "Upload-Offset"
-      .&. header "Content-Length"
-      .&. contentType "application" "offset+octet-stream"
-      .&. capture "key"
-      .&. request
 
   --- Download
 
@@ -244,33 +212,6 @@ deleteTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
 deleteTokenV3 (usr ::: key) = do
   V3.deleteToken (V3.UserPrincipal usr) key
   return empty
-
-resumableOptionsV3 :: UserId -> Handler Response
-resumableOptionsV3 _ = do
-  maxTotal <- view (settings . setMaxTotalBytes)
-  return $ TUS.optionsResponse (fromIntegral maxTotal) empty
-
-createResumableV3 :: UserId ::: Public.TotalSize ::: JsonRequest Public.ResumableSettings -> Handler Response
-createResumableV3 (u ::: size ::: req) = do
-  sets <- parseBody req !>> Error.clientError
-  res <- Resumable.create (V3.UserPrincipal u) sets size
-  let key = res ^. Public.resumableAsset . Public.assetKey
-  let expiry = res ^. Public.resumableExpires
-  let loc = "/assets/v3/resumable/" <> toByteString' key
-  return . TUS.createdResponse loc expiry $ json (res :: Public.ResumableAsset)
-
-statusResumableV3 :: UserId ::: Public.AssetKey -> Handler Response
-statusResumableV3 (u ::: a) = do
-  stat <- Resumable.status (V3.UserPrincipal u) a
-  return $ case stat of
-    Nothing -> setStatus status404 empty
-    Just st -> TUS.headResponse st empty
-
--- Request = raw bytestring
-uploadResumableV3 :: UserId ::: Public.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: Public.AssetKey ::: Request -> Handler Response
-uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
-  (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
-  return $ TUS.patchResponse offset' expiry empty
 
 --------------------------------------------------------------------------------
 -- Provider API Handlers
