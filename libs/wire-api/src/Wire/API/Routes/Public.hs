@@ -43,8 +43,11 @@ import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
+import qualified Network.Wai as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.DelayedIO
 import Servant.Swagger (HasSwagger (toSwagger))
 
 mapRequestArgument ::
@@ -84,6 +87,13 @@ class
 
   qualifyZParam :: Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
+class HasTokenType ztype where
+  -- | The expected value of the "Z-Type" header.
+  tokenType :: Maybe ByteString
+
+instance {-# OVERLAPPABLE #-} HasTokenType ztype where
+  tokenType = Nothing
+
 instance HasContextEntry ctx Domain => IsZType 'ZLocalAuthUser ctx where
   type ZHeader 'ZLocalAuthUser = "Z-User"
   type ZParam 'ZLocalAuthUser = UserId
@@ -112,12 +122,18 @@ instance IsZType 'ZAuthBot ctx where
 
   qualifyZParam _ = id
 
+instance HasTokenType 'ZAuthBot where
+  tokenType = Just "bot"
+
 instance IsZType 'ZAuthProvider ctx where
   type ZHeader 'ZAuthProvider = "Z-Provider"
   type ZParam 'ZAuthProvider = ProviderId
   type ZQualifiedParam 'ZAuthProvider = ProviderId
 
   qualifyZParam _ = id
+
+instance HasTokenType 'ZAuthProvider where
+  tokenType = Just "provider"
 
 data ZAuthServant (ztype :: ZType) (opts :: [*])
 
@@ -178,12 +194,27 @@ instance
     ServerT (ZAuthServant ztype opts :> api) m =
       RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
 
-  route _ ctx subserver =
-    -- TODO: check Z-Type
+  route _ ctx subserver = do
     Servant.route
       (Proxy @(InternalAuth ztype opts :> api))
       ctx
-      (fmap (. mapRequestArgument @opts (qualifyZParam @ztype ctx)) subserver)
+      ( fmap
+          (. mapRequestArgument @opts (qualifyZParam @ztype ctx))
+          (addAcceptCheck subserver (withRequest (checkType (tokenType @ztype))))
+      )
+    where
+      checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
+      checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
+        (Just t, value)
+          | value /= Just t ->
+            delayedFail
+              ServerError
+                { errHTTPCode = 403,
+                  errReasonPhrase = "Access denied",
+                  errBody = "",
+                  errHeaders = []
+                }
+        _ -> pure ()
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
