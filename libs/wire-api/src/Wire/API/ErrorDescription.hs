@@ -240,6 +240,8 @@ operationDenied = operationDeniedSpecialized . show
 
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
+type Unauthorised = ErrorDescription 403 "unauthorised" "Unauthorised operation"
+
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
 actionDenied :: Show a => a -> ActionDenied

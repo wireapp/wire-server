@@ -65,8 +65,10 @@ data Api routes = Api
                   (Respond 201 "Asset posted" Asset)
               ]
              (Asset, AssetLocation),
+    -- Download
     downloadAsset ::
-      routes :- Summary "Download an asset"
+      routes
+        :- Summary "Download an asset"
         :> ZLocalUser
         :> "assets"
         :> "v3"
@@ -81,7 +83,22 @@ data Api routes = Api
                   AssetLocation
                   (RespondEmpty 302 "Asset found")
               ]
-             (Maybe AssetLocation)
+             (Maybe AssetLocation),
+    --- Deletion
+    deleteAsset ::
+      routes
+        :- Summary "Delete an asset"
+        :> CanThrow AssetNotFound
+        :> CanThrow Unauthorised
+        :> ZLocalUser
+        :> "assets"
+        :> "v3"
+        :> Capture "key" AssetKey
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[RespondEmpty 200 "Asset deleted"]
+             ()
   }
   deriving (Generic)
 

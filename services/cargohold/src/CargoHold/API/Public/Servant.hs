@@ -42,7 +42,8 @@ servantSitemap =
   genericServerT $
     Api
       { postAsset = uploadAssetV3,
-        downloadAsset = downloadAssetV3
+        downloadAsset = downloadAssetV3,
+        deleteAsset = deleteAssetV3
       }
 
 uploadAssetV3 :: Local UserId -> AssetSource -> Handler (Asset, AssetLocation)
@@ -60,3 +61,6 @@ downloadAssetV3 :: Local UserId -> AssetKey -> Maybe AssetToken -> Handler (Mayb
 downloadAssetV3 usr key tok = do
   url <- V3.download (V3.UserPrincipal (tUnqualified usr)) key tok
   pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
+
+deleteAssetV3 :: Local UserId -> AssetKey -> Handler ()
+deleteAssetV3 usr key = V3.delete (V3.UserPrincipal (tUnqualified usr)) key

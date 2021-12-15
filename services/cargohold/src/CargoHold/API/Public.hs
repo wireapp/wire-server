@@ -80,19 +80,6 @@ sitemap = do
       Doc.description "Asset key"
     Doc.response 200 "Asset token deleted" Doc.end
 
-  --- Deletion
-
-  delete "/assets/v3/:key" (continue deleteAssetV3) $
-    header "Z-User"
-      .&. capture "key"
-  document "DELETE" "deleteAsset" $ do
-    Doc.summary "Delete an asset"
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.response 200 "Asset deleted" Doc.end
-    Doc.errorResponse Error.assetNotFound
-    Doc.errorResponse Error.unauthorised
-
   ---------------------------------------------------------------------------
   -- Provider API
 
@@ -163,11 +150,6 @@ apiDocs = do
 
 -----------------------------------------------------------------------------
 -- User API Handlers
-
-deleteAssetV3 :: UserId ::: Public.AssetKey -> Handler Response
-deleteAssetV3 (usr ::: key) = do
-  V3.delete (V3.UserPrincipal usr) key
-  return empty
 
 renewTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
 renewTokenV3 (usr ::: key) = do

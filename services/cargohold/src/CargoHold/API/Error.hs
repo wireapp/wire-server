@@ -51,7 +51,7 @@ assetTooLarge :: Error
 assetTooLarge = errorDescriptionTypeToWai @AssetTooLarge
 
 unauthorised :: Error
-unauthorised = mkError status403 "unauthorised" "Unauthorised operation."
+unauthorised = errorDescriptionTypeToWai @Unauthorised
 
 invalidLength :: Error
 invalidLength = errorDescriptionTypeToWai @InvalidLength
