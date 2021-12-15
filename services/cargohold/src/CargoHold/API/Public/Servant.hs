@@ -40,13 +40,36 @@ import Wire.API.Routes.Public.Cargohold
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   renewTokenV3 :<|> deleteTokenV3
-    :<|> (uploadAssetV3 :<|> downloadAssetV3 :<|> deleteAssetV3)
-    :<|> (uploadAssetV3 :<|> downloadAssetV3 :<|> deleteAssetV3)
-    :<|> (uploadAssetV3 :<|> downloadAssetV3 :<|> deleteAssetV3)
+    :<|> userAPI
+    :<|> botAPI
+    :<|> providerAPI
+  where
+    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPI tag) Handler
+    userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPI tag) Handler
+    botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPI tag) Handler
+    providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
 
-uploadAssetV3 :: Local UserId -> AssetSource -> Handler (Asset, AssetLocation)
-uploadAssetV3 (tUnqualified -> usr) req = do
-  let principal = V3.UserPrincipal usr
+class MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
+  mkPrincipal :: id -> V3.Principal
+
+instance MakePrincipal 'UserPrincipalTag (Local UserId) where
+  mkPrincipal = V3.UserPrincipal . tUnqualified
+
+instance MakePrincipal 'BotPrincipalTag BotId where
+  mkPrincipal = V3.BotPrincipal
+
+instance MakePrincipal 'ProviderPrincipalTag ProviderId where
+  mkPrincipal = V3.ProviderPrincipal
+
+uploadAssetV3 ::
+  MakePrincipal tag id =>
+  id ->
+  AssetSource ->
+  Handler (Asset, AssetLocation)
+uploadAssetV3 pid req = do
+  let principal = mkPrincipal pid
   asset <- V3.upload principal (getAssetSource req)
   let key = Text.decodeUtf8With Text.lenientDecode (toByteString' (asset ^. assetKey))
   let loc = case principal of
@@ -55,13 +78,18 @@ uploadAssetV3 (tUnqualified -> usr) req = do
         V3.ProviderPrincipal {} -> "/provider/assets/" <> key
   pure (asset, AssetLocation loc)
 
-downloadAssetV3 :: Local UserId -> AssetKey -> Maybe AssetToken -> Handler (Maybe AssetLocation)
-downloadAssetV3 (tUnqualified -> usr) key tok = do
-  url <- V3.download (V3.UserPrincipal usr) key tok
+downloadAssetV3 ::
+  MakePrincipal tag id =>
+  id ->
+  AssetKey ->
+  Maybe AssetToken ->
+  Handler (Maybe AssetLocation)
+downloadAssetV3 usr key tok = do
+  url <- V3.download (mkPrincipal usr) key tok
   pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
 
-deleteAssetV3 :: Local UserId -> AssetKey -> Handler ()
-deleteAssetV3 (tUnqualified -> usr) key = V3.delete (V3.UserPrincipal usr) key
+deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
+deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
 
 renewTokenV3 :: Local UserId -> AssetKey -> Handler NewAssetToken
 renewTokenV3 (tUnqualified -> usr) key =

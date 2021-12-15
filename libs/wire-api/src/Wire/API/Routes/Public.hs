@@ -25,6 +25,8 @@ module Wire.API.Routes.Public
     ZConn,
     ZOptUser,
     ZOptConn,
+    ZBot,
+    ZProvider,
 
     -- * Swagger combinators
     OmitDocs,
@@ -69,6 +71,8 @@ data ZType
     ZLocalAuthUser
   | -- | Get a 'ConnId' from the Z-Conn header
     ZAuthConn
+  | ZAuthBot
+  | ZAuthProvider
 
 class
   (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
@@ -101,6 +105,20 @@ instance IsZType 'ZAuthConn ctx where
 
   qualifyZParam _ = id
 
+instance IsZType 'ZAuthBot ctx where
+  type ZHeader 'ZAuthBot = "Z-Bot"
+  type ZParam 'ZAuthBot = BotId
+  type ZQualifiedParam 'ZAuthBot = BotId
+
+  qualifyZParam _ = id
+
+instance IsZType 'ZAuthProvider ctx where
+  type ZHeader 'ZAuthProvider = "Z-Provider"
+  type ZParam 'ZAuthProvider = ProviderId
+  type ZQualifiedParam 'ZAuthProvider = ProviderId
+
+  qualifyZParam _ = id
+
 data ZAuthServant (ztype :: ZType) (opts :: [*])
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
@@ -116,6 +134,10 @@ type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 
 type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
+
+type ZBot = ZAuthServant 'ZAuthBot InternalAuthDefOpts
+
+type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts
 
 type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
 
@@ -136,7 +158,11 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) whe
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
   toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) where
+instance
+  {-# OVERLAPPABLE #-}
+  HasSwagger api =>
+  HasSwagger (ZAuthServant ztype _opts :> api)
+  where
   toSwagger _ = toSwagger (Proxy @api)
 
 instance
@@ -153,6 +179,7 @@ instance
       RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
 
   route _ ctx subserver =
+    -- TODO: check Z-Type
     Servant.route
       (Proxy @(InternalAuth ztype opts :> api))
       ctx

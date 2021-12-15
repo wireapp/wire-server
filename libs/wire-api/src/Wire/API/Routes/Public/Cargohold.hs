@@ -20,6 +20,7 @@
 module Wire.API.Routes.Public.Cargohold where
 
 import Data.Id
+import Data.Qualified
 import Data.SOP
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits
@@ -36,12 +37,17 @@ import Wire.API.Routes.Public
 data PrincipalTag = UserPrincipalTag | BotPrincipalTag | ProviderPrincipalTag
   deriving (Eq, Show)
 
+type family PrincipalId (tag :: PrincipalTag) = (id :: *) | id -> tag where
+  PrincipalId 'UserPrincipalTag = Local UserId
+  PrincipalId 'BotPrincipalTag = BotId
+  PrincipalId 'ProviderPrincipalTag = ProviderId
+
 data OptionalSegment = NoSegment | Segment Symbol
 
 type family PrincipalPrefix tag :: OptionalSegment where
   PrincipalPrefix 'UserPrincipalTag = 'NoSegment
-  PrincipalPrefix 'BotPrincipalTag = 'Segment "bots"
-  PrincipalPrefix 'ProviderPrincipalTag = 'Segment "providers"
+  PrincipalPrefix 'BotPrincipalTag = 'Segment "bot"
+  PrincipalPrefix 'ProviderPrincipalTag = 'Segment "provider"
 
 instance HasSwagger (x :> api) => HasSwagger ('Segment x :> api) where
   toSwagger _ = toSwagger (Proxy @(x :> api))
@@ -59,10 +65,10 @@ instance HasServer api ctx => HasServer ('NoSegment :> api) ctx where
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
-type family PrincipalId (tag :: PrincipalTag) :: * where
-  PrincipalId 'UserPrincipalTag = UserId
-  PrincipalId 'BotPrincipalTag = BotId
-  PrincipalId 'ProviderPrincipalTag = ProviderId
+type family ZPrincipal (tag :: PrincipalTag) :: * where
+  ZPrincipal 'UserPrincipalTag = ZLocalUser
+  ZPrincipal 'BotPrincipalTag = ZBot
+  ZPrincipal 'ProviderPrincipalTag = ZProvider
 
 newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
   deriving newtype
@@ -107,7 +113,7 @@ type BaseAPI (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
       :> CanThrow AssetTooLarge
       :> CanThrow InvalidLength
-      :> ZLocalUser
+      :> ZPrincipal tag
       :> PrincipalPrefix tag
       :> "assets"
       :> "v3"
@@ -123,7 +129,7 @@ type BaseAPI (tag :: PrincipalTag) =
            (Asset, AssetLocation)
   )
     :<|> ( Summary "Download an asset"
-             :> ZLocalUser
+             :> ZPrincipal tag
              :> PrincipalPrefix tag
              :> "assets"
              :> "v3"
@@ -143,7 +149,7 @@ type BaseAPI (tag :: PrincipalTag) =
     :<|> ( Summary "Delete an asset"
              :> CanThrow AssetNotFound
              :> CanThrow Unauthorised
-             :> ZLocalUser
+             :> ZPrincipal tag
              :> PrincipalPrefix tag
              :> "assets"
              :> "v3"
