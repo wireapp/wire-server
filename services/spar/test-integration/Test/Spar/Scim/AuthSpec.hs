@@ -370,7 +370,7 @@ testAuthIsNeeded :: TestSpar ()
 testAuthIsNeeded = do
   env <- ask
   -- Try to do @GET /Users@ with an invalid token and check that it fails
-  let invalidToken = Just $ ScimToken "this-is-an-invalid-token"
-  listUsers_ invalidToken Nothing (env ^. teSpar) !!! checkErr 401 Nothing
+  let invalidToken = ScimToken "this-is-an-invalid-token"
+  listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
   listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
