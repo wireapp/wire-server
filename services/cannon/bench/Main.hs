@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,24 +17,8 @@
 
 module Main where
 
-import qualified Cannon.API
-import Data.Metrics.Test (pathsConsistencyCheck)
-import Data.Metrics.WaiRoute (treeToPaths)
+import Bench
 import Imports
-import Network.Wai.Utilities.Server (compile)
-import qualified Test.Cannon.Dict as D
-import Test.Tasty
-import Test.Tasty.HUnit
 
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
-            mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Cannon.API.sitemap),
-        D.tests
-      ]
+main = benchmark
