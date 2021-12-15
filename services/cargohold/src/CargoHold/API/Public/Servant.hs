@@ -30,8 +30,8 @@ import Data.Qualified
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import Imports hiding (head)
+import Servant ((:<|>) (..))
 import Servant.Server hiding (Handler)
-import Servant.Server.Generic
 import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Routes.AssetBody
@@ -39,14 +39,10 @@ import Wire.API.Routes.Public.Cargohold
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  genericServerT $
-    Api
-      { postAsset = uploadAssetV3,
-        downloadAsset = downloadAssetV3,
-        deleteAsset = deleteAssetV3,
-        renewToken = renewTokenV3,
-        deleteToken = deleteTokenV3
-      }
+  renewTokenV3 :<|> deleteTokenV3
+    :<|> (uploadAssetV3 :<|> downloadAssetV3 :<|> deleteAssetV3)
+    :<|> (uploadAssetV3 :<|> downloadAssetV3 :<|> deleteAssetV3)
+    :<|> (uploadAssetV3 :<|> downloadAssetV3 :<|> deleteAssetV3)
 
 uploadAssetV3 :: Local UserId -> AssetSource -> Handler (Asset, AssetLocation)
 uploadAssetV3 (tUnqualified -> usr) req = do
