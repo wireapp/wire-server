@@ -121,6 +121,7 @@ type ServantAPI =
     :<|> BaseAPI 'BotPrincipalTag
     :<|> BaseAPI 'ProviderPrincipalTag
     :<|> LegacyAPI
+    :<|> InternalAPI
 
 type BaseAPI (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
@@ -188,10 +189,8 @@ type LegacyAPI =
              :> GetAsset
          )
 
--- get "/conversations/:cnv/otr/assets/:id" (continue legacyDownloadOtr) $
---   header "Z-User"
---     .&. capture "cnv"
---     .&. capture "id"
+type InternalAPI =
+  "i" :> "status" :> MultiVerb 'GET '[PlainText] '[RespondEmpty 200 "OK"] ()
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

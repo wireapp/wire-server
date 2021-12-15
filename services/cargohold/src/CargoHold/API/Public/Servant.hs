@@ -45,6 +45,7 @@ servantSitemap =
     :<|> botAPI
     :<|> providerAPI
     :<|> legacyAPI
+    :<|> internalAPI
   where
     userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPI tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
@@ -53,6 +54,7 @@ servantSitemap =
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPI tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
+    internalAPI = pure ()
 
 class MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
   mkPrincipal :: id -> V3.Principal
