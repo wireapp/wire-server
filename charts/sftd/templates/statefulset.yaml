@@ -131,9 +131,9 @@ spec:
               fi
 
               {{- if .Values.multiSFT.enabled }}
-              MULTI_SFT_ARGS="-t \"$(cat /multi-sft-config/turn_server)\" \
-              -x \"$(cat /multi-sft-config/username)\" \
-              -c \"$(cat /multi-sft-config/password)\""
+              MULTI_SFT_ARGS="-t $(cat /multi-sft-config/turn_server) \
+              -x $(cat /multi-sft-config/username) \
+              -c $(cat /multi-sft-config/password)"
               {{- else }}
               MULTI_SFT_ARGS=""
               {{- end }}
