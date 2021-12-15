@@ -35,7 +35,6 @@ import Control.Lens ((<>~))
 import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
-import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger
@@ -73,36 +72,32 @@ data ZType
 
 class
   (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
-  IsZType (ztype :: ZType)
+  IsZType (ztype :: ZType) ctx
   where
   type ZHeader ztype :: Symbol
   type ZParam ztype :: *
   type ZQualifiedParam ztype :: *
-  type ZConstraint ztype (ctx :: [*]) :: Constraint
 
-  qualifyZParam :: ZConstraint ztype ctx => Context ctx -> ZParam ztype -> ZQualifiedParam ztype
+  qualifyZParam :: Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
-instance IsZType 'ZLocalAuthUser where
+instance HasContextEntry ctx Domain => IsZType 'ZLocalAuthUser ctx where
   type ZHeader 'ZLocalAuthUser = "Z-User"
   type ZParam 'ZLocalAuthUser = UserId
   type ZQualifiedParam 'ZLocalAuthUser = Local UserId
-  type ZConstraint 'ZLocalAuthUser ctx = HasContextEntry ctx Domain
 
   qualifyZParam ctx = toLocalUnsafe (getContextEntry ctx)
 
-instance IsZType 'ZAuthUser where
+instance IsZType 'ZAuthUser ctx where
   type ZHeader 'ZAuthUser = "Z-User"
   type ZParam 'ZAuthUser = UserId
   type ZQualifiedParam 'ZAuthUser = UserId
-  type ZConstraint 'ZAuthUser ctx = ()
 
   qualifyZParam _ = id
 
-instance IsZType 'ZAuthConn where
+instance IsZType 'ZAuthConn ctx where
   type ZHeader 'ZAuthConn = "Z-Connection"
   type ZParam 'ZAuthConn = ConnId
   type ZQualifiedParam 'ZAuthConn = ConnId
-  type ZConstraint 'ZAuthConn ctx = ()
 
   qualifyZParam _ = id
 
@@ -145,9 +140,8 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) whe
   toSwagger _ = toSwagger (Proxy @api)
 
 instance
-  ( IsZType ztype,
+  ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    ZConstraint ztype ctx,
     SBoolI (FoldLenient opts),
     SBoolI (FoldRequired opts),
     HasServer api ctx
