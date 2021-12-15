@@ -40,8 +40,7 @@ import Network.Wai.Conduit (sourceRequestBody)
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import qualified Network.Wai.Utilities.Swagger as Doc
+import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
 import URI.ByteString
 import qualified Wire.API.Asset as Public
@@ -54,32 +53,6 @@ import qualified Wire.API.Asset as Public
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-  ---------------------------------------------------------------------------
-  -- User API
-
-  --- Token Management
-
-  post "/assets/v3/:key/token" (continue renewTokenV3) $
-    header "Z-User"
-      .&. capture "key"
-  document "POST" "renewAssetToken" $ do
-    Doc.summary "Renew an asset token"
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.response 200 "Asset token renewed" Doc.end
-    Doc.errorResponse Error.assetNotFound
-    Doc.errorResponse Error.unauthorised
-
-  delete "/assets/v3/:key/token" (continue deleteTokenV3) $
-    header "Z-User"
-      .&. capture "key"
-  document "DELETE" "deleteAssetToken" $ do
-    Doc.summary "Delete an asset token"
-    Doc.notes "Deleting the token makes the asset public."
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.response 200 "Asset token deleted" Doc.end
-
   ---------------------------------------------------------------------------
   -- Provider API
 
@@ -147,19 +120,6 @@ apiDocs = do
     )
     $ accept "application" "json"
       .&. query "base_url"
-
------------------------------------------------------------------------------
--- User API Handlers
-
-renewTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
-renewTokenV3 (usr ::: key) = do
-  tok <- V3.renewToken (V3.UserPrincipal usr) key
-  return $ json (Public.NewAssetToken tok)
-
-deleteTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
-deleteTokenV3 (usr ::: key) = do
-  V3.deleteToken (V3.UserPrincipal usr) key
-  return empty
 
 --------------------------------------------------------------------------------
 -- Provider API Handlers

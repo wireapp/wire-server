@@ -43,12 +43,14 @@ servantSitemap =
     Api
       { postAsset = uploadAssetV3,
         downloadAsset = downloadAssetV3,
-        deleteAsset = deleteAssetV3
+        deleteAsset = deleteAssetV3,
+        renewToken = renewTokenV3,
+        deleteToken = deleteTokenV3
       }
 
 uploadAssetV3 :: Local UserId -> AssetSource -> Handler (Asset, AssetLocation)
-uploadAssetV3 usr req = do
-  let principal = V3.UserPrincipal (tUnqualified usr)
+uploadAssetV3 (tUnqualified -> usr) req = do
+  let principal = V3.UserPrincipal usr
   asset <- V3.upload principal (getAssetSource req)
   let key = Text.decodeUtf8With Text.lenientDecode (toByteString' (asset ^. assetKey))
   let loc = case principal of
@@ -58,9 +60,16 @@ uploadAssetV3 usr req = do
   pure (asset, AssetLocation loc)
 
 downloadAssetV3 :: Local UserId -> AssetKey -> Maybe AssetToken -> Handler (Maybe AssetLocation)
-downloadAssetV3 usr key tok = do
-  url <- V3.download (V3.UserPrincipal (tUnqualified usr)) key tok
+downloadAssetV3 (tUnqualified -> usr) key tok = do
+  url <- V3.download (V3.UserPrincipal usr) key tok
   pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
 
 deleteAssetV3 :: Local UserId -> AssetKey -> Handler ()
-deleteAssetV3 usr key = V3.delete (V3.UserPrincipal (tUnqualified usr)) key
+deleteAssetV3 (tUnqualified -> usr) key = V3.delete (V3.UserPrincipal usr) key
+
+renewTokenV3 :: Local UserId -> AssetKey -> Handler NewAssetToken
+renewTokenV3 (tUnqualified -> usr) key =
+  NewAssetToken <$> V3.renewToken (V3.UserPrincipal usr) key
+
+deleteTokenV3 :: Local UserId -> AssetKey -> Handler ()
+deleteTokenV3 (tUnqualified -> usr) key = V3.deleteToken (V3.UserPrincipal usr) key

@@ -96,6 +96,32 @@ data Api routes = Api
              'DELETE
              '[JSON]
              '[RespondEmpty 200 "Asset deleted"]
+             (),
+    --- Token Management
+    renewToken ::
+      routes
+        :- Summary "Renew an asset token"
+        :> CanThrow AssetNotFound
+        :> CanThrow Unauthorised
+        :> ZLocalUser
+        :> "assets"
+        :> "v3"
+        :> Capture "key" AssetKey
+        :> "token"
+        :> Post '[JSON] NewAssetToken,
+    deleteToken ::
+      routes
+        :- Summary "Delete an asset token"
+        :> Description "**Note**: deleting the token makes the asset public."
+        :> ZLocalUser
+        :> "assets"
+        :> "v3"
+        :> Capture "key" AssetKey
+        :> "token"
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[RespondEmpty 200 "Asset token deleted"]
              ()
   }
   deriving (Generic)
