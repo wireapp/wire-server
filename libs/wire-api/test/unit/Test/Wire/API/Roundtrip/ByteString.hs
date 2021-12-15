@@ -24,7 +24,6 @@ import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset.V3 as Asset.V3
-import qualified Wire.API.Asset.V3.Resumable as Asset.V3.Resumable
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Role as Conversation.Role
@@ -50,9 +49,6 @@ tests =
     [ testRoundTrip @Asset.V3.AssetKey,
       testRoundTrip @Asset.V3.AssetRetention,
       testRoundTrip @Asset.V3.AssetToken,
-      testRoundTrip @Asset.V3.Resumable.ChunkSize,
-      testRoundTrip @Asset.V3.Resumable.Offset,
-      testRoundTrip @Asset.V3.Resumable.TotalSize,
       testRoundTrip @Call.Config.Scheme,
       testRoundTrip @Call.Config.Transport,
       testRoundTrip @Call.Config.TurnHost,

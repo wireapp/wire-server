@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fff87c53181cb0f2cd21a3da254e2a9a5dbae2ee00ea67ac124be1593a640e5e
+-- hash: bcda0d57293162140cc50d149ad068df7975f9526cf1621c7aa4f753b45e36a6
 
 name:           wire-api
 version:        0.1.0
@@ -22,7 +22,6 @@ library
       Wire.API.Arbitrary
       Wire.API.Asset
       Wire.API.Asset.V3
-      Wire.API.Asset.V3.Resumable
       Wire.API.Call.Config
       Wire.API.Connection
       Wire.API.Conversation
@@ -204,7 +203,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.BotConvView_provider
       Test.Wire.API.Golden.Generated.BotUserView_provider
       Test.Wire.API.Golden.Generated.CheckHandles_user
-      Test.Wire.API.Golden.Generated.ChunkSize_user
       Test.Wire.API.Golden.Generated.Client_user
       Test.Wire.API.Golden.Generated.ClientClass_user
       Test.Wire.API.Golden.Generated.ClientMismatch_user
@@ -289,7 +287,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.NewTeamMember_team
       Test.Wire.API.Golden.Generated.NewUser_user
       Test.Wire.API.Golden.Generated.NewUserPublic_user
-      Test.Wire.API.Golden.Generated.Offset_user
       Test.Wire.API.Golden.Generated.OtherMember_user
       Test.Wire.API.Golden.Generated.OtherMemberUpdate_user
       Test.Wire.API.Golden.Generated.OtrMessage_user
@@ -327,8 +324,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.RemoveCookies_user
       Test.Wire.API.Golden.Generated.RemoveLegalHoldSettingsRequest_team
       Test.Wire.API.Golden.Generated.RequestNewLegalHoldClient_team
-      Test.Wire.API.Golden.Generated.ResumableAsset_user
-      Test.Wire.API.Golden.Generated.ResumableSettings_user
       Test.Wire.API.Golden.Generated.RichField_user
       Test.Wire.API.Golden.Generated.RichInfo_user
       Test.Wire.API.Golden.Generated.RichInfoAssocList_user
@@ -375,7 +370,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.TeamUpdateData_team
       Test.Wire.API.Golden.Generated.Token_user
       Test.Wire.API.Golden.Generated.TokenType_user
-      Test.Wire.API.Golden.Generated.TotalSize_user
       Test.Wire.API.Golden.Generated.Transport_user
       Test.Wire.API.Golden.Generated.TurnHost_user
       Test.Wire.API.Golden.Generated.TurnURI_user

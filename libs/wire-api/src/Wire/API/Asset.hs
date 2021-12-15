@@ -21,4 +21,3 @@ module Wire.API.Asset
 where
 
 import Wire.API.Asset.V3 as V3
-import Wire.API.Asset.V3.Resumable as V3

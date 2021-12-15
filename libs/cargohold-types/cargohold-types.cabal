@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6e7a4ce0ec22392573f2b2764073d89b1096322eff38e0af765761e6bb2257a2
+-- hash: 33860dd6b7263a9496b0ffc60303472a71fc9da43168c9cd017f6c2eb626faa3
 
 name:           cargohold-types
 version:        1.5.0
@@ -21,7 +21,6 @@ library
   exposed-modules:
       CargoHold.Types
       CargoHold.Types.V3
-      CargoHold.Types.V3.Resumable
   other-modules:
       Paths_cargohold_types
   hs-source-dirs:
