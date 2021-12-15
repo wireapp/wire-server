@@ -19,8 +19,8 @@
 
 module Wire.API.Routes.Public.Cargohold where
 
+import Data.SOP
 import qualified Data.Swagger as Swagger
-import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.Generic (ToServantApi, (:-))
@@ -39,11 +39,9 @@ newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
       Swagger.ToParamSchema
     )
 
-instance KnownSymbol name => AsHeaders '[Header name AssetLocation] Asset (Asset, AssetLocation) where
-  toHeaders (asset, loc) = addHeader loc asset
-  fromHeaders h = case lookupResponseHeader @name h of
-    Header loc -> Just (getResponse h, loc)
-    _ -> Nothing
+instance AsHeaders '[AssetLocation] Asset (Asset, AssetLocation) where
+  toHeaders (asset, loc) = (I loc :* Nil, asset)
+  fromHeaders (I loc :* Nil, asset) = (asset, loc)
 
 data Api routes = Api
   { -- Simple (one-step) Upload
