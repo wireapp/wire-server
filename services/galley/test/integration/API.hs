@@ -199,11 +199,11 @@ tests s =
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
-          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessage1,
-          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessage2,
-          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
-          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
-          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
+          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
+          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson,
+          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto,
+          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessageNotAuthorizeUnknownClient,
+          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
           test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
@@ -369,8 +369,8 @@ postConvWithRemoteUsersOk = do
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies whether a message actually gets sent all the way to
 -- cannon.
-postCryptoMessage1 :: TestM ()
-postCryptoMessage1 = do
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
@@ -453,9 +453,9 @@ postCryptoMessage1 = do
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
--- This test verifies basic mismatch behaviour of the the JSON endpoint.
-postCryptoMessage2 :: TestM ()
-postCryptoMessage2 = do
+-- This test verifies basic mismatch behavior of the the JSON endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -480,8 +480,8 @@ postCryptoMessage2 = do
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behaviour of the protobuf endpoint.
-postCryptoMessage3 :: TestM ()
-postCryptoMessage3 = do
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -508,8 +508,8 @@ postCryptoMessage3 = do
 
 -- | This test verifies behaviour when an unknown client posts the message. Only
 -- tests the Protobuf endpoint.
-postCryptoMessage4 :: TestM ()
-postCryptoMessage4 = do
+postCryptoMessageNotAuthorizeUnknownClient :: TestM ()
+postCryptoMessageNotAuthorizeUnknownClient = do
   alice <- randomUser
   bob <- randomUser
   bc <- randomClient bob (someLastPrekeys !! 0)
@@ -578,8 +578,8 @@ postMessageRejectIfMissingClients = do
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies behaviour under various values of ignore_missing and
 -- report_missing. Only tests the JSON endpoint.
-postCryptoMessage5 :: TestM ()
-postCryptoMessage5 = do
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam :: TestM ()
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
