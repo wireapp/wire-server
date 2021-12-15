@@ -111,3 +111,7 @@ Setup steps:
 - Generate the `hie.yaml` file: `make hie.yaml`
 - Select the nix environment from `shell.nix` with the command `Nix-Env: Select environment`.
 - Reload the window as proposed by the `Nix Environment Selector` plugin
+
+An alternative way to make these dependencies accessible to VSCode is to start it in the `direnv` environment.
+I.e. from a shell that's current working directory is in the project. The drawbacks of this approach are 
+that it only works locally (not on a remote connection) and one VSCode process needs to be started per project.
