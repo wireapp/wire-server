@@ -46,6 +46,9 @@ import Network.Wai.Utilities.ZAuth
 import URI.ByteString
 import qualified Wire.API.Asset as Public
 
+-- FUTUREWORK: restore (and servantify) resumable upload functionality, removed
+-- in https://github.com/wireapp/wire-server/pull/1998
+
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   ---------------------------------------------------------------------------
