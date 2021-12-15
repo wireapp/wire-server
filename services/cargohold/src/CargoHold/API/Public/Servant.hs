@@ -20,6 +20,7 @@ module CargoHold.API.Public.Servant
   )
 where
 
+import qualified CargoHold.API.Legacy as LegacyAPI
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import qualified CargoHold.Types.V3 as V3
@@ -43,6 +44,7 @@ servantSitemap =
     :<|> userAPI
     :<|> botAPI
     :<|> providerAPI
+    :<|> legacyAPI
   where
     userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPI tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
@@ -50,6 +52,7 @@ servantSitemap =
     botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPI tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
 
 class MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
   mkPrincipal :: id -> V3.Principal
@@ -97,3 +100,13 @@ renewTokenV3 (tUnqualified -> usr) key =
 
 deleteTokenV3 :: Local UserId -> AssetKey -> Handler ()
 deleteTokenV3 (tUnqualified -> usr) key = V3.deleteToken (V3.UserPrincipal usr) key
+
+legacyDownloadPlain :: Local UserId -> ConvId -> AssetId -> Handler (Maybe AssetLocation)
+legacyDownloadPlain (tUnqualified -> usr) cnv ast = do
+  url <- LegacyAPI.download usr cnv ast
+  pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
+
+legacyDownloadOtr :: Local UserId -> ConvId -> AssetId -> Handler (Maybe AssetLocation)
+legacyDownloadOtr (tUnqualified -> usr) cnv ast = do
+  url <- LegacyAPI.downloadOtr usr cnv ast
+  pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url

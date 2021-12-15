@@ -21,23 +21,15 @@ module CargoHold.API.Public
   )
 where
 
-import qualified CargoHold.API.Error as Error
-import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.App
-import Control.Error
-import Data.ByteString.Conversion
-import Data.Id
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Encoding (decodeLatin1)
 import Imports hiding (head)
-import Network.HTTP.Types.Status
-import Network.Wai (Response)
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (message)
 import Network.Wai.Utilities.Swagger (mkSwaggerApi)
-import URI.ByteString
 
 -- FUTUREWORK: restore (and servantify) resumable upload functionality, removed
 -- in https://github.com/wireapp/wire-server/pull/1998
@@ -46,23 +38,7 @@ import URI.ByteString
 -- Wai routes
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
-sitemap = do
-  -- Legacy
-
-  get "/assets/:id" (continue legacyDownloadPlain) $
-    header "Z-User"
-      .&. param "conv_id"
-      .&. capture "id"
-
-  get "/conversations/:cnv/assets/:id" (continue legacyDownloadPlain) $
-    header "Z-User"
-      .&. capture "cnv"
-      .&. capture "id"
-
-  get "/conversations/:cnv/otr/assets/:id" (continue legacyDownloadOtr) $
-    header "Z-User"
-      .&. capture "cnv"
-      .&. capture "id"
+sitemap = pure ()
 
 apiDocs :: Routes Doc.ApiBuilder Handler ()
 apiDocs = do
@@ -74,24 +50,3 @@ apiDocs = do
     )
     $ accept "application" "json"
       .&. query "base_url"
-
---------------------------------------------------------------------------------
--- Helpers
-
-redirect :: Maybe URI -> Handler Response
-redirect (Just url) = return . setStatus status302 $ location (serializeURIRef url) empty
-redirect Nothing = throwE Error.assetNotFound
-{-# INLINE redirect #-}
-
-location :: ToByteString a => a -> Response -> Response
-location = addHeader "Location" . toByteString'
-{-# INLINE location #-}
-
---------------------------------------------------------------------------------
--- Legacy
-
-legacyDownloadPlain :: UserId ::: ConvId ::: AssetId -> Handler Response
-legacyDownloadPlain (usr ::: cnv ::: ast) = LegacyAPI.download usr cnv ast >>= redirect
-
-legacyDownloadOtr :: UserId ::: ConvId ::: AssetId -> Handler Response
-legacyDownloadOtr (usr ::: cnv ::: ast) = LegacyAPI.downloadOtr usr cnv ast >>= redirect

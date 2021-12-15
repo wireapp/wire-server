@@ -81,6 +81,18 @@ instance AsHeaders '[AssetLocation] Asset (Asset, AssetLocation) where
   toHeaders (asset, loc) = (I loc :* Nil, asset)
   fromHeaders (I loc :* Nil, asset) = (asset, loc)
 
+type GetAsset =
+  MultiVerb
+    'GET
+    '[JSON]
+    '[ AssetNotFound,
+       WithHeaders
+         '[DescHeader "Location" "Asset location" AssetLocation]
+         AssetLocation
+         (RespondEmpty 302 "Asset found")
+     ]
+    (Maybe AssetLocation)
+
 type ServantAPI =
   ( Summary "Renew an asset token"
       :> CanThrow AssetNotFound
@@ -108,6 +120,7 @@ type ServantAPI =
     :<|> BaseAPI 'UserPrincipalTag
     :<|> BaseAPI 'BotPrincipalTag
     :<|> BaseAPI 'ProviderPrincipalTag
+    :<|> LegacyAPI
 
 type BaseAPI (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
@@ -135,16 +148,7 @@ type BaseAPI (tag :: PrincipalTag) =
              :> "v3"
              :> Capture "key" AssetKey
              :> Header "Asset-Token" AssetToken
-             :> MultiVerb
-                  'GET
-                  '[JSON]
-                  '[ AssetNotFound,
-                     WithHeaders
-                       '[DescHeader "Location" "Asset location" AssetLocation]
-                       AssetLocation
-                       (RespondEmpty 302 "Asset found")
-                   ]
-                  (Maybe AssetLocation)
+             :> GetAsset
          )
     :<|> ( Summary "Delete an asset"
              :> CanThrow AssetNotFound
@@ -160,6 +164,34 @@ type BaseAPI (tag :: PrincipalTag) =
                   '[RespondEmpty 200 "Asset deleted"]
                   ()
          )
+
+type LegacyAPI =
+  ( ZLocalUser
+      :> "assets"
+      :> QueryParam' [Required, Strict] "conv_id" ConvId
+      :> Capture "id" AssetId
+      :> GetAsset
+  )
+    :<|> ( ZLocalUser
+             :> "conversations"
+             :> Capture "cnv" ConvId
+             :> "assets"
+             :> Capture "id" AssetId
+             :> GetAsset
+         )
+    :<|> ( ZLocalUser
+             :> "conversations"
+             :> Capture "cnv" ConvId
+             :> "otr"
+             :> "assets"
+             :> Capture "id" AssetId
+             :> GetAsset
+         )
+
+-- get "/conversations/:cnv/otr/assets/:id" (continue legacyDownloadOtr) $
+--   header "Z-User"
+--     .&. capture "cnv"
+--     .&. capture "id"
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
