@@ -199,11 +199,11 @@ tests s =
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
-          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessage1,
-          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessage2,
-          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
-          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
-          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
+          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
+          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson,
+          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto,
+          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessageNotAuthorizeUnknownClient,
+          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
           test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
@@ -366,11 +366,11 @@ postConvWithRemoteUsersOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
--- | This test verifies whether a message actually gets sent all the way to
--- cannon.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postCryptoMessage1 :: TestM ()
-postCryptoMessage1 = do
+-- This test verifies whether a message actually gets sent all the way to
+-- cannon.
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
@@ -452,10 +452,10 @@ postCryptoMessage1 = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
--- | This test verifies basic mismatch behaviour of the the JSON endpoint.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postCryptoMessage2 :: TestM ()
-postCryptoMessage2 = do
+-- This test verifies basic mismatch behavior of the the JSON endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -478,10 +478,10 @@ postCryptoMessage2 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
--- | This test verifies basic mismatch behaviour of the protobuf endpoint.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postCryptoMessage3 :: TestM ()
-postCryptoMessage3 = do
+-- This test verifies basic mismatch behaviour of the protobuf endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -508,8 +508,8 @@ postCryptoMessage3 = do
 
 -- | This test verifies behaviour when an unknown client posts the message. Only
 -- tests the Protobuf endpoint.
-postCryptoMessage4 :: TestM ()
-postCryptoMessage4 = do
+postCryptoMessageNotAuthorizeUnknownClient :: TestM ()
+postCryptoMessageNotAuthorizeUnknownClient = do
   alice <- randomUser
   bob <- randomUser
   bc <- randomClient bob (someLastPrekeys !! 0)
@@ -521,10 +521,10 @@ postCryptoMessage4 = do
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
--- | This test verifies the following scenario.
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies the following scenario.
 -- A client sends a message to all clients of a group and one more who is not part of the group.
 -- The server must not send this message to client ids not part of the group.
--- @SF.Separation @TSFI.RESTfulAPI @S2
 postMessageClientNotInGroupDoesNotReceiveMsg :: TestM ()
 postMessageClientNotInGroupDoesNotReceiveMsg = do
   localDomain <- viewFederationDomain
@@ -547,9 +547,9 @@ postMessageClientNotInGroupDoesNotReceiveMsg = do
     checkEveGetsMsg
     checkChadDoesNotGetMsg
 
--- | This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
--- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
+-- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
 postMessageRejectIfMissingClients :: TestM ()
 postMessageRejectIfMissingClients = do
   (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
@@ -575,11 +575,11 @@ postMessageRejectIfMissingClients = do
     mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
     mkMsg text (userId, clientId) = (userId, clientId, toBase64Text text)
 
--- | This test verifies behaviour under various values of ignore_missing and
--- report_missing. Only tests the JSON endpoint.
 -- @SF.Separation @TSFI.RESTfulAPI @S2
-postCryptoMessage5 :: TestM ()
-postCryptoMessage5 = do
+-- This test verifies behaviour under various values of ignore_missing and
+-- report_missing. Only tests the JSON endpoint.
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam :: TestM ()
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -766,10 +766,10 @@ postMessageQualifiedLocalOwningBackendSuccess = do
       WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
       WS.assertMatch_ t wsAmy (wsAssertOtr' encodedData convId alice aliceClient amyClient encodedTextForAmy)
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will not be sent.
--- @SF.Separation @TSFI.RESTfulAPI @S2
 postMessageQualifiedLocalOwningBackendMissingClients :: TestM ()
 postMessageQualifiedLocalOwningBackendMissingClients = do
   -- Cannon for local users
@@ -925,11 +925,11 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       -- Wait less for no message
       WS.assertNoEvent (1 # Second) [wsNonMember]
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will be sent except when it is specifically
 -- requested to report on missing clients of a user.
--- @SF.Separation @TSFI.RESTfulAPI @S2
 postMessageQualifiedLocalOwningBackendIgnoreMissingClients :: TestM ()
 postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- WS receive timeout
