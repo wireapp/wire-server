@@ -2,7 +2,6 @@ module Wire.API.ErrorDescription where
 
 import Control.Lens (at, (%~), (.~), (<>~), (?~))
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as LBS
 import Data.Metrics.Servant
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
@@ -13,10 +12,12 @@ import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
+import Network.HTTP.Types as HTTP
 import Servant hiding (Handler, addHeader, contentType, respond)
 import Servant.API (contentType)
 import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
 import Servant.API.Status (KnownStatus, statusVal)
+import Servant.Client.Core
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
 
@@ -113,6 +114,7 @@ instance
   IsResponse cs (ErrorDescription s label desc)
   where
   type ResponseStatus (ErrorDescription s label desc) = s
+  type ResponseBody (ErrorDescription s label desc) = LByteString
 
   responseRender = responseRender @cs @(RespondWithErrorDescription s label desc)
   responseUnrender = responseUnrender @cs @(RespondWithErrorDescription s label desc)
@@ -160,18 +162,20 @@ instance
   IsResponse cs (EmptyErrorForLegacyReasons s desc)
   where
   type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
+  type ResponseBody (EmptyErrorForLegacyReasons s desc) = ()
 
   responseRender _ () =
     pure $
-      roAddContentType
+      addContentType
         (contentType (Proxy @PlainText))
-        (RenderOutput (statusVal (Proxy @s)) mempty mempty)
+        Response
+          { responseStatusCode = statusVal (Proxy @s),
+            responseHeaders = mempty,
+            responseBody = (),
+            responseHttpVersion = HTTP.http11
+          }
 
-  responseUnrender _ output =
-    guard
-      ( LBS.null (roBody output)
-          && roStatus output == statusVal (Proxy @s)
-      )
+  responseUnrender _ output = guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
   (KnownStatus s, KnownSymbol desc) =>
