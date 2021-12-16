@@ -52,7 +52,7 @@ spec = do
   specDeleteToken
   specListTokens
   describe "Miscellaneous" $ do
-    it "doesn't allow SCIM operations without a SCIM token" $ testAuthIsNeeded
+    it "doesn't allow SCIM operations with invalid or missing SCIM token" testAuthIsNeeded
 
 ----------------------------------------------------------------------------
 -- Token creation
@@ -60,11 +60,11 @@ spec = do
 -- | Tests for @POST /auth-tokens@.
 specCreateToken :: SpecWith TestEnv
 specCreateToken = describe "POST /auth-tokens" $ do
-  it "works" $ testCreateToken
-  it "respects the token limit" $ testTokenLimit
-  it "requires the team to have no more than one IdP" $ testNumIdPs
-  it "authorizes only admins and owners" $ testCreateTokenAuthorizesOnlyAdmins
-  it "requires a password" $ testCreateTokenRequiresPassword
+  it "works" testCreateToken
+  it "respects the token limit" testTokenLimit
+  it "requires the team to have no more than one IdP" testNumIdPs
+  it "authorizes only admins and owners" testCreateTokenAuthorizesOnlyAdmins
+  it "requires a password" testCreateTokenRequiresPassword
 
 -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
 -- reauthentication is not required. We currently (2019-03-05) can't test that because
@@ -362,10 +362,15 @@ testDeletedTokensAreUnlistable = do
 ----------------------------------------------------------------------------
 -- Miscellaneous tests
 
--- | Test that without a token, the SCIM API can't be used.
+-- @SF.PROVISIONING @TSFI.RESTfulAPI @S2
+-- This test verifies that the SCIM API responds with an authentication error
+-- and can't be used if it receives an invalid secret token
+-- or if no token is provided at all
 testAuthIsNeeded :: TestSpar ()
 testAuthIsNeeded = do
   env <- ask
+  -- Try to do @GET /Users@ with an invalid token and check that it fails
+  let invalidToken = ScimToken "this-is-an-invalid-token"
+  listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
-  listUsers_ Nothing Nothing (env ^. teSpar)
-    !!! checkErr 401 Nothing
+  listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing

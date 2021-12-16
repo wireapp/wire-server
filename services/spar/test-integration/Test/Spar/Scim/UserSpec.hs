@@ -203,7 +203,7 @@ specCreateUser = describe "POST /Users" $ do
   context "team has no SAML IdP" $ do
     it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
       testCreateUserNoIdP
-    it "fails if no email can be extraced from externalId" $ do
+    it "fails if no email can be extracted from externalId" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
