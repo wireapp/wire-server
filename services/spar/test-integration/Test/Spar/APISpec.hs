@@ -198,6 +198,8 @@ specInitiateLogin = do
 specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
+    -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+    -- Receiving an invalid SAML token from client should not give the user a valid access token
     context "access denied" $ do
       it "responds with a very peculiar 'forbidden' HTTP response" $ do
         (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
@@ -206,12 +208,6 @@ specFinalizeLogin = do
         authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
         sparresp <- submitAuthnResponse tid authnresp
         liftIO $ do
-          -- import Text.XML
-          -- putStrLn $ unlines
-          --   [ cs . renderLBS def { rsPretty = True } . fromSignedAuthnResponse $ authnresp
-          --   , show sparresp
-          --   , maybe "Nothing" cs (responseBody sparresp)
-          --   ]
           statusCode sparresp `shouldBe` 200
           let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
           bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -223,9 +219,6 @@ specFinalizeLogin = do
           bdy `shouldContain` "\"label\":\"forbidden\""
           bdy `shouldContain` "}, receiverOrigin)"
           hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
-      context "user has been deleted" $ do
-        it "responds with 'forbidden'" $ do
-          pendingWith "or do we want to un-delete the user?  or create a new one?"
     context "access granted" $ do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
           loginSuccess sparresp = liftIO $ do
@@ -299,6 +292,8 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
+      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      -- Receiving an invalid SAML token from client should not give the user a valid access token
       context "idp sends user to two teams with same issuer, nameid" $ do
         it "fails" $ do
           skipIdPAPIVersions
@@ -358,7 +353,7 @@ specFinalizeLogin = do
               )
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take
             -- the time, we should find another way to robustly
-            -- confirm that deletion has compelted in the background.
+            -- confirm that deletion has completed in the background.
 
           -- second login
           do
@@ -381,6 +376,8 @@ specFinalizeLogin = do
         it "accepts the second of two certs for signatures" $ do
           pending
 
+    -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+    -- Receiving an invalid SAML token from client should not give the user a valid access token
     context "unknown IdP Issuer" $ do
       it "rejects" $ do
         (_, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
