@@ -164,6 +164,7 @@ validateDomainCertInvalid =
         $ validateDomain (Just "not a certificate") "foo.example.com"
     res @?= Left (CertificateParseError "no certificate found")
 
+-- @SF.Federation @S3 @S7
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
