@@ -178,6 +178,8 @@ testCreateTokenAuthorizesOnlyAdmins = do
   (mkUser Galley.RoleAdmin >>= createToken')
     !!! const 200 === statusCode
 
+-- @END
+
 -- | Test that for a user with a password, token creation requires reauthentication (i.e. the
 -- field @"password"@ should be provided).
 --
@@ -362,7 +364,7 @@ testDeletedTokensAreUnlistable = do
 ----------------------------------------------------------------------------
 -- Miscellaneous tests
 
--- @SF.PROVISIONING @TSFI.RESTfulAPI @S2
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- This test verifies that the SCIM API responds with an authentication error
 -- and can't be used if it receives an invalid secret token
 -- or if no token is provided at all
@@ -374,3 +376,5 @@ testAuthIsNeeded = do
   listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
   listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
+
+-- @END

@@ -177,6 +177,8 @@ testCreateUserWithInvalidVerificationCode brig = do
           ]
   postUserRegister' regEmail brig !!! const 404 === statusCode
 
+-- @END
+
 testUpdateUserEmailByTeamOwner :: Brig -> Http ()
 testUpdateUserEmailByTeamOwner brig = do
   (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
@@ -305,6 +307,8 @@ testCreateUserEmptyName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
+-- @END
+
 -- The testCreateUserLongName test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
@@ -318,6 +322,8 @@ testCreateUserLongName brig = do
             ["name" .= (nameTooLong :: Text)]
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
+
+-- @END
 
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
@@ -437,6 +443,8 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
+-- @END
+
 -- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
@@ -467,6 +475,8 @@ testCreateUserInvalidEmailOrPhone _ brig = do
             ]
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
+
+-- @END
 
 testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserBlacklist (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()

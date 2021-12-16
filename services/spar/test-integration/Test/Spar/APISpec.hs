@@ -200,9 +200,8 @@ specInitiateLogin = do
 specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
-    -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-    -- Receiving an invalid SAML token from client should not give the user a valid access token
-    context "access denied" $ do
+    -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+    context "rejectsSAMLResponseSayingAccessNotGranted" $ do
       it "responds with a very peculiar 'forbidden' HTTP response" $ do
         (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         authnreq <- negotiateAuthnRequest idp
@@ -221,6 +220,8 @@ specFinalizeLogin = do
           bdy `shouldContain` "\"label\":\"forbidden\""
           bdy `shouldContain` "}, receiverOrigin)"
           hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
+    -- @END
 
     context "access granted" $ do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
@@ -295,9 +296,8 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      -- Receiving an invalid SAML token from client should not give the user a valid access token
-      context "idp sends user to two teams with same issuer, nameid" $ do
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
           skipIdPAPIVersions
             [ WireIdPAPIV1
@@ -320,6 +320,8 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
+
+      -- @END
 
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
@@ -414,8 +416,8 @@ specFinalizeLogin = do
                   g (c : s) = c : g s
                   g "" = ""
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses with invalid issuer entity id" $ do
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      it "rejectsSAMLResponseFromWrongIssuer" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq =
               mkAuthnResponse
@@ -433,8 +435,10 @@ specFinalizeLogin = do
               (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
         check mkareq mkaresp submitaresp checkresp
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses signed with the wrong private key" $ do
+      -- @END
+
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      it "rejectsSAMLResponseSignedWithWrongKey" $ do
         (_, _, _, (_, badprivcreds)) <- registerTestIdPWithMeta
         let mkareq = negotiateAuthnRequest
             mkaresp _ idp spmeta authnreq =
@@ -448,8 +452,10 @@ specFinalizeLogin = do
             checkresp sparresp = statusCode sparresp `shouldBe` 400
         check mkareq mkaresp submitaresp checkresp
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses to requests not in cassandra:spar.authreq" $ do
+      -- @END
+
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      it "rejectsSAMLResponseIfRequestIsStale" $ do
         let mkareq idp = do
               req <- negotiateAuthnRequest idp
               runSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
@@ -462,8 +468,10 @@ specFinalizeLogin = do
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
         check mkareq mkaresp submitaresp checkresp
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses already seen (and recorded in cassandra:spar.authresp)" $ do
+      -- @END
+
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      it "rejectsSAMLResponseIfResponseIsStale" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
             submitaresp teamid authnresp = do
@@ -473,6 +481,8 @@ specFinalizeLogin = do
               statusCode sparresp `shouldBe` 200
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
         check mkareq mkaresp submitaresp checkresp
+
+    -- @END
 
     context "IdP changes response format" $ do
       it "treats NameId case-insensitively" $ do

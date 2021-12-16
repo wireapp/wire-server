@@ -452,6 +452,8 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
+-- @END
+
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behavior of the the JSON endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
@@ -477,6 +479,8 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   liftIO $ do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
+
+-- @END
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behaviour of the protobuf endpoint.
@@ -505,6 +509,8 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   liftIO $ do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
+
+-- @END
 
 -- | This test verifies behaviour when an unknown client posts the message. Only
 -- tests the Protobuf endpoint.
@@ -547,6 +553,8 @@ postMessageClientNotInGroupDoesNotReceiveMsg = do
     checkEveGetsMsg
     checkChadDoesNotGetMsg
 
+-- @END
+
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
 -- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
@@ -574,6 +582,8 @@ postMessageRejectIfMissingClients = do
   where
     mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
     mkMsg text (userId, clientId) = (userId, clientId, toBase64Text text)
+
+-- @END
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies behaviour under various values of ignore_missing and
@@ -632,6 +642,8 @@ postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
     !!! assertMismatchWithMessage (Just "client mismatch") [(bob, Set.singleton bc)] [] []
   where
     listToByteString = BS.intercalate "," . map toByteString'
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". All user's
 -- on this backend have names begining with 'A'. The conversation has a couple
@@ -831,6 +843,8 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                 ]
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message, it is expected that message will
@@ -1055,6 +1069,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
               [(qUnqualified deeRemote, Set.singleton deeClient)]
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
 postMessageQualifiedLocalOwningBackendFailedToSendClients = do

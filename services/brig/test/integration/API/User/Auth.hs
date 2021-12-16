@@ -377,6 +377,8 @@ testLoginFailure brig = do
   login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing) PersistentCookie
     !!! const 403 === statusCode
 
+-- @END
+
 testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
   -- Get the maximum amount of times we are allowed to login before
@@ -454,6 +456,8 @@ testLimitRetries conf brig = do
   -- wait long enough and login successfully!
   liftIO $ threadDelay (1000000 * 2)
   login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
+
+-- @END
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
@@ -598,6 +602,8 @@ testInvalidCookie z b = do
   post (b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "expired") =~= responseBody
+
+-- @END
 
 testInvalidToken :: Brig -> Http ()
 testInvalidToken b = do
@@ -966,6 +972,8 @@ testTooManyCookies config b = do
                 <> "(try 29 seconds)."
             )
         xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
+
+-- @END
 
 testLogout :: Brig -> Http ()
 testLogout b = do
