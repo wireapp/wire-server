@@ -200,7 +200,7 @@ specInitiateLogin = do
 specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
-    -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+    -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
     context "rejectsSAMLResponseSayingAccessNotGranted" $ do
       it "responds with a very peculiar 'forbidden' HTTP response" $ do
         (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
@@ -296,7 +296,7 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
           skipIdPAPIVersions
@@ -416,7 +416,7 @@ specFinalizeLogin = do
                   g (c : s) = c : g s
                   g "" = ""
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       it "rejectsSAMLResponseFromWrongIssuer" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq =
@@ -437,7 +437,7 @@ specFinalizeLogin = do
 
       -- @END
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       it "rejectsSAMLResponseSignedWithWrongKey" $ do
         (_, _, _, (_, badprivcreds)) <- registerTestIdPWithMeta
         let mkareq = negotiateAuthnRequest
@@ -454,7 +454,7 @@ specFinalizeLogin = do
 
       -- @END
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       it "rejectsSAMLResponseIfRequestIsStale" $ do
         let mkareq idp = do
               req <- negotiateAuthnRequest idp
@@ -470,7 +470,7 @@ specFinalizeLogin = do
 
       -- @END
 
-      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       it "rejectsSAMLResponseIfResponseIsStale" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
