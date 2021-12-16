@@ -201,8 +201,7 @@ specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
     -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-    -- Receiving an invalid SAML token from client should not give the user a valid access token
-    context "access denied" $ do
+    context "rejectsSAMLResponseSayingAccessNotGranted" $ do
       it "responds with a very peculiar 'forbidden' HTTP response" $ do
         (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         authnreq <- negotiateAuthnRequest idp
@@ -298,8 +297,7 @@ specFinalizeLogin = do
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      -- Receiving an invalid SAML token from client should not give the user a valid access token
-      context "idp sends user to two teams with same issuer, nameid" $ do
+      context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
           skipIdPAPIVersions
             [ WireIdPAPIV1
@@ -419,7 +417,7 @@ specFinalizeLogin = do
                   g "" = ""
 
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses with invalid issuer entity id" $ do
+      it "rejectsSAMLResponseFromWrongIssuer" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq =
               mkAuthnResponse
@@ -440,7 +438,7 @@ specFinalizeLogin = do
       -- @END
 
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses signed with the wrong private key" $ do
+      it "rejectsSAMLResponseSignedWithWrongKey" $ do
         (_, _, _, (_, badprivcreds)) <- registerTestIdPWithMeta
         let mkareq = negotiateAuthnRequest
             mkaresp _ idp spmeta authnreq =
@@ -457,7 +455,7 @@ specFinalizeLogin = do
       -- @END
 
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses to requests not in cassandra:spar.authreq" $ do
+      it "rejectsSAMLResponseIfRequestIsStale" $ do
         let mkareq idp = do
               req <- negotiateAuthnRequest idp
               runSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
@@ -473,7 +471,7 @@ specFinalizeLogin = do
       -- @END
 
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-      it "rejects saml responses already seen (and recorded in cassandra:spar.authresp)" $ do
+      it "rejectsSAMLResponseIfResponseIsStale" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
             submitaresp teamid authnresp = do
