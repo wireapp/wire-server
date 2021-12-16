@@ -99,3 +99,5 @@ Further information
 ~~~~~~~~~~~~~~~~~~~
 
 * A mitigation for this with fresh on-premise installations is introduced in `<https://github.com/wireapp/wire-server-deploy/pull/526>`__
+
+* We have of course fully applied the above counter measures to our cloud offering. We have no evidence that this vulnerability was used to launch an attack before this. Any hypothetical undetected attack would have required additional security vulnerabilities to be successful.
