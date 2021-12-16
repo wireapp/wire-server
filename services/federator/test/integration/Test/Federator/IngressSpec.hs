@@ -32,6 +32,7 @@ import Federator.Env
 import Federator.Remote
 import Imports
 import qualified Network.HTTP.Types as HTTP
+import qualified Network.TLS as TLS
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -61,7 +62,7 @@ spec env = do
           runTestSem
             . assertNoError @RemoteError
             $ inwardBrigCallViaIngress "get-user-by-handle" $
-              (Aeson.fromEncoding (Aeson.toEncoding hdl))
+              Aeson.fromEncoding (Aeson.toEncoding hdl)
         liftIO $ do
           bdy <- streamingResponseStrictBody resp
           let actualProfile = Aeson.decode (toLazyByteString bdy)
@@ -86,12 +87,41 @@ spec env = do
         runTestSem
           . runError @RemoteError
           $ inwardBrigCallViaIngressWithSettings tlsSettings "get-user-by-handle" $
-            (Aeson.fromEncoding (Aeson.toEncoding hdl))
+            Aeson.fromEncoding (Aeson.toEncoding hdl)
       liftIO $ case r of
         Right _ -> expectationFailure "Expected client certificate error, got response"
         Left (RemoteError _ _) ->
           expectationFailure "Expected client certificate error, got remote error"
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+  -- @SF.FEDERATION @TSFI.RESTfulAPI @S2 @S3 @S7
+  it "should not be accessible with an invalid client certificate" $
+    runTestFederator env $ do
+      brig <- view teBrig <$> ask
+      user <- randomUser brig
+      hdl <- randomHandle
+      _ <- putHandle brig (userId user) hdl
+
+      tlsSettings0 <- view teTLSSettings
+      certOrError <- liftIO $ TLS.credentialLoadX509 "todo" "todo"
+      let tlsSettings = case certOrError of
+            Left _ -> error "this test should fail if we cannot successfully create an invalid certificate"
+            Right (cred, _) ->
+              tlsSettings0
+                { _creds = case _creds tlsSettings0 of
+                    (_, privkey) -> (cred, privkey)
+                }
+      r <-
+        runTestSem
+          . runError @RemoteError
+          $ inwardBrigCallViaIngressWithSettings tlsSettings "get-user-by-handle" $
+            Aeson.fromEncoding (Aeson.toEncoding hdl)
+      liftIO $ case r of
+        Right _ -> expectationFailure "Expected client certificate error, got response"
+        Left (RemoteError _ _) ->
+          expectationFailure "Expected client certificate error, got remote error"
+        Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+
+-- @END
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do
