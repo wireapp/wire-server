@@ -72,6 +72,19 @@ spec env =
             <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
+    -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+    -- This maybe case 2 from https://wearezeta.atlassian.net/browse/SQSERVICES-1128
+    it "shouldRejectMissMatchingOriginDomain" $
+      runTestFederator env $
+        do
+          brig <- view teBrig <$> ask
+          user <- randomUser brig
+          hdl <- randomHandle
+          _ <- putHandle brig (userId user) hdl
+          inwardCallWithOriginDomain "unknown-domain.com" "/federation/brig/get-user-by-handle" (encode hdl)
+            !!! const 500 === statusCode
+    -- @END
+
     it "should be able to call cargohold" $
       runTestFederator env $ do
         inwardCall "/federation/cargohold/get-asset" (encode ())
@@ -142,5 +155,24 @@ inwardCall requestPath payload = do
         . path requestPath
         . header "X-SSL-Certificate" (HTTP.urlEncode True clientCert)
         . header originDomainHeaderName (toByteString' originDomain)
+        . bytes (toByteString' payload)
+    )
+
+inwardCallWithOriginDomain ::
+  (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
+  ByteString ->
+  ByteString ->
+  LBS.ByteString ->
+  m (Response (Maybe LByteString))
+inwardCallWithOriginDomain originDomain requestPath payload = do
+  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
+  clientCert <- liftIO $ BS.readFile clientCertFilename
+  post
+    ( host (encodeUtf8 fedHost)
+        . port fedPort
+        . path requestPath
+        . header "X-SSL-Certificate" (HTTP.urlEncode True clientCert)
+        . header originDomainHeaderName originDomain
         . bytes (toByteString' payload)
     )
