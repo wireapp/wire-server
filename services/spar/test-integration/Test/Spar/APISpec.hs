@@ -67,10 +67,12 @@ import SAML2.WebSSO
     (-/),
   )
 import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.API.Example (SimpleSP)
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.IdP as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
@@ -377,49 +379,100 @@ specFinalizeLogin = do
         it "accepts the second of two certs for signatures" $ do
           pending
 
-    -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
-    -- Receiving an invalid SAML token from client should not give the user a valid access token
-    context "unknown IdP Issuer" $ do
-      it "rejects" $ do
-        (_, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
-        authnreq <- negotiateAuthnRequest idp
-        spmeta <- getTestSPMetadata teamid
-        authnresp <-
-          runSimpleSP $
-            mkAuthnResponse
-              privcreds
-              (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
-              spmeta
-              authnreq
-              True
-        sparresp <- submitAuthnResponse teamid authnresp
-        let shouldContainInBase64 :: String -> String -> Expectation
-            shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
-              where
-                Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
-                hay' = cs $ f hay
-                  where
-                    -- exercise to the reader: do this more idiomatically!
-                    f (splitAt 5 -> ("<pre>", s)) = g s
-                    f (_ : s) = f s
-                    f "" = ""
-                    g (splitAt 6 -> ("</pre>", _)) = ""
-                    g (c : s) = c : g s
-                    g "" = ""
-        liftIO $ do
-          statusCode sparresp `shouldBe` 404
-          -- body should contain the error label in the title, the verbatim haskell error, and the request:
-          (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError (SparIdPNotFound"
-          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
-    -- TODO(arianvp): Ask Matthias what this even means
-    context "AuthnResponse does not match any request" $ do
-      it "rejects" $ do
-        pending
-    -- TODO(arianvp): Ask Matthias what this even means
-    context "AuthnResponse contains assertions that have been offered before" $ do
-      it "rejects" $ do
-        pending
+    context "bad AuthnResponse" $ do
+      let check ::
+            (IdP -> TestSpar SAML.AuthnRequest) ->
+            (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
+            (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
+            (ResponseLBS -> IO ()) ->
+            TestSpar ()
+          check mkareq mkaresp submitaresp checkresp = do
+            (_, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+            authnreq <- mkareq idp
+            spmeta <- getTestSPMetadata teamid
+            authnresp <-
+              runSimpleSP $
+                mkaresp
+                  privcreds
+                  idp
+                  spmeta
+                  authnreq
+            sparresp <- submitaresp teamid authnresp
+            liftIO $ checkresp sparresp
+
+          shouldContainInBase64 :: String -> String -> Expectation
+          shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
+            where
+              Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
+              hay' = cs $ f hay
+                where
+                  -- exercise to the reader: do this more idiomatically!
+                  f (splitAt 5 -> ("<pre>", s)) = g s
+                  f (_ : s) = f s
+                  f "" = ""
+                  g (splitAt 6 -> ("</pre>", _)) = ""
+                  g (c : s) = c : g s
+                  g "" = ""
+
+      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      it "rejects saml responses with invalid issuer entity id" $ do
+        let mkareq = negotiateAuthnRequest
+            mkaresp privcreds idp spmeta authnreq =
+              mkAuthnResponse
+                privcreds
+                (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
+                spmeta
+                authnreq
+                True
+            submitaresp = submitAuthnResponse
+            checkresp sparresp = do
+              statusCode sparresp `shouldBe` 404
+              -- body should contain the error label in the title, the verbatim haskell error, and the request:
+              (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
+              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError (SparIdPNotFound"
+              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
+        check mkareq mkaresp submitaresp checkresp
+
+      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      it "rejects saml responses signed with the wrong private key" $ do
+        (_, _, _, (_, badprivcreds)) <- registerTestIdPWithMeta
+        let mkareq = negotiateAuthnRequest
+            mkaresp _ idp spmeta authnreq =
+              mkAuthnResponse
+                badprivcreds
+                idp
+                spmeta
+                authnreq
+                True
+            submitaresp = submitAuthnResponse
+            checkresp sparresp = statusCode sparresp `shouldBe` 400
+        check mkareq mkaresp submitaresp checkresp
+
+      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      it "rejects saml responses to requests not in cassandra:spar.authreq" $ do
+        let mkareq idp = do
+              req <- negotiateAuthnRequest idp
+              runSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
+              pure req
+            mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
+            submitaresp = submitAuthnResponse
+            checkresp sparresp = do
+              statusCode sparresp `shouldBe` 200
+              (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
+              (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
+        check mkareq mkaresp submitaresp checkresp
+
+      -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
+      it "rejects saml responses already seen (and recorded in cassandra:spar.authresp)" $ do
+        let mkareq = negotiateAuthnRequest
+            mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
+            submitaresp teamid authnresp = do
+              _ <- submitAuthnResponse teamid authnresp
+              submitAuthnResponse teamid authnresp
+            checkresp sparresp = do
+              statusCode sparresp `shouldBe` 200
+              (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
+        check mkareq mkaresp submitaresp checkresp
 
     context "IdP changes response format" $ do
       it "treats NameId case-insensitively" $ do
