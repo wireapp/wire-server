@@ -364,7 +364,7 @@ testDeletedTokensAreUnlistable = do
 ----------------------------------------------------------------------------
 -- Miscellaneous tests
 
--- @SF.PROVISIONING @TSFI.RESTfulAPI @S2
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- This test verifies that the SCIM API responds with an authentication error
 -- and can't be used if it receives an invalid secret token
 -- or if no token is provided at all
