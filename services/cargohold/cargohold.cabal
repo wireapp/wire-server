@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b8ba2ed196939ab2b035138d3e428c84b88ff77ff219741840e47ae8dac9de0a
+-- hash: cd2a03f62587d5c87a0542f95b7124ff553f9ac6ec40dd1ea1cbfe2fd8ace570
 
 name:           cargohold
 version:        1.5.0
@@ -29,6 +29,7 @@ library
       CargoHold.API.Federation
       CargoHold.API.Legacy
       CargoHold.API.Public
+      CargoHold.API.Util
       CargoHold.API.V3
       CargoHold.App
       CargoHold.AWS

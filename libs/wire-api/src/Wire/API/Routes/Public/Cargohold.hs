@@ -33,6 +33,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
+import Wire.API.Routes.QualifiedCapture
 
 data PrincipalTag = UserPrincipalTag | BotPrincipalTag | ProviderPrincipalTag
   deriving (Eq, Show)
@@ -61,27 +62,24 @@ instance HasServer (ApplyPrincipalPath tag api) ctx => HasServer (tag :> api) ct
 instance RoutesToPaths (ApplyPrincipalPath tag api) => RoutesToPaths (tag :> api) where
   getRoutes = getRoutes @(ApplyPrincipalPath tag api)
 
-newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
-  deriving newtype
-    ( ToHttpApiData,
-      FromHttpApiData,
-      Swagger.ToParamSchema
-    )
+type AssetRedirect =
+  WithHeaders
+    '[DescHeader "Location" "Asset location" AssetLocation]
+    AssetLocation
+    (RespondEmpty 302 "Asset found")
 
-instance AsHeaders '[AssetLocation] Asset (Asset, AssetLocation) where
-  toHeaders (asset, loc) = (I loc :* Nil, asset)
-  fromHeaders (I loc :* Nil, asset) = (asset, loc)
+type AssetStreaming =
+  RespondStreaming
+    200
+    "Asset returned directly with content type `application/octet-stream`"
+    NoFraming
+    OctetStream
 
 type GetAsset =
   MultiVerb
     'GET
     '[JSON]
-    '[ AssetNotFound,
-       WithHeaders
-         '[DescHeader "Location" "Asset location" AssetLocation]
-         AssetLocation
-         (RespondEmpty 302 "Asset found")
-     ]
+    '[AssetNotFound, AssetRedirect]
     (Maybe AssetLocation)
 
 type ServantAPI =
@@ -108,13 +106,14 @@ type ServantAPI =
                   '[RespondEmpty 200 "Asset token deleted"]
                   ()
          )
-    :<|> BaseAPI 'UserPrincipalTag
-    :<|> BaseAPI 'BotPrincipalTag
-    :<|> BaseAPI 'ProviderPrincipalTag
+    :<|> BaseAPIv3 'UserPrincipalTag
+    :<|> BaseAPIv3 'BotPrincipalTag
+    :<|> BaseAPIv3 'ProviderPrincipalTag
+    :<|> QualifiedAPI
     :<|> LegacyAPI
     :<|> InternalAPI
 
-type BaseAPI (tag :: PrincipalTag) =
+type BaseAPIv3 (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
       :> CanThrow AssetTooLarge
       :> CanThrow InvalidLength
@@ -148,6 +147,26 @@ type BaseAPI (tag :: PrincipalTag) =
                   '[RespondEmpty 200 "Asset deleted"]
                   ()
          )
+
+type QualifiedAPI =
+  ( Summary "Download an asset"
+      :> Description
+           "**Note**: local assets result in a redirect, \
+           \while remote assets are streamed directly."
+      :> ZLocalUser
+      :> "assets"
+      :> "v4"
+      :> QualifiedCapture "key" AssetKey
+      :> Header "Asset-Token" AssetToken
+      :> MultiVerb
+           'GET
+           '[JSON]
+           '[ AssetNotFound,
+              AssetRedirect,
+              AssetStreaming
+            ]
+           (Maybe LocalOrRemoteAsset)
+  )
 
 type LegacyAPI =
   ( ZLocalUser

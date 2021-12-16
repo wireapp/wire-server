@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,7 +19,50 @@
 
 module Wire.API.Asset
   ( module V3,
+    AssetLocation (..),
+    LocalOrRemoteAsset (..),
   )
 where
 
+import Data.SOP
+import qualified Data.Swagger as Swagger
+import GHC.TypeLits
+import Imports
+import Servant
 import Wire.API.Asset.V3 as V3
+import Wire.API.ErrorDescription
+import Wire.API.Routes.MultiVerb
+
+newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
+  deriving newtype
+    ( ToHttpApiData,
+      FromHttpApiData,
+      Swagger.ToParamSchema
+    )
+
+instance AsHeaders '[AssetLocation] Asset (Asset, AssetLocation) where
+  toHeaders (asset, loc) = (I loc :* Nil, asset)
+  fromHeaders (I loc :* Nil, asset) = (asset, loc)
+
+-- | An asset as returned by the download API: if the asset is local, only a
+-- URL is returned, and if it is remote the content of the asset is streamed.
+data LocalOrRemoteAsset
+  = LocalAsset AssetLocation
+  | RemoteAsset (SourceIO ByteString)
+
+instance
+  ( ResponseType r0 ~ ErrorDescription code label desc,
+    ResponseType r1 ~ AssetLocation,
+    ResponseType r2 ~ SourceIO ByteString,
+    KnownSymbol desc
+  ) =>
+  AsUnion '[r0, r1, r2] (Maybe LocalOrRemoteAsset)
+  where
+  toUnion Nothing = Z (I mkErrorDescription)
+  toUnion (Just (LocalAsset loc)) = S (Z (I loc))
+  toUnion (Just (RemoteAsset asset)) = S (S (Z (I asset)))
+
+  fromUnion (Z (I _)) = Nothing
+  fromUnion (S (Z (I loc))) = Just (LocalAsset loc)
+  fromUnion (S (S (Z (I asset)))) = Just (RemoteAsset asset)
+  fromUnion (S (S (S x))) = case x of

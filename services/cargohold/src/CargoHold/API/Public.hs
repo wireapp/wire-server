@@ -18,6 +18,7 @@
 module CargoHold.API.Public (servantSitemap) where
 
 import qualified CargoHold.API.Legacy as LegacyAPI
+import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import qualified CargoHold.Types.V3 as V3
@@ -41,16 +42,18 @@ servantSitemap =
     :<|> userAPI
     :<|> botAPI
     :<|> providerAPI
+    :<|> qualifiedAPI
     :<|> legacyAPI
     :<|> internalAPI
   where
-    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPI tag) Handler
+    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPI tag) Handler
+    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPI tag) Handler
+    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
+    qualifiedAPI = downloadAssetV4
     internalAPI = pure ()
 
 class MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
@@ -90,6 +93,15 @@ downloadAssetV3 ::
 downloadAssetV3 usr key tok1 tok2 = do
   url <- V3.download (mkPrincipal usr) key (tok1 <|> tok2)
   pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
+
+downloadAssetV4 ::
+  Local UserId ->
+  Qualified AssetKey ->
+  Maybe AssetToken ->
+  Handler (Maybe LocalOrRemoteAsset)
+downloadAssetV4 usr qkey tok = do
+  key <- tUnqualified <$> ensureLocal usr qkey
+  LocalAsset <$$> downloadAssetV3 usr key tok
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
 deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
