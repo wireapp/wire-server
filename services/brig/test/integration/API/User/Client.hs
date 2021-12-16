@@ -444,6 +444,8 @@ testTooManyClients opts brig = do
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
       const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
 
+-- @END
+
 -- The testRemoveClient test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --

@@ -718,8 +718,6 @@ testScimCreateVsUserRef = do
       (call . delete $ brig . paths ["i", "users", toByteString' uid])
         !!! const 202 === statusCode
 
--- @END
-
 testCreateUserTimeout :: TestSpar ()
 testCreateUserTimeout = do
   env <- ask
