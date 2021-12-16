@@ -99,7 +99,7 @@ tests:
       - QuickCheck
       - spar
       - uri-bytestring
-      - polysemy-check
+      - polysemy-check >= 0.9
 
 executables:
   spar:

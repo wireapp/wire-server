@@ -9,4 +9,6 @@ data DefaultSsoCode m a where
   Store :: SAML.IdPId -> DefaultSsoCode m ()
   Delete :: DefaultSsoCode m ()
 
+deriving instance Show (DefaultSsoCode m a)
+
 makeSem ''DefaultSsoCode

@@ -10,4 +10,6 @@ data ScimExternalIdStore m a where
   Lookup :: TeamId -> Email -> ScimExternalIdStore m (Maybe UserId)
   Delete :: TeamId -> Email -> ScimExternalIdStore m ()
 
+deriving instance Show (ScimExternalIdStore m a)
+
 makeSem ''ScimExternalIdStore
