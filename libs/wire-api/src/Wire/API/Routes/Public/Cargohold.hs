@@ -167,6 +167,20 @@ type QualifiedAPI =
             ]
            (Maybe LocalOrRemoteAsset)
   )
+    :<|> ( Summary "Delete an asset"
+             :> Description "**Note**: only local assets can be deleted."
+             :> CanThrow AssetNotFound
+             :> CanThrow Unauthorised
+             :> ZLocalUser
+             :> "assets"
+             :> "v4"
+             :> QualifiedCapture "key" AssetKey
+             :> MultiVerb
+                  'DELETE
+                  '[JSON]
+                  '[RespondEmpty 200 "Asset deleted"]
+                  ()
+         )
 
 type LegacyAPI =
   ( ZLocalUser

@@ -53,7 +53,7 @@ servantSitemap =
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
-    qualifiedAPI = downloadAssetV4
+    qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
     internalAPI = pure ()
 
 class MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
@@ -105,6 +105,11 @@ downloadAssetV4 usr qkey tok = do
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
 deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
+
+deleteAssetV4 :: Local UserId -> Qualified AssetKey -> Handler ()
+deleteAssetV4 usr qkey = do
+  key <- tUnqualified <$> ensureLocal usr qkey
+  V3.delete (mkPrincipal usr) key
 
 renewTokenV3 :: Local UserId -> AssetKey -> Handler NewAssetToken
 renewTokenV3 (tUnqualified -> usr) key =
