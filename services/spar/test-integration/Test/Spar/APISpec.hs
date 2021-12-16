@@ -219,6 +219,7 @@ specFinalizeLogin = do
           bdy `shouldContain` "\"label\":\"forbidden\""
           bdy `shouldContain` "}, receiverOrigin)"
           hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
     context "access granted" $ do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
           loginSuccess sparresp = liftIO $ do
@@ -367,8 +368,8 @@ specFinalizeLogin = do
 
       context "known user A, but client device (probably a browser?) is already authenticated as another (probably non-sso) user B" $ do
         it "logs out user B, logs in user A" $ do
+          -- TODO(arianvp): Ask Matthias what this even means
           pending
-      -- TODO(arianvp): Ask Matthias what this even means
 
       context "more than one dsig cert" $ do
         it "accepts the first of two certs for signatures" $ do
@@ -419,6 +420,7 @@ specFinalizeLogin = do
     context "AuthnResponse contains assertions that have been offered before" $ do
       it "rejects" $ do
         pending
+
     context "IdP changes response format" $ do
       it "treats NameId case-insensitively" $ do
         (_ownerid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
