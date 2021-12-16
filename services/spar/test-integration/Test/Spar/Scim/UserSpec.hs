@@ -479,6 +479,8 @@ testCreateRejectsInvalidHandle = do
   createUser_ (Just tok) (user {Scim.User.userName = "#invalid name"}) (env ^. teSpar)
     !!! const 400 === statusCode
 
+-- @END
+
 -- | Test that user creation fails if handle is already in use (even on different team).
 testCreateRejectsTakenHandle :: TestSpar ()
 testCreateRejectsTakenHandle = do
@@ -715,6 +717,8 @@ testScimCreateVsUserRef = do
       brig <- view teBrig
       (call . delete $ brig . paths ["i", "users", toByteString' uid])
         !!! const 202 === statusCode
+
+-- @END
 
 testCreateUserTimeout :: TestSpar ()
 testCreateUserTimeout = do

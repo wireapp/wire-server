@@ -178,6 +178,8 @@ testCreateTokenAuthorizesOnlyAdmins = do
   (mkUser Galley.RoleAdmin >>= createToken')
     !!! const 200 === statusCode
 
+-- @END
+
 -- | Test that for a user with a password, token creation requires reauthentication (i.e. the
 -- field @"password"@ should be provided).
 --
@@ -374,3 +376,5 @@ testAuthIsNeeded = do
   listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
   listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
+
+-- @END

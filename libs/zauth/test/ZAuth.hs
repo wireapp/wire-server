@@ -105,6 +105,8 @@ testExpired p = do
   x <- liftIO $ runValidate p $ check t
   liftIO $ Left Expired @=? x
 
+-- @END
+
 testSignAndVerify :: V.Env -> Create ()
 testSignAndVerify p = do
   u <- liftIO nextRandom

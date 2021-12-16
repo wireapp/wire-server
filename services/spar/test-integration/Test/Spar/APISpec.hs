@@ -222,6 +222,8 @@ specFinalizeLogin = do
           bdy `shouldContain` "}, receiverOrigin)"
           hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
+    -- @END
+
     context "access granted" $ do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
           loginSuccess sparresp = liftIO $ do
@@ -320,6 +322,8 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
+
+      -- @END
 
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
@@ -433,6 +437,8 @@ specFinalizeLogin = do
               (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
         check mkareq mkaresp submitaresp checkresp
 
+      -- @END
+
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
       it "rejects saml responses signed with the wrong private key" $ do
         (_, _, _, (_, badprivcreds)) <- registerTestIdPWithMeta
@@ -448,6 +454,8 @@ specFinalizeLogin = do
             checkresp sparresp = statusCode sparresp `shouldBe` 400
         check mkareq mkaresp submitaresp checkresp
 
+      -- @END
+
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
       it "rejects saml responses to requests not in cassandra:spar.authreq" $ do
         let mkareq idp = do
@@ -462,6 +470,8 @@ specFinalizeLogin = do
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
         check mkareq mkaresp submitaresp checkresp
 
+      -- @END
+
       -- @SF.CHANNEL@TSFI.RESTfulAPI @S2 @S3
       it "rejects saml responses already seen (and recorded in cassandra:spar.authresp)" $ do
         let mkareq = negotiateAuthnRequest
@@ -473,6 +483,8 @@ specFinalizeLogin = do
               statusCode sparresp `shouldBe` 200
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
         check mkareq mkaresp submitaresp checkresp
+
+    -- @END
 
     context "IdP changes response format" $ do
       it "treats NameId case-insensitively" $ do

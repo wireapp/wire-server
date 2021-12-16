@@ -489,6 +489,8 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
+-- @END
+
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
@@ -521,6 +523,8 @@ testRemoveClientShortPwd brig = do
           newClientCookie = Just defCookieLabel
         }
 
+-- @END
+
 -- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
@@ -552,6 +556,8 @@ testRemoveClientIncorrectPwd brig = do
         { newClientLabel = Just "Nexus 5x",
           newClientCookie = Just defCookieLabel
         }
+
+-- @END
 
 testUpdateClient :: Opt.Opts -> Brig -> Http ()
 testUpdateClient opts brig = do
@@ -759,6 +765,8 @@ testAddMultipleTemporary brig galley = do
             . path "i/test/clients"
             . zUser u
       return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
+
+-- @END
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do
