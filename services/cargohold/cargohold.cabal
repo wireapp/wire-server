@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 840c9ae67e510d2fa482e2b471414cd9d71499b0a4df6c80b48d779c6ebfacf6
+-- hash: b8ba2ed196939ab2b035138d3e428c84b88ff77ff219741840e47ae8dac9de0a
 
 name:           cargohold
 version:        1.5.0
@@ -25,12 +25,10 @@ flag static
 
 library
   exposed-modules:
-      CargoHold.API
       CargoHold.API.Error
       CargoHold.API.Federation
       CargoHold.API.Legacy
       CargoHold.API.Public
-      CargoHold.API.Public.Servant
       CargoHold.API.V3
       CargoHold.App
       CargoHold.AWS
@@ -93,10 +91,7 @@ library
     , uri-bytestring >=0.2
     , uuid >=1.3.5
     , wai >=3.0
-    , wai-conduit >=3.0
-    , wai-extra >=3.0
-    , wai-predicates >=0.8
-    , wai-routing >=0.12
+    , wai-extra
     , wai-utilities >=0.16.1
     , wire-api
     , wire-api-federation
@@ -166,7 +161,6 @@ executable cargohold-integration
     , http-types >=0.8
     , imports
     , lens >=3.8
-    , metrics-wai
     , mime >=0.4
     , optparse-applicative
     , safe >=0.3

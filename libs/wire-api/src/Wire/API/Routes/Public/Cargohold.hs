@@ -20,6 +20,7 @@
 module Wire.API.Routes.Public.Cargohold where
 
 import Data.Id
+import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
 import qualified Data.Swagger as Swagger
@@ -61,6 +62,9 @@ instance HasServer api ctx => HasServer ('NoSegment :> api) ctx where
   type ServerT ('NoSegment :> api) m = ServerT api m
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+
+instance RoutesToPaths api => RoutesToPaths ('NoSegment :> api) where
+  getRoutes = getRoutes @api
 
 type family ZPrincipal (tag :: PrincipalTag) :: * where
   ZPrincipal 'UserPrincipalTag = ZLocalUser

@@ -106,6 +106,12 @@ instance
 
 instance
   (RoutesToPaths rest) =>
+  RoutesToPaths (StreamBody' opts framing ct a :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance
+  (RoutesToPaths rest) =>
   RoutesToPaths (Summary summary :> rest)
   where
   getRoutes = getRoutes @rest

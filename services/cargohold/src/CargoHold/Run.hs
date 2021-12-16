@@ -20,8 +20,8 @@ module CargoHold.Run
   )
 where
 
-import CargoHold.API (servantSitemap, sitemap)
 import CargoHold.API.Federation
+import CargoHold.API.Public
 import CargoHold.App
 import CargoHold.Options
 import Control.Lens (set, (^.))
@@ -29,7 +29,7 @@ import Control.Monad.Catch (finally)
 import Data.Default
 import Data.Domain
 import Data.Id
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (unpack)
 import Imports
@@ -44,10 +44,7 @@ import Servant.Server hiding (Handler, runHandler)
 import Util.Options
 import qualified Wire.API.Routes.Public.Cargohold as Public
 
-type CombinedAPI =
-  FederationAPI
-    :<|> Public.ServantAPI
-    :<|> Servant.Raw
+type CombinedAPI = FederationAPI :<|> Public.ServantAPI
 
 run :: Opts -> IO ()
 run o = do
@@ -56,14 +53,12 @@ run o = do
   runSettingsWithShutdown s (middleware e $ servantApp e) 5
     `finally` closeEnv e
   where
-    rtree = compile sitemap
     server e = defaultServer (unpack $ o ^. optCargohold . epHost) (o ^. optCargohold . epPort) (e ^. appLogger) (e ^. metrics)
     middleware :: Env -> Wai.Middleware
     middleware e =
-      waiPrometheusMiddleware sitemap
+      servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
-    app e r k = runHandler e (Server.route rtree r k)
     servantApp e0 r =
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext
@@ -71,7 +66,6 @@ run o = do
             ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
             ( hoistServer' @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServer' @Public.ServantAPI (toServantHandler e) servantSitemap
-                :<|> Servant.Tagged (app e)
             )
             r
 
