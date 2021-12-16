@@ -292,7 +292,7 @@ set ``enableFederator`` to ``true``.
     cargohold:
       config:
         enableFederator: true
-        optSettings:
+        settings:
           federationDomain: example.com # your chosen "backend domain"
 
 Configure the webapp to enable federation and set your chosen backend domain one more time
