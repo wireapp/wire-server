@@ -540,7 +540,7 @@ testRemoveClientIncorrectPwd brig = do
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "abcdef")
-      <!! const 400 === statusCode
+      <!! const 403 === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 403)
