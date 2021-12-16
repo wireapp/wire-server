@@ -89,6 +89,7 @@ tests _cl _at opts p b c g =
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
       test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
+      test p "delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
@@ -513,6 +514,38 @@ testRemoveClientShortPwd brig = do
     (err ^. at "code") @?= Just (Number 400)
     (err ^. at "label") @?= Just (String "bad-request")
     (err ^. at "message") @?= Just (String "Error in $.password: outside range [6, 1024]")
+  where
+    client ty lk =
+      (defNewClient ty [somePrekeys !! 0] lk)
+        { newClientLabel = Just "Nexus 5x",
+          newClientCookie = Just defCookieLabel
+        }
+
+-- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test checks if a client can be deleted by providing a syntax-valid, but
+-- incorrect password. The client deletion attempt fails with a 403 error
+-- response.
+testRemoveClientIncorrectPwd :: Brig -> Http ()
+testRemoveClientIncorrectPwd brig = do
+  u <- randomUser brig
+  let uid = userId u
+  let Just email = userEmail u
+  -- Permanent client with attached cookie
+  login brig (defEmailLogin email) PersistentCookie
+    !!! const 200 === statusCode
+  numCookies <- countCookies brig uid defCookieLabel
+  liftIO $ Just 1 @=? numCookies
+  c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
+  resp <-
+    deleteClient brig uid (clientId c) (Just "abcdef")
+      <!! const 400 === statusCode
+  err :: Object <- responseJsonError resp
+  liftIO $ do
+    (err ^. at "code") @?= Just (Number 403)
+    (err ^. at "label") @?= Just (String "invalid-credentials")
+    (err ^. at "message") @?= Just (String "Authentication failed.")
   where
     client ty lk =
       (defNewClient ty [somePrekeys !! 0] lk)
