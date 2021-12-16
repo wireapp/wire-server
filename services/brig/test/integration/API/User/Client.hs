@@ -89,6 +89,7 @@ tests _cl _at opts p b c g =
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
       test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
+      test p "delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
@@ -418,6 +419,11 @@ testMultiUserGetPrekeysQualified brig opts = do
 
 -- The testTooManyClients test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test validates the upper bound on the number of permanent clients per
+-- user. It does so by trying to create one permanent client more than allowed.
+-- The expected outcome is that all the clients up to the limit are successfully
+-- created, but the one over the limit is not (error `404 too-many-clients`).
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
@@ -440,6 +446,10 @@ testTooManyClients opts brig = do
 
 -- The testRemoveClient test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- This test validates creating and deleting a client. A client is created and
+-- consequently deleted. Deleting a second time yields response 404 not found.
+-- Prekeys and cookies are not there anymore once the client is deleted.
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
   u <- randomUser' hasPwd brig
@@ -481,6 +491,10 @@ testRemoveClient hasPwd brig cannon = do
 
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test checks if a client can be deleted by providing a too short password.
+-- This is done by using a single-character password, whereas the minimum is 6
+-- characters. The client deletion attempt fails as expected.
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
   u <- randomUser brig
@@ -500,6 +514,38 @@ testRemoveClientShortPwd brig = do
     (err ^. at "code") @?= Just (Number 400)
     (err ^. at "label") @?= Just (String "bad-request")
     (err ^. at "message") @?= Just (String "Error in $.password: outside range [6, 1024]")
+  where
+    client ty lk =
+      (defNewClient ty [somePrekeys !! 0] lk)
+        { newClientLabel = Just "Nexus 5x",
+          newClientCookie = Just defCookieLabel
+        }
+
+-- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test checks if a client can be deleted by providing a syntax-valid, but
+-- incorrect password. The client deletion attempt fails with a 403 error
+-- response.
+testRemoveClientIncorrectPwd :: Brig -> Http ()
+testRemoveClientIncorrectPwd brig = do
+  u <- randomUser brig
+  let uid = userId u
+  let Just email = userEmail u
+  -- Permanent client with attached cookie
+  login brig (defEmailLogin email) PersistentCookie
+    !!! const 200 === statusCode
+  numCookies <- countCookies brig uid defCookieLabel
+  liftIO $ Just 1 @=? numCookies
+  c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
+  resp <-
+    deleteClient brig uid (clientId c) (Just "abcdef")
+      <!! const 403 === statusCode
+  err :: Object <- responseJsonError resp
+  liftIO $ do
+    (err ^. at "code") @?= Just (Number 403)
+    (err ^. at "label") @?= Just (String "invalid-credentials")
+    (err ^. at "message") @?= Just (String "Authentication failed.")
   where
     client ty lk =
       (defNewClient ty [somePrekeys !! 0] lk)
@@ -670,6 +716,11 @@ testMissingClient brig = do
 -- The testAddMultipleTemporary test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Legacy (galley)
+--
+-- Add temporary client, check that all services (both galley and
+-- brig) have registered it.  Add second temporary client, check
+-- again.  (NB: temp clients replace each other, there can always be
+-- at most one per account.)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
 testAddMultipleTemporary brig galley = do
   uid <- userId <$> randomUser brig
