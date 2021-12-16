@@ -7,7 +7,7 @@ let
       (_: _: { niv = (import sources.niv {}).niv; })
       # All wire-server specific packages
       (import ./overlays/wire-server.nix)
-
+      (import ./overlays/hls.nix)
     ];
   };
 in
