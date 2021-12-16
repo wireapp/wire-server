@@ -113,6 +113,12 @@ validateDomainAllowListFailSemantic =
         $ validateDomain (Just exampleCert) "invalid//.><-semantic-&@-domain"
     res @?= Left (DomainParseError "invalid//.><-semantic-&@-domain")
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
+-- 4. Outgoing request to non-included domain when allowlist is configured ->
+-- authorization error expected
+--
+-- Does it make sense to tag this one with @TSFI.RESTfulAPI ?
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
@@ -126,6 +132,12 @@ validateDomainAllowListFail =
         . runInputConst settings
         $ validateDomain (Just exampleCert) "localhost.example.com"
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
+
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
+validateDomainAllowListFailSendingSide :: TestTree
+validateDomainAllowListFailSendingSide = do
+  undefined
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
@@ -165,6 +177,8 @@ validateDomainCertInvalid =
     res @?= Left (CertificateParseError "no certificate found")
 
 -- @SF.Federation @S3 @S7
+--
+-- Is this test case #2?
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
