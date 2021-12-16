@@ -1,4 +1,4 @@
-FROM nixos/nix AS builder
+FROM nixos/nix:2.3.12 AS builder
 
 RUN set -e -x ;\
     apk add --no-cache bash git
