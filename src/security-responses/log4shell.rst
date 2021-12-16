@@ -1,22 +1,24 @@
 2021-12 - log4shell
 --------------------
 
-Last updated: 2021-12-13
+Last updated: 2021-12-15
 
-This page concerns ON-PREMISE (i.e. self-hosted) installations of wire-server as documented in https://docs.wire.com and its possible vulnerability to “log4shell” / CVE-2021-44228.
+This page concerns ON-PREMISE (i.e. self-hosted) installations of wire-server as documented in https://docs.wire.com and its possible vulnerability to “log4shell” / CVE-2021-44228 and CVE-2021-45046.
 
 Introduction
 ~~~~~~~~~~~~~
 
-The “log4shell” vulnerability concerns a logging library “log4j” used in Java or JVM software components.
+The “log4shell” vulnerability (`CVE-2021-44228 <https://www.cve.org/CVERecord?id=CVE-2021-44228>`__ and `CVE-2021-45046 <https://www.cve.org/CVERecord?id=CVE-2021-45046>`__) concerns a logging library “log4j” used in Java or JVM software components.
 
-* Wire-server’s source code is not written in a JVM language, and as such, is not vulnerable
+* Wire-server’s source code is not written in a JVM language (it's written mostly in Haskell), and as such, is not vulnerable.
 
 * Wire-server makes use of Cassandra, which is running on the JVM, however as of version 2.1 no longer makes use of log4j (it uses logback). Since the start of Wire’s on-premise product, we have used Cassandra versions > 3 (currently 3.11), which is not vulnerable.
 
-* Wire-server makes use of Elasticsearch, which **does use log4j. See the section below for details**.
+* Wire-server makes use of **Elasticsearch**, which **does use log4j. See the section below for details**.
 
-* All other components Wire-server’s on-premise product relies on are not based on the JVM and as such are not vulnerable:
+* All other components Wire-server’s on-premise current and near-time-future product relies on are not based on the JVM and as such are not vulnerable:
+
+    * Calling restund/SFT servers: written in C
 
     * Minio: written in Go
 
@@ -30,7 +32,11 @@ The “log4shell” vulnerability concerns a logging library “log4j” used in
 
     * Fake-aws components: based on localstack written in python or for SQS written in ruby
 
-    * fake-aws-dynamodb: this component is JVM based and was used in the past on on-premise installations, but should not be in use anymore these days. If it is still in use in your environment, please stop using it: all recent versions of wire-server since June 2021 will not make use of that component anymore. Even if still in use, it does not store or log any user-provided data and as such should pose little to no risk.
+    * fake-aws-dynamodb: this component is JVM based and was used in the past on on-premise installations, but should not be in use anymore these days. If it is still in use in your environment, please stop using it: all recent versions of wire-server since June 2021 will not make use of that component anymore. Even if still in use, it does not store or log any user-provided data nor is it internet-facing and as such should pose little to no risk.
+
+    * Upcoming releases may have wire-server-metrics: prometheus (Ruby), node-exporter (Golang) and Grafana (Golang)
+
+    * Upcoming releases may have: Logging/Kibana: fluent-bit (C), Kibana (JavaScript), ElasticSearch (covered in section below)
 
 Elasticsearch
 ~~~~~~~~~~~~~
@@ -48,6 +54,10 @@ In addition as per Elastics’s `own information on the matter <https://discuss.
     "Elasticsearch 6 and 7 are not susceptible to remote code execution with this vulnerability due to our use of the Java Security Manager. Investigation into Elasticsearch 5 is ongoing. Elasticsearch running on JDK8 or below is susceptible to an information leak via DNS which is fixable by the JVM property identified below. The JVM option identified below is effective for Elasticsearch versions 5.5+, 6.5+, and 7+"
 
 The JVM property referred to is  ``-Dlog4j2.formatMsgNoLookups=true``
+
+`Update 15th December about CVE-2021-45046 from Elasitic <https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476>`__:
+
+    "Update 15 December: A further vulnerability (CVE-2021-45046) was disclosed on December 14th after it was found that the fix to address CVE-2021-44228 in Apache Log4j 2.15.0 was incomplete in certain non-default configurations. Our guidance for Elasticsearch [...] are unchanged by this new vulnerability"
 
 Wire on-premise installations contain a version of Elasticsearch between [``6.6.0`` and ``6.8.18``] at the time of writing.
 
