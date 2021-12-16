@@ -42,23 +42,20 @@ type family PrincipalId (tag :: PrincipalTag) = (id :: *) | id -> tag where
   PrincipalId 'BotPrincipalTag = BotId
   PrincipalId 'ProviderPrincipalTag = ProviderId
 
-data OptionalSegment = NoSegment | Segment Symbol
+data NoSegment = NoSegment
 
-type family PrincipalPrefix tag :: OptionalSegment where
+type family PrincipalKind tag where
+  PrincipalKind 'UserPrincipalTag = NoSegment
+  PrincipalKind 'BotPrincipalTag = Symbol
+  PrincipalKind 'ProviderPrincipalTag = Symbol
+
+type family PrincipalPrefix tag :: PrincipalKind tag where
   PrincipalPrefix 'UserPrincipalTag = 'NoSegment
-  PrincipalPrefix 'BotPrincipalTag = 'Segment "bot"
-  PrincipalPrefix 'ProviderPrincipalTag = 'Segment "provider"
-
-instance HasSwagger (x :> api) => HasSwagger ('Segment x :> api) where
-  toSwagger _ = toSwagger (Proxy @(x :> api))
+  PrincipalPrefix 'BotPrincipalTag = "bot"
+  PrincipalPrefix 'ProviderPrincipalTag = "provider"
 
 instance HasSwagger api => HasSwagger ('NoSegment :> api) where
   toSwagger _ = toSwagger (Proxy @api)
-
-instance HasServer (x :> api) ctx => HasServer ('Segment x :> api) ctx where
-  type ServerT ('Segment x :> api) m = ServerT (x :> api) m
-  route _ = route (Proxy @(x :> api))
-  hoistServerWithContext _ = hoistServerWithContext (Proxy @(x :> api))
 
 instance HasServer api ctx => HasServer ('NoSegment :> api) ctx where
   type ServerT ('NoSegment :> api) m = ServerT api m
