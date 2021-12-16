@@ -76,12 +76,14 @@ uploadAssetV3 ::
 uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   asset <- V3.upload principal (getAssetSource req)
-  let key = Text.decodeUtf8With Text.lenientDecode (toByteString' (asset ^. assetKey))
+  let key =
+        Text.decodeUtf8With Text.lenientDecode $
+          toByteString' (tUnqualified (asset ^. assetKey))
   let loc = case principal of
         V3.UserPrincipal {} -> "/assets/v3/" <> key
         V3.BotPrincipal {} -> "/bot/assets/" <> key
         V3.ProviderPrincipal {} -> "/provider/assets/" <> key
-  pure (asset, AssetLocation loc)
+  pure (fmap qUntagged asset, AssetLocation loc)
 
 downloadAssetV3 ::
   MakePrincipal tag id =>
@@ -100,7 +102,7 @@ downloadAssetV4 ::
   Maybe AssetToken ->
   Handler (Maybe LocalOrRemoteAsset)
 downloadAssetV4 usr qkey tok = do
-  key <- tUnqualified <$> ensureLocal usr qkey
+  key <- tUnqualified <$> ensureLocal qkey
   LocalAsset <$$> downloadAssetV3 usr key tok
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
@@ -108,7 +110,7 @@ deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
 
 deleteAssetV4 :: Local UserId -> Qualified AssetKey -> Handler ()
 deleteAssetV4 usr qkey = do
-  key <- tUnqualified <$> ensureLocal usr qkey
+  key <- tUnqualified <$> ensureLocal qkey
   V3.delete (mkPrincipal usr) key
 
 renewTokenV3 :: Local UserId -> AssetKey -> Handler NewAssetToken

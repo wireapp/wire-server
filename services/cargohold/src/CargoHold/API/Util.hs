@@ -15,13 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.API.Util (ensureLocal) where
+module CargoHold.API.Util
+  ( ensureLocal,
+    qualifyLocal,
+  )
+where
 
 import CargoHold.App
 import Control.Error
+import Control.Lens
 import Data.Qualified
 import Imports
 import Wire.API.Federation.Error
 
-ensureLocal :: Local x -> Qualified a -> Handler (Local a)
-ensureLocal loc = foldQualified loc pure (\_ -> throwE federationNotImplemented)
+ensureLocal :: Qualified a -> Handler (Local a)
+ensureLocal value = do
+  loc <- view localUnit
+  foldQualified loc pure (\_ -> throwE federationNotImplemented) value
+
+qualifyLocal :: a -> Handler (Local a)
+qualifyLocal x = do
+  loc <- view localUnit
+  pure (qualifyAs loc x)

@@ -34,7 +34,6 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import qualified Brig.Types.User.Auth as Auth
-import qualified CargoHold.Types.V3 as CHV3
 import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
@@ -79,6 +78,7 @@ import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import qualified Wire.API.Asset as Asset
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
@@ -1321,8 +1321,13 @@ testDeleteWithProfilePic brig cargohold = do
   uid <- userId <$> createAnonUser "anon" brig
   ast <- uploadAsset cargohold uid "this is my profile pic"
   -- Ensure that the asset is there
-  downloadAsset cargohold uid (toByteString' (ast ^. CHV3.assetKey)) !!! const 200 === statusCode
-  let newAssets = Just [ImageAsset (T.decodeLatin1 $ toByteString' (ast ^. CHV3.assetKey)) (Just AssetComplete)]
+  downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 200 === statusCode
+  let newAssets =
+        Just
+          [ ImageAsset
+              (T.decodeLatin1 $ toByteString' (qUnqualified (ast ^. Asset.assetKey)))
+              (Just AssetComplete)
+          ]
       userUpdate = UserUpdate Nothing Nothing newAssets Nothing
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile with the uploaded asset
@@ -1330,7 +1335,7 @@ testDeleteWithProfilePic brig cargohold = do
     !!! const 200 === statusCode
   deleteUser uid Nothing brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
-  downloadAsset cargohold uid (toByteString' (ast ^. CHV3.assetKey)) !!! const 404 === statusCode
+  downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 404 === statusCode
 
 testDeleteWithRemotes :: Opt.Opts -> Brig -> Http ()
 testDeleteWithRemotes opts brig = do

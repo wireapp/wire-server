@@ -30,6 +30,7 @@ import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Id
+import Data.Qualified
 import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
@@ -135,12 +136,12 @@ testSimpleTokens c = do
   get (c . path loc . zUser uid2 . queryItem "asset_token" "acb123" . noRedirect)
     !!! const 404 === statusCode
   -- Token renewal fails if not done by owner
-  post (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid2) !!! do
+  post (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid2) !!! do
     const 403 === statusCode
     const (Just "unauthorised") === fmap label . responseJsonMaybe
   -- Token renewal succeeds if done by owner
   r2 <-
-    post (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid)
+    post (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid)
       <!! const 200 === statusCode
   let Just tok' = V3.newAssetToken <$> responseJsonMaybe r2
   liftIO $ assertBool "token unchanged" (tok /= tok')
@@ -166,11 +167,11 @@ testSimpleTokens c = do
   get (c . path loc . queryItem "asset_token" (toByteString' tok') . zUser uid2 . noRedirect)
     !!! const 302 === statusCode
   -- Delete Token fails if not done by owner
-  delete (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid2) !!! do
+  delete (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid2) !!! do
     const 403 === statusCode
     const (Just "unauthorised") === fmap label . responseJsonMaybe
   -- Delete Token succeeds by owner
-  delete (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid) !!! do
+  delete (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid) !!! do
     const 200 === statusCode
     const Nothing === responseBody
   -- Access without token from different user (asset is now "public")
@@ -263,8 +264,8 @@ uploadRaw c usr bs =
       . content "multipart/mixed"
       . lbytes bs
 
-deleteAsset :: CargoHold -> UserId -> V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
-deleteAsset c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' k]
+deleteAsset :: CargoHold -> UserId -> Qualified V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
+deleteAsset c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
 -- Utilities ------------------------------------------------------------------
 

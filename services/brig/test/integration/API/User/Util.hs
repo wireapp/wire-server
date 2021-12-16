@@ -53,6 +53,7 @@ import Imports
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Asset
 import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
@@ -426,11 +427,16 @@ uploadAsset c usr dat = do
       === statusCode
   responseJsonError rsp
 
-downloadAsset :: CargoHold -> UserId -> ByteString -> (MonadIO m, MonadHttp m) => m (Response (Maybe LB.ByteString))
+downloadAsset ::
+  (MonadIO m, MonadHttp m) =>
+  CargoHold ->
+  UserId ->
+  Qualified AssetKey ->
+  m (Response (Maybe LB.ByteString))
 downloadAsset c usr ast =
   get
     ( c
-        . paths ["/assets/v3", ast]
+        . paths ["/assets/v4", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
         . zUser usr
         . zConn "conn"
     )
