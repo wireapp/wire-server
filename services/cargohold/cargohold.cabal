@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cd2a03f62587d5c87a0542f95b7124ff553f9ac6ec40dd1ea1cbfe2fd8ace570
+-- hash: 253f7aaf3d9981e1ce5a3654d10d5aa926f6347fbb86c510d4eb2997e869e499
 
 name:           cargohold
 version:        1.5.0
@@ -135,6 +135,7 @@ executable cargohold-integration
   main-is: Main.hs
   other-modules:
       API.V3
+      API.V4
       Metrics
       TestSetup
       Paths_cargohold
@@ -173,5 +174,6 @@ executable cargohold-integration
     , types-common >=0.7
     , uuid >=1.3
     , wai-utilities >=0.12
+    , wire-api
     , yaml >=0.8
   default-language: Haskell2010

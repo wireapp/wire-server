@@ -176,7 +176,7 @@ instance Serialize AssetInfo where
     AssetInfo k t <$> get
 
 mkAssetMsg :: Asset -> SymmetricKeys -> BotMessage
-mkAssetMsg a = BotAssetMessage . AssetInfo (a ^. assetKey) (a ^. assetToken)
+mkAssetMsg a = BotAssetMessage . AssetInfo (qUnqualified (a ^. assetKey)) (a ^. assetToken)
 
 mkTextMsg :: Text -> BotMessage
 mkTextMsg = BotTextMessage
