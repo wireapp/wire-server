@@ -482,7 +482,9 @@ specFinalizeLogin = do
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
         check mkareq mkaresp submitaresp checkresp
 
+    -- {- ORMOLU_DISABLE -} -- FUTUREWORK: try a newer release of ormolu?
     -- @END
+    -- {- ORMOLU_ENABLE -}
 
     context "IdP changes response format" $ do
       it "treats NameId case-insensitively" $ do

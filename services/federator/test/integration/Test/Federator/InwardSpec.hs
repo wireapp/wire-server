@@ -135,7 +135,9 @@ spec env =
           (encode hdl)
           !!! const 403 === statusCode
 
+{- ORMOLU_DISABLE -} -- FUTUREWORK: try a newer release of ormolu?
 -- @END
+{- ORMOLU_ENABLE -}
 
 -- The difference between "ingress" and "inward": ingress is nginz, inward is
 -- calling the federator directly.
