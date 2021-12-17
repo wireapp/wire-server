@@ -1246,7 +1246,7 @@ testJoinConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
-  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
   -- works by default
@@ -1259,7 +1259,6 @@ testJoinConvGuestLinksDisabled = do
   TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
     const 200 === statusCode
 
-  -- TODO(leif): this assertion fails because the team is not found in the server implementation
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
 
