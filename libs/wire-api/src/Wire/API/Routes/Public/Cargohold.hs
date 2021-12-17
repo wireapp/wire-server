@@ -26,6 +26,7 @@ import Imports
 import Servant
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
+import URI.ByteString
 import Wire.API.Asset
 import Wire.API.ErrorDescription
 import Wire.API.Routes.AssetBody
@@ -60,10 +61,13 @@ instance HasServer (ApplyPrincipalPath tag api) ctx => HasServer (tag :> api) ct
 instance RoutesToPaths (ApplyPrincipalPath tag api) => RoutesToPaths (tag :> api) where
   getRoutes = getRoutes @(ApplyPrincipalPath tag api)
 
+type AssetLocationHeader r =
+  '[DescHeader "Location" "Asset location" (AssetLocation r)]
+
 type AssetRedirect =
   WithHeaders
-    '[DescHeader "Location" "Asset location" AssetLocation]
-    AssetLocation
+    (AssetLocationHeader Absolute)
+    (AssetLocation Absolute)
     (RespondEmpty 302 "Asset found")
 
 type AssetStreaming =
@@ -78,7 +82,7 @@ type GetAsset =
     'GET
     '[JSON]
     '[AssetNotFound, AssetRedirect]
-    (Maybe AssetLocation)
+    (Maybe (AssetLocation Absolute))
 
 type ServantAPI =
   ( Summary "Renew an asset token"
@@ -121,11 +125,11 @@ type BaseAPIv3 (tag :: PrincipalTag) =
            'POST
            '[JSON]
            '[ WithHeaders
-                '[DescHeader "Location" "Asset location" AssetLocation]
-                (Asset, AssetLocation)
+                (AssetLocationHeader Relative)
+                (Asset, AssetLocation Relative)
                 (Respond 201 "Asset posted" Asset)
             ]
-           (Asset, AssetLocation)
+           (Asset, AssetLocation Relative)
   )
     :<|> ( Summary "Download an asset"
              :> tag
@@ -145,6 +149,17 @@ type BaseAPIv3 (tag :: PrincipalTag) =
                   '[RespondEmpty 200 "Asset deleted"]
                   ()
          )
+
+type TestAPI =
+  ( MultiVerb
+      'GET
+      '[JSON]
+      '[ AssetNotFound,
+         AssetRedirect,
+         AssetStreaming
+       ]
+      (Maybe LocalOrRemoteAsset)
+  )
 
 type QualifiedAPI =
   ( Summary "Download an asset"

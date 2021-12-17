@@ -30,6 +30,7 @@ module Wire.API.Asset
 
     -- * AssetKey
     AssetKey (..),
+    assetKeyToText,
 
     -- * AssetToken
     AssetToken (..),
@@ -77,15 +78,16 @@ import Data.Qualified
 import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger as Swagger
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import GHC.TypeLits
 import Imports
 import Servant
+import URI.ByteString
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.ErrorDescription
 import Wire.API.Routes.MultiVerb
@@ -168,6 +170,9 @@ instance ToByteString AssetKey where
       <> builder r
       <> builder '-'
       <> builder (UUID.toASCIIBytes (toUUID i))
+
+assetKeyToText :: AssetKey -> Text
+assetKeyToText = T.decodeUtf8 . toByteString'
 
 instance ToSchema AssetKey where
   schema =
@@ -359,26 +364,48 @@ instance ToSchema AssetRetention where
         (\value -> element (retentionToTextRep value) value)
         [minBound .. maxBound]
 
-newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
-  deriving newtype
-    ( ToHttpApiData,
-      FromHttpApiData,
-      Swagger.ToParamSchema
-    )
+-- FUTUREWORK: switch to a better URI library (e.g. modern-uri)
+--
+-- This URI type is error-prone, since its internal representation is based on
+-- ByteString, whereas URLs are defined in terms of characters, not octets (RFC
+-- 3986).
+newtype AssetLocation r = AssetLocation {getAssetLocation :: URIRef r}
 
-instance AsHeaders '[AssetLocation] Asset (Asset, AssetLocation) where
+instance ToHttpApiData (AssetLocation r) where
+  toUrlPiece = T.decodeUtf8With T.lenientDecode . toHeader
+  toHeader = serializeURIRef' . getAssetLocation
+
+instance FromHttpApiData (AssetLocation Relative) where
+  parseUrlPiece = parseHeader . T.encodeUtf8
+  parseHeader =
+    bimap (T.pack . show) AssetLocation
+      . parseRelativeRef strictURIParserOptions
+
+instance FromHttpApiData (AssetLocation Absolute) where
+  parseUrlPiece = parseHeader . T.encodeUtf8
+  parseHeader =
+    bimap (T.pack . show) AssetLocation
+      . parseURI strictURIParserOptions
+
+instance S.ToParamSchema (AssetLocation r) where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerString
+      & S.format ?~ "url"
+
+instance AsHeaders '[AssetLocation r] Asset (Asset, AssetLocation r) where
   toHeaders (asset, loc) = (I loc :* Nil, asset)
   fromHeaders (I loc :* Nil, asset) = (asset, loc)
 
 -- | An asset as returned by the download API: if the asset is local, only a
 -- URL is returned, and if it is remote the content of the asset is streamed.
 data LocalOrRemoteAsset
-  = LocalAsset AssetLocation
+  = LocalAsset (AssetLocation Absolute)
   | RemoteAsset (SourceIO ByteString)
 
 instance
   ( ResponseType r0 ~ ErrorDescription code label desc,
-    ResponseType r1 ~ AssetLocation,
+    ResponseType r1 ~ AssetLocation Absolute,
     ResponseType r2 ~ SourceIO ByteString,
     KnownSymbol desc
   ) =>
