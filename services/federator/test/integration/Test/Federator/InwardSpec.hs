@@ -78,9 +78,8 @@ spec env =
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
-    -- 4 - Test incoming request from non-included domain when allowlist is
-    -- configured -> authorization error expected
-    it "shouldRejectMissMatchingOriginDomain" $
+    -- (This is also tested in unit tests; search for 'validateDomainCertInvalid'.)
+    it "shouldRejectMissMatchingOriginDomainInward" $
       runTestFederator env $
         do
           brig <- view teBrig <$> ask
@@ -120,12 +119,10 @@ spec env =
           !!! const 403 === statusCode
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-    -- 1 - Receiving backend fails to authenticate the client certificate when sending
-    -- connection request to infrastructure domain -> Authentication Error expected
     --
-    -- Matching client certificates against domain names is better tested in
-    -- unit tests.
-    it "should reject requests without a client certificate" $
+    -- See related tests in unit tests (for matching client certificates against domain names)
+    -- and "IngressSpec".
+    it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
         originDomain <- cfgOriginDomain <$> view teTstOpts
         hdl <- randomHandle
@@ -138,9 +135,6 @@ spec env =
 {- ORMOLU_DISABLE -} -- FUTUREWORK: try a newer release of ormolu?
 -- @END
 {- ORMOLU_ENABLE -}
-
--- The difference between "ingress" and "inward": ingress is nginz, inward is
--- calling the federator directly.
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
@@ -164,7 +158,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain <- cfgOriginDomain <$> view teTstOpts
+  originDomain :: Text <- cfgOriginDomain <$> view teTstOpts
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::

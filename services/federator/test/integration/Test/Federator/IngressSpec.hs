@@ -71,13 +71,15 @@ spec env = do
           actualProfile `shouldBe` (Just expectedProfile)
 
   -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-  -- 1 - Receiving backend fails to authenticate the client certificate when sending
-  -- connection request to infrastructure domain -> Authentication Error expected
   --
-  -- We test the interface between federator and ingress here, nginz mocks ingress.  Primarily
-  -- intended to test that federator is using the right header name, but it's also testing
-  -- prop 1 as a side-effect.
-  it "should not be accessible without a client certificate" $
+  -- This test was primarily intended to test that federator is using the API right (header
+  -- name etc.), but it is also effectively testing that federator rejects clients without
+  -- certificates that have been validated by ingress.
+  --
+  -- We can't test end-to-end here: the TLS termination happens in k8s, and would have to be
+  -- tested there (and with a good emulation of the concrete configuration of the prod
+  -- system).
+  it "rejectRequestsWithoutClientCertIngress" $
     runTestFederator env $ do
       brig <- view teBrig <$> ask
       user <- randomUser brig

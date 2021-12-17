@@ -101,8 +101,7 @@ federatedRequestSuccess =
 
 -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 --
--- 3. Outgoing request to non-included domain when allowlist is configured ->
--- authorization error expected
+-- Refuse to send outgoing request to non-included domain when allowlist is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $ do

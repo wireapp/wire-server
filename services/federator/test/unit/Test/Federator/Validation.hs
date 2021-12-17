@@ -115,10 +115,7 @@ validateDomainAllowListFailSemantic =
 
 -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 --
--- 4. Outgoing request to non-included domain when allowlist is configured ->
--- authorization error expected
---
--- Does it make sense to tag this one with @TSFI.RESTfulAPI ?
+-- Refuse to send outgoing request to non-included domain when allowlist is configured.
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
@@ -162,10 +159,6 @@ validateDomainCertMissing =
     res @?= Left NoClientCertificate
 
 -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
--- 1 - Receiving backend fails to authenticate the client certificate when sending connection
--- request to infrastructure domain -> Authentication Error expected
---
--- leave a comment that actual tls termination happens elsewhere, can't be tested in this repo.
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do
@@ -179,10 +172,10 @@ validateDomainCertInvalid =
 
 -- @END
 
--- @SF.Federation @S3 @S7
+-- @SF.Federation @TSFI.RESTfulAPI @S3 @S7
 --
--- 2 - Sending backend provided infrastructure domain + mismatching backend domain (wrong
--- Wire-origin-domain header) -> Authorization error expected
+-- Reject request if the infrastructure domain in the client cert does not match the backend
+-- domain in the `Wire-origin-domain` header.
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
