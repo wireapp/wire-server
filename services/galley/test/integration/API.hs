@@ -1249,10 +1249,12 @@ testJoinConvGuestLinksDisabled = do
   convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
+  -- works by default
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
 
+  -- fails if disabled
   let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
   TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
     const 200 === statusCode
@@ -1260,6 +1262,15 @@ testJoinConvGuestLinksDisabled = do
   -- TODO(leif): this assertion fails because the team is not found in the server implementation
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
+
+  -- after re-enabeling, the old link is still valid
+  let tfStatus' = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus' !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
