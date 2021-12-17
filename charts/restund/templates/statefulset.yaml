@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "restund.fullname" . }}
+  labels:
+    {{- include "restund.labels" . | nindent 4 }}
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  # Allows restund to start up and shut down in parallel when scaling up and down.
+  # However this does not affect upgrades.
+  podManagementPolicy: Parallel
+
+  serviceName: {{ include "restund.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "restund.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+
+      labels:
+        {{- include "restund.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      hostNetwork: true
+      serviceAccountName: {{ include "restund.fullname" . }}
+      volumes:
+        - name: external-ip
+          emptyDir: {}
+        - name: restund-config-template
+          configMap:
+            name: {{ include "restund.fullname" . }}
+        - name: secrets
+          secret:
+            secretName: restund
+      initContainers:
+        - name: get-external-ip
+          image: bitnami/kubectl:1.19.7
+          volumeMounts:
+            - name: external-ip
+              mountPath: /external-ip
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # In the cloud, this setting is available to indicate the true IP address
+              addr=$(kubectl get node $HOSTNAME -ojsonpath='{.status.addresses[?(@.type=="ExternalIP")].address}')
+
+              # On on-prem we allow people to set  "wire.com/external-ip" to override this
+              if [ -z "$addr" ]; then
+                addr=$(kubectl get node $HOSTNAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
+              fi
+              echo -n "$addr" | tee /dev/stderr > /external-ip/ip
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: external-ip
+              mountPath: /external-ip
+            - name: restund-config-template
+              mountPath: /restund-template/restund.conf.template
+              subPath: restund.conf.template
+            - name: secrets
+              mountPath: /secrets/
+              readOnly: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              EXTERNAL_IP=$(cat /external-ip/ip)
+              export RESTUND_HOST="$EXTERNAL_IP"
+              export ZREST_SECRET="$(cat /secrets/zrest_secret.txt)"
+              envsubst '$RESTUND_HOST $POD_IP $ZREST_SECRET' < /restund-template/restund.conf.template > /home/restund/restund.conf
+              exec /usr/local/sbin/restund -n -f /home/restund/restund.conf
+
+          ports:
+            - name: restund-tcp
+              containerPort: 3478
+              protocol: TCP
+            - name: sft-config
+              containerPort: 8000
+              protocol: TCP
+            - name: status-http
+              containerPort: {{ .Values.restundHTTPStatusPort }}
+              protocol: TCP
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: status-http
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: status-http
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
