@@ -87,11 +87,9 @@ data Settings = Settings
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
     --    _wire-server-federator._tcp.<federationDomain>
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
-    -- Remember to keep it the same in Galley.
-    -- Example:
-    --   setFederationAllowedDomains:
-    --     - wire.com
-    --     - example.com
+    -- Remember to keep it the same in Galley and in Brig.
+    -- This is referred to as the 'backend domain' in the public documentation; See
+    -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name 
     _setFederationDomain :: !Domain
   }
   deriving (Show, Generic)
