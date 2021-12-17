@@ -73,7 +73,7 @@ spec env =
         liftIO $ bdy `shouldBe` expectedProfile
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-    -- This maybe case 2 from https://wearezeta.atlassian.net/browse/SQSERVICES-1128
+    -- This maybe case 3 from https://wearezeta.atlassian.net/browse/SQCORE-1198
     it "shouldRejectMissMatchingOriginDomain" $
       runTestFederator env $
         do
@@ -82,7 +82,7 @@ spec env =
           hdl <- randomHandle
           _ <- putHandle brig (userId user) hdl
           inwardCallWithOriginDomain "unknown-domain.com" "/federation/brig/get-user-by-handle" (encode hdl)
-            !!! const 500 === statusCode
+            !!! const 4 xx === statusCode "discovery-error"
     -- @END
 
     it "should be able to call cargohold" $
@@ -114,6 +114,7 @@ spec env =
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     -- 1 - Receiving backend fails to authenticate the client certificate when sending
     -- connection request to infrastructure domain -> Authentication Error expected
+    --
     -- Matching client certificates against domain names is better tested in
     -- unit tests.
     it "should reject requests without a client certificate" $
@@ -127,6 +128,8 @@ spec env =
           !!! const 403 === statusCode
 
 -- @END
+
+-- what's the difference between "ingress" and "inward"?  ingress is nginz, inward is call galley directly.
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
@@ -150,6 +153,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
+  -- TODO: implement in terms of 'inwardCallwithOriginDomain'
   Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
   originDomain <- cfgOriginDomain <$> view teTstOpts
   clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask

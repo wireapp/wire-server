@@ -133,11 +133,16 @@ validateDomainAllowListFail =
         $ validateDomain (Just exampleCert) "localhost.example.com"
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
+-- @END
+
 -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 --
+-- 3.
 validateDomainAllowListFailSendingSide :: TestTree
 validateDomainAllowListFailSendingSide = do
   undefined
+
+-- @END
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
@@ -168,6 +173,8 @@ validateDomainCertMissing =
 -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 -- 1 - Receiving backend fails to authenticate the client certificate when sending connection
 -- request to infrastructure domain -> Authentication Error expected
+--
+-- leave a comment that actual tls termination happens elsewhere, can't be tested in this repo.
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do
@@ -180,8 +187,6 @@ validateDomainCertInvalid =
     res @?= Left (CertificateParseError "no certificate found")
 
 -- @SF.Federation @S3 @S7
---
--- Is this test case #2?
 --
 -- 2 - Sending backend provided infrastructure domain + mismatching backend domain (wrong
 -- Wire-origin-domain header) -> Authorization error expected

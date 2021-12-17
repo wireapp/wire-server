@@ -99,6 +99,7 @@ federatedRequestSuccess =
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
 
+-- 3.  yeay
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $ do

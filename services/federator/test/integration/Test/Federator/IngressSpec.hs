@@ -71,6 +71,10 @@ spec env = do
   -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
   -- 1 - Receiving backend fails to authenticate the client certificate when sending
   -- connection request to infrastructure domain -> Authentication Error expected
+  --
+  -- we test interface between federator and ingress here, nginz mocks ingress.  primarily
+  -- intended to test that federator is using the right header name.  but it's also testing
+  -- prop 1 as a side-effec.
   it "should not be accessible without a client certificate" $
     runTestFederator env $ do
       brig <- view teBrig <$> ask
@@ -96,10 +100,10 @@ spec env = do
           expectationFailure "Expected client certificate error, got remote error"
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
 
-{-# DISABLE_ORMOLU #-}
+-- {-# DISABLE_ORMOLU #-}
 -- TODO: how does ormolu do this again?
 -- @END
-{-# ENSABLE_ORMOLU #-}
+--- {-# ENSABLE_ORMOLU #-}
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do

@@ -150,6 +150,7 @@ validateDomain ::
 validateDomain Nothing _ = throw NoClientCertificate
 validateDomain (Just encodedCertificate) unparsedDomain = do
   targetDomain <- parseDomain unparsedDomain
+  ensureCanFederateWith targetDomain
 
   -- run discovery to find the hostname of the client federator
   certificate <-
@@ -160,7 +161,7 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
   unless (any null validationErrors) $
     throw $ AuthenticationFailure validationErrors
 
-  ensureCanFederateWith targetDomain $> targetDomain
+  pure targetDomain
 
 -- | Match a hostname against the domain names of a certificate.
 --
