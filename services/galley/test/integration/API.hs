@@ -223,6 +223,7 @@ tests s =
           test s "cannot join private conversation" postJoinConvFail,
           test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
           test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
+          test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
@@ -1240,6 +1241,14 @@ testJoinCodeConv = do
   eve <- ephemeralUser
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 403 === statusCode
+
+testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
+testGetCodeRejectedIfGuestLinksDisabled = do
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  getConvCode owner convId !!! statusCode === const 200
+  error "todo: wip, implement test"
 
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
