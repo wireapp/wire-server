@@ -531,5 +531,5 @@ getConversationByReusableCode lusr key value = do
     getFeatureStatus :: Data.Conversation -> Sem r TeamFeatureStatusValue
     getFeatureStatus conv = do
       defaultStatus <- getDefaultFeatureStatus
-      maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` (Data.convTeam conv)
+      maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
       pure $ maybe defaultStatus tfwoStatus maybeFeatureStatus

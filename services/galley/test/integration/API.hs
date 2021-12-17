@@ -221,7 +221,8 @@ tests s =
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
           test s "cannot join private conversation" postJoinConvFail,
-          test s "join conversation when guest links are disabled" testJoinConvGuestLinksDisabled,
+          test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
+          test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
@@ -1240,8 +1241,8 @@ testJoinCodeConv = do
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 403 === statusCode
 
-testJoinConvGuestLinksDisabled :: TestM ()
-testJoinConvGuestLinksDisabled = do
+testJoinTeamConvGuestLinksDisabled :: TestM ()
+testJoinTeamConvGuestLinksDisabled = do
   galley <- view tsGalley
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
@@ -1262,9 +1263,32 @@ testJoinConvGuestLinksDisabled = do
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
 
-  -- after re-enabeling, the old link is still valid
+  -- after re-enabling, the old link is still valid
   let tfStatus' = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
   TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus' !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+testJoinNonTeamConvGuestLinksDisabled :: TestM ()
+testJoinNonTeamConvGuestLinksDisabled = do
+  galley <- view tsGalley
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  userNotInTeam <- randomUser
+  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+
+  -- works by default
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+  -- for non-team conversations it still works if status is disabled for the team but not server wide
+  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
     const 200 === statusCode
 
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
