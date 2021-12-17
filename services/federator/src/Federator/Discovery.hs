@@ -49,7 +49,7 @@ instance AsWai DiscoveryFailure where
     where
       (status, label) = case e of
         DiscoveryFailureSrvNotAvailable _ -> (HTTP.status422, "invalid-domain")
-        DiscoveryFailureDNSError _ -> (HTTP.status409, "discovery-failure")
+        DiscoveryFailureDNSError _ -> (HTTP.status400, "discovery-failure")
   waiErrorDescription :: DiscoveryFailure -> Text
   waiErrorDescription (DiscoveryFailureSrvNotAvailable msg) =
     "srv record not found: " <> Text.decodeUtf8 msg

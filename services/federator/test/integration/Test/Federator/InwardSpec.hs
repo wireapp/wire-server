@@ -88,7 +88,7 @@ spec env =
           _ <- putHandle brig (userId user) hdl
           inwardCallWithOriginDomain "unknown-domain.com" "/federation/brig/get-user-by-handle" (encode hdl)
             !!! do
-              const 409 === statusCode
+              const 400 === statusCode
               const (Just "discovery-failure") === fmap label . responseJsonMaybe
     -- @END
 
