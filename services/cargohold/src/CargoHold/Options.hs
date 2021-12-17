@@ -89,7 +89,7 @@ data Settings = Settings
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
     -- Remember to keep it the same in Galley and in Brig.
     -- This is referred to as the 'backend domain' in the public documentation; See
-    -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name 
+    -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     _setFederationDomain :: !Domain
   }
   deriving (Show, Generic)
