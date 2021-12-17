@@ -438,6 +438,7 @@ executable galley-schema
       V54_TeamFeatureSelfDeletingMessages
       V55_SelfDeletingMessagesLockStatus
       V56_GuestLinksTeamFeatureStatus
+      V57_GuestLinksLockStatus
       Paths_galley
   hs-source-dirs:
       schema/src

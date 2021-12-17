@@ -590,8 +590,8 @@ getSelfDeletingMessagesInternal = \case
   Right tid -> do
     cfgDefault <- getCfgDefault
     let defLockStatus = Public.tfwcapsLockStatus cfgDefault
-    (maybeFeatureStatus, fromMaybe defLockStatus -> lockStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
-    pure $ case (lockStatus, maybeFeatureStatus) of
+    (mbFeatureStatus, fromMaybe defLockStatus -> lockStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
+    pure $ case (lockStatus, mbFeatureStatus) of
       (Public.Unlocked, Just featureStatus) ->
         Public.TeamFeatureStatusWithConfigAndLockStatus
           (Public.tfwcStatus featureStatus)
@@ -616,15 +616,14 @@ setSelfDeletingMessagesInternal ::
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesInternal tid st = do
-  dftLockStatus <- Public.tfwcapsLockStatus <$> getCfgDefault
-  guardLockStatus @'Public.TeamFeatureSelfDeletingMessages tid dftLockStatus
+  getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureSelfDeletingMessages tid
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
   TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
   where
-    getCfgDefault :: Sem r (Public.TeamFeatureStatusWithConfigAndLockStatus Public.TeamFeatureSelfDeletingMessagesConfig)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
+    getDftLockStatus :: Sem r Public.LockStatusValue
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults . to Public.tfwcapsLockStatus)
 
 getGuestLinkInternal ::
   forall r.
@@ -635,15 +634,14 @@ getGuestLinkInternal = \case
   Left _ -> getCfgDefault
   Right tid -> do
     cfgDefault <- getCfgDefault
-    let defLockStatus = Public.tfwoapsLockStatus cfgDefault
-    maybeFeatureStatus <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid
-    pure $ case (defLockStatus, maybeFeatureStatus) of
+    (mbFeatureStatus, fromMaybe (Public.tfwoapsLockStatus cfgDefault) -> lockStatus) <- TeamFeatures.getFeatureStatusNoConfigAndLockStatus @'Public.TeamFeatureGuestLinks tid
+    pure $ case (lockStatus, mbFeatureStatus) of
       (Public.Unlocked, Just featureStatus) ->
         Public.TeamFeatureStatusNoConfigAndLockStatus
           (Public.tfwoStatus featureStatus)
-          Public.Unlocked
-      (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = Public.Unlocked}
-      (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = Public.Locked}
+          lockStatus
+      (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
+      (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
@@ -661,8 +659,7 @@ setGuestLinkInternal ::
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks)
 setGuestLinkInternal tid status = do
-  cfgDefault <- Public.tfwoapsLockStatus <$> getCfgDefault
-  guardLockStatus @'Public.TeamFeatureGuestLinks tid cfgDefault
+  getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureGuestLinks tid
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event
@@ -673,8 +670,8 @@ setGuestLinkInternal tid status = do
             )
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid status <* pushEvent
   where
-    getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+    getDftLockStatus :: Sem r Public.LockStatusValue
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to Public.tfwoapsLockStatus)
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::
