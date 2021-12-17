@@ -68,6 +68,9 @@ spec env = do
           responseStatusCode resp `shouldBe` HTTP.status200
           actualProfile `shouldBe` (Just expectedProfile)
 
+  -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+  -- 1 - Receiving backend fails to authenticate the client certificate when sending
+  -- connection request to infrastructure domain -> Authentication Error expected
   it "should not be accessible without a client certificate" $
     runTestFederator env $ do
       brig <- view teBrig <$> ask
@@ -92,6 +95,11 @@ spec env = do
         Left (RemoteError _ _) ->
           expectationFailure "Expected client certificate error, got remote error"
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+
+{-# DISABLE_ORMOLU #-}
+-- TODO: how does ormolu do this again?
+-- @END
+{-# ENSABLE_ORMOLU #-}
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do

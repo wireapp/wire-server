@@ -111,6 +111,9 @@ spec env =
         inwardCall "/i/users" (encode o)
           !!! const 403 === statusCode
 
+    -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+    -- 1 - Receiving backend fails to authenticate the client certificate when sending
+    -- connection request to infrastructure domain -> Authentication Error expected
     -- Matching client certificates against domain names is better tested in
     -- unit tests.
     it "should reject requests without a client certificate" $
@@ -122,6 +125,8 @@ spec env =
           [(originDomainHeaderName, toByteString' originDomain)]
           (encode hdl)
           !!! const 403 === statusCode
+
+-- @END
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>

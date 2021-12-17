@@ -165,6 +165,9 @@ validateDomainCertMissing =
         $ validateDomain Nothing "foo.example.com"
     res @?= Left NoClientCertificate
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+-- 1 - Receiving backend fails to authenticate the client certificate when sending connection
+-- request to infrastructure domain -> Authentication Error expected
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do
@@ -179,6 +182,9 @@ validateDomainCertInvalid =
 -- @SF.Federation @S3 @S7
 --
 -- Is this test case #2?
+--
+-- 2 - Sending backend provided infrastructure domain + mismatching backend domain (wrong
+-- Wire-origin-domain header) -> Authorization error expected
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
@@ -226,6 +232,8 @@ validateDomainMultipleFederators =
         validateDomain (Just secondExampleCert) (toByteString' domain)
     resSecond @?= domain
 
+-- TODO: what does this test do?
+--
 -- FUTUREWORK: is this test really necessary?
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =
