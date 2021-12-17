@@ -135,15 +135,6 @@ validateDomainAllowListFail =
 
 -- @END
 
--- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
---
--- 3.
-validateDomainAllowListFailSendingSide :: TestTree
-validateDomainAllowListFailSendingSide = do
-  undefined
-
--- @END
-
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $ do
@@ -186,6 +177,8 @@ validateDomainCertInvalid =
         $ validateDomain (Just "not a certificate") "foo.example.com"
     res @?= Left (CertificateParseError "no certificate found")
 
+-- @END
+
 -- @SF.Federation @S3 @S7
 --
 -- 2 - Sending backend provided infrastructure domain + mismatching backend domain (wrong
@@ -201,6 +194,8 @@ validateDomainCertWrongDomain =
         . runInputConst noClientCertSettings
         $ validateDomain (Just exampleCert) "foo.example.com"
     res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
+
+-- @END
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
@@ -237,8 +232,6 @@ validateDomainMultipleFederators =
         validateDomain (Just secondExampleCert) (toByteString' domain)
     resSecond @?= domain
 
--- TODO: what does this test do?
---
 -- FUTUREWORK: is this test really necessary?
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =

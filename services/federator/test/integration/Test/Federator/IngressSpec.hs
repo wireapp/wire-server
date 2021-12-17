@@ -72,9 +72,9 @@ spec env = do
   -- 1 - Receiving backend fails to authenticate the client certificate when sending
   -- connection request to infrastructure domain -> Authentication Error expected
   --
-  -- we test interface between federator and ingress here, nginz mocks ingress.  primarily
-  -- intended to test that federator is using the right header name.  but it's also testing
-  -- prop 1 as a side-effec.
+  -- We test the interface between federator and ingress here, nginz mocks ingress.  Primarily
+  -- intended to test that federator is using the right header name, but it's also testing
+  -- prop 1 as a side-effect.
   it "should not be accessible without a client certificate" $
     runTestFederator env $ do
       brig <- view teBrig <$> ask
@@ -101,7 +101,6 @@ spec env = do
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
 
 -- {-# DISABLE_ORMOLU #-}
--- TODO: how does ormolu do this again?
 -- @END
 --- {-# ENSABLE_ORMOLU #-}
 

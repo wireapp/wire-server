@@ -72,7 +72,7 @@ testDiscoveryFailure =
         throw (DiscoveryFailureDNSError "mock error")
     body <- Wai.lazyResponseBody resp
     let merr = Aeson.decode body
-    Wai.responseStatus resp @?= HTTP.status500
+    Wai.responseStatus resp @?= HTTP.status409
     fmap Wai.label merr @?= Just "discovery-failure"
 
 testRemoteError :: TestTree

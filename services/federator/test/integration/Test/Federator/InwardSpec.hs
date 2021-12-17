@@ -31,6 +31,7 @@ import Data.Text.Encoding
 import Federator.Options
 import Imports
 import qualified Network.HTTP.Types as HTTP
+import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as E
 import Test.Federator.Util
 import Test.Hspec
@@ -73,7 +74,9 @@ spec env =
         liftIO $ bdy `shouldBe` expectedProfile
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-    -- This maybe case 3 from https://wearezeta.atlassian.net/browse/SQCORE-1198
+    --
+    -- 4 - Test incoming request from non-included domain when allowlist is
+    -- configured -> authorization error expected
     it "shouldRejectMissMatchingOriginDomain" $
       runTestFederator env $
         do
@@ -82,7 +85,9 @@ spec env =
           hdl <- randomHandle
           _ <- putHandle brig (userId user) hdl
           inwardCallWithOriginDomain "unknown-domain.com" "/federation/brig/get-user-by-handle" (encode hdl)
-            !!! const 4 xx === statusCode "discovery-error"
+            !!! do
+              const 409 === statusCode
+              const (Just "discovery-failure") === fmap label . responseJsonMaybe
     -- @END
 
     it "should be able to call cargohold" $
@@ -129,7 +134,8 @@ spec env =
 
 -- @END
 
--- what's the difference between "ingress" and "inward"?  ingress is nginz, inward is call galley directly.
+-- The difference between "ingress" and "inward": ingress is nginz, inward is
+-- calling the federator directly.
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
@@ -153,19 +159,8 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  -- TODO: implement in terms of 'inwardCallwithOriginDomain'
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
   originDomain <- cfgOriginDomain <$> view teTstOpts
-  clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
-  clientCert <- liftIO $ BS.readFile clientCertFilename
-  post
-    ( host (encodeUtf8 fedHost)
-        . port fedPort
-        . path requestPath
-        . header "X-SSL-Certificate" (HTTP.urlEncode True clientCert)
-        . header originDomainHeaderName (toByteString' originDomain)
-        . bytes (toByteString' payload)
-    )
+  inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
