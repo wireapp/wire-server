@@ -86,10 +86,10 @@ spec env =
           user <- randomUser brig
           hdl <- randomHandle
           _ <- putHandle brig (userId user) hdl
-          inwardCallWithOriginDomain "unknown-domain.com" "/federation/brig/get-user-by-handle" (encode hdl)
+          inwardCallWithOriginDomain "too.notadomain" "/federation/brig/get-user-by-handle" (encode hdl)
             !!! do
-              const 400 === statusCode
-              const (Just "discovery-failure") === fmap label . responseJsonMaybe
+              const 422 === statusCode
+              const (Just "invalid-domain") === fmap label . responseJsonMaybe
     -- @END
 
     it "should be able to call cargohold" $
