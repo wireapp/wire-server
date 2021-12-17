@@ -34,6 +34,7 @@ module Galley.API.Query
 where
 
 import qualified Cassandra as C
+import Control.Lens
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
@@ -54,9 +55,12 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
+import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Options
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
+import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -77,6 +81,7 @@ import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Team.Feature as Public
 
 getBotConversationH ::
   Members '[ConversationStore, Error ConversationError, Input (Local ())] r =>
@@ -490,16 +495,17 @@ getConversationMeta cnv = do
       pure Nothing
 
 getConversationByReusableCode ::
-  Members
-    '[ BrigAccess,
-       CodeStore,
-       ConversationStore,
-       Error CodeError,
-       Error ConversationError,
-       Error NotATeamMember,
-       TeamStore
-     ]
-    r =>
+  forall r.
+  ( Member BrigAccess r,
+    Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error CodeError) r,
+    Member (Error ConversationError) r,
+    Member (Error NotATeamMember) r,
+    Member TeamStore r,
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
   Local UserId ->
   Key ->
   Value ->
@@ -507,7 +513,9 @@ getConversationByReusableCode ::
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
   conv <- ensureConversationAccess (tUnqualified lusr) (Data.codeConversation c) CodeAccess
-  pure $ coverView conv
+  getFeatureStatus conv >>= \case
+    TeamFeatureEnabled -> pure $ coverView conv
+    TeamFeatureDisabled -> throw GuestLinksDisabled
   where
     coverView :: Data.Conversation -> ConversationCoverView
     coverView conv =
@@ -515,3 +523,13 @@ getConversationByReusableCode lusr key value = do
         { cnvCoverConvId = Data.convId conv,
           cnvCoverName = Data.convName conv
         }
+
+    getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
+    getDefaultFeatureStatus =
+      input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to tfwoapsStatus)
+
+    getFeatureStatus :: Data.Conversation -> Sem r TeamFeatureStatusValue
+    getFeatureStatus conv = do
+      defaultStatus <- getDefaultFeatureStatus
+      maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
+      pure $ maybe defaultStatus tfwoStatus maybeFeatureStatus

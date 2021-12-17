@@ -261,6 +261,8 @@ type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
 type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
 
+type GuestLinksDisabled = ErrorDescription 409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."
+
 type MissingAuth =
   ErrorDescription
     403

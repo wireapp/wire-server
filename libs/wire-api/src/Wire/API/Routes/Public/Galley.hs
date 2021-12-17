@@ -195,6 +195,7 @@ data Api routes = Api
         :> CanThrow CodeNotFound
         :> CanThrow ConvNotFound
         :> CanThrow ConvAccessDenied
+        :> CanThrow GuestLinksDisabled
         :> ZLocalUser
         :> "conversations"
         :> "join"
