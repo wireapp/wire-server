@@ -172,6 +172,10 @@ testSettings =
               "expected failure for non-existing client certificate, got: "
                 <> show (tlsSettings ^. creds),
       -- @SF.Federation @S3 @S7
+      --
+      -- 1 - Receiving backend fails to authenticate the client certificate when
+      -- sending connection request to infrastructure domain -> Authentication
+      -- Error expected
       testCase "fail on invalid certificate" $ do
         let settings =
               defRunSettings
