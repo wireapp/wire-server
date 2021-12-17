@@ -17,15 +17,33 @@
 
 module Wire.API.Federation.API.Cargohold where
 
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Id
+import Imports
 import Servant.API
 import Servant.API.Generic
-import Wire.API.Federation.API.Common
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Asset
+import Wire.API.Util.Aeson
+
+data GetAsset = GetAsset
+  { -- | User requesting the asset. Implictly qualified with the source domain.
+    gaUser :: UserId,
+    -- | Asset key for the asset to download. Implictly qualified with the
+    -- target domain.
+    gaKey :: AssetKey,
+    -- | Optional asset token.
+    gaToken :: Maybe AssetToken
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetAsset)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetAsset)
 
 data CargoholdApi routes = CargoholdApi
   { getAsset ::
       routes
         :- "get-asset"
-        :> ReqBody '[JSON] ()
-        :> Post '[JSON] EmptyResponse
+        :> ReqBody '[JSON] GetAsset
+        :> StreamPost NoFraming OctetStream (SourceIO ByteString)
   }
   deriving (Generic)

@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -30,7 +32,6 @@ import Servant.Server hiding (Handler)
 import Servant.Server.Generic
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Cargohold as F
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.Error
 
 type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)
@@ -40,5 +41,5 @@ federationSitemap =
   genericServerT $
     F.CargoholdApi {F.getAsset = getAsset}
 
-getAsset :: () -> Handler EmptyResponse
-getAsset _ = throwE federationNotImplemented
+getAsset :: F.GetAsset -> Handler (SourceIO ByteString)
+getAsset F.GetAsset {..} = throwE federationNotImplemented
