@@ -65,7 +65,8 @@ tests =
       testRefField,
       testRmClientWrong,
       testRmClient,
-      testEnumType
+      testEnumType,
+      testNullable
     ]
 
 testFooToJSON :: TestTree
@@ -337,6 +338,23 @@ testEnumType =
       "Integer enum has Swagger type \"integer\""
       (s2 ^. S.type_)
       (Just S.SwaggerInteger)
+
+testNullable :: TestTree
+testNullable =
+  let sch = nullable (unnamed schema) :: ValueSchema SwaggerDoc (Maybe Int)
+   in testGroup
+        "Nullable schemas"
+        [ testCase "Nullable schemas should parse both null and non-null values" $ do
+            A.parse (schemaIn sch) (A.Number 5) @?= Success (Just 5)
+            A.parse (schemaIn sch) A.Null @?= Success Nothing,
+          testCase "Nullable schemas should produce either a value or null" $ do
+            schemaOut sch (Just 5) @?= Just (A.Number 5)
+            schemaOut sch Nothing @?= Just (A.Null),
+          testCase "Nullable schemas should return an error when parsing invalid non-null values" $ do
+            case A.parse (schemaIn sch) (A.String "foo") of
+              Success _ -> assertFailure "fromJSON should fail"
+              Error _ -> pure ()
+        ]
 
 ---
 

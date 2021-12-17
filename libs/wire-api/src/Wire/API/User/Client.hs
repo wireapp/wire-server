@@ -247,21 +247,12 @@ newtype UserClientPrekeyMap = UserClientPrekeyMap
 mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe Prekey)) -> UserClientPrekeyMap
 mkUserClientPrekeyMap = coerce
 
-optionalSchema ::
-  ValueSchemaP SwaggerDoc a b ->
-  ValueSchemaP SwaggerDoc (Maybe a) (Maybe b)
-optionalSchema s =
-  mconcat
-    [ Just <$> maybeWithDefault A.Null s,
-      const () .= null_ $> Nothing
-    ]
-
 instance ToSchema UserClientPrekeyMap where
   schema = UserClientPrekeyMap <$> getUserClientPrekeyMap .= addDoc sch
     where
       sch =
         named "UserClientPrekeyMap" $
-          userClientMapSchema (optionalSchema (unnamed schema))
+          userClientMapSchema (nullable (unnamed schema))
       addDoc =
         Swagger.schema . Swagger.example
           ?~ toJSON

@@ -68,6 +68,7 @@ module Data.Schema
     text,
     parsedText,
     null_,
+    nullable,
     element,
     tag,
     unnamed,
@@ -601,11 +602,27 @@ jsonObject =
     mkSchema mempty pure (pure . (^.. ifolded . withIndex))
 
 -- | A schema for a null value.
-null_ :: Monoid d => SchemaP d A.Value A.Value () ()
+null_ :: Monoid d => ValueSchemaP d () ()
 null_ = mkSchema mempty i o
   where
     i x = guard (x == A.Null)
     o _ = pure A.Null
+
+-- | A schema for a nullable value.
+--
+-- The parser accepts a JSON null as a valid value, and converts it to
+-- 'Nothing'. Any non-null value is parsed using the underlying schema.
+--
+-- The serialiser behaves similarly, but in the other direction.
+nullable ::
+  (Monoid d, HasOpt d) =>
+  ValueSchema d a ->
+  ValueSchema d (Maybe a)
+nullable s =
+  mconcat
+    [ tag _Nothing null_,
+      tag _Just s
+    ]
 
 data WithDeclare s = WithDeclare (Declare ()) s
   deriving (Functor)
