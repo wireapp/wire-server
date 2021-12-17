@@ -85,9 +85,10 @@ downloadAssetV3 ::
   id ->
   AssetKey ->
   Maybe AssetToken ->
+  Maybe AssetToken ->
   Handler (Maybe AssetLocation)
-downloadAssetV3 usr key tok = do
-  url <- V3.download (mkPrincipal usr) key tok
+downloadAssetV3 usr key tok1 tok2 = do
+  url <- V3.download (mkPrincipal usr) key (tok1 <|> tok2)
   pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()

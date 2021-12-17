@@ -134,6 +134,7 @@ type BaseAPI (tag :: PrincipalTag) =
              :> tag
              :> Capture "key" AssetKey
              :> Header "Asset-Token" AssetToken
+             :> QueryParam "asset_token" AssetToken
              :> GetAsset
          )
     :<|> ( Summary "Delete an asset"
