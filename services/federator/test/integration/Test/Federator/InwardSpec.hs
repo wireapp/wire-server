@@ -43,7 +43,7 @@ import Wire.API.User
 -- FUTUREWORK(fisx): better yet, reorganize integration tests (or at least the helpers) so
 -- they don't spread out over the different sevices.
 
--- | This module contains tests for the interface between federator and brig.  The thests call
+-- | This module contains tests for the interface between federator and brig.  The tests call
 -- federator directly, circumnventing ingress:
 --
 --  +----------+
