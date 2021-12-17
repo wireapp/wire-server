@@ -56,7 +56,6 @@ import Data.Id
 import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Time.Clock
-import Debug.Trace
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
@@ -591,8 +590,8 @@ getSelfDeletingMessagesInternal = \case
   Right tid -> do
     cfgDefault <- getCfgDefault
     let defLockStatus = Public.tfwcapsLockStatus cfgDefault
-    (maybeFeatureStatus, fromMaybe defLockStatus -> lockStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
-    pure $ case (lockStatus, maybeFeatureStatus) of
+    (mbFeatureStatus, fromMaybe defLockStatus -> lockStatus) <- TeamFeatures.getSelfDeletingMessagesStatus tid
+    pure $ case (lockStatus, mbFeatureStatus) of
       (Public.Unlocked, Just featureStatus) ->
         Public.TeamFeatureStatusWithConfigAndLockStatus
           (Public.tfwcStatus featureStatus)
@@ -617,15 +616,14 @@ setSelfDeletingMessagesInternal ::
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSelfDeletingMessages)
 setSelfDeletingMessagesInternal tid st = do
-  dftLockStatus <- Public.tfwcapsLockStatus <$> getCfgDefault
-  guardLockStatus @'Public.TeamFeatureSelfDeletingMessages tid dftLockStatus
+  getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureSelfDeletingMessages tid
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event Event.Update Public.TeamFeatureSelfDeletingMessages (EdFeatureSelfDeletingMessagesChanged st)
   TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
   where
-    getCfgDefault :: Sem r (Public.TeamFeatureStatusWithConfigAndLockStatus Public.TeamFeatureSelfDeletingMessagesConfig)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
+    getDftLockStatus :: Sem r Public.LockStatusValue
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults . to Public.tfwcapsLockStatus)
 
 getGuestLinkInternal ::
   forall r.
@@ -633,19 +631,17 @@ getGuestLinkInternal ::
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
 getGuestLinkInternal = \case
-  Left _ -> do
-    traceM "internal param user"
-    getCfgDefault
+  Left _ -> getCfgDefault
   Right tid -> do
     cfgDefault <- getCfgDefault
-    let defLockStatus = Public.tfwoapsLockStatus cfgDefault
-    maybeFeatureStatus <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureGuestLinks tid
-    pure $ case maybeFeatureStatus of
-      Just featureStatus ->
+    (mbFeatureStatus, fromMaybe (Public.tfwoapsLockStatus cfgDefault) -> lockStatus) <- TeamFeatures.getFeatureStatusNoConfigAndLockStatus @'Public.TeamFeatureGuestLinks tid
+    pure $ case (lockStatus, mbFeatureStatus) of
+      (Public.Unlocked, Just featureStatus) ->
         Public.TeamFeatureStatusNoConfigAndLockStatus
           (Public.tfwoStatus featureStatus)
-          defLockStatus
-      Nothing -> cfgDefault
+          lockStatus
+      (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
+      (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
@@ -659,12 +655,11 @@ setGuestLinkInternal ::
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r
   ) =>
-  Bool ->
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureGuestLinks)
-setGuestLinkInternal force tid status = do
-  unless force $ getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureGuestLinks tid
+setGuestLinkInternal tid status = do
+  getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureGuestLinks tid
   let pushEvent =
         pushFeatureConfigEvent tid $
           Event.Event

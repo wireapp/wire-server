@@ -204,6 +204,9 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusGuestLinksPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureGuestLinks,
+    iTeamFeatureLockStatusGuestLinksPut ::
+      routes
+        :- IFeatureStatusLockStatusPut 'Public.TeamFeatureGuestLinks,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     iDeleteUser ::
@@ -325,7 +328,8 @@ servantSitemap =
         iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iTeamFeatureLockStatusSelfDeletingMessagesPut = Features.setLockStatus @'Public.TeamFeatureSelfDeletingMessages,
         iTeamFeatureStatusGuestLinksGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
-        iTeamFeatureStatusGuestLinksPut = iPutTeamFeature @'Public.TeamFeatureGuestLinks $ Features.setGuestLinkInternal True,
+        iTeamFeatureStatusGuestLinksPut = iPutTeamFeature @'Public.TeamFeatureGuestLinks Features.setGuestLinkInternal,
+        iTeamFeatureLockStatusGuestLinksPut = Features.setLockStatus @'Public.TeamFeatureGuestLinks,
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
         iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation

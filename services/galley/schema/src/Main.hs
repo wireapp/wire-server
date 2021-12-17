@@ -59,6 +59,7 @@ import qualified V53_AddRemoteConvStatus
 import qualified V54_TeamFeatureSelfDeletingMessages
 import qualified V55_SelfDeletingMessagesLockStatus
 import qualified V56_GuestLinksTeamFeatureStatus
+import qualified V57_GuestLinksLockStatus
 
 main :: IO ()
 main = do
@@ -103,7 +104,8 @@ main = do
       V53_AddRemoteConvStatus.migration,
       V54_TeamFeatureSelfDeletingMessages.migration,
       V55_SelfDeletingMessagesLockStatus.migration,
-      V56_GuestLinksTeamFeatureStatus.migration
+      V56_GuestLinksTeamFeatureStatus.migration,
+      V57_GuestLinksLockStatus.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
