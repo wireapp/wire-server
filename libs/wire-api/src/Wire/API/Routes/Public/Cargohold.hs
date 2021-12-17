@@ -24,7 +24,6 @@ import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
 import qualified Data.Swagger as Swagger
-import GHC.TypeLits
 import Imports
 import Servant
 import Servant.Swagger.Internal
@@ -43,33 +42,24 @@ type family PrincipalId (tag :: PrincipalTag) = (id :: *) | id -> tag where
   PrincipalId 'BotPrincipalTag = BotId
   PrincipalId 'ProviderPrincipalTag = ProviderId
 
-data NoSegment = NoSegment
+type family ApplyPrincipalPath (tag :: PrincipalTag) api
 
-type family PrincipalKind tag where
-  PrincipalKind 'UserPrincipalTag = NoSegment
-  PrincipalKind 'BotPrincipalTag = Symbol
-  PrincipalKind 'ProviderPrincipalTag = Symbol
+type instance ApplyPrincipalPath 'UserPrincipalTag api = ZLocalUser :> "assets" :> "v3" :> api
 
-type family PrincipalPrefix tag :: PrincipalKind tag where
-  PrincipalPrefix 'UserPrincipalTag = 'NoSegment
-  PrincipalPrefix 'BotPrincipalTag = "bot"
-  PrincipalPrefix 'ProviderPrincipalTag = "provider"
+type instance ApplyPrincipalPath 'BotPrincipalTag api = ZBot :> "bot" :> "assets" :> api
 
-instance HasSwagger api => HasSwagger ('NoSegment :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
+type instance ApplyPrincipalPath 'ProviderPrincipalTag api = ZProvider :> "provider" :> "assets" :> api
 
-instance HasServer api ctx => HasServer ('NoSegment :> api) ctx where
-  type ServerT ('NoSegment :> api) m = ServerT api m
-  route _ = route (Proxy @api)
-  hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+instance HasSwagger (ApplyPrincipalPath tag api) => HasSwagger (tag :> api) where
+  toSwagger _ = toSwagger (Proxy @(ApplyPrincipalPath tag api))
 
-instance RoutesToPaths api => RoutesToPaths ('NoSegment :> api) where
-  getRoutes = getRoutes @api
+instance HasServer (ApplyPrincipalPath tag api) ctx => HasServer (tag :> api) ctx where
+  type ServerT (tag :> api) m = ServerT (ApplyPrincipalPath tag api) m
+  route _ = route (Proxy @(ApplyPrincipalPath tag api))
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @(ApplyPrincipalPath tag api))
 
-type family ZPrincipal (tag :: PrincipalTag) :: * where
-  ZPrincipal 'UserPrincipalTag = ZLocalUser
-  ZPrincipal 'BotPrincipalTag = ZBot
-  ZPrincipal 'ProviderPrincipalTag = ZProvider
+instance RoutesToPaths (ApplyPrincipalPath tag api) => RoutesToPaths (tag :> api) where
+  getRoutes = getRoutes @(ApplyPrincipalPath tag api)
 
 newtype AssetLocation = AssetLocation {getAssetLocation :: Text}
   deriving newtype
@@ -128,10 +118,7 @@ type BaseAPI (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
       :> CanThrow AssetTooLarge
       :> CanThrow InvalidLength
-      :> ZPrincipal tag
-      :> PrincipalPrefix tag
-      :> "assets"
-      :> "v3"
+      :> tag
       :> AssetBody
       :> MultiVerb
            'POST
@@ -144,10 +131,7 @@ type BaseAPI (tag :: PrincipalTag) =
            (Asset, AssetLocation)
   )
     :<|> ( Summary "Download an asset"
-             :> ZPrincipal tag
-             :> PrincipalPrefix tag
-             :> "assets"
-             :> "v3"
+             :> tag
              :> Capture "key" AssetKey
              :> Header "Asset-Token" AssetToken
              :> GetAsset
@@ -155,10 +139,7 @@ type BaseAPI (tag :: PrincipalTag) =
     :<|> ( Summary "Delete an asset"
              :> CanThrow AssetNotFound
              :> CanThrow Unauthorised
-             :> ZPrincipal tag
-             :> PrincipalPrefix tag
-             :> "assets"
-             :> "v3"
+             :> tag
              :> Capture "key" AssetKey
              :> MultiVerb
                   'DELETE
