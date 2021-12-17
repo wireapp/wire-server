@@ -79,7 +79,7 @@ spec env =
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
     -- (This is also tested in unit tests; search for 'validateDomainCertInvalid'.)
-    it "shouldRejectMissMatchingOriginDomainInward" $
+    it "shouldRejectMissmatchingOriginDomainInward" $
       runTestFederator env $
         do
           brig <- view teBrig <$> ask
