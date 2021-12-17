@@ -104,9 +104,9 @@ spec env = do
           expectationFailure "Expected client certificate error, got remote error"
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
 
-{- ORMOLU_DISABLE -}
-  -- @END
-{- ORMOLU_ENSABLE -}
+-- TODO: ORMOLU_DISABLE
+-- @END
+-- ORMOLU_ENSABLE
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do

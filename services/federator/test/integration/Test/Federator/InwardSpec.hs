@@ -132,9 +132,9 @@ spec env =
           (encode hdl)
           !!! const 403 === statusCode
 
-{- ORMOLU_DISABLE -} -- FUTUREWORK: try a newer release of ormolu?
+-- TODO: ORMOLU_DISABLE
 -- @END
-{- ORMOLU_ENABLE -}
+-- ORMOLU_ENABLE
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
