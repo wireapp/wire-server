@@ -72,7 +72,7 @@ instance ToSchema UpsertOne2OneConversationRequest where
         <*> (qUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)
         <*> uooActor .= field "actor" schema
         <*> uooActorDesiredMembership .= field "actor_desired_membership" schema
-        <*> uooConvId .= field "conversation_id" (optWithDefault A.Null schema)
+        <*> uooConvId .= optField "conversation_id" (maybeWithDefault A.Null schema)
 
 newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
   { uuorConvId :: Qualified ConvId

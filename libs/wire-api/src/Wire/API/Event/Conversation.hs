@@ -371,10 +371,10 @@ connectObjectSchema :: ObjectSchema SwaggerDoc Connect
 connectObjectSchema =
   Connect
     <$> cRecipient .= field "qualified_recipient" schema
-    <* (Just . qUnqualified . cRecipient) .= optField "recipient" Nothing schema
-    <*> cMessage .= lax (field "message" (optWithDefault A.Null schema))
-    <*> cName .= lax (field "name" (optWithDefault A.Null schema))
-    <*> cEmail .= lax (field "email" (optWithDefault A.Null schema))
+    <* (qUnqualified . cRecipient) .= optional (field "recipient" schema)
+    <*> cMessage .= optField "message" (maybeWithDefault A.Null schema)
+    <*> cName .= optField "name" (maybeWithDefault A.Null schema)
+    <*> cEmail .= optField "email" (maybeWithDefault A.Null schema)
 
 modelConnect :: Doc.Model
 modelConnect = Doc.defineModel "Connect" $ do
@@ -416,14 +416,14 @@ memberUpdateDataObjectSchema :: ObjectSchema SwaggerDoc MemberUpdateData
 memberUpdateDataObjectSchema =
   MemberUpdateData
     <$> misTarget .= field "qualified_target" schema
-    <* (Just . qUnqualified . misTarget) .= optField "target" Nothing schema
-    <*> misOtrMutedStatus .= opt (field "otr_muted_status" schema)
-    <*> misOtrMutedRef .= opt (field "otr_muted_ref" schema)
-    <*> misOtrArchived .= opt (field "otr_archived" schema)
-    <*> misOtrArchivedRef .= opt (field "otr_archived_ref" schema)
-    <*> misHidden .= opt (field "hidden" schema)
-    <*> misHiddenRef .= opt (field "hidden_ref" schema)
-    <*> misConvRoleName .= opt (field "conversation_role" schema)
+    <* (qUnqualified . misTarget) .= optional (field "target" schema)
+    <*> misOtrMutedStatus .= maybe_ (optField "otr_muted_status" schema)
+    <*> misOtrMutedRef .= maybe_ (optField "otr_muted_ref" schema)
+    <*> misOtrArchived .= maybe_ (optField "otr_archived" schema)
+    <*> misOtrArchivedRef .= maybe_ (optField "otr_archived_ref" schema)
+    <*> misHidden .= maybe_ (optField "hidden" schema)
+    <*> misHiddenRef .= maybe_ (optField "hidden_ref" schema)
+    <*> misConvRoleName .= maybe_ (optField "conversation_role" schema)
 
 modelMemberUpdateData :: Doc.Model
 modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do
@@ -478,8 +478,8 @@ otrMessageObjectSchema =
         (description ?~ textDesc)
         schema
     <*> otrData
-      .= opt
-        ( fieldWithDocModifier
+      .= maybe_
+        ( optFieldWithDocModifier
             "data"
             (description ?~ dataDesc)
             schema
