@@ -46,6 +46,8 @@ import Wire.API.Federation.Domain
 import Wire.API.User
 import Wire.Network.DNS.SRV
 
+-- | This module contains tests for the interface between federator and ingress.  Ingress is
+-- mocked with nginz.
 spec :: TestEnv -> Spec
 spec env = do
   describe "Ingress" $ do
