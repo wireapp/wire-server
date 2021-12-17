@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,39 +17,33 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.V4 (tests) where
+module API (tests) where
 
+import API.Util
 import Bilge hiding (body)
 import Bilge.Assert
-import qualified Codec.MIME.Parse as MIME
+import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding (sets)
-import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
 import Data.Id
 import Data.Qualified
-import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
-import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
-import Network.HTTP.Types.Header
-import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200)
 import Network.Wai.Utilities (Error (label))
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
-import Wire.API.Asset
 
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
-    "API Integration v4"
+    "API Integration"
     [ testGroup
         "simple"
         [ test s "roundtrip" testSimpleRoundtrip,
@@ -64,9 +58,9 @@ tests s =
 
 testSimpleRoundtrip :: TestSignature ()
 testSimpleRoundtrip c = do
-  let def = defAssetSettings
+  let def = V3.defAssetSettings
   let rets = [minBound ..]
-  let sets = def : map (\r -> def & setAssetRetention ?~ r) rets
+  let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
@@ -78,14 +72,14 @@ testSimpleRoundtrip c = do
         uploadSimple (c . path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
       let loc = decodeHeader "Location" r1 :: ByteString
-      let Just ast = responseJsonMaybe @Asset r1
-      let Just tok = view assetToken ast
+      let Just ast = responseJsonMaybe @V3.Asset r1
+      let Just tok = view V3.assetToken ast
       -- Check mandatory Date header
       let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
       let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
       -- Potentially check for the expires header
-      when (isJust $ join (assetRetentionSeconds <$> (sets ^. setAssetRetention))) $ do
-        liftIO $ assertBool "invalid expiration" (Just utc < view assetExpires ast)
+      when (isJust $ join (V3.assetRetentionSeconds <$> (sets ^. V3.setAssetRetention))) $ do
+        liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
       -- Lookup with token and download via redirect.
       r2 <-
         get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
@@ -99,9 +93,9 @@ testSimpleRoundtrip c = do
         assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
-      deleteAsset c uid2 (view assetKey ast) !!! const 403 === statusCode
+      deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
       -- Delete (allowed for creator)
-      deleteAsset c uid (view assetKey ast) !!! const 200 === statusCode
+      deleteAsset c uid (view V3.assetKey ast) !!! const 200 === statusCode
       r4 <-
         get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect)
           <!! const 404 === statusCode
@@ -114,20 +108,26 @@ testSimpleTokens c = do
   uid <- liftIO $ Id <$> nextRandom
   uid2 <- liftIO $ Id <$> nextRandom
   -- Initial upload
-  let sets = defAssetSettings & set setAssetRetention (Just AssetVolatile)
+  let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
   let bdy = (applicationText, "Hello World")
   r1 <-
     uploadSimple (c . path "/assets/v3") uid sets bdy
       <!! const 201 === statusCode
   let loc = decodeHeader "Location" r1 :: ByteString
-  let Just ast = responseJsonMaybe @Asset r1
-  let key = view assetKey ast
-  let Just tok = view assetToken ast
+  let Just ast = responseJsonMaybe @V3.Asset r1
+  let key = view V3.assetKey ast
+  let Just tok = view V3.assetToken ast
   -- No access without token from other user (opaque 404)
   get (c . path loc . zUser uid2 . noRedirect)
     !!! const 404 === statusCode
+  -- No access with empty token query parameter from other user (opaque 404)
+  get (c . path loc . zUser uid2 . queryItem' "asset_token" Nothing . noRedirect)
+    !!! const 404 === statusCode
   -- No access with wrong token (opaque 404)
   get (c . path loc . zUser uid2 . header "Asset-Token" "acb123" . noRedirect)
+    !!! const 404 === statusCode
+  -- No access with wrong token as query parameter (opaque 404)
+  get (c . path loc . zUser uid2 . queryItem "asset_token" "acb123" . noRedirect)
     !!! const 404 === statusCode
   -- Token renewal fails if not done by owner
   post (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid2) !!! do
@@ -137,7 +137,7 @@ testSimpleTokens c = do
   r2 <-
     post (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid)
       <!! const 200 === statusCode
-  let Just tok' = newAssetToken <$> responseJsonMaybe r2
+  let Just tok' = V3.newAssetToken <$> responseJsonMaybe r2
   liftIO $ assertBool "token unchanged" (tok /= tok')
   -- Download by owner with new token.
   r3 <-
@@ -156,6 +156,9 @@ testSimpleTokens c = do
     !!! const 302 === statusCode
   -- Verify access with new token from a different user.
   get (c . path loc . header "Asset-Token" (toByteString' tok') . zUser uid2 . noRedirect)
+    !!! const 302 === statusCode
+  -- Verify access with new token as query parameter from a different user
+  get (c . path loc . queryItem "asset_token" (toByteString' tok') . zUser uid2 . noRedirect)
     !!! const 302 === statusCode
   -- Delete Token fails if not done by owner
   delete (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid2) !!! do
@@ -179,7 +182,7 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
     go = do
       uid <- liftIO $ Id <$> nextRandom
-      let sets = defAssetSettings & set setAssetRetention (Just AssetVolatile)
+      let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
       let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
       uploadSimple (c . path "/assets/v3") uid sets part2
         !!! const 201 === statusCode
@@ -228,55 +231,3 @@ testUploadCompatibility c = do
       \test\r\n\
       \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
       \\r\n"
-
--- API Calls ------------------------------------------------------------------
-
-uploadSimple ::
-  CargoHold ->
-  UserId ->
-  AssetSettings ->
-  (MIME.Type, ByteString) ->
-  Http (Response (Maybe Lazy.ByteString))
-uploadSimple c usr sets (ct, bs) =
-  let mp = buildMultipartBody sets ct (Lazy.fromStrict bs)
-   in uploadRaw c usr (toLazyByteString mp)
-
-uploadRaw ::
-  CargoHold ->
-  UserId ->
-  Lazy.ByteString ->
-  Http (Response (Maybe Lazy.ByteString))
-uploadRaw c usr bs =
-  post $
-    c
-      . method POST
-      . zUser usr
-      . zConn "conn"
-      . content "multipart/mixed"
-      . lbytes bs
-
-deleteAsset :: CargoHold -> UserId -> Qualified AssetKey -> Http (Response (Maybe Lazy.ByteString))
-deleteAsset c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
-
--- Utilities ------------------------------------------------------------------
-
-decodeHeader :: FromByteString a => HeaderName -> Response b -> a
-decodeHeader h =
-  fromMaybe (error $ "decodeHeader: missing or invalid header: " ++ show h)
-    . fromByteString
-    . getHeader' h
-
-getContentType :: Response a -> Maybe MIME.Type
-getContentType = MIME.parseContentType . decodeLatin1 . getHeader' "Content-Type"
-
-applicationText :: MIME.Type
-applicationText = MIME.Type (MIME.Application "text") []
-
-applicationOctetStream :: MIME.Type
-applicationOctetStream = MIME.Type (MIME.Application "octet-stream") []
-
-zUser :: UserId -> Request -> Request
-zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
-
-zConn :: ByteString -> Request -> Request
-zConn = header "Z-Connection"

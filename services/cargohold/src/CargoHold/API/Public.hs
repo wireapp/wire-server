@@ -139,10 +139,11 @@ downloadAssetV4 ::
   Local UserId ->
   Qualified AssetKey ->
   Maybe AssetToken ->
+  Maybe AssetToken ->
   Handler (Maybe LocalOrRemoteAsset)
-downloadAssetV4 usr qkey tok = do
+downloadAssetV4 usr qkey tok1 tok2 = do
   key <- tUnqualified <$> ensureLocal qkey
-  LocalAsset <$$> downloadAssetV3 usr key tok
+  LocalAsset <$$> downloadAssetV3 usr key tok1 tok2
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
 deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key

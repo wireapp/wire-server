@@ -171,6 +171,7 @@ type QualifiedAPI =
       :> "v4"
       :> QualifiedCapture "key" AssetKey
       :> Header "Asset-Token" AssetToken
+      :> QueryParam "asset_token" AssetToken
       :> MultiVerb
            'GET
            '[JSON]

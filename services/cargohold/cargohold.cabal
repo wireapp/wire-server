@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 253f7aaf3d9981e1ce5a3654d10d5aa926f6347fbb86c510d4eb2997e869e499
+-- hash: 3633e0db5e928a51056ef8474859ed8f6edf06bc84b9ade6db39f62c48bfce07
 
 name:           cargohold
 version:        1.5.0
@@ -134,8 +134,9 @@ executable cargohold
 executable cargohold-integration
   main-is: Main.hs
   other-modules:
+      API
+      API.Util
       API.V3
-      API.V4
       Metrics
       TestSetup
       Paths_cargohold
