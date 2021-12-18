@@ -2,6 +2,7 @@ module Spar.Sem.DefaultSsoCode where
 
 import Imports
 import Polysemy
+import Polysemy.Check (deriveGenericK)
 import qualified SAML2.WebSSO as SAML
 
 data DefaultSsoCode m a where
@@ -12,3 +13,5 @@ data DefaultSsoCode m a where
 deriving instance Show (DefaultSsoCode m a)
 
 makeSem ''DefaultSsoCode
+deriveGenericK ''DefaultSsoCode
+
