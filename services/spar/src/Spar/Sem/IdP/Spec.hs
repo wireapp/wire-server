@@ -41,7 +41,7 @@ propsForInterpreter interpreter extract labeler lower = do
     prop "setReplacedBy/getReplacedBy" $ prop_setGet (Just $ show . (fmap (() <$)) . extract) lower
     prop "setReplacedBy/setReplacedBy" $ prop_setSet (Just $ show . (fmap (() <$)) . extract) lower
     prop "storeConfig/getConfig" $ prop_storeGet (Just $ show . (() <$) . extract) lower
-    prop "storeConfig/getIdByIssuerWithoutTeam" $ prop_storeGetByIssuer (Just $ constructorLabel . extract) lower
+    xit "storeConfig/getIdByIssuerWithoutTeam" $ property $ prop_storeGetByIssuer (Just $ constructorLabel . extract) lower
     prop "storeConfig/storeConfig (different keys)" $ prop_storeStoreInterleave Nothing lower
     prop "storeConfig/storeConfig (same keys)" $ prop_storeStore Nothing lower
 
@@ -179,6 +179,7 @@ prop_storeGetByIssuer =
           )
           ( do
               E.storeConfig s
+              -- NOT TRUE! This can also return E.GetIdPNonUnique with nonzero probability!
               pure $ E.GetIdPFound $ s ^. idpId
           )
 
