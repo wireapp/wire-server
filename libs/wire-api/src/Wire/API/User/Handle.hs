@@ -39,6 +39,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Data.Singletons
 
 --------------------------------------------------------------------------------
 -- UserHandleInfo
@@ -83,6 +84,13 @@ modelCheckHandles = Doc.defineModel "CheckHandles" $ do
   Doc.property "return" Doc.int32' $ do
     Doc.description "Desired number of free handles to return (1 - 10). Default 1."
     Doc.optional
+
+instance ToSchema CheckHandles where
+  schema =
+    object "CheckHandles" $
+      CheckHandles
+        <$> (checkHandlesList .= field "handles" (fromRange .= rangedSchema sing sing (array schema)))
+        <*> (checkHandlesNum .= field "return" schema)
 
 instance ToJSON CheckHandles where
   toJSON (CheckHandles l n) =

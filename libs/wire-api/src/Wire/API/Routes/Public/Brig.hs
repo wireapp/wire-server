@@ -502,6 +502,20 @@ data Api routes = Api
         :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
         :> Get '[Servant.JSON] (SearchResult Contact)
+
+--     createHandle ::
+--       routes :- Summary ""
+--         :> ZUser
+--         :> "users"
+--         :> "handles"
+--         :> ReqBody '[JSON] CheckHandles
+--         :> MultiVerb
+--             'POST
+--             '[JSON]
+--             '[ Respond 200 "List of free handles" [Handle] ]
+--             [Handle]
+
+
   }
   deriving (Generic)
 
