@@ -3,6 +3,7 @@ module Spar.Sem.ScimExternalIdStore where
 import Data.Id (TeamId, UserId)
 import Imports
 import Polysemy
+import Polysemy.Check (deriveGenericK)
 import Wire.API.User.Identity (Email)
 
 data ScimExternalIdStore m a where
@@ -13,3 +14,4 @@ data ScimExternalIdStore m a where
 deriving instance Show (ScimExternalIdStore m a)
 
 makeSem ''ScimExternalIdStore
+deriveGenericK ''ScimExternalIdStore
