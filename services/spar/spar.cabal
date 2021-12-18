@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4a323def34cfdc7673cea02e13fe518d53d7b04bae552bff2d0784dfb6964162
+-- hash: 0c1a9c994e59361b3e91899b8e06b47a7b2fd742fc4a64e394c5b803e1ac28ac
 
 name:           spar
 version:        0.1
@@ -63,6 +63,7 @@ library
       Spar.Sem.Now
       Spar.Sem.Now.Input
       Spar.Sem.Now.IO
+      Spar.Sem.Now.Spec
       Spar.Sem.Random
       Spar.Sem.Random.IO
       Spar.Sem.Reporter
@@ -94,6 +95,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -116,6 +118,7 @@ library
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -129,6 +132,7 @@ library
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
@@ -167,6 +171,7 @@ executable spar
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -189,6 +194,7 @@ executable spar
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -202,6 +208,7 @@ executable spar
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
@@ -298,6 +305,7 @@ executable spar-integration
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , random
     , raw-strings-qq
@@ -349,6 +357,7 @@ executable spar-migrate-data
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -372,6 +381,7 @@ executable spar-migrate-data
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -385,6 +395,7 @@ executable spar-migrate-data
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
@@ -440,6 +451,7 @@ executable spar-schema
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -462,6 +474,7 @@ executable spar-schema
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -475,6 +488,7 @@ executable spar-schema
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry

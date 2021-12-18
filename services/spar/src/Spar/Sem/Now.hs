@@ -2,12 +2,14 @@ module Spar.Sem.Now where
 
 import Imports
 import Polysemy
+import Polysemy.Check (deriveGenericK)
 import qualified SAML2.WebSSO as SAML
 
 data Now m a where
   Get :: Now m SAML.Time
 
 makeSem ''Now
+deriveGenericK ''Now
 
 deriving instance Show (Now m a)
 
