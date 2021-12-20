@@ -71,6 +71,8 @@ executables:
     - base ==4.*
     - cargohold
     - cargohold-types
+    - conduit
+    - cryptonite
     - http-client-tls >=0.2
     - lens >=3.8
     - optparse-applicative

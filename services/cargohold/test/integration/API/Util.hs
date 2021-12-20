@@ -18,9 +18,9 @@
 module API.Util where
 
 import Bilge hiding (body)
-import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
+import Crypto.Random
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -32,15 +32,16 @@ import Imports hiding (head)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import TestSetup
+import Wire.API.Asset
 
 uploadSimple ::
   CargoHold ->
   UserId ->
-  V3.AssetSettings ->
+  AssetSettings ->
   (MIME.Type, ByteString) ->
   Http (Response (Maybe Lazy.ByteString))
 uploadSimple c usr sets (ct, bs) =
-  let mp = V3.buildMultipartBody sets ct (Lazy.fromStrict bs)
+  let mp = buildMultipartBody sets ct (Lazy.fromStrict bs)
    in uploadRaw c usr (toLazyByteString mp)
 
 decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response b -> a
@@ -48,6 +49,17 @@ decodeHeaderOrFail h =
   fromMaybe (error $ "decodeHeaderOrFail: missing or invalid header: " ++ show h)
     . fromByteString
     . getHeader' h
+
+uploadRandom ::
+  CargoHold ->
+  UserId ->
+  AssetSettings ->
+  MIME.Type ->
+  Int ->
+  Http (Response (Maybe LByteString))
+uploadRandom c usr settings ct size = do
+  bs <- liftIO $ getRandomBytes size
+  uploadSimple c usr settings (ct, bs)
 
 uploadRaw ::
   CargoHold ->
@@ -78,10 +90,10 @@ zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-deleteAssetV3 :: CargoHold -> UserId -> Qualified V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
+deleteAssetV3 :: CargoHold -> UserId -> Qualified AssetKey -> Http (Response (Maybe Lazy.ByteString))
 deleteAssetV3 c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
-deleteAsset :: CargoHold -> UserId -> Qualified V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
+deleteAsset :: CargoHold -> UserId -> Qualified AssetKey -> Http (Response (Maybe Lazy.ByteString))
 deleteAsset c u k =
   delete $
     c . zUser u
