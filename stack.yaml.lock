@@ -683,12 +683,12 @@ packages:
   original:
     hackage: polysemy-plugin-0.4.2.0
 - completed:
-    hackage: polysemy-check-0.8.1.0@sha256:5cce3ae162d2f8d8f629397daa28ec5e425f72d357afeb4fe994e102425f2383,2648
+    hackage: polysemy-check-0.9.0.0@sha256:f28c23c5cbae246a049d11e06c51ee85212a2b13a069e93598cf8cdd13ad5a18,2665
     pantry-tree:
-      size: 1027
-      sha256: bc880fb3405307ed251c02358d604979d8014040b78c2ffe6319076431f93509
+      size: 1086
+      sha256: a473605eda27f36717e3f0cbd66651563789107daa9b8d9db59b80cc07ff60d1
   original:
-    hackage: polysemy-check-0.8.1.0
+    hackage: polysemy-check-0.9.0.0
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

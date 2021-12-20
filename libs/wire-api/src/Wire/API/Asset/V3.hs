@@ -57,19 +57,26 @@ module Wire.API.Asset.V3
 where
 
 import qualified Codec.MIME.Type as MIME
-import Control.Lens (makeLenses)
-import Data.Aeson
+import Control.Lens (makeLenses, (?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString.Char8
+import Data.Bifunctor
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
-import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis, (#))
+import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.Proxy
+import Data.Schema
+import qualified Data.Swagger as S
+import qualified Data.Text as T
 import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+import Servant
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -82,6 +89,7 @@ data Asset = Asset
     _assetToken :: Maybe AssetToken
   }
   deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Asset
 
 -- Generate expiry time with millisecond precision
 instance Arbitrary Asset where
@@ -92,20 +100,15 @@ instance Arbitrary Asset where
 mkAsset :: AssetKey -> Asset
 mkAsset k = Asset k Nothing Nothing
 
-instance ToJSON Asset where
-  toJSON a =
-    object $
-      "key" .= _assetKey a
-        # "expires" .= fmap toUTCTimeMillis (_assetExpires a)
-        # "token" .= _assetToken a
-        # []
-
-instance FromJSON Asset where
-  parseJSON = withObject "Asset" $ \o ->
-    Asset
-      <$> o .: "key"
-      <*> o .:? "expires"
-      <*> o .:? "token"
+instance ToSchema Asset where
+  schema =
+    object "Asset" $
+      Asset
+        <$> _assetKey .= field "key" schema
+        <*> (fmap toUTCTimeMillis . _assetExpires)
+          .= maybe_
+            (optField "expires" (fromUTCTimeMillis <$> schema))
+        <*> _assetToken .= maybe_ (optField "token" schema)
 
 --------------------------------------------------------------------------------
 -- AssetKey
@@ -116,6 +119,7 @@ instance FromJSON Asset where
 data AssetKey = AssetKeyV3 AssetId AssetRetention
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetKey)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetKey)
 
 instance FromByteString AssetKey where
   parser = do
@@ -143,13 +147,17 @@ instance ToByteString AssetKey where
       <> builder '-'
       <> builder (UUID.toASCIIBytes (toUUID i))
 
-instance ToJSON AssetKey where
-  toJSON = String . T.decodeUtf8 . toByteString'
+instance ToSchema AssetKey where
+  schema =
+    (T.decodeUtf8 . toByteString')
+      .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
+        & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
 
-instance FromJSON AssetKey where
-  parseJSON =
-    withText "AssetKey" $
-      either fail pure . runParser parser . T.encodeUtf8
+instance S.ToParamSchema AssetKey where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData AssetKey where
+  parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
 
 --------------------------------------------------------------------------------
 -- AssetToken
@@ -157,21 +165,32 @@ instance FromJSON AssetKey where
 -- | Asset tokens are bearer tokens that grant access to a single asset.
 newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
   deriving stock (Eq, Show)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (FromByteString, ToByteString, Arbitrary)
+  deriving (FromJSON, ToJSON) via (Schema AssetToken)
+
+instance ToSchema AssetToken where
+  schema =
+    AssetToken <$> assetTokenAscii
+      .= schema
+        & doc' . S.schema . S.example ?~ toJSON ("aGVsbG8" :: Text)
+
+instance S.ToParamSchema AssetToken where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData AssetToken where
+  parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
 
 -- | A newly (re)generated token for an existing asset.
 newtype NewAssetToken = NewAssetToken
   {newAssetToken :: AssetToken}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewAssetToken)
 
-instance FromJSON NewAssetToken where
-  parseJSON = withObject "NewAssetToken" $ \o ->
-    NewAssetToken <$> o .: "token"
-
-instance ToJSON NewAssetToken where
-  toJSON (NewAssetToken tok) =
-    object ["token" .= tok]
+instance ToSchema NewAssetToken where
+  schema =
+    object "NewAssetToken" $
+      NewAssetToken <$> newAssetToken .= field "token" schema
 
 --------------------------------------------------------------------------------
 -- Body Construction
@@ -208,7 +227,7 @@ beginMultipartBody sets (AssetHeaders t l) =
     <> "\r\n\
        \\r\n"
   where
-    settingsJson = encode sets
+    settingsJson = Aeson.encode (schemaToJSON sets)
 
 -- | The trailer of a non-resumable @multipart/mixed@ request body initiated
 -- via 'beginMultipartBody'.
@@ -237,22 +256,17 @@ data AssetSettings = AssetSettings
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSettings)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetSettings)
 
 defAssetSettings :: AssetSettings
 defAssetSettings = AssetSettings False Nothing
 
-instance ToJSON AssetSettings where
-  toJSON s =
-    object $
-      "public" .= _setAssetPublic s
-        # "retention" .= _setAssetRetention s
-        # []
-
-instance FromJSON AssetSettings where
-  parseJSON = withObject "AssetSettings" $ \o ->
-    AssetSettings
-      <$> o .:? "public" .!= False
-      <*> o .:? "retention"
+instance ToSchema AssetSettings where
+  schema =
+    object "AssetSettings" $
+      AssetSettings
+        <$> _setAssetPublic .= (fromMaybe False <$> optField "public" schema)
+        <*> _setAssetRetention .= maybe_ (optField "retention" schema)
 
 --------------------------------------------------------------------------------
 -- AssetRetention
@@ -275,6 +289,7 @@ data AssetRetention
     AssetExpiring
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform AssetRetention)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetRetention)
 
 -- | The minimum TTL in seconds corresponding to a chosen retention.
 assetRetentionSeconds :: AssetRetention -> Maybe NominalDiffTime
@@ -308,9 +323,6 @@ instance FromByteString AssetRetention where
       5 -> return AssetExpiring
       _ -> fail $ "Invalid asset retention: " ++ show d
 
-instance ToJSON AssetRetention where
-  toJSON = String . retentionToTextRep
-
 retentionToTextRep :: AssetRetention -> Text
 retentionToTextRep AssetEternal = "eternal"
 retentionToTextRep AssetPersistent = "persistent"
@@ -318,16 +330,12 @@ retentionToTextRep AssetVolatile = "volatile"
 retentionToTextRep AssetEternalInfrequentAccess = "eternal-infrequent_access"
 retentionToTextRep AssetExpiring = "expiring"
 
--- | JSON representation, used by AssetSettings are
-instance FromJSON AssetRetention where
-  parseJSON = withText "AssetRetention" $ \t ->
-    case t of
-      "eternal" -> pure AssetEternal
-      "persistent" -> pure AssetPersistent
-      "volatile" -> pure AssetVolatile
-      "eternal-infrequent_access" -> pure AssetEternalInfrequentAccess
-      "expiring" -> pure AssetExpiring
-      _ -> fail $ "Invalid asset retention: " ++ show t
+instance ToSchema AssetRetention where
+  schema =
+    enum @Text "AssetRetention" $
+      foldMap
+        (\value -> element (retentionToTextRep value) value)
+        [minBound .. maxBound]
 
 makeLenses ''Asset
 makeLenses ''AssetSettings

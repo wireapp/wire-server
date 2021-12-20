@@ -1738,7 +1738,10 @@ randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
 
 randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
-randomUser' isCreator hasPassword hasEmail = do
+randomUser' isCreator hasPassword hasEmail = userQualifiedId . selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
+
+randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
+randomUserProfile' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
   let p =
@@ -1747,8 +1750,7 @@ randomUser' isCreator hasPassword hasEmail = do
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
             <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
-  selfProfile <- responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
-  pure . userQualifiedId . selfUser $ selfProfile
+  responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do

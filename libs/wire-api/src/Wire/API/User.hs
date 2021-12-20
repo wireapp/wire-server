@@ -234,12 +234,12 @@ instance ToSchema UserProfile where
         <*> profileAssets .= (field "assets" (array schema) <|> pure [])
         <*> profileAccentId .= field "accent_id" schema
         <*> ((\del -> if del then Just True else Nothing) . profileDeleted)
-          .= fmap (fromMaybe False) (opt (field "deleted" schema))
-        <*> profileService .= opt (field "service" schema)
-        <*> profileHandle .= opt (field "handle" schema)
-        <*> profileExpire .= opt (field "expires_at" schema)
-        <*> profileTeam .= opt (field "team" schema)
-        <*> profileEmail .= opt (field "email" schema)
+          .= maybe_ (fromMaybe False <$> optField "deleted" schema)
+        <*> profileService .= maybe_ (optField "service" schema)
+        <*> profileHandle .= maybe_ (optField "handle" schema)
+        <*> profileExpire .= maybe_ (optField "expires_at" schema)
+        <*> profileTeam .= maybe_ (optField "team" schema)
+        <*> profileEmail .= maybe_ (optField "email" schema)
         <*> profileLegalholdStatus .= field "legalhold_status" schema
 
 modelUser :: Doc.Model
@@ -986,7 +986,7 @@ instance ToSchema DeleteUser where
   schema =
     object "DeleteUser" $
       DeleteUser
-        <$> deleteUserPassword .= opt (field "password" schema)
+        <$> deleteUserPassword .= maybe_ (optField "password" schema)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser

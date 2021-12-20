@@ -44,6 +44,7 @@ where
 import Control.Applicative
 import Control.Lens hiding (Context)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.CaseInsensitive as CI
 import Data.Containers.ListUtils
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -54,19 +55,20 @@ import qualified Data.Sequence as Seq
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import GHC.TypeLits
 import Generics.SOP as GSOP
 import Imports
 import qualified Network.HTTP.Media as M
 import Network.HTTP.Types (HeaderName, hContentType)
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
 import Servant.API
 import Servant.API.ContentTypes
-import Servant.API.ResponseHeaders
 import Servant.API.Status (KnownStatus (..))
 import Servant.Client
-import Servant.Client.Core
+import Servant.Client.Core hiding (addHeader)
 import Servant.Server
 import Servant.Server.Internal
 import Servant.Swagger as S
@@ -210,28 +212,59 @@ data WithHeaders (hs :: [*]) (a :: *) (r :: *)
 
 -- | This is used to convert a response containing headers to a custom type
 -- including the information in the headers.
-class AsHeaders hs a b where
-  fromHeaders :: Headers hs a -> b
-  toHeaders :: b -> Headers hs a
+class AsHeaders xs a b where
+  fromHeaders :: (NP I xs, a) -> b
+  toHeaders :: b -> (NP I xs, a)
 
-instance AsHeaders hs a (Headers hs a) where
-  fromHeaders = id
-  toHeaders = id
+-- single-header empty response
+instance AsHeaders '[a] () a where
+  toHeaders a = (I a :* Nil, ())
+  fromHeaders = unI . hd . fst
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
--- convert a list of 'Header's and 'HeaderDesc' to a list of 'Header's
-type family ServantHeaders (hs :: [*]) :: [*]
+class ServantHeaders hs xs | hs -> xs where
+  constructHeaders :: NP I xs -> [HTTP.Header]
+  extractHeaders :: [HTTP.Header] -> Maybe (NP I xs)
 
-type instance ServantHeaders '[] = '[]
+instance ServantHeaders '[] '[] where
+  constructHeaders Nil = []
+  extractHeaders _ = Just Nil
 
-type instance
-  ServantHeaders (DescHeader name desc a ': hs) =
-    Header name a ': ServantHeaders hs
+headerName :: forall name. KnownSymbol name => HTTP.HeaderName
+headerName =
+  CI.mk
+    . Text.encodeUtf8
+    . Text.pack
+    $ symbolVal (Proxy @name)
 
-type instance
-  ServantHeaders (Header name a ': hs) =
-    Header name a ': ServantHeaders hs
+instance
+  ( KnownSymbol name,
+    ServantHeader h name x,
+    ToHttpApiData x,
+    FromHttpApiData x,
+    ServantHeaders hs xs
+  ) =>
+  ServantHeaders (h ': hs) (x ': xs)
+  where
+  constructHeaders (I x :* xs) =
+    (headerName @name, toHeader x) :
+    constructHeaders @hs xs
+
+  extractHeaders hs = do
+    let name = headerName @name
+        (hs0, hs1) = partition (\(h, _) -> h == name) hs
+    x <- case hs0 of
+      [] -> empty
+      ((_, h) : _) -> either (const empty) pure (parseHeader h)
+    xs <- extractHeaders @hs hs1
+    pure (I x :* xs)
+
+class ServantHeader h (name :: Symbol) x | h -> name x
+
+instance ServantHeader (Header' mods name x) name x
+
+instance ServantHeader (DescHeader name desc x) name x
 
 instance
   (KnownSymbol name, KnownSymbol desc, S.ToParamSchema a) =>
@@ -246,29 +279,24 @@ instance
 type instance ResponseType (WithHeaders hs a r) = a
 
 instance
-  ( AsHeaders (ServantHeaders hs) (ResponseType r) a,
-    GetHeaders' (ServantHeaders hs),
-    BuildHeadersTo (ServantHeaders hs),
-    AllToResponseHeader hs,
+  ( AsHeaders xs (ResponseType r) a,
+    ServantHeaders hs xs,
     IsResponse cs r
   ) =>
   IsResponse cs (WithHeaders hs a r)
   where
   type ResponseStatus (WithHeaders hs a r) = ResponseStatus r
 
-  responseRender acc x =
-    fmap addHeaders
-      . responseRender @cs @r acc
-      . getResponse
-      $ h
+  responseRender acc x = fmap addHeaders $ responseRender @cs @r acc y
     where
-      h = toHeaders @(ServantHeaders hs) x
-      addHeaders r = r {roHeaders = roHeaders r ++ getHeaders h}
+      (hs, y) = toHeaders @xs x
+      addHeaders r = r {roHeaders = roHeaders r ++ constructHeaders @hs hs}
 
   responseUnrender c output = do
     x <- responseUnrender @cs @r c output
-    let headers = Headers x (buildHeadersTo @(ServantHeaders hs) (roHeaders output))
-    pure (fromHeaders headers)
+    case extractHeaders @hs (roHeaders output) of
+      Nothing -> UnrenderError "Failed to parse headers"
+      Just hs -> pure $ fromHeaders @xs (hs, x)
 
 instance
   (AllToResponseHeader hs, IsSwaggerResponse r) =>
@@ -375,10 +403,13 @@ instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
 
-instance AsUnion '[RespondEmpty code desc] () where
-  toUnion () = Z (I ())
-  fromUnion (Z (I ())) = ()
-  fromUnion (S x) = case x of
+-- | A handler with a single response.
+instance (ResponseType r ~ a) => AsUnion '[r] a where
+  toUnion = Z . I
+  fromUnion = unI . unZ
+
+_foo :: Union '[Int]
+_foo = toUnion @'[Respond 200 "test" Int] @Int 3
 
 class InjectAfter as bs where
   injectAfter :: Union bs -> Union (as .++ bs)

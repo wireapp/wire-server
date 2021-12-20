@@ -125,8 +125,14 @@ testSimpleTokens c = do
   -- No access without token from other user (opaque 404)
   get (c . path loc . zUser uid2 . noRedirect)
     !!! const 404 === statusCode
+  -- No access with empty token query parameter from other user (opaque 404)
+  get (c . path loc . zUser uid2 . queryItem' "asset_token" Nothing . noRedirect)
+    !!! const 404 === statusCode
   -- No access with wrong token (opaque 404)
   get (c . path loc . zUser uid2 . header "Asset-Token" "acb123" . noRedirect)
+    !!! const 404 === statusCode
+  -- No access with wrong token as query parameter (opaque 404)
+  get (c . path loc . zUser uid2 . queryItem "asset_token" "acb123" . noRedirect)
     !!! const 404 === statusCode
   -- Token renewal fails if not done by owner
   post (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid2) !!! do
@@ -155,6 +161,9 @@ testSimpleTokens c = do
     !!! const 302 === statusCode
   -- Verify access with new token from a different user.
   get (c . path loc . header "Asset-Token" (toByteString' tok') . zUser uid2 . noRedirect)
+    !!! const 302 === statusCode
+  -- Verify access with new token as query parameter from a different user
+  get (c . path loc . queryItem "asset_token" (toByteString' tok') . zUser uid2 . noRedirect)
     !!! const 302 === statusCode
   -- Delete Token fails if not done by owner
   delete (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid2) !!! do

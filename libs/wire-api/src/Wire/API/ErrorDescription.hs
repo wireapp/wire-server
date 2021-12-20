@@ -240,6 +240,8 @@ operationDenied = operationDeniedSpecialized . show
 
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
+type Unauthorised = ErrorDescription 403 "unauthorised" "Unauthorised operation"
+
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
 actionDenied :: Show a => a -> ActionDenied
@@ -260,6 +262,8 @@ type ConnectionNotFound = ErrorDescription 404 "not-found" "Connection not found
 type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
 type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
+
+type GuestLinksDisabled = ErrorDescription 409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."
 
 type MissingAuth =
   ErrorDescription
@@ -310,3 +314,9 @@ type InvalidOpOne2OneConv = InvalidOp "invalid operation for 1:1 conversations"
 type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversation"
 
 type InvalidTargetAccess = InvalidOp "invalid target access"
+
+type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
+
+type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
+
+type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"

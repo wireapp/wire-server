@@ -111,7 +111,7 @@ instance ToSchema Member where
         <$> memId .= field "qualified_id" schema
         <* (qUnqualified . memId)
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-        <*> memService .= lax (field "service" (optWithDefault A.Null schema))
+        <*> memService .= optField "service" (maybeWithDefault A.Null schema)
         --  Remove ...
         <* const () .= optional (field "status" (c (0 :: Int)))
         <* const () .= optional (field "status_ref" (c ("0.0" :: Text)))
@@ -122,13 +122,13 @@ instance ToSchema Member where
                 (c ("1970-01-01T00:00:00.000Z" :: Text))
             )
         -- ... until here
-        <*> memOtrMutedStatus .= lax (field "otr_muted_status" (optWithDefault A.Null schema))
-        <*> memOtrMutedRef .= lax (field "otr_muted_ref" (optWithDefault A.Null schema))
-        <*> memOtrArchived .= (field "otr_archived" schema <|> pure False)
-        <*> memOtrArchivedRef .= lax (field "otr_archived_ref" (optWithDefault A.Null schema))
+        <*> memOtrMutedStatus .= optField "otr_muted_status" (maybeWithDefault A.Null schema)
+        <*> memOtrMutedRef .= optField "otr_muted_ref" (maybeWithDefault A.Null schema)
+        <*> memOtrArchived .= (fromMaybe False <$> optField "otr_archived" schema)
+        <*> memOtrArchivedRef .= optField "otr_archived_ref" (maybeWithDefault A.Null schema)
         <*> memHidden .= (field "hidden" schema <|> pure False)
-        <*> memHiddenRef .= lax (field "hidden_ref" (optWithDefault A.Null schema))
-        <*> memConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
+        <*> memHiddenRef .= optField "hidden_ref" (maybeWithDefault A.Null schema)
+        <*> memConvRoleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
     where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
@@ -178,7 +178,7 @@ instance ToSchema OtherMember where
       OtherMember
         <$> omQualifiedId .= field "qualified_id" schema
         <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
-        <*> omService .= opt (fieldWithDocModifier "service" (description ?~ desc) schema)
+        <*> omService .= maybe_ (optFieldWithDocModifier "service" (description ?~ desc) schema)
         <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
         <* const (0 :: Int) .= optional (fieldWithDocModifier "status" (description ?~ "deprecated") schema) -- TODO: remove
     where
@@ -238,12 +238,12 @@ instance ToSchema MemberUpdate where
     (`withParser` (either fail pure . validateMemberUpdate))
       . object "MemberUpdate"
       $ MemberUpdate
-        <$> mupOtrMuteStatus .= opt (field "otr_muted_status" schema)
-        <*> mupOtrMuteRef .= opt (field "otr_muted_ref" schema)
-        <*> mupOtrArchive .= opt (field "otr_archived" schema)
-        <*> mupOtrArchiveRef .= opt (field "otr_archived_ref" schema)
-        <*> mupHidden .= opt (field "hidden" schema)
-        <*> mupHiddenRef .= opt (field "hidden_ref" schema)
+        <$> mupOtrMuteStatus .= maybe_ (optField "otr_muted_status" schema)
+        <*> mupOtrMuteRef .= maybe_ (optField "otr_muted_ref" schema)
+        <*> mupOtrArchive .= maybe_ (optField "otr_archived" schema)
+        <*> mupOtrArchiveRef .= maybe_ (optField "otr_archived_ref" schema)
+        <*> mupHidden .= maybe_ (optField "hidden" schema)
+        <*> mupHiddenRef .= maybe_ (optField "hidden_ref" schema)
 
 instance Arbitrary MemberUpdate where
   arbitrary =
@@ -290,7 +290,7 @@ instance ToSchema OtherMemberUpdate where
         "OtherMemberUpdate"
         (description ?~ "Update user properties of other members relative to a conversation")
       $ OtherMemberUpdate
-        <$> omuConvRoleName .= optField "conversation_role" Nothing schema
+        <$> omuConvRoleName .= maybe_ (optField "conversation_role" schema)
 
 validateOtherMemberUpdate :: OtherMemberUpdate -> Either String OtherMemberUpdate
 validateOtherMemberUpdate u

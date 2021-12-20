@@ -59,10 +59,7 @@ library:
   - uri-bytestring >=0.2
   - uuid >=1.3.5
   - wai >=3.0
-  - wai-conduit >=3.0
-  - wai-extra >=3.0
-  - wai-predicates >=0.8
-  - wai-routing >=0.12
+  - wai-extra
   - wai-utilities >=0.16.1
   - wire-api
   - wire-api-federation
@@ -76,7 +73,6 @@ executables:
     - cargohold-types
     - http-client-tls >=0.2
     - lens >=3.8
-    - metrics-wai
     - optparse-applicative
     - tagged >=0.8
     - tasty >=1.0

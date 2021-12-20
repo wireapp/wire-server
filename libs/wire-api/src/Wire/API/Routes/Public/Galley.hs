@@ -25,6 +25,7 @@ import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
@@ -45,10 +46,9 @@ import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 
-instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
-  -- FUTUREWORK: use addHeader
-  toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
-  fromHeaders = getResponse
+instance AsHeaders '[ConvId] Conversation Conversation where
+  toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 
@@ -195,6 +195,7 @@ data Api routes = Api
         :> CanThrow CodeNotFound
         :> CanThrow ConvNotFound
         :> CanThrow ConvAccessDenied
+        :> CanThrow GuestLinksDisabled
         :> ZLocalUser
         :> "conversations"
         :> "join"

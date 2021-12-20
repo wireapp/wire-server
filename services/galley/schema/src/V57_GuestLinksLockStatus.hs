@@ -15,26 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.API
-  ( sitemap,
+module V57_GuestLinksLockStatus
+  ( migration,
   )
 where
 
-import qualified CargoHold.API.Public as Public
-import CargoHold.App (Handler)
-import Data.Predicate (true)
-import qualified Data.Swagger.Build.Api as Doc
-import Imports hiding (head)
-import Network.Wai.Routing (Routes, continue, get, head)
-import Network.Wai.Utilities (empty)
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-sitemap :: Routes Doc.ApiBuilder Handler ()
-sitemap = do
-  Public.sitemap
-  Public.apiDocs
-  routesInternal
-
-routesInternal :: Routes a Handler ()
-routesInternal = do
-  get "/i/status" (continue $ const $ return empty) true
-  head "/i/status" (continue $ const $ return empty) true
+migration :: Migration
+migration = Migration 57 "Add lock status for guest links team feature" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          guest_links_lock_status int
+        )
+     |]
