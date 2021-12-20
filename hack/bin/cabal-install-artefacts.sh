@@ -6,6 +6,8 @@ TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 DIST="$TOP_LEVEL/dist"
 
+mkdir -p "$DIST"
+
 if [[ "$1" == "all" ]]; then
   pattern='*'
 else
