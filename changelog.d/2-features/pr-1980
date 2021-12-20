@@ -1,1 +1,1 @@
-If guest links team feature is disabled `post /conversations/:cnv/code` and `get /conversations/:cnv/code` will return an error.
+Revoke guest links if feature is disabled. If the guest links team feature is disabled `get /conversations/join`, `post /conversations/:cnv/code`, and `get /conversations/:cnv/code` will return an error.
