@@ -23,6 +23,7 @@ module CargoHold.S3
   ( S3AssetKey,
     S3AssetMeta (..),
     uploadV3,
+    downloadV3,
     getMetadataV3,
     updateMetadataV3,
     deleteV3,
@@ -50,7 +51,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
-import qualified Data.Conduit.Binary as Conduit
+import Data.Conduit.Binary
 import qualified Data.HashMap.Lazy as HML
 import Data.Id
 import qualified Data.Text as Text
@@ -95,7 +96,7 @@ uploadV3 ::
   V3.AssetKey ->
   V3.AssetHeaders ->
   Maybe V3.AssetToken ->
-  Conduit.ConduitM () ByteString (ResourceT IO) () ->
+  ConduitM () ByteString (ResourceT IO) () ->
   ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok src = do
   Log.info $
@@ -115,9 +116,9 @@ uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok s
       src
         -- Rechunk bytestream to ensure we satisfy AWS's minimum chunk size
         -- on uploads
-        .| Conduit.chunksOfCE (fromIntegral defaultChunkSize)
+        .| chunksOfCE (fromIntegral defaultChunkSize)
         -- Ignore any 'junk' after the content; take only 'cl' bytes.
-        .| Conduit.isolate (fromIntegral cl)
+        .| isolate (fromIntegral cl)
 
     reqBdy :: ChunkedBody
     reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) stream
@@ -127,6 +128,16 @@ uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok s
       putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
         & poContentType ?~ MIME.showType ct
         & poMetadata .~ metaHeaders tok prc
+
+downloadV3 ::
+  V3.AssetKey ->
+  ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
+downloadV3 (s3Key . mkKey -> key) = do
+   _streamBody . view gorsBody <$> exec req 
+  where
+    req :: Text -> GetObject
+    req b = getObject (BucketName b) (ObjectKey key) 
+             & goResponseContentType ?~ MIME.showType octets
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do

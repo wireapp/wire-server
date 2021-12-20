@@ -25,6 +25,7 @@ import Servant.API.Generic
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Asset
 import Wire.API.Util.Aeson
+import Wire.API.Routes.AssetBody
 
 data GetAsset = GetAsset
   { -- | User requesting the asset. Implictly qualified with the source domain.
@@ -55,6 +56,6 @@ data CargoholdApi routes = CargoholdApi
       routes
         :- "stream-asset"
         :> ReqBody '[JSON] GetAsset
-        :> StreamPost NoFraming OctetStream (SourceIO ByteString)
+        :> StreamPost NoFraming OctetStream AssetSource
   }
   deriving (Generic)

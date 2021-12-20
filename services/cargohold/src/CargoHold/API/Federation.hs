@@ -23,6 +23,8 @@ module CargoHold.API.Federation
   )
 where
 
+import CargoHold.API.Error
+import CargoHold.API.V3
 import CargoHold.App
 import Control.Error
 import Imports
@@ -32,7 +34,8 @@ import Servant.Server hiding (Handler)
 import Servant.Server.Generic
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Cargohold as F
-import Wire.API.Federation.Error
+import qualified CargoHold.S3 as S3
+import Wire.API.Routes.AssetBody
 
 type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)
 
@@ -44,8 +47,18 @@ federationSitemap =
         F.streamAsset = streamAsset
       }
 
-streamAsset :: F.GetAsset -> Handler (SourceIO ByteString)
-streamAsset F.GetAsset {..} = throwE federationNotImplemented
+checkAsset :: F.GetAsset -> Handler Bool
+checkAsset ga =
+  fmap (maybe False (const True)) . runMaybeT $
+    checkMetadata Nothing (F.gaKey ga) (F.gaToken ga)
+
+streamAsset :: F.GetAsset -> Handler AssetSource
+streamAsset ga = do
+  available <- checkAsset ga
+  unless available (throwE assetNotFound)
+  AssetSource <$> S3.downloadV3 (F.gaKey ga)
 
 getAsset :: F.GetAsset -> Handler F.GetAssetResponse
-getAsset F.GetAsset {..} = throwE federationNotImplemented
+getAsset ga = do
+  available <- checkAsset ga
+  pure $ F.GetAssetResponse {F.gaAvailable = available}

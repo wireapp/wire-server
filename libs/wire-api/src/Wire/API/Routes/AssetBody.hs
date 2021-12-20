@@ -45,10 +45,10 @@ newtype AssetSource = AssetSource
   { getAssetSource ::
       ConduitT () ByteString (ResourceT IO) ()
   }
-  deriving newtype (FromSourceIO ByteString)
+  deriving newtype (FromSourceIO ByteString, ToSourceIO ByteString)
 
 instance ToSchema AssetSource where
-  declareNamedSchema _ = pure $ named "AssetSource" $ mempty
+  declareNamedSchema _ = pure $ named "AssetSource" mempty
 
 type AssetBody =
   StreamBody'
