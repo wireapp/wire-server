@@ -203,40 +203,21 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
-       GundeckAccess,
-       Input UTCTime,
-       P.TinyLog,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
-  Sem r Response
-createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
-  newTeam <- fromJsonBody req
-  newTeamId <- createNonBindingTeam zusr zcon newTeam
-  pure (empty & setStatus status201 . location newTeamId)
-
-createNonBindingTeam ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
-       GundeckAccess,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  forall r.
+  ( Member BrigAccess r,
+    Member (Error ActionError) r,
+    Member (Error TeamError) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r,
+    Member WaiRoutes r
+  ) =>
   UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
   Sem r TeamId
-createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
+createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
   let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
