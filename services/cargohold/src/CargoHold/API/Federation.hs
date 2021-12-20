@@ -26,6 +26,7 @@ where
 import CargoHold.API.Error
 import CargoHold.API.V3
 import CargoHold.App
+import qualified CargoHold.S3 as S3
 import Control.Error
 import Imports
 import Servant.API
@@ -34,7 +35,6 @@ import Servant.Server hiding (Handler)
 import Servant.Server.Generic
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Cargohold as F
-import qualified CargoHold.S3 as S3
 import Wire.API.Routes.AssetBody
 
 type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)

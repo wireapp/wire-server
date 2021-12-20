@@ -30,7 +30,9 @@ tests s =
         ],
       testGroup
         "stream-asset"
-        [test s "streaming large asset" testLargeAsset]
+        [ test s "streaming large asset" testLargeAsset,
+          test s "stream an asset" testStreamAsset
+        ]
     ]
 
 testGetAssetAvailable :: Bool -> TestSignature ()
@@ -140,3 +142,32 @@ testLargeAsset c = do
     -- check that the first chunk is received
     chunk <- responseBody resp
     print chunk
+
+testStreamAsset :: TestSignature ()
+testStreamAsset c = do
+  -- Initial upload
+  let bdy = (applicationOctetStream, "Hello World")
+      settings =
+        defAssetSettings
+          & set setAssetRetention (Just AssetVolatile)
+  uid <- liftIO $ Id <$> nextRandom
+  ast :: Asset <-
+    responseJsonError
+      =<< uploadSimple (c . path "/assets/v3") uid settings bdy
+      <!! const 201 === statusCode
+
+  -- Call get-asset federation API
+  let tok = view assetToken ast
+  let key = view assetKey ast
+  let ga =
+        GetAsset
+          { gaUser = uid,
+            gaToken = tok,
+            gaKey = qUnqualified key
+          }
+  respBody <- fmap responseBody $
+       post (c . path "/federation/stream-asset" . json ga)
+       <!! const 200 === statusCode
+
+
+  liftIO $ respBody @?= Just "Hello World"

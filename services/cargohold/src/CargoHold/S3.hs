@@ -129,15 +129,27 @@ uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok s
         & poContentType ?~ MIME.showType ct
         & poMetadata .~ metaHeaders tok prc
 
+-- | Turn a 'ResourceT IO' action into a pure @Conduit@.
+--
+-- This is possible because @Conduit@ itself is a monad transformer over
+-- 'ResourceT IO'. Removing the outer 'ResourceT IO' layer makes it possible to
+-- pass this @Conduit@ to resource-oblivious code.
+flattenResourceT ::
+  ResourceT IO (ConduitT () ByteString (ResourceT IO) ()) ->
+  ConduitT () ByteString (ResourceT IO) ()
+flattenResourceT = join . lift
+
 downloadV3 ::
   V3.AssetKey ->
   ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
 downloadV3 (s3Key . mkKey -> key) = do
-   _streamBody . view gorsBody <$> exec req 
+  env <- view aws
+  pure . flattenResourceT $ _streamBody . view gorsBody <$> AWS.execStream env req
   where
     req :: Text -> GetObject
-    req b = getObject (BucketName b) (ObjectKey key) 
-             & goResponseContentType ?~ MIME.showType octets
+    req b =
+      getObject (BucketName b) (ObjectKey key)
+        & goResponseContentType ?~ MIME.showType octets
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
