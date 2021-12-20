@@ -14,4 +14,3 @@ deriving instance Show (DefaultSsoCode m a)
 
 makeSem ''DefaultSsoCode
 deriveGenericK ''DefaultSsoCode
-

@@ -17,4 +17,3 @@ testInterpreter = pure . run . idpRawMetadataStoreToMem
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter snd testInterpreter
-

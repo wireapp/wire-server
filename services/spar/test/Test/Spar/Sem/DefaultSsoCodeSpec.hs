@@ -15,4 +15,3 @@ import Test.Hspec.QuickCheck
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter "defaultSsoCodeToMem" $ pure . run . defaultSsoCodeToMem
-

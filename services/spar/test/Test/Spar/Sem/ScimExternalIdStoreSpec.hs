@@ -13,4 +13,3 @@ import Test.Hspec.QuickCheck
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do
   propsForInterpreter "scimExternalIdStoreToMem" snd $ pure . run . scimExternalIdStoreToMem
-

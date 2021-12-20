@@ -6,11 +6,11 @@ module Spar.Sem.IdPRawMetadataStore.Spec (propsForInterpreter) where
 import Imports
 import Polysemy
 import Polysemy.Check
+import SAML2.WebSSO.Types (IdPId)
 import qualified Spar.Sem.IdPRawMetadataStore as E
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import SAML2.WebSSO.Types (IdPId)
 
 class
   (Arbitrary IdPId, CoArbitrary IdPId, Arbitrary Text, CoArbitrary Text, Functor f, Member E.IdPRawMetadataStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
@@ -123,4 +123,3 @@ propsForInterpreter extract lower = do
   prop "store/get" $ prop_storeGetRaw (Just $ constructorLabel . extract) lower
   prop "store/delete" $ prop_storeDeleteRaw (Just $ constructorLabel . extract) lower
   prop "delete/get" $ prop_deleteGetRaw (Just $ constructorLabel . extract) lower
-

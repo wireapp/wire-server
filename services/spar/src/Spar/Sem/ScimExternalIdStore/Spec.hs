@@ -181,4 +181,3 @@ prop_deleteLookup =
           lawPrelude = [E.insert tid email uid],
           lawPostlude = [] @(Sem _ ())
         }
-

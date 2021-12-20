@@ -11,9 +11,9 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import SAML2.WebSSO.Types
-import Spar.Sem.Now.Spec
 import Spar.Sem.Now.IO
 import Spar.Sem.Now.Input
+import Spar.Sem.Now.Spec
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
@@ -25,4 +25,3 @@ spec = do
   modifyMaxSuccess (const 1000) $ do
     propsForInterpreter "nowToIO" $ fmap Identity . runM . nowToIO . runInputConst ()
     propsForInterpreter "nowToInput" $ pure . Identity . run . runInputConst someTime . nowToInput . runInputConst ()
-

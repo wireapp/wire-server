@@ -21,8 +21,8 @@ import Test.QuickCheck
 import qualified Wire.API.User.IdentityProvider as IP
 
 deriving instance Data IdPId
-deriving instance Data (E.GetIdPResult IdPId)
 
+deriving instance Data (E.GetIdPResult IdPId)
 
 propsForInterpreter ::
   (Member E.IdP r, PropConstraints r f) =>
@@ -313,4 +313,3 @@ prop_setGet =
               ],
             lawPostlude = [] :: [Sem r ()]
           }
-

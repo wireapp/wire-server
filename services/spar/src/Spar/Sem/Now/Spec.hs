@@ -50,4 +50,3 @@ prop_nowNow =
         (liftA2 (<=) E.get E.get)
         ( pure True
         )
-
