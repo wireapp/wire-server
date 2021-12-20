@@ -150,17 +150,6 @@ type BaseAPIv3 (tag :: PrincipalTag) =
                   ()
          )
 
-type TestAPI =
-  ( MultiVerb
-      'GET
-      '[JSON]
-      '[ AssetNotFound,
-         AssetRedirect,
-         AssetStreaming
-       ]
-      (Maybe LocalOrRemoteAsset)
-  )
-
 type QualifiedAPI =
   ( Summary "Download an asset"
       :> Description
