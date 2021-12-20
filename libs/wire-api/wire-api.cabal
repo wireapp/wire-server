@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bcda0d57293162140cc50d149ad068df7975f9526cf1621c7aa4f753b45e36a6
+-- hash: 80606059441fcf0f725386078aef563bf04549ce657002575a6559ae37544964
 
 name:           wire-api
 version:        0.1.0
@@ -48,6 +48,7 @@ library
       Wire.API.Provider.Service.Tag
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.Routes.AssetBody
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
@@ -56,6 +57,7 @@ library
       Wire.API.Routes.MultiVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
+      Wire.API.Routes.Public.Cargohold
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
@@ -113,6 +115,7 @@ library
     , cassava >=0.5
     , cereal
     , comonad
+    , conduit
     , containers >=0.5
     , cookie
     , cryptonite
@@ -153,6 +156,7 @@ library
     , servant
     , servant-client
     , servant-client-core
+    , servant-conduit
     , servant-multipart
     , servant-server
     , servant-swagger

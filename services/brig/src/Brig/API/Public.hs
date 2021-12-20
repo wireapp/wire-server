@@ -104,6 +104,7 @@ import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
@@ -131,7 +132,12 @@ type ServantAPI = BrigAPI.ServantAPI
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
+    ( BrigAPI.swagger
+        <> GalleyAPI.swaggerDoc
+        <> LegalHoldAPI.swaggerDoc
+        <> SparAPI.swaggerDoc
+        <> CargoholdAPI.swaggerDoc
+    )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ Brig.Docs.Swagger.contents <> mempty
       & S.security %~ nub
