@@ -39,10 +39,21 @@ data GetAsset = GetAsset
   deriving (Arbitrary) via (GenericUniform GetAsset)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAsset)
 
+data GetAssetResponse = GetAssetResponse
+  {gaAvailable :: Bool}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetAssetResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetAssetResponse)
+
 data CargoholdApi routes = CargoholdApi
   { getAsset ::
       routes
         :- "get-asset"
+        :> ReqBody '[JSON] GetAsset
+        :> Post '[JSON] GetAssetResponse,
+    streamAsset ::
+      routes
+        :- "stream-asset"
         :> ReqBody '[JSON] GetAsset
         :> StreamPost NoFraming OctetStream (SourceIO ByteString)
   }

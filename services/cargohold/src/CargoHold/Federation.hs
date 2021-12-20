@@ -49,15 +49,21 @@ downloadRemoteAsset ::
   Remote AssetKey ->
   Maybe AssetToken ->
   Handler (Maybe (SourceIO ByteString))
-downloadRemoteAsset usr rkey tok =
-  fmap Just . executeFederated rkey $
-    getAsset
-      clientRoutes
-      GetAsset
-        { gaKey = tUnqualified rkey,
-          gaUser = tUnqualified usr,
-          gaToken = tok
-        }
+downloadRemoteAsset usr rkey tok = do
+  let ga =
+        GetAsset
+          { gaKey = tUnqualified rkey,
+            gaUser = tUnqualified usr,
+            gaToken = tok
+          }
+  exists <-
+    fmap gaAvailable . executeFederated rkey $
+      getAsset clientRoutes ga
+  if exists
+    then
+      fmap Just . executeFederated rkey $
+        streamAsset clientRoutes ga
+    else pure Nothing
 
 executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a
 executeFederated remote c = do

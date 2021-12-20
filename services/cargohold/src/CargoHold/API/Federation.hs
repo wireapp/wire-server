@@ -39,7 +39,13 @@ type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
   genericServerT $
-    F.CargoholdApi {F.getAsset = getAsset}
+    F.CargoholdApi
+      { F.getAsset = getAsset,
+        F.streamAsset = streamAsset
+      }
 
-getAsset :: F.GetAsset -> Handler (SourceIO ByteString)
+streamAsset :: F.GetAsset -> Handler (SourceIO ByteString)
+streamAsset F.GetAsset {..} = throwE federationNotImplemented
+
+getAsset :: F.GetAsset -> Handler F.GetAssetResponse
 getAsset F.GetAsset {..} = throwE federationNotImplemented
