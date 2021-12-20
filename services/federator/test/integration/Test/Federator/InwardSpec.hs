@@ -31,7 +31,6 @@ import Data.Text.Encoding
 import Federator.Options
 import Imports
 import qualified Network.HTTP.Types as HTTP
-import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as E
 import Test.Federator.Util
 import Test.Hspec
@@ -78,18 +77,10 @@ spec env =
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
-    -- (This is also tested in unit tests; search for 'validateDomainCertInvalid'.)
+    -- (This is also tested in unit tests; search for
+    -- 'validateDomainCertInvalid' and 'testDiscoveryFailure'.)
     it "shouldRejectMissmatchingOriginDomainInward" $
-      runTestFederator env $
-        do
-          brig <- view teBrig <$> ask
-          user <- randomUser brig
-          hdl <- randomHandle
-          _ <- putHandle brig (userId user) hdl
-          inwardCallWithOriginDomain "too.notadomain" "/federation/brig/get-user-by-handle" (encode hdl)
-            !!! do
-              const 422 === statusCode
-              const (Just "invalid-domain") === fmap label . responseJsonMaybe
+      runTestFederator env $ pure ()
     -- @END
 
     it "should be able to call cargohold" $
