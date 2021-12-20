@@ -1244,11 +1244,23 @@ testJoinCodeConv = do
 
 testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
-  let convName = "testConversation"
+  galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
-  getConvCode owner convId !!! statusCode === const 200
-  error "todo: wip, implement test"
+  let createConvWithGuestLink = do
+        convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just ActivatedAccessRole) Nothing
+        void $ decodeConvCodeEvent <$> postConvCode owner convId
+        pure convId
+  convId <- createConvWithGuestLink
+  let checkGetCode expectedStatus = getConvCode owner convId !!! statusCode === const expectedStatus
+  let setStatus tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+
+  checkGetCode 200
+  setStatus Public.TeamFeatureDisabled
+  checkGetCode 409
+  setStatus Public.TeamFeatureEnabled
+  checkGetCode 200
 
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
