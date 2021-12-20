@@ -269,8 +269,9 @@ Configure helm charts: federator and ingress and webapp subcharts
 Set your chosen backend domain
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Read :ref:`choose-backend-domain` again, then set the backend domain two times to the same value in the two subcharts
-galley and brig. You also need to set ``enableFederator`` to ``true``.
+Read :ref:`choose-backend-domain` again, then set the backend domain three times
+to the same value in the subcharts cargohold, galley and brig. You also need to
+set ``enableFederator`` to ``true``.
 
 .. code:: yaml
 
@@ -287,6 +288,12 @@ galley and brig. You also need to set ``enableFederator`` to ``true``.
         enableFederator: true
         optSettings:
           setFederationDomain: example.com # your chosen "backend domain"
+
+    cargohold:
+      config:
+        enableFederator: true
+        settings:
+          federationDomain: example.com # your chosen "backend domain"
 
 Configure the webapp to enable federation and set your chosen backend domain one more time
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
