@@ -13,6 +13,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Asset
 import Wire.API.Federation.API.Cargohold
+import CargoHold.API.V3 (randToken)
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -21,9 +22,9 @@ tests s =
     [ testGroup
         "Streaming - get-asset"
         [ test s "available " testGetAssetAvailable,
-          test s "not available " testGetAssetNotAvailable
+          test s "not available" testGetAssetNotAvailable,
+          test s "wrong token" testGetAssetWrongToken
         ]
-        -- TODO: is not available case
     ]
 
 testGetAssetAvailable :: TestSignature ()
@@ -48,15 +49,57 @@ testGetAssetAvailable c = do
           }
   ok <-
     fmap gaAvailable . responseJsonError
-      =<< get (c . path "/federation/get-asset" . json ga)
+      =<< post (c . path "/federation/get-asset" . json ga)
       <!! const 200 === statusCode
 
   -- check that asset is available
   liftIO $ ok @?= True
 
 testGetAssetNotAvailable :: TestSignature ()
-testGetAssetNotAvailable _ = do
-  pure ()
+testGetAssetNotAvailable c = do
+  uid <- liftIO $ Id <$> nextRandom
+  token <- randToken
 
--- uid <- Id <$> nextRandom
--- let ga = GetAsset { gaUserId = uid, gaToken = Nothing, gaKey =
+  assetId <- liftIO $ Id <$> nextRandom
+  let key = AssetKeyV3 assetId AssetPersistent 
+  let ga =
+        GetAsset
+          { gaUser = uid,
+            gaToken = Just token,
+            gaKey = key
+          }
+  ok <-
+    fmap gaAvailable . responseJsonError
+      =<< post (c . path "/federation/get-asset" . json ga)
+      <!! const 200 === statusCode
+
+  -- check that asset is not available
+  liftIO $ ok @?= False 
+
+testGetAssetWrongToken :: TestSignature ()
+testGetAssetWrongToken c = do
+   -- Initial upload
+  let bdy = (applicationOctetStream, "Hello World")
+      settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
+  uid <- liftIO $ Id <$> nextRandom
+  ast :: Asset <-
+    responseJsonError
+      =<< uploadSimple (c . path "/assets/v3") uid settings bdy
+      <!! const 201 === statusCode
+
+  -- Call get-asset federation API with wrong (random) token
+  tok <- randToken  
+  let key = view assetKey ast
+  let ga =
+        GetAsset
+          { gaUser = uid,
+            gaToken = Just tok,
+            gaKey = qUnqualified key
+          }
+  ok <-
+    fmap gaAvailable . responseJsonError
+      =<< post (c . path "/federation/get-asset" . json ga)
+      <!! const 200 === statusCode
+
+  -- check that asset is not available
+  liftIO $ ok @?= False
