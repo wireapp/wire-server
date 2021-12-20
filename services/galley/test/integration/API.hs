@@ -224,6 +224,7 @@ tests s =
           test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
           test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
           test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
+          test s "post code rejected if guest links disabled" testPostCodeRejectedIfGuestLinksDisabled,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
@@ -1261,6 +1262,22 @@ testGetCodeRejectedIfGuestLinksDisabled = do
   checkGetCode 409
   setStatus Public.TeamFeatureEnabled
   checkGetCode 200
+
+testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
+testPostCodeRejectedIfGuestLinksDisabled = do
+  galley <- view tsGalley
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just ActivatedAccessRole) Nothing
+  let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
+  let setStatus tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+
+  checkPostCode 201
+  setStatus Public.TeamFeatureDisabled
+  checkPostCode 409
+  setStatus Public.TeamFeatureEnabled
+  checkPostCode 200
 
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
