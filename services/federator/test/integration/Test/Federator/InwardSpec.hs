@@ -77,7 +77,7 @@ spec env =
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
-    -- (This is also tested in tests; search for
+    -- (This is tested in unit tests; search for
     -- 'validateDomainCertInvalid' and 'testDiscoveryFailure'.)
     it "shouldRejectMissmatchingOriginDomainInward" $
       runTestFederator env $ pure ()
