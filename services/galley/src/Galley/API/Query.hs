@@ -30,6 +30,7 @@ module Galley.API.Query
     internalGetMemberH,
     getConversationMetaH,
     getConversationByReusableCode,
+    ensureGuestLinksEnabled,
   )
 where
 
@@ -513,9 +514,8 @@ getConversationByReusableCode ::
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
   conv <- ensureConversationAccess (tUnqualified lusr) (Data.codeConversation c) CodeAccess
-  getFeatureStatus conv >>= \case
-    TeamFeatureEnabled -> pure $ coverView conv
-    TeamFeatureDisabled -> throw GuestLinksDisabled
+  ensureGuestLinksEnabled conv
+  pure $ coverView conv
   where
     coverView :: Data.Conversation -> ConversationCoverView
     coverView conv =
@@ -524,12 +524,23 @@ getConversationByReusableCode lusr key value = do
           cnvCoverName = Data.convName conv
         }
 
+-- FUTUREWORK(leif): refactor and make it consistent for all team features
+ensureGuestLinksEnabled ::
+  forall r.
+  ( Member (Error ConversationError) r,
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
+  Data.Conversation ->
+  Sem r ()
+ensureGuestLinksEnabled conv = do
+  defaultStatus <- getDefaultFeatureStatus
+  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
+  case maybe defaultStatus tfwoStatus maybeFeatureStatus of
+    TeamFeatureEnabled -> pure ()
+    TeamFeatureDisabled -> throw GuestLinksDisabled
+  where
     getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
-    getDefaultFeatureStatus =
-      input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to tfwoapsStatus)
-
-    getFeatureStatus :: Data.Conversation -> Sem r TeamFeatureStatusValue
-    getFeatureStatus conv = do
-      defaultStatus <- getDefaultFeatureStatus
-      maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
-      pure $ maybe defaultStatus tfwoStatus maybeFeatureStatus
+    getDefaultFeatureStatus = do
+      status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+      pure $ tfwoapsStatus status
