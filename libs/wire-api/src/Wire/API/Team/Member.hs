@@ -59,7 +59,7 @@ module Wire.API.Team.Member
 where
 
 import Control.Lens (makeLenses)
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
 import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HM
 import Data.Id (UserId)
@@ -67,9 +67,10 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus, typeUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
+import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Schema (ToSchema)
+import qualified Data.Swagger.Schema as S
 import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, StripPrefix)
 import GHC.TypeLits
 import Imports
@@ -87,6 +88,45 @@ data TeamMember = TeamMember
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamMember)
+
+-- parseTeamMember :: Value -> Parser TeamMember
+-- parseTeamMember = withObject "team-member" $ \o ->
+--   TeamMember
+--     <$> o .: "user"
+--     <*> o .: "permissions"
+--     <*> parseInvited o
+--     -- Default to disabled if missing
+--     <*> o .:? "legalhold_status" .!= defUserLegalHoldStatus
+--   where
+--     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
+--     parseInvited o = do
+--       invby <- o .:? "created_by"
+--       invat <- o .:? "created_at"
+--       case (invby, invat) of
+--         (Just b, Just a) -> pure $ Just (b, a)
+--         (Nothing, Nothing) -> pure $ Nothing
+--         _ -> fail "created_by, created_at"
+
+invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
+invitedSchema =
+  (,) <$> fmap fst .= optField "created_by" (maybeWithDefault Null schema)
+    <*> fmap snd .= optField "created_at" (maybeWithDefault Null schema)
+
+invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
+invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
+  case (invby, invat) of
+    (Just b, Just a) -> pure $ Just (b, a)
+    (Nothing, Nothing) -> pure $ Nothing
+    _ -> fail "created_by, created_at"
+
+instance ToSchema TeamMember where
+  schema =
+    object "TeamMember" $
+      TeamMember
+        <$> _userId .= field "user" schema
+        <*> _permissions .= field "permissions" schema
+        <*> _invitation .= invitedSchema'
+        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
 
 modelTeamMember :: Doc.Model
 modelTeamMember = Doc.defineModel "TeamMember" $ do
@@ -111,11 +151,11 @@ modelTeamMember = Doc.defineModel "TeamMember" $ do
     Doc.description "The state of Legal Hold compliance for the member"
     Doc.optional
 
-instance ToJSON TeamMember where
-  toJSON = teamMemberJson (const True)
+-- instance ToJSON TeamMember where
+--   toJSON = teamMemberJson (const True)
 
-instance FromJSON TeamMember where
-  parseJSON = parseTeamMember
+-- instance FromJSON TeamMember where
+--   parseJSON = parseTeamMember
 
 -- | Show 'Permissions' conditionally.  The condition takes the member that will receive the result
 -- into account.  See 'canSeePermsOf'.
@@ -123,32 +163,31 @@ instance FromJSON TeamMember where
 -- FUTUREWORK:
 -- There must be a cleaner way to do this, with a separate type
 -- instead of logic in the JSON instance.
-teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
-teamMemberJson withPerms m =
-  object $
-    ["user" .= _userId m]
-      <> ["permissions" .= _permissions m | withPerms m]
-      <> ["created_by" .= (fst <$> _invitation m)]
-      <> ["created_at" .= (snd <$> _invitation m)]
-      <> ["legalhold_status" .= _legalHoldStatus m]
-
-parseTeamMember :: Value -> Parser TeamMember
-parseTeamMember = withObject "team-member" $ \o ->
-  TeamMember
-    <$> o .: "user"
-    <*> o .: "permissions"
-    <*> parseInvited o
-    -- Default to disabled if missing
-    <*> o .:? "legalhold_status" .!= defUserLegalHoldStatus
-  where
-    parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
-    parseInvited o = do
-      invby <- o .:? "created_by"
-      invat <- o .:? "created_at"
-      case (invby, invat) of
-        (Just b, Just a) -> pure $ Just (b, a)
-        (Nothing, Nothing) -> pure $ Nothing
-        _ -> fail "created_by, created_at"
+-- teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
+-- teamMemberJson withPerms m =
+--   object $
+--     ["user" .= _userId m]
+--       <> ["permissions" .= _permissions m | withPerms m]
+--       <> ["created_by" .= (fst <$> _invitation m)]
+--       <> ["created_at" .= (snd <$> _invitation m)]
+--       <> ["legalhold_status" .= _legalHoldStatus m]
+-- parseTeamMember :: Value -> Parser TeamMember
+-- parseTeamMember = withObject "team-member" $ \o ->
+--   TeamMember
+--     <$> o .: "user"
+--     <*> o .: "permissions"
+--     <*> parseInvited o
+--     -- Default to disabled if missing
+--     <*> o .:? "legalhold_status" .!= defUserLegalHoldStatus
+--   where
+--     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
+--     parseInvited o = do
+--       invby <- o .:? "created_by"
+--       invat <- o .:? "created_at"
+--       case (invby, invat) of
+--         (Just b, Just a) -> pure $ Just (b, a)
+--         (Nothing, Nothing) -> pure $ Nothing
+--         _ -> fail "created_by, created_at"
 
 --------------------------------------------------------------------------------
 -- TeamMemberList
@@ -197,7 +236,7 @@ data NewListType
   | NewListTruncated
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewListType)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "New", CamelToSnake)] NewListType)
+  deriving (S.ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "New", CamelToSnake)] NewListType)
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false

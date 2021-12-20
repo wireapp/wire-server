@@ -44,10 +44,11 @@ where
 import qualified Cassandra as Cql
 import qualified Control.Error.Util as Err
 import Control.Lens (makeLenses, (^.))
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
-import Data.Json.Util
+import Data.Schema
 import qualified Data.Set as Set
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -60,6 +61,19 @@ data Permissions = Permissions
     _copy :: Set Perm
   }
   deriving stock (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Permissions)
+
+permissionsSchema :: ValueSchemaP NamedSwaggerDoc Permissions (Set Perm, Set Perm)
+permissionsSchema =
+  object "Permissions" $
+    (,) <$> (permsToInt . _self) .= field "self" (intToPerms <$> schema)
+      <*> (permsToInt . _copy) .= field "copy" (intToPerms <$> schema)
+
+instance ToSchema Permissions where
+  schema = withParser permissionsSchema $ \(s, d) ->
+    case newPermissions s d of
+      Nothing -> fail "invalid permissions"
+      Just ps -> pure ps
 
 modelPermissions :: Doc.Model
 modelPermissions = Doc.defineModel "Permissions" $ do
@@ -72,20 +86,20 @@ modelPermissions = Doc.defineModel "Permissions" $ do
   Doc.property "copy" (Doc.int64 $ Doc.min 0 . Doc.max 0x7FFFFFFFFFFFFFFF) $
     Doc.description "The permissions bitmask which this user can assign to others"
 
-instance ToJSON Permissions where
-  toJSON p =
-    object $
-      "self" .= permsToInt (_self p)
-        # "copy" .= permsToInt (_copy p)
-        # []
+-- instance ToJSON Permissions where
+--   toJSON p =
+--     object $
+--       "self" .= permsToInt (_self p)
+--         # "copy" .= permsToInt (_copy p)
+--         # []
 
-instance FromJSON Permissions where
-  parseJSON = withObject "permissions" $ \o -> do
-    s <- intToPerms <$> o .: "self"
-    d <- intToPerms <$> o .: "copy"
-    case newPermissions s d of
-      Nothing -> fail "invalid permissions"
-      Just ps -> pure ps
+-- instance FromJSON Permissions where
+--   parseJSON = withObject "permissions" $ \o -> do
+--     s <- intToPerms <$> o .: "self"
+--     d <- intToPerms <$> o .: "copy"
+--     case newPermissions s d of
+--       Nothing -> fail "invalid permissions"
+--       Just ps -> pure ps
 
 instance Arbitrary Permissions where
   arbitrary =
