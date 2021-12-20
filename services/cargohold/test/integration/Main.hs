@@ -38,6 +38,7 @@ import TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test
+import API.Federation (tests)
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoint
@@ -84,7 +85,8 @@ main = runTests go
         "Cargohold"
         [ API.tests opts,
           API.V3.tests opts,
-          Metrics.tests opts
+          Metrics.tests opts,
+          API.Federation.tests opts
         ]
     getOpts _ i = do
       -- TODO: It would actually be useful to read some

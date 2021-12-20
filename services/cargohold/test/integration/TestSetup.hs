@@ -48,4 +48,4 @@ test s n h = testCase n runTest
   where
     runTest = do
       setup <- s
-      (void $ runHttpT (setup ^. tsManager) (h (setup ^. tsCargohold)))
+      void $ runHttpT (setup ^. tsManager) (h (setup ^. tsCargohold))
