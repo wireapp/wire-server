@@ -77,8 +77,6 @@ import Data.Id (TeamId, UserId)
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
-import Data.Schema (Schema (..), ToSchema, schema)
-import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Test.QuickCheck.Gen (suchThat)
@@ -229,10 +227,6 @@ instance Arbitrary BindingNewTeam where
 -- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
   deriving stock (Eq, Show, Generic)
-  deriving (S.ToSchema) via (Schema NonBindingNewTeam)
-
-instance ToSchema NonBindingNewTeam where
-  schema = error "todo"
 
 modelNewNonBindingTeam :: Doc.Model
 modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do

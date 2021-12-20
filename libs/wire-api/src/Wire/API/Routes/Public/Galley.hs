@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -44,7 +43,6 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
-import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 
@@ -707,25 +705,7 @@ data Api routes = Api
         :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
     featureConfigGuestLinksGet ::
       routes
-        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks,
-    -- teams
-    createNonBindingTeam ::
-      routes
-        :- Summary "Create a new non binding team"
-        :> ZUser
-        :> ZConn
-        :> "teams"
-        :> ReqBody '[Servant.JSON] NonBindingNewTeam
-        :> MultiVerb
-             'POST
-             '[JSON]
-             '[ NotConnected,
-                WithHeaders
-                  '[DescHeader "Location" "Team ID" TeamId]
-                  TeamId
-                  (RespondEmpty 201 "Team ID as `Location` header value")
-              ]
-             TeamId
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
   }
   deriving (Generic)
 
