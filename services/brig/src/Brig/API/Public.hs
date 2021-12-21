@@ -200,7 +200,9 @@ servantSitemap =
         BrigAPI.getConnection = getConnection,
         BrigAPI.updateConnectionUnqualified = updateLocalConnection,
         BrigAPI.updateConnection = updateConnection,
-        BrigAPI.searchContacts = Search.search
+        BrigAPI.searchContacts = Search.search,
+        BrigAPI.checkUserHandles = checkHandles,
+        BrigAPI.checkUserHandle = checkHandle
       }
 
 -- Note [ephemeral user sideeffect]
@@ -212,30 +214,6 @@ servantSitemap =
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-  -- User Handle API ----------------------------------------------------
-
-  post "/users/handles" (continue checkHandlesH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. jsonRequest @Public.CheckHandles
-  document "POST" "checkUserHandles" $ do
-    Doc.summary "Check availability of user handles"
-    Doc.body (Doc.ref Public.modelCheckHandles) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of free handles" Doc.end
-
-  head "/users/handles/:handle" (continue checkHandleH) $
-    zauthUserId
-      .&. capture "handle"
-  document "HEAD" "checkUserHandle" $ do
-    Doc.summary "Check whether a user handle can be taken"
-    Doc.parameter Doc.Path "handle" Doc.bytes' $
-      Doc.description "Handle to check"
-    Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse invalidHandle
-    Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
-
   -- some APIs moved to servant
   -- end User Handle API
 
@@ -938,19 +916,19 @@ changeLocaleH (u ::: conn ::: req) = do
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandleH :: UserId ::: Text -> Handler Response
-checkHandleH (_uid ::: hndl) =
+checkHandle :: UserId -> Text -> Handler ()
+checkHandle _uid hndl =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
-    API.CheckHandleFound -> pure $ setStatus status200 empty
-    API.CheckHandleNotFound -> pure $ setStatus status404 empty
+    API.CheckHandleInvalid -> throwErrorDescriptionType @InvalidHandle
+    API.CheckHandleFound -> pure ()
+    API.CheckHandleNotFound -> throwErrorDescriptionType @HandleNotFound
 
-checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> Handler Response
-checkHandlesH (_ ::: _ ::: req) = do
-  Public.CheckHandles hs num <- parseJsonBody req
+-- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
+-- *any* account.)
+checkHandles :: UserId -> Public.CheckHandles -> Handler [Handle]
+checkHandles _ (Public.CheckHandles hs num) = do
   let handles = mapMaybe parseHandle (fromRange hs)
-  free <- lift $ API.checkHandles handles (fromRange num)
-  return $ json (free :: [Handle])
+  lift $ API.checkHandles handles (fromRange num)
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by

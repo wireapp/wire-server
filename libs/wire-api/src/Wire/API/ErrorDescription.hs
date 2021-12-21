@@ -219,6 +219,8 @@ type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many 
 
 type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 
+type InvalidHandle = ErrorDescription 400 "invalid-handle" "Invalid handle."
+
 type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification code"
 
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."

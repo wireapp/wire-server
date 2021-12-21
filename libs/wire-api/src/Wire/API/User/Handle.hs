@@ -75,6 +75,7 @@ data CheckHandles = CheckHandles
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CheckHandles)
+  deriving (S.ToSchema) via Schema CheckHandles
 
 modelCheckHandles :: Doc.Model
 modelCheckHandles = Doc.defineModel "CheckHandles" $ do
