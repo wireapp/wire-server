@@ -696,14 +696,14 @@ getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
-    ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    maybe (throwErrorDescriptionType @UserNotFound) pure
       =<< lift (Data.lookupUser NoPendingInvitations self)
   otherUser <-
-    ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    maybe (throwErrorDescriptionType @UserNotFound) pure
       =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
-    _ -> throwStd insufficientTeamPermissions
+    _ -> throwErrorDescriptionType @InsufficientTeamPermissions
   -- Query rich info
   fromMaybe mempty <$> lift (API.lookupRichInfo user)
 

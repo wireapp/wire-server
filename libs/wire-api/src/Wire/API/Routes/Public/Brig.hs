@@ -533,6 +533,7 @@ data Api routes = Api
     getRichInfo ::
       routes :- Summary "Get user's rich info"
         :> CanThrow InsufficientTeamPermissions
+        :> CanThrow UserNotFound
         :> ZUser
         :> "users"
         :> Capture "uid" UserId
