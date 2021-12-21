@@ -822,6 +822,7 @@ data UserUpdate = UserUpdate
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
 
 modelUserUpdate :: Doc.Model
 modelUserUpdate = Doc.defineModel "UserUpdate" $ do
@@ -836,22 +837,13 @@ modelUserUpdate = Doc.defineModel "UserUpdate" $ do
     Doc.description "Accent colour ID"
     Doc.optional
 
-instance ToJSON UserUpdate where
-  toJSON u =
-    A.object $
-      "name" A..= uupName u
-        # "picture" A..= uupPict u
-        # "assets" A..= uupAssets u
-        # "accent_id" A..= uupAccentId u
-        # []
-
-instance FromJSON UserUpdate where
-  parseJSON = A.withObject "UserUpdate" $ \o ->
+instance ToSchema UserUpdate where
+  schema = object "UserUpdate" $
     UserUpdate
-      <$> o A..:? "name"
-      <*> o A..:? "picture"
-      <*> o A..:? "assets"
-      <*> o A..:? "accent_id"
+      <$> uupName .= maybe_ (optField "name" schema)
+      <*> uupPict .= maybe_ (optField "picture" schema)
+      <*> uupAssets .= maybe_ (optField "assets" $ array schema)
+      <*> uupAccentId .= maybe_ (optField "accent_id" schema)
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange

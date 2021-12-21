@@ -542,7 +542,19 @@ data Api routes = Api
             'GET
             '[JSON]
             '[ Respond 200 "RichInfo" RichInfoAssocList ]
-            RichInfoAssocList
+            RichInfoAssocList,
+
+    updateSelf ::
+      routes :- Summary "Update your profile"
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> ReqBody '[JSON] UserUpdate
+        :> MultiVerb
+            'PUT
+            '[JSON]
+            '[ Respond 200 "Update successful." () ]
+            ()
 
   }
   deriving (Generic)

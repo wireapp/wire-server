@@ -203,7 +203,8 @@ servantSitemap =
         BrigAPI.searchContacts = Search.search,
         BrigAPI.checkUserHandles = checkHandles,
         BrigAPI.checkUserHandle = checkHandle,
-        BrigAPI.getRichInfo = getRichInfo
+        BrigAPI.getRichInfo = getRichInfo,
+        BrigAPI.updateSelf = updateUser
       }
 
 -- Note [ephemeral user sideeffect]
@@ -216,18 +217,6 @@ servantSitemap =
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   -- User Self API ------------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self" (continue updateUserH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.UserUpdate
-  document "PUT" "updateSelf" $ do
-    Doc.summary "Update your profile"
-    Doc.body (Doc.ref Public.modelUserUpdate) $
-      Doc.description "JSON body"
-    Doc.response 200 "Update successful." Doc.end
 
   get "/self/name" (continue getUserDisplayNameH) $
     accept "application" "json"
@@ -852,11 +841,10 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
-updateUserH (uid ::: conn ::: req) = do
-  uu <- parseJsonBody req
+updateUser :: UserId -> ConnId -> Public.UserUpdate -> Handler ()
+updateUser uid conn uu = do
   API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
-  return empty
+  pure ()
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
 changePhoneH (u ::: c ::: req) =
