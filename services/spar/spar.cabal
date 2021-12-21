@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4a323def34cfdc7673cea02e13fe518d53d7b04bae552bff2d0784dfb6964162
+-- hash: c721f9a156f292d2f25f9189e2250e105c48a5a3a67d8fdbf3069c9b3a55f921
 
 name:           spar
 version:        0.1
@@ -50,19 +50,23 @@ library
       Spar.Sem.DefaultSsoCode
       Spar.Sem.DefaultSsoCode.Cassandra
       Spar.Sem.DefaultSsoCode.Mem
+      Spar.Sem.DefaultSsoCode.Spec
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
       Spar.Sem.IdP
       Spar.Sem.IdP.Cassandra
       Spar.Sem.IdP.Mem
+      Spar.Sem.IdP.Spec
       Spar.Sem.IdPRawMetadataStore
       Spar.Sem.IdPRawMetadataStore.Cassandra
       Spar.Sem.IdPRawMetadataStore.Mem
+      Spar.Sem.IdPRawMetadataStore.Spec
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
       Spar.Sem.Now
       Spar.Sem.Now.Input
       Spar.Sem.Now.IO
+      Spar.Sem.Now.Spec
       Spar.Sem.Random
       Spar.Sem.Random.IO
       Spar.Sem.Reporter
@@ -77,6 +81,7 @@ library
       Spar.Sem.ScimExternalIdStore
       Spar.Sem.ScimExternalIdStore.Cassandra
       Spar.Sem.ScimExternalIdStore.Mem
+      Spar.Sem.ScimExternalIdStore.Spec
       Spar.Sem.ScimTokenStore
       Spar.Sem.ScimTokenStore.Cassandra
       Spar.Sem.ScimTokenStore.Mem
@@ -94,6 +99,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -116,6 +122,7 @@ library
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -129,6 +136,7 @@ library
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
@@ -167,6 +175,7 @@ executable spar
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -189,6 +198,7 @@ executable spar
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -202,6 +212,7 @@ executable spar
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
@@ -298,6 +309,7 @@ executable spar-integration
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , random
     , raw-strings-qq
@@ -349,6 +361,7 @@ executable spar-migrate-data
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -372,6 +385,7 @@ executable spar-migrate-data
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -385,6 +399,7 @@ executable spar-migrate-data
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
@@ -440,6 +455,7 @@ executable spar-schema
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HsOpenSSL
+    , QuickCheck
     , aeson
     , aeson-qq
     , attoparsec
@@ -462,6 +478,7 @@ executable spar-schema
     , galley-types
     , ghc-prim
     , hscim
+    , hspec
     , http-api-data
     , http-client
     , http-media
@@ -475,6 +492,7 @@ executable spar-schema
     , network-uri
     , optparse-applicative
     , polysemy
+    , polysemy-check >=0.9
     , polysemy-plugin
     , raw-strings-qq
     , retry
