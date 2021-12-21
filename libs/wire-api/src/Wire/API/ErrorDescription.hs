@@ -229,6 +229,9 @@ type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status 
 
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
+type UserKeyExists = ErrorDescription 409 "key-exists" "The given e-mail address or phone number is in use."
+
+
 noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
 noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code " <> Text.pack (show n) <> ")")
 

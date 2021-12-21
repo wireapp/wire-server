@@ -853,6 +853,7 @@ data PasswordChange = PasswordChange
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PasswordChange)
 
 modelChangePassword :: Doc.Model
 modelChangePassword = Doc.defineModel "ChangePassword" $ do
@@ -865,22 +866,16 @@ modelChangePassword = Doc.defineModel "ChangePassword" $ do
   Doc.property "new_password" Doc.string' $
     Doc.description "New password (6 - 1024 characters)"
 
-instance ToJSON PasswordChange where
-  toJSON (PasswordChange old new) =
-    A.object
-      [ "old_password" A..= old,
-        "new_password" A..= new
-      ]
-
-instance FromJSON PasswordChange where
-  parseJSON = A.withObject "PasswordChange" $ \o ->
+instance ToSchema PasswordChange where
+  schema = object "PasswordChange" $
     PasswordChange
-      <$> o A..:? "old_password"
-      <*> o A..: "new_password"
+      <$> cpOldPassword .= maybe_ (optField "old_password" schema)
+      <*> cpNewPassword .= field "new_password" schema
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LocaleUpdate)
 
 modelChangeLocale :: Doc.Model
 modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
@@ -888,12 +883,10 @@ modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
   Doc.property "locale" Doc.string' $
     Doc.description "Locale to be set"
 
-instance ToJSON LocaleUpdate where
-  toJSON l = A.object ["locale" A..= luLocale l]
-
-instance FromJSON LocaleUpdate where
-  parseJSON = A.withObject "locale-update" $ \o ->
-    LocaleUpdate <$> o A..: "locale"
+instance ToSchema LocaleUpdate where
+  schema = object "locale-update" $
+    LocaleUpdate
+      <$> luLocale .= field "locale" schema
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
@@ -922,6 +915,7 @@ instance FromJSON EmailUpdate where
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PhoneUpdate)
 
 modelPhoneUpdate :: Doc.Model
 modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
@@ -929,12 +923,10 @@ modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
   Doc.property "phone" Doc.string' $
     Doc.description "E.164 phone number"
 
-instance ToJSON PhoneUpdate where
-  toJSON p = A.object ["phone" A..= puPhone p]
-
-instance FromJSON PhoneUpdate where
-  parseJSON = A.withObject "phone-update" $ \o ->
-    PhoneUpdate <$> o A..: "phone"
+instance ToSchema PhoneUpdate where
+  schema = object "phone-update" $
+    PhoneUpdate <$>
+      puPhone .= field "phone" schema
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)

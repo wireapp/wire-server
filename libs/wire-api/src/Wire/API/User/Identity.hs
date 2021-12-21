@@ -242,13 +242,11 @@ validateEmail =
 
 newtype Phone = Phone {fromPhone :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, S.ToSchema)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema Phone
 
-instance FromJSON Phone where
-  parseJSON (A.String s) = case parsePhone s of
-    Just p -> return p
-    Nothing -> fail "Invalid phone number. Expected E.164 format."
-  parseJSON _ = mempty
+instance ToSchema Phone where
+  -- TODO(sandy): Validate the phone number
+  schema = dimap fromPhone Phone schema
 
 instance ToByteString Phone where
   builder = builder . fromPhone

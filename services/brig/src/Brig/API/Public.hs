@@ -122,6 +122,7 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.API.Routes.Public.Brig (WrappedName(..))
 
 -- User API -----------------------------------------------------------
 
@@ -204,7 +205,12 @@ servantSitemap =
         BrigAPI.checkUserHandles = checkHandles,
         BrigAPI.checkUserHandle = checkHandle,
         BrigAPI.getRichInfo = getRichInfo,
-        BrigAPI.updateSelf = updateUser
+        BrigAPI.updateSelf = updateUser,
+        BrigAPI.getUserDisplayName = getUserDisplayNameH,
+        BrigAPI.changePhone = changePhone,
+        BrigAPI.checkPasswordExists = checkPasswordExistsH,
+        BrigAPI.changePassword = changePasswordH,
+        BrigAPI.changeLocale = changeLocaleH
       }
 
 -- Note [ephemeral user sideeffect]
@@ -216,56 +222,6 @@ servantSitemap =
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-  -- User Self API ------------------------------------------------------
-
-  get "/self/name" (continue getUserDisplayNameH) $
-    accept "application" "json"
-      .&. zauthUserId
-  document "GET" "selfName" $ do
-    Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Public.modelUserDisplayName)
-    Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/phone" (continue changePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.PhoneUpdate
-  document "PUT" "changePhone" $ do
-    Doc.summary "Change your phone number"
-    Doc.body (Doc.ref Public.modelPhoneUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
-    Doc.errorResponse userKeyExists
-
-  head
-    "/self/password"
-    (continue checkPasswordExistsH)
-    zauthUserId
-  document "HEAD" "checkPassword" $ do
-    Doc.summary "Check that your password is set"
-    Doc.response 200 "Password is set." Doc.end
-    Doc.response 404 "Password is not set." Doc.end
-
-  put "/self/password" (continue changePasswordH) $
-    zauthUserId
-      .&. jsonRequest @Public.PasswordChange
-  document "PUT" "changePassword" $ do
-    Doc.summary "Change your password"
-    Doc.body (Doc.ref Public.modelChangePassword) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
-    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
-
-  put "/self/locale" (continue changeLocaleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.LocaleUpdate
-  document "PUT" "changeLocale" $ do
-    Doc.summary "Change your locale"
-    Doc.body (Doc.ref Public.modelChangeLocale) $
-      Doc.description "JSON body"
-    Doc.response 200 "Locale changed." Doc.end
 
   -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
@@ -789,12 +745,12 @@ getUser self qualifiedUserId = do
   lself <- qualifyLocal self
   API.lookupProfile lself qualifiedUserId !>> fedError
 
-getUserDisplayNameH :: JSON ::: UserId -> Handler Response
-getUserDisplayNameH (_ ::: self) = do
+getUserDisplayNameH :: UserId -> Handler WrappedName
+getUserDisplayNameH self = do
   name :: Maybe Public.Name <- lift $ API.lookupName self
-  return $ case name of
-    Just n -> json $ object ["name" .= n]
-    Nothing -> setStatus status404 empty
+  case name of
+    Just n -> pure $ WrappedName n
+    Nothing -> throwErrorDescriptionType @UserNotFound
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> Handler [Public.UserProfile]
@@ -846,10 +802,6 @@ updateUser uid conn uu = do
   API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
   pure ()
 
-changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
-changePhoneH (u ::: c ::: req) =
-  setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
-
 changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
 changePhone u _ (Public.puPhone -> phone) = do
   (adata, pn) <- API.changePhone u phone !>> changePhoneError
@@ -867,22 +819,19 @@ removeEmailH (self ::: conn) = do
   API.removeEmail self conn !>> idtError
   return empty
 
-checkPasswordExistsH :: UserId -> Handler Response
+checkPasswordExistsH :: UserId -> Handler Bool
 checkPasswordExistsH self = do
   exists <- lift $ isJust <$> API.lookupPassword self
-  return $ if exists then empty else setStatus status404 empty
+  -- TODO(sandy): does this correspond to the UnionOf instance?
+  pure exists
 
-changePasswordH :: UserId ::: JsonRequest Public.PasswordChange -> Handler Response
-changePasswordH (u ::: req) = do
-  cp <- parseJsonBody req
+changePasswordH :: UserId -> Public.PasswordChange -> Handler ()
+changePasswordH u cp = do
   API.changePassword u cp !>> changePwError
-  return empty
 
-changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.LocaleUpdate -> Handler Response
-changeLocaleH (u ::: conn ::: req) = do
-  l <- parseJsonBody req
+changeLocaleH :: UserId -> ConnId -> Public.LocaleUpdate -> Handler ()
+changeLocaleH u conn l = do
   lift $ API.changeLocale u conn l
-  return empty
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)

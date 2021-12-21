@@ -20,7 +20,9 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Data.Aeson as A
 import Data.Code (Timeout)
+import qualified Data.Schema as PS
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
@@ -74,6 +76,28 @@ type DeleteSelfResponses =
      RespondWithDeletionCodeTimeout
    ]
 
+type CheckPasswordExistsResposes =
+  '[ Respond 200 "Password is set." ()
+   , PasswordIsNotSet
+   ]
+
+newtype PasswordIsNotSet
+  = PasswordIsNotSet
+      (Respond 404 "Password is not set." ())
+  deriving (IsResponse '[JSON], IsSwaggerResponse)
+
+type instance ResponseType PasswordIsNotSet = ()
+
+
+-- TODO(sandy): Not sure about this instance -- does false correspond to the
+-- password being set?
+instance AsUnion CheckPasswordExistsResposes Bool where
+  toUnion False = Z (I ())
+  toUnion True = S (Z (I ()))
+  fromUnion (Z (I x)) = False
+  fromUnion (S (Z (I x))) = True
+  fromUnion (S (S ns)) = case ns of
+
 newtype RespondWithDeletionCodeTimeout
   = RespondWithDeletionCodeTimeout
       (Respond 202 "Deletion is pending verification with a code." DeletionCodeTimeout)
@@ -89,6 +113,14 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
   fromUnion (S (S x)) = case x of
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
+
+newtype WrappedName = WrappedName { getWrappedName :: Name }
+  deriving newtype (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON, ToSchema) via PS.Schema WrappedName
+
+instance PS.ToSchema WrappedName where
+  schema = PS.object "WrappedName" $
+    WrappedName <$> getWrappedName PS..= PS.field "name" PS.schema
 
 data Api routes = Api
   { -- See Note [ephemeral user sideeffect]
@@ -527,6 +559,7 @@ data Api routes = Api
              '[JSON]
              '[Respond 200 "Handle is taken" ()]
              (),
+
     getRichInfo ::
       routes :- Summary "Get user's rich info"
         :> CanThrow InsufficientTeamPermissions
@@ -540,6 +573,7 @@ data Api routes = Api
              '[JSON]
              '[Respond 200 "RichInfo" RichInfoAssocList]
              RichInfoAssocList,
+
     updateSelf ::
       routes :- Summary "Update your profile"
         :> ZUser
@@ -550,6 +584,67 @@ data Api routes = Api
              'PUT
              '[JSON]
              '[Respond 200 "Update successful." ()]
+             (),
+    getUserDisplayName ::
+      routes :- Summary "Get your profile name"
+        :> CanThrow UserNotFound
+        :> ZUser
+        :> "self"
+        :> "name"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[Respond 200 "Profile name found." WrappedName]
+             WrappedName,
+    changePhone ::
+      routes :- Summary "Change your phone number"
+        :> CanThrow UserKeyExists
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "phone"
+        :> ReqBody '[JSON] PhoneUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[Respond 202 "Update accepted and pending activation of the new phone number." ()]
+             (),
+    checkPasswordExists ::
+      routes :- Summary "Check that your password is set"
+        :> ZUser
+        :> "self"
+        :> "password"
+        :> MultiVerb
+             'HEAD
+             '[JSON]
+             CheckPasswordExistsResposes
+             Bool,
+    changePassword ::
+      routes :- Summary "Change your password"
+        :> CanThrow BadCredentials
+        :> CanThrow NoIdentity
+        :> ZUser
+        :> "self"
+        :> "password"
+        :> ReqBody '[JSON] PasswordChange
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[ Respond 200 "Password changed." () ]
+             (),
+    changeLocale ::
+      routes :- Summary "Change your locale"
+        :> CanThrow BadCredentials
+        :> CanThrow NoIdentity
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "locale"
+        :> ReqBody '[JSON] LocaleUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[ Respond 200 "Locale changed." () ]
              ()
   }
   deriving (Generic)
