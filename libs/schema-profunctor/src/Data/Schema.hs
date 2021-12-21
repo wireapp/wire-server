@@ -80,6 +80,7 @@ module Data.Schema
     schemaParseJSON,
     genericToSchema,
     S.description, -- re-export
+    Profunctor(..), -- re-export
   )
 where
 
