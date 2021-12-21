@@ -202,7 +202,8 @@ servantSitemap =
         BrigAPI.updateConnection = updateConnection,
         BrigAPI.searchContacts = Search.search,
         BrigAPI.checkUserHandles = checkHandles,
-        BrigAPI.checkUserHandle = checkHandle
+        BrigAPI.checkUserHandle = checkHandle,
+        BrigAPI.getRichInfo = getRichInfo
       }
 
 -- Note [ephemeral user sideeffect]
@@ -214,21 +215,6 @@ servantSitemap =
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-  -- some APIs moved to servant
-  -- end User Handle API
-
-  get "/users/:uid/rich-info" (continue getRichInfoH) $
-    zauthUserId
-      .&. capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getRichInfo" $ do
-    Doc.summary "Get user's rich info"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelRichInfo)
-    Doc.response 200 "RichInfo" Doc.end
-    Doc.errorResponse insufficientTeamPermissions
-
   -- User Self API ------------------------------------------------------
 
   -- This endpoint can lead to the following events being sent:
@@ -704,10 +690,6 @@ getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityLi
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
-
-getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
-getRichInfoH (self ::: user ::: _) =
-  json <$> getRichInfo self user
 
 getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
 getRichInfo self user = do

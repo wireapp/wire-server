@@ -535,13 +535,13 @@ data Api routes = Api
         :> CanThrow InsufficientTeamPermissions
         :> ZUser
         :> "users"
-        :> Capture "uid" Text
+        :> Capture "uid" UserId
         :> "rich-info"
         :> MultiVerb
             'GET
             '[JSON]
             '[ Respond 200 "RichInfo" RichInfoAssocList ]
-            ()
+            RichInfoAssocList
 
   }
   deriving (Generic)

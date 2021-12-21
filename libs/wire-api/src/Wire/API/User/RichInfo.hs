@@ -59,6 +59,7 @@ import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Swagger as Swagger
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
@@ -226,6 +227,7 @@ richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
 newtype RichInfoAssocList = RichInfoAssocList {unRichInfoAssocList :: [RichField]}
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema RichInfoAssocList)
 
 -- | Uses 'normalizeRichInfoAssocList'.
 mkRichInfoAssocList :: [RichField] -> RichInfoAssocList
@@ -247,19 +249,16 @@ instance Semigroup RichInfoAssocList where
   RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
 instance S.ToSchema RichInfoAssocList where
-  schema = undefined
+  schema =
+    S.object "RichInfoAssocList" $
+      fmap snd $ (,)
+          -- TODO(sandy): check the version is equal to 0
+          <$> S.field "version" (S.dimap (const 0) id $ S.schema @Int)
+          <*> ( mkRichInfoAssocList
+                  -- TODO(sandy): check there are no duplicates
+                  <$> unRichInfoAssocList S..= S.field "fields" (S.array S.schema)
+              )
 
-
-instance ToJSON RichInfoAssocList where
-  toJSON (RichInfoAssocList l) =
-    object
-      [ "fields" .= l,
-        "version" .= (0 :: Int)
-      ]
-
-instance FromJSON RichInfoAssocList where
-  parseJSON v =
-    mkRichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
 
 richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do
