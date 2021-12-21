@@ -22,7 +22,6 @@ module Wire.API.Routes.Public.Brig where
 
 import Data.Aeson as A
 import Data.Code (Timeout)
-import qualified Data.Schema as PS
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
@@ -31,6 +30,7 @@ import Data.Misc (IpAddr)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP (I (..), NS (..))
+import qualified Data.Schema as PS
 import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
@@ -40,6 +40,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
+import Wire.API.Properties
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.Public.Util
@@ -51,7 +52,6 @@ import Wire.API.User.Handle
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
-import Wire.API.Properties
 
 type MaxUsersForListClientsBulk = 500
 
@@ -78,8 +78,8 @@ type DeleteSelfResponses =
    ]
 
 type CheckPasswordExistsResposes =
-  '[ Respond 200 "Password is set." ()
-   , PasswordIsNotSet
+  '[ Respond 200 "Password is set." (),
+     PasswordIsNotSet
    ]
 
 newtype PasswordIsNotSet
@@ -88,7 +88,6 @@ newtype PasswordIsNotSet
   deriving (IsResponse '[JSON], IsSwaggerResponse)
 
 type instance ResponseType PasswordIsNotSet = ()
-
 
 -- TODO(sandy): Not sure about this instance -- does false correspond to the
 -- password being set?
@@ -115,13 +114,14 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
-newtype WrappedName = WrappedName { getWrappedName :: Name }
+newtype WrappedName = WrappedName {getWrappedName :: Name}
   deriving newtype (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, ToSchema) via PS.Schema WrappedName
 
 instance PS.ToSchema WrappedName where
-  schema = PS.object "WrappedName" $
-    WrappedName <$> getWrappedName PS..= PS.field "name" PS.schema
+  schema =
+    PS.object "WrappedName" $
+      WrappedName <$> getWrappedName PS..= PS.field "name" PS.schema
 
 data Api routes = Api
   { -- See Note [ephemeral user sideeffect]
@@ -560,7 +560,6 @@ data Api routes = Api
              '[JSON]
              '[Respond 200 "Handle is taken" ()]
              (),
-
     getRichInfo ::
       routes :- Summary "Get user's rich info"
         :> CanThrow InsufficientTeamPermissions
@@ -574,7 +573,6 @@ data Api routes = Api
              '[JSON]
              '[Respond 200 "RichInfo" RichInfoAssocList]
              RichInfoAssocList,
-
     updateSelf ::
       routes :- Summary "Update your profile"
         :> ZUser
@@ -631,7 +629,7 @@ data Api routes = Api
         :> MultiVerb
              'PUT
              '[JSON]
-             '[ Respond 200 "Password changed." () ]
+             '[Respond 200 "Password changed." ()]
              (),
     changeLocale ::
       routes :- Summary "Change your locale"
@@ -645,7 +643,7 @@ data Api routes = Api
         :> MultiVerb
              'PUT
              '[JSON]
-             '[ Respond 200 "Locale changed." () ]
+             '[Respond 200 "Locale changed." ()]
              (),
     changeHandle ::
       routes :- Summary "Change your handle"
@@ -659,13 +657,13 @@ data Api routes = Api
         :> MultiVerb
              'PUT
              '[JSON]
-             '[ Respond 200 "Handle changed." () ]
+             '[Respond 200 "Handle changed." ()]
              (),
     removePhone ::
       routes :- Summary "Remove your phone number."
         :> Description
-            "Your phone number can only be removed if you also have an \
-            \email address and a password."
+             "Your phone number can only be removed if you also have an \
+             \email address and a password."
         :> CanThrow LastIdentity
         :> CanThrow NoPassword
         :> ZUser
@@ -675,13 +673,13 @@ data Api routes = Api
         :> MultiVerb
              'DELETE
              '[JSON]
-             '[ Respond 200 "Phone number removed." () ]
+             '[Respond 200 "Phone number removed." ()]
              (),
     removeEmail ::
       routes :- Summary "Remove your email address."
         :> Description
-            "Your email address can only be removed if you also have a \
-            \password."
+             "Your email address can only be removed if you also have a \
+             \password."
         :> CanThrow LastIdentity
         :> ZUser
         :> ZConn
@@ -690,7 +688,7 @@ data Api routes = Api
         :> MultiVerb
              'DELETE
              '[JSON]
-             '[ Respond 200 "Email address removed." () ]
+             '[Respond 200 "Email address removed." ()]
              (),
     verifyDeleteUser ::
       routes :- Summary "Verify account deletion with a code."
@@ -700,19 +698,18 @@ data Api routes = Api
         :> MultiVerb
              'POST
              '[JSON]
-             '[ Respond 200 "Deletion is initiated" () ]
+             '[Respond 200 "Deletion is initiated" ()]
              ()
-
-    -- setProperty ::
-    --   routes :- Summary "Set a user property."
-    --     :> "properties"
-    --     :> Capture "key" PropertyKey
-    --     :> ReqBody '[JSON] PropertyValue
-    --     :> MultiVerb
-    --          'POST
-    --          '[JSON]
-    --          '[ Respond 200 "Property set." () ]
-    --          ()
+             -- setProperty ::
+             --   routes :- Summary "Set a user property."
+             --     :> "properties"
+             --     :> Capture "key" PropertyKey
+             --     :> ReqBody '[JSON] PropertyValue
+             --     :> MultiVerb
+             --          'POST
+             --          '[JSON]
+             --          '[ Respond 200 "Property set." () ]
+             --          ()
   }
   deriving (Generic)
 

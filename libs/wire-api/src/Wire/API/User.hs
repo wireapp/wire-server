@@ -867,10 +867,11 @@ modelChangePassword = Doc.defineModel "ChangePassword" $ do
     Doc.description "New password (6 - 1024 characters)"
 
 instance ToSchema PasswordChange where
-  schema = object "PasswordChange" $
-    PasswordChange
-      <$> cpOldPassword .= maybe_ (optField "old_password" schema)
-      <*> cpNewPassword .= field "new_password" schema
+  schema =
+    object "PasswordChange" $
+      PasswordChange
+        <$> cpOldPassword .= maybe_ (optField "old_password" schema)
+        <*> cpNewPassword .= field "new_password" schema
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)
@@ -884,9 +885,10 @@ modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
     Doc.description "Locale to be set"
 
 instance ToSchema LocaleUpdate where
-  schema = object "locale-update" $
-    LocaleUpdate
-      <$> luLocale .= field "locale" schema
+  schema =
+    object "locale-update" $
+      LocaleUpdate
+        <$> luLocale .= field "locale" schema
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
@@ -924,9 +926,10 @@ modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
     Doc.description "E.164 phone number"
 
 instance ToSchema PhoneUpdate where
-  schema = object "phone-update" $
-    PhoneUpdate <$>
-      puPhone .= field "phone" schema
+  schema =
+    object "phone-update" $
+      PhoneUpdate
+        <$> puPhone .= field "phone" schema
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
@@ -934,9 +937,9 @@ newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema HandleUpdate)
 
 instance ToSchema HandleUpdate where
-  schema = object "handle-update" $
-    HandleUpdate <$> huHandle .= field "handle" schema
-
+  schema =
+    object "handle-update" $
+      HandleUpdate <$> huHandle .= field "handle" schema
 
 modelChangeHandle :: Doc.Model
 modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
@@ -992,10 +995,11 @@ data VerifyDeleteUser = VerifyDeleteUser
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
 
 instance ToSchema VerifyDeleteUser where
-  schema = object "VerifyDeleteUser" $
-    VerifyDeleteUser
-      <$> verifyDeleteUserKey .= field "key" schema
-      <*> verifyDeleteUserCode .= field "code" schema
+  schema =
+    object "VerifyDeleteUser" $
+      VerifyDeleteUser
+        <$> verifyDeleteUserKey .= field "key" schema
+        <*> verifyDeleteUserCode .= field "code" schema
 
 modelVerifyDelete :: Doc.Model
 modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do

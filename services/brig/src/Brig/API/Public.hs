@@ -102,7 +102,7 @@ import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
+import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified), WrappedName (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -122,7 +122,6 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
-import Wire.API.Routes.Public.Brig (WrappedName(..))
 
 -- User API -----------------------------------------------------------
 
@@ -226,7 +225,6 @@ servantSitemap =
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-
   -- Properties API -----------------------------------------------------
 
   -- This endpoint can lead to the following events being sent:

@@ -237,7 +237,6 @@ type LastIdentity = ErrorDescription 403 "last-identity" "The last user identity
 
 type NoPassword = ErrorDescription 403 "no-password" "The user has no password."
 
-
 noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
 noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code " <> Text.pack (show n) <> ")")
 
