@@ -908,7 +908,7 @@ updateTeamMemberH ::
   Sem r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
-  targetMember <- ntmNewTeamMember <$> (fromJsonBody req)
+  targetMember <- ntmNewTeamMember <$> fromJsonBody req
   updateTeamMember zusr zcon tid targetMember
   pure empty
 
