@@ -51,6 +51,7 @@ import Wire.API.User.Handle
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
+import Wire.API.Properties
 
 type MaxUsersForListClientsBulk = 500
 
@@ -645,7 +646,73 @@ data Api routes = Api
              'PUT
              '[JSON]
              '[ Respond 200 "Locale changed." () ]
+             (),
+    changeHandle ::
+      routes :- Summary "Change your handle"
+        :> CanThrow HandleExists
+        :> CanThrow InvalidHandle
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "handle"
+        :> ReqBody '[JSON] HandleUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[ Respond 200 "Handle changed." () ]
+             (),
+    removePhone ::
+      routes :- Summary "Remove your phone number."
+        :> Description
+            "Your phone number can only be removed if you also have an \
+            \email address and a password."
+        :> CanThrow LastIdentity
+        :> CanThrow NoPassword
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "phone"
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[ Respond 200 "Phone number removed." () ]
+             (),
+    removeEmail ::
+      routes :- Summary "Remove your email address."
+        :> Description
+            "Your email address can only be removed if you also have a \
+            \password."
+        :> CanThrow LastIdentity
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "email"
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[ Respond 200 "Email address removed." () ]
+             (),
+    verifyDeleteUser ::
+      routes :- Summary "Verify account deletion with a code."
+        :> CanThrow InvalidCode
+        :> "delete"
+        :> ReqBody '[JSON] VerifyDeleteUser
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[ Respond 200 "Deletion is initiated" () ]
              ()
+
+    -- setProperty ::
+    --   routes :- Summary "Set a user property."
+    --     :> "properties"
+    --     :> Capture "key" PropertyKey
+    --     :> ReqBody '[JSON] PropertyValue
+    --     :> MultiVerb
+    --          'POST
+    --          '[JSON]
+    --          '[ Respond 200 "Property set." () ]
+    --          ()
   }
   deriving (Generic)
 

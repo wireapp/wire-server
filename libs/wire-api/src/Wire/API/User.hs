@@ -931,19 +931,18 @@ instance ToSchema PhoneUpdate where
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema HandleUpdate)
+
+instance ToSchema HandleUpdate where
+  schema = object "handle-update" $
+    HandleUpdate <$> huHandle .= field "handle" schema
+
 
 modelChangeHandle :: Doc.Model
 modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
   Doc.description "Change the handle."
   Doc.property "handle" Doc.string' $
     Doc.description "Handle to set"
-
-instance ToJSON HandleUpdate where
-  toJSON h = A.object ["handle" A..= huHandle h]
-
-instance FromJSON HandleUpdate where
-  parseJSON = A.withObject "handle-update" $ \o ->
-    HandleUpdate <$> o A..: "handle"
 
 newtype NameUpdate = NameUpdate {nuHandle :: Text}
   deriving stock (Eq, Show, Generic)
@@ -965,7 +964,7 @@ newtype DeleteUser = DeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
-  deriving (S.ToSchema) via (Schema DeleteUser)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema DeleteUser)
 
 instance ToSchema DeleteUser where
   schema =
@@ -983,16 +982,6 @@ modelDelete = Doc.defineModel "Delete" $ do
     Doc.description "The account password to authorise the deletion."
     Doc.optional
 
-instance ToJSON DeleteUser where
-  toJSON d =
-    A.object $
-      "password" A..= deleteUserPassword d
-        # []
-
-instance FromJSON DeleteUser where
-  parseJSON = A.withObject "DeleteUser" $ \o ->
-    DeleteUser <$> o A..:? "password"
-
 -- | Payload for verifying account deletion via a code.
 data VerifyDeleteUser = VerifyDeleteUser
   { verifyDeleteUserKey :: Code.Key,
@@ -1000,6 +989,13 @@ data VerifyDeleteUser = VerifyDeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
+
+instance ToSchema VerifyDeleteUser where
+  schema = object "VerifyDeleteUser" $
+    VerifyDeleteUser
+      <$> verifyDeleteUserKey .= field "key" schema
+      <*> verifyDeleteUserCode .= field "code" schema
 
 modelVerifyDelete :: Doc.Model
 modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
@@ -1011,19 +1007,6 @@ modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
-
-instance ToJSON VerifyDeleteUser where
-  toJSON d =
-    A.object
-      [ "key" A..= verifyDeleteUserKey d,
-        "code" A..= verifyDeleteUserCode d
-      ]
-
-instance FromJSON VerifyDeleteUser where
-  parseJSON = A.withObject "VerifyDeleteUser" $ \o ->
-    VerifyDeleteUser
-      <$> o A..: "key"
-      <*> o A..: "code"
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout

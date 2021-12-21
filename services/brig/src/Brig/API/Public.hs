@@ -210,7 +210,11 @@ servantSitemap =
         BrigAPI.changePhone = changePhone,
         BrigAPI.checkPasswordExists = checkPasswordExistsH,
         BrigAPI.changePassword = changePasswordH,
-        BrigAPI.changeLocale = changeLocaleH
+        BrigAPI.changeLocale = changeLocaleH,
+        BrigAPI.changeHandle = changeHandle,
+        BrigAPI.removePhone = removePhoneH,
+        BrigAPI.removeEmail = removeEmailH,
+        BrigAPI.verifyDeleteUser = verifyDeleteUserH
       }
 
 -- Note [ephemeral user sideeffect]
@@ -222,62 +226,6 @@ servantSitemap =
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self/handle" (continue changeHandleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.HandleUpdate
-  document "PUT" "changeHandle" $ do
-    Doc.summary "Change your handle"
-    Doc.body (Doc.ref Public.modelChangeHandle) $
-      Doc.description "JSON body"
-    Doc.errorResponse handleExists
-    Doc.errorResponse invalidHandle
-    Doc.response 200 "Handle changed." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/phone" (continue removePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removePhone" $ do
-    Doc.summary "Remove your phone number."
-    Doc.notes
-      "Your phone number can only be removed if you also have an \
-      \email address and a password."
-    Doc.response 200 "Phone number removed." Doc.end
-    Doc.errorResponse lastIdentity
-    Doc.errorResponse noPassword
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/email" (continue removeEmailH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removeEmail" $ do
-    Doc.summary "Remove your email address."
-    Doc.notes
-      "Your email address can only be removed if you also have a \
-      \phone number."
-    Doc.response 200 "Email address removed." Doc.end
-    Doc.errorResponse lastIdentity
-
-  -- TODO put  where?
-
-  -- This endpoint can lead to the following events being sent:
-  -- UserDeleted event to contacts of deleted user
-  -- MemberLeave event to members for all conversations the user was in (via galley)
-  post "/delete" (continue verifyDeleteUserH) $
-    jsonRequest @Public.VerifyDeleteUser
-      .&. accept "application" "json"
-  document "POST" "verifyDeleteUser" $ do
-    Doc.summary "Verify account deletion with a code."
-    Doc.body (Doc.ref Public.modelVerifyDelete) $
-      Doc.description "JSON body"
-    Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidCode)
 
   -- Properties API -----------------------------------------------------
 
@@ -809,15 +757,13 @@ changePhone u _ (Public.puPhone -> phone) = do
   let apair = (activationKey adata, activationCode adata)
   lift $ sendActivationSms pn apair loc
 
-removePhoneH :: UserId ::: ConnId -> Handler Response
-removePhoneH (self ::: conn) = do
+removePhoneH :: UserId -> ConnId -> Handler ()
+removePhoneH self conn = do
   API.removePhone self conn !>> idtError
-  return empty
 
-removeEmailH :: UserId ::: ConnId -> Handler Response
-removeEmailH (self ::: conn) = do
+removeEmailH :: UserId -> ConnId -> Handler ()
+removeEmailH self conn = do
   API.removeEmail self conn !>> idtError
-  return empty
 
 checkPasswordExistsH :: UserId -> Handler Bool
 checkPasswordExistsH self = do
@@ -858,10 +804,6 @@ getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
-
-changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
-changeHandleH (u ::: conn ::: req) =
-  empty <$ (changeHandle u conn =<< parseJsonBody req)
 
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
@@ -1002,11 +944,9 @@ deleteUser ::
 deleteUser u body =
   API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
 
-verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> Handler Response
-verifyDeleteUserH (r ::: _) = do
-  body <- parseJsonBody r
+verifyDeleteUserH :: Public.VerifyDeleteUser -> Handler ()
+verifyDeleteUserH body = do
   API.verifyDeleteUser body !>> deleteUserError
-  return (setStatus status200 empty)
 
 updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> Handler ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
