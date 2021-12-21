@@ -295,7 +295,7 @@ http {
         more_set_headers 'Access-Control-Allow-Credentials: true';
             {{ end -}}
 
-        more_set_headers 'Access-Control-Allow-Origin: $http_origin';
+        more_set_headers 'Access-Control-Allow-Origin: $cors_header';
 
         more_set_headers 'Access-Control-Expose-Headers: Request-Id, Location';
         more_set_headers 'Request-Id: $request_id';
