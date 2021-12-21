@@ -410,8 +410,8 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
         UserLegalHoldPending -> UserLegalHoldPending
         UserLegalHoldEnabled -> UserLegalHoldEnabled
 
-    mk (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
-    mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus
+    mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
+    mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 teamConversationsForPagination :: TeamId -> Maybe ConvId -> Range 1 HardTruncationLimit Int32 -> Client (Page TeamConversation)

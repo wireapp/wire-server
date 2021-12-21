@@ -1,7 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,14 +17,19 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.API.Team.Member
   ( -- * TeamMember
-    TeamMember (..),
+    TeamMember,
+    mkTeamMember,
     userId,
     permissions,
     invitation,
     legalHoldStatus,
+
+    -- * TODO: remove after servantification
+    teamMemberJson,
 
     -- * TeamMemberList
     TeamMemberList,
@@ -40,8 +44,9 @@ module Wire.API.Team.Member
 
     -- * NewTeamMember
     NewTeamMember,
-    newNewTeamMember,
-    ntmNewTeamMember,
+    nUserId,
+    nPermissions,
+    nInvitation,
 
     -- * TeamMemberDeleteData
     TeamMemberDeleteData,
@@ -56,9 +61,8 @@ module Wire.API.Team.Member
   )
 where
 
-import Control.Lens (makeLenses)
+import Control.Lens (Lens, Lens', makeLenses, (%~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
-import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HM
 import Data.Id (UserId)
 import Data.Json.Util
@@ -78,36 +82,65 @@ import Wire.API.Team.Permission (Permissions, modelPermissions)
 --------------------------------------------------------------------------------
 -- TeamMember
 
-data TeamMember = TeamMember
-  { _userId :: UserId,
-    _permissions :: Permissions,
-    _invitation :: Maybe (UserId, UTCTimeMillis),
+type TeamMember = TeamMember' Permissions
+
+data TeamMember' perm = TeamMember
+  { _newTeamMember :: NewTeamMember' perm,
     _legalHoldStatus :: UserLegalHoldStatus
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform TeamMember)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMember)
+
+deriving via
+  (GenericUniform (TeamMember' perm))
+  instance
+    Arbitrary perm =>
+    Arbitrary (TeamMember' perm)
+
+deriving via
+  (Schema (TeamMember' perm))
+  instance
+    (ToSchema (TeamMember' perm)) =>
+    ToJSON (TeamMember' perm)
+
+deriving via
+  (Schema (TeamMember' perm))
+  instance
+    (ToSchema (TeamMember' perm)) =>
+    FromJSON (TeamMember' perm)
+
+deriving via
+  (Schema (TeamMember' perm))
+  instance
+    (ToSchema (TeamMember' perm)) =>
+    S.ToSchema (TeamMember' perm)
+
+mkTeamMember ::
+  UserId ->
+  perm ->
+  Maybe (UserId, UTCTimeMillis) ->
+  UserLegalHoldStatus ->
+  TeamMember' perm
+mkTeamMember uid perms inv lh =
+  TeamMember (NewTeamMember uid perms inv) lh
 
 instance ToSchema TeamMember where
   schema =
     object "TeamMember" $
       TeamMember
-        <$> _userId .= field "user" schema
-        <*> _permissions .= field "permissions" schema
-        <*> _invitation .= invitedSchema'
+        <$> _newTeamMember .= newTeamMemberSchema
         <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
-    where
-      invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
-      invitedSchema =
-        (,) <$> fmap fst .= optField "created_by" (maybeWithDefault Null schema)
-          <*> fmap snd .= optField "created_at" (maybeWithDefault Null schema)
 
-      invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
-      invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
-        case (invby, invat) of
-          (Just b, Just a) -> pure $ Just (b, a)
-          (Nothing, Nothing) -> pure $ Nothing
-          _ -> fail "created_by, created_at"
+instance ToSchema (TeamMember' (Maybe Permissions)) where
+  schema =
+    object "TeamMember" $
+      TeamMember
+        <$> _newTeamMember
+          .= ( NewTeamMember
+                 <$> _nUserId .= field "user" schema
+                 <*> _nPermissions .= maybe_ (optField "permissions" schema)
+                 <*> _nInvitation .= invitedSchema'
+             )
+        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
 
 modelTeamMember :: Doc.Model
 modelTeamMember = Doc.defineModel "TeamMember" $ do
@@ -144,14 +177,10 @@ modelTeamMember = Doc.defineModel "TeamMember" $ do
 -- FUTUREWORK:
 -- There must be a cleaner way to do this, with a separate type
 -- instead of logic in the JSON instance.
--- teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
--- teamMemberJson withPerms m =
---   object $
---     ["user" .= _userId m]
---       <> ["permissions" .= _permissions m | withPerms m]
---       <> ["created_by" .= (fst <$> _invitation m)]
---       <> ["created_at" .= (snd <$> _invitation m)]
---       <> ["legalhold_status" .= _legalHoldStatus m]
+setPerm :: Bool -> Permissions -> Maybe Permissions
+setPerm True = Just
+setPerm False = const Nothing
+
 -- parseTeamMember :: Value -> Parser TeamMember
 -- parseTeamMember = withObject "team-member" $ \o ->
 --   TeamMember
@@ -196,12 +225,8 @@ modelTeamMemberList = Doc.defineModel "TeamMemberList" $ do
 --   toJSON = teamMemberListJson (const True)
 
 -- | Show a list of team members using 'teamMemberJson'.
--- teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
--- teamMemberListJson withPerms l =
---   object
---     [ "members" .= map (teamMemberJson withPerms) (_teamMembers l),
---       "hasMore" .= _teamMemberListType l
---     ]
+teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
+teamMemberListJson withPerms l = undefined
 
 -- instance FromJSON TeamMemberList where
 --   parseJSON = withObject "team member list" $ \o ->
@@ -269,35 +294,71 @@ instance ToSchema ListType where
 --------------------------------------------------------------------------------
 -- NewTeamMember
 
+type NewTeamMember = NewTeamMember' Permissions
+
 -- | Like 'TeamMember', but we can receive this from the clients.  Clients are not allowed to
--- set 'UserLegalHoldStatus', so both 'newNewTeamMember and {To,From}JSON make sure that is
--- always the default.  I decided to keep the 'TeamMember' inside (rather than making an
--- entirely new type because (1) it's a smaller change and I'm in a hurry; (2) it encodes the
--- identity relationship between the fields that *do* occur in both more explicit.
-newtype NewTeamMember = NewTeamMember
-  { _ntmNewTeamMember :: TeamMember
+-- set 'UserLegalHoldStatus'.
+data NewTeamMember' perm = NewTeamMember
+  { _nUserId :: UserId,
+    _nPermissions :: perm,
+    _nInvitation :: Maybe (UserId, UTCTimeMillis)
   }
-  deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewTeamMember)
+  deriving stock (Eq, Ord, Show, Generic)
+
+deriving via
+  (Schema (NewTeamMember' perm))
+  instance
+    (ToSchema (NewTeamMember' perm)) =>
+    ToJSON (NewTeamMember' perm)
+
+deriving via
+  (Schema (NewTeamMember' perm))
+  instance
+    (ToSchema (NewTeamMember' perm)) =>
+    FromJSON (NewTeamMember' perm)
+
+deriving via
+  (Schema (NewTeamMember' perm))
+  instance
+    (ToSchema (NewTeamMember' perm)) =>
+    S.ToSchema (NewTeamMember' perm)
+
+deriving via
+  (GenericUniform (NewTeamMember' perm))
+  instance
+    Arbitrary perm =>
+    Arbitrary (NewTeamMember' perm)
+
+newTeamMemberSchema :: ObjectSchema SwaggerDoc NewTeamMember
+newTeamMemberSchema =
+  NewTeamMember
+    <$> _nUserId .= field "user" schema
+    <*> _nPermissions .= field "permissions" schema
+    <*> _nInvitation .= invitedSchema'
+
+invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
+invitedSchema =
+  (,) <$> fmap fst .= optField "created_by" (maybeWithDefault Null schema)
+    <*> fmap snd .= optField "created_at" (maybeWithDefault Null schema)
+
+invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
+invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
+  case (invby, invat) of
+    (Just b, Just a) -> pure $ Just (b, a)
+    (Nothing, Nothing) -> pure $ Nothing
+    _ -> fail "created_by, created_at"
 
 instance ToSchema NewTeamMember where
-  schema = object "NewTeamMember" $ NewTeamMember <$> _ntmNewTeamMember .= teamMemberSchema
-
-instance Arbitrary NewTeamMember where
-  arbitrary = newNewTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
-  shrink (NewTeamMember (TeamMember uid perms _mbinv _)) = [newNewTeamMember uid perms Nothing]
+  schema = object "NewTeamMember" newTeamMemberSchema
 
 newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
-newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv defUserLegalHoldStatus
+newNewTeamMember = NewTeamMember
 
 modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
   Doc.description "Required data when creating new team members"
   Doc.property "member" (Doc.ref modelTeamMember) $
     Doc.description "the team member to add (the legalhold_status field must be null or missing!)"
-
-teamMemberSchema :: ObjectSchema SwaggerDoc TeamMember
-teamMemberSchema = undefined
 
 -- instance ToJSON NewTeamMember where
 --   toJSON t = object ["member" .= mem]
@@ -340,7 +401,19 @@ modelTeamMemberDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.property "password" Doc.string' $
     Doc.description "The account password to authorise the deletion."
 
-makeLenses ''TeamMember
+makeLenses ''TeamMember'
 makeLenses ''TeamMemberList
-makeLenses ''NewTeamMember
+makeLenses ''NewTeamMember'
 makeLenses ''TeamMemberDeleteData
+
+userId :: Lens' TeamMember UserId
+userId = newTeamMember . nUserId
+
+permissions :: Lens (TeamMember' perm) (TeamMember' perm') perm perm'
+permissions = newTeamMember . nPermissions
+
+invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
+invitation = newTeamMember . nInvitation
+
+teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
+teamMemberJson withPerms m = schemaToJSON (m & permissions %~ setPerm (withPerms m))

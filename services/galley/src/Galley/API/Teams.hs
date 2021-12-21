@@ -218,7 +218,7 @@ createNonBindingTeamH ::
   Public.NonBindingNewTeam ->
   Sem r TeamId
 createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
-  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
+  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
           . maybe [] fromRange
@@ -256,7 +256,7 @@ createBindingTeam ::
   BindingNewTeam ->
   Sem r TeamId
 createBindingTeam zusr tid (BindingNewTeam body) = do
-  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
+  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
@@ -705,6 +705,7 @@ getTeamMemberH ::
   Sem r Response
 getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
   (member, withPerms) <- getTeamMember zusr tid uid
+  -- pure $ member & permissions .~ \p -> guard (withPerms member) $> p
   pure . json $ teamMemberJson withPerms member
 
 getTeamMember ::
