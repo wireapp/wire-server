@@ -35,11 +35,11 @@ import Data.Id (UserId)
 import Data.Qualified (Qualified (..), deprecatedSchema)
 import Data.Range
 import Data.Schema
+import Data.Singletons
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Data.Singletons
 
 --------------------------------------------------------------------------------
 -- UserHandleInfo

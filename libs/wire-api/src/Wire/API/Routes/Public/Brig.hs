@@ -46,9 +46,9 @@ import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
+import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
-import Wire.API.User.RichInfo (RichInfoAssocList)
 
 type MaxUsersForListClientsBulk = 500
 
@@ -503,7 +503,6 @@ data Api routes = Api
         :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
         :> Get '[Servant.JSON] (SearchResult Contact),
-
     checkUserHandles ::
       routes :- Summary ""
         :> ZUser
@@ -511,11 +510,10 @@ data Api routes = Api
         :> "handles"
         :> ReqBody '[JSON] CheckHandles
         :> MultiVerb
-            'POST
-            '[JSON]
-            '[ Respond 200 "List of free handles" [Handle] ]
-            [Handle],
-
+             'POST
+             '[JSON]
+             '[Respond 200 "List of free handles" [Handle]]
+             [Handle],
     checkUserHandle ::
       routes :- Summary ""
         :> CanThrow InvalidHandle
@@ -525,11 +523,10 @@ data Api routes = Api
         :> "handles"
         :> Capture "handle" Text
         :> MultiVerb
-            'HEAD
-            '[JSON]
-            '[ Respond 200 "Handle is taken" () ]
-            (),
-
+             'HEAD
+             '[JSON]
+             '[Respond 200 "Handle is taken" ()]
+             (),
     getRichInfo ::
       routes :- Summary "Get user's rich info"
         :> CanThrow InsufficientTeamPermissions
@@ -539,11 +536,10 @@ data Api routes = Api
         :> Capture "uid" UserId
         :> "rich-info"
         :> MultiVerb
-            'GET
-            '[JSON]
-            '[ Respond 200 "RichInfo" RichInfoAssocList ]
-            RichInfoAssocList,
-
+             'GET
+             '[JSON]
+             '[Respond 200 "RichInfo" RichInfoAssocList]
+             RichInfoAssocList,
     updateSelf ::
       routes :- Summary "Update your profile"
         :> ZUser
@@ -551,11 +547,10 @@ data Api routes = Api
         :> "self"
         :> ReqBody '[JSON] UserUpdate
         :> MultiVerb
-            'PUT
-            '[JSON]
-            '[ Respond 200 "Update successful." () ]
-            ()
-
+             'PUT
+             '[JSON]
+             '[Respond 200 "Update successful." ()]
+             ()
   }
   deriving (Generic)
 

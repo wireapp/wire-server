@@ -838,12 +838,13 @@ modelUserUpdate = Doc.defineModel "UserUpdate" $ do
     Doc.optional
 
 instance ToSchema UserUpdate where
-  schema = object "UserUpdate" $
-    UserUpdate
-      <$> uupName .= maybe_ (optField "name" schema)
-      <*> uupPict .= maybe_ (optField "picture" schema)
-      <*> uupAssets .= maybe_ (optField "assets" $ array schema)
-      <*> uupAccentId .= maybe_ (optField "accent_id" schema)
+  schema =
+    object "UserUpdate" $
+      UserUpdate
+        <$> uupName .= maybe_ (optField "name" schema)
+        <*> uupPict .= maybe_ (optField "picture" schema)
+        <*> uupAssets .= maybe_ (optField "assets" $ array schema)
+        <*> uupAccentId .= maybe_ (optField "accent_id" schema)
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange

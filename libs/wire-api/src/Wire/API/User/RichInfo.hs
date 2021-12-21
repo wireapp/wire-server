@@ -47,7 +47,6 @@ module Wire.API.User.RichInfo
   )
 where
 
-import qualified Data.Schema as S
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.CaseInsensitive (CI)
@@ -57,9 +56,10 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable (Hashable)
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
+import qualified Data.Schema as S
 import Data.String.Conversions (cs)
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Swagger as Swagger
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
@@ -159,7 +159,6 @@ modelRichInfo = Doc.defineModel "RichInfo" $ do
   Doc.property "version" Doc.int32' $
     Doc.description "Format version (the current version is 0)"
 
-
 instance ToJSON RichInfoMapAndList where
   toJSON u =
     object
@@ -251,14 +250,14 @@ instance Semigroup RichInfoAssocList where
 instance S.ToSchema RichInfoAssocList where
   schema =
     S.object "RichInfoAssocList" $
-      fmap snd $ (,)
+      fmap snd $
+        (,)
           -- TODO(sandy): check the version is equal to 0
           <$> S.field "version" (S.dimap (const 0) id $ S.schema @Int)
           <*> ( mkRichInfoAssocList
                   -- TODO(sandy): check there are no duplicates
                   <$> unRichInfoAssocList S..= S.field "fields" (S.array S.schema)
               )
-
 
 richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do
@@ -308,10 +307,11 @@ instance S.ToSchema RichField where
   -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
   -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
   -- that some provisioning agent would support "type" but not "name".
-  schema = S.object "RichField" $
-    RichField
-      <$> richFieldType  S..= S.field "type" (S.dimap CI.original CI.mk S.schema)
-      <*> richFieldValue S..= S.field "value" S.schema
+  schema =
+    S.object "RichField" $
+      RichField
+        <$> richFieldType S..= S.field "type" (S.dimap CI.original CI.mk S.schema)
+        <*> richFieldValue S..= S.field "value" S.schema
 
 --------------------------------------------------------------------------------
 -- convenience functions
