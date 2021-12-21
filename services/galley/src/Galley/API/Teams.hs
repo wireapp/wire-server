@@ -135,6 +135,7 @@ import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member (ntmNewTeamMember, teamMemberJson, teamMemberListJson)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
@@ -817,7 +818,7 @@ addTeamMember ::
   Public.NewTeamMember ->
   Sem r ()
 addTeamMember zusr zcon tid nmem = do
-  let uid = nmem ^. ntmNewTeamMember . userId
+  let uid = nmem ^. nUserId
   P.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
@@ -825,7 +826,7 @@ addTeamMember zusr zcon tid nmem = do
   zusrMembership <-
     E.getTeamMember tid zusr
       >>= permissionCheck AddTeamMember
-  let targetPermissions = nmem ^. ntmNewTeamMember . permissions
+  let targetPermissions = nmem ^. nPermissions
   targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
@@ -886,7 +887,7 @@ uncheckedAddTeamMember tid nmem = do
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH ::
@@ -907,7 +908,7 @@ updateTeamMemberH ::
   Sem r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
-  targetMember <- view ntmNewTeamMember <$> (fromJsonBody req)
+  targetMember <- ntmNewTeamMember <$> (fromJsonBody req)
   updateTeamMember zusr zcon tid targetMember
   pure empty
 
@@ -1367,7 +1368,7 @@ addTeamMemberInternal ::
   NewTeamMember ->
   TeamMemberList ->
   Sem r TeamSize
-addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
+addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = do
   P.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")

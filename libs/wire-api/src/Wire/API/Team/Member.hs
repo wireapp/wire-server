@@ -27,9 +27,11 @@ module Wire.API.Team.Member
     permissions,
     invitation,
     legalHoldStatus,
+    ntmNewTeamMember,
 
     -- * TODO: remove after servantification
     teamMemberJson,
+    teamMemberListJson,
 
     -- * TeamMemberList
     TeamMemberList,
@@ -79,47 +81,61 @@ import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..), arbitrary, shrink)
 import Wire.API.Team.Permission (Permissions, modelPermissions)
 
+data PermissionTag = Required | Optional
+
+type family PermissionType (tag :: PermissionTag) = (t :: *) | t -> tag where
+  PermissionType Required = Permissions
+  PermissionType Optional = Maybe Permissions
+
 --------------------------------------------------------------------------------
 -- TeamMember
 
-type TeamMember = TeamMember' Permissions
+type TeamMember = TeamMember' Required
 
-data TeamMember' perm = TeamMember
-  { _newTeamMember :: NewTeamMember' perm,
+data TeamMember' (tag :: PermissionTag) = TeamMember
+  { _newTeamMember :: NewTeamMember' tag,
     _legalHoldStatus :: UserLegalHoldStatus
   }
-  deriving stock (Eq, Ord, Show, Generic)
+
+ntmNewTeamMember :: NewTeamMember' tag -> TeamMember' tag
+ntmNewTeamMember ntm = TeamMember ntm defUserLegalHoldStatus
+
+deriving instance Eq (PermissionType tag) => Eq (TeamMember' tag)
+
+deriving instance Ord (PermissionType tag) => Ord (TeamMember' tag)
+
+deriving instance Show (PermissionType tag) => Show (TeamMember' tag)
+
+deriving instance Generic (TeamMember' tag)
+
+deriving via (GenericUniform TeamMember) instance Arbitrary TeamMember
+
+deriving via (GenericUniform (TeamMember' Optional)) instance Arbitrary (TeamMember' Optional)
 
 deriving via
-  (GenericUniform (TeamMember' perm))
+  (Schema (TeamMember' tag))
   instance
-    Arbitrary perm =>
-    Arbitrary (TeamMember' perm)
+    (ToSchema (TeamMember' tag)) =>
+    ToJSON (TeamMember' tag)
 
 deriving via
-  (Schema (TeamMember' perm))
+  (Schema (TeamMember' tag))
   instance
-    (ToSchema (TeamMember' perm)) =>
-    ToJSON (TeamMember' perm)
+    (ToSchema (TeamMember' tag)) =>
+    FromJSON (TeamMember' tag)
 
 deriving via
-  (Schema (TeamMember' perm))
+  (Schema (TeamMember' tag))
   instance
-    (ToSchema (TeamMember' perm)) =>
-    FromJSON (TeamMember' perm)
-
-deriving via
-  (Schema (TeamMember' perm))
-  instance
-    (ToSchema (TeamMember' perm)) =>
-    S.ToSchema (TeamMember' perm)
+    (ToSchema (TeamMember' tag)) =>
+    S.ToSchema (TeamMember' tag)
 
 mkTeamMember ::
   UserId ->
-  perm ->
+  PermissionType tag ->
   Maybe (UserId, UTCTimeMillis) ->
   UserLegalHoldStatus ->
-  TeamMember' perm
+  TeamMember' tag
 mkTeamMember uid perms inv lh =
   TeamMember (NewTeamMember uid perms inv) lh
 
@@ -130,7 +146,7 @@ instance ToSchema TeamMember where
         <$> _newTeamMember .= newTeamMemberSchema
         <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
 
-instance ToSchema (TeamMember' (Maybe Permissions)) where
+instance ToSchema (TeamMember' Optional) where
   schema =
     object "TeamMember" $
       TeamMember
@@ -202,13 +218,39 @@ setPerm False = const Nothing
 --------------------------------------------------------------------------------
 -- TeamMemberList
 
-data TeamMemberList = TeamMemberList
-  { _teamMembers :: [TeamMember],
+type TeamMemberList = TeamMemberList' Required
+
+data TeamMemberList' (tag :: PermissionTag) = TeamMemberList
+  { _teamMembers :: [TeamMember' tag],
     _teamMemberListType :: ListType
   }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform TeamMemberList)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema TeamMemberList)
+  deriving (Generic)
+
+deriving instance Eq (PermissionType tag) => Eq (TeamMemberList' tag)
+
+deriving instance Show (PermissionType tag) => Show (TeamMemberList' tag)
+
+deriving via (GenericUniform (TeamMemberList' Optional)) instance Arbitrary (TeamMemberList' Optional)
+
+deriving via (GenericUniform TeamMemberList) instance Arbitrary TeamMemberList
+
+deriving via
+  (Schema (TeamMemberList' tag))
+  instance
+    ToSchema (TeamMemberList' tag) =>
+    FromJSON (TeamMemberList' tag)
+
+deriving via
+  (Schema (TeamMemberList' tag))
+  instance
+    ToSchema (TeamMemberList' tag) =>
+    ToJSON (TeamMemberList' tag)
+
+deriving via
+  (Schema (TeamMemberList' tag))
+  instance
+    ToSchema (TeamMemberList' tag) =>
+    S.ToSchema (TeamMemberList' tag)
 
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -224,19 +266,16 @@ modelTeamMemberList = Doc.defineModel "TeamMemberList" $ do
 -- instance ToJSON TeamMemberList where
 --   toJSON = teamMemberListJson (const True)
 
--- | Show a list of team members using 'teamMemberJson'.
-teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
-teamMemberListJson withPerms l = undefined
-
 -- instance FromJSON TeamMemberList where
 --   parseJSON = withObject "team member list" $ \o ->
 --     TeamMemberList <$> o .: "members" <*> o .: "hasMore"
 
-instance ToSchema TeamMemberList where
-  schema = undefined
-
--- object "TeamMemberList" $
---  TeamMemberList <$>
+instance ToSchema (TeamMember' tag) => ToSchema (TeamMemberList' tag) where
+  schema =
+    object "TeamMemberList" $
+      TeamMemberList
+        <$> _teamMembers .= field "members" (array schema)
+        <*> _teamMemberListType .= field "hasMore" schema
 
 type HardTruncationLimit = (2000 :: Nat)
 
@@ -249,22 +288,15 @@ data NewListType
   | NewListTruncated
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewListType)
-  deriving (S.ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "New", CamelToSnake)] NewListType)
-  deriving (FromJSON, ToJSON) via (Schema NewListType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewListType)
 
 instance ToSchema NewListType where
-  schema = undefined
-
--- This replaces the previous `hasMore` but has no boolean blindness. At the API level
--- though we do want this to remain true/false
--- instance ToJSON NewListType where
---   toJSON NewListComplete = String "list_complete"
---   toJSON NewListTruncated = String "list_truncated"
-
--- instance FromJSON NewListType where
---   parseJSON (String "list_complete") = pure NewListComplete
---   parseJSON (String "list_truncated") = pure NewListTruncated
---   parseJSON bad = fail $ "NewListType: " <> cs (encode bad)
+  schema =
+    enum @Text "NewListType" $
+      mconcat
+        [ element "list_complete" NewListComplete,
+          element "list_truncated" NewListTruncated
+        ]
 
 toNewListType :: ListType -> NewListType
 toNewListType ListComplete = NewListComplete
@@ -277,57 +309,61 @@ data ListType
   deriving (Arbitrary) via (GenericUniform ListType)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ListType)
 
-instance ToSchema ListType where
-  schema = undefined
-
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false
--- instance ToJSON ListType where
---   toJSON ListComplete = Bool False
---   toJSON ListTruncated = Bool True
+instance ToSchema ListType where
+  schema = listTypeToBool .= boolToListType <$> schema
+    where
+      listTypeToBool :: ListType -> Bool
+      listTypeToBool ListComplete = False
+      listTypeToBool ListTruncated = True
 
--- instance FromJSON ListType where
---   parseJSON (Bool False) = pure ListComplete
---   parseJSON (Bool True) = pure ListTruncated
---   parseJSON bad = fail $ "ListType: " <> cs (encode bad)
+      boolToListType :: Bool -> ListType
+      boolToListType False = ListComplete
+      boolToListType True = ListTruncated
 
 --------------------------------------------------------------------------------
 -- NewTeamMember
 
-type NewTeamMember = NewTeamMember' Permissions
+type NewTeamMember = NewTeamMember' Required
 
 -- | Like 'TeamMember', but we can receive this from the clients.  Clients are not allowed to
 -- set 'UserLegalHoldStatus'.
-data NewTeamMember' perm = NewTeamMember
+data NewTeamMember' (tag :: PermissionTag) = NewTeamMember
   { _nUserId :: UserId,
-    _nPermissions :: perm,
+    _nPermissions :: PermissionType tag,
     _nInvitation :: Maybe (UserId, UTCTimeMillis)
   }
-  deriving stock (Eq, Ord, Show, Generic)
+
+deriving instance (Eq (PermissionType tag)) => Eq (NewTeamMember' tag)
+
+deriving instance (Ord (PermissionType tag)) => Ord (NewTeamMember' tag)
+
+deriving instance (Show (PermissionType tag)) => Show (NewTeamMember' tag)
+
+deriving instance (Generic (PermissionType tag)) => Generic (NewTeamMember' tag)
 
 deriving via
-  (Schema (NewTeamMember' perm))
+  (Schema (NewTeamMember' tag))
   instance
-    (ToSchema (NewTeamMember' perm)) =>
-    ToJSON (NewTeamMember' perm)
+    (ToSchema (NewTeamMember' tag)) =>
+    ToJSON (NewTeamMember' tag)
 
 deriving via
-  (Schema (NewTeamMember' perm))
+  (Schema (NewTeamMember' tag))
   instance
-    (ToSchema (NewTeamMember' perm)) =>
-    FromJSON (NewTeamMember' perm)
+    (ToSchema (NewTeamMember' tag)) =>
+    FromJSON (NewTeamMember' tag)
 
 deriving via
-  (Schema (NewTeamMember' perm))
+  (Schema (NewTeamMember' tag))
   instance
-    (ToSchema (NewTeamMember' perm)) =>
-    S.ToSchema (NewTeamMember' perm)
+    (ToSchema (NewTeamMember' tag)) =>
+    S.ToSchema (NewTeamMember' tag)
 
-deriving via
-  (GenericUniform (NewTeamMember' perm))
-  instance
-    Arbitrary perm =>
-    Arbitrary (NewTeamMember' perm)
+deriving via (GenericUniform NewTeamMember) instance Arbitrary NewTeamMember
+
+deriving via (GenericUniform (NewTeamMember' Optional)) instance Arbitrary (NewTeamMember' Optional)
 
 newTeamMemberSchema :: ObjectSchema SwaggerDoc NewTeamMember
 newTeamMemberSchema =
@@ -350,9 +386,6 @@ invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
 
 instance ToSchema NewTeamMember where
   schema = object "NewTeamMember" newTeamMemberSchema
-
-newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
-newNewTeamMember = NewTeamMember
 
 modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
@@ -402,18 +435,29 @@ modelTeamMemberDelete = Doc.defineModel "teamDeleteData" $ do
     Doc.description "The account password to authorise the deletion."
 
 makeLenses ''TeamMember'
-makeLenses ''TeamMemberList
+makeLenses ''TeamMemberList'
 makeLenses ''NewTeamMember'
 makeLenses ''TeamMemberDeleteData
 
 userId :: Lens' TeamMember UserId
 userId = newTeamMember . nUserId
 
-permissions :: Lens (TeamMember' perm) (TeamMember' perm') perm perm'
+permissions :: Lens (TeamMember' tag1) (TeamMember' tag2) (PermissionType tag1) (PermissionType tag2)
 permissions = newTeamMember . nPermissions
 
 invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
 invitation = newTeamMember . nInvitation
 
+-- JSON serialisation utilities (TODO: remove after servantification)
+
 teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
-teamMemberJson withPerms m = schemaToJSON (m & permissions %~ setPerm (withPerms m))
+teamMemberJson withPerms = toJSON . setOptionalPerms withPerms
+
+setOptionalPerms :: (TeamMember -> Bool) -> TeamMember -> TeamMember' Optional
+setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)
+
+-- | Show a list of team members using 'teamMemberJson'.
+teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
+teamMemberListJson withPerms l =
+  toJSON $
+    l {_teamMembers = map (setOptionalPerms withPerms) (_teamMembers l)}
