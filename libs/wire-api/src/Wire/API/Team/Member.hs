@@ -26,7 +26,6 @@ module Wire.API.Team.Member
     permissions,
     invitation,
     legalHoldStatus,
-    teamMemberJson,
 
     -- * TeamMemberList
     TeamMemberList,
@@ -38,7 +37,6 @@ module Wire.API.Team.Member
     NewListType (..),
     toNewListType,
     ListType (..),
-    teamMemberListJson,
 
     -- * NewTeamMember
     NewTeamMember,
@@ -88,36 +86,7 @@ data TeamMember = TeamMember
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamMember)
-
--- parseTeamMember :: Value -> Parser TeamMember
--- parseTeamMember = withObject "team-member" $ \o ->
---   TeamMember
---     <$> o .: "user"
---     <*> o .: "permissions"
---     <*> parseInvited o
---     -- Default to disabled if missing
---     <*> o .:? "legalhold_status" .!= defUserLegalHoldStatus
---   where
---     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
---     parseInvited o = do
---       invby <- o .:? "created_by"
---       invat <- o .:? "created_at"
---       case (invby, invat) of
---         (Just b, Just a) -> pure $ Just (b, a)
---         (Nothing, Nothing) -> pure $ Nothing
---         _ -> fail "created_by, created_at"
-
-invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
-invitedSchema =
-  (,) <$> fmap fst .= optField "created_by" (maybeWithDefault Null schema)
-    <*> fmap snd .= optField "created_at" (maybeWithDefault Null schema)
-
-invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
-invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
-  case (invby, invat) of
-    (Just b, Just a) -> pure $ Just (b, a)
-    (Nothing, Nothing) -> pure $ Nothing
-    _ -> fail "created_by, created_at"
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMember)
 
 instance ToSchema TeamMember where
   schema =
@@ -127,6 +96,18 @@ instance ToSchema TeamMember where
         <*> _permissions .= field "permissions" schema
         <*> _invitation .= invitedSchema'
         <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
+    where
+      invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
+      invitedSchema =
+        (,) <$> fmap fst .= optField "created_by" (maybeWithDefault Null schema)
+          <*> fmap snd .= optField "created_at" (maybeWithDefault Null schema)
+
+      invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
+      invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
+        case (invby, invat) of
+          (Just b, Just a) -> pure $ Just (b, a)
+          (Nothing, Nothing) -> pure $ Nothing
+          _ -> fail "created_by, created_at"
 
 modelTeamMember :: Doc.Model
 modelTeamMember = Doc.defineModel "TeamMember" $ do
@@ -198,6 +179,7 @@ data TeamMemberList = TeamMemberList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamMemberList)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema TeamMemberList)
 
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -210,20 +192,26 @@ modelTeamMemberList = Doc.defineModel "TeamMemberList" $ do
   Doc.property "hasMore" Doc.bool' $
     Doc.description "true if 'members' doesn't contain all team members"
 
-instance ToJSON TeamMemberList where
-  toJSON = teamMemberListJson (const True)
+-- instance ToJSON TeamMemberList where
+--   toJSON = teamMemberListJson (const True)
 
 -- | Show a list of team members using 'teamMemberJson'.
-teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
-teamMemberListJson withPerms l =
-  object
-    [ "members" .= map (teamMemberJson withPerms) (_teamMembers l),
-      "hasMore" .= _teamMemberListType l
-    ]
+-- teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
+-- teamMemberListJson withPerms l =
+--   object
+--     [ "members" .= map (teamMemberJson withPerms) (_teamMembers l),
+--       "hasMore" .= _teamMemberListType l
+--     ]
 
-instance FromJSON TeamMemberList where
-  parseJSON = withObject "team member list" $ \o ->
-    TeamMemberList <$> o .: "members" <*> o .: "hasMore"
+-- instance FromJSON TeamMemberList where
+--   parseJSON = withObject "team member list" $ \o ->
+--     TeamMemberList <$> o .: "members" <*> o .: "hasMore"
+
+instance ToSchema TeamMemberList where
+  schema = undefined
+
+-- object "TeamMemberList" $
+--  TeamMemberList <$>
 
 type HardTruncationLimit = (2000 :: Nat)
 
@@ -237,17 +225,21 @@ data NewListType
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewListType)
   deriving (S.ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "New", CamelToSnake)] NewListType)
+  deriving (FromJSON, ToJSON) via (Schema NewListType)
+
+instance ToSchema NewListType where
+  schema = undefined
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false
-instance ToJSON NewListType where
-  toJSON NewListComplete = String "list_complete"
-  toJSON NewListTruncated = String "list_truncated"
+-- instance ToJSON NewListType where
+--   toJSON NewListComplete = String "list_complete"
+--   toJSON NewListTruncated = String "list_truncated"
 
-instance FromJSON NewListType where
-  parseJSON (String "list_complete") = pure NewListComplete
-  parseJSON (String "list_truncated") = pure NewListTruncated
-  parseJSON bad = fail $ "NewListType: " <> cs (encode bad)
+-- instance FromJSON NewListType where
+--   parseJSON (String "list_complete") = pure NewListComplete
+--   parseJSON (String "list_truncated") = pure NewListTruncated
+--   parseJSON bad = fail $ "NewListType: " <> cs (encode bad)
 
 toNewListType :: ListType -> NewListType
 toNewListType ListComplete = NewListComplete
@@ -258,17 +250,21 @@ data ListType
   | ListTruncated
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ListType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ListType)
+
+instance ToSchema ListType where
+  schema = undefined
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false
-instance ToJSON ListType where
-  toJSON ListComplete = Bool False
-  toJSON ListTruncated = Bool True
+-- instance ToJSON ListType where
+--   toJSON ListComplete = Bool False
+--   toJSON ListTruncated = Bool True
 
-instance FromJSON ListType where
-  parseJSON (Bool False) = pure ListComplete
-  parseJSON (Bool True) = pure ListTruncated
-  parseJSON bad = fail $ "ListType: " <> cs (encode bad)
+-- instance FromJSON ListType where
+--   parseJSON (Bool False) = pure ListComplete
+--   parseJSON (Bool True) = pure ListTruncated
+--   parseJSON bad = fail $ "ListType: " <> cs (encode bad)
 
 --------------------------------------------------------------------------------
 -- NewTeamMember
@@ -282,6 +278,10 @@ newtype NewTeamMember = NewTeamMember
   { _ntmNewTeamMember :: TeamMember
   }
   deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewTeamMember)
+
+instance ToSchema NewTeamMember where
+  schema = object "NewTeamMember" $ NewTeamMember <$> _ntmNewTeamMember .= teamMemberSchema
 
 instance Arbitrary NewTeamMember where
   arbitrary = newNewTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
@@ -296,21 +296,24 @@ modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
   Doc.property "member" (Doc.ref modelTeamMember) $
     Doc.description "the team member to add (the legalhold_status field must be null or missing!)"
 
-instance ToJSON NewTeamMember where
-  toJSON t = object ["member" .= mem]
-    where
-      mem = Object . HM.fromList . fltr . HM.toList $ o
-      o = case toJSON (_ntmNewTeamMember t) of
-        Object o_ -> o_
-        _ -> error "impossible"
-      fltr = filter ((`elem` ["user", "permissions", "created_by", "created_at"]) . fst)
+teamMemberSchema :: ObjectSchema SwaggerDoc TeamMember
+teamMemberSchema = undefined
 
-instance FromJSON NewTeamMember where
-  parseJSON = withObject "add team member" $ \o -> do
-    mem <- o .: "member"
-    if (_legalHoldStatus mem == defUserLegalHoldStatus)
-      then pure $ NewTeamMember mem
-      else fail "legalhold_status field cannot be set in NewTeamMember"
+-- instance ToJSON NewTeamMember where
+--   toJSON t = object ["member" .= mem]
+--     where
+--       mem = Object . HM.fromList . fltr . HM.toList $ o
+--       o = case toJSON (_ntmNewTeamMember t) of
+--         Object o_ -> o_
+--         _ -> error "impossible"
+--       fltr = filter ((`elem` ["user", "permissions", "created_by", "created_at"]) . fst)
+
+-- instance FromJSON NewTeamMember where
+--   parseJSON = withObject "add team member" $ \o -> do
+--     mem <- o .: "member"
+--     if _legalHoldStatus mem == defUserLegalHoldStatus
+--       then pure $ NewTeamMember mem
+--       else fail "legalhold_status field cannot be set in NewTeamMember"
 
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData
@@ -320,6 +323,12 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMemberDeleteData)
+
+instance ToSchema TeamMemberDeleteData where
+  schema =
+    object "TeamMemberDeleteData" $
+      TeamMemberDeleteData <$> _tmdAuthPassword .= maybe_ (optField "password" schema)
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
@@ -330,16 +339,6 @@ modelTeamMemberDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.description "Data for a team member deletion request in case of binding teams."
   Doc.property "password" Doc.string' $
     Doc.description "The account password to authorise the deletion."
-
-instance FromJSON TeamMemberDeleteData where
-  parseJSON = withObject "team-member-delete-data" $ \o ->
-    TeamMemberDeleteData <$> (o .:? "password")
-
-instance ToJSON TeamMemberDeleteData where
-  toJSON tmd =
-    object
-      [ "password" .= _tmdAuthPassword tmd
-      ]
 
 makeLenses ''TeamMember
 makeLenses ''TeamMemberList
