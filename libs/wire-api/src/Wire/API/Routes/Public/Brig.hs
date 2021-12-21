@@ -48,6 +48,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
+import Wire.API.User.RichInfo (RichInfoAssocList)
 
 type MaxUsersForListClientsBulk = 500
 
@@ -527,8 +528,20 @@ data Api routes = Api
             'HEAD
             '[JSON]
             '[ Respond 200 "Handle is taken" () ]
-            ()
+            (),
 
+    getRichInfo ::
+      routes :- Summary "Get user's rich info"
+        :> CanThrow InsufficientTeamPermissions
+        :> ZUser
+        :> "users"
+        :> Capture "uid" Text
+        :> "rich-info"
+        :> MultiVerb
+            'GET
+            '[JSON]
+            '[ Respond 200 "RichInfo" RichInfoAssocList ]
+            ()
 
   }
   deriving (Generic)

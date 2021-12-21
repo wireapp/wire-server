@@ -221,6 +221,8 @@ type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 
 type InvalidHandle = ErrorDescription 400 "invalid-handle" "Invalid handle."
 
+type InsufficientTeamPermissions = ErrorDescription 403 "insufficient-permissions" "Insufficient team permissions"
+
 type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification code"
 
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."

@@ -47,6 +47,7 @@ module Wire.API.User.RichInfo
   )
 where
 
+import qualified Data.Schema as S
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.CaseInsensitive (CI)
@@ -157,6 +158,7 @@ modelRichInfo = Doc.defineModel "RichInfo" $ do
   Doc.property "version" Doc.int32' $
     Doc.description "Format version (the current version is 0)"
 
+
 instance ToJSON RichInfoMapAndList where
   toJSON u =
     object
@@ -244,6 +246,10 @@ instance Monoid RichInfoAssocList where
 instance Semigroup RichInfoAssocList where
   RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
+instance S.ToSchema RichInfoAssocList where
+  schema = undefined
+
+
 instance ToJSON RichInfoAssocList where
   toJSON (RichInfoAssocList l) =
     object
@@ -281,6 +287,7 @@ data RichField = RichField
     richFieldValue :: Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (S.Schema RichField)
 
 modelRichField :: Doc.Model
 modelRichField = Doc.defineModel "RichField" $ do
@@ -290,29 +297,22 @@ modelRichField = Doc.defineModel "RichField" $ do
   Doc.property "value" Doc.string' $
     Doc.description "Field value"
 
-instance ToJSON RichField where
-  -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
-  -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
-  -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
-  -- that some provisioning agent would support "type" but not "name".
-  toJSON u =
-    object
-      [ "type" .= CI.original (richFieldType u),
-        "value" .= richFieldValue u
-      ]
-
-instance FromJSON RichField where
-  parseJSON = withObject "RichField" $ \o -> do
-    RichField
-      <$> (CI.mk <$> o .: "type")
-      <*> o .: "value"
-
 instance Arbitrary RichField where
   arbitrary =
     RichField
       <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
       <*> (cs . QC.getPrintableString <$> arbitrary)
   shrink (RichField k v) = RichField <$> QC.shrink k <*> QC.shrink v
+
+instance S.ToSchema RichField where
+  -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
+  -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
+  -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
+  -- that some provisioning agent would support "type" but not "name".
+  schema = S.object "RichField" $
+    RichField
+      <$> richFieldType  S..= S.field "type" (S.dimap CI.original CI.mk S.schema)
+      <*> richFieldValue S..= S.field "value" S.schema
 
 --------------------------------------------------------------------------------
 -- convenience functions
