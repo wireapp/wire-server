@@ -171,7 +171,8 @@ testSettings =
             assertFailure $
               "expected failure for non-existing client certificate, got: "
                 <> show (tlsSettings ^. creds),
-      testCase "fail on invalid certificate" $ do
+      -- @SF.Federation @TSFI.RESTfulAPI @S3 @S7
+      testCase "failToStartWithInvalidServerCredentials" $ do
         let settings =
               defRunSettings
                 "test/resources/unit/invalid.pem"
@@ -193,6 +194,7 @@ testSettings =
             assertFailure $
               "expected failure for invalid client certificate, got: "
                 <> show (tlsSettings ^. creds),
+      -- @END
       testCase "fail on invalid private key" $ do
         let settings =
               defRunSettings

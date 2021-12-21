@@ -46,6 +46,8 @@ import Wire.API.Federation.Domain
 import Wire.API.User
 import Wire.Network.DNS.SRV
 
+-- | This module contains tests for the interface between federator and ingress.  Ingress is
+-- mocked with nginz.
 spec :: TestEnv -> Spec
 spec env = do
   describe "Ingress" $ do
@@ -68,7 +70,16 @@ spec env = do
           responseStatusCode resp `shouldBe` HTTP.status200
           actualProfile `shouldBe` (Just expectedProfile)
 
-  it "should not be accessible without a client certificate" $
+  -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+  --
+  -- This test was primarily intended to test that federator is using the API right (header
+  -- name etc.), but it is also effectively testing that federator rejects clients without
+  -- certificates that have been validated by ingress.
+  --
+  -- We can't test end-to-end here: the TLS termination happens in k8s, and would have to be
+  -- tested there (and with a good emulation of the concrete configuration of the prod
+  -- system).
+  it "rejectRequestsWithoutClientCertIngress" $
     runTestFederator env $ do
       brig <- view teBrig <$> ask
       user <- randomUser brig
@@ -92,6 +103,10 @@ spec env = do
         Left (RemoteError _ _) ->
           expectationFailure "Expected client certificate error, got remote error"
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+
+-- FUTUREWORK: ORMOLU_DISABLE
+-- @END
+-- ORMOLU_ENABLE
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do

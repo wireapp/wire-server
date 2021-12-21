@@ -113,6 +113,9 @@ validateDomainAllowListFailSemantic =
         $ validateDomain (Just exampleCert) "invalid//.><-semantic-&@-domain"
     res @?= Left (DomainParseError "invalid//.><-semantic-&@-domain")
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
+-- Refuse to send outgoing request to non-included domain when allowlist is configured.
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
@@ -126,6 +129,8 @@ validateDomainAllowListFail =
         . runInputConst settings
         $ validateDomain (Just exampleCert) "localhost.example.com"
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
+
+-- @END
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
@@ -153,6 +158,7 @@ validateDomainCertMissing =
         $ validateDomain Nothing "foo.example.com"
     res @?= Left NoClientCertificate
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do
@@ -164,6 +170,12 @@ validateDomainCertInvalid =
         $ validateDomain (Just "not a certificate") "foo.example.com"
     res @?= Left (CertificateParseError "no certificate found")
 
+-- @END
+
+-- @SF.Federation @TSFI.RESTfulAPI @S3 @S7
+--
+-- Reject request if the infrastructure domain in the client cert does not match the backend
+-- domain in the `Wire-origin-domain` header.
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
@@ -175,6 +187,8 @@ validateDomainCertWrongDomain =
         . runInputConst noClientCertSettings
         $ validateDomain (Just exampleCert) "foo.example.com"
     res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
+
+-- @END
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =

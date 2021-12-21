@@ -99,6 +99,9 @@ federatedRequestSuccess =
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
+-- Refuse to send outgoing request to non-included domain when allowlist is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $ do
@@ -134,3 +137,5 @@ federatedRequestFailureAllowList =
         . runInputConst settings
         $ callOutward request
     eith @?= Left (FederationDenied targetDomain)
+
+-- @END
