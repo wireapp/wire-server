@@ -250,28 +250,30 @@ instance Semigroup RichInfoAssocList where
 instance S.ToSchema RichInfoAssocList where
   schema =
     S.object "RichInfoAssocList" $
-      fmap snd $
-        (,)
-          -- TODO(sandy): check the version is equal to 0
-          <$> S.field "version" (S.dimap (const 0) id $ S.schema @Int)
-          <*> ( mkRichInfoAssocList
-                  -- TODO(sandy): check there are no duplicates
-                  <$> unRichInfoAssocList S..= S.field "fields" (S.array S.schema)
-              )
+      S.withParser
+        ((,)
+          <$> const (0 :: Int) S..= S.field  "version" S.schema
+          <*> unRichInfoAssocList S..= S.field "fields" (S.array S.schema)
+        ) $ \(version, fields) ->
+          mkRichInfoAssocList <$> validateRichInfoAssocList version fields
 
 richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do
   version :: Int <- richinfoObj .: "version"
-  when (version /= 0) $ fail $ "unknown version: " <> show version
   fields <- richinfoObj .: "fields"
+  validateRichInfoAssocList version fields
+
+validateRichInfoAssocList :: Int -> [RichField] -> Aeson.Parser [RichField]
+validateRichInfoAssocList version fields = do
+  when (version /= 0) $ fail $ "unknown version: " <> show version
   checkDuplicates (map richFieldType fields)
   pure fields
   where
-    checkDuplicates :: [CI Text] -> Aeson.Parser ()
-    checkDuplicates xs =
-      case filter ((> 1) . length) . group . sort $ xs of
-        [] -> pure ()
-        ds -> fail ("duplicate fields: " <> show (map head ds))
+  checkDuplicates :: [CI Text] -> Aeson.Parser ()
+  checkDuplicates xs =
+    case filter ((> 1) . length) . group . sort $ xs of
+      [] -> pure ()
+      ds -> fail ("duplicate fields: " <> show (map head ds))
 
 instance Arbitrary RichInfoAssocList where
   arbitrary = mkRichInfoAssocList <$> arbitrary
@@ -310,7 +312,7 @@ instance S.ToSchema RichField where
   schema =
     S.object "RichField" $
       RichField
-        <$> richFieldType S..= S.field "type" (S.dimap CI.original CI.mk S.schema)
+        <$> richFieldType S..= S.field "type" (CI.original S..= fmap CI.mk S.schema)
         <*> richFieldValue S..= S.field "value" S.schema
 
 --------------------------------------------------------------------------------

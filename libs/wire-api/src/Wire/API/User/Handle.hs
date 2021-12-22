@@ -90,8 +90,8 @@ instance ToSchema CheckHandles where
   schema =
     object "CheckHandles" $
       CheckHandles
-        <$> (checkHandlesList .= field "handles" (fromRange .= rangedSchema sing sing (array schema)))
-        <*> (checkHandlesNum .= field "return" schema)
+        <$> checkHandlesList .= field "handles" (fromRange .= rangedSchema sing sing (array schema))
+        <*> checkHandlesNum .= field "return" schema
 
 instance ToJSON CheckHandles where
   toJSON (CheckHandles l n) =

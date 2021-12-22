@@ -40,7 +40,6 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
-import Wire.API.Properties
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.Public.Util
@@ -78,25 +77,9 @@ type DeleteSelfResponses =
    ]
 
 type CheckPasswordExistsResposes =
-  '[ Respond 200 "Password is set." (),
-     PasswordIsNotSet
+  '[ RespondEmpty 404 "Password is not set."
+   , RespondEmpty 200 "Password is set."
    ]
-
-newtype PasswordIsNotSet
-  = PasswordIsNotSet
-      (Respond 404 "Password is not set." ())
-  deriving (IsResponse '[JSON], IsSwaggerResponse)
-
-type instance ResponseType PasswordIsNotSet = ()
-
--- TODO(sandy): Not sure about this instance -- does false correspond to the
--- password being set?
-instance AsUnion CheckPasswordExistsResposes Bool where
-  toUnion False = Z (I ())
-  toUnion True = S (Z (I ()))
-  fromUnion (Z (I x)) = False
-  fromUnion (S (Z (I x))) = True
-  fromUnion (S (S ns)) = case ns of
 
 newtype RespondWithDeletionCodeTimeout
   = RespondWithDeletionCodeTimeout

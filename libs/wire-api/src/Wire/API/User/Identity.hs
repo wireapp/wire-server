@@ -245,8 +245,11 @@ newtype Phone = Phone {fromPhone :: Text}
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema Phone
 
 instance ToSchema Phone where
-  -- TODO(sandy): Validate the phone number
-  schema = dimap fromPhone Phone schema
+  schema = fromPhone .= (parsedText "Phone" $ \t ->
+    case parsePhone t of
+      Just x -> pure x
+      Nothing -> Left "Invalid phone number. Expected E.164 format."
+      )
 
 instance ToByteString Phone where
   builder = builder . fromPhone

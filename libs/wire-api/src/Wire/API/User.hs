@@ -870,7 +870,7 @@ instance ToSchema PasswordChange where
   schema =
     object "PasswordChange" $
       PasswordChange
-        <$> cpOldPassword .= maybe_ (optField "old_password" schema)
+        <$> cpOldPassword .= optField "old_password" (maybeWithDefault A.Null schema)
         <*> cpNewPassword .= field "new_password" schema
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
@@ -927,7 +927,7 @@ modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
 
 instance ToSchema PhoneUpdate where
   schema =
-    object "phone-update" $
+    object "PhoneUpdate" $
       PhoneUpdate
         <$> puPhone .= field "phone" schema
 
@@ -938,7 +938,7 @@ newtype HandleUpdate = HandleUpdate {huHandle :: Text}
 
 instance ToSchema HandleUpdate where
   schema =
-    object "handle-update" $
+    object "HandleUpdate" $
       HandleUpdate <$> huHandle .= field "handle" schema
 
 modelChangeHandle :: Doc.Model
