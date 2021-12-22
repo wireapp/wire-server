@@ -714,13 +714,13 @@ data Api routes = Api
         :- Summary "Create a new non binding team"
         :> ZUser
         :> ZConn
+        :> CanThrow NotConnected
         :> "teams"
         :> ReqBody '[Servant.JSON] NonBindingNewTeam
         :> MultiVerb
              'POST
              '[JSON]
-             '[ NotConnected,
-                WithHeaders
+             '[ WithHeaders
                   '[DescHeader "Location" "Team ID" TeamId]
                   TeamId
                   (RespondEmpty 201 "Team ID as `Location` header value")
