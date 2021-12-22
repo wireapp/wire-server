@@ -86,21 +86,6 @@ modelPermissions = Doc.defineModel "Permissions" $ do
   Doc.property "copy" (Doc.int64 $ Doc.min 0 . Doc.max 0x7FFFFFFFFFFFFFFF) $
     Doc.description "The permissions bitmask which this user can assign to others"
 
--- instance ToJSON Permissions where
---   toJSON p =
---     object $
---       "self" .= permsToInt (_self p)
---         # "copy" .= permsToInt (_copy p)
---         # []
-
--- instance FromJSON Permissions where
---   parseJSON = withObject "permissions" $ \o -> do
---     s <- intToPerms <$> o .: "self"
---     d <- intToPerms <$> o .: "copy"
---     case newPermissions s d of
---       Nothing -> fail "invalid permissions"
---       Just ps -> pure ps
-
 instance Arbitrary Permissions where
   arbitrary =
     maybe (error "instance Arbitrary Permissions") pure =<< do
