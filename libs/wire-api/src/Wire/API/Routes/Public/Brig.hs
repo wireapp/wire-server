@@ -51,6 +51,7 @@ import Wire.API.User.Handle
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
+import Wire.API.Properties
 
 type MaxUsersForListClientsBulk = 500
 
@@ -682,17 +683,58 @@ data Api routes = Api
              'POST
              '[JSON]
              '[Respond 200 "Deletion is initiated" ()]
-             ()
-             -- setProperty ::
-             --   routes :- Summary "Set a user property."
-             --     :> "properties"
-             --     :> Capture "key" PropertyKey
-             --     :> ReqBody '[JSON] PropertyValue
-             --     :> MultiVerb
-             --          'POST
-             --          '[JSON]
-             --          '[ Respond 200 "Property set." () ]
-             --          ()
+             (),
+    setProperty ::
+      routes :- Summary "Set a user property."
+        :> ZUser
+        :> ZConn
+        :> "properties"
+        :> Capture "key" Text
+        :> ReqBody '[JSON] PropertyValue
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[ RespondEmpty 200 "Property set." ]
+             (),
+    deleteProperty ::
+      routes :- Summary "Delete a property."
+        :> ZUser
+        :> ZConn
+        :> "properties"
+        :> Capture "key" Text
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[ RespondEmpty 200 "Property deleted." ]
+             (),
+    clearProperties ::
+      routes :- Summary "Clear all properties."
+        :> ZUser
+        :> ZConn
+        :> "properties"
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[ RespondEmpty 200 "Properties cleared." ]
+             (),
+    listPropertyKeys ::
+      routes :- Summary "List all property keys."
+        :> ZUser
+        :> "properties"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ RespondEmpty 200 "List of property keys." ]
+             [Text],
+    listPropertyKeysAndValues ::
+      routes :- Summary "List all properties with key and values."
+        :> ZUser
+        :> "properties-values"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ Respond 200 "List of property keys." PropertyKeysAndValues ]
+             PropertyKeysAndValues
   }
   deriving (Generic)
 

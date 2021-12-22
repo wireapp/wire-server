@@ -28,17 +28,27 @@ module Wire.API.Properties
   )
 where
 
-import Data.Aeson
+import Data.Aeson (ToJSON, FromJSON, ToJSONKey, FromJSONKey, Value)
+import qualified Data.Aeson as A
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
 import Wire.API.Arbitrary (Arbitrary)
+import Data.Schema
 
-newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
+newtype PropertyKeysAndValues = PropertyKeysAndValues { pkavKeysAndValues :: [(PropertyKey, PropertyValue)] }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Hashable)
+  deriving S.ToSchema via Schema PropertyKeysAndValues
+
+instance ToSchema PropertyKeysAndValues where
+  -- TODO(sandy): HELP
+  schema = object "PropertyKeysAndValues" $ undefined
+    -- PropertyKeysAndValues
+    --   <$> pkavKeysAndValues .= schema
 
 modelPropertyDictionary :: Doc.Model
 modelPropertyDictionary =
@@ -46,7 +56,7 @@ modelPropertyDictionary =
     Doc.description "A JSON object with properties as attribute/value pairs."
 
 instance ToJSON PropertyKeysAndValues where
-  toJSON (PropertyKeysAndValues kvs) = object [toText k .= v | (PropertyKey k, v) <- kvs]
+  toJSON (PropertyKeysAndValues kvs) = A.object [toText k A..= v | (PropertyKey k, v) <- kvs]
 
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
@@ -56,7 +66,13 @@ newtype PropertyKey = PropertyKey
 newtype PropertyValue = PropertyValue
   {propertyValueJson :: Value}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, Hashable, Arbitrary)
+  deriving newtype (Hashable, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PropertyValue)
+
+instance ToSchema PropertyValue where
+  schema =
+    PropertyValue
+      <$> propertyValueJson .= named "PropertyValue" mempty
 
 modelPropertyValue :: Doc.Model
 modelPropertyValue =
