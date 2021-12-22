@@ -275,15 +275,9 @@ data ListType
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false
 instance ToSchema ListType where
-  schema = listTypeToBool .= boolToListType <$> schema
-    where
-      listTypeToBool :: ListType -> Bool
-      listTypeToBool ListComplete = False
-      listTypeToBool ListTruncated = True
-
-      boolToListType :: Bool -> ListType
-      boolToListType False = ListComplete
-      boolToListType True = ListTruncated
+  schema =
+    enum @Bool "ListType" $
+      mconcat [element True ListTruncated, element False ListComplete]
 
 --------------------------------------------------------------------------------
 -- NewTeamMember
@@ -351,7 +345,9 @@ invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
     _ -> fail "created_by, created_at"
 
 instance ToSchema NewTeamMember where
-  schema = object "NewTeamMember" newTeamMemberSchema
+  schema =
+    object "NewTeamMember" $
+      field "member" $ unnamed (object "Unnamed" newTeamMemberSchema)
 
 modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
@@ -372,7 +368,7 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 instance ToSchema TeamMemberDeleteData where
   schema =
     object "TeamMemberDeleteData" $
-      TeamMemberDeleteData <$> _tmdAuthPassword .= maybe_ (optField "password" schema)
+      TeamMemberDeleteData <$> _tmdAuthPassword .= optField "password" (maybeWithDefault Null schema)
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
