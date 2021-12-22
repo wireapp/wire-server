@@ -122,6 +122,7 @@ import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
+import qualified Wire.API.Team.Member as Member
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -853,7 +854,7 @@ addTeamMember u tid (minvmeta, role) = do
     _ -> False
   where
     prm = Team.rolePermissions role
-    bdy = Team.newNewTeamMember u prm minvmeta
+    bdy = Member.mkNewTeamMember u prm minvmeta
     req =
       paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"

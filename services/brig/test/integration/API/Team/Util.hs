@@ -48,6 +48,7 @@ import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.User as Public
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
@@ -204,7 +205,7 @@ updatePermissions from tid (to, perm) galley =
     !!! const 200
     === statusCode
   where
-    changeMember = Team.newNewTeamMember to perm Nothing
+    changeMember = Member.mkNewTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do
