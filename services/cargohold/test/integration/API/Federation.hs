@@ -20,28 +20,28 @@ import TestSetup
 import Wire.API.Asset
 import Wire.API.Federation.API.Cargohold
 
-tests :: IO TestSetup -> TestTree
-tests s =
+tests :: FilePath -> TestTree
+tests configPath =
   testGroup
     "API Federation"
     [ testGroup
         "get-asset"
-        [ test s "private asset is available" (testGetAssetAvailable False),
-          test s "public asset is available" (testGetAssetAvailable True),
-          test s "not available" testGetAssetNotAvailable,
-          test s "wrong token" testGetAssetWrongToken
+        [ test configPath "private asset is available" (testGetAssetAvailable False),
+          test configPath "public asset is available" (testGetAssetAvailable True),
+          test configPath "not available" testGetAssetNotAvailable,
+          test configPath "wrong token" testGetAssetWrongToken
         ],
       testGroup
         "stream-asset"
-        [ test s "streaming large asset" testLargeAsset,
-          test s "stream an asset" testStreamAsset,
-          test s "stream asset not available" testStreamAssetNotAvailable,
-          test s "stream asset wrong token" testStreamAssetWrongToken
+        [ test configPath "streaming large asset" testLargeAsset,
+          test configPath "stream an asset" testStreamAsset,
+          test configPath "stream asset not available" testStreamAssetNotAvailable,
+          test configPath "stream asset wrong token" testStreamAssetWrongToken
         ]
     ]
 
-testGetAssetAvailable :: Bool -> TestSignature ()
-testGetAssetAvailable isPublicAsset c = do
+testGetAssetAvailable :: Bool -> TestM ()
+testGetAssetAvailable isPublicAsset = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings =
@@ -51,7 +51,7 @@ testGetAssetAvailable isPublicAsset c = do
   uid <- liftIO $ Id <$> nextRandom
   ast :: Asset <-
     responseJsonError
-      =<< uploadSimple (c . path "/assets/v3") uid settings bdy
+      =<< uploadSimple (path "/assets/v3") uid settings bdy
       <!! const 201 === statusCode
 
   -- Call get-asset federation API
@@ -63,6 +63,7 @@ testGetAssetAvailable isPublicAsset c = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
+  c <- viewCargohold
   ok <-
     fmap gaAvailable . responseJsonError
       =<< post (c . path "/federation/get-asset" . json ga)
@@ -71,8 +72,8 @@ testGetAssetAvailable isPublicAsset c = do
   -- check that asset is available
   liftIO $ ok @?= True
 
-testGetAssetNotAvailable :: TestSignature ()
-testGetAssetNotAvailable c = do
+testGetAssetNotAvailable :: TestM ()
+testGetAssetNotAvailable = do
   uid <- liftIO $ Id <$> nextRandom
   token <- randToken
 
@@ -84,6 +85,7 @@ testGetAssetNotAvailable c = do
             gaToken = Just token,
             gaKey = key
           }
+  c <- viewCargohold
   ok <-
     fmap gaAvailable . responseJsonError
       =<< post (c . path "/federation/get-asset" . json ga)
@@ -92,15 +94,15 @@ testGetAssetNotAvailable c = do
   -- check that asset is not available
   liftIO $ ok @?= False
 
-testGetAssetWrongToken :: TestSignature ()
-testGetAssetWrongToken c = do
+testGetAssetWrongToken :: TestM ()
+testGetAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
   uid <- liftIO $ Id <$> nextRandom
   ast :: Asset <-
     responseJsonError
-      =<< uploadSimple (c . path "/assets/v3") uid settings bdy
+      =<< uploadSimple (path "/assets/v3") uid settings bdy
       <!! const 201 === statusCode
 
   -- Call get-asset federation API with wrong (random) token
@@ -112,6 +114,7 @@ testGetAssetWrongToken c = do
             gaToken = Just tok,
             gaKey = qUnqualified key
           }
+  c <- viewCargohold
   ok <-
     fmap gaAvailable . responseJsonError
       =<< post (c . path "/federation/get-asset" . json ga)
@@ -120,8 +123,8 @@ testGetAssetWrongToken c = do
   -- check that asset is not available
   liftIO $ ok @?= False
 
-testLargeAsset :: TestSignature ()
-testLargeAsset c = do
+testLargeAsset :: TestM ()
+testLargeAsset = do
   -- Initial upload
   let settings =
         defAssetSettings
@@ -133,7 +136,7 @@ testLargeAsset c = do
 
   ast :: Asset <-
     responseJsonError
-      =<< uploadSimple (c . path "/assets/v3") uid settings (applicationOctetStream, bs)
+      =<< uploadSimple (path "/assets/v3") uid settings (applicationOctetStream, bs)
       <!! const 201 === statusCode
 
   -- Call get-asset federation API
@@ -150,7 +153,7 @@ testLargeAsset c = do
         if BS.null chunk
           then pure acc
           else go (chunk : acc)
-
+  c <- viewCargohold
   http empty (method HTTP.POST . c . path "/federation/stream-asset" . json ga) $ \resp -> do
     statusCode resp @?= 200
     chunks <- getAllChunks (responseBody resp)
@@ -160,8 +163,8 @@ testLargeAsset c = do
       (length chunks > minNumChunks)
     mconcat chunks @?= bs
 
-testStreamAsset :: TestSignature ()
-testStreamAsset c = do
+testStreamAsset :: TestM ()
+testStreamAsset = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings =
@@ -170,7 +173,7 @@ testStreamAsset c = do
   uid <- liftIO $ Id <$> nextRandom
   ast :: Asset <-
     responseJsonError
-      =<< uploadSimple (c . path "/assets/v3") uid settings bdy
+      =<< uploadSimple (path "/assets/v3") uid settings bdy
       <!! const 201 === statusCode
 
   -- Call get-asset federation API
@@ -182,6 +185,7 @@ testStreamAsset c = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
+  c <- viewCargohold
   respBody <-
     fmap responseBody $
       post (c . path "/federation/stream-asset" . json ga)
@@ -189,8 +193,8 @@ testStreamAsset c = do
 
   liftIO $ respBody @?= Just "Hello World"
 
-testStreamAssetNotAvailable :: TestSignature ()
-testStreamAssetNotAvailable c = do
+testStreamAssetNotAvailable :: TestM ()
+testStreamAssetNotAvailable = do
   uid <- liftIO $ Id <$> nextRandom
   token <- randToken
 
@@ -202,21 +206,22 @@ testStreamAssetNotAvailable c = do
             gaToken = Just token,
             gaKey = key
           }
+  c <- viewCargohold
   err <-
     responseJsonError
       =<< post (c . path "/federation/stream-asset" . json ga)
       <!! const 404 === statusCode
   liftIO $ Wai.label err @?= "not-found"
 
-testStreamAssetWrongToken :: TestSignature ()
-testStreamAssetWrongToken c = do
+testStreamAssetWrongToken :: TestM ()
+testStreamAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
   uid <- liftIO $ Id <$> nextRandom
   ast :: Asset <-
     responseJsonError
-      =<< uploadSimple (c . path "/assets/v3") uid settings bdy
+      =<< uploadSimple (path "/assets/v3") uid settings bdy
       <!! const 201 === statusCode
 
   -- Call get-asset federation API with wrong (random) token
@@ -228,6 +233,7 @@ testStreamAssetWrongToken c = do
             gaToken = Just tok,
             gaKey = qUnqualified key
           }
+  c <- viewCargohold
   err <-
     responseJsonError
       =<< post (c . path "/federation/stream-asset" . json ga)

@@ -24,8 +24,8 @@ import Servant.API
 import Servant.API.Generic
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Asset
-import Wire.API.Util.Aeson
 import Wire.API.Routes.AssetBody
+import Wire.API.Util.Aeson
 
 data GetAsset = GetAsset
   { -- | User requesting the asset. Implictly qualified with the source domain.

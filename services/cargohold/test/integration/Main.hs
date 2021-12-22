@@ -21,32 +21,16 @@ module Main
 where
 
 import qualified API
+import API.Federation (tests)
 import qualified API.V3
-import Bilge hiding (body, header)
 import Data.Proxy
 import Data.Tagged
-import Data.Text.Encoding (encodeUtf8)
-import Data.Yaml hiding (Parser)
 import Imports hiding (local)
 import qualified Metrics
-import Network.HTTP.Client (responseTimeoutMicro)
-import Network.HTTP.Client.TLS
 import Options.Applicative
 import Test.Tasty
 import Test.Tasty.Options
-import TestSetup
-import Util.Options
-import Util.Options.Common
 import Util.Test
-import API.Federation (tests)
-
-data IntegrationConfig = IntegrationConfig
-  -- internal endpoint
-  { cargohold :: Endpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON IntegrationConfig
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
@@ -64,11 +48,9 @@ instance IsOption ServiceConfigFile where
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
         )
 
-runTests :: (String -> String -> TestTree) -> IO ()
+runTests :: (String -> TestTree) -> IO ()
 runTests run = defaultMainWithIngredients ings $
-  askOption $
-    \(ServiceConfigFile c) ->
-      askOption $ \(IntegrationConfigFile i) -> run c i
+  askOption $ \(IntegrationConfigFile i) -> run i
   where
     ings =
       includingOptions
@@ -80,27 +62,12 @@ runTests run = defaultMainWithIngredients ings $
 main :: IO ()
 main = runTests go
   where
-    go c i = withResource (getOpts c i) releaseOpts $ \opts ->
+    go :: FilePath -> TestTree
+    go configPath =
       testGroup
         "Cargohold"
-        [ API.tests opts,
-          API.V3.tests opts,
-          Metrics.tests opts,
-          API.Federation.tests opts
+        [ API.tests configPath,
+          API.V3.tests configPath,
+          Metrics.tests configPath,
+          API.Federation.tests configPath
         ]
-    getOpts _ i = do
-      -- TODO: It would actually be useful to read some
-      -- values from cargohold (max bytes, for instance)
-      -- so that tests do not need to keep those values
-      -- in sync and the user _knows_ what they are
-      m <-
-        newManager
-          tlsManagerSettings
-            { managerResponseTimeout = responseTimeoutMicro 300000000
-            }
-      let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
-      iConf <- handleParseError =<< decodeFileEither i
-      cargo <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
-      return $ TestSetup m cargo
-    mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
-    releaseOpts _ = return ()

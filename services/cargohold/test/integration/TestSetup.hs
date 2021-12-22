@@ -19,33 +19,71 @@ module TestSetup
   ( test,
     tsManager,
     tsCargohold,
-    TestSignature,
     TestSetup (..),
-    CargoHold,
+    Cargohold,
+    TestM,
+    viewCargohold,
   )
 where
 
-import Bilge (Request)
-import Bilge.IO (Http, Manager, runHttpT)
-import Control.Lens (makeLenses, (^.))
+import Bilge hiding (body)
+import Control.Lens
+import Data.Text.Encoding
+import Data.Yaml
 import Imports
+import Network.HTTP.Client
+import Network.HTTP.Client.TLS
 import Test.Tasty
 import Test.Tasty.HUnit
+import Util.Options
+import Util.Options.Common
+import Util.Test
 
-type CargoHold = Request -> Request
+type Cargohold = Request -> Request
 
-type TestSignature a = CargoHold -> Http a
+type TestM = ReaderT TestSetup Http
 
 data TestSetup = TestSetup
   { _tsManager :: Manager,
-    _tsCargohold :: CargoHold
+    _tsCargohold :: Cargohold
   }
 
 makeLenses ''TestSetup
 
-test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
-test s n h = testCase n runTest
+viewCargohold :: TestM Cargohold
+viewCargohold = view tsCargohold
+
+data IntegrationConfig = IntegrationConfig
+  -- internal endpoint
+  { cargohold :: Endpoint
+  }
+  deriving (Show, Generic)
+
+instance FromJSON IntegrationConfig
+
+runTestM :: FilePath -> TestM a -> IO a
+runTestM configPath testM = do
+  ts <- createTestSetup
+  runHttpT (view tsManager ts) (runReaderT testM ts)
   where
-    runTest = do
-      setup <- s
-      void $ runHttpT (setup ^. tsManager) (h (setup ^. tsCargohold))
+    createTestSetup :: IO TestSetup
+    createTestSetup = do
+      -- TODO: It would actually be useful to read some
+      -- values from cargohold (max bytes, for instance)
+      -- so that tests do not need to keep those values
+      -- in sync and the user _knows_ what they are
+      m <-
+        newManager
+          tlsManagerSettings
+            { managerResponseTimeout = responseTimeoutMicro 300000000
+            }
+      let localEndpoint p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
+      iConf <- handleParseError =<< decodeFileEither configPath
+      cargo <- mkRequest <$> optOrEnv cargohold iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
+      return $ TestSetup m cargo
+
+    mkRequest :: Endpoint -> Request -> Request
+    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
+
+test :: FilePath -> TestName -> TestM () -> TestTree
+test configPath n h = testCase n $ runTestM configPath h

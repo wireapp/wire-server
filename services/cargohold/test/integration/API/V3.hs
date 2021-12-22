@@ -38,32 +38,33 @@ import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Asset
 
-tests :: IO TestSetup -> TestTree
-tests s =
+tests :: FilePath -> TestTree
+tests configPath =
   testGroup
     "API Integration v3"
     [ testGroup
         "simple"
-        [test s "roundtrip using v3 API" testSimpleRoundtrip]
+        [test configPath "roundtrip using v3 API" testSimpleRoundtrip]
     ]
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: TestSignature ()
-testSimpleRoundtrip c = do
+testSimpleRoundtrip :: TestM ()
+testSimpleRoundtrip = do
   let def = defAssetSettings
   let rets = [minBound ..]
   let sets = def : map (\r -> def & setAssetRetention ?~ r) rets
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
+      c <- viewCargohold
       uid <- liftIO $ Id <$> nextRandom
       uid2 <- liftIO $ Id <$> nextRandom
       -- Initial upload
       let bdy = (applicationText, "Hello World")
       r1 <-
-        uploadSimple (c . path "/assets/v3") uid sets bdy
+        uploadSimple (path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
       -- use v3 path instead of the one returned in the header
       let Just ast = responseJsonMaybe @Asset r1
@@ -88,9 +89,9 @@ testSimpleRoundtrip c = do
         assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
-      deleteAssetV3 c uid2 (view assetKey ast) !!! const 403 === statusCode
+      deleteAssetV3 uid2 (view assetKey ast) !!! const 403 === statusCode
       -- Delete (allowed for creator)
-      deleteAssetV3 c uid (view assetKey ast) !!! const 200 === statusCode
+      deleteAssetV3 uid (view assetKey ast) !!! const 200 === statusCode
       r4 <-
         get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect)
           <!! const 404 === statusCode

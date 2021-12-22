@@ -35,11 +35,11 @@ import Wire.API.Asset
 import Crypto.Random
 
 uploadSimple ::
-  CargoHold ->
+  (Request -> Request) ->
   UserId ->
   AssetSettings ->
   (MIME.Type, ByteString) ->
-  Http (Response (Maybe Lazy.ByteString))
+  TestM (Response (Maybe Lazy.ByteString))
 uploadSimple c usr sets (ct, bs) =
   let mp = buildMultipartBody sets ct (Lazy.fromStrict bs)
    in uploadRaw c usr (toLazyByteString mp)
@@ -62,13 +62,14 @@ uploadRandom c usr settings ct size = do
   uploadSimple c usr settings (ct, bs)
 
 uploadRaw ::
-  CargoHold ->
+  (Request -> Request) ->
   UserId ->
   Lazy.ByteString ->
-  Http (Response (Maybe Lazy.ByteString))
-uploadRaw c usr bs =
+  TestM (Response (Maybe Lazy.ByteString))
+uploadRaw c usr bs = do
+  cargohold <- viewCargohold
   post $
-    c
+    c . cargohold
       . method POST
       . zUser usr
       . zConn "conn"
@@ -90,11 +91,14 @@ zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-deleteAssetV3 :: CargoHold -> UserId -> Qualified AssetKey -> Http (Response (Maybe Lazy.ByteString))
-deleteAssetV3 c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
+deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
+deleteAssetV3 u k = do
+  c <- viewCargohold
+  delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
-deleteAsset :: CargoHold -> UserId -> Qualified AssetKey -> Http (Response (Maybe Lazy.ByteString))
-deleteAsset c u k =
+deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
+deleteAsset u k = do
+  c <- viewCargohold
   delete $
     c . zUser u
       . paths

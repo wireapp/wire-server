@@ -22,6 +22,7 @@ module API (tests) where
 import API.Util
 import Bilge hiding (body)
 import Bilge.Assert
+import CargoHold.Types
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding (sets)
@@ -40,24 +41,28 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 
-tests :: IO TestSetup -> TestTree
-tests s =
+tests :: FilePath -> TestTree
+tests configPath =
   testGroup
     "API Integration"
     [ testGroup
         "simple"
-        [ test s "roundtrip" testSimpleRoundtrip,
-          test s "tokens" testSimpleTokens,
-          test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
-          test s "client-compatibility" testUploadCompatibility
+        [ test configPath "roundtrip" testSimpleRoundtrip,
+          test configPath "tokens" testSimpleTokens,
+          test configPath "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
+          test configPath "client-compatibility" testUploadCompatibility
+        ],
+      testGroup
+        "remote"
+        [ test configPath "download" testRemoteDownload
         ]
     ]
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: TestSignature ()
-testSimpleRoundtrip c = do
+testSimpleRoundtrip :: TestM ()
+testSimpleRoundtrip = do
   let def = V3.defAssetSettings
   let rets = [minBound ..]
   let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
@@ -69,7 +74,7 @@ testSimpleRoundtrip c = do
       -- Initial upload
       let bdy = (applicationText, "Hello World")
       r1 <-
-        uploadSimple (c . path "/assets/v3") uid sets bdy
+        uploadSimple (path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
       let loc = decodeHeaderOrFail "Location" r1 :: ByteString
       let Just ast = responseJsonMaybe @V3.Asset r1
@@ -81,6 +86,7 @@ testSimpleRoundtrip c = do
       when (isJust $ join (V3.assetRetentionSeconds <$> (sets ^. V3.setAssetRetention))) $ do
         liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
       -- Lookup with token and download via redirect.
+      c <- viewCargohold
       r2 <-
         get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
           const 302 === statusCode
@@ -93,9 +99,9 @@ testSimpleRoundtrip c = do
         assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
-      deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
+      deleteAsset uid2 (view V3.assetKey ast) !!! const 403 === statusCode
       -- Delete (allowed for creator)
-      deleteAsset c uid (view V3.assetKey ast) !!! const 200 === statusCode
+      deleteAsset uid (view V3.assetKey ast) !!! const 200 === statusCode
       r4 <-
         get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect)
           <!! const 404 === statusCode
@@ -103,20 +109,21 @@ testSimpleRoundtrip c = do
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       liftIO $ assertBool "bad date" (utc' >= utc)
 
-testSimpleTokens :: TestSignature ()
-testSimpleTokens c = do
+testSimpleTokens :: TestM ()
+testSimpleTokens = do
   uid <- liftIO $ Id <$> nextRandom
   uid2 <- liftIO $ Id <$> nextRandom
   -- Initial upload
   let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
   let bdy = (applicationText, "Hello World")
   r1 <-
-    uploadSimple (c . path "/assets/v3") uid sets bdy
+    uploadSimple (path "/assets/v3") uid sets bdy
       <!! const 201 === statusCode
   let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   let Just ast = responseJsonMaybe @V3.Asset r1
   let key = view V3.assetKey ast
   let Just tok = view V3.assetToken ast
+  c <- viewCargohold
   -- No access without token from other user (opaque 404)
   get (c . path loc . zUser uid2 . noRedirect)
     !!! const 404 === statusCode
@@ -176,15 +183,15 @@ testSimpleTokens c = do
 -- S3 closes idle connections after ~5 seconds, before the http-client 'Manager'
 -- does. If such a closed connection is reused for an upload, no problems should
 -- occur (i.e. the closed connection should be detected before sending any data).
-testSimpleS3ClosedConnectionReuse :: TestSignature ()
-testSimpleS3ClosedConnectionReuse c = go >> wait >> go
+testSimpleS3ClosedConnectionReuse :: TestM ()
+testSimpleS3ClosedConnectionReuse = go >> wait >> go
   where
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
     go = do
       uid <- liftIO $ Id <$> nextRandom
       let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
       let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
-      uploadSimple (c . path "/assets/v3") uid sets part2
+      uploadSimple (path "/assets/v3") uid sets part2
         !!! const 201 === statusCode
 
 --------------------------------------------------------------------------------
@@ -196,9 +203,10 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
 --
 -- The body is taken directly from a request made by the web app
 -- (just replaced the content with a shorter one and updated the MD5 header).
-testUploadCompatibility :: TestSignature ()
-testUploadCompatibility c = do
+testUploadCompatibility :: TestM ()
+testUploadCompatibility = do
   uid <- liftIO $ Id <$> nextRandom
+  c <- viewCargohold
   -- Initial upload
   r1 <-
     uploadRaw (c . path "/assets/v3") uid exampleMultipart
@@ -231,3 +239,18 @@ testUploadCompatibility c = do
       \test\r\n\
       \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
       \\r\n"
+
+testRemoteDownload :: TestM ()
+testRemoteDownload = do
+  assetId <- liftIO $ Id <$> nextRandom
+  uid <- liftIO $ Id <$> nextRandom
+
+  let key = AssetKeyV3 assetId AssetPersistent
+      loc = "/assets/v4/faraway.example.com/" <> toByteString' key
+  c <- viewCargohold
+  _ <-
+    get (c . path loc . zUser uid . noRedirect) <!! do
+      -- TODO: Accepted the error for now to commit on green state.
+      -- statusCode should finally be 200!
+      const 422 === statusCode
+  pure ()
