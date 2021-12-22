@@ -6,6 +6,8 @@ import Bilge.Assert
 import CargoHold.API.V3 (randToken)
 import Conduit
 import Control.Lens
+import Crypto.Random
+import qualified Data.ByteString as BS
 import Data.Id
 import Data.Qualified
 import Data.UUID.V4
@@ -118,14 +120,17 @@ testGetAssetWrongToken c = do
 testLargeAsset :: TestSignature ()
 testLargeAsset c = do
   -- Initial upload
-  let size = 1024 * 1024
-      settings =
+  let settings =
         defAssetSettings
           & set setAssetRetention (Just AssetVolatile)
   uid <- liftIO $ Id <$> nextRandom
+  -- generate random bytes
+  let size = 1024 * 1024
+  bs <- liftIO $ getRandomBytes size
+
   ast :: Asset <-
     responseJsonError
-      =<< uploadRandom (c . path "/assets/v3") uid settings applicationOctetStream size
+      =<< uploadSimple (c . path "/assets/v3") uid settings (applicationOctetStream, bs)
       <!! const 201 === statusCode
 
   -- Call get-asset federation API
@@ -137,11 +142,20 @@ testLargeAsset c = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
+  let getAllChunks getChunk = fmap reverse . ($ []) . fix $ \go acc -> do
+        chunk <- getChunk
+        if BS.null chunk
+          then pure acc
+          else go (chunk : acc)
+
   http empty (method HTTP.POST . c . path "/federation/stream-asset" . json ga) $ \resp -> do
     statusCode resp @?= 200
-    -- check that the first chunk is received
-    chunk <- responseBody resp
-    print chunk
+    chunks <- getAllChunks (responseBody resp)
+    let minNumChunks = 8
+    assertBool
+      ("Expected at least " <> show minNumChunks <> " chunks, got " <> show (length chunks))
+      (length chunks > minNumChunks)
+    mconcat chunks @?= bs
 
 testStreamAsset :: TestSignature ()
 testStreamAsset c = do
@@ -165,9 +179,9 @@ testStreamAsset c = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
-  respBody <- fmap responseBody $
-       post (c . path "/federation/stream-asset" . json ga)
-       <!! const 200 === statusCode
-
+  respBody <-
+    fmap responseBody $
+      post (c . path "/federation/stream-asset" . json ga)
+        <!! const 200 === statusCode
 
   liftIO $ respBody @?= Just "Hello World"

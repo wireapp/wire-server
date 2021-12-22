@@ -20,7 +20,6 @@ module API.Util where
 import Bilge hiding (body)
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
-import Crypto.Random
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -33,6 +32,7 @@ import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import TestSetup
 import Wire.API.Asset
+import Crypto.Random
 
 uploadSimple ::
   CargoHold ->
