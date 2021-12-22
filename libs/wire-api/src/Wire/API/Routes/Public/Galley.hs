@@ -73,6 +73,8 @@ type ConversationVerb =
 
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
+type ConvJoinResponses = UpdateResponses "Conversation unchanged" "Conversation joined" Event
+
 type RemoveFromConversationVerb =
   MultiVerb
     'DELETE
@@ -279,6 +281,19 @@ type ConversationAPI =
                :> "v2"
                :> ReqBody '[Servant.JSON] InviteQualified
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    :<|> Named
+           "join-conversation-by-id-unqualified"
+           ( Summary "Join a conversation by its ID (if link access enabled)"
+               :> CanThrow ConvNotFound
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "join"
+               :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members

@@ -370,21 +370,6 @@ sitemap = do
 
   -- Conversation API ---------------------------------------------------
 
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/conversations/:cnv/join" (continue Update.joinConversationByIdH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "POST" "joinConversationById" $ do
-    summary "Join a conversation by its ID (if link access enabled)"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation joined." end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-
   post "/conversations/code-check" (continue Update.checkReusableCodeH) $
     jsonRequest @Public.ConversationCode
   document "POST" "checkConversationCode" $ do

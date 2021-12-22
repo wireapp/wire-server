@@ -49,6 +49,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
         :<|> Named @"create-one-to-one-conversation" createOne2OneConversation
         :<|> Named @"add-members-to-conversation-unqualified" addMembersUnqualified
         :<|> Named @"add-members-to-conversation" addMembers
+        :<|> Named @"join-conversation-by-id-unqualified" joinConversationByIdUnqualified
         :<|> Named @"remove-member-unqualified" removeMemberUnqualified
         :<|> Named @"remove-member" removeMemberQualified
         :<|> Named @"update-other-member-unqualified" updateOtherMemberUnqualified
