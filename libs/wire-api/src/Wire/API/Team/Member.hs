@@ -94,6 +94,7 @@ data TeamMember' (tag :: PermissionTag) = TeamMember
   { _newTeamMember :: NewTeamMember' tag,
     _legalHoldStatus :: UserLegalHoldStatus
   }
+  deriving stock (Generic)
 
 ntmNewTeamMember :: NewTeamMember' tag -> TeamMember' tag
 ntmNewTeamMember ntm = TeamMember ntm defUserLegalHoldStatus
@@ -103,8 +104,6 @@ deriving instance Eq (PermissionType tag) => Eq (TeamMember' tag)
 deriving instance Ord (PermissionType tag) => Ord (TeamMember' tag)
 
 deriving instance Show (PermissionType tag) => Show (TeamMember' tag)
-
-deriving instance Generic (TeamMember' tag)
 
 deriving via (GenericUniform TeamMember) instance Arbitrary TeamMember
 
@@ -178,9 +177,6 @@ modelTeamMember = Doc.defineModel "TeamMember" $ do
     Doc.description "The state of Legal Hold compliance for the member"
     Doc.optional
 
--- FUTUREWORK:
--- There must be a cleaner way to do this, with a separate type
--- instead of logic in the JSON instance.
 setPerm :: Bool -> Permissions -> Maybe Permissions
 setPerm True = Just
 setPerm False = const Nothing
@@ -194,7 +190,7 @@ data TeamMemberList' (tag :: PermissionTag) = TeamMemberList
   { _teamMembers :: [TeamMember' tag],
     _teamMemberListType :: ListType
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 deriving instance Eq (PermissionType tag) => Eq (TeamMemberList' tag)
 
@@ -294,14 +290,13 @@ data NewTeamMember' (tag :: PermissionTag) = NewTeamMember
     _nPermissions :: PermissionType tag,
     _nInvitation :: Maybe (UserId, UTCTimeMillis)
   }
+  deriving stock (Generic)
 
 deriving instance (Eq (PermissionType tag)) => Eq (NewTeamMember' tag)
 
 deriving instance (Ord (PermissionType tag)) => Ord (NewTeamMember' tag)
 
 deriving instance (Show (PermissionType tag)) => Show (NewTeamMember' tag)
-
-deriving instance (Generic (PermissionType tag)) => Generic (NewTeamMember' tag)
 
 deriving via
   (Schema (NewTeamMember' tag))
@@ -394,7 +389,7 @@ permissions = newTeamMember . nPermissions
 invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
 invitation = newTeamMember . nInvitation
 
--- JSON serialisation utilities (TODO: remove after servantification)
+-- JSON serialisation utilities (FUTUREWORK(leif): remove after servantification)
 
 teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms = toJSON . setOptionalPerms withPerms

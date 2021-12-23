@@ -706,7 +706,6 @@ getTeamMemberH ::
   Sem r Response
 getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
   (member, withPerms) <- getTeamMember zusr tid uid
-  -- pure $ member & permissions .~ \p -> guard (withPerms member) $> p
   pure . json $ teamMemberJson withPerms member
 
 getTeamMember ::
