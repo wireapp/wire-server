@@ -86,9 +86,8 @@ testSimpleRoundtrip = do
       when (isJust $ join (V3.assetRetentionSeconds <$> (sets ^. V3.setAssetRetention))) $ do
         liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
       -- Lookup with token and download via redirect.
-      c <- viewCargohold
       r2 <-
-        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
+        downloadAsset uid loc (Just tok) <!! do
           const 302 === statusCode
           const Nothing === responseBody
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
@@ -102,9 +101,7 @@ testSimpleRoundtrip = do
       deleteAsset uid2 (view V3.assetKey ast) !!! const 403 === statusCode
       -- Delete (allowed for creator)
       deleteAsset uid (view V3.assetKey ast) !!! const 200 === statusCode
-      r4 <-
-        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect)
-          <!! const 404 === statusCode
+      r4 <- downloadAsset uid loc (Just tok) <!! const 404 === statusCode
       let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       liftIO $ assertBool "bad date" (utc' >= utc)
@@ -123,32 +120,29 @@ testSimpleTokens = do
   let Just ast = responseJsonMaybe @V3.Asset r1
   let key = view V3.assetKey ast
   let Just tok = view V3.assetToken ast
-  c <- viewCargohold
   -- No access without token from other user (opaque 404)
-  get (c . path loc . zUser uid2 . noRedirect)
+  downloadAsset uid2 loc ()
     !!! const 404 === statusCode
   -- No access with empty token query parameter from other user (opaque 404)
-  get (c . path loc . zUser uid2 . queryItem' "asset_token" Nothing . noRedirect)
+  downloadAsset uid2 loc (queryItem' "asset_token" Nothing)
     !!! const 404 === statusCode
   -- No access with wrong token (opaque 404)
-  get (c . path loc . zUser uid2 . header "Asset-Token" "acb123" . noRedirect)
+  downloadAsset uid2 loc (Just (AssetToken "abc123"))
     !!! const 404 === statusCode
   -- No access with wrong token as query parameter (opaque 404)
-  get (c . path loc . zUser uid2 . queryItem "asset_token" "acb123" . noRedirect)
+  downloadAsset uid2 loc (queryItem "asset_token" "acb123")
     !!! const 404 === statusCode
   -- Token renewal fails if not done by owner
-  post (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid2) !!! do
+  postToken uid2 (qUnqualified key) !!! do
     const 403 === statusCode
     const (Just "unauthorised") === fmap label . responseJsonMaybe
   -- Token renewal succeeds if done by owner
-  r2 <-
-    post (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid)
-      <!! const 200 === statusCode
+  r2 <- postToken uid (qUnqualified key) <!! const 200 === statusCode
   let Just tok' = V3.newAssetToken <$> responseJsonMaybe r2
   liftIO $ assertBool "token unchanged" (tok /= tok')
   -- Download by owner with new token.
   r3 <-
-    get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok') . noRedirect) <!! do
+    downloadAsset uid loc (Just tok') <!! do
       const 302 === statusCode
       const Nothing === responseBody
   r4 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r3))
@@ -159,24 +153,24 @@ testSimpleTokens = do
     assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r4)
     assertEqual "data mismatch" (Just "Hello World") (responseBody r4)
   -- Verify access without token if the request comes from the creator.
-  get (c . path loc . zUser uid . noRedirect)
+  downloadAsset uid loc ()
     !!! const 302 === statusCode
   -- Verify access with new token from a different user.
-  get (c . path loc . header "Asset-Token" (toByteString' tok') . zUser uid2 . noRedirect)
+  downloadAsset uid2 loc (Just tok')
     !!! const 302 === statusCode
   -- Verify access with new token as query parameter from a different user
-  get (c . path loc . queryItem "asset_token" (toByteString' tok') . zUser uid2 . noRedirect)
+  downloadAsset uid2 loc (queryItem "asset_token" (toByteString' tok'))
     !!! const 302 === statusCode
   -- Delete Token fails if not done by owner
-  delete (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid2) !!! do
+  deleteToken uid2 (qUnqualified key) !!! do
     const 403 === statusCode
     const (Just "unauthorised") === fmap label . responseJsonMaybe
   -- Delete Token succeeds by owner
-  delete (c . paths ["assets", "v3", toByteString' (qUnqualified key), "token"] . zUser uid) !!! do
+  deleteToken uid (qUnqualified key) !!! do
     const 200 === statusCode
     const Nothing === responseBody
   -- Access without token from different user (asset is now "public")
-  get (c . path loc . noRedirect . zUser uid2) !!! do
+  downloadAsset uid2 loc () !!! do
     const 302 === statusCode
     const Nothing === responseBody
 
@@ -206,15 +200,14 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
 testUploadCompatibility :: TestM ()
 testUploadCompatibility = do
   uid <- liftIO $ Id <$> nextRandom
-  c <- viewCargohold
   -- Initial upload
   r1 <-
-    uploadRaw (c . path "/assets/v3") uid exampleMultipart
+    uploadRaw (path "/assets/v3") uid exampleMultipart
       <!! const 201 === statusCode
   let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   -- Lookup and download via redirect.
   r2 <-
-    get (c . path loc . zUser uid . noRedirect) <!! do
+    downloadAsset uid loc () <!! do
       const 302 === statusCode
       const Nothing === responseBody
   r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
@@ -247,10 +240,8 @@ testRemoteDownload = do
 
   let key = AssetKeyV3 assetId AssetPersistent
       loc = "/assets/v4/faraway.example.com/" <> toByteString' key
-  c <- viewCargohold
-  _ <-
-    get (c . path loc . zUser uid . noRedirect) <!! do
+  void $
+    downloadAsset uid loc () <!! do
       -- TODO: Accepted the error for now to commit on green state.
       -- statusCode should finally be 200!
       const 422 === statusCode
-  pure ()

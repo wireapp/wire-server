@@ -24,7 +24,6 @@ import Bilge hiding (body)
 import Bilge.Assert
 import Control.Lens hiding (sets)
 import qualified Data.ByteString.Char8 as C8
-import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
@@ -58,7 +57,6 @@ testSimpleRoundtrip = do
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
-      c <- viewCargohold
       uid <- liftIO $ Id <$> nextRandom
       uid2 <- liftIO $ Id <$> nextRandom
       -- Initial upload
@@ -68,7 +66,7 @@ testSimpleRoundtrip = do
           <!! const 201 === statusCode
       -- use v3 path instead of the one returned in the header
       let Just ast = responseJsonMaybe @Asset r1
-      let loc = "/assets/v3/" <> toByteString' (qUnqualified (ast ^. assetKey))
+      let key = qUnqualified (ast ^. assetKey)
       let Just tok = view assetToken ast
       -- Check mandatory Date header
       let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
@@ -78,7 +76,7 @@ testSimpleRoundtrip = do
         liftIO $ assertBool "invalid expiration" (Just utc < view assetExpires ast)
       -- Lookup with token and download via redirect.
       r2 <-
-        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
+        downloadAsset uid key (Just tok) <!! do
           const 302 === statusCode
           const Nothing === responseBody
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
@@ -93,7 +91,7 @@ testSimpleRoundtrip = do
       -- Delete (allowed for creator)
       deleteAssetV3 uid (view assetKey ast) !!! const 200 === statusCode
       r4 <-
-        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect)
+        downloadAsset uid key (Just tok)
           <!! const 404 === statusCode
       let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime

@@ -107,3 +107,55 @@ deleteAsset u k = do
           toByteString' (qDomain k),
           toByteString' (qUnqualified k)
         ]
+
+class IsAssetLocation key where
+  locationPath :: key -> Request -> Request
+
+instance IsAssetLocation AssetKey where
+  locationPath k = paths ["assets", "v3", toByteString' k]
+
+instance IsAssetLocation (Qualified AssetKey) where
+  locationPath k = paths ["assets", "v4", toByteString' (qDomain k), toByteString' (qUnqualified k)]
+
+instance IsAssetLocation ByteString where
+  locationPath = path
+
+class IsAssetToken tok where
+  tokenParam :: tok -> Request -> Request
+
+instance IsAssetToken () where
+  tokenParam _ = id
+
+instance IsAssetToken (Maybe AssetToken) where
+  tokenParam = maybe id (header "Asset-Token" . toByteString')
+
+instance IsAssetToken (Request -> Request) where
+  tokenParam = id
+
+downloadAsset ::
+  (IsAssetLocation loc, IsAssetToken tok) =>
+  UserId ->
+  loc ->
+  tok ->
+  TestM (Response (Maybe LByteString))
+downloadAsset uid loc tok = do
+  c <- viewCargohold
+  get $
+    c . zUser uid
+      . locationPath loc
+      . tokenParam tok
+      . noRedirect
+
+postToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
+postToken uid key = do
+  c <- viewCargohold
+  post $
+    c . zUser uid
+      . paths ["assets", "v3", toByteString' key, "token"]
+
+deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
+deleteToken uid key = do
+  c <- viewCargohold
+  delete $
+    c . zUser uid
+      . paths ["assets", "v3", toByteString' key, "token"]
