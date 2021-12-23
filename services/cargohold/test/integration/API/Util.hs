@@ -18,8 +18,13 @@
 module API.Util where
 
 import Bilge hiding (body)
+import CargoHold.Options
+import CargoHold.Run
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
+import Control.Lens (set, view, _Just)
+import Control.Monad.Catch
+import Control.Monad.Codensity
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -27,10 +32,14 @@ import Data.Id
 import Data.Qualified
 import Data.Text.Encoding (decodeLatin1)
 import qualified Data.UUID as UUID
+import Federator.MockServer
 import Imports hiding (head)
+import qualified Network.HTTP.Media as HTTP
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
+import qualified Network.Wai as Wai
 import TestSetup
+import Util.Options
 import Wire.API.Asset
 import Crypto.Random
 
@@ -51,12 +60,12 @@ decodeHeaderOrFail h =
     . getHeader' h
 
 uploadRandom ::
-  CargoHold ->
+  Cargohold ->
   UserId ->
   AssetSettings ->
   MIME.Type ->
   Int ->
-  Http (Response (Maybe LByteString))
+  TestM (Response (Maybe LByteString))
 uploadRandom c usr settings ct size = do
   bs <- liftIO $ getRandomBytes size
   uploadSimple c usr settings (ct, bs)
@@ -159,3 +168,32 @@ deleteToken uid key = do
   delete $
     c . zUser uid
       . paths ["assets", "v3", toByteString' key, "token"]
+
+--------------------------------------------------------------------------------
+-- Mocking utilities
+
+withMockServer :: Wai.Application -> Codensity IO Word16
+withMockServer app = Codensity $ \k ->
+  bracket
+    (liftIO $ startMockServer Nothing app)
+    (liftIO . fst)
+    (k . fromIntegral . snd)
+
+withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
+withSettingsOverrides f action = do
+  ts <- ask
+  let opts = f (view tsOpts ts)
+  liftIO . lowerCodensity $ do
+    (app, _) <- mkApp opts
+    p <- withMockServer app
+    liftIO $ runTestM (set (tsEndpoint . epPort) p ts) action
+
+withMockFederator ::
+  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  TestM a ->
+  TestM (a, [FederatedRequest])
+withMockFederator respond action = do
+  withTempMockFederator [] respond $ \p ->
+    withSettingsOverrides
+      (set (optFederator . _Just . epPort) (fromIntegral p))
+      action

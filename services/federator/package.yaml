@@ -29,6 +29,7 @@ dependencies:
 - hinotify
 - http-client
 - http-client-openssl
+- http-media
 - http-types
 - http2
 - kan-extensions

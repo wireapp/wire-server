@@ -71,6 +71,7 @@ import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
+import Network.HTTP.Media.MediaType
 import Network.HTTP.Types (Method)
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
@@ -1054,13 +1055,16 @@ withMockedFederatorAndGalley ::
 withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
-      Mock.withTempMockFederator [("Content-Type", "application/json")] fedResp $ \fedMockPort -> do
-        let opts' =
-              opts
-                { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),
-                  Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral fedMockPort))
-                }
-        withSettingsOverrides opts' action
+      Mock.withTempMockFederator
+        [("Content-Type", "application/json")]
+        ((\r -> pure ("application" // "json", r)) <=< fedResp)
+        $ \fedMockPort -> do
+          let opts' =
+                opts
+                  { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),
+                    Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral fedMockPort))
+                  }
+          withSettingsOverrides opts' action
   pure (combineResults result)
   where
     combineResults :: ((a, [Mock.FederatedRequest]), [ReceivedRequest]) -> (a, [Mock.FederatedRequest], [ReceivedRequest])

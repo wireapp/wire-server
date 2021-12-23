@@ -18,11 +18,12 @@
 module TestSetup
   ( test,
     tsManager,
-    tsCargohold,
     tsEndpoint,
+    tsOpts,
     TestSetup (..),
     Cargohold,
     TestM,
+    runTestM,
     viewCargohold,
     createTestSetup,
     runFederationClient,
@@ -32,6 +33,7 @@ module TestSetup
 where
 
 import Bilge hiding (body, responseBody)
+import CargoHold.Options
 import Control.Exception (catch)
 import Control.Lens
 import Control.Monad.Codensity
@@ -62,13 +64,13 @@ mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 data TestSetup = TestSetup
   { _tsManager :: Manager,
     _tsEndpoint :: Endpoint,
-    _tsCargohold :: Cargohold
+    _tsOpts :: Opts
   }
 
 makeLenses ''TestSetup
 
 viewCargohold :: TestM Cargohold
-viewCargohold = view tsCargohold
+viewCargohold = mkRequest <$> view tsEndpoint
 
 runTestM :: TestSetup -> TestM a -> IO a
 runTestM ts action = runHttpT (view tsManager ts) (runReaderT action ts)
@@ -86,8 +88,8 @@ data IntegrationConfig = IntegrationConfig
 
 instance FromJSON IntegrationConfig
 
-createTestSetup :: FilePath -> IO TestSetup
-createTestSetup configPath = do
+createTestSetup :: FilePath -> FilePath -> IO TestSetup
+createTestSetup optsPath configPath = do
   -- FUTUREWORK: It would actually be useful to read some
   -- values from cargohold (max bytes, for instance)
   -- so that tests do not need to keep those values
@@ -99,12 +101,13 @@ createTestSetup configPath = do
         }
   let localEndpoint p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
   iConf <- handleParseError =<< decodeFileEither configPath
+  opts <- decodeFileThrow optsPath
   endpoint <- optOrEnv cargohold iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
   pure $
     TestSetup
       { _tsManager = m,
         _tsEndpoint = endpoint,
-        _tsCargohold = mkRequest endpoint
+        _tsOpts = opts
       }
 
 runFederationClient :: ClientM a -> ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a

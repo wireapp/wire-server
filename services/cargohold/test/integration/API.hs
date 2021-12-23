@@ -26,20 +26,25 @@ import CargoHold.Types
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding (sets)
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
+import Federator.MockServer
 import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
+import Network.HTTP.Media ((//))
 import Network.HTTP.Types.Status (status200)
 import Network.Wai.Utilities (Error (label))
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
+import Wire.API.Federation.API.Cargohold
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -54,7 +59,8 @@ tests s =
         ],
       testGroup
         "remote"
-        [ test s "download" testRemoteDownload
+        [ test s "remote download wrong domain" testRemoteDownloadWrongDomain,
+          test s "remote download" testRemoteDownload
         ]
     ]
 
@@ -233,15 +239,32 @@ testUploadCompatibility = do
       \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
       \\r\n"
 
+--------------------------------------------------------------------------------
+-- Federation behaviour
+
+testRemoteDownloadWrongDomain :: TestM ()
+testRemoteDownloadWrongDomain = do
+  assetId <- liftIO $ Id <$> nextRandom
+  uid <- liftIO $ Id <$> nextRandom
+
+  let key = AssetKeyV3 assetId AssetPersistent
+      qkey = Qualified key (Domain "invalid.example.com")
+  downloadAsset uid qkey () !!! do
+    const 422 === statusCode
+
 testRemoteDownload :: TestM ()
 testRemoteDownload = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
 
   let key = AssetKeyV3 assetId AssetPersistent
-      loc = "/assets/v4/faraway.example.com/" <> toByteString' key
+      qkey = Qualified key (Domain "faraway.example.com")
+      respond req
+        | frRPC req == "get-asset" =
+          pure ("application" // "json", Aeson.encode (GetAssetResponse True))
+        | otherwise = pure ("application" // "octet-stream", "asset content")
   void $
-    downloadAsset uid loc () <!! do
-      -- TODO: Accepted the error for now to commit on green state.
-      -- statusCode should finally be 200!
-      const 422 === statusCode
+    withMockFederator respond $ do
+      void $
+        downloadAsset uid qkey () <!! do
+          const 200 === statusCode

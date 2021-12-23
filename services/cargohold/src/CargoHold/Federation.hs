@@ -60,7 +60,7 @@ downloadRemoteAsset usr rkey tok = do
     fmap gaAvailable . executeFederated rkey $
       getAsset clientRoutes ga
   if exists
-    then
+    then do
       fmap (Just . toSourceIO) . executeFederated rkey $
         streamAsset clientRoutes ga
     else pure Nothing

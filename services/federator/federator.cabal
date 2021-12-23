@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 371580e0c3adbdb4994c74a23ada11c91023bc654f2f0fe304ead7e88a3b8ba6
+-- hash: 36d6439a89df818d535b525df7fa1c14f6dd1a1f82f0449d61e5c8a81134386e
 
 name:           federator
 version:        1.0.0
@@ -80,6 +80,7 @@ library
     , hinotify
     , http-client
     , http-client-openssl
+    , http-media
     , http-types
     , http2
     , imports
@@ -147,6 +148,7 @@ executable federator
     , hinotify
     , http-client
     , http-client-openssl
+    , http-media
     , http-types
     , http2
     , imports
@@ -223,6 +225,7 @@ executable federator-integration
     , http-client
     , http-client-openssl
     , http-client-tls
+    , http-media
     , http-types
     , http2
     , imports
@@ -307,6 +310,7 @@ test-suite federator-tests
     , hinotify
     , http-client
     , http-client-openssl
+    , http-media
     , http-types
     , http2
     , imports

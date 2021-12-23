@@ -53,19 +53,20 @@ main :: IO ()
 main = do
   defaultMainWithIngredients ings $
     askOption $ \(IntegrationConfigFile configPath) ->
-      -- we treat the configuration file as a tasty "resource", so that we can
-      -- read it once before all tests
-      withResource
-        (createTestSetup configPath)
-        (const (pure ()))
-        $ \ts ->
-          testGroup
-            "Cargohold"
-            [ API.tests ts,
-              API.V3.tests ts,
-              Metrics.tests ts,
-              API.Federation.tests ts
-            ]
+      askOption $ \(ServiceConfigFile optsPath) ->
+        -- we treat the configuration file as a tasty "resource", so that we can
+        -- read it once before all tests
+        withResource
+          (createTestSetup optsPath configPath)
+          (const (pure ()))
+          $ \ts ->
+            testGroup
+              "Cargohold"
+              [ API.tests ts,
+                API.V3.tests ts,
+                Metrics.tests ts,
+                API.Federation.tests ts
+              ]
   where
     ings =
       includingOptions

@@ -30,6 +30,7 @@ import Data.Proxy
 import qualified Data.Text.Encoding as Text
 import Federator.MockServer
 import Imports
+import Network.HTTP.Media
 import Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Wai as Wai
@@ -84,7 +85,7 @@ newtype ResponseFailure = ResponseFailure Wai.Error
 withMockFederatorClient ::
   KnownComponent c =>
   [HTTP.Header] ->
-  (FederatedRequest -> IO LByteString) ->
+  (FederatedRequest -> IO (MediaType, LByteString)) ->
   FederatorClient c a ->
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
@@ -106,8 +107,10 @@ testClientSuccess = do
   expectedResponse :: UserProfile <- generate arbitrary
 
   (actualResponse, sentRequests) <-
-    withMockFederatorClient defaultHeaders (const (pure (Aeson.encode (Just expectedResponse)))) $
-      getUserByHandle clientRoutes handle
+    withMockFederatorClient
+      defaultHeaders
+      (const (pure ("application/json", Aeson.encode (Just expectedResponse))))
+      $ getUserByHandle clientRoutes handle
 
   sentRequests
     @?= [ FederatedRequest
@@ -201,14 +204,17 @@ testClientConnectionError = do
 
 testResponseHeaders :: IO ()
 testResponseHeaders = do
-  (r, _) <- withTempMockFederator [("X-Foo", "bar")] (const mempty) $ \port -> do
-    let req =
-          HTTP2.requestBuilder
-            HTTP.methodPost
-            "/rpc/target.example.com/brig/test"
-            [("Wire-Origin-Domain", "origin.example.com")]
-            "body"
-    performHTTP2Request Nothing req "127.0.0.1" port
+  (r, _) <- withTempMockFederator
+    [("X-Foo", "bar")]
+    (const $ pure ("application" // "json", mempty))
+    $ \port -> do
+      let req =
+            HTTP2.requestBuilder
+              HTTP.methodPost
+              "/rpc/target.example.com/brig/test"
+              [("Wire-Origin-Domain", "origin.example.com")]
+              "body"
+      performHTTP2Request Nothing req "127.0.0.1" port
   case r of
     Left err ->
       assertFailure $
