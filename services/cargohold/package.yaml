@@ -74,8 +74,13 @@ executables:
     - conduit
     - cryptonite
     - http-client-tls >=0.2
+    - kan-extensions
     - lens >=3.8
+    - mmorph
+    - mtl
     - optparse-applicative
+    - servant-client-core
+    - servant-client
     - tagged >=0.8
     - tasty >=1.0
     - tasty-hunit >=0.9

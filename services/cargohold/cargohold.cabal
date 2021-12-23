@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 72508174bb671f8fe70e1f2c55ec552085e259931b8ab57598e81e924c0fc69d
+-- hash: 1f988801cabe4cd973f420029e9c5bfb8f1b0e44346a00fc59741a5e14d4dbd6
 
 name:           cargohold
 version:        1.5.0
@@ -167,10 +167,15 @@ executable cargohold-integration
     , http-client-tls >=0.2
     , http-types >=0.8
     , imports
+    , kan-extensions
     , lens >=3.8
     , mime >=0.4
+    , mmorph
+    , mtl
     , optparse-applicative
     , safe >=0.3
+    , servant-client
+    , servant-client-core
     , tagged >=0.8
     , tasty >=1.0
     , tasty-hunit >=0.9

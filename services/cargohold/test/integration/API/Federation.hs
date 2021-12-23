@@ -7,18 +7,19 @@ import CargoHold.API.V3 (randToken)
 import Conduit
 import Control.Lens
 import Crypto.Random
-import qualified Data.ByteString as BS
 import Data.Id
 import Data.Qualified
 import Data.UUID.V4
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
+import Servant.Client.Generic
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Asset
 import Wire.API.Federation.API.Cargohold
+import Wire.API.Routes.AssetBody
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -63,11 +64,9 @@ testGetAssetAvailable isPublicAsset = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
-  c <- viewCargohold
   ok <-
-    fmap gaAvailable . responseJsonError
-      =<< post (c . path "/federation/get-asset" . json ga)
-      <!! const 200 === statusCode
+    withFederationClient $
+      gaAvailable <$> runFederationClient (getAsset genericClient ga)
 
   -- check that asset is available
   liftIO $ ok @?= True
@@ -85,11 +84,9 @@ testGetAssetNotAvailable = do
             gaToken = Just token,
             gaKey = key
           }
-  c <- viewCargohold
   ok <-
-    fmap gaAvailable . responseJsonError
-      =<< post (c . path "/federation/get-asset" . json ga)
-      <!! const 200 === statusCode
+    withFederationClient $
+      gaAvailable <$> runFederationClient (getAsset genericClient ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -114,11 +111,9 @@ testGetAssetWrongToken = do
             gaToken = Just tok,
             gaKey = qUnqualified key
           }
-  c <- viewCargohold
   ok <-
-    fmap gaAvailable . responseJsonError
-      =<< post (c . path "/federation/get-asset" . json ga)
-      <!! const 200 === statusCode
+    withFederationClient $
+      gaAvailable <$> runFederationClient (getAsset genericClient ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -148,15 +143,10 @@ testLargeAsset = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
-  let getAllChunks getChunk = fmap reverse . ($ []) . fix $ \go acc -> do
-        chunk <- getChunk
-        if BS.null chunk
-          then pure acc
-          else go (chunk : acc)
-  c <- viewCargohold
-  http empty (method HTTP.POST . c . path "/federation/stream-asset" . json ga) $ \resp -> do
-    statusCode resp @?= 200
-    chunks <- getAllChunks (responseBody resp)
+  chunks <- withFederationClient $ do
+    source <- getAssetSource <$> runFederationClient (streamAsset genericClient ga)
+    liftIO . runResourceT $ connect source sinkList
+  liftIO $ do
     let minNumChunks = 8
     assertBool
       ("Expected at least " <> show minNumChunks <> " chunks, got " <> show (length chunks))
@@ -185,13 +175,10 @@ testStreamAsset = do
             gaToken = tok,
             gaKey = qUnqualified key
           }
-  c <- viewCargohold
-  respBody <-
-    fmap responseBody $
-      post (c . path "/federation/stream-asset" . json ga)
-        <!! const 200 === statusCode
-
-  liftIO $ respBody @?= Just "Hello World"
+  respBody <- withFederationClient $ do
+    source <- getAssetSource <$> runFederationClient (streamAsset genericClient ga)
+    liftIO . runResourceT $ connect source sinkLazy
+  liftIO $ respBody @?= "Hello World"
 
 testStreamAssetNotAvailable :: TestM ()
 testStreamAssetNotAvailable = do
@@ -206,12 +193,11 @@ testStreamAssetNotAvailable = do
             gaToken = Just token,
             gaKey = key
           }
-  c <- viewCargohold
-  err <-
-    responseJsonError
-      =<< post (c . path "/federation/stream-asset" . json ga)
-      <!! const 404 === statusCode
-  liftIO $ Wai.label err @?= "not-found"
+  err <- withFederationError $ do
+    runFederationClient (streamAsset genericClient ga)
+  liftIO $ do
+    Wai.code err @?= HTTP.notFound404
+    Wai.label err @?= "not-found"
 
 testStreamAssetWrongToken :: TestM ()
 testStreamAssetWrongToken = do
@@ -233,9 +219,8 @@ testStreamAssetWrongToken = do
             gaToken = Just tok,
             gaKey = qUnqualified key
           }
-  c <- viewCargohold
-  err <-
-    responseJsonError
-      =<< post (c . path "/federation/stream-asset" . json ga)
-      <!! const 404 === statusCode
-  liftIO $ Wai.label err @?= "not-found"
+  err <- withFederationError $ do
+    runFederationClient (streamAsset genericClient ga)
+  liftIO $ do
+    Wai.code err @?= HTTP.notFound404
+    Wai.label err @?= "not-found"
