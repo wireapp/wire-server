@@ -26,8 +26,8 @@ import Imports
 import Test.Tasty
 import TestSetup
 
-tests :: FilePath -> TestTree
-tests configPath = testGroup "Metrics" [test configPath "prometheus" testPrometheusMetrics]
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
 
 testPrometheusMetrics :: TestM ()
 testPrometheusMetrics = do

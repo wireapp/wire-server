@@ -41,20 +41,20 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 
-tests :: FilePath -> TestTree
-tests configPath =
+tests :: IO TestSetup -> TestTree
+tests s =
   testGroup
     "API Integration"
     [ testGroup
         "simple"
-        [ test configPath "roundtrip" testSimpleRoundtrip,
-          test configPath "tokens" testSimpleTokens,
-          test configPath "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
-          test configPath "client-compatibility" testUploadCompatibility
+        [ test s "roundtrip" testSimpleRoundtrip,
+          test s "tokens" testSimpleTokens,
+          test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
+          test s "client-compatibility" testUploadCompatibility
         ],
       testGroup
         "remote"
-        [ test configPath "download" testRemoteDownload
+        [ test s "download" testRemoteDownload
         ]
     ]
 

@@ -30,6 +30,7 @@ import qualified Metrics
 import Options.Applicative
 import Test.Tasty
 import Test.Tasty.Options
+import TestSetup
 import Util.Test
 
 newtype ServiceConfigFile = ServiceConfigFile String
@@ -48,9 +49,23 @@ instance IsOption ServiceConfigFile where
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
         )
 
-runTests :: (String -> TestTree) -> IO ()
-runTests run = defaultMainWithIngredients ings $
-  askOption $ \(IntegrationConfigFile i) -> run i
+main :: IO ()
+main = do
+  defaultMainWithIngredients ings $
+    askOption $ \(IntegrationConfigFile configPath) ->
+      -- we treat the configuration file as a tasty "resource", so that we can
+      -- read it once before all tests
+      withResource
+        (createTestSetup configPath)
+        (const (pure ()))
+        $ \ts ->
+          testGroup
+            "Cargohold"
+            [ API.tests ts,
+              API.V3.tests ts,
+              Metrics.tests ts,
+              API.Federation.tests ts
+            ]
   where
     ings =
       includingOptions
@@ -58,16 +73,3 @@ runTests run = defaultMainWithIngredients ings $
           Option (Proxy :: Proxy IntegrationConfigFile)
         ] :
       defaultIngredients
-
-main :: IO ()
-main = runTests go
-  where
-    go :: FilePath -> TestTree
-    go configPath =
-      testGroup
-        "Cargohold"
-        [ API.tests configPath,
-          API.V3.tests configPath,
-          Metrics.tests configPath,
-          API.Federation.tests configPath
-        ]

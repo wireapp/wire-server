@@ -23,6 +23,7 @@ module TestSetup
     Cargohold,
     TestM,
     viewCargohold,
+    createTestSetup,
   )
 where
 
@@ -43,6 +44,9 @@ type Cargohold = Request -> Request
 
 type TestM = ReaderT TestSetup Http
 
+mkRequest :: Endpoint -> Request -> Request
+mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
+
 data TestSetup = TestSetup
   { _tsManager :: Manager,
     _tsCargohold :: Cargohold
@@ -53,6 +57,12 @@ makeLenses ''TestSetup
 viewCargohold :: TestM Cargohold
 viewCargohold = view tsCargohold
 
+runTestM :: TestSetup -> TestM a -> IO a
+runTestM ts action = runHttpT (view tsManager ts) (runReaderT action ts)
+
+test :: IO TestSetup -> TestName -> TestM () -> TestTree
+test s name action = do testCase name (s >>= flip runTestM action)
+
 data IntegrationConfig = IntegrationConfig
   -- internal endpoint
   { cargohold :: Endpoint
@@ -61,29 +71,18 @@ data IntegrationConfig = IntegrationConfig
 
 instance FromJSON IntegrationConfig
 
-runTestM :: FilePath -> TestM a -> IO a
-runTestM configPath testM = do
-  ts <- createTestSetup
-  runHttpT (view tsManager ts) (runReaderT testM ts)
-  where
-    createTestSetup :: IO TestSetup
-    createTestSetup = do
-      -- TODO: It would actually be useful to read some
-      -- values from cargohold (max bytes, for instance)
-      -- so that tests do not need to keep those values
-      -- in sync and the user _knows_ what they are
-      m <-
-        newManager
-          tlsManagerSettings
-            { managerResponseTimeout = responseTimeoutMicro 300000000
-            }
-      let localEndpoint p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
-      iConf <- handleParseError =<< decodeFileEither configPath
-      cargo <- mkRequest <$> optOrEnv cargohold iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
-      return $ TestSetup m cargo
-
-    mkRequest :: Endpoint -> Request -> Request
-    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
-
-test :: FilePath -> TestName -> TestM () -> TestTree
-test configPath n h = testCase n $ runTestM configPath h
+createTestSetup :: FilePath -> IO TestSetup
+createTestSetup configPath = do
+  -- FUTUREWORK: It would actually be useful to read some
+  -- values from cargohold (max bytes, for instance)
+  -- so that tests do not need to keep those values
+  -- in sync and the user _knows_ what they are
+  m <-
+    newManager
+      tlsManagerSettings
+        { managerResponseTimeout = responseTimeoutMicro 300000000
+        }
+  let localEndpoint p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
+  iConf <- handleParseError =<< decodeFileEither configPath
+  cargo <- mkRequest <$> optOrEnv cargohold iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
+  return $ TestSetup m cargo

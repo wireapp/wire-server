@@ -20,23 +20,23 @@ import TestSetup
 import Wire.API.Asset
 import Wire.API.Federation.API.Cargohold
 
-tests :: FilePath -> TestTree
-tests configPath =
+tests :: IO TestSetup -> TestTree
+tests s =
   testGroup
     "API Federation"
     [ testGroup
         "get-asset"
-        [ test configPath "private asset is available" (testGetAssetAvailable False),
-          test configPath "public asset is available" (testGetAssetAvailable True),
-          test configPath "not available" testGetAssetNotAvailable,
-          test configPath "wrong token" testGetAssetWrongToken
+        [ test s "private asset is available" (testGetAssetAvailable False),
+          test s "public asset is available" (testGetAssetAvailable True),
+          test s "not available" testGetAssetNotAvailable,
+          test s "wrong token" testGetAssetWrongToken
         ],
       testGroup
         "stream-asset"
-        [ test configPath "streaming large asset" testLargeAsset,
-          test configPath "stream an asset" testStreamAsset,
-          test configPath "stream asset not available" testStreamAssetNotAvailable,
-          test configPath "stream asset wrong token" testStreamAssetWrongToken
+        [ test s "streaming large asset" testLargeAsset,
+          test s "stream an asset" testStreamAsset,
+          test s "stream asset not available" testStreamAssetNotAvailable,
+          test s "stream asset wrong token" testStreamAssetWrongToken
         ]
     ]
 

@@ -38,13 +38,13 @@ import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Asset
 
-tests :: FilePath -> TestTree
-tests configPath =
+tests :: IO TestSetup -> TestTree
+tests s =
   testGroup
     "API Integration v3"
     [ testGroup
         "simple"
-        [test configPath "roundtrip using v3 API" testSimpleRoundtrip]
+        [test s "roundtrip using v3 API" testSimpleRoundtrip]
     ]
 
 --------------------------------------------------------------------------------
