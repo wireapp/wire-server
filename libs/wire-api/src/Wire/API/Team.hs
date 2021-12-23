@@ -46,7 +46,6 @@ module Wire.API.Team
     newTeamIcon,
     newTeamIconKey,
     newTeamMembers,
-    newTeamJson,
 
     -- * TeamUpdateData
     TeamUpdateData (..),
@@ -71,13 +70,13 @@ module Wire.API.Team
 where
 
 import Control.Lens (makeLenses)
-import Data.Aeson
-import Data.Aeson.Types (Pair)
+import Data.Aeson (FromJSON, ToJSON, Value (..))
+import Data.Aeson.Types (Parser)
 import Data.Id (TeamId, UserId)
-import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
-import Data.Schema (Schema (..), ToSchema, schema)
+import Data.Schema
+import Data.Singletons (sing)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -98,9 +97,10 @@ data Team = Team
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Team)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Team)
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
-newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
+newTeam tid uid nme ico = Team tid uid nme ico Nothing
 
 modelTeam :: Doc.Model
 modelTeam = Doc.defineModel "Team" $ do
@@ -119,41 +119,28 @@ modelTeam = Doc.defineModel "Team" $ do
   Doc.property "binding" Doc.bool' $
     Doc.description "user binding team"
 
-instance ToJSON Team where
-  toJSON t =
-    object $
-      "id" .= _teamId t
-        # "creator" .= _teamCreator t
-        # "name" .= _teamName t
-        # "icon" .= _teamIcon t
-        # "icon_key" .= _teamIconKey t
-        # "binding" .= _teamBinding t
-        # []
-
-instance FromJSON Team where
-  parseJSON = withObject "team" $ \o -> do
-    Team
-      <$> o .: "id"
-      <*> o .: "creator"
-      <*> o .: "name"
-      <*> o .: "icon"
-      <*> o .:? "icon_key"
-      <*> o .:? "binding" .!= NonBinding
+instance ToSchema Team where
+  schema =
+    object "Team" $
+      Team
+        <$> _teamId .= field "id" schema
+        <*> _teamCreator .= field "creator" schema
+        <*> _teamName .= field "name" schema
+        <*> _teamIcon .= field "icon" schema
+        <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
+        <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
 
 data TeamBinding
   = Binding
   | NonBinding
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamBinding)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamBinding)
 
-instance ToJSON TeamBinding where
-  toJSON Binding = Bool True
-  toJSON NonBinding = Bool False
-
-instance FromJSON TeamBinding where
-  parseJSON (Bool True) = pure Binding
-  parseJSON (Bool False) = pure NonBinding
-  parseJSON other = fail $ "Unknown binding type: " <> show other
+instance ToSchema TeamBinding where
+  schema =
+    enum @Bool "TeamBinding" $
+      mconcat [element True Binding, element False NonBinding]
 
 --------------------------------------------------------------------------------
 -- TeamList
@@ -164,6 +151,7 @@ data TeamList = TeamList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamList)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamList)
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
@@ -176,24 +164,18 @@ modelTeamList = Doc.defineModel "TeamList" $ do
   Doc.property "has_more" Doc.bool' $
     Doc.description "if more teams are available"
 
-instance ToJSON TeamList where
-  toJSON t =
-    object $
-      "teams" .= _teamListTeams t
-        # "has_more" .= _teamListHasMore t
-        # []
-
-instance FromJSON TeamList where
-  parseJSON = withObject "teamlist" $ \o -> do
-    TeamList
-      <$> o .: "teams"
-      <*> o .: "has_more"
+instance ToSchema TeamList where
+  schema =
+    object "TeamList" $
+      TeamList <$> _teamListTeams .= field "teams" (array schema)
+        <*> _teamListHasMore .= field "has_more" schema
 
 --------------------------------------------------------------------------------
 -- NewTeam
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BindingNewTeam)
 
 modelNewBindingTeam :: Doc.Model
 modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
@@ -206,17 +188,17 @@ modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
     Doc.description "team icon asset key"
     Doc.optional
 
-instance ToJSON BindingNewTeam where
-  toJSON (BindingNewTeam t) = object $ newTeamJson t
-
-newTeamJson :: NewTeam a -> [Pair]
-newTeamJson (NewTeam n i ik _) =
-  "name" .= fromRange n
-    # "icon" .= fromRange i
-    # "icon_key" .= (fromRange <$> ik)
-    # []
-
-deriving newtype instance FromJSON BindingNewTeam
+instance ToSchema BindingNewTeam where
+  schema = object "BindingNewTeam" $ BindingNewTeam <$> unwrap .= ntUnitSchema
+    where
+      unwrap (BindingNewTeam nt) = nt
+      ntUnitSchema =
+        mkTeam
+          <$> _newTeamName .= field "name" schema
+          <*> _newTeamIcon .= field "icon" schema
+          <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
+        where
+          mkTeam n i ik = NewTeam n i ik (Just ())
 
 -- FUTUREWORK: since new team members do not get serialized, we zero them here.
 -- it may be worth looking into how this can be solved in the types.
@@ -229,10 +211,20 @@ instance Arbitrary BindingNewTeam where
 -- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
   deriving stock (Eq, Show, Generic)
-  deriving (S.ToSchema) via (Schema NonBindingNewTeam)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NonBindingNewTeam)
+
+ntTeamMemberRangeSchema :: ObjectSchema SwaggerDoc (NewTeam (Range 1 127 [TeamMember]))
+ntTeamMemberRangeSchema =
+  NewTeam
+    <$> _newTeamName .= field "name" schema
+    <*> _newTeamIcon .= field "icon" schema
+    <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
+    <*> (fmap fromRange . _newTeamMembers) .= maybe_ (optField "members" (rangedSchema sing sing (array schema)))
 
 instance ToSchema NonBindingNewTeam where
-  schema = error "todo"
+  schema = object "NonBindingNewTeam" $ NonBindingNewTeam <$> unwrap .= ntTeamMemberRangeSchema
+    where
+      unwrap (NonBindingNewTeam nt) = nt
 
 modelNewNonBindingTeam :: Doc.Model
 modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
@@ -248,14 +240,6 @@ modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
     Doc.description "initial team member ids (between 1 and 127)"
     Doc.optional
 
-instance ToJSON NonBindingNewTeam where
-  toJSON (NonBindingNewTeam t) =
-    object $
-      "members" .= (fromRange <$> _newTeamMembers t)
-        # newTeamJson t
-
-deriving newtype instance FromJSON NonBindingNewTeam
-
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,
     _newTeamIcon :: Range 1 256 Text,
@@ -264,21 +248,19 @@ data NewTeam a = NewTeam
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (NewTeam a))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (NewTeam a))
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
-instance (FromJSON a) => FromJSON (NewTeam a) where
-  parseJSON = withObject "new-team" $ \o -> do
-    name <- o .: "name"
-    icon <- o .: "icon"
-    key <- o .:? "icon_key"
-    mems <- o .:? "members"
-    either fail pure $
-      NewTeam <$> checkedEitherMsg "name" name
-        <*> checkedEitherMsg "icon" icon
-        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
-        <*> pure mems
+instance (ToSchema a) => ToSchema (NewTeam a) where
+  schema =
+    object "NewTeam" $
+      NewTeam
+        <$> _newTeamName .= field "name" schema
+        <*> _newTeamIcon .= field "icon" schema
+        <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
+        <*> _newTeamMembers .= maybe_ (optField "members" schema)
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData
@@ -289,6 +271,7 @@ data TeamUpdateData = TeamUpdateData
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamUpdateData)
 
 instance Arbitrary TeamUpdateData where
   arbitrary = arb `suchThat` valid
@@ -313,25 +296,21 @@ modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
-instance ToJSON TeamUpdateData where
-  toJSON u =
-    object $
-      "name" .= _nameUpdate u
-        # "icon" .= _iconUpdate u
-        # "icon_key" .= _iconKeyUpdate u
-        # []
+validateTeamUpdateData :: TeamUpdateData -> Parser TeamUpdateData
+validateTeamUpdateData u =
+  when
+    (isNothing (_nameUpdate u) && isNothing (_iconUpdate u) && isNothing (_iconKeyUpdate u))
+    (fail "TeamUpdateData: no update data specified")
+    $> u
 
-instance FromJSON TeamUpdateData where
-  parseJSON = withObject "team update data" $ \o -> do
-    name <- o .:? "name"
-    icon <- o .:? "icon"
-    icon_key <- o .:? "icon_key"
-    when (isNothing name && isNothing icon && isNothing icon_key) $
-      fail "TeamUpdateData: no update data specified"
-    either fail pure $
-      TeamUpdateData <$> maybe (pure Nothing) (fmap Just . checkedEitherMsg "name") name
-        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon") icon
-        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") icon_key
+instance ToSchema TeamUpdateData where
+  schema =
+    (`withParser` validateTeamUpdateData)
+      . object "TeamUpdateData"
+      $ TeamUpdateData
+        <$> _nameUpdate .= maybe_ (optField "name" schema)
+        <*> _iconUpdate .= maybe_ (optField "icon" schema)
+        <*> _iconKeyUpdate .= maybe_ (optField "icon_key" schema)
 
 --------------------------------------------------------------------------------
 -- TeamDeleteData
@@ -341,6 +320,7 @@ newtype TeamDeleteData = TeamDeleteData
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamDeleteData)
 
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
 newTeamDeleteData = TeamDeleteData
@@ -352,15 +332,10 @@ modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.property "password" Doc.string' $
     Doc.description "The account password to authorise the deletion."
 
-instance FromJSON TeamDeleteData where
-  parseJSON = withObject "team-delete-data" $ \o ->
-    TeamDeleteData <$> o .: "password"
-
-instance ToJSON TeamDeleteData where
-  toJSON tdd =
-    object
-      [ "password" .= _tdAuthPassword tdd
-      ]
+instance ToSchema TeamDeleteData where
+  schema =
+    object "TeamDeleteData" $
+      TeamDeleteData <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
 
 makeLenses ''Team
 makeLenses ''TeamList

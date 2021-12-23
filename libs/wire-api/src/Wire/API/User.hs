@@ -129,7 +129,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
-import Wire.API.Team (BindingNewTeam (BindingNewTeam), modelNewBindingTeam, newTeamJson)
+import Wire.API.Team (BindingNewTeam (BindingNewTeam), NewTeam (..), modelNewBindingTeam)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
@@ -802,6 +802,15 @@ instance ToJSON BindingNewTeamUser where
     A.object $
       "currency" A..= c
         # newTeamJson t
+    where
+      -- FUTUREWORK(leif): this was originally defined in libs/wire-api/src/Wire/API/Team.hs and I moved it here
+      -- during the process of servantifying, it should go away when servantification is complete
+      newTeamJson :: NewTeam a -> [A.Pair]
+      newTeamJson (NewTeam n i ik _) =
+        "name" A..= fromRange n
+          # "icon" A..= fromRange i
+          # "icon_key" A..= (fromRange <$> ik)
+          # []
 
 instance FromJSON BindingNewTeamUser where
   parseJSON j@(A.Object o) = do
