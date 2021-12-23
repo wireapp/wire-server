@@ -62,13 +62,14 @@ spec env = do
         resp <-
           runTestSem
             . assertNoError @RemoteError
-            $ inwardBrigCallViaIngress "get-user-by-handle" $
+            $ inwardBrigCallViaIngress
+              "get-user-by-handle"
               (Aeson.fromEncoding (Aeson.toEncoding hdl))
         liftIO $ do
           bdy <- streamingResponseStrictBody resp
           let actualProfile = Aeson.decode (toLazyByteString bdy)
           responseStatusCode resp `shouldBe` HTTP.status200
-          actualProfile `shouldBe` (Just expectedProfile)
+          actualProfile `shouldBe` Just expectedProfile
 
   -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
   --
@@ -96,7 +97,9 @@ spec env = do
       r <-
         runTestSem
           . runError @RemoteError
-          $ inwardBrigCallViaIngressWithSettings tlsSettings "get-user-by-handle" $
+          $ inwardBrigCallViaIngressWithSettings
+            tlsSettings
+            "get-user-by-handle"
             (Aeson.fromEncoding (Aeson.toEncoding hdl))
       liftIO $ case r of
         Right _ -> expectationFailure "Expected client certificate error, got response"

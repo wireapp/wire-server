@@ -62,10 +62,9 @@ testRequest tr = do
   pure . flip Wai.setPath (trPath tr) $
     Wai.defaultRequest
       { Wai.requestMethod = trMethod tr,
-        Wai.requestBody = atomicModifyIORef refChunks $ \bss ->
-          case bss of
-            [] -> ([], mempty)
-            x : y -> (y, x),
+        Wai.requestBody = atomicModifyIORef refChunks $ \case
+          [] -> ([], mempty)
+          x : y -> (y, x),
         Wai.requestHeaders =
           [("X-SSL-Certificate", HTTP.urlEncode True h) | h <- toList (trCertificateHeader tr)]
             <> [(originDomainHeaderName, h) | h <- toList (trDomainHeader tr)]

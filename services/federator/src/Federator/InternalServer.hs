@@ -90,7 +90,7 @@ parseRequestData req = do
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
   -- No query parameters are allowed
-  when (not . BS.null . Wai.rawQueryString $ req) $
+  unless (BS.null . Wai.rawQueryString $ req) $
     throw InvalidRoute
   -- check that the path has the expected form
   (domain, componentSeg, rpcPath) <- case Wai.pathInfo req of

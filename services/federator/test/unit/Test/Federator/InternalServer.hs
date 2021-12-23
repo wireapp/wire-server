@@ -49,7 +49,8 @@ tests :: TestTree
 tests =
   testGroup
     "Federate"
-    [ testGroup "with remote" $
+    [ testGroup
+        "with remote"
         [ federatedRequestSuccess,
           federatedRequestFailureAllowList
         ]

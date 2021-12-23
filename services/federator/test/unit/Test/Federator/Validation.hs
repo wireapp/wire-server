@@ -60,12 +60,15 @@ mockDiscoveryFailure = Polysemy.interpret $ \case
 
 tests :: TestTree
 tests =
-  testGroup "Validation" $
-    [ testGroup "federateWith" $
+  testGroup
+    "Validation"
+    [ testGroup
+        "federateWith"
         [ federateWithAllowListSuccess,
           federateWithAllowListFail
         ],
-      testGroup "validateDomain" $
+      testGroup
+        "validateDomain"
         [ validateDomainAllowListFailSemantic,
           validateDomainAllowListFail,
           validateDomainAllowListSuccess,
