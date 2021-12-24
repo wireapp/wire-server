@@ -175,6 +175,8 @@ data:
       {{- if .sftDiscoveryIntervalSeconds }}
       sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
       {{- end }}
+      sftLookupDomain: {{ required "Missing value: .sft.sftLookupDomain" .sftLookupDomain }}
+      sftLookupPort: {{ required "Missing value: .sft.sftLookupPort" .sftLookupPort }}
     {{- end }}
     {{- end }}
 
