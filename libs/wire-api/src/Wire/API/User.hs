@@ -486,9 +486,13 @@ publicProfile u legalHoldStatus =
 --
 --   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
 --     SCIM-managed user)
-newtype NewUserPublic = NewUserPublic NewUser
+newtype NewUserPublic = NewUserPublic { nupNewUser :: NewUser }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON)
+  deriving (ToJSON, S.ToSchema) via Schema NewUserPublic
+
+instance ToSchema NewUserPublic where
+  schema = withParser (NewUserPublic <$> nupNewUser .= schema) $ \nup ->
+    either fail pure $ validateNewUserPublic $ nupNewUser nup
 
 modelNewUser :: Doc.Model
 modelNewUser = Doc.defineModel "NewUser" $ do
@@ -591,6 +595,33 @@ data NewUser = NewUser
     newUserManagedBy :: Maybe ManagedBy
   }
   deriving stock (Eq, Show, Generic)
+
+instance ToSchema NewUser where
+  -- TODO(sandy): Big type with lots of custom parsing rules. Pull in air
+  -- support maybe?
+  schema = object "NewUser" $ undefined
+    -- withParser (
+    --   (,)
+    --     <$> (newUserSSOId .= optField "sso_id" (maybeWithDefault A.Null schema))
+    --     <*> (
+    --       NewUser
+    --         <$> newUserDisplayName .= field "name" schema
+    --         <*> newUserUUID .= optField "uuid" (maybeWithDefault A.Null schema)
+    --         <*> newUserIdentity .= optField "identity" (maybeWithDefault A.Null schema)
+    --         <*> newUserPict .= optField "picture" (maybeWithDefault A.Null schema)
+    --         <*> newUserAssets .= field "assets" (array schema)
+    --         <*> newUserAccentId .= optField "accent_id" (maybeWithDefault A.Null schema)
+    --         <*> newUserEmailCode .= optField "email_code" (maybeWithDefault A.Null schema)
+    --         <*> newUserPhoneCode .= optField "phone_code" (maybeWithDefault A.Null schema)
+    --         <*> newUserOrigin .= optField "origin" (maybeWithDefault A.Null schema)
+    --         <*> newUserLabel .= optField "label" (maybeWithDefault A.Null schema)
+    --         <*> newUserLocale .= optField "locale" (maybeWithDefault A.Null schema)
+    --         <*> newUserPassword .= optField "password" (maybeWithDefault A.Null schema)
+    --         <*> newUserExpiresIn .= optField "expiresIn" (maybeWithDefault A.Null schema)
+    --         <*> newUserManagedBy .= optField "managedBy" (maybeWithDefault A.Null schema)
+    --         )
+    --            -- TODO(sandy): not right
+    --            ) $ pure . snd
 
 emptyNewUser :: Name -> NewUser
 emptyNewUser name =

@@ -213,7 +213,14 @@ servantSitemap =
         BrigAPI.changeHandle = changeHandle,
         BrigAPI.removePhone = removePhoneH,
         BrigAPI.removeEmail = removeEmailH,
-        BrigAPI.verifyDeleteUser = verifyDeleteUserH
+        BrigAPI.verifyDeleteUser = verifyDeleteUserH,
+        BrigAPI.setProperty = setProperty,
+        BrigAPI.deleteProperty = deletePropertyH,
+        BrigAPI.clearProperties = clearPropertiesH,
+        BrigAPI.getProperty = getPropertyH,
+        BrigAPI.listPropertyKeys = lift . API.lookupPropertyKeys,
+        BrigAPI.listPropertyKeysAndValues = lift . API.lookupPropertyKeysAndValues,
+        BrigAPI.createUser = createUserH
       }
 
 -- Note [ephemeral user sideeffect]
@@ -227,64 +234,10 @@ sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   -- Properties API -----------------------------------------------------
 
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertySet event to self
-  put "/properties/:key" (continue setPropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-      .&. jsonRequest @Public.PropertyValue
-  document "PUT" "setProperty" $ do
-    Doc.summary "Set a user property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.body (Doc.ref Public.modelPropertyValue) $
-      Doc.description "JSON body"
-    Doc.response 200 "Property set." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertyDeleted event to self
-  delete "/properties/:key" (continue deletePropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-  document "DELETE" "deleteProperty" $ do
-    Doc.summary "Delete a property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.response 200 "Property deleted." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertiesCleared event to self
-  delete "/properties" (continue clearPropertiesH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "clearProperties" $ do
-    Doc.summary "Clear all properties."
-    Doc.response 200 "Properties cleared." Doc.end
-
-  get "/properties/:key" (continue getPropertyH) $
-    zauthUserId
-      .&. capture "key"
-      .&. accept "application" "json"
-  document "GET" "getProperty" $ do
-    Doc.summary "Get a property value."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.returns (Doc.ref Public.modelPropertyValue)
-    Doc.response 200 "The property value." Doc.end
-
   -- This endpoint is used to test /i/metrics, when this is servantified, please
   -- make sure some other endpoint is used to test that routes defined in this
   -- function are recorded and reported correctly in /i/metrics.
   -- see test/integration/API/Metrics.hs
-  get "/properties" (continue listPropertyKeysH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeys" $ do
-    Doc.summary "List all property keys."
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of property keys." Doc.end
 
   get "/properties-values" (continue listPropertyKeysAndValuesH) $
     zauthUserId
@@ -296,33 +249,6 @@ sitemap = do
 
   -- TODO: put delete here, too?
   -- /register, /activate, /password-reset ----------------------------------
-
-  -- docs/reference/user/registration.md {#RefRegistration}
-  --
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email code or phone code is provided
-  post "/register" (continue createUserH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.NewUserPublic
-  document "POST" "register" $ do
-    Doc.summary "Register a new user."
-    Doc.notes
-      "If the environment where the registration takes \
-      \place is private and a registered email address or phone \
-      \number is not whitelisted, a 403 error is returned."
-    Doc.body (Doc.ref Public.modelNewUser) $
-      Doc.description "JSON body"
-    -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
-    Doc.returns (Doc.ref Public.modelUser)
-    Doc.response 201 "User created and pending activation." Doc.end
-    Doc.errorResponse whitelistError
-    Doc.errorResponse invalidInvitationCode
-    Doc.errorResponse missingIdentity
-    Doc.errorResponse userKeyExists
-    Doc.errorResponse activationCodeNotFound
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
@@ -438,12 +364,6 @@ apiDocs =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> Handler Response
-setPropertyH (u ::: c ::: k ::: req) = do
-  propkey <- safeParsePropertyKey k
-  propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
-  empty <$ setProperty u c propkey propval
-
 setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> Handler ()
 setProperty u c propkey propval =
   API.setProperty u c propkey propval !>> propDataError
@@ -467,23 +387,18 @@ safeParsePropertyValue lreqbody = do
     throwStd propertyValueTooLarge
   hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
 
-deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> Handler Response
-deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
+deletePropertyH :: UserId -> ConnId -> Public.PropertyKey -> Handler ()
+deletePropertyH u c k = lift (API.deleteProperty u c k)
 
-clearPropertiesH :: UserId ::: ConnId -> Handler Response
-clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
+clearPropertiesH :: UserId -> ConnId -> Handler ()
+clearPropertiesH u c = lift (API.clearProperties u c)
 
-getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> Handler Response
-getPropertyH (u ::: k ::: _) = do
+getPropertyH :: UserId -> Public.PropertyKey -> Handler Public.PropertyValue
+getPropertyH u k = do
   val <- lift $ API.lookupProperty u k
-  return $ case val of
-    Nothing -> setStatus status404 empty
-    Just v -> json (v :: Public.PropertyValue)
-
-listPropertyKeysH :: UserId ::: JSON -> Handler Response
-listPropertyKeysH (u ::: _) = do
-  keys <- lift (API.lookupPropertyKeys u)
-  pure $ json (keys :: [Public.PropertyKey])
+  case val of
+    Nothing -> error "TODO(sandy): what to do here"
+    Just v -> pure v
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
 listPropertyKeysAndValuesH (u ::: _) = do
@@ -602,13 +517,14 @@ getClientPrekeys :: UserId -> ClientId -> Handler [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response
-createUserH (_ ::: req) = do
-  CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
-  lift . Auth.setResponseCookie cok
-    . setStatus status201
-    . addHeader "Location" (toByteString' loc)
-    $ json prof
+createUserH :: Public.NewUserPublic -> Handler Public.SelfProfile
+createUserH req = do
+  CreateUserResponse cok loc prof <- createUser req
+  error "how"
+  -- lift . Auth.setResponseCookie cok
+  --   . setStatus status201
+  --   . addHeader "Location" (toByteString' loc)
+  --   $ prof
 
 data CreateUserResponse
   = CreateUserResponse (Public.Cookie (ZAuth.Token ZAuth.User)) UserId Public.SelfProfile

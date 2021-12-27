@@ -58,10 +58,19 @@ modelPropertyDictionary =
 instance ToJSON PropertyKeysAndValues where
   toJSON (PropertyKeysAndValues kvs) = A.object [toText k A..= v | (PropertyKey k, v) <- kvs]
 
+
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hashable, Arbitrary)
+  deriving newtype (FromByteString, ToByteString, FromJSONKey, ToJSONKey, Hashable, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PropertyKey
+
+instance ToSchema PropertyKey where
+  schema = PropertyKey <$> propertyKeyName .= schema
+
+instance S.ToParamSchema PropertyKey where
+  -- TODO(sandy):
+  toParamSchema _ = undefined
 
 newtype PropertyValue = PropertyValue
   {propertyValueJson :: Value}

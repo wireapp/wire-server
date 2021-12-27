@@ -689,7 +689,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "properties"
-        :> Capture "key" Text
+        :> Capture "key" PropertyKey
         :> ReqBody '[JSON] PropertyValue
         :> MultiVerb
              'PUT
@@ -701,7 +701,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "properties"
-        :> Capture "key" Text
+        :> Capture "key" PropertyKey
         :> MultiVerb
              'DELETE
              '[JSON]
@@ -717,6 +717,16 @@ data Api routes = Api
              '[JSON]
              '[ RespondEmpty 200 "Properties cleared." ]
              (),
+    getProperty ::
+      routes :- Summary "Get a property key."
+        :> ZUser
+        :> "properties"
+        :> Capture "key" PropertyKey
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             '[ Respond 200 "The property value" PropertyValue ]
+              PropertyValue,
     listPropertyKeys ::
       routes :- Summary "List all property keys."
         :> ZUser
@@ -724,8 +734,8 @@ data Api routes = Api
         :> MultiVerb
              'GET
              '[JSON]
-             '[ RespondEmpty 200 "List of property keys." ]
-             [Text],
+             '[ Respond 200 "List of property keys." [PropertyKey] ]
+             [PropertyKey],
     listPropertyKeysAndValues ::
       routes :- Summary "List all properties with key and values."
         :> ZUser
@@ -734,7 +744,27 @@ data Api routes = Api
              'GET
              '[JSON]
              '[ Respond 200 "List of property keys." PropertyKeysAndValues ]
-             PropertyKeysAndValues
+             PropertyKeysAndValues,
+    createUser ::
+      routes :- Summary "Register a new user."
+        :> Description
+            "If the environment where the registration takes \
+            \place is private and a registered email address or phone \
+            \number is not whitelisted, a 403 error is returned."
+        :> CanThrow WhitelistError
+        :> CanThrow InvalidInvitationCode
+        :> CanThrow MissingIdentity
+        :> CanThrow UserKeyExists
+        :> CanThrow ActivationCodeNotFound
+        :> CanThrow BlacklistedEmail
+        :> CanThrow BlacklistedPhone
+        :> "register"
+        :> ReqBody '[JSON] NewUserPublic
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[ Respond 201 "User created and pending activation." SelfProfile ]
+             SelfProfile
   }
   deriving (Generic)
 

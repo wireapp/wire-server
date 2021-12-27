@@ -225,6 +225,25 @@ type InsufficientTeamPermissions = ErrorDescription 403 "insufficient-permission
 
 type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification code"
 
+type WhitelistError = ErrorDescription 403 "unauthorized" "Unauthorized e-mail address or phone number."
+
+type InvalidInvitationCode = ErrorDescription 400 "invalid-invitation-code" "Invalid invitation code."
+
+type MissingIdentity = ErrorDescription 403 "missing-identity" "Using an invitation code requires registering the given email and/or phone."
+
+type ActivationCodeNotFound = ErrorDescription 404 "invalid-code" "Activation key/code not found or invalid."
+
+type BlacklistedEmail = ErrorDescription 403 "blacklisted-email"
+    "The given e-mail address has been blacklisted due to a permanent bounce \
+    \or a complaint."
+
+type BlacklistedPhone = ErrorDescription 403 "blacklisted-phone"
+    "The given phone number has been blacklisted due to suspected abuse \
+    \or a complaint."
+
+
+
+
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
 
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
