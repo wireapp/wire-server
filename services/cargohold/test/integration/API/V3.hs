@@ -84,8 +84,8 @@ testSimpleRoundtrip c = do
       liftIO $ do
         assertEqual "status" status200 (responseStatus r3)
         assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)
-        assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
-        assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+        assertEqual "token mismatch" tok (decodeHeaderOrFail "x-amz-meta-token" r3)
+        assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
       deleteAssetV3 c uid2 (view assetKey ast) !!! const 403 === statusCode

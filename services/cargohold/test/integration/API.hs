@@ -71,7 +71,7 @@ testSimpleRoundtrip c = do
       r1 <-
         uploadSimple (c . path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
-      let loc = decodeHeader "Location" r1 :: ByteString
+      let loc = decodeHeaderOrFail "Location" r1 :: ByteString
       let Just ast = responseJsonMaybe @V3.Asset r1
       let Just tok = view V3.assetToken ast
       -- Check mandatory Date header
@@ -89,8 +89,8 @@ testSimpleRoundtrip c = do
       liftIO $ do
         assertEqual "status" status200 (responseStatus r3)
         assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)
-        assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
-        assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+        assertEqual "token mismatch" tok (decodeHeaderOrFail "x-amz-meta-token" r3)
+        assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
       deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
@@ -113,7 +113,7 @@ testSimpleTokens c = do
   r1 <-
     uploadSimple (c . path "/assets/v3") uid sets bdy
       <!! const 201 === statusCode
-  let loc = decodeHeader "Location" r1 :: ByteString
+  let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   let Just ast = responseJsonMaybe @V3.Asset r1
   let key = view V3.assetKey ast
   let Just tok = view V3.assetToken ast
@@ -148,8 +148,8 @@ testSimpleTokens c = do
   liftIO $ do
     assertEqual "status" status200 (responseStatus r4)
     assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r4)
-    assertEqual "token mismatch" tok' (decodeHeader "x-amz-meta-token" r4)
-    assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r4)
+    assertEqual "token mismatch" tok' (decodeHeaderOrFail "x-amz-meta-token" r4)
+    assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r4)
     assertEqual "data mismatch" (Just "Hello World") (responseBody r4)
   -- Verify access without token if the request comes from the creator.
   get (c . path loc . zUser uid . noRedirect)
@@ -203,7 +203,7 @@ testUploadCompatibility c = do
   r1 <-
     uploadRaw (c . path "/assets/v3") uid exampleMultipart
       <!! const 201 === statusCode
-  let loc = decodeHeader "Location" r1 :: ByteString
+  let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   -- Lookup and download via redirect.
   r2 <-
     get (c . path loc . zUser uid . noRedirect) <!! do
@@ -213,7 +213,7 @@ testUploadCompatibility c = do
   liftIO $ do
     assertEqual "status" status200 (responseStatus r3)
     assertEqual "content-type mismatch" (Just applicationOctetStream) (getContentType r3)
-    assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+    assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
     assertEqual "data mismatch" (Just "test") (responseBody r3)
   where
     exampleMultipart :: LByteString

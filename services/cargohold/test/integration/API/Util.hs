@@ -43,9 +43,9 @@ uploadSimple c usr sets (ct, bs) =
   let mp = V3.buildMultipartBody sets ct (Lazy.fromStrict bs)
    in uploadRaw c usr (toLazyByteString mp)
 
-decodeHeader :: FromByteString a => HeaderName -> Response b -> a
-decodeHeader h =
-  fromMaybe (error $ "decodeHeader: missing or invalid header: " ++ show h)
+decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response b -> a
+decodeHeaderOrFail h =
+  fromMaybe (error $ "decodeHeaderOrFail: missing or invalid header: " ++ show h)
     . fromByteString
     . getHeader' h
 
