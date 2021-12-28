@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8c0c7f0e61001bf27032247013479a6103600929df6470ef092a25b22e2642d6
+-- hash: 244ca5e0c12867ef47ffcfbc056775381028fbc85e5c57eb280afe842e3499d9
 
 name:           brig
 version:        2.0
@@ -497,6 +497,7 @@ test-suite brig-tests
     , dns-util
     , http-types
     , imports
+    , iproute
     , polysemy
     , polysemy-wire-zoo
     , retry

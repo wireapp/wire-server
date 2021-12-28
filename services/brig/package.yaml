@@ -161,6 +161,7 @@ tests:
     - dns-util
     - http-types
     - imports
+    - iproute
     - polysemy
     - polysemy-wire-zoo
     - retry
