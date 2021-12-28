@@ -107,14 +107,14 @@ parseRequestData req = do
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
   -- No query parameters are allowed
-  when (not . BS.null . Wai.rawQueryString $ req) $
+  unless (BS.null . Wai.rawQueryString $ req) $
     throw InvalidRoute
   -- check that the path has the expected form
   (componentSeg, rpcPath) <- case Wai.pathInfo req of
     ["federation", comp, rpc] -> pure (comp, rpc)
     _ -> throw InvalidRoute
 
-  when (not (Text.all isAllowedRPCChar rpcPath)) $
+  unless (Text.all isAllowedRPCChar rpcPath) $
     throw InvalidRoute
 
   when (Text.null rpcPath) $

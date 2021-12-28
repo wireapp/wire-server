@@ -131,13 +131,12 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
           }
   let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
-  runCodensity (runFederatorClientToCodensity env c) $ \eout ->
-    case eout of
-      Left err -> assertFailure $ "Unexpected error: " <> displayException err
-      Right out -> do
-        let expected = mconcat (replicate 500 "Hello")
-        actual <- takeSourceT (fromIntegral (LBS.length expected)) (fmap Text.encodeUtf8 out)
-        actual @?= expected
+  runCodensity (runFederatorClientToCodensity env c) $ \case
+    Left err -> assertFailure $ "Unexpected error: " <> displayException err
+    Right out -> do
+      let expected = mconcat (replicate 500 "Hello")
+      actual <- takeSourceT (fromIntegral (LBS.length expected)) (fmap Text.encodeUtf8 out)
+      actual @?= expected
 
 testClientFailure :: IO ()
 testClientFailure = do
@@ -232,7 +231,7 @@ withInfiniteMockServer k = bracket (startMockServer Nothing app) fst (k . snd)
     app _ respond = respond $
       Wai.responseStream HTTP.ok200 mempty $ \write flush ->
         let go n = do
-              when (n == 0) $ flush
+              when (n == 0) flush
               write (byteString "Hello\n") *> go (if n == 0 then 100 else n - 1)
          in go (1000 :: Int)
 
