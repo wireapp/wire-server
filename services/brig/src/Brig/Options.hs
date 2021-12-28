@@ -33,7 +33,7 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain (..))
 import Data.Id
-import Data.Misc (HttpsUrl)
+import Data.Misc (HttpsUrl, Port (..))
 import Data.Range
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
@@ -612,7 +612,9 @@ data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
     sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
-    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
+    sftListLength :: !(Maybe (Range 1 100 Int)), -- defaults to defSftListLength
+    sftLookupDomain :: !DNS.Domain,
+    sftLookupPort :: !Port
   }
   deriving (Show, Generic)
 
@@ -623,6 +625,8 @@ instance FromJSON SFTOptions where
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
       <*> (o .:? "sftListLength")
+      <*> (asciiOnly =<< o .: "sftLookupDomain")
+      <*> o .: "sftLookupPort"
     where
       asciiOnly :: Text -> Y.Parser ByteString
       asciiOnly t =
