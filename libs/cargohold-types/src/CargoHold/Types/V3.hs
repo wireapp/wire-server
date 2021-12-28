@@ -58,7 +58,7 @@ where
 import Data.ByteString.Conversion
 import Data.Id
 import Imports
-import Wire.API.Asset.V3
+import Wire.API.Asset
 
 --------------------------------------------------------------------------------
 -- Principal

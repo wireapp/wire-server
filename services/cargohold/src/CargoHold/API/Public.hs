@@ -18,16 +18,18 @@
 module CargoHold.API.Public (servantSitemap) where
 
 import qualified CargoHold.API.Legacy as LegacyAPI
+import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import qualified CargoHold.Types.V3 as V3
 import Control.Lens
-import Data.ByteString.Conversion
+import Data.ByteString.Builder
+import qualified Data.ByteString.Lazy as LBS
+import Data.Domain
 import Data.Id
 import Data.Qualified
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
 import Imports hiding (head)
+import qualified Network.HTTP.Types as HTTP
 import Servant ((:<|>) (..))
 import Servant.Server hiding (Handler)
 import URI.ByteString
@@ -41,19 +43,46 @@ servantSitemap =
     :<|> userAPI
     :<|> botAPI
     :<|> providerAPI
+    :<|> qualifiedAPI
     :<|> legacyAPI
     :<|> internalAPI
   where
-    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPI tag) Handler
+    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPI tag) Handler
+    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPI tag) Handler
+    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
+    qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
     internalAPI = pure ()
 
-class MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
+class HasLocation (tag :: PrincipalTag) where
+  assetLocation :: Local AssetKey -> [Text]
+
+instance HasLocation 'UserPrincipalTag where
+  assetLocation key =
+    [ "assets",
+      "v4",
+      domainText (tDomain key),
+      assetKeyToText (tUnqualified key)
+    ]
+
+instance HasLocation 'BotPrincipalTag where
+  assetLocation key =
+    [ "bot",
+      "assets",
+      assetKeyToText (tUnqualified key)
+    ]
+
+instance HasLocation 'ProviderPrincipalTag where
+  assetLocation key =
+    [ "provider",
+      "assets",
+      assetKeyToText (tUnqualified key)
+    ]
+
+class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
   mkPrincipal :: id -> V3.Principal
 
 instance MakePrincipal 'UserPrincipalTag (Local UserId) where
@@ -65,20 +94,36 @@ instance MakePrincipal 'BotPrincipalTag BotId where
 instance MakePrincipal 'ProviderPrincipalTag ProviderId where
   mkPrincipal = V3.ProviderPrincipal
 
+mkAssetLocation ::
+  forall (tag :: PrincipalTag).
+  HasLocation tag =>
+  Local AssetKey ->
+  AssetLocation Relative
+mkAssetLocation key =
+  AssetLocation
+    RelativeRef
+      { rrAuthority = Nothing,
+        rrPath = path,
+        rrQuery = mempty,
+        rrFragment = Nothing
+      }
+  where
+    path =
+      LBS.toStrict
+        . toLazyByteString
+        . HTTP.encodePathSegmentsRelative
+        $ assetLocation @tag key
+
 uploadAssetV3 ::
+  forall tag id.
   MakePrincipal tag id =>
   id ->
   AssetSource ->
-  Handler (Asset, AssetLocation)
+  Handler (Asset, AssetLocation Relative)
 uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   asset <- V3.upload principal (getAssetSource req)
-  let key = Text.decodeUtf8With Text.lenientDecode (toByteString' (asset ^. assetKey))
-  let loc = case principal of
-        V3.UserPrincipal {} -> "/assets/v3/" <> key
-        V3.BotPrincipal {} -> "/bot/assets/" <> key
-        V3.ProviderPrincipal {} -> "/provider/assets/" <> key
-  pure (asset, AssetLocation loc)
+  pure (fmap qUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
 
 downloadAssetV3 ::
   MakePrincipal tag id =>
@@ -86,13 +131,27 @@ downloadAssetV3 ::
   AssetKey ->
   Maybe AssetToken ->
   Maybe AssetToken ->
-  Handler (Maybe AssetLocation)
+  Handler (Maybe (AssetLocation Absolute))
 downloadAssetV3 usr key tok1 tok2 = do
-  url <- V3.download (mkPrincipal usr) key (tok1 <|> tok2)
-  pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
+  AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2)
+
+downloadAssetV4 ::
+  Local UserId ->
+  Qualified AssetKey ->
+  Maybe AssetToken ->
+  Maybe AssetToken ->
+  Handler (Maybe LocalOrRemoteAsset)
+downloadAssetV4 usr qkey tok1 tok2 = do
+  key <- tUnqualified <$> ensureLocal qkey
+  LocalAsset <$$> downloadAssetV3 usr key tok1 tok2
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
 deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
+
+deleteAssetV4 :: Local UserId -> Qualified AssetKey -> Handler ()
+deleteAssetV4 usr qkey = do
+  key <- tUnqualified <$> ensureLocal qkey
+  V3.delete (mkPrincipal usr) key
 
 renewTokenV3 :: Local UserId -> AssetKey -> Handler NewAssetToken
 renewTokenV3 (tUnqualified -> usr) key =
@@ -101,12 +160,10 @@ renewTokenV3 (tUnqualified -> usr) key =
 deleteTokenV3 :: Local UserId -> AssetKey -> Handler ()
 deleteTokenV3 (tUnqualified -> usr) key = V3.deleteToken (V3.UserPrincipal usr) key
 
-legacyDownloadPlain :: Local UserId -> ConvId -> AssetId -> Handler (Maybe AssetLocation)
-legacyDownloadPlain (tUnqualified -> usr) cnv ast = do
-  url <- LegacyAPI.download usr cnv ast
-  pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
+legacyDownloadPlain :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
+legacyDownloadPlain (tUnqualified -> usr) cnv ast =
+  AssetLocation <$$> LegacyAPI.download usr cnv ast
 
-legacyDownloadOtr :: Local UserId -> ConvId -> AssetId -> Handler (Maybe AssetLocation)
-legacyDownloadOtr (tUnqualified -> usr) cnv ast = do
-  url <- LegacyAPI.downloadOtr usr cnv ast
-  pure $ fmap (AssetLocation . Text.decodeUtf8With Text.lenientDecode . serializeURIRef') url
+legacyDownloadOtr :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
+legacyDownloadOtr (tUnqualified -> usr) cnv ast =
+  AssetLocation <$$> LegacyAPI.downloadOtr usr cnv ast

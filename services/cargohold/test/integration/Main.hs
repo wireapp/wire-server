@@ -20,6 +20,7 @@ module Main
   )
 where
 
+import qualified API
 import qualified API.V3
 import Bilge hiding (body, header)
 import Data.Proxy
@@ -81,7 +82,8 @@ main = runTests go
     go c i = withResource (getOpts c i) releaseOpts $ \opts ->
       testGroup
         "Cargohold"
-        [ API.V3.tests opts,
+        [ API.tests opts,
+          API.V3.tests opts,
           Metrics.tests opts
         ]
     getOpts _ i = do

@@ -1,3 +1,6 @@
+{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -20,6 +23,7 @@ module Wire.API.Routes.MultiVerb
     MultiVerb,
     Respond,
     RespondEmpty,
+    RespondStreaming,
     WithHeaders,
     DescHeader,
     AsHeaders (..),
@@ -33,16 +37,15 @@ module Wire.API.Routes.MultiVerb
     IsResponse (..),
     IsSwaggerResponse (..),
     combineResponseSwagger,
-    RenderOutput (..),
-    roAddContentType,
-    roResponse,
     ResponseTypes,
     IsResponseList (..),
+    addContentType,
   )
 where
 
 import Control.Applicative
-import Control.Lens hiding (Context)
+import Control.Lens hiding (Context, (<|))
+import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Containers.ListUtils
@@ -51,16 +54,18 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
+import Data.Sequence (Seq, (<|), pattern (:<|))
 import qualified Data.Sequence as Seq
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Typeable
 import GHC.TypeLits
 import Generics.SOP as GSOP
 import Imports
 import qualified Network.HTTP.Media as M
-import Network.HTTP.Types (HeaderName, hContentType)
+import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
@@ -73,6 +78,7 @@ import Servant.Server
 import Servant.Server.Internal
 import Servant.Swagger as S
 import Servant.Swagger.Internal as S
+import Servant.Types.SourceT
 
 type Declare = S.Declare (S.Definitions S.Schema)
 
@@ -86,11 +92,11 @@ data Respond (s :: Nat) (desc :: Symbol) (a :: *)
 -- Includes status code and description.
 data RespondEmpty (s :: Nat) (desc :: Symbol)
 
-data RenderOutput = RenderOutput
-  { roStatus :: Status,
-    roBody :: LByteString,
-    roHeaders :: [(HeaderName, ByteString)]
-  }
+-- | A type to describe a streaming 'MultiVerb' response.
+--
+-- Includes status code, description, framing strategy and content type. Note
+-- that the handler return type is hardcoded to be 'SourceIO ByteString'.
+data RespondStreaming (s :: Nat) (desc :: Symbol) (framing :: *) (ct :: *)
 
 -- | The result of parsing a response as a union alternative of type 'a'.
 --
@@ -132,16 +138,18 @@ class IsSwaggerResponse a where
 
 type family ResponseType a :: *
 
-class IsResponse cs a where
+class IsWaiBody (ResponseBody a) => IsResponse cs a where
   type ResponseStatus a :: Nat
+  type ResponseBody a :: *
 
-  responseRender :: AcceptHeader -> ResponseType a -> Maybe RenderOutput
-  responseUnrender :: M.MediaType -> RenderOutput -> UnrenderResult (ResponseType a)
+  responseRender :: AcceptHeader -> ResponseType a -> Maybe (ResponseF (ResponseBody a))
+  responseUnrender :: M.MediaType -> ResponseF (ResponseBody a) -> UnrenderResult (ResponseType a)
 
 type instance ResponseType (Respond s desc a) = a
 
 instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse cs (Respond s desc a) where
   type ResponseStatus (Respond s desc a) = s
+  type ResponseBody (Respond s desc a) = LByteString
 
   -- Note: here it seems like we are rendering for all possible content types,
   -- only to choose the correct one afterwards. However, render results besides the
@@ -150,21 +158,22 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
   responseRender (AcceptHeader acc) x =
     M.mapAcceptMedia (map (uncurry mkRenderOutput) (allMimeRender (Proxy @cs) x)) acc
     where
-      mkRenderOutput :: M.MediaType -> LByteString -> (M.MediaType, RenderOutput)
+      mkRenderOutput :: M.MediaType -> LByteString -> (M.MediaType, Response)
       mkRenderOutput c body =
-        (c,) . roAddContentType c $
-          RenderOutput
-            { roStatus = statusVal (Proxy @s),
-              roBody = body,
-              roHeaders = []
+        (c,) . addContentType c $
+          Response
+            { responseStatusCode = statusVal (Proxy @s),
+              responseBody = body,
+              responseHeaders = mempty,
+              responseHttpVersion = HTTP.http11
             }
 
   responseUnrender c output = do
-    guard (roStatus output == statusVal (Proxy @s))
+    guard (responseStatusCode output == statusVal (Proxy @s))
     let results = allMimeUnrender (Proxy @cs)
     case lookup c results of
       Nothing -> empty
-      Just f -> either UnrenderError UnrenderSuccess (f (roBody output))
+      Just f -> either UnrenderError UnrenderSuccess (f (responseBody output))
 
 instance
   (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
@@ -181,22 +190,48 @@ type instance ResponseType (RespondEmpty s desc) = ()
 
 instance KnownStatus s => IsResponse cs (RespondEmpty s desc) where
   type ResponseStatus (RespondEmpty s desc) = s
+  type ResponseBody (RespondEmpty s desc) = ()
 
   responseRender _ _ =
-    Just
-      RenderOutput
-        { roStatus = statusVal (Proxy @s),
-          roBody = mempty,
-          roHeaders = []
+    Just $
+      Response
+        { responseStatusCode = statusVal (Proxy @s),
+          responseBody = (),
+          responseHeaders = mempty,
+          responseHttpVersion = HTTP.http11
         }
 
   responseUnrender _ output =
-    guard
-      ( roStatus output == statusVal (Proxy @s)
-          && LBS.null (roBody output)
-      )
+    guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance (KnownStatus s, KnownSymbol desc) => IsSwaggerResponse (RespondEmpty s desc) where
+  responseSwagger =
+    pure $
+      mempty
+        & S.description .~ Text.pack (symbolVal (Proxy @desc))
+
+type instance ResponseType (RespondStreaming s desc framing ct) = SourceIO ByteString
+
+instance
+  (Accept ct, KnownStatus s) =>
+  IsResponse cs (RespondStreaming s desc framing ct)
+  where
+  type ResponseStatus (RespondStreaming s desc framing ct) = s
+  type ResponseBody (RespondStreaming s desc framing ct) = SourceIO ByteString
+  responseRender _ x =
+    pure . addContentType (contentType (Proxy @ct)) $
+      Response
+        { responseStatusCode = statusVal (Proxy @s),
+          responseBody = x,
+          responseHeaders = mempty,
+          responseHttpVersion = HTTP.http11
+        }
+
+  responseUnrender _ resp = do
+    guard (responseStatusCode resp == statusVal (Proxy @s))
+    pure $ responseBody resp
+
+instance (KnownStatus s, KnownSymbol desc) => IsSwaggerResponse (RespondStreaming s desc framing ct) where
   responseSwagger =
     pure $
       mempty
@@ -225,7 +260,7 @@ data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
 class ServantHeaders hs xs | hs -> xs where
   constructHeaders :: NP I xs -> [HTTP.Header]
-  extractHeaders :: [HTTP.Header] -> Maybe (NP I xs)
+  extractHeaders :: Seq HTTP.Header -> Maybe (NP I xs)
 
 instance ServantHeaders '[] '[] where
   constructHeaders Nil = []
@@ -251,12 +286,14 @@ instance
     (headerName @name, toHeader x) :
     constructHeaders @hs xs
 
+  -- FUTUREWORK: should we concatenate all the matching headers instead of just
+  -- taking the first one?
   extractHeaders hs = do
     let name = headerName @name
-        (hs0, hs1) = partition (\(h, _) -> h == name) hs
+        (hs0, hs1) = Seq.partition (\(h, _) -> h == name) hs
     x <- case hs0 of
-      [] -> empty
-      ((_, h) : _) -> either (const empty) pure (parseHeader h)
+      Seq.Empty -> empty
+      ((_, h) :<| _) -> either (const empty) pure (parseHeader h)
     xs <- extractHeaders @hs hs1
     pure (I x :* xs)
 
@@ -286,15 +323,19 @@ instance
   IsResponse cs (WithHeaders hs a r)
   where
   type ResponseStatus (WithHeaders hs a r) = ResponseStatus r
+  type ResponseBody (WithHeaders hs a r) = ResponseBody r
 
   responseRender acc x = fmap addHeaders $ responseRender @cs @r acc y
     where
       (hs, y) = toHeaders @xs x
-      addHeaders r = r {roHeaders = roHeaders r ++ constructHeaders @hs hs}
+      addHeaders r =
+        r
+          { responseHeaders = responseHeaders r <> Seq.fromList (constructHeaders @hs hs)
+          }
 
   responseUnrender c output = do
     x <- responseUnrender @cs @r c output
-    case extractHeaders @hs (roHeaders output) of
+    case extractHeaders @hs (responseHeaders output) of
       Nothing -> UnrenderError "Failed to parse headers"
       Just hs -> pure $ fromHeaders @xs (hs, x)
 
@@ -315,8 +356,8 @@ type family ResponseTypes (as :: [*]) where
   ResponseTypes (a ': as) = ResponseType a ': ResponseTypes as
 
 class IsResponseList cs as where
-  responseListRender :: AcceptHeader -> Union (ResponseTypes as) -> Maybe RenderOutput
-  responseListUnrender :: M.MediaType -> RenderOutput -> UnrenderResult (Union (ResponseTypes as))
+  responseListRender :: AcceptHeader -> Union (ResponseTypes as) -> Maybe SomeResponse
+  responseListUnrender :: M.MediaType -> SomeResponse -> UnrenderResult (Union (ResponseTypes as))
 
   responseListStatuses :: [Status]
 
@@ -335,11 +376,11 @@ instance
   ) =>
   IsResponseList cs (a ': as)
   where
-  responseListRender acc (Z (I x)) = responseRender @cs @a acc x
+  responseListRender acc (Z (I x)) = fmap SomeResponse (responseRender @cs @a acc x)
   responseListRender acc (S x) = responseListRender @cs @as acc x
 
   responseListUnrender c output =
-    Z . I <$> responseUnrender @cs @a c output
+    Z . I <$> (responseUnrender @cs @a c =<< fromSomeResponse output)
       <|> S <$> responseListUnrender @cs @as c output
 
   responseListStatuses = statusVal (Proxy @(ResponseStatus a)) : responseListStatuses @cs @as
@@ -580,11 +621,56 @@ instance
       cs = allMime (Proxy @cs)
       (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
 
-roResponse :: RenderOutput -> Wai.Response
-roResponse ro = Wai.responseLBS (roStatus ro) (roHeaders ro) (roBody ro)
+class Typeable a => IsWaiBody a where
+  responseToWai :: ResponseF a -> Wai.Response
 
-roAddContentType :: M.MediaType -> RenderOutput -> RenderOutput
-roAddContentType c ro = ro {roHeaders = (hContentType, M.renderHeader c) : roHeaders ro}
+instance IsWaiBody LByteString where
+  responseToWai r =
+    Wai.responseLBS
+      (responseStatusCode r)
+      (toList (responseHeaders r))
+      (responseBody r)
+
+instance IsWaiBody () where
+  responseToWai r =
+    Wai.responseLBS
+      (responseStatusCode r)
+      (toList (responseHeaders r))
+      mempty
+
+instance IsWaiBody (SourceIO ByteString) where
+  responseToWai r =
+    Wai.responseStream
+      (responseStatusCode r)
+      (toList (responseHeaders r))
+      $ \output flush -> do
+        foreach
+          (const (pure ()))
+          (\chunk -> output (byteString chunk) *> flush)
+          (responseBody r)
+
+data SomeResponse = forall a. IsWaiBody a => SomeResponse (ResponseF a)
+
+addContentType :: M.MediaType -> ResponseF a -> ResponseF a
+addContentType c r = r {responseHeaders = (hContentType, M.renderHeader c) <| responseHeaders r}
+
+setEmptyBody :: SomeResponse -> SomeResponse
+setEmptyBody (SomeResponse r) = SomeResponse (go r)
+  where
+    go :: ResponseF a -> ResponseF LByteString
+    go Response {..} = Response {responseBody = mempty, ..}
+
+someResponseToWai :: SomeResponse -> Wai.Response
+someResponseToWai (SomeResponse r) = responseToWai r
+
+fromSomeResponse :: (Alternative m, Typeable a) => SomeResponse -> m (ResponseF a)
+fromSomeResponse (SomeResponse Response {..}) = do
+  body <- maybe empty pure $ cast responseBody
+  pure $
+    Response
+      { responseBody = body,
+        ..
+      }
 
 instance
   (AllMime cs, IsResponseList cs as, AsUnion as r, ReflectMethod method) =>
@@ -607,12 +693,11 @@ instance
             `addAcceptCheck` acceptCheck (Proxy @cs) acc
     runAction action' env req k $ \output -> do
       let mresp = responseListRender @cs @as acc (toUnion @as output)
-      resp' <- case mresp of
+      someResponseToWai <$> case mresp of
         Nothing -> FailFatal err406
         Just resp
-          | allowedMethodHead method req -> pure $ resp {roBody = mempty}
+          | allowedMethodHead method req -> pure (setEmptyBody resp)
           | otherwise -> pure resp
-      pure (roResponse resp')
     where
       method = reflectMethod (Proxy @method)
 
@@ -647,16 +732,15 @@ instance
           }
 
     c <- getResponseContentType response
-    let output =
-          RenderOutput
-            { roBody = responseBody response,
-              roHeaders = toList (responseHeaders response),
-              roStatus = responseStatusCode response
-            }
-
     unless (any (M.matches c) accept) $ do
       throwClientError $ UnsupportedContentType c response
-    case responseListUnrender @cs @as c output of
+
+    -- FUTUREWORK: support streaming
+    let sresp =
+          if LBS.null (responseBody response)
+            then SomeResponse response {responseBody = ()}
+            else SomeResponse response
+    case responseListUnrender @cs @as c sresp of
       StatusMismatch -> throwClientError (DecodeFailure "Status mismatch" response)
       UnrenderError e -> throwClientError (DecodeFailure (Text.pack e) response)
       UnrenderSuccess x -> pure (fromUnion @as x)

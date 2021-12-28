@@ -1,0 +1,1 @@
+Add qualified v4 endpoints for downloading and deleting assets. The upload API is still on the same path, but the asset object it returns now contains a `domain` field. Note that federated behaviour is still not implemented.
