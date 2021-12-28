@@ -25,6 +25,7 @@ module Wire.API.Call.Config
     rtcConfiguration,
     rtcConfIceServers,
     rtcConfSftServers,
+    rtcConfSftServersAll,
     rtcConfTTL,
 
     -- * RTCIceServer
@@ -105,7 +106,7 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: NonEmpty RTCIceServer,
     _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
     _rtcConfTTL :: Word32,
-    rtcConfSftServersAll :: Maybe [SFTServer]
+    _rtcConfSftServersAll :: Maybe [SFTServer]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
