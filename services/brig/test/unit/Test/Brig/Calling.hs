@@ -206,7 +206,7 @@ testSFTDiscoverWhenDNSFails = do
   logRecorder <- newLogRecorder
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvResponseError IllegalDomain) undefined
 
-  assertEqual "discovered servers should be returned" Nothing
+  assertEqual "no servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
             discoverSFTServers "_sft._tcp.foo.example.com"
         )
