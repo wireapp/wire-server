@@ -43,8 +43,9 @@ import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
+import Network.Connection
 import Network.HTTP.Client hiding (Response)
-import Network.HTTP.Client.TLS (newTlsManager)
+import Network.HTTP.Client.TLS (mkManagerSettings, newTlsManagerWith)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
@@ -153,7 +154,9 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
   mSftServersAll :: Maybe (Maybe [SFTServer]) <- for mSftEnv $ \e -> liftIO $ do
-    httpMan <- newTlsManager
+    httpMan <-
+      let s = TLSSettingsSimple True False True
+       in newTlsManagerWith $ mkManagerSettings s Nothing
     response <-
       runM
         . runTinyLog logger

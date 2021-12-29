@@ -154,6 +154,7 @@ library
     , cassandra-util >=0.16.2
     , comonad
     , conduit >=1.2.8
+    , connection
     , containers >=0.5
     , cookie >=0.4
     , cryptobox-haskell >=0.1.1

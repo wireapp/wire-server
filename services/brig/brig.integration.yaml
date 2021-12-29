@@ -181,7 +181,7 @@ optSettings:
   # FUTUREWORK: Replace the following SFT DNS lookup parameters with something
   # to be added to the CI environment
   setSftLookupDomain:
-    sft01.avs.zinfra.io
+    sftd.integration-tests.zinfra.io
   setSftLookupPort: 443
 
 logLevel: Warn
