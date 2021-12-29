@@ -25,6 +25,7 @@ import qualified Codec.MIME.Type as MIME
 import Control.Lens (set, view, _Just)
 import Control.Monad.Catch
 import Control.Monad.Codensity
+import Crypto.Random
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -41,7 +42,6 @@ import qualified Network.Wai as Wai
 import TestSetup
 import Util.Options
 import Wire.API.Asset
-import Crypto.Random
 
 uploadSimple ::
   (Request -> Request) ->
