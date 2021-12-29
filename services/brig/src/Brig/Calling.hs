@@ -114,7 +114,7 @@ data SFTEnv = SFTEnv
     -- | maximum amount of servers to give out,
     -- even if more are in the SRV record
     sftListLength :: Range 1 100 Int,
-    sftLookupDomain :: DNS.Domain,
+    sftLookupDomain :: Opts.LookupDomain,
     sftLookupPort :: Port
   }
 
@@ -160,15 +160,15 @@ sftDiscoveryLoop SFTEnv {..} = forever $ do
     Just es -> atomicWriteIORef sftServers (Discovered (SFTServers es))
   threadDelay sftDiscoveryInterval
 
-mkSFTEnv :: SFTOptions -> IO SFTEnv
-mkSFTEnv opts =
+mkSFTEnv :: (SFTOptions, Opts.LookupDomain, Port) -> IO SFTEnv
+mkSFTEnv (opts, lookupDomain, lookupPort) =
   SFTEnv
     <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
     <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
     <*> pure (fromMaybe defSftListLength (Opts.sftListLength opts))
-    <*> pure (Opts.sftLookupDomain opts)
-    <*> pure (Opts.sftLookupPort opts)
+    <*> pure lookupDomain
+    <*> pure lookupPort
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =

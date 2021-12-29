@@ -71,6 +71,7 @@ library:
   - html-entities >=1.1
   - http-client >=0.5
   - http-client-openssl >=0.2
+  - http-client-tls
   - http-media
   - http-types >=0.8
   - imports

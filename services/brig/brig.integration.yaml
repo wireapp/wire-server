@@ -178,6 +178,11 @@ optSettings:
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+  # FUTUREWORK: Replace the following SFT DNS lookup parameters with something
+  # to be added to the CI environment
+  setSftLookupDomain:
+    sft01.avs.zinfra.io
+  setSftLookupPort: 443
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

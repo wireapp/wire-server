@@ -495,9 +495,26 @@ data Settings = Settings
     -- config will always return this entry. This is useful in Kubernetes
     -- where SFTs are deployed behind a load-balancer.  In the long-run the SRV
     -- fetching logic can go away completely
-    setSftStaticUrl :: !(Maybe HttpsUrl)
+    setSftStaticUrl :: !(Maybe HttpsUrl),
+    -- FUTUREWORK: Write documentation for these two lookup parameters
+    setSftLookupDomain :: !(Maybe LookupDomain),
+    setSftLookupPort :: !(Maybe Port)
   }
   deriving (Show, Generic)
+
+newtype LookupDomain = LookupDomain {unLookupDomain :: DNS.Domain}
+  deriving stock (Show, Generic)
+
+instance FromJSON LookupDomain where
+  parseJSON (Y.String s) =
+    LookupDomain <$> Y.withText "LookupDomain" asciiOnly (Y.String s)
+    where
+      asciiOnly :: Text -> Y.Parser ByteString
+      asciiOnly t =
+        if Text.all Char.isAscii t
+          then pure $ Text.encodeUtf8 t
+          else fail $ "Expected ascii string only, found: " <> Text.unpack t
+  parseJSON _ = fail "Expected a String"
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -612,9 +629,7 @@ data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
     sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
-    sftListLength :: !(Maybe (Range 1 100 Int)), -- defaults to defSftListLength
-    sftLookupDomain :: !DNS.Domain,
-    sftLookupPort :: !Port
+    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
   }
   deriving (Show, Generic)
 
@@ -625,8 +640,6 @@ instance FromJSON SFTOptions where
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
       <*> (o .:? "sftListLength")
-      <*> (asciiOnly =<< o .: "sftLookupDomain")
-      <*> o .: "sftLookupPort"
     where
       asciiOnly :: Text -> Y.Parser ByteString
       asciiOnly t =
@@ -688,7 +701,9 @@ Lens.makeLensesFor
     ("setUserMaxPermClients", "userMaxPermClients"),
     ("setFederationDomain", "federationDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
-    ("setSftStaticUrl", "sftStaticUrl")
+    ("setSftStaticUrl", "sftStaticUrl"),
+    ("setSftStaticUrl", "sftLookupDomain"),
+    ("setSftStaticUrl", "sftLookupPort")
   ]
   ''Settings
 
