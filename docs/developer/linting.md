@@ -9,7 +9,7 @@ by executing:
 nix-shell -p hlint
 ```
 
-To run it on the whole project (Warning: This takes long!):
+To run it on the whole project (Warning: This takes a long time!):
 
 ```sh
 hlint .
