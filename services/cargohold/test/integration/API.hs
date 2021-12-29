@@ -268,3 +268,4 @@ testRemoteDownload = do
       void $
         downloadAsset uid qkey () <!! do
           const 200 === statusCode
+          const (Just "asset content") === responseBody
