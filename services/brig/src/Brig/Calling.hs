@@ -51,7 +51,6 @@ import Data.IP
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
-import Data.Misc (Port (..))
 import Data.Range
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
@@ -114,8 +113,7 @@ data SFTEnv = SFTEnv
     -- | maximum amount of servers to give out,
     -- even if more are in the SRV record
     sftListLength :: Range 1 100 Int,
-    sftLookupDomain :: Opts.LookupDomain,
-    sftLookupPort :: Port
+    sftLookup :: Maybe Opts.SFTLookup
   }
 
 data Discovery a
@@ -160,15 +158,14 @@ sftDiscoveryLoop SFTEnv {..} = forever $ do
     Just es -> atomicWriteIORef sftServers (Discovered (SFTServers es))
   threadDelay sftDiscoveryInterval
 
-mkSFTEnv :: (SFTOptions, Opts.LookupDomain, Port) -> IO SFTEnv
-mkSFTEnv (opts, lookupDomain, lookupPort) =
+mkSFTEnv :: (SFTOptions, Maybe Opts.SFTLookup) -> IO SFTEnv
+mkSFTEnv (opts, msftLookup) =
   SFTEnv
     <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
     <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
     <*> pure (fromMaybe defSftListLength (Opts.sftListLength opts))
-    <*> pure lookupDomain
-    <*> pure lookupPort
+    <*> pure msftLookup
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =

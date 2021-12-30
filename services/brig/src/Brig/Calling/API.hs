@@ -156,8 +156,7 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
       let subsetLength = Calling.sftListLength actualSftEnv
       liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
 
-  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
-  mSftServersAll :: Maybe (Maybe [SFTServer]) <- for mSftEnv $ \e -> liftIO $ do
+  mSftServersAll :: Maybe (Maybe [SFTServer]) <- for (mSftEnv >>= sftLookup) $ \sftl -> liftIO $ do
     httpMan <-
       -- TODO: Put avoiding SSL checks behind a Brig configuration flag that is
       -- set only in testing and by default this flag is disabled
@@ -169,8 +168,8 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
         . runDNSLookupDefault
         . discoverSFTServersAll
         . Opt.unLookupDomain
-        . sftLookupDomain
-        $ e
+        . Opt.sftlDomain
+        $ sftl
     case response of
       Nothing -> pure $ Nothing @[SFTServer]
       Just ips -> fmap (eitherToMaybe @String @[SFTServer] . sequence) $
@@ -181,7 +180,7 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
                     [ "GET https://",
                       show ip,
                       ":",
-                      show . portNumber . sftLookupPort $ e,
+                      show . portNumber . Opt.sftlPort $ sftl,
                       "/sft/url"
                     ]
           -- TODO: introduce an effect for talking to SFT. Perhaps this could be a
@@ -189,6 +188,7 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
           sftUrlResponse <- liftIO (responseBody <$> httpLbs req httpMan)
           pure @IO . fmap Public.sftServer . runParser' (parser @HttpsUrl) . cs . strip . cs $ sftUrlResponse
 
+  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL (join mSftServersAll)
   where
     -- FUTUREWORK: remove this adopted code once upgraded to bytestring >= 0.10.12.0

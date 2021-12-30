@@ -228,11 +228,12 @@ data:
       {{- if .setSftStaticUrl }}
       setSftStaticUrl: {{ .setSftStaticUrl }}
       {{- end }}
-      {{- if .sftLookupDomain }}
-      sftLookupDomain: {{ .sftLookupDomain }}
+      {{- if .setSftLookup }}
+      {{- with .setSftLookup }}
+      setSftLookup:
+        domain: {{ required "Missing value: .setSftLookup.domain" .setSftLookup.domain }}
+        port: {{ required "Missing value: .setSftLookup.port" .setSftLookup.port }}
       {{- end }}
-      {{- if .sftLookupPort }}
-      sftLookupPort: {{ .sftLookupPort }}
       {{- end }}
     {{- end }}
   {{- end }}

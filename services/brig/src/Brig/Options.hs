@@ -496,11 +496,21 @@ data Settings = Settings
     -- where SFTs are deployed behind a load-balancer.  In the long-run the SRV
     -- fetching logic can go away completely
     setSftStaticUrl :: !(Maybe HttpsUrl),
-    -- FUTUREWORK: Write documentation for these two lookup parameters
-    setSftLookupDomain :: !(Maybe LookupDomain),
-    setSftLookupPort :: !(Maybe Port)
+    setSftLookup :: !(Maybe SFTLookup)
   }
   deriving (Show, Generic)
+
+data SFTLookup = SFTLookup
+  { sftlDomain :: !LookupDomain,
+    sftlPort :: !Port
+  }
+  deriving (Show, Generic)
+
+instance FromJSON SFTLookup where
+  parseJSON = Aeson.withObject "SFTLookup" $ \o -> do
+    d <- o Aeson..: "domain"
+    p <- o Aeson..: "port"
+    pure $ SFTLookup d p
 
 newtype LookupDomain = LookupDomain {unLookupDomain :: DNS.Domain}
   deriving stock (Show, Generic)
@@ -702,8 +712,7 @@ Lens.makeLensesFor
     ("setFederationDomain", "federationDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
     ("setSftStaticUrl", "sftStaticUrl"),
-    ("setSftLookupDomain", "sftLookupDomain"),
-    ("setSftLookupPort", "sftLookupPort")
+    ("setSftLookup", "sftLookup")
   ]
   ''Settings
 
