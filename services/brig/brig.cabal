@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f720449b2a83653c479cf0e0d1ea59541640cc25ea5851b960aa53a2dc679322
+-- hash: addf4b080e564149f44c6cdb33c824734aa68cc9ff021f41268938902e2958b0
 
 name:           brig
 version:        2.0
@@ -64,6 +64,7 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
+      Brig.Effects.SFT
       Brig.Email
       Brig.Federation.Client
       Brig.Index.Eval
