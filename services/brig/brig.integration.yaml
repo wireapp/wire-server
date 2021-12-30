@@ -183,6 +183,7 @@ optSettings:
   setSftLookup:
     domain: sftd.integration-tests.zinfra.io
     port: 443
+    isTestingEnvironment: true
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

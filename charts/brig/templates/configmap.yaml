@@ -233,6 +233,7 @@ data:
       setSftLookup:
         domain: {{ required "Missing value: .setSftLookup.domain" .setSftLookup.domain }}
         port: {{ required "Missing value: .setSftLookup.port" .setSftLookup.port }}
+        isTestingEnvironment: {{ .setSftLookup.isTestingEnvironment }}
       {{- end }}
       {{- end }}
     {{- end }}

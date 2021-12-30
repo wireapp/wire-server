@@ -49,7 +49,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
 import Network.Connection
 import Network.HTTP.Client hiding (Response)
-import Network.HTTP.Client.TLS (mkManagerSettings, newTlsManagerWith)
+import Network.HTTP.Client.TLS (mkManagerSettings, newTlsManager, newTlsManagerWith)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
@@ -158,10 +158,11 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
 
   mSftServersAll :: Maybe (Maybe [SFTServer]) <- for (mSftEnv >>= sftLookup) $ \sftl -> liftIO $ do
     httpMan <-
-      -- TODO: Put avoiding SSL checks behind a Brig configuration flag that is
-      -- set only in testing and by default this flag is disabled
-      let s = TLSSettingsSimple True False True
-       in newTlsManagerWith $ mkManagerSettings s Nothing
+      if Opt.sftlIsTestEnv sftl
+        then
+          let s = TLSSettingsSimple True False True
+           in newTlsManagerWith $ mkManagerSettings s Nothing
+        else newTlsManager
     response <-
       runM
         . runTinyLog logger

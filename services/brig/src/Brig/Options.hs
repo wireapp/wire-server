@@ -502,7 +502,15 @@ data Settings = Settings
 
 data SFTLookup = SFTLookup
   { sftlDomain :: !LookupDomain,
-    sftlPort :: !Port
+    sftlPort :: !Port,
+    -- FUTUREWORK: Get rid of the test environment flag below. This is to be
+    -- done by not looking up A records and consequently making GET requests via
+    -- HTTPS based on IP addresses, instead of domain names.
+
+    -- | Set to True if running in a test environment. This will avoid
+    -- performing SSL checks in a request to an SFT server. The default value is
+    -- False.
+    sftlIsTestEnv :: Bool
   }
   deriving (Show, Generic)
 
@@ -510,7 +518,8 @@ instance FromJSON SFTLookup where
   parseJSON = Aeson.withObject "SFTLookup" $ \o -> do
     d <- o Aeson..: "domain"
     p <- o Aeson..: "port"
-    pure $ SFTLookup d p
+    t <- o Aeson..:? "isTestingEnvironment" Aeson..!= False
+    pure $ SFTLookup d p t
 
 newtype LookupDomain = LookupDomain {unLookupDomain :: DNS.Domain}
   deriving stock (Show, Generic)
