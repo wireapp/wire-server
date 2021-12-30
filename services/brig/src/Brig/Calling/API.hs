@@ -29,8 +29,11 @@ import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
 import qualified Brig.Options as Opt
 import Control.Lens
+import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Conversion
+import Data.ByteString.Internal (ByteString (PS), w2c)
 import Data.ByteString.Lens
+import Data.ByteString.Unsafe (unsafeTake)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
@@ -38,6 +41,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
 import Data.Misc (HttpsUrl, Port (portNumber))
 import Data.Range
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
@@ -155,6 +159,8 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
   mSftServersAll :: Maybe (Maybe [SFTServer]) <- for mSftEnv $ \e -> liftIO $ do
     httpMan <-
+      -- TODO: Put avoiding SSL checks behind a Brig configuration flag that is
+      -- set only in testing and by default this flag is disabled
       let s = TLSSettingsSimple True False True
        in newTlsManagerWith $ mkManagerSettings s Nothing
     response <-
@@ -181,10 +187,24 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
           -- TODO: introduce an effect for talking to SFT. Perhaps this could be a
           -- part of an existing effect External.
           sftUrlResponse <- liftIO (responseBody <$> httpLbs req httpMan)
-          pure @IO . fmap Public.sftServer . runParser' (parser @HttpsUrl) $ sftUrlResponse
+          pure @IO . fmap Public.sftServer . runParser' (parser @HttpsUrl) . cs . strip . cs $ sftUrlResponse
 
   pure $ Public.rtcConfiguration srvs mSftServers cTTL (join mSftServersAll)
   where
+    -- FUTUREWORK: remove this adopted code once upgraded to bytestring >= 0.10.12.0
+    strip :: BS8.ByteString -> BS8.ByteString
+    strip = BS8.dropWhile isSpace . dropWhileEnd' isSpace
+      where
+        dropWhileEnd' :: (Char -> Bool) -> BS8.ByteString -> BS8.ByteString
+        dropWhileEnd' f ps = unsafeTake (findFromEndUntil (not . f . w2c) ps) ps
+        findFromEndUntil :: (Word8 -> Bool) -> BS8.ByteString -> Int
+        findFromEndUntil f ps@(PS _ _ l) = case unsnoc ps of
+          Nothing -> 0
+          Just (b, c) ->
+            if f c
+              then l
+              else findFromEndUntil f b
+
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
       -- assuming limitServers is safe with respect to the length of its return value
