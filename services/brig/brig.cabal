@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 244ca5e0c12867ef47ffcfbc056775381028fbc85e5c57eb280afe842e3499d9
+-- hash: addf4b080e564149f44c6cdb33c824734aa68cc9ff021f41268938902e2958b0
 
 name:           brig
 version:        2.0
@@ -64,6 +64,7 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
+      Brig.Effects.SFT
       Brig.Email
       Brig.Federation.Client
       Brig.Index.Eval
@@ -154,6 +155,7 @@ library
     , cassandra-util >=0.16.2
     , comonad
     , conduit >=1.2.8
+    , connection
     , containers >=0.5
     , cookie >=0.4
     , cryptobox-haskell >=0.1.1
@@ -177,6 +179,7 @@ library
     , html-entities >=1.1
     , http-client >=0.5
     , http-client-openssl >=0.2
+    , http-client-tls
     , http-media
     , http-types >=0.8
     , imports

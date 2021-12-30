@@ -175,8 +175,6 @@ data:
       {{- if .sftDiscoveryIntervalSeconds }}
       sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
       {{- end }}
-      sftLookupDomain: {{ required "Missing value: .sft.sftLookupDomain" .sftLookupDomain }}
-      sftLookupPort: {{ required "Missing value: .sft.sftLookupPort" .sftLookupPort }}
     {{- end }}
     {{- end }}
 
@@ -229,6 +227,14 @@ data:
       {{- end }}
       {{- if .setSftStaticUrl }}
       setSftStaticUrl: {{ .setSftStaticUrl }}
+      {{- end }}
+      {{- if .setSftLookup }}
+      {{- with .setSftLookup }}
+      setSftLookup:
+        domain: {{ required "Missing value: .setSftLookup.domain" .setSftLookup.domain }}
+        port: {{ required "Missing value: .setSftLookup.port" .setSftLookup.port }}
+        isTestingEnvironment: {{ .setSftLookup.isTestingEnvironment }}
+      {{- end }}
       {{- end }}
     {{- end }}
   {{- end }}

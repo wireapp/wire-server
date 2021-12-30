@@ -27,6 +27,7 @@ import Brig.App
 import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
+import Brig.Effects.SFT
 import qualified Brig.Options as Opt
 import Control.Lens
 import Data.ByteString.Conversion
@@ -43,7 +44,8 @@ import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
-import Network.HTTP.Client hiding (Response)
+import Network.Connection
+import Network.HTTP.Client.TLS (mkManagerSettings, newTlsManager, newTlsManagerWith)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
@@ -101,9 +103,8 @@ getCallsConfigV2 _ _ limit = do
   env <- liftIO . readIORef =<< view turnEnvV2
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftEnv' <- view sftEnv
-  httpMan <- view httpManager
   logger <- view applog
-  newConfig env staticUrl sftEnv' limit httpMan logger
+  newConfig env staticUrl sftEnv' limit logger
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -112,9 +113,8 @@ getCallsConfigH (_ ::: uid ::: connid) =
 getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
 getCallsConfig _ _ = do
   env <- liftIO . readIORef =<< view turnEnv
-  httpMan <- view httpManager
   logger <- view applog
-  dropTransport <$> newConfig env Nothing Nothing Nothing httpMan logger
+  dropTransport <$> newConfig env Nothing Nothing Nothing logger
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -129,10 +129,9 @@ newConfig ::
   Maybe HttpsUrl ->
   Maybe SFTEnv ->
   Maybe (Range 1 10 Int) ->
-  Manager ->
   Logger ->
   m Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit httpMan logger = do
+newConfig env sftStaticUrl mSftEnv limit logger = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -153,27 +152,27 @@ newConfig env sftStaticUrl mSftEnv limit httpMan logger = do
       let subsetLength = Calling.sftListLength actualSftEnv
       liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
 
-  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
-  mSftServersAll :: Maybe (Maybe [SFTServer]) <- for mSftEnv $ \e -> liftIO $ do
-    response <- runM . runTinyLog logger . runDNSLookupDefault . discoverSFTServersAll . sftLookupDomain $ e
+  mSftServersAll :: Maybe (Maybe [SFTServer]) <- for (mSftEnv >>= sftLookup) $ \sftl -> liftIO $ do
+    httpMan <-
+      if Opt.sftlIsTestEnv sftl
+        then
+          let s = TLSSettingsSimple True False True
+           in newTlsManagerWith $ mkManagerSettings s Nothing
+        else newTlsManager
+    response <-
+      runM
+        . runTinyLog logger
+        . runDNSLookupDefault
+        . discoverSFTServersAll
+        . Opt.unLookupDomain
+        . Opt.sftlDomain
+        $ sftl
     case response of
       Nothing -> pure $ Nothing @[SFTServer]
-      Just ips -> fmap (eitherToMaybe @String @[SFTServer] . sequence) $
-        for ips $ \ip -> do
-          let req =
-                parseRequest_ $
-                  mconcat
-                    [ "GET ",
-                      show ip,
-                      ":",
-                      show . sftLookupPort $ e,
-                      "/sft/url"
-                    ]
-          -- TODO: introduce an effect for talking to SFT. Perhaps this could be a
-          -- part of an existing effect External.
-          sftUrlResponse <- liftIO (responseBody <$> httpLbs req httpMan)
-          pure @IO . fmap Public.sftServer . runParser' (parser @HttpsUrl) $ sftUrlResponse
+      Just ips -> fmap (eitherToMaybe @SFTError @[SFTServer] . sequence) $
+        for ips $ \ip -> runM . interpretSFT httpMan $ sftGetClientUrl ip (Opt.sftlPort sftl)
 
+  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL (join mSftServersAll)
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI

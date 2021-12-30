@@ -112,16 +112,22 @@ testSFT b opts = do
       "when SFT discovery is not enabled, sft_servers_all shouldn't be returned"
       Nothing
       (cfg ^. rtcConfSftServersAll)
-  withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing "integration-tests.zinfra.io" (Port 8585)) $ do
+  withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing) $ do
     cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
     -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
     let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
     let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
-    liftIO $
+    liftIO $ do
       assertEqual
         "when SFT discovery is enabled, sft_servers should be returned"
         (Set.fromList [sftServer server1, sftServer server2])
         (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
+      void . for (cfg1 ^. rtcConfSftServersAll) $ \allServers -> do
+        let Right clientUrl = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.avs.zinfra.io")
+        assertEqual
+          "when SFT discovery is enabled and SFT lookup configured, sft_servers_all should be returned"
+          (Set.singleton . sftServer $ clientUrl)
+          (Set.fromList allServers)
 
 modifyAndAssert ::
   Brig ->
