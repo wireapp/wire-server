@@ -702,8 +702,8 @@ Lens.makeLensesFor
     ("setFederationDomain", "federationDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
     ("setSftStaticUrl", "sftStaticUrl"),
-    ("setSftStaticUrl", "sftLookupDomain"),
-    ("setSftStaticUrl", "sftLookupPort")
+    ("setSftLookupDomain", "sftLookupDomain"),
+    ("setSftLookupPort", "sftLookupPort")
   ]
   ''Settings
 
