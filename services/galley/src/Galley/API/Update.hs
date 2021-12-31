@@ -20,7 +20,7 @@ module Galley.API.Update
     acceptConvH,
     blockConvH,
     unblockConvH,
-    checkReusableCodeH,
+    checkReusableCode,
     joinConversationByIdUnqualified,
     joinConversationByReusableCodeH,
     addCodeH,
@@ -675,15 +675,6 @@ getCode usr cnv = do
 returnCode :: Member CodeStore r => Code -> Sem r Public.ConversationCode
 returnCode c = do
   Public.mkConversationCode (codeKey c) (codeValue c) <$> E.getConversationCodeURI
-
-checkReusableCodeH ::
-  Members '[CodeStore, Error CodeError, WaiRoutes] r =>
-  JsonRequest Public.ConversationCode ->
-  Sem r Response
-checkReusableCodeH req = do
-  convCode <- fromJsonBody req
-  checkReusableCode convCode
-  pure empty
 
 checkReusableCode ::
   Members '[CodeStore, Error CodeError] r =>

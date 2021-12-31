@@ -370,15 +370,6 @@ sitemap = do
 
   -- Conversation API ---------------------------------------------------
 
-  post "/conversations/code-check" (continue Update.checkReusableCodeH) $
-    jsonRequest @Public.ConversationCode
-  document "POST" "checkConversationCode" $ do
-    summary "Check validity of a conversation code"
-    response 200 "Valid" end
-    body (ref Public.modelConversationCode) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.CodeNotFound)
-
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
   post "/conversations/join" (continue Update.joinConversationByReusableCodeH) $

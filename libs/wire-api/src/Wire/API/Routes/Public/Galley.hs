@@ -295,6 +295,19 @@ type ConversationAPI =
                :> "join"
                :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
            )
+    :<|> Named
+           "code-check"
+           ( Summary "Check validity of a conversation code"
+               :> CanThrow CodeNotFound
+               :> "conversations"
+               :> "code-check"
+               :> ReqBody '[Servant.JSON] ConversationCode
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 "Valid"]
+                    ()
+           )
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     :<|> Named
