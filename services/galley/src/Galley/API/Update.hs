@@ -23,7 +23,7 @@ module Galley.API.Update
     checkReusableCode,
     joinConversationByIdUnqualified,
     joinConversationByReusableCodeUnqualified,
-    addCodeH,
+    addCodeUnqualified,
     rmCodeH,
     getCodeH,
     updateUnqualifiedConversationName,
@@ -522,7 +522,7 @@ deleteLocalConversation lusr con lcnv =
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
-addCodeH ::
+addCodeUnqualified ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
@@ -534,18 +534,14 @@ addCodeH ::
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
-  UserId ::: ConnId ::: ConvId ->
-  Sem r Response
-addCodeH (usr ::: zcon ::: cnv) = do
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Sem r Public.AddCodeResult
+addCodeUnqualified usr zcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode lusr zcon lcnv <&> \case
-    CodeAdded event -> json event & setStatus status201
-    CodeAlreadyExisted conversationCode -> json conversationCode & setStatus status200
-
-data AddCodeResult
-  = CodeAdded Public.Event
-  | CodeAlreadyExisted Public.ConversationCode
+  addCode lusr zcon lcnv
 
 addCode ::
   forall r.
@@ -561,7 +557,7 @@ addCode ::
   Local UserId ->
   ConnId ->
   Local ConvId ->
-  Sem r AddCodeResult
+  Sem r Public.AddCodeResult
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
   Query.ensureGuestLinksEnabled conv
@@ -579,10 +575,10 @@ addCode lusr zcon lcnv = do
       conversationCode <- createCode code
       let event = Event ConvCodeUpdate (qUntagged lcnv) (qUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
-      pure $ CodeAdded event
+      pure $ Public.CodeAdded event
     Just code -> do
       conversationCode <- createCode code
-      pure $ CodeAlreadyExisted conversationCode
+      pure $ Public.CodeAlreadyExisted conversationCode
   where
     createCode :: Code -> Sem r ConversationCode
     createCode code = do

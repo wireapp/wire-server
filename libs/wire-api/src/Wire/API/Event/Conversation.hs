@@ -23,6 +23,7 @@ module Wire.API.Event.Conversation
     Event (..),
     EventType (..),
     EventData (..),
+    AddCodeResult (..),
 
     -- * Event lenses
     _EdMembersJoin,
@@ -449,6 +450,10 @@ modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do
   Doc.property "conversation_role" Doc.string' $ do
     Doc.description "Name of the conversation role to update to"
     Doc.optional
+
+data AddCodeResult
+  = CodeAdded Event
+  | CodeAlreadyExisted ConversationCode
 
 data OtrMessage = OtrMessage
   { otrSender :: ClientId,

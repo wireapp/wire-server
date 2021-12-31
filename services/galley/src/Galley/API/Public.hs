@@ -371,23 +371,6 @@ sitemap = do
   -- Conversation API ---------------------------------------------------
 
   -- This endpoint can lead to the following events being sent:
-  -- - ConvCodeUpdate event to members, if code didn't exist before
-  post "/conversations/:cnv/code" (continue Update.addCodeH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-  document "POST" "createConversationCode" $ do
-    summary "Create or recreate a conversation code"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    returns (ref Public.modelConversationCode)
-    response 201 "Conversation code created." (model Public.modelEvent)
-    response 200 "Conversation code already exists." (model Public.modelConversationCode)
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse Error.invalidAccessOp
-
-  -- This endpoint can lead to the following events being sent:
   -- - ConvCodeDelete event to members
   delete "/conversations/:cnv/code" (continue Update.rmCodeH) $
     zauthUserId

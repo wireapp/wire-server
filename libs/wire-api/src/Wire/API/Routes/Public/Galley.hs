@@ -71,6 +71,26 @@ type ConversationVerb =
      ]
     ConversationResponse
 
+type CreateConversationCodeVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    '[ Respond 200 "Conversation code already exists." ConversationCode,
+       Respond 201 "Conversation code created." Event
+     ]
+    AddCodeResult
+
+instance
+  (ResponseType r1 ~ ConversationCode, ResponseType r2 ~ Event) =>
+  AsUnion '[r1, r2] AddCodeResult
+  where
+  toUnion (CodeAlreadyExisted c) = Z (I c)
+  toUnion (CodeAdded e) = S (Z (I e))
+
+  fromUnion (Z (I c)) = CodeAlreadyExisted c
+  fromUnion (S (Z (I e))) = CodeAdded e
+  fromUnion (S (S x)) = case x of
+
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
 type ConvJoinResponses = UpdateResponses "Conversation unchanged" "Conversation joined" Event
@@ -322,6 +342,20 @@ type ConversationAPI =
                     '[JSON]
                     '[RespondEmpty 200 "Valid"]
                     ()
+           )
+    -- this endpoint can lead to the following events being sent:
+    -- - ConvCodeUpdate event to members, if code didn't exist before
+    :<|> Named
+           "create-conversation-code-unqualified"
+           ( Summary "Create or recreate a conversation code"
+               :> CanThrow ConvNotFound
+               :> CanThrow InvalidAccessOp
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> CreateConversationCodeVerb
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members

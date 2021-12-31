@@ -331,6 +331,8 @@ type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversatio
 
 type InvalidTargetAccess = InvalidOp "invalid target access"
 
+type InvalidAccessOp = InvalidOp "invalid operation for conversation without 'code' access"
+
 type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
 
 type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
