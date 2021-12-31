@@ -391,6 +391,20 @@ type ConversationAPI =
                     ConversationCode
            )
     -- This endpoint can lead to the following events being sent:
+    -- - Typing event to members
+    :<|> Named
+           "member-typing-unqualified"
+           ( Summary "Sending typing notifications"
+               :> CanThrow ConvNotFound
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "typing"
+               :> ReqBody '[JSON] TypingData
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Notification sent"] ()
+           )
+    -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     :<|> Named
            "remove-member-unqualified"

@@ -54,7 +54,7 @@ module Galley.API.Update
     postOtrMessageUnqualified,
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
-    isTypingH,
+    isTypingUnqualified,
 
     -- * External Services
     addServiceH,
@@ -1548,7 +1548,7 @@ updateLiveLocalConversationName lusr con lcnv rename =
   fmap hush . runError @NoChanges $
     updateLocalConversation lcnv (qUntagged lusr) (Just con) rename
 
-isTypingH ::
+isTypingUnqualified ::
   Members
     '[ Error ConversationError,
        GundeckAccess,
@@ -1558,14 +1558,15 @@ isTypingH ::
        WaiRoutes
      ]
     r =>
-  UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData ->
-  Sem r Response
-isTypingH (zusr ::: zcon ::: cnv ::: req) = do
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.TypingData ->
+  Sem r ()
+isTypingUnqualified zusr zcon cnv typingData = do
   lusr <- qualifyLocal zusr
   lcnv <- qualifyLocal cnv
-  typingData <- fromJsonBody req
   isTyping lusr zcon lcnv typingData
-  pure empty
 
 isTyping ::
   Members '[Error ConversationError, GundeckAccess, Input UTCTime, MemberStore] r =>

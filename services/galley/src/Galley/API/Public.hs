@@ -50,7 +50,6 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
-import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
 import qualified Wire.API.ErrorDescription as Error
 import qualified Wire.API.Event.Team as Public ()
@@ -368,21 +367,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - Typing event to members
-  post "/conversations/:cnv/typing" (continue Update.isTypingH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.TypingData
-  document "POST" "isTyping" $ do
-    summary "Sending typing notifications"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelTyping) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients
