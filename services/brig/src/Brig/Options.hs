@@ -720,8 +720,7 @@ Lens.makeLensesFor
     ("setUserMaxPermClients", "userMaxPermClients"),
     ("setFederationDomain", "federationDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
-    ("setSftStaticUrl", "sftStaticUrl"),
-    ("setSftLookup", "sftLookup")
+    ("setSftStaticUrl", "sftStaticUrl")
   ]
   ''Settings
 
