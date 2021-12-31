@@ -54,6 +54,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
         :<|> Named @"code-check" checkReusableCode
         :<|> Named @"create-conversation-code-unqualified" addCodeUnqualified
         :<|> Named @"remove-code-unqualified" rmCodeUnqualified
+        :<|> Named @"get-code" getCode
         :<|> Named @"remove-member-unqualified" removeMemberUnqualified
         :<|> Named @"remove-member" removeMemberQualified
         :<|> Named @"update-other-member-unqualified" updateOtherMemberUnqualified

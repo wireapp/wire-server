@@ -375,6 +375,21 @@ type ConversationAPI =
                     '[Respond 200 "Conversation code deleted." Event]
                     Event
            )
+    :<|> Named
+           "get-code"
+           ( Summary "Get existing conversation code"
+               :> CanThrow ConvNotFound
+               :> CanThrow InvalidAccessOp
+               :> ZUser
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[Respond 200 "Conversation Code" ConversationCode]
+                    ConversationCode
+           )
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     :<|> Named

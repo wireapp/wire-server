@@ -25,7 +25,7 @@ module Galley.API.Update
     joinConversationByReusableCodeUnqualified,
     addCodeUnqualified,
     rmCodeUnqualified,
-    getCodeH,
+    getCode,
     updateUnqualifiedConversationName,
     updateConversationName,
     updateConversationReceiptModeUnqualified,
@@ -633,20 +633,6 @@ rmCode lusr zcon lcnv = do
   let event = Event ConvCodeDelete (qUntagged lcnv) (qUntagged lusr) now EdConvCodeDelete
   pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
   pure event
-
-getCodeH ::
-  forall r.
-  ( Member CodeStore r,
-    Member ConversationStore r,
-    Member (Error CodeError) r,
-    Member (Error ConversationError) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r
-  ) =>
-  UserId ::: ConvId ->
-  Sem r Response
-getCodeH (usr ::: cnv) =
-  setStatus status200 . json <$> getCode usr cnv
 
 getCode ::
   forall r.

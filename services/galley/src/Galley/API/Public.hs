@@ -50,7 +50,6 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
-import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
 import qualified Wire.API.ErrorDescription as Error
@@ -369,18 +368,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  get "/conversations/:cnv/code" (continue Update.getCodeH) $
-    zauthUserId
-      .&. capture "cnv"
-  document "GET" "getConversationCode" $ do
-    summary "Get existing conversation code"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelConversationCode)
-    response 200 "Conversation Code" end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse Error.invalidAccessOp
 
   -- This endpoint can lead to the following events being sent:
   -- - Typing event to members
