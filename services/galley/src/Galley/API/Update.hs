@@ -24,7 +24,7 @@ module Galley.API.Update
     joinConversationByIdUnqualified,
     joinConversationByReusableCodeUnqualified,
     addCodeUnqualified,
-    rmCodeH,
+    rmCodeUnqualified,
     getCodeH,
     updateUnqualifiedConversationName,
     updateConversationName,
@@ -587,7 +587,7 @@ addCode lusr zcon lcnv = do
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless (GuestAccessRole `Set.member` convAccessRoles conv || NonTeamMemberAccessRole `Set.member` convAccessRoles conv) $ throw ConvAccessDenied
 
-rmCodeH ::
+rmCodeUnqualified ::
   Members
     '[ CodeStore,
        ConversationStore,
@@ -598,12 +598,14 @@ rmCodeH ::
        Input UTCTime
      ]
     r =>
-  UserId ::: ConnId ::: ConvId ->
-  Sem r Response
-rmCodeH (usr ::: zcon ::: cnv) = do
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Sem r Public.Event
+rmCodeUnqualified usr zcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  setStatus status200 . json <$> rmCode lusr zcon lcnv
+  rmCode lusr zcon lcnv
 
 rmCode ::
   Members

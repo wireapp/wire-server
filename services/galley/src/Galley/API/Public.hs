@@ -370,21 +370,6 @@ sitemap = do
 
   -- Conversation API ---------------------------------------------------
 
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCodeDelete event to members
-  delete "/conversations/:cnv/code" (continue Update.rmCodeH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-  document "DELETE" "deleteConversationCode" $ do
-    summary "Delete conversation code"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation code deleted." end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse Error.invalidAccessOp
-
   get "/conversations/:cnv/code" (continue Update.getCodeH) $
     zauthUserId
       .&. capture "cnv"

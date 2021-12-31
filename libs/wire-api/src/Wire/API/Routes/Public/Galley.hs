@@ -358,6 +358,24 @@ type ConversationAPI =
                :> CreateConversationCodeVerb
            )
     -- This endpoint can lead to the following events being sent:
+    -- - ConvCodeDelete event to members
+    :<|> Named
+           "remove-code-unqualified"
+           ( Summary "Delete conversation code"
+               :> CanThrow ConvNotFound
+               :> CanThrow InvalidAccessOp
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[Respond 200 "Conversation code deleted." Event]
+                    Event
+           )
+    -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     :<|> Named
            "remove-member-unqualified"
