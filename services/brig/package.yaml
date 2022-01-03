@@ -17,6 +17,7 @@ custom-setup:
     - containers
     - directory
     - filepath
+    - text
 extra-source-files:
   - docs/*
 library:
