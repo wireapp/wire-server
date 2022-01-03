@@ -727,17 +727,21 @@ data Api routes = Api
                   TeamId
                   (RespondEmpty 201 "Team ID as `Location` header value")
               ]
-             TeamId
-             -- updateTeam ::
-             --   routes
-             --     :- Summary "Update team properties"
-             --     :> ZUser
-             --     :> ZConn
-             --     :> CanThrow NotATeamMember
-             --     -- :> CanThrow (operationDenied SetTeamData)
-             --     :> Capture "tid" TeamId
-             --     :> ReqBody '[JSON] TeamUpdateData
-             --     :> Put '[JSON] TeamUpdateData
+             TeamId,
+    updateTeam ::
+      routes
+        :- Summary "Update team properties"
+        :> ZUser
+        :> ZConn
+        :> CanThrow NotATeamMember
+        -- :> CanThrow (operationDenied SetTeamData)
+        :> Capture "tid" TeamId
+        :> ReqBody '[JSON] TeamUpdateData
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             ()
   }
   deriving (Generic)
 
