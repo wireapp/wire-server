@@ -15,6 +15,56 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- | Map federation errors to client-facing errors.
+--
+-- This module contains most of the error-mapping logic that turns the various
+-- possible errors that can occur while making a federated request into errors
+-- that are meaningful for the clients.
+--
+-- There are three types of errors, from lowest level to highest:
+--
+--  * 'FederatorClientHTTP2Error': this is thrown when something fails while
+--     connecting or making a request to the local federator.
+--  * 'FederatorClientError': this is the most common type of error,
+--     corresponding to a failure at the level of the federator client. It
+--     includes, for example, a failure to reach a remote federator, or an
+--     error on the remote side.
+--  * 'FederatorError': this is created by users of the federator client. It
+--     can either wrap a 'FederatorClientError', or be an error that is outside
+--     the scope of the client, such as when a federated request succeeds with
+--     an unexpected result.
+--
+-- A general federated request is normally performed as a chain of HTTP
+-- requests (some of which are HTTP2). Errors can occur at each node of the
+-- chain, as well as in the communication between two adjacent nodes. A
+-- successful request goes through the following stages:
+--
+--  1) a service (say brig) makes a request to (the outward service of) the
+--     local federator (HTTP2);
+--  2) the local federator processes this request;
+--  3) the local federator makes a request to (the inward service of) a remote
+--     one (HTTP2);
+--  4) the remote federator processes this request;
+--  5) from the remote federator to a service on that backend (HTTP);
+--  6) the remote service processes this request.
+--
+-- Failures at step 1 in the chain result in 'FederatorClientHTTP2Error', while
+-- any other failure results in a 'FederatorClientError'.
+--
+-- Immediate failures in the outward service of a federator (stage 2) result in
+-- a 403 status code being returned to the federator client, which is then
+-- translated into an error with label federation-local-error.
+--
+-- Failures which occurred while making a request to a remote federator (stages
+-- 3 to 6) are turned into 5xx errors by federator itself, and then passed on
+-- through without any further mapping. This includes issues in stage 4,
+-- which are seen by the local federator as 403 status codes returned by the
+-- remote, as well as arbitrary error codes returned by a service.
+--
+-- Note that the federation API follows the convention that any error should be
+-- returned as part of a successful response with status code 200. Therefore any
+-- error response from services during a federated call should be considered a bug
+-- in the implementation of the federation API, and is therefore wrapped in a 533.
 module Wire.API.Federation.Error
   ( FederatorClientHTTP2Error (..),
     FederatorClientError (..),
@@ -122,7 +172,7 @@ federationRemoteHTTP2Error (FederatorClientHTTP2Exception e) =
 federationRemoteHTTP2Error (FederatorClientTLSException e) =
   Wai.mkError
     (HTTP.mkStatus 525 "SSL Handshake Failure")
-    "tls-failure"
+    "federation-tls-error"
     (LT.fromStrict (displayTLSException e))
 federationRemoteHTTP2Error (FederatorClientConnectionError e) =
   Wai.mkError
@@ -139,7 +189,7 @@ federationClientHTTP2Error (FederatorClientConnectionError e) =
 federationClientHTTP2Error e =
   Wai.mkError
     HTTP.status500
-    "federator-client-error"
+    "federation-local-error"
     (LT.pack (displayException e))
 
 federationRemoteResponseError :: HTTP.Status -> Wai.Error
@@ -169,11 +219,12 @@ displayTLSError (Error_Packet_Parsing msg) = "packet parsing error: " <> T.pack 
 
 federationServantErrorToWai :: ClientError -> Wai.Error
 federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg
+-- the following error is never thrown by federator client
 federationServantErrorToWai (FailureResponse _ _) = federationUnknownError
 federationServantErrorToWai (InvalidContentTypeHeader res) =
   Wai.mkError
     unexpectedFederationResponseStatus
-    "federation-invalid-content-type-header"
+    "federation-invalid-content-type"
     ("Content-type: " <> federationErrorContentType res)
 federationServantErrorToWai (UnsupportedContentType mediaType res) =
   Wai.mkError
@@ -194,9 +245,6 @@ federationErrorContentType =
     . find (\(name, _) -> name == "Content-Type")
     . responseHeaders
 
-noFederationStatus :: Status
-noFederationStatus = status403
-
 unexpectedFederationResponseStatus :: Status
 unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Response"
 
@@ -206,7 +254,7 @@ federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection 
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
   Wai.mkError
-    noFederationStatus
+    HTTP.status500
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
 

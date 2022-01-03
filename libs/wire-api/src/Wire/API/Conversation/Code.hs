@@ -82,8 +82,8 @@ instance ToSchema ConversationCode where
             (description ?~ "Conversation code (random)")
             schema
         <*> conversationUri
-          .= opt
-            ( fieldWithDocModifier
+          .= maybe_
+            ( optFieldWithDocModifier
                 "uri"
                 (description ?~ "Full URI (containing key/code) to join a conversation")
                 schema

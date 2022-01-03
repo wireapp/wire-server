@@ -3,6 +3,7 @@ module Spar.Sem.IdP where
 import Data.Id
 import Imports
 import Polysemy
+import Polysemy.Check (deriveGenericK)
 import qualified SAML2.WebSSO as SAML
 import qualified Wire.API.User.IdentityProvider as IP
 
@@ -41,3 +42,4 @@ deriving stock instance Show (IdP m a)
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdP
+deriveGenericK ''IdP

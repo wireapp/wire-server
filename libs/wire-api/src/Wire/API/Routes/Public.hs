@@ -25,6 +25,8 @@ module Wire.API.Routes.Public
     ZConn,
     ZOptUser,
     ZOptConn,
+    ZBot,
+    ZProvider,
 
     -- * Swagger combinators
     OmitDocs,
@@ -35,15 +37,17 @@ import Control.Lens ((<>~))
 import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
-import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
+import qualified Network.Wai as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.DelayedIO
 import Servant.Swagger (HasSwagger (toSwagger))
 
 mapRequestArgument ::
@@ -70,41 +74,66 @@ data ZType
     ZLocalAuthUser
   | -- | Get a 'ConnId' from the Z-Conn header
     ZAuthConn
+  | ZAuthBot
+  | ZAuthProvider
 
 class
   (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
-  IsZType (ztype :: ZType)
+  IsZType (ztype :: ZType) ctx
   where
   type ZHeader ztype :: Symbol
   type ZParam ztype :: *
   type ZQualifiedParam ztype :: *
-  type ZConstraint ztype (ctx :: [*]) :: Constraint
 
-  qualifyZParam :: ZConstraint ztype ctx => Context ctx -> ZParam ztype -> ZQualifiedParam ztype
+  qualifyZParam :: Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
-instance IsZType 'ZLocalAuthUser where
+class HasTokenType ztype where
+  -- | The expected value of the "Z-Type" header.
+  tokenType :: Maybe ByteString
+
+instance {-# OVERLAPPABLE #-} HasTokenType ztype where
+  tokenType = Nothing
+
+instance HasContextEntry ctx Domain => IsZType 'ZLocalAuthUser ctx where
   type ZHeader 'ZLocalAuthUser = "Z-User"
   type ZParam 'ZLocalAuthUser = UserId
   type ZQualifiedParam 'ZLocalAuthUser = Local UserId
-  type ZConstraint 'ZLocalAuthUser ctx = HasContextEntry ctx Domain
 
   qualifyZParam ctx = toLocalUnsafe (getContextEntry ctx)
 
-instance IsZType 'ZAuthUser where
+instance IsZType 'ZAuthUser ctx where
   type ZHeader 'ZAuthUser = "Z-User"
   type ZParam 'ZAuthUser = UserId
   type ZQualifiedParam 'ZAuthUser = UserId
-  type ZConstraint 'ZAuthUser ctx = ()
 
   qualifyZParam _ = id
 
-instance IsZType 'ZAuthConn where
+instance IsZType 'ZAuthConn ctx where
   type ZHeader 'ZAuthConn = "Z-Connection"
   type ZParam 'ZAuthConn = ConnId
   type ZQualifiedParam 'ZAuthConn = ConnId
-  type ZConstraint 'ZAuthConn ctx = ()
 
   qualifyZParam _ = id
+
+instance IsZType 'ZAuthBot ctx where
+  type ZHeader 'ZAuthBot = "Z-Bot"
+  type ZParam 'ZAuthBot = BotId
+  type ZQualifiedParam 'ZAuthBot = BotId
+
+  qualifyZParam _ = id
+
+instance HasTokenType 'ZAuthBot where
+  tokenType = Just "bot"
+
+instance IsZType 'ZAuthProvider ctx where
+  type ZHeader 'ZAuthProvider = "Z-Provider"
+  type ZParam 'ZAuthProvider = ProviderId
+  type ZQualifiedParam 'ZAuthProvider = ProviderId
+
+  qualifyZParam _ = id
+
+instance HasTokenType 'ZAuthProvider where
+  tokenType = Just "provider"
 
 data ZAuthServant (ztype :: ZType) (opts :: [*])
 
@@ -121,6 +150,10 @@ type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 
 type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
+
+type ZBot = ZAuthServant 'ZAuthBot InternalAuthDefOpts
+
+type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts
 
 type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
 
@@ -141,13 +174,16 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) whe
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
   toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) where
+instance
+  {-# OVERLAPPABLE #-}
+  HasSwagger api =>
+  HasSwagger (ZAuthServant ztype _opts :> api)
+  where
   toSwagger _ = toSwagger (Proxy @api)
 
 instance
-  ( IsZType ztype,
+  ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    ZConstraint ztype ctx,
     SBoolI (FoldLenient opts),
     SBoolI (FoldRequired opts),
     HasServer api ctx
@@ -158,11 +194,27 @@ instance
     ServerT (ZAuthServant ztype opts :> api) m =
       RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
 
-  route _ ctx subserver =
+  route _ ctx subserver = do
     Servant.route
       (Proxy @(InternalAuth ztype opts :> api))
       ctx
-      (fmap (. mapRequestArgument @opts (qualifyZParam @ztype ctx)) subserver)
+      ( fmap
+          (. mapRequestArgument @opts (qualifyZParam @ztype ctx))
+          (addAcceptCheck subserver (withRequest (checkType (tokenType @ztype))))
+      )
+    where
+      checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
+      checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
+        (Just t, value)
+          | value /= Just t ->
+            delayedFail
+              ServerError
+                { errHTTPCode = 403,
+                  errReasonPhrase = "Access denied",
+                  errBody = "",
+                  errHeaders = []
+                }
+        _ -> pure ()
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 

@@ -23,7 +23,6 @@ import System.IO (Handle, hPutStr, hPutStrLn)
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
-import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
@@ -136,11 +135,6 @@ generateTestModule = do
   generateBindingModule @Asset.AssetRetention "user" ref
   generateBindingModule @Asset.AssetSettings "user" ref
   generateBindingModule @Asset.AssetKey "user" ref
-  generateBindingModule @Asset.Resumable.ResumableSettings "user" ref
-  generateBindingModule @Asset.Resumable.TotalSize "user" ref
-  generateBindingModule @Asset.Resumable.ChunkSize "user" ref
-  generateBindingModule @Asset.Resumable.Offset "user" ref
-  generateBindingModule @Asset.Resumable.ResumableAsset "user" ref
   generateBindingModule @Call.Config.TurnHost "user" ref
   generateBindingModule @Call.Config.Scheme "user" ref
   generateBindingModule @Call.Config.Transport "user" ref
@@ -328,8 +322,8 @@ generateTestModule = do
   generateBindingModule @Team.TeamDeleteData "team" ref
   generateBindingModule @Team.Conversation.TeamConversation "team" ref
   generateBindingModule @Team.Conversation.TeamConversationList "team" ref
-  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureLegalHold) "team" ref
-  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureAppLock) "team" ref
+  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureLegalHold) "team" ref
+  generateBindingModule @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureAppLock) "team" ref
   generateBindingModule @Team.Feature.TeamFeatureStatusValue "team" ref
   generateBindingModule @Team.Invitation.InvitationRequest "team" ref
   generateBindingModule @Team.Invitation.Invitation "team" ref

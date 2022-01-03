@@ -45,6 +45,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (unpack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1)
+import qualified Galley.Types.Teams.Intra as Team
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -245,6 +246,22 @@ routes = do
       Doc.optional
     Doc.response 200 "Account deleted" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
+  put "/teams/:tid/suspend" (continue (setTeamStatusH Team.Suspended)) $
+    capture "tid"
+  document "PUT" "setTeamStatusH:suspended" $ do
+    summary "Suspend a team."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.response 200 mempty Doc.end
+
+  put "/teams/:tid/unsuspend" (continue (setTeamStatusH Team.Active)) $
+    capture "tid"
+  document "PUT" "setTeamStatusH:active" $ do
+    summary "Set a team status to 'Active', independently on previous status.  (Cannot be used to un-delete teams, though.)"
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.response 200 mempty Doc.end
 
   delete "/teams/:tid" (continue deleteTeam) $
     capture "tid"
@@ -545,6 +562,9 @@ deleteUser (uid ::: emailOrPhone) = do
   where
     checkUUID u = userId u == uid
 
+setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler Response
+setTeamStatusH status tid = empty <$ Intra.setStatusBindingTeam tid status
+
 deleteTeam :: TeamId ::: Email -> Handler Response
 deleteTeam (givenTid ::: email) = do
   acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left email)) >>= handleNoUser
@@ -594,25 +614,25 @@ getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
 getTeamFeatureFlagH ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus a),
-    ToJSON (Public.TeamFeatureStatus a),
-    Typeable (Public.TeamFeatureStatus a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    Typeable (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   TeamId ->
   Handler Response
 getTeamFeatureFlagH tid =
-  json <$> Intra.getTeamFeatureFlag @a tid
+  json <$> Intra.getTeamFeatureFlag @'Public.WithoutLockStatus @a tid
 
 setTeamFeatureFlagH ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus a),
-    ToJSON (Public.TeamFeatureStatus a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
-  TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
+  TeamId ::: JsonRequest (Public.TeamFeatureStatus 'Public.WithoutLockStatus a) ::: JSON ->
   Handler Response
 setTeamFeatureFlagH (tid ::: req ::: _) = do
-  status :: Public.TeamFeatureStatus a <- parseBody req !>> mkError status400 "client-error"
+  status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus a <- parseBody req !>> mkError status400 "client-error"
   empty <$ Intra.setTeamFeatureFlag @a tid status
 
 getTeamFeatureFlagNoConfigH ::
@@ -755,9 +775,9 @@ noSuchUser = ifNothing (mkError status404 "no-user" "No such user")
 mkFeaturePutGetRoute ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus a),
-    ToJSON (Public.TeamFeatureStatus a),
-    Typeable (Public.TeamFeatureStatus a)
+    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
+    Typeable (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   Routes Doc.ApiBuilder Handler ()
 mkFeaturePutGetRoute = do
@@ -774,7 +794,7 @@ mkFeaturePutGetRoute = do
 
   put ("/teams/:tid/features/" <> toByteString' featureName) (continue (setTeamFeatureFlagH @a)) $
     capture "tid"
-      .&. jsonRequest @(Public.TeamFeatureStatus a)
+      .&. jsonRequest @(Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
       .&. accept "application" "json"
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"

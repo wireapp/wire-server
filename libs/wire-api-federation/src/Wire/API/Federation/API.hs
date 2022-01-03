@@ -26,6 +26,7 @@ where
 
 import Servant.Client.Generic
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
@@ -42,4 +43,8 @@ instance HasFederationAPI 'Galley where
 
 instance HasFederationAPI 'Brig where
   type FedApi 'Brig = BrigApi
+  clientRoutes = genericClient
+
+instance HasFederationAPI 'Cargohold where
+  type FedApi 'Cargohold = CargoholdApi
   clientRoutes = genericClient

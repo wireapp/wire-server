@@ -49,6 +49,8 @@ library:
   - optparse-applicative >=0.10
   - retry >=0.5
   - resourcet >=1.1
+  - servant
+  - servant-server
   - swagger >=0.2
   - time >=1.4
   - tinylog >=0.10
@@ -57,12 +59,10 @@ library:
   - uri-bytestring >=0.2
   - uuid >=1.3.5
   - wai >=3.0
-  - wai-conduit >=3.0
-  - wai-extra >=3.0
-  - wai-predicates >=0.8
-  - wai-routing >=0.12
+  - wai-extra
   - wai-utilities >=0.16.1
   - wire-api
+  - wire-api-federation
 executables:
   cargohold-integration:
     main: Main.hs
@@ -73,7 +73,6 @@ executables:
     - cargohold-types
     - http-client-tls >=0.2
     - lens >=3.8
-    - metrics-wai
     - optparse-applicative
     - tagged >=0.8
     - tasty >=1.0
@@ -82,6 +81,7 @@ executables:
     - types-common >=0.7
     - uuid >=1.3
     - wai-utilities >=0.12
+    - wire-api
   cargohold:
     main: src/Main.hs
     ghc-options:

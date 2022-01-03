@@ -65,6 +65,7 @@ import qualified Polysemy.Input as Polysemy
 import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
+import Servant.Client.Core
 import qualified System.TimeManager as T
 import qualified System.X509 as TLS
 import Wire.API.Federation.Component
@@ -89,7 +90,7 @@ parseRequestData req = do
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
   -- No query parameters are allowed
-  when (not . BS.null . Wai.rawQueryString $ req) $
+  unless (BS.null . Wai.rawQueryString $ req) $
     throw InvalidRoute
   -- check that the path has the expected form
   (domain, componentSeg, rpcPath) <- case Wai.pathInfo req of
@@ -118,14 +119,14 @@ callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
   ensureCanFederateWith domain
-  (status, result) <-
+  resp <-
     discoverAndCall
       domain
       (rdComponent rd)
       (rdRPC rd)
       (rdHeaders rd)
       (fromLazyByteString (rdBody rd))
-  pure $ Wai.responseBuilder status defaultHeaders result
+  pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward = serve callOutward

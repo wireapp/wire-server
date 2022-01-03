@@ -36,6 +36,7 @@ module Stern.Intra
     changeEmail,
     changePhone,
     deleteAccount,
+    setStatusBindingTeam,
     deleteBindingTeam,
     getTeamInfo,
     getUserBindingTeam,
@@ -85,6 +86,7 @@ import Data.Text.Lazy (pack)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import qualified Galley.Types.Teams.Intra as Team
 import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types
 import Imports
@@ -293,6 +295,20 @@ deleteAccount uid = do
           . expect2xx
       )
 
+setStatusBindingTeam :: TeamId -> Team.TeamStatus -> Handler ()
+setStatusBindingTeam tid status = do
+  info $ msg ("Setting team status to " <> (cs $ encode status))
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method PUT
+          . paths ["/i/teams", toByteString' tid, "status"]
+          . Bilge.json (Team.TeamStatusUpdate status Nothing)
+          . expect2xx
+      )
+
 deleteBindingTeam :: TeamId -> Handler ()
 deleteBindingTeam tid = do
   info $ msg "Deleting team"
@@ -452,13 +468,13 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod True = POST
 
 getTeamFeatureFlag ::
-  forall (a :: Public.TeamFeatureName).
+  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    Typeable (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
+    Typeable (Public.TeamFeatureStatus ps a),
+    FromJSON (Public.TeamFeatureStatus ps a)
   ) =>
   TeamId ->
-  Handler (Public.TeamFeatureStatus a)
+  Handler (Public.TeamFeatureStatus ps a)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
@@ -467,17 +483,17 @@ getTeamFeatureFlag tid = do
           . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
-    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus a) resp
+    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus ps a) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
   ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a)
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
   ) =>
   TeamId ->
-  Public.TeamFeatureStatus a ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"

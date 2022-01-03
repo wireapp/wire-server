@@ -2,6 +2,7 @@ module Spar.Sem.DefaultSsoCode where
 
 import Imports
 import Polysemy
+import Polysemy.Check (deriveGenericK)
 import qualified SAML2.WebSSO as SAML
 
 data DefaultSsoCode m a where
@@ -9,4 +10,7 @@ data DefaultSsoCode m a where
   Store :: SAML.IdPId -> DefaultSsoCode m ()
   Delete :: DefaultSsoCode m ()
 
+deriving instance Show (DefaultSsoCode m a)
+
 makeSem ''DefaultSsoCode
+deriveGenericK ''DefaultSsoCode

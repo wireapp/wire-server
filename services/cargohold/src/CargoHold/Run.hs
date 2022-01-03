@@ -20,32 +20,63 @@ module CargoHold.Run
   )
 where
 
-import CargoHold.API (sitemap)
+import CargoHold.API.Federation
+import CargoHold.API.Public
 import CargoHold.App
 import CargoHold.Options
-import Control.Lens ((^.))
+import Control.Lens (set, (^.))
 import Control.Monad.Catch (finally)
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Default
+import Data.Domain
+import Data.Id
+import Data.Metrics.Servant
+import Data.Proxy
 import Data.Text (unpack)
 import Imports
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
+import qualified Servant
+import Servant.API
+import Servant.Server hiding (Handler, runHandler)
 import Util.Options
+import qualified Wire.API.Routes.Public.Cargohold as Public
+
+type CombinedAPI = FederationAPI :<|> Public.ServantAPI
 
 run :: Opts -> IO ()
 run o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  runSettingsWithShutdown s (middleware e $ serve e) 5
+  runSettingsWithShutdown s (middleware e $ servantApp e) 5
     `finally` closeEnv e
   where
-    rtree = compile sitemap
     server e = defaultServer (unpack $ o ^. optCargohold . epHost) (o ^. optCargohold . epPort) (e ^. appLogger) (e ^. metrics)
     middleware :: Env -> Wai.Middleware
     middleware e =
-      waiPrometheusMiddleware sitemap
+      servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
-    serve e r k = runHandler e r (Server.route rtree r k) k
+    servantApp e0 r =
+      let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
+       in Servant.serveWithContext
+            (Proxy @CombinedAPI)
+            ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
+            ( hoistServer' @FederationAPI (toServantHandler e) federationSitemap
+                :<|> hoistServer' @Public.ServantAPI (toServantHandler e) servantSitemap
+            )
+            r
+
+toServantHandler :: Env -> Handler a -> Servant.Handler a
+toServantHandler env = liftIO . runHandler env
+
+-- | See 'Galley.Run' for an explanation of this function.
+hoistServer' ::
+  forall api m n.
+  HasServer api '[Domain] =>
+  (forall x. m x -> n x) ->
+  ServerT api m ->
+  ServerT api n
+hoistServer' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])

@@ -108,6 +108,8 @@ releases:
         value: {{ .Values.federationDomain }}
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain }}
+      - name: cargohold.config.settings.federationDomain
+        value: {{ .Values.federationDomain }}
 
   - name: '{{ .Values.namespace }}-wire-server-2'
     namespace: '{{ .Values.namespaceFed2 }}'
@@ -119,4 +121,6 @@ releases:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomainFed2 }}
       - name: galley.config.settings.federationDomain
+        value: {{ .Values.federationDomainFed2 }}
+      - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomainFed2 }}

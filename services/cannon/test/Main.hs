@@ -17,7 +17,6 @@
 
 module Main where
 
-import qualified Bench as B
 import qualified Cannon.API
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
@@ -28,8 +27,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 main :: IO ()
-main = do
-  B.benchmark
+main =
   defaultMain $
     testGroup
       "Tests"

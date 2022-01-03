@@ -42,7 +42,6 @@ import qualified Test.Wire.API.Golden.Generated.BindingNewTeam_team
 import qualified Test.Wire.API.Golden.Generated.BotConvView_provider
 import qualified Test.Wire.API.Golden.Generated.BotUserView_provider
 import qualified Test.Wire.API.Golden.Generated.CheckHandles_user
-import qualified Test.Wire.API.Golden.Generated.ChunkSize_user
 import qualified Test.Wire.API.Golden.Generated.ClientClass_user
 import qualified Test.Wire.API.Golden.Generated.ClientMismatch_user
 import qualified Test.Wire.API.Golden.Generated.ClientPrekey_user
@@ -127,7 +126,6 @@ import qualified Test.Wire.API.Golden.Generated.NewService_provider
 import qualified Test.Wire.API.Golden.Generated.NewTeamMember_team
 import qualified Test.Wire.API.Golden.Generated.NewUserPublic_user
 import qualified Test.Wire.API.Golden.Generated.NewUser_user
-import qualified Test.Wire.API.Golden.Generated.Offset_user
 import qualified Test.Wire.API.Golden.Generated.OtherMemberUpdate_user
 import qualified Test.Wire.API.Golden.Generated.OtherMember_user
 import qualified Test.Wire.API.Golden.Generated.OtrMessage_user
@@ -166,8 +164,6 @@ import qualified Test.Wire.API.Golden.Generated.RemoveBotResponse_user
 import qualified Test.Wire.API.Golden.Generated.RemoveCookies_user
 import qualified Test.Wire.API.Golden.Generated.RemoveLegalHoldSettingsRequest_team
 import qualified Test.Wire.API.Golden.Generated.RequestNewLegalHoldClient_team
-import qualified Test.Wire.API.Golden.Generated.ResumableAsset_user
-import qualified Test.Wire.API.Golden.Generated.ResumableSettings_user
 import qualified Test.Wire.API.Golden.Generated.RichField_user
 import qualified Test.Wire.API.Golden.Generated.RichInfoAssocList_user
 import qualified Test.Wire.API.Golden.Generated.RichInfoMapAndList_user
@@ -212,7 +208,6 @@ import qualified Test.Wire.API.Golden.Generated.TeamUpdateData_team
 import qualified Test.Wire.API.Golden.Generated.Team_team
 import qualified Test.Wire.API.Golden.Generated.TokenType_user
 import qualified Test.Wire.API.Golden.Generated.Token_user
-import qualified Test.Wire.API.Golden.Generated.TotalSize_user
 import qualified Test.Wire.API.Golden.Generated.Transport_user
 import qualified Test.Wire.API.Golden.Generated.TurnHost_user
 import qualified Test.Wire.API.Golden.Generated.TurnURI_user
@@ -292,30 +287,6 @@ tests =
             (Test.Wire.API.Golden.Generated.AssetKey_user.testObject_AssetKey_user_3, "testObject_AssetKey_user_3.json"),
             (Test.Wire.API.Golden.Generated.AssetKey_user.testObject_AssetKey_user_4, "testObject_AssetKey_user_4.json"),
             (Test.Wire.API.Golden.Generated.AssetKey_user.testObject_AssetKey_user_5, "testObject_AssetKey_user_5.json")
-          ],
-      testGroup "Golden: ResumableSettings_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.ResumableSettings_user.testObject_ResumableSettings_user_1, "testObject_ResumableSettings_user_1.json"),
-            (Test.Wire.API.Golden.Generated.ResumableSettings_user.testObject_ResumableSettings_user_2, "testObject_ResumableSettings_user_2.json"),
-            (Test.Wire.API.Golden.Generated.ResumableSettings_user.testObject_ResumableSettings_user_4, "testObject_ResumableSettings_user_4.json"),
-            (Test.Wire.API.Golden.Generated.ResumableSettings_user.testObject_ResumableSettings_user_5, "testObject_ResumableSettings_user_5.json"),
-            (Test.Wire.API.Golden.Generated.ResumableSettings_user.testObject_ResumableSettings_user_17, "testObject_ResumableSettings_user_17.json")
-          ],
-      testGroup "Golden: TotalSize_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.TotalSize_user.testObject_TotalSize_user_1, "testObject_TotalSize_user_1.json")
-          ],
-      testGroup "Golden: ChunkSize_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.ChunkSize_user.testObject_ChunkSize_user_1, "testObject_ChunkSize_user_1.json")
-          ],
-      testGroup "Golden: Offset_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.Offset_user.testObject_Offset_user_1, "testObject_Offset_user_1.json")
-          ],
-      testGroup "Golden: ResumableAsset_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.ResumableAsset_user.testObject_ResumableAsset_user_1, "testObject_ResumableAsset_user_1.json")
           ],
       testGroup "Golden: TurnHost_user" $
         testObjects

@@ -1,5 +1,55 @@
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
+# [2021-12-10]
+
+## Release notes
+
+* If you have `selfDeletingMessages` configured in `galley.yaml`, add `lockStatus: unlocked`. (#1963)
+* Upgrade SFTD to 2.1.19. (#1983)
+
+## API changes
+
+* A new endpoint is added to Brig (`put /users/:uid/email`) that allows a team owner to initiate changing/setting a user email by (re-)sending an activation email. (#1948)
+* get team feature config for self deleting messages response includes lock status (#1963)
+* A new public Galley endpoint was added to dis-/enable the conversation guest link feature. The feature can only be configured through the public API if the lock status is unlocked in the server config. (#1964)
+* new internal endpoints for setting the lock status of self deleting messages (#1963)
+
+## Features
+
+* Team and server wide config for conversation guest link feature to configure feature status and lock status (#1964). If the feature is not configured on the server, the defaults will be:
+
+  ```txt
+    featureFlags:
+      ...
+      conversationGuestLinks:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+  ```
+* Lock status for the self deleting messages feature can be set internally by ibis and customer support (#1963)
+
+## Bug fixes and other updates
+
+* Correctly detect log level when rendering logs as structured JSON (#1959)
+
+## Documentation
+
+* Fix typo in swagger. (#1982)
+* Proposal for API versioning system. (#1958)
+* Update federation error documentation after changes to the federation API (#1956, #1975, #1978)
+
+## Internal changes
+
+* Suspend/unsuspend teams in backoffice/stern. (#1977)
+* Set request ID correctly in galley logs (#1967)
+* Improve cabal make targets: faster installation and better support for building and testing all packages (#1979)
+* sftd chart: add config key `additionalArgs` (#1972)
+
+## Federation changes
+
+* Add cargohold as a new federated component (#1973)
+
+
 # [2021-12-02]
 
 ## Release notes

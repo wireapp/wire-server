@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 19d4125d6114f93fe5bb454af1d9b72bfa7e6bf58cd2ee5cbf3b89ccb06bb8b5
 
 name:           wire-api-federation
 version:        0.1.0
@@ -22,6 +20,7 @@ library
   exposed-modules:
       Wire.API.Federation.API
       Wire.API.Federation.API.Brig
+      Wire.API.Federation.API.Cargohold
       Wire.API.Federation.API.Common
       Wire.API.Federation.API.Galley
       Wire.API.Federation.Client
@@ -89,6 +88,7 @@ library
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lifted-base
     , metrics-wai
     , mtl
@@ -187,6 +187,7 @@ test-suite spec
     , http-types
     , http2
     , imports
+    , kan-extensions
     , lifted-base
     , metrics-wai
     , mtl

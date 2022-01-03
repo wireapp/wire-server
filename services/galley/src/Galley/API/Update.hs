@@ -82,6 +82,7 @@ import Galley.API.Error
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Mapping
 import Galley.API.Message
+import qualified Galley.API.Query as Query
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
@@ -522,16 +523,17 @@ getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeH ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error ConversationError,
-       ExternalAccess,
-       GundeckAccess,
-       Input (Local ()),
-       Input UTCTime
-     ]
-    r =>
+  forall r.
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error ConversationError) r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   UserId ::: ConnId ::: ConvId ->
   Sem r Response
 addCodeH (usr ::: zcon ::: cnv) = do
@@ -547,21 +549,22 @@ data AddCodeResult
 
 addCode ::
   forall r.
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error ConversationError,
-       ExternalAccess,
-       GundeckAccess,
-       Input UTCTime
-     ]
-    r =>
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error ConversationError) r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   Local UserId ->
   ConnId ->
   Local ConvId ->
   Sem r AddCodeResult
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
+  Query.ensureGuestLinksEnabled conv
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
@@ -582,8 +585,7 @@ addCode lusr zcon lcnv = do
   where
     createCode :: Code -> Sem r ConversationCode
     createCode code = do
-      urlPrefix <- E.getConversationCodeURI
-      return $ mkConversationCode (codeKey code) (codeValue code) urlPrefix
+      mkConversationCode (codeKey code) (codeValue code) <$> E.getConversationCodeURI
 
 rmCodeH ::
   Members
@@ -631,32 +633,35 @@ rmCode lusr zcon lcnv = do
   pure event
 
 getCodeH ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error CodeError,
-       Error ConversationError
-     ]
-    r =>
+  forall r.
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error CodeError) r,
+    Member (Error ConversationError) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   UserId ::: ConvId ->
   Sem r Response
 getCodeH (usr ::: cnv) =
   setStatus status200 . json <$> getCode usr cnv
 
 getCode ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error CodeError,
-       Error ConversationError
-     ]
-    r =>
+  forall r.
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error CodeError) r,
+    Member (Error ConversationError) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   UserId ->
   ConvId ->
   Sem r Public.ConversationCode
 getCode usr cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
+  Query.ensureGuestLinksEnabled conv
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) usr
   key <- E.makeKey cnv
@@ -665,8 +670,7 @@ getCode usr cnv = do
 
 returnCode :: Member CodeStore r => Code -> Sem r Public.ConversationCode
 returnCode c = do
-  urlPrefix <- E.getConversationCodeURI
-  pure $ Public.mkConversationCode (codeKey c) (codeValue c) urlPrefix
+  Public.mkConversationCode (codeKey c) (codeValue c) <$> E.getConversationCodeURI
 
 checkReusableCodeH ::
   Members '[CodeStore, Error CodeError, WaiRoutes] r =>

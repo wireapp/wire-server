@@ -135,6 +135,7 @@ import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member (ntmNewTeamMember, teamMemberJson, teamMemberListJson)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
@@ -203,41 +204,22 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
-       GundeckAccess,
-       Input UTCTime,
-       P.TinyLog,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON ->
-  Sem r Response
-createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
-  newTeam <- fromJsonBody req
-  newTeamId <- createNonBindingTeam zusr zcon newTeam
-  pure (empty & setStatus status201 . location newTeamId)
-
-createNonBindingTeam ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
-       GundeckAccess,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  forall r.
+  ( Member BrigAccess r,
+    Member (Error ActionError) r,
+    Member (Error TeamError) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r,
+    Member WaiRoutes r
+  ) =>
   UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
   Sem r TeamId
-createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
-  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
+createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
+  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
           . maybe [] fromRange
@@ -275,7 +257,7 @@ createBindingTeam ::
   BindingNewTeam ->
   Sem r TeamId
 createBindingTeam zusr tid (BindingNewTeam body) = do
-  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
+  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
@@ -835,7 +817,7 @@ addTeamMember ::
   Public.NewTeamMember ->
   Sem r ()
 addTeamMember zusr zcon tid nmem = do
-  let uid = nmem ^. ntmNewTeamMember . userId
+  let uid = nmem ^. nUserId
   P.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
@@ -843,7 +825,7 @@ addTeamMember zusr zcon tid nmem = do
   zusrMembership <-
     E.getTeamMember tid zusr
       >>= permissionCheck AddTeamMember
-  let targetPermissions = nmem ^. ntmNewTeamMember . permissions
+  let targetPermissions = nmem ^. nPermissions
   targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
@@ -904,7 +886,7 @@ uncheckedAddTeamMember tid nmem = do
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH ::
@@ -925,7 +907,7 @@ updateTeamMemberH ::
   Sem r Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
-  targetMember <- view ntmNewTeamMember <$> (fromJsonBody req)
+  targetMember <- ntmNewTeamMember <$> fromJsonBody req
   updateTeamMember zusr zcon tid targetMember
   pure empty
 
@@ -1385,7 +1367,7 @@ addTeamMemberInternal ::
   NewTeamMember ->
   TeamMemberList ->
   Sem r TeamSize
-addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
+addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = do
   P.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
@@ -1522,7 +1504,7 @@ canUserJoinTeam tid = do
 getTeamSearchVisibilityAvailableInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
   TeamId ->
-  Sem r (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
   defConfig <- do

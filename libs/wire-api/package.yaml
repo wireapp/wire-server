@@ -35,6 +35,7 @@ library:
   - cassava >= 0.5
   - cereal
   - comonad
+  - conduit
   - cookie
   - cryptonite
   - currency-codes >=2.0
@@ -68,6 +69,7 @@ library:
   - resourcet
   - servant-client
   - servant-client-core
+  - servant-conduit
   - servant-multipart
   - servant-server
   - servant-swagger

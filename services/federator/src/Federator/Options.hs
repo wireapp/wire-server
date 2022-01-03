@@ -83,6 +83,8 @@ data Opts = Opts
     brig :: Endpoint,
     -- | Host and port of galley
     galley :: Endpoint,
+    -- | Host and port of cargohold
+    cargohold :: Endpoint,
     -- | Log level (Debug, Info, etc)
     logLevel :: Level,
     -- | Use netstrings encoding (see <http://cr.yp.to/proto/netstrings.txt>)

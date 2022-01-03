@@ -65,7 +65,8 @@ tests =
       testRefField,
       testRmClientWrong,
       testRmClient,
-      testEnumType
+      testEnumType,
+      testNullable
     ]
 
 testFooToJSON :: TestTree
@@ -338,6 +339,23 @@ testEnumType =
       (s2 ^. S.type_)
       (Just S.SwaggerInteger)
 
+testNullable :: TestTree
+testNullable =
+  let sch = nullable (unnamed schema) :: ValueSchema SwaggerDoc (Maybe Int)
+   in testGroup
+        "Nullable schemas"
+        [ testCase "Nullable schemas should parse both null and non-null values" $ do
+            A.parse (schemaIn sch) (A.Number 5) @?= Success (Just 5)
+            A.parse (schemaIn sch) A.Null @?= Success Nothing,
+          testCase "Nullable schemas should produce either a value or null" $ do
+            schemaOut sch (Just 5) @?= Just (A.Number 5)
+            schemaOut sch Nothing @?= Just (A.Null),
+          testCase "Nullable schemas should return an error when parsing invalid non-null values" $ do
+            case A.parse (schemaIn sch) (A.String "foo") of
+              Success _ -> assertFailure "fromJSON should fail"
+              Error _ -> pure ()
+        ]
+
 ---
 
 data A = A {thing :: Text, other :: Int}
@@ -445,8 +463,8 @@ instance ToSchema User where
     object "User" $
       User
         <$> userName .= field "name" schema
-        <*> userHandle .= opt (field "handle" schema)
-        <*> userExpire .= opt (field "expire" schema)
+        <*> userHandle .= maybe_ (optField "handle" schema)
+        <*> userExpire .= maybe_ (optField "expire" schema)
 
 exampleUser1 :: User
 exampleUser1 = User "Alice" (Just "alice") Nothing
@@ -554,13 +572,13 @@ rmClientSchema :: ValueSchema NamedSwaggerDoc RmClient
 rmClientSchema =
   object "RmClient" $
     RmClient
-      <$> rmPassword .= lax (field "password" (optWithDefault Null passwordSchema))
+      <$> rmPassword .= optional (field "password" (maybeWithDefault Null passwordSchema))
 
 instance ToSchema RmClient where
   schema =
     object "RmClient" $
       RmClient
-        <$> rmPassword .= optField "password" Nothing passwordSchema
+        <$> rmPassword .= maybe_ (optField "password" passwordSchema)
 
 -- examples from documentation (only type-checked)
 
@@ -601,9 +619,9 @@ userSchemaWithDefaultName' :: ValueSchema NamedSwaggerDoc User
 userSchemaWithDefaultName' =
   object "User" $
     User
-      <$> (getOptText . userName) .= (fromMaybe "" <$> opt (field "name" schema))
-      <*> userHandle .= opt (field "handle" schema)
-      <*> userExpire .= opt (field "expire" schema)
+      <$> (getOptText . userName) .= maybe_ (fromMaybe "" <$> optField "name" schema)
+      <*> userHandle .= maybe_ (optField "handle" schema)
+      <*> userExpire .= maybe_ (optField "expire" schema)
   where
     getOptText :: Text -> Maybe Text
     getOptText "" = Nothing
@@ -614,5 +632,5 @@ userSchemaWithDefaultName =
   object "User" $
     User
       <$> userName .= (field "name" schema <|> pure "")
-      <*> userHandle .= opt (field "handle" schema)
-      <*> userExpire .= opt (field "expire" schema)
+      <*> userHandle .= maybe_ (optField "handle" schema)
+      <*> userExpire .= maybe_ (optField "expire" schema)

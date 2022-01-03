@@ -26,6 +26,7 @@ module CargoHold.API.V3
 where
 
 import CargoHold.API.Error
+import CargoHold.API.Util
 import CargoHold.App
 import qualified CargoHold.Metrics as Metrics
 import CargoHold.Options
@@ -48,6 +49,7 @@ import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
 import Data.Id
 import qualified Data.List as List
+import Data.Qualified
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import qualified Data.Text.Lazy as LT
@@ -57,8 +59,9 @@ import Imports hiding (take)
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
 import URI.ByteString
+import Wire.API.Asset
 
-upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler V3.Asset
+upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (Asset' (Local AssetKey))
 upload own bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
@@ -71,8 +74,8 @@ upload own bdy = do
   ast <- liftIO $ Id <$> nextRandom
   tok <- if sets ^. V3.setAssetPublic then return Nothing else Just <$> randToken
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
-  let key = V3.AssetKeyV3 ast ret
-  void $ S3.uploadV3 own key hdrs tok src
+  key <- qualifyLocal (V3.AssetKeyV3 ast ret)
+  void $ S3.uploadV3 own (tUnqualified key) hdrs tok src
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of

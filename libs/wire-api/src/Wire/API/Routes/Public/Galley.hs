@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -25,6 +26,7 @@ import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
@@ -42,13 +44,13 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
+import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 
-instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
-  -- FUTUREWORK: use addHeader
-  toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
-  fromHeaders = getResponse
+instance AsHeaders '[ConvId] Conversation Conversation where
+  toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 
@@ -195,6 +197,7 @@ data Api routes = Api
         :> CanThrow CodeNotFound
         :> CanThrow ConvNotFound
         :> CanThrow ConvAccessDenied
+        :> CanThrow GuestLinksDisabled
         :> ZLocalUser
         :> "conversations"
         :> "join"
@@ -623,7 +626,7 @@ data Api routes = Api
         :- FeatureStatusPut 'TeamFeatureSearchVisibility,
     teamFeatureStatusSearchVisibilityDeprecatedGet ::
       routes
-        :- FeatureStatusDeprecatedGet 'TeamFeatureSearchVisibility,
+        :- FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility,
     teamFeatureStatusSearchVisibilityDeprecatedPut ::
       routes
         :- FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility,
@@ -632,13 +635,13 @@ data Api routes = Api
         :- FeatureStatusGet 'TeamFeatureValidateSAMLEmails,
     teamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
       routes
-        :- FeatureStatusDeprecatedGet 'TeamFeatureValidateSAMLEmails,
+        :- FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
     teamFeatureStatusDigitalSignaturesGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureDigitalSignatures,
     teamFeatureStatusDigitalSignaturesDeprecatedGet ::
       routes
-        :- FeatureStatusDeprecatedGet 'TeamFeatureDigitalSignatures,
+        :- FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
     teamFeatureStatusAppLockGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureAppLock,
@@ -663,39 +666,66 @@ data Api routes = Api
     teamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSelfDeletingMessages,
+    featureStatusGuestLinksGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureGuestLinks,
+    featureStatusGuestLinksPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureGuestLinks,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
     featureConfigLegalHoldGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureLegalHold,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold,
     featureConfigSSOGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureSSO,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO,
     featureConfigSearchVisibilityGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureSearchVisibility,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility,
     featureConfigValidateSAMLEmailsGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureValidateSAMLEmails,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
     featureConfigDigitalSignaturesGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureDigitalSignatures,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
     featureConfigAppLockGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureAppLock,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureAppLock,
     featureConfigFileSharingGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureFileSharing,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureFileSharing,
     featureConfigClassifiedDomainsGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureClassifiedDomains,
+        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureConferenceCalling,
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureSelfDeletingMessages
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    featureConfigGuestLinksGet ::
+      routes
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks,
+    -- teams
+    createNonBindingTeam ::
+      routes
+        :- Summary "Create a new non binding team"
+        :> ZUser
+        :> ZConn
+        :> CanThrow NotConnected
+        :> "teams"
+        :> ReqBody '[Servant.JSON] NonBindingNewTeam
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[ WithHeaders
+                  '[DescHeader "Location" "Team ID" TeamId]
+                  TeamId
+                  (RespondEmpty 201 "Team ID as `Location` header value")
+              ]
+             TeamId
   }
   deriving (Generic)
 
@@ -708,7 +738,7 @@ type FeatureStatusGet featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
-    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Get '[Servant.JSON] (TeamFeatureStatus 'WithLockStatus featureName)
 
 type FeatureStatusPut featureName =
   Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
@@ -717,18 +747,18 @@ type FeatureStatusPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
-    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
-    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type FeatureStatusDeprecatedGet featureName =
+type FeatureStatusDeprecatedGet ps featureName =
   Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> DeprecatedFeatureName featureName
-    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
 type FeatureStatusDeprecatedPut featureName =
@@ -738,15 +768,15 @@ type FeatureStatusDeprecatedPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> DeprecatedFeatureName featureName
-    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
-    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
-type FeatureConfigGet featureName =
+type FeatureConfigGet ps featureName =
   Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "feature-configs"
     :> KnownTeamFeatureNameSymbol featureName
-    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
 
 type AllFeatureConfigsGet =
   Summary "Get configurations of all features"

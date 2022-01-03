@@ -16,6 +16,9 @@ data:
     galley:
       host: galley
       port: 8080
+    cargohold:
+      host: cargohold
+      port: 8080
     nginxIngress:
       host: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
       port: 443

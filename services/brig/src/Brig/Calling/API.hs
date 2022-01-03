@@ -27,10 +27,12 @@ import Brig.App
 import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
+import Brig.Effects.SFT
 import qualified Brig.Options as Opt
 import Control.Lens
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion
 import Data.ByteString.Lens
+import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -42,14 +44,21 @@ import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
+import Network.Connection
+import Network.HTTP.Client.TLS (mkManagerSettings, newTlsManager, newTlsManagerWith)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
+import Polysemy (runM)
+import Polysemy.TinyLog
+import System.Logger (Logger)
 import qualified System.Random.MWC as MWC
+import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
+import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV (srvTarget)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -91,10 +100,11 @@ getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
-  env <- liftIO =<< readIORef <$> view turnEnvV2
+  env <- liftIO . readIORef =<< view turnEnvV2
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftEnv' <- view sftEnv
-  newConfig env staticUrl sftEnv' limit
+  logger <- view applog
+  newConfig env staticUrl sftEnv' limit logger
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -102,8 +112,9 @@ getCallsConfigH (_ ::: uid ::: connid) =
 
 getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
 getCallsConfig _ _ = do
-  env <- liftIO =<< readIORef <$> view turnEnv
-  dropTransport <$> newConfig env Nothing Nothing Nothing
+  env <- liftIO . readIORef =<< view turnEnv
+  logger <- view applog
+  dropTransport <$> newConfig env Nothing Nothing Nothing logger
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -112,8 +123,15 @@ getCallsConfig _ _ = do
         (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
         Nothing
 
-newConfig :: MonadIO m => Calling.Env -> Maybe HttpsUrl -> Maybe SFTEnv -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit = do
+newConfig ::
+  MonadIO m =>
+  Calling.Env ->
+  Maybe HttpsUrl ->
+  Maybe SFTEnv ->
+  Maybe (Range 1 10 Int) ->
+  Logger ->
+  m Public.RTCConfiguration
+newConfig env sftStaticUrl mSftEnv limit logger = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -134,7 +152,28 @@ newConfig env sftStaticUrl mSftEnv limit = do
       let subsetLength = Calling.sftListLength actualSftEnv
       liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
 
-  pure $ Public.rtcConfiguration srvs (staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries) cTTL
+  mSftServersAll :: Maybe (Maybe [SFTServer]) <- for (mSftEnv >>= sftLookup) $ \sftl -> liftIO $ do
+    httpMan <-
+      if Opt.sftlIsTestEnv sftl
+        then
+          let s = TLSSettingsSimple True False True
+           in newTlsManagerWith $ mkManagerSettings s Nothing
+        else newTlsManager
+    response <-
+      runM
+        . runTinyLog logger
+        . runDNSLookupDefault
+        . discoverSFTServersAll
+        . Opt.unLookupDomain
+        . Opt.sftlDomain
+        $ sftl
+    case response of
+      Nothing -> pure $ Nothing @[SFTServer]
+      Just ips -> fmap (eitherToMaybe @SFTError @[SFTServer] . sequence) $
+        for ips $ \ip -> runM . interpretSFT httpMan $ sftGetClientUrl ip (Opt.sftlPort sftl)
+
+  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
+  pure $ Public.rtcConfiguration srvs mSftServers cTTL (join mSftServersAll)
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =

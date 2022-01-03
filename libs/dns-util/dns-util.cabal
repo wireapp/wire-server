@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: b01e42f1b5b715a9443bb5579232b59dc299958ace467135606df095a90c2f2e
 
 name:           dns-util
 version:        0.1.0
@@ -20,6 +18,7 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Wire.Network.DNS.A
       Wire.Network.DNS.Effect
       Wire.Network.DNS.Helper
       Wire.Network.DNS.SRV
@@ -72,6 +71,7 @@ library
       base >=4.6 && <5.0
     , dns
     , imports
+    , iproute
     , polysemy
     , random
   default-language: Haskell2010
@@ -133,6 +133,7 @@ test-suite spec
     , dns-util
     , hspec
     , imports
+    , iproute
     , polysemy
     , random
   default-language: Haskell2010

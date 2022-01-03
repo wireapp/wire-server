@@ -59,7 +59,7 @@ instance Exception ValidationError
 
 instance AsWai ValidationError where
   toWai err =
-    Wai.mkError HTTP.status403 (validationErrorLabel err)
+    Wai.mkError (validationErrorStatus err) (validationErrorLabel err)
       . LText.fromStrict
       $ waiErrorDescription err
 
@@ -81,6 +81,13 @@ validationErrorLabel (CertificateParseError _) = "certificate-parse-error"
 validationErrorLabel (DomainParseError _) = "domain-parse-error"
 validationErrorLabel (AuthenticationFailure _) = "authentication-failure"
 validationErrorLabel (FederationDenied _) = "federation-denied"
+
+validationErrorStatus :: ValidationError -> HTTP.Status
+-- the FederationDenied case is handled differently, because it may be caused
+-- by wrong input in the original request, so we let this error propagate to the
+-- client
+validationErrorStatus (FederationDenied _) = HTTP.status400
+validationErrorStatus _ = HTTP.status403
 
 -- | Validates an already-parsed domain against the allowList using the federator
 -- startup configuration.
@@ -143,6 +150,7 @@ validateDomain ::
 validateDomain Nothing _ = throw NoClientCertificate
 validateDomain (Just encodedCertificate) unparsedDomain = do
   targetDomain <- parseDomain unparsedDomain
+  ensureCanFederateWith targetDomain
 
   -- run discovery to find the hostname of the client federator
   certificate <-
@@ -153,7 +161,7 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
   unless (any null validationErrors) $
     throw $ AuthenticationFailure validationErrors
 
-  ensureCanFederateWith targetDomain $> targetDomain
+  pure targetDomain
 
 -- | Match a hostname against the domain names of a certificate.
 --

@@ -26,7 +26,6 @@ import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
-import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
@@ -81,11 +80,6 @@ tests =
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
       testRoundTrip @Asset.Asset,
-      testRoundTrip @Asset.Resumable.ResumableSettings,
-      testRoundTrip @Asset.Resumable.TotalSize,
-      testRoundTrip @Asset.Resumable.ChunkSize,
-      testRoundTrip @Asset.Resumable.Offset,
-      testRoundTrip @Asset.Resumable.ResumableAsset,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.Scheme,
       testRoundTrip @Call.Config.Transport,
@@ -195,17 +189,22 @@ tests =
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureLegalHold),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureSSO),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureSearchVisibility),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureValidateSAMLEmails),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureDigitalSignatures),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureAppLock),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureFileSharing),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureClassifiedDomains),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureConferenceCalling),
-      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureLegalHold),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSSO),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSearchVisibility),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureValidateSAMLEmails),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureDigitalSignatures),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureAppLock),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureFileSharing),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureClassifiedDomains),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureConferenceCalling),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
+      testRoundTrip @Team.Feature.LockStatusValue,
+      testRoundTrip @Team.Feature.LockStatus,
+      testRoundTrip @Team.Feature.TeamFeatureStatusNoConfigAndLockStatus,
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,

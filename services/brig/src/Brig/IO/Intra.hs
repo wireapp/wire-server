@@ -120,8 +120,9 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
+import qualified Wire.API.Team.Member as Member
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -853,7 +854,7 @@ addTeamMember u tid (minvmeta, role) = do
     _ -> False
   where
     prm = Team.rolePermissions role
-    bdy = Team.newNewTeamMember u prm minvmeta
+    bdy = Member.mkNewTeamMember u prm minvmeta
     req =
       paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"
@@ -967,7 +968,7 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'TeamFeatureLegalHold)
+getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"

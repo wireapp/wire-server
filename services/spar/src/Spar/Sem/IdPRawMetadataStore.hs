@@ -2,6 +2,7 @@ module Spar.Sem.IdPRawMetadataStore where
 
 import Imports
 import Polysemy
+import Polysemy.Check (deriveGenericK)
 import qualified SAML2.WebSSO as SAML
 
 data IdPRawMetadataStore m a where
@@ -13,3 +14,4 @@ deriving stock instance Show (IdPRawMetadataStore m a)
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdPRawMetadataStore
+deriveGenericK ''IdPRawMetadataStore

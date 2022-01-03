@@ -122,6 +122,7 @@ data ConversationError
   | ConvMemberNotFound
   | NoBindingTeamMembers
   | NoManagedTeamConv
+  | GuestLinksDisabled
 
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
@@ -130,6 +131,7 @@ instance APIError ConversationError where
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
   toWai NoManagedTeamConv = noManagedTeamConv
+  toWai GuestLinksDisabled = guestLinksDisabled
 
 data TeamError
   = NoBindingTeam
@@ -160,12 +162,14 @@ data TeamFeatureError
   | LegalHoldFeatureFlagNotEnabled
   | LegalHoldWhitelistedOnly
   | DisableSsoNotImplemented
+  | FeatureLocked
 
 instance APIError TeamFeatureError where
   toWai AppLockinactivityTimeoutTooLow = inactivityTimeoutTooLow
   toWai LegalHoldFeatureFlagNotEnabled = legalHoldFeatureFlagNotEnabled
   toWai LegalHoldWhitelistedOnly = legalHoldWhitelistedOnly
   toWai DisableSsoNotImplemented = disableSsoNotImplemented
+  toWai FeatureLocked = setTeamFeatureConfigFeatureLocked
 
 data TeamNotificationError
   = InvalidTeamNotificationId
@@ -394,6 +398,9 @@ teamMemberNotFound = mkError status404 "no-team-member" "team member not found"
 noManagedTeamConv :: Error
 noManagedTeamConv = mkError status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
 
+guestLinksDisabled :: Error
+guestLinksDisabled = mkError status409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."
+
 userBindingExists :: Error
 userBindingExists = mkError status403 "binding-exists" "User already bound to a different team."
 
@@ -456,6 +463,9 @@ noLegalHoldDeviceAllocated = mkError status404 "legalhold-no-device-allocated" "
 
 legalHoldCouldNotBlockConnections :: Error
 legalHoldCouldNotBlockConnections = mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
+
+setTeamFeatureConfigFeatureLocked :: Error
+setTeamFeatureConfigFeatureLocked = mkError status409 "feature-locked" "feature config cannot be updated (eg., because it is configured to be locked, or because you need to upgrade your plan)"
 
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =

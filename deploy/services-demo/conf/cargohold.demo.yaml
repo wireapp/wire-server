@@ -11,6 +11,7 @@ aws:
 settings:
   maxTotalBytes: 27262976
   downloadLinkTTL: 300    # Seconds
+  federationDomain: example.com
 
 logLevel: Info
 logNetStrings: false

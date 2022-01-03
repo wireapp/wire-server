@@ -169,18 +169,25 @@ This record should have entries which lead to the federator.
 **IMPORTANT** Once this option is set, it cannot be changed without breaking
 experience for all the users which are already using the backend.
 
-This configuration needs to be made in brig and in galley. (note the slighly different spelling of the config options)
-
-```yaml
-# galley.yaml
-settings:
-  federationDomain: example.com
-```
+This configuration needs to be made in brig, cargohold and galley (note the
+slighly different spelling of the config options).
 
 ```yaml
 # brig.yaml
 optSettings:
   setFederationDomain: example.com
+```
+
+```yaml
+# cargohold.yaml
+settings:
+  federationDomain: example.com
+```
+
+```yaml
+# galley.yaml
+settings:
+  federationDomain: example.com
 ```
 
 ### Federation allow list

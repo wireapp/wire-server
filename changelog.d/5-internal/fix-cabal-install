@@ -1,0 +1,1 @@
+The `cabal-install-artefacts.sh` script now creates the `dist` directory if it does not exist

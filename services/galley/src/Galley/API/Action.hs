@@ -37,10 +37,12 @@ module Galley.API.Action
 where
 
 import qualified Brig.Types.User as User
+import Control.Arrow
 import Control.Lens
 import Data.Id
 import Data.Kind
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
@@ -165,8 +167,6 @@ instance IsConversationAction ConversationJoin where
 
     addMembersToLocalConversation lcnv newMembers role
     where
-      userIsMember u = (^. userId . to (== u))
-
       checkLocals ::
         Members
           '[ BrigAccess,
@@ -181,8 +181,10 @@ instance IsConversationAction ConversationJoin where
         [UserId] ->
         Sem r ()
       checkLocals lusr (Just tid) newUsers = do
-        tms <- E.selectTeamMembers tid newUsers
-        let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
+        tms <-
+          Map.fromList . map (view userId &&& id)
+            <$> E.selectTeamMembers tid newUsers
+        let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
         ensureAccessRole (convAccessRole conv) userMembershipMap
         ensureConnectedOrSameTeam lusr newUsers
       checkLocals lusr Nothing newUsers = do

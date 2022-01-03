@@ -33,7 +33,7 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain (..))
 import Data.Id
-import Data.Misc (HttpsUrl)
+import Data.Misc (HttpsUrl, Port (..))
 import Data.Range
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
@@ -495,9 +495,45 @@ data Settings = Settings
     -- config will always return this entry. This is useful in Kubernetes
     -- where SFTs are deployed behind a load-balancer.  In the long-run the SRV
     -- fetching logic can go away completely
-    setSftStaticUrl :: !(Maybe HttpsUrl)
+    setSftStaticUrl :: !(Maybe HttpsUrl),
+    setSftLookup :: !(Maybe SFTLookup)
   }
   deriving (Show, Generic)
+
+data SFTLookup = SFTLookup
+  { sftlDomain :: !LookupDomain,
+    sftlPort :: !Port,
+    -- FUTUREWORK: Get rid of the test environment flag below. This is to be
+    -- done by not looking up A records and consequently making GET requests via
+    -- HTTPS based on IP addresses, instead of domain names.
+
+    -- | Set to True if running in a test environment. This will avoid
+    -- performing SSL checks in a request to an SFT server. The default value is
+    -- False.
+    sftlIsTestEnv :: Bool
+  }
+  deriving (Show, Generic)
+
+instance FromJSON SFTLookup where
+  parseJSON = Aeson.withObject "SFTLookup" $ \o -> do
+    d <- o Aeson..: "domain"
+    p <- o Aeson..: "port"
+    t <- o Aeson..:? "isTestingEnvironment" Aeson..!= False
+    pure $ SFTLookup d p t
+
+newtype LookupDomain = LookupDomain {unLookupDomain :: DNS.Domain}
+  deriving stock (Show, Generic)
+
+instance FromJSON LookupDomain where
+  parseJSON (Y.String s) =
+    LookupDomain <$> Y.withText "LookupDomain" asciiOnly (Y.String s)
+    where
+      asciiOnly :: Text -> Y.Parser ByteString
+      asciiOnly t =
+        if Text.all Char.isAscii t
+          then pure $ Text.encodeUtf8 t
+          else fail $ "Expected ascii string only, found: " <> Text.unpack t
+  parseJSON _ = fail "Expected a String"
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -508,8 +544,8 @@ data Settings = Settings
 -- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
 -- messages).  For now, we have something quick & simple.
 data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.TeamFeatureConferenceCalling),
-    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.TeamFeatureConferenceCalling)
+  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling),
+    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling)
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform AccountFeatureConfigs)
