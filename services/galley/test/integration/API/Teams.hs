@@ -480,7 +480,7 @@ testAddTeamMember = do
   Util.connectUsers (mem1 ^. userId) (list1 (mem2 ^. userId) [])
   tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
   mem3 <- newTeamMember' p1 <$> Util.randomUser
-  let payload = json (newNewTeamMember (mem3 ^. userId) (mem3 ^. permissions) (mem3 ^. invitation))
+  let payload = json (Member.mkNewTeamMember (mem3 ^. userId) (mem3 ^. permissions) (mem3 ^. invitation))
   Util.connectUsers (mem1 ^. userId) (list1 (mem3 ^. userId) [])
   Util.connectUsers (mem2 ^. userId) (list1 (mem3 ^. userId) [])
   -- `mem1` lacks permission to add new team members
@@ -566,7 +566,7 @@ testAddTeamMemberCheckBound = do
     ( g . paths ["teams", toByteString' tidBound, "members"]
         . zUser ownerBound
         . zConn "conn"
-        . json (newNewTeamMember (rndMem ^. userId) (rndMem ^. permissions) (rndMem ^. invitation))
+        . json (Member.mkNewTeamMember (rndMem ^. userId) (rndMem ^. permissions) (rndMem ^. invitation))
     )
     !!! const 403 === statusCode
   owner <- Util.randomUser
@@ -576,7 +576,7 @@ testAddTeamMemberCheckBound = do
   post
     ( g . paths ["teams", toByteString' tid, "members"] . zUser owner
         . zConn "conn"
-        . json (newNewTeamMember (boundMem ^. userId) (boundMem ^. permissions) (boundMem ^. invitation))
+        . json (Member.mkNewTeamMember (boundMem ^. userId) (boundMem ^. permissions) (boundMem ^. invitation))
     )
     !!! const 403 === statusCode
 
@@ -970,7 +970,7 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
   owner <- Util.randomUser
   member <- Util.randomUser
   Util.connectUsers owner (list1 member [])
-  tid <- Util.createNonBindingTeam "foo" owner [Member.TeamMember member perms Nothing LH.defUserLegalHoldStatus]
+  tid <- Util.createNonBindingTeam "foo" owner [Member.mkTeamMember member perms Nothing LH.defUserLegalHoldStatus]
   cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
   resp <- updateTeamConv member cid (ConversationRename "not gossip")
   -- FUTUREWORK: Ensure that the team role _really_ does not matter
@@ -1459,7 +1459,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
     foldM
       ( \billingMembers n -> do
           newBillingMemberId <- randomUser
-          let mem = json $ newNewTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
+          let mem = json $ Member.mkNewTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
           -- We cannot properly add the new owner with an invite as we don't have a way to
           -- override galley settings while making a call to brig
           withoutIndexedBillingTeamMembers $
@@ -1477,7 +1477,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
 
   -- If we add another owner, one of them won't get notified
   ownerFanoutPlusTwo <- randomUser
-  let memFanoutPlusTwo = json $ newNewTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
+  let memFanoutPlusTwo = json $ Member.mkNewTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
   -- We cannot properly add the new owner with an invite as we don't have a way to
   -- override galley settings while making a call to brig
   withoutIndexedBillingTeamMembers $
@@ -1513,7 +1513,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   refreshIndex
 
   -- Promotions and demotion should also be kept track of regardless of feature being enabled
-  let demoteFanoutPlusThree = newNewTeamMember ownerFanoutPlusThree (rolePermissions RoleAdmin) Nothing
+  let demoteFanoutPlusThree = Member.mkNewTeamMember ownerFanoutPlusThree (rolePermissions RoleAdmin) Nothing
   withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
   ensureQueueEmpty
 
@@ -1522,7 +1522,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
     tUpdateUncertainCount [4, 5] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour, ownerFanoutPlusFive])
   refreshIndex
 
-  let promoteFanoutPlusThree = newNewTeamMember ownerFanoutPlusThree (rolePermissions RoleOwner) Nothing
+  let promoteFanoutPlusThree = Member.mkNewTeamMember ownerFanoutPlusThree (rolePermissions RoleOwner) Nothing
   withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
   ensureQueueEmpty
 
@@ -1548,28 +1548,28 @@ testUpdateTeamMember = do
   assertQueue "add member" $ tUpdate 2 [owner]
   refreshIndex
   -- non-owner can **NOT** demote owner
-  let demoteOwner = newNewTeamMember owner (rolePermissions RoleAdmin) Nothing
+  let demoteOwner = Member.mkNewTeamMember owner (rolePermissions RoleAdmin) Nothing
   updateTeamMember g tid (member ^. userId) demoteOwner !!! do
     const 403 === statusCode
     const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
   -- owner can demote non-owner
-  let demoteMember = newNewTeamMember (member ^. userId) noPermissions (member ^. invitation)
+  let demoteMember = Member.mkNewTeamMember (member ^. userId) noPermissions (member ^. invitation)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     updateTeamMember g tid owner demoteMember !!! do
       const 200 === statusCode
     member' <- Util.getTeamMember owner tid (member ^. userId)
-    liftIO $ assertEqual "permissions" (member' ^. permissions) (demoteMember ^. ntmNewTeamMember . permissions)
+    liftIO $ assertEqual "permissions" (member' ^. permissions) (demoteMember ^. nPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure noPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure noPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
   assertQueue "Member demoted" $ tUpdate 2 [owner]
   -- owner can promote non-owner
-  let promoteMember = newNewTeamMember (member ^. userId) fullPermissions (member ^. invitation)
+  let promoteMember = Member.mkNewTeamMember (member ^. userId) fullPermissions (member ^. invitation)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     updateTeamMember g tid owner promoteMember !!! do
       const 200 === statusCode
     member' <- Util.getTeamMember owner tid (member ^. userId)
-    liftIO $ assertEqual "permissions" (member' ^. permissions) (promoteMember ^. ntmNewTeamMember . permissions)
+    liftIO $ assertEqual "permissions" (member' ^. permissions) (promoteMember ^. nPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure fullPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure fullPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
@@ -1582,7 +1582,7 @@ testUpdateTeamMember = do
     updateTeamMember g tid (member ^. userId) demoteOwner !!! do
       const 200 === statusCode
     owner' <- Util.getTeamMember (member ^. userId) tid owner
-    liftIO $ assertEqual "permissions" (owner' ^. permissions) (demoteOwner ^. ntmNewTeamMember . permissions)
+    liftIO $ assertEqual "permissions" (owner' ^. permissions) (demoteOwner ^. nPermissions)
     -- owner no longer has GetPermissions, but she can still see the update because it's about her!
     checkTeamMemberUpdateEvent tid owner wsOwner (pure (rolePermissions RoleAdmin))
     checkTeamMemberUpdateEvent tid owner wsMember (pure (rolePermissions RoleAdmin))
@@ -1881,7 +1881,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
-newTeamMember' perms uid = Member.TeamMember uid perms Nothing LH.defUserLegalHoldStatus
+newTeamMember' perms uid = Member.mkTeamMember uid perms Nothing LH.defUserLegalHoldStatus
 
 -- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
 -- hypothetical functions 'getTeamFeatureFlag', 'getTeamFeatureFlagInternal',

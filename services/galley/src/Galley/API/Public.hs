@@ -187,24 +187,13 @@ servantSitemap =
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
-        GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal
+        GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
+        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH
       }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
-
-  post "/teams" (continue Teams.createNonBindingTeamH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NonBindingNewTeam
-      .&. accept "application" "json"
-  document "POST" "createNonBindingTeam" $ do
-    summary "Create a new non binding team"
-    body (ref Public.modelNewNonBindingTeam) $
-      description "JSON body"
-    response 201 "Team ID as `Location` header value" end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
 
   put "/teams/:tid" (continue Teams.updateTeamH) $
     zauthUserId

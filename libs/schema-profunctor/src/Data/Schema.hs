@@ -500,6 +500,9 @@ instance With Text where
 instance With Integer where
   with _ = (A.parseJSON >=>)
 
+instance With Bool where
+  with = A.withBool
+
 -- | A schema for a single value of an enumeration.
 element ::
   forall a b.
@@ -765,6 +768,9 @@ instance HasEnum Text NamedSwaggerDoc where
 
 instance HasEnum Integer NamedSwaggerDoc where
   mkEnum = mkSwaggerEnum S.SwaggerInteger
+
+instance HasEnum Bool NamedSwaggerDoc where
+  mkEnum = mkSwaggerEnum S.SwaggerBoolean
 
 mkSwaggerEnum ::
   S.SwaggerType 'S.SwaggerKindSchema ->
