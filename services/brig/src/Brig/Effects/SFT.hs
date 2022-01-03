@@ -44,7 +44,7 @@ interpretSFT httpManager = interpret $ \(SFTGetClientUrl ipAddr port) -> do
   let req =
         parseRequest_ $
           mconcat
-            [ "GET https://",
+            [ "GET http://",
               show ipAddr,
               ":",
               show . portNumber $ port,
