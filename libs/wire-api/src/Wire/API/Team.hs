@@ -189,16 +189,12 @@ modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
     Doc.optional
 
 instance ToSchema BindingNewTeam where
-  schema = object "BindingNewTeam" $ BindingNewTeam <$> unwrap .= ntUnitSchema
+  schema = BindingNewTeam <$> unwrap .= newTeamSchema "BindingNewTeam" sch
     where
       unwrap (BindingNewTeam nt) = nt
-      ntUnitSchema =
-        mkTeam
-          <$> _newTeamName .= field "name" schema
-          <*> _newTeamIcon .= field "icon" schema
-          <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
-        where
-          mkTeam n i ik = NewTeam n i ik (Just ())
+
+      sch :: ValueSchema SwaggerDoc ()
+      sch = null_
 
 -- FUTUREWORK: since new team members do not get serialized, we zero them here.
 -- it may be worth looking into how this can be solved in the types.
@@ -213,18 +209,13 @@ newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NonBindingNewTeam)
 
-ntTeamMemberRangeSchema :: ObjectSchema SwaggerDoc (NewTeam (Range 1 127 [TeamMember]))
-ntTeamMemberRangeSchema =
-  NewTeam
-    <$> _newTeamName .= field "name" schema
-    <*> _newTeamIcon .= field "icon" schema
-    <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
-    <*> (fmap fromRange . _newTeamMembers) .= maybe_ (optField "members" (rangedSchema sing sing (array schema)))
-
 instance ToSchema NonBindingNewTeam where
-  schema = object "NonBindingNewTeam" $ NonBindingNewTeam <$> unwrap .= ntTeamMemberRangeSchema
+  schema = NonBindingNewTeam <$> unwrap .= newTeamSchema "NonBindingNewTeam" sch
     where
       unwrap (NonBindingNewTeam nt) = nt
+
+      sch :: ValueSchema SwaggerDoc (Range 1 127 [TeamMember])
+      sch = fromRange .= rangedSchema sing sing (array schema)
 
 modelNewNonBindingTeam :: Doc.Model
 modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
@@ -248,19 +239,18 @@ data NewTeam a = NewTeam
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (NewTeam a))
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (NewTeam a))
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
-instance (ToSchema a) => ToSchema (NewTeam a) where
-  schema =
-    object "NewTeam" $
-      NewTeam
-        <$> _newTeamName .= field "name" schema
-        <*> _newTeamIcon .= field "icon" schema
-        <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
-        <*> _newTeamMembers .= maybe_ (optField "members" schema)
+newTeamSchema :: HasSchemaRef d => Text -> ValueSchema d a -> ValueSchema NamedSwaggerDoc (NewTeam a)
+newTeamSchema name sch =
+  object name $
+    NewTeam
+      <$> _newTeamName .= field "name" schema
+      <*> _newTeamIcon .= field "icon" schema
+      <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
+      <*> _newTeamMembers .= maybe_ (optField "members" sch)
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData
