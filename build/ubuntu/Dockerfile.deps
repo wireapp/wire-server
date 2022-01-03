@@ -23,7 +23,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libgmp10 \
             libffi7 \
             libicu66 \
-            geoip-bin \
+            geoip-database \
             ca-certificates \
             dumb-init \
             libxml2 \
