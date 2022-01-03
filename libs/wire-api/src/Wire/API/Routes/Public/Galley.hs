@@ -813,17 +813,37 @@ type MessagingAPI =
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> QueryParam "ignore_missing" IgnoreMissing
-        :> QueryParam "report_missing" ReportMissing
         :> "otr"
         :> "messages"
-        :> ReqBody '[Servant.JSON, Proto] NewOtrMessage
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> ReqBody '[JSON, Proto] NewOtrMessage
         :> MultiVerb
              'POST
              '[Servant.JSON]
              (PostOtrResponses ClientMismatch)
-             (Either (MessageNotSent ClientMismatch) ClientMismatch)
+             (PostOtrResponse ClientMismatch)
     )
+    :<|> Named
+           "post-otr-broadcast-unqualified"
+           ( Summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON or Protobuf)"
+               :> Description PostOtrDescriptionUnqualified
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow TeamNotFound
+               :> CanThrow BroadcastLimitExceeded
+               :> "broadcast"
+               :> "otr"
+               :> "messages"
+               :> QueryParam "ignore_missing" IgnoreMissing
+               :> QueryParam "report_missing" ReportMissing
+               :> ReqBody '[JSON, Proto] NewOtrMessage
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    (PostOtrResponses ClientMismatch)
+                    (PostOtrResponse ClientMismatch)
+           )
     :<|> Named
            "post-proteus-message"
            ( Summary "Post an encrypted message to a conversation (accepts only Protobuf)"

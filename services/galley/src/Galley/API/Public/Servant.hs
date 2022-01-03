@@ -81,6 +81,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
 
     messaging =
       Named @"post-otr-message-unqualified" postOtrMessageUnqualified
+        :<|> Named @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
         :<|> Named @"post-proteus-message" postProteusMessage
 
     team =

@@ -173,7 +173,7 @@ sitemap = do
       description "Maximum number of events to return (1..10000; default: 1000)"
     returns (ref Public.modelNotificationList)
     response 200 "List of team notifications" end
-    errorResponse Error.teamNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.TeamNotFound)
     errorResponse Error.invalidTeamNotificationId
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $
@@ -365,81 +365,6 @@ sitemap = do
       .&. def Public.OtrReportAllMissing filterMissing
       .&. jsonRequest @Public.NewOtrMessage
       .&. accept "application" "json"
-
-  -- Conversation API ---------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/broadcast/otr/messages" (continue Update.postOtrBroadcastH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. jsonRequest @Public.NewOtrMessage
-  document "POST" "postOtrBroadcast" $ do
-    summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
-    parameter Query "ignore_missing" bool' $ do
-      description
-        "Force message delivery even when clients are missing. \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is allowed to \
-        \have missing clients."
-      optional
-    parameter Query "report_missing" bool' $ do
-      description
-        "Don't allow message delivery when clients are missing \
-        \('ignore_missing' takes precedence when present). \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is forbidden from \
-        \having missing clients. \
-        \To support large lists of user IDs exceeding the allowed \
-        \URL length, you can also put this list in the body, in \
-        \the optional field 'report_missing'.  That body field takes \
-        \precedence over both query params."
-      optional
-    body (ref Public.modelNewOtrMessage) $
-      description "JSON body"
-    returns (ref Public.modelClientMismatch)
-    response 201 "Message posted" end
-    response 412 "Missing clients" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.nonBindingTeam
-    errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
-    errorResponse Error.broadcastLimitExceeded
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/broadcast/otr/messages" (continue Update.postProtoOtrBroadcastH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. request
-      .&. contentType "application" "x-protobuf"
-  document "POST" "postOtrBroadcast" $ do
-    summary "Broadcast an encrypted message to all team members and all contacts (accepts Protobuf)"
-    parameter Query "ignore_missing" bool' $ do
-      description
-        "Force message delivery even when clients are missing. \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is allowed to \
-        \have missing clients."
-      optional
-    parameter Query "report_missing" bool' $ do
-      description
-        "Don't allow message delivery when clients are missing \
-        \('ignore_missing' takes precedence when present). \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is forbidden from \
-        \having missing clients."
-      optional
-    body (ref Public.modelNewOtrMessage) $
-      description "Protobuf body"
-    returns (ref Public.modelClientMismatch)
-    response 201 "Message posted" end
-    response 412 "Missing clients" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.nonBindingTeam
-    errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
-    errorResponse Error.broadcastLimitExceeded
 
 apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =

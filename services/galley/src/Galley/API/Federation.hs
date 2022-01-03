@@ -301,8 +301,10 @@ onMessageSent domain rmUnqualified = do
               ByteString
           )
   localMembers <- sequence $ Map.fromSet mkLocalMember (Set.fromList members)
+  loc <- qualifyLocal ()
   void $
     sendLocalMessages
+      loc
       (F.rmTime rm)
       (F.rmSender rm)
       (F.rmSenderClient rm)

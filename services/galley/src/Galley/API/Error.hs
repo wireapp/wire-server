@@ -86,7 +86,7 @@ instance APIError ActionError where
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
   toWai InvalidTargetUserOp = invalidTargetUserOp
   toWai NoAddToManaged = noAddToManaged
-  toWai BroadcastLimitExceeded = broadcastLimitExceeded
+  toWai BroadcastLimitExceeded = errorDescriptionTypeToWai @BroadcastLimitExceeded
   toWai InvalidTeamStatusUpdate = invalidTeamStatusUpdate
   toWai InvalidPermissions = invalidPermissions
 
@@ -150,7 +150,7 @@ instance APIError TeamError where
   toWai NoAddToBinding = noAddToBinding
   toWai NotABindingTeamMember = nonBindingTeam
   toWai NotAOneMemberTeam = notAOneMemberTeam
-  toWai TeamNotFound = teamNotFound
+  toWai TeamNotFound = errorDescriptionTypeToWai @TeamNotFound
   toWai TeamMemberNotFound = teamMemberNotFound
   toWai TeamSearchVisibilityNotEnabled = teamSearchVisibilityNotEnabled
   toWai UserBindingExists = userBindingExists
@@ -367,18 +367,8 @@ bulkGetMemberLimitExceeded =
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
-broadcastLimitExceeded :: Error
-broadcastLimitExceeded =
-  mkError
-    status400
-    "too-many-users-to-broadcast"
-    ("Too many users to fan out the broadcast event to.")
-
 noAddToManaged :: Error
 noAddToManaged = mkError status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
-
-teamNotFound :: Error
-teamNotFound = mkError status404 "no-team" "team not found"
 
 invalidPermissions :: Error
 invalidPermissions = mkError status403 "invalid-permissions" "The specified permissions are invalid."

@@ -217,7 +217,7 @@ type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
-type TeamNotFound = ErrorDescription 404 "no-team" "team not found"
+type TeamNotFound = ErrorDescription 404 "no-team" "Team not found"
 
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
@@ -362,3 +362,9 @@ type InvalidHandle = ErrorDescription 400 "invalid-handle" "The given handle is 
 type PresenceNotRegistered = ErrorDescription 404 "not-found" "presence not registered"
 
 type ClientGone = ErrorDescription 410 "general" "client gone"
+
+type BroadcastLimitExceeded =
+  ErrorDescription
+    400
+    "too-many-users-to-broadcast"
+    "Too many users to fan out the broadcast event to."
