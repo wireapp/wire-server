@@ -27,7 +27,6 @@ import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
-import qualified CargoHold.Types.V3 as CHV3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
@@ -409,23 +408,21 @@ uploadAsset ::
   CargoHold ->
   UserId ->
   ByteString ->
-  m CHV3.Asset
+  m (Response (Maybe LByteString))
 uploadAsset c usr dat = do
-  let sts = CHV3.defAssetSettings
+  let sts = defAssetSettings
       ct = MIME.Type (MIME.Application "text") []
-      mpb = CHV3.buildMultipartBody sts ct (LB.fromStrict dat)
-  rsp <-
-    post
-      ( c
-          . path "/assets/v3"
-          . zUser usr
-          . zConn "conn"
-          . content "multipart/mixed"
-          . lbytes (toLazyByteString mpb)
-      )
-      <!! const 201
-      === statusCode
-  responseJsonError rsp
+      mpb = buildMultipartBody sts ct (LB.fromStrict dat)
+  post
+    ( c
+        . path "/assets/v3"
+        . zUser usr
+        . zConn "conn"
+        . content "multipart/mixed"
+        . lbytes (toLazyByteString mpb)
+    )
+    <!! const 201
+    === statusCode
 
 downloadAsset ::
   (MonadIO m, MonadHttp m) =>

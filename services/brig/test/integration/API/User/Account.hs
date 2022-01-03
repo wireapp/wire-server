@@ -1319,7 +1319,7 @@ testDeleteInternal brig cannon aws = do
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
   uid <- userId <$> createAnonUser "anon" brig
-  ast <- uploadAsset cargohold uid "this is my profile pic"
+  ast <- responseJsonError =<< uploadAsset cargohold uid "this is my profile pic"
   -- Ensure that the asset is there
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 200 === statusCode
   let newAssets =

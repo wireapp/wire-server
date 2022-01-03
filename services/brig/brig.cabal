@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 350e615ec20264419ad3244b5ba5b93c8a0bbea7dc35db5f300a3fbf3ef4e4c0
+-- hash: 2a5e368730d4530d05df5395f6b3157536513b1049130b541d257aa79296cb75
 
 name:           brig
 version:        2.0
