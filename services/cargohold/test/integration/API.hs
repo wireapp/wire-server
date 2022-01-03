@@ -298,8 +298,26 @@ testRemoteDownload = do
         | frRPC req == "get-asset" =
           pure ("application" // "json", Aeson.encode (GetAssetResponse True))
         | otherwise = pure ("application" // "octet-stream", "asset content")
-  void $
-    withMockFederator respond $ do
-      downloadAsset uid qkey () !!! do
-        const 200 === statusCode
-        const (Just "asset content") === responseBody
+  (_, reqs) <- withMockFederator respond $ do
+    downloadAsset uid qkey () !!! do
+      const 200 === statusCode
+      const (Just "asset content") === responseBody
+
+  let ga = Aeson.encode (GetAsset uid key Nothing)
+  liftIO $
+    reqs
+      @?= [ FederatedRequest
+              { frOriginDomain = Domain "example.com",
+                frTargetDomain = Domain "faraway.example.com",
+                frComponent = Cargohold,
+                frRPC = "get-asset",
+                frBody = ga
+              },
+            FederatedRequest
+              { frOriginDomain = Domain "example.com",
+                frTargetDomain = Domain "faraway.example.com",
+                frComponent = Cargohold,
+                frRPC = "stream-asset",
+                frBody = ga
+              }
+          ]
