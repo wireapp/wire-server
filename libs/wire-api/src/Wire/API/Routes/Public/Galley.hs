@@ -735,6 +735,7 @@ data Api routes = Api
         :> ZConn
         :> CanThrow NotATeamMember
         -- :> CanThrow (operationDenied SetTeamData)
+        :> "teams"
         :> Capture "tid" TeamId
         :> ReqBody '[JSON] TeamUpdateData
         :> MultiVerb
