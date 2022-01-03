@@ -20,6 +20,7 @@ import Servant.API.Status (KnownStatus, statusVal)
 import Servant.Client.Core
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
+import Wire.API.Team.Permission
 
 -- This can be added to an endpoint to document a possible failure
 -- case outside its return type (usually through an exception).
@@ -233,6 +234,11 @@ noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc
 noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code " <> Text.pack (show n) <> ")")
 
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
+
+-- FUTUREWORK(leif): We need this to document possible (operation denied) errors in the servant routes.
+-- Be aware that this is redundant and should be replaced by a more type safe solution in the future.
+type family OperationDeniedError (a :: Perm) :: * where
+  OperationDeniedError 'SetTeamData = ErrorDescription 403 "operation-denied" "Insufficient permissions (missing SetTeamData)"
 
 operationDeniedSpecialized :: String -> OperationDenied
 operationDeniedSpecialized p =

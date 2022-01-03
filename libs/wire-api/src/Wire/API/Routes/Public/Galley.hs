@@ -47,8 +47,7 @@ import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
-
--- import Wire.API.Team.Permission (Perm (..))
+import Wire.API.Team.Permission (Perm (..))
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -734,7 +733,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> CanThrow NotATeamMember
-        -- :> CanThrow (operationDenied SetTeamData)
+        :> CanThrow (OperationDeniedError 'SetTeamData)
         :> "teams"
         :> Capture "tid" TeamId
         :> ReqBody '[JSON] TeamUpdateData
