@@ -26,7 +26,20 @@ spec:
         - name: nginx-config
           configMap:
             name: {{ include "sftd.fullname" . }}-join-call
+        - name: sftd-disco
+          emptyDir: {}
       containers:
+        - name: sftd-disco
+          image: quay.io/wire/sftd_disco:latest # TODO configure + version
+          volumeMounts:
+          - name: sftd-disco
+            mountPath: /etc/wire/sftd-disco
+            readOnly: false
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              /usr/bin/nginz_disco.sh _sft._tcp.{{ include "sftd.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
         - name: nginx
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -50,6 +63,9 @@ spec:
             - mountPath: /etc/nginx/conf.d/default.conf.template
               name: nginx-config
               subPath: default.conf.template
+            - name: sftd-disco
+              mountPath: /etc/wire/sftd-disco
+              readOnly: true
           env:
             - name: POD_NAMESPACE
               valueFrom:

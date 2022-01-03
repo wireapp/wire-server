@@ -8,7 +8,7 @@ exec 2>&1
 USAGE="example usage: $0 _sft._tcp.wire-server-sftd.wire.svc.cluster.local"
 srv_name=${1?$USAGE}
 
-old="/etc/wire/sftd-disco/upstreams.json"
+old="/etc/wire/sftd-disco/sft_servers_all.json"
 new="${old}.new"
 
 function valid_entry() {

@@ -17,4 +17,9 @@ data:
         proxy_pass http://$1.{{ include "sftd.fullname" . }}.${POD_NAMESPACE}.svc.cluster.local:8585/$2;
       }
 
+      location ~ ^/sft_servers_all.json$ {
+        root /etc/wire/sftd-disco/;
+        sft_servers_all.json
+      }
+
     }

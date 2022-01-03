@@ -25,3 +25,7 @@ spec:
             backend:
               serviceName: "{{ include "sftd.fullname" . }}-join-call"
               servicePort: http
+          - path: /sft_servers_all.json
+            backend:
+              serviceName: "{{ include "sftd.fullname" . }}-join-call"
+              servicePort: http
