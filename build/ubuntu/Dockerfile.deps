@@ -28,4 +28,5 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             dumb-init \
             libxml2 \
             libncurses6 \
-            zlib1g
+            zlib1g \
+            netbase
