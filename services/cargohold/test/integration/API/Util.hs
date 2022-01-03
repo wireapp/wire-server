@@ -25,7 +25,6 @@ import qualified Codec.MIME.Type as MIME
 import Control.Lens (set, view, _Just)
 import Control.Monad.Catch
 import Control.Monad.Codensity
-import Crypto.Random
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -58,17 +57,6 @@ decodeHeaderOrFail h =
   fromMaybe (error $ "decodeHeaderOrFail: missing or invalid header: " ++ show h)
     . fromByteString
     . getHeader' h
-
-uploadRandom ::
-  Cargohold ->
-  UserId ->
-  AssetSettings ->
-  MIME.Type ->
-  Int ->
-  TestM (Response (Maybe LByteString))
-uploadRandom c usr settings ct size = do
-  bs <- liftIO $ getRandomBytes size
-  uploadSimple c usr settings (ct, bs)
 
 uploadRaw ::
   (Request -> Request) ->
