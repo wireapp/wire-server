@@ -22,9 +22,11 @@ module API (tests) where
 import API.Util
 import Bilge hiding (body)
 import Bilge.Assert
+import CargoHold.API.Error
 import CargoHold.Types
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
+import Control.Exception (throw)
 import Control.Lens hiding (sets)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as C8
@@ -32,6 +34,8 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import qualified Data.Text.Encoding.Error as Text
+import qualified Data.Text.Lazy.Encoding as LText
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
@@ -39,12 +43,13 @@ import Federator.MockServer
 import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Media ((//))
-import Network.HTTP.Types.Status (status200)
+import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities (Error (label))
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Federation.API.Cargohold
+import Wire.API.Federation.Component
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -60,6 +65,7 @@ tests s =
       testGroup
         "remote"
         [ test s "remote download wrong domain" testRemoteDownloadWrongDomain,
+          test s "remote download no asset" testRemoteDownloadNoAsset,
           test s "remote download" testRemoteDownload
         ]
     ]
@@ -98,7 +104,7 @@ testSimpleRoundtrip = do
           const Nothing === responseBody
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
       liftIO $ do
-        assertEqual "status" status200 (responseStatus r3)
+        assertEqual "status" HTTP.status200 (responseStatus r3)
         assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)
         assertEqual "token mismatch" tok (decodeHeaderOrFail "x-amz-meta-token" r3)
         assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
@@ -153,7 +159,7 @@ testSimpleTokens = do
       const Nothing === responseBody
   r4 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r3))
   liftIO $ do
-    assertEqual "status" status200 (responseStatus r4)
+    assertEqual "status" HTTP.status200 (responseStatus r4)
     assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r4)
     assertEqual "token mismatch" tok' (decodeHeaderOrFail "x-amz-meta-token" r4)
     assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r4)
@@ -218,7 +224,7 @@ testUploadCompatibility = do
       const Nothing === responseBody
   r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
   liftIO $ do
-    assertEqual "status" status200 (responseStatus r3)
+    assertEqual "status" HTTP.status200 (responseStatus r3)
     assertEqual "content-type mismatch" (Just applicationOctetStream) (getContentType r3)
     assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
     assertEqual "data mismatch" (Just "test") (responseBody r3)
@@ -252,6 +258,35 @@ testRemoteDownloadWrongDomain = do
   downloadAsset uid qkey () !!! do
     const 422 === statusCode
 
+testRemoteDownloadNoAsset :: TestM ()
+testRemoteDownloadNoAsset = do
+  assetId <- liftIO $ Id <$> nextRandom
+  uid <- liftIO $ Id <$> nextRandom
+  let key = AssetKeyV3 assetId AssetPersistent
+      qkey = Qualified key (Domain "faraway.example.com")
+      respond req
+        | frRPC req == "get-asset" =
+          pure ("application" // "json", Aeson.encode (GetAssetResponse False))
+        | otherwise =
+          throw
+            . MockErrorResponse HTTP.status404
+            . LText.decodeUtf8With Text.lenientDecode
+            . Aeson.encode
+            $ assetNotFound
+  (_, reqs) <- withMockFederator respond $ do
+    downloadAsset uid qkey () !!! do
+      const 404 === statusCode
+  liftIO $
+    reqs
+      @?= [ FederatedRequest
+              { frOriginDomain = Domain "example.com",
+                frTargetDomain = Domain "faraway.example.com",
+                frComponent = Cargohold,
+                frRPC = "get-asset",
+                frBody = Aeson.encode (GetAsset uid key Nothing)
+              }
+          ]
+
 testRemoteDownload :: TestM ()
 testRemoteDownload = do
   assetId <- liftIO $ Id <$> nextRandom
@@ -265,7 +300,6 @@ testRemoteDownload = do
         | otherwise = pure ("application" // "octet-stream", "asset content")
   void $
     withMockFederator respond $ do
-      void $
-        downloadAsset uid qkey () <!! do
-          const 200 === statusCode
-          const (Just "asset content") === responseBody
+      downloadAsset uid qkey () !!! do
+        const 200 === statusCode
+        const (Just "asset content") === responseBody
