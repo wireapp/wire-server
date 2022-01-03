@@ -740,7 +740,7 @@ data Api routes = Api
         :> MultiVerb
              'PUT
              '[JSON]
-             '[RespondEmpty 200 "Membership updated"]
+             '[RespondEmpty 200 "Team updated"]
              ()
   }
   deriving (Generic)
