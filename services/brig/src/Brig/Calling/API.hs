@@ -145,12 +145,14 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
 
   let staticSft = (\url -> Public.sftServer url :| []) <$> sftStaticUrl
-  sftEntries <- case mSftEnv of
-    Nothing -> pure Nothing
-    Just actualSftEnv -> do
-      sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
+  allSrvEntries <-
+    fmap join $
+      for mSftEnv $
+        (unSFTServers <$$>) . fmap discoveryToMaybe . readIORef . sftServers
+  srvEntries <- fmap join $
+    for mSftEnv $ \actualSftEnv -> liftIO $ do
       let subsetLength = Calling.sftListLength actualSftEnv
-      liftIO $ mapM (getRandomElements subsetLength) (unSFTServers <$> sftSrvEntries)
+      mapM (getRandomElements subsetLength) allSrvEntries
 
   mSftServersAll :: Maybe (Maybe [SFTServer]) <- for (mSftEnv >>= sftLookup) $ \sftl -> liftIO $ do
     httpMan <-
@@ -172,7 +174,7 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
       Just ips -> fmap (eitherToMaybe @SFTError @[SFTServer] . sequence) $
         for ips $ \ip -> runM . interpretSFT httpMan $ sftGetClientUrl ip (Opt.sftlPort sftl)
 
-  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries
+  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL (join mSftServersAll)
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
