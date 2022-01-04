@@ -77,14 +77,14 @@ spec ::
   Manager ->
   Brig ->
   Galley ->
-  Cannon ->
   CargoHold ->
+  Cannon ->
   Endpoint ->
   Brig ->
   Galley ->
   CargoHold ->
   IO TestTree
-spec _brigOpts mg brig galley cannon cargohold _federator brigTwo galleyTwo cargoholdTwo =
+spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo cargoholdTwo =
   pure $
     testGroup
       "federation-end2end-user"
