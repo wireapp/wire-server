@@ -36,6 +36,7 @@ module Stern.Intra
     changeEmail,
     changePhone,
     deleteAccount,
+    setStatusBindingTeam,
     deleteBindingTeam,
     getTeamInfo,
     getUserBindingTeam,
@@ -85,6 +86,7 @@ import Data.Text.Lazy (pack)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import qualified Galley.Types.Teams.Intra as Team
 import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types
 import Imports
@@ -290,6 +292,20 @@ deleteAccount uid = do
       b
       ( method DELETE
           . paths ["/i/users", toByteString' uid]
+          . expect2xx
+      )
+
+setStatusBindingTeam :: TeamId -> Team.TeamStatus -> Handler ()
+setStatusBindingTeam tid status = do
+  info $ msg ("Setting team status to " <> (cs $ encode status))
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method PUT
+          . paths ["/i/teams", toByteString' tid, "status"]
+          . Bilge.json (Team.TeamStatusUpdate status Nothing)
           . expect2xx
       )
 

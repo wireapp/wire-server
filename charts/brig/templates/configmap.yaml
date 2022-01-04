@@ -228,5 +228,15 @@ data:
       {{- if .setSftStaticUrl }}
       setSftStaticUrl: {{ .setSftStaticUrl }}
       {{- end }}
+      {{- if .setSftLookup }}
+      {{- with .setSftLookup }}
+      setSftLookup:
+        domain: {{ required "Missing value: .setSftLookup.domain" .domain }}
+        port: {{ required "Missing value: .setSftLookup.port" .port }}
+        {{- if .isTestingEnvironment }}
+        isTestingEnvironment: {{ .isTestingEnvironment }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
     {{- end }}
   {{- end }}

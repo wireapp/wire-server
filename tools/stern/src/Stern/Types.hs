@@ -35,6 +35,7 @@ import Data.Range
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
+import Wire.API.Team.Member (teamMemberJson)
 
 newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
 

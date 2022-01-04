@@ -93,6 +93,10 @@ testNotExpired p = do
   x <- liftIO $ runValidate p $ check t
   liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
 
+-- The testExpired test conforms to the following testing standards:
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
+-- Using an expired access token should fail
 testExpired :: V.Env -> Create ()
 testExpired p = do
   u <- liftIO nextRandom
@@ -100,6 +104,8 @@ testExpired p = do
   waitSeconds 1
   x <- liftIO $ runValidate p $ check t
   liftIO $ Left Expired @=? x
+
+-- @END
 
 testSignAndVerify :: V.Env -> Create ()
 testSignAndVerify p = do

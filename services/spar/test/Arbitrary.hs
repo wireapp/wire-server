@@ -23,7 +23,7 @@
 module Arbitrary where
 
 import Data.Aeson
-import Data.Id (TeamId)
+import Data.Id (TeamId, UserId)
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger hiding (Header (..))
@@ -97,6 +97,8 @@ instance Arbitrary E.Replaced where
 
 instance CoArbitrary a => CoArbitrary (E.GetIdPResult a)
 
+-- TODO(sandy): IdPIds are unlikely to collide. Does the size parameter
+-- affect them?
 instance CoArbitrary IdPId
 
 instance CoArbitrary WireIdP
@@ -104,6 +106,10 @@ instance CoArbitrary WireIdP
 instance CoArbitrary WireIdPAPIVersion
 
 instance CoArbitrary TeamId
+
+instance CoArbitrary UserId
+
+instance CoArbitrary Time
 
 instance CoArbitrary Issuer where
   coarbitrary (Issuer ur) = coarbitrary $ show ur

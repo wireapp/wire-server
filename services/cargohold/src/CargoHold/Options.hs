@@ -19,10 +19,11 @@
 
 module CargoHold.Options where
 
-import CargoHold.CloudFront (Domain (..), KeyPairId (..))
+import qualified CargoHold.CloudFront as CF
 import Control.Lens hiding (Level)
 import Data.Aeson (FromJSON (..), withText)
 import Data.Aeson.TH
+import Data.Domain
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -31,9 +32,9 @@ import Util.Options.Common
 -- | AWS CloudFront settings.
 data CloudFrontOpts = CloudFrontOpts
   { -- | Domain
-    _cfDomain :: Domain,
+    _cfDomain :: CF.Domain,
     -- | Keypair ID
-    _cfKeyPairId :: KeyPairId,
+    _cfKeyPairId :: CF.KeyPairId,
     -- | Path to private key
     _cfPrivateKey :: FilePath
   }
@@ -78,7 +79,18 @@ data Settings = Settings
   { -- | Maximum allowed size for uploads, in bytes
     _setMaxTotalBytes :: !Int,
     -- | TTL for download links, in seconds
-    _setDownloadLinkTTL :: !Word
+    _setDownloadLinkTTL :: !Word,
+    -- | FederationDomain is required, even when not wanting to federate with other backends
+    -- (in that case the 'setFederationAllowedDomains' can be set to empty in Federator)
+    -- Federation domain is used to qualify local IDs and handles,
+    -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+    -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
+    --    _wire-server-federator._tcp.<federationDomain>
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- Remember to keep it the same in Galley and in Brig.
+    -- This is referred to as the 'backend domain' in the public documentation; See
+    -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
+    _setFederationDomain :: !Domain
   }
   deriving (Show, Generic)
 

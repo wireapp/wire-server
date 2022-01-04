@@ -33,6 +33,8 @@ import qualified API.Teams.Feature as TeamFeature
 import qualified API.Teams.LegalHold as Teams.LegalHold
 import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
+import qualified API.Util as Util
+import API.Util.TeamFeature as TeamFeatures
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
@@ -93,6 +95,7 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -199,11 +202,11 @@ tests s =
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
-          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessage1,
-          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessage2,
-          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
-          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
-          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
+          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
+          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson,
+          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto,
+          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessageNotAuthorizeUnknownClient,
+          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
           test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
@@ -218,9 +221,15 @@ tests s =
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
           test s "cannot join private conversation" postJoinConvFail,
+          test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
+          test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
+          test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
+          test s "post code rejected if guest links disabled" testPostCodeRejectedIfGuestLinksDisabled,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
-          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests
+          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
+          test s "post message - reject if missing client" postMessageRejectIfMissingClients,
+          test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg
         ]
 
 emptyFederatedBrig :: F.BrigApi (AsServerT Handler)
@@ -364,10 +373,11 @@ postConvWithRemoteUsersOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
--- | This test verifies whether a message actually gets sent all the way to
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies whether a message actually gets sent all the way to
 -- cannon.
-postCryptoMessage1 :: TestM ()
-postCryptoMessage1 = do
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
@@ -449,9 +459,12 @@ postCryptoMessage1 = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
--- | This test verifies basic mismatch behaviour of the the JSON endpoint.
-postCryptoMessage2 :: TestM ()
-postCryptoMessage2 = do
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies basic mismatch behavior of the the JSON endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -474,9 +487,12 @@ postCryptoMessage2 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
--- | This test verifies basic mismatch behaviour of the protobuf endpoint.
-postCryptoMessage3 :: TestM ()
-postCryptoMessage3 = do
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies basic mismatch behaviour of the protobuf endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -501,10 +517,12 @@ postCryptoMessage3 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
--- | This test verfies behaviour when an unknown client posts the message. Only
+-- @END
+
+-- | This test verifies behaviour when an unknown client posts the message. Only
 -- tests the Protobuf endpoint.
-postCryptoMessage4 :: TestM ()
-postCryptoMessage4 = do
+postCryptoMessageNotAuthorizeUnknownClient :: TestM ()
+postCryptoMessageNotAuthorizeUnknownClient = do
   alice <- randomUser
   bob <- randomUser
   bc <- randomClient bob (someLastPrekeys !! 0)
@@ -516,10 +534,69 @@ postCryptoMessage4 = do
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
--- | This test verifies behaviour under various values of ignore_missing and
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies the following scenario.
+-- A client sends a message to all clients of a group and one more who is not part of the group.
+-- The server must not send this message to client ids not part of the group.
+postMessageClientNotInGroupDoesNotReceiveMsg :: TestM ()
+postMessageClientNotInGroupDoesNotReceiveMsg = do
+  localDomain <- viewFederationDomain
+  cannon <- view tsCannon
+  (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+  (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
+  (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
+  (chad, cc) <- randomUserWithClient (someLastPrekeys !! 3)
+  connectUsers alice (list1 bob [eve, chad])
+  conversationWithAllButChad <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  let qalice = Qualified alice localDomain
+      qconv = Qualified conversationWithAllButChad localDomain
+  WS.bracketR3 cannon bob eve chad $ \(wsBob, wsEve, wsChad) -> do
+    let msgToAllIncludingChad = [(bob, bc, toBase64Text "ciphertext2"), (eve, ec, toBase64Text "ciphertext2"), (chad, cc, toBase64Text "ciphertext2")]
+    postOtrMessage id alice ac conversationWithAllButChad msgToAllIncludingChad !!! const 201 === statusCode
+    let checkBobGetsMsg = void . liftIO $ WS.assertMatch (5 # Second) wsBob (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
+    let checkEveGetsMsg = void . liftIO $ WS.assertMatch (5 # Second) wsEve (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
+    let checkChadDoesNotGetMsg = assertNoMsg wsChad (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext2"))
+    checkBobGetsMsg
+    checkEveGetsMsg
+    checkChadDoesNotGetMsg
+
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
+-- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
+postMessageRejectIfMissingClients :: TestM ()
+postMessageRejectIfMissingClients = do
+  (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
+  let (receiver1, receiverClient1) : otherReceivers = allReceivers
+  connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
+  conv <- decodeConvId <$> postConv sender (receiver1 : (fst <$> otherReceivers)) (Just "gossip") [] Nothing Nothing
+  let msgToAllClients = mkMsg "hello!" <$> allReceivers
+  let msgMissingClients = mkMsg "hello!" <$> drop 1 allReceivers
+
+  let checkSendToAllClientShouldBeSuccessful =
+        postOtrMessage id sender senderClient conv msgToAllClients !!! do
+          const 201 === statusCode
+          assertMismatch [] [] []
+
+  let checkSendWitMissingClientsShouldFail =
+        postOtrMessage id sender senderClient conv msgMissingClients !!! do
+          const 412 === statusCode
+          assertMismatch [(receiver1, Set.singleton receiverClient1)] [] []
+
+  checkSendToAllClientShouldBeSuccessful
+  checkSendWitMissingClientsShouldFail
+  where
+    mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
+    mkMsg text (userId, clientId) = (userId, clientId, toBase64Text text)
+
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies behaviour under various values of ignore_missing and
 -- report_missing. Only tests the JSON endpoint.
-postCryptoMessage5 :: TestM ()
-postCryptoMessage5 = do
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam :: TestM ()
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -572,6 +649,8 @@ postCryptoMessage5 = do
     !!! assertMismatchWithMessage (Just "client mismatch") [(bob, Set.singleton bc)] [] []
   where
     listToByteString = BS.intercalate "," . map toByteString'
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". All user's
 -- on this backend have names begining with 'A'. The conversation has a couple
@@ -706,7 +785,8 @@ postMessageQualifiedLocalOwningBackendSuccess = do
       WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
       WS.assertMatch_ t wsAmy (wsAssertOtr' encodedData convId alice aliceClient amyClient encodedTextForAmy)
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will not be sent.
 postMessageQualifiedLocalOwningBackendMissingClients :: TestM ()
@@ -770,6 +850,8 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                 ]
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message, it is expected that message will
@@ -864,7 +946,8 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       -- Wait less for no message
       WS.assertNoEvent (1 # Second) [wsNonMember]
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will be sent except when it is specifically
 -- requested to report on missing clients of a user.
@@ -993,6 +1076,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
               [(qUnqualified deeRemote, Set.singleton deeClient)]
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
 postMessageQualifiedLocalOwningBackendFailedToSendClients = do
@@ -1157,6 +1242,96 @@ testJoinCodeConv = do
   eve <- ephemeralUser
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 403 === statusCode
+
+testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
+testGetCodeRejectedIfGuestLinksDisabled = do
+  galley <- view tsGalley
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  let createConvWithGuestLink = do
+        convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just ActivatedAccessRole) Nothing
+        void $ decodeConvCodeEvent <$> postConvCode owner convId
+        pure convId
+  convId <- createConvWithGuestLink
+  let checkGetCode expectedStatus = getConvCode owner convId !!! statusCode === const expectedStatus
+  let setStatus tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+
+  checkGetCode 200
+  setStatus Public.TeamFeatureDisabled
+  checkGetCode 409
+  setStatus Public.TeamFeatureEnabled
+  checkGetCode 200
+
+testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
+testPostCodeRejectedIfGuestLinksDisabled = do
+  galley <- view tsGalley
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just ActivatedAccessRole) Nothing
+  let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
+  let setStatus tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+
+  checkPostCode 201
+  setStatus Public.TeamFeatureDisabled
+  checkPostCode 409
+  setStatus Public.TeamFeatureEnabled
+  checkPostCode 200
+
+testJoinTeamConvGuestLinksDisabled :: TestM ()
+testJoinTeamConvGuestLinksDisabled = do
+  galley <- view tsGalley
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  userNotInTeam <- randomUser
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+
+  -- works by default
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+  -- fails if disabled
+  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const 409 === statusCode
+
+  -- after re-enabling, the old link is still valid
+  let tfStatus' = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus' !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+testJoinNonTeamConvGuestLinksDisabled :: TestM ()
+testJoinNonTeamConvGuestLinksDisabled = do
+  galley <- view tsGalley
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  userNotInTeam <- randomUser
+  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+
+  -- works by default
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+  -- for non-team conversations it still works if status is disabled for the team but not server wide
+  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do

@@ -170,6 +170,12 @@ servantSitemap =
         GalleyAPI.teamFeatureStatusSelfDeletingMessagesPut =
           setFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal
             . DoAuth,
+        GalleyAPI.featureStatusGuestLinksGet =
+          Features.getFeatureStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal
+            . DoAuth,
+        GalleyAPI.featureStatusGuestLinksPut =
+          Features.setFeatureStatus @'Public.TeamFeatureGuestLinks Features.setGuestLinkInternal
+            . DoAuth,
         GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
         GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
@@ -180,39 +186,15 @@ servantSitemap =
         GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
-        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
+        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
+        GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
+        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH,
+        GalleyAPI.updateTeam = Teams.updateTeamH
       }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
-
-  post "/teams" (continue Teams.createNonBindingTeamH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NonBindingNewTeam
-      .&. accept "application" "json"
-  document "POST" "createNonBindingTeam" $ do
-    summary "Create a new non binding team"
-    body (ref Public.modelNewNonBindingTeam) $
-      description "JSON body"
-    response 201 "Team ID as `Location` header value" end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
-
-  put "/teams/:tid" (continue Teams.updateTeamH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamUpdateData
-      .&. accept "application" "json"
-  document "PUT" "updateTeam" $ do
-    summary "Update team properties"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelUpdateData) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
-    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetTeamData))
 
   get "/teams" (continue Teams.getManyTeamsH) $
     zauthUserId

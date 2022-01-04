@@ -420,6 +420,8 @@ CREATE TABLE galley_test.team_features (
     conference_calling int,
     digital_signatures int,
     file_sharing int,
+    guest_links_lock_status int,
+    guest_links_status int,
     legalhold_status int,
     search_visibility_status int,
     self_deleting_messages_lock_status int,

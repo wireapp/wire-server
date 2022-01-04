@@ -21,13 +21,16 @@ module Galley.Run
   )
 where
 
+import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
-import Control.Lens (view, (^.))
+import Control.Lens (view, (.~), (^.))
 import qualified Data.Aeson as Aeson
+import Data.Default
 import Data.Domain
+import Data.Id
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
@@ -45,6 +48,7 @@ import qualified Galley.Queue as Q
 import Imports
 import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
+import Network.Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
@@ -91,21 +95,25 @@ mkApp o = do
   return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap
-    app e r k = runGalley e r (route rtree r k)
+    app e r k = evalGalley e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
-    servantApp e r =
-      Servant.serveWithContext
-        (Proxy @CombinedAPI)
-        ( view (options . optSettings . setFederationDomain) e
-            :. customFormatters
-            :. Servant.EmptyContext
-        )
-        ( hoistServer' @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
-            :<|> hoistServer' @Internal.ServantAPI (toServantHandler e) Internal.servantSitemap
-            :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
-            :<|> Servant.Tagged (app e)
-        )
-        r
+    servantApp e0 r =
+      let e = reqId .~ lookupReqId r $ e0
+       in Servant.serveWithContext
+            (Proxy @CombinedAPI)
+            ( view (options . optSettings . setFederationDomain) e
+                :. customFormatters
+                :. Servant.EmptyContext
+            )
+            ( hoistServer' @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
+                :<|> hoistServer' @Internal.ServantAPI (toServantHandler e) Internal.servantSitemap
+                :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
+                :<|> Servant.Tagged (app e)
+            )
+            r
+
+    lookupReqId :: Request -> RequestId
+    lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
 -- Servant needs a context type argument here that contains *at least* the
 -- context types required by all the HasServer instances. In reality, this should

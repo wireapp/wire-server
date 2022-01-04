@@ -17,24 +17,47 @@
 
 module CargoHold.API.Error where
 
-import CargoHold.Types.V3.Resumable (Offset, TotalSize)
-import Data.Text.Lazy.Builder
-import Data.Text.Lazy.Builder.Int
+import Data.Proxy
+import qualified Data.Text.Lazy as LT
+import GHC.TypeLits
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Servant.API.Status
+import Wire.API.ErrorDescription
+
+errorDescriptionToWai ::
+  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol lbl) =>
+  ErrorDescription code lbl desc ->
+  Error
+errorDescriptionToWai (ErrorDescription msg) =
+  mkError
+    (statusVal (Proxy @code))
+    (LT.pack (symbolVal (Proxy @lbl)))
+    (LT.fromStrict msg)
+
+errorDescriptionTypeToWai ::
+  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  ( KnownStatus code,
+    KnownSymbol lbl,
+    KnownSymbol desc,
+    e ~ ErrorDescription code lbl desc
+  ) =>
+  Error
+errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
 
 assetTooLarge :: Error
-assetTooLarge = mkError status413 "client-error" "Asset too large."
+assetTooLarge = errorDescriptionTypeToWai @AssetTooLarge
 
 unauthorised :: Error
-unauthorised = mkError status403 "unauthorised" "Unauthorised operation."
+unauthorised = errorDescriptionTypeToWai @Unauthorised
 
 invalidLength :: Error
-invalidLength = mkError status400 "invalid-length" "Invalid content length."
+invalidLength = errorDescriptionTypeToWai @InvalidLength
 
 assetNotFound :: Error
-assetNotFound = mkError status404 "not-found" "Asset not found."
+assetNotFound = errorDescriptionTypeToWai @AssetNotFound
 
 invalidMD5 :: Error
 invalidMD5 = mkError status400 "client-error" "Invalid MD5."
@@ -47,18 +70,6 @@ requestTimeout =
     "The request timed out. The server was still expecting more data \
     \but none was sent over an extended period of time. Idle connections \
     \will be closed."
-
-invalidOffset :: Offset -> Offset -> Error
-invalidOffset expected given =
-  mkError status409 "invalid-offset" $
-    toLazyText $
-      "Invalid offset: "
-        <> "expected: "
-        <> decimal expected
-        <> ", "
-        <> "given: "
-        <> decimal given
-        <> "."
 
 uploadTooSmall :: Error
 uploadTooSmall =
@@ -75,18 +86,6 @@ uploadTooLarge =
     "client-error"
     "The current chunk size + offset \
     \is larger than the full upload size."
-
-uploadIncomplete :: TotalSize -> TotalSize -> Error
-uploadIncomplete expected actual =
-  mkError status403 "client-error" $
-    toLazyText $
-      "The upload is incomplete: "
-        <> "expected size: "
-        <> decimal expected
-        <> ", "
-        <> "current size: "
-        <> decimal actual
-        <> "."
 
 clientError :: LText -> Error
 clientError = mkError status400 "client-error"

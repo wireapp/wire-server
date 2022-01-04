@@ -23,7 +23,6 @@ import System.IO (Handle, hPutStr, hPutStrLn, openFile)
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
-import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
@@ -136,11 +135,6 @@ generateTestModule = do
   generateBindingModule @Asset.AssetRetention "user" ref
   generateBindingModule @Asset.AssetSettings "user" ref
   generateBindingModule @Asset.AssetKey "user" ref
-  generateBindingModule @Asset.Resumable.ResumableSettings "user" ref
-  generateBindingModule @Asset.Resumable.TotalSize "user" ref
-  generateBindingModule @Asset.Resumable.ChunkSize "user" ref
-  generateBindingModule @Asset.Resumable.Offset "user" ref
-  generateBindingModule @Asset.Resumable.ResumableAsset "user" ref
   generateBindingModule @Call.Config.TurnHost "user" ref
   generateBindingModule @Call.Config.Scheme "user" ref
   generateBindingModule @Call.Config.Transport "user" ref

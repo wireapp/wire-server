@@ -100,7 +100,6 @@ import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.Schema
 import qualified Data.Set as Set
-import Data.Singletons (sing)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -148,19 +147,18 @@ conversationMetadataObjectSchema =
         schema
     <*> cnvmAccess .= field "access" (array schema)
     <*> cnvmAccessRole .= field "access_role" schema
-    <*> cnvmName .= lax (field "name" (optWithDefault A.Null schema))
+    <*> cnvmName .= optField "name" (maybeWithDefault A.Null schema)
     <* const ("0.0" :: Text) .= optional (field "last_event" schema)
     <* const ("1970-01-01T00:00:00.000Z" :: Text)
       .= optional (field "last_event_time" schema)
-    <*> cnvmTeam .= lax (field "team" (optWithDefault A.Null schema))
+    <*> cnvmTeam .= optField "team" (maybeWithDefault A.Null schema)
     <*> cnvmMessageTimer
-      .= lax
-        ( fieldWithDocModifier
-            "message_timer"
-            (description ?~ "Per-conversation message timer (can be null)")
-            (optWithDefault A.Null schema)
-        )
-    <*> cnvmReceiptMode .= lax (field "receipt_mode" (optWithDefault A.Null schema))
+      .= ( optFieldWithDocModifier
+             "message_timer"
+             (description ?~ "Per-conversation message timer (can be null)")
+             (maybeWithDefault A.Null schema)
+         )
+    <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema
@@ -287,7 +285,7 @@ instance ToSchema ConversationCoverView where
       (description ?~ "Limited view of Conversation.")
       $ ConversationCoverView
         <$> cnvCoverConvId .= field "id" schema
-        <*> cnvCoverName .= lax (field "name" (optWithDefault A.Null schema))
+        <*> cnvCoverName .= optField "name" (maybeWithDefault A.Null schema)
 
 data ConversationList a = ConversationList
   { convList :: [a],
@@ -367,7 +365,7 @@ instance ToSchema ListConversations where
       "ListConversations"
       (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
       $ ListConversations
-        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
+        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
 
 data ConversationsResponse = ConversationsResponse
   { crFound :: [Conversation],
@@ -441,7 +439,7 @@ data AccessRole
 instance ToSchema AccessRole where
   schema =
     (S.schema . description ?~ "Which users can join conversations") $
-      enum @Text "Access" $
+      enum @Text "AccessRole" $
         mconcat
           [ element "private" PrivateAccessRole,
             element "team" TeamAccessRole,
@@ -618,27 +616,25 @@ newConvSchema =
                (array schema)
                <|> pure []
            )
-      <*> newConvName .= opt (field "name" schema)
+      <*> newConvName .= maybe_ (optField "name" schema)
       <*> (Set.toList . newConvAccess)
-        .= ( field "access" (Set.fromList <$> array schema)
-               <|> pure mempty
-           )
-      <*> newConvAccessRole .= opt (field "access_role" schema)
+        .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
+      <*> newConvAccessRole .= maybe_ (optField "access_role" schema)
       <*> newConvTeam
-        .= opt
-          ( fieldWithDocModifier
+        .= maybe_
+          ( optFieldWithDocModifier
               "team"
               (description ?~ "Team information of this conversation")
               schema
           )
       <*> newConvMessageTimer
-        .= opt
-          ( fieldWithDocModifier
+        .= maybe_
+          ( optFieldWithDocModifier
               "message_timer"
               (description ?~ "Per-conversation message timer")
               schema
           )
-      <*> newConvReceiptMode .= opt (field "receipt_mode" schema)
+      <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
       <*> newConvUsersRole
         .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                <|> pure roleNameWireAdmin
@@ -711,10 +707,8 @@ instance ToSchema Invite where
       Invite
         <$> (toNonEmpty . invUsers)
           .= fmap List1 (field "users" (nonEmptyArray schema))
-        <*> (Just . invRoleName)
-          .= fmap
-            (fromMaybe roleNameWireAdmin)
-            (optField "conversation_role" Nothing schema)
+        <*> invRoleName
+          .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 data InviteQualified = InviteQualified
   { invQUsers :: NonEmpty (Qualified UserId),
@@ -730,10 +724,8 @@ instance ToSchema InviteQualified where
     object "InviteQualified" $
       InviteQualified
         <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
-        <*> (Just . invQRoleName)
-          .= fmap
-            (fromMaybe roleNameWireAdmin)
-            (optField "conversation_role" Nothing schema)
+        <*> invQRoleName
+          .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -836,7 +828,7 @@ instance ToSchema ConversationMessageTimerUpdate where
       "ConversationMessageTimerUpdate"
       (description ?~ "Contains conversation properties to update")
       $ ConversationMessageTimerUpdate
-        <$> cupMessageTimer .= lax (field "message_timer" (optWithDefault A.Null schema))
+        <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
 
 modelConversationMessageTimerUpdate :: Doc.Model
 modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do

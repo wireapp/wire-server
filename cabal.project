@@ -135,7 +135,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/http2
-    tag: 1ee1ce432d923839dab6782410e91dc17df2a880
+    tag: aa3501ad58e1abbd196781fac25a84f41ec2a787
 
 source-repository-package
     type: git

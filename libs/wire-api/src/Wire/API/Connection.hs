@@ -47,13 +47,13 @@ where
 
 import Control.Applicative (optional)
 import Control.Lens ((?~))
-import Data.Aeson as Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
-import qualified Data.Schema as P
-import Data.Swagger as S
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text as Text
 import Imports
@@ -85,14 +85,14 @@ data UserConnectionList = UserConnectionList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserConnectionList)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema UserConnectionList)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserConnectionList)
 
-instance P.ToSchema UserConnectionList where
+instance ToSchema UserConnectionList where
   schema =
-    P.object "UserConnectionList" $
+    object "UserConnectionList" $
       UserConnectionList
-        <$> clConnections P..= P.field "connections" (P.array P.schema)
-        <*> clHasMore P..= P.fieldWithDocModifier "has_more" (P.description ?~ "Indicator that the server has more connections than returned.") P.schema
+        <$> clConnections .= field "connections" (array schema)
+        <*> clHasMore .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more connections than returned.") schema
 
 modelConnectionList :: Doc.Model
 modelConnectionList = Doc.defineModel "UserConnectionList" $ do
@@ -119,21 +119,21 @@ data UserConnection = UserConnection
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserConnection)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema UserConnection)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserConnection)
 
-instance P.ToSchema UserConnection where
+instance ToSchema UserConnection where
   schema =
-    P.object "UserConnection" $
+    object "UserConnection" $
       UserConnection
-        <$> ucFrom P..= P.field "from" P.schema
-        <*> ucTo P..= P.field "qualified_to" P.schema
+        <$> ucFrom .= field "from" schema
+        <*> ucTo .= field "qualified_to" schema
         <* (qUnqualified . ucTo)
-          P..= optional (P.field "to" (deprecatedSchema "qualified_to" P.schema))
-        <*> ucStatus P..= P.field "status" P.schema
-        <*> ucLastUpdate P..= P.field "last_update" P.schema
-        <*> ucConvId P..= P.optField "qualified_conversation" Nothing P.schema
+          .= optional (field "to" (deprecatedSchema "qualified_to" schema))
+        <*> ucStatus .= field "status" schema
+        <*> ucLastUpdate .= field "last_update" schema
+        <*> ucConvId .= maybe_ (optField "qualified_conversation" schema)
         <* (fmap qUnqualified . ucConvId)
-          P..= P.optField "conversation" Nothing (deprecatedSchema "qualified_conversation" P.schema)
+          .= maybe_ (optField "conversation" (deprecatedSchema "qualified_conversation" schema))
 
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do
@@ -170,7 +170,7 @@ data Relation
     MissingLegalholdConsent
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema Relation)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Relation)
 
 instance S.ToParamSchema Relation where
   toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
@@ -234,17 +234,17 @@ typeRelation =
         "missing-legalhold-consent"
       ]
 
-instance P.ToSchema Relation where
+instance ToSchema Relation where
   schema =
-    P.enum @Text "Relation" $
+    enum @Text "Relation" $
       mconcat
-        [ P.element "accepted" Accepted,
-          P.element "blocked" Blocked,
-          P.element "pending" Pending,
-          P.element "ignored" Ignored,
-          P.element "sent" Sent,
-          P.element "cancelled" Cancelled,
-          P.element "missing-legalhold-consent" MissingLegalholdConsent
+        [ element "accepted" Accepted,
+          element "blocked" Blocked,
+          element "pending" Pending,
+          element "ignored" Ignored,
+          element "sent" Sent,
+          element "cancelled" Cancelled,
+          element "missing-legalhold-consent" MissingLegalholdConsent
         ]
 
 instance FromHttpApiData Relation where
@@ -285,14 +285,14 @@ data ConnectionRequest = ConnectionRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConnectionRequest)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema ConnectionRequest)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConnectionRequest)
 
-instance P.ToSchema ConnectionRequest where
+instance ToSchema ConnectionRequest where
   schema =
-    P.object "ConnectionRequest" $
+    object "ConnectionRequest" $
       ConnectionRequest
-        <$> crUser P..= P.fieldWithDocModifier "user" (P.description ?~ "user ID of the user to request a connection with") P.schema
-        <*> crName P..= P.fieldWithDocModifier "name" (P.description ?~ "Name of the (pending) conversation being initiated (1 - 256) characters)") P.schema
+        <$> crUser .= fieldWithDocModifier "user" (description ?~ "user ID of the user to request a connection with") schema
+        <*> crName .= fieldWithDocModifier "name" (description ?~ "Name of the (pending) conversation being initiated (1 - 256) characters)") schema
 
 -- | Payload type for "please change the status of this connection".
 newtype ConnectionUpdate = ConnectionUpdate
@@ -300,13 +300,13 @@ newtype ConnectionUpdate = ConnectionUpdate
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConnectionUpdate)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema ConnectionUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConnectionUpdate)
 
-instance P.ToSchema ConnectionUpdate where
+instance ToSchema ConnectionUpdate where
   schema =
-    P.object "ConnectionUpdate" $
+    object "ConnectionUpdate" $
       ConnectionUpdate
-        <$> cuStatus P..= P.fieldWithDocModifier "status" (P.description ?~ "New relation status") P.schema
+        <$> cuStatus .= fieldWithDocModifier "status" (description ?~ "New relation status") schema
 
 modelConnectionUpdate :: Doc.Model
 modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do

@@ -203,7 +203,7 @@ specCreateUser = describe "POST /Users" $ do
   context "team has no SAML IdP" $ do
     it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
       testCreateUserNoIdP
-    it "fails if no email can be extraced from externalId" $ do
+    it "fails if no email can be extracted from externalId" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
@@ -466,7 +466,10 @@ testExternalIdIsRequired = do
   createUser_ (Just tok) user' (env ^. teSpar)
     !!! const 400 === statusCode
 
--- | Test that user creation fails if handle is invalid
+-- The next line contains a mapping from this test to the following test standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Test that user creation fails if handle is invalid
 testCreateRejectsInvalidHandle :: TestSpar ()
 testCreateRejectsInvalidHandle = do
   env <- ask
@@ -475,6 +478,8 @@ testCreateRejectsInvalidHandle = do
   (tok, _) <- registerIdPAndScimToken
   createUser_ (Just tok) (user {Scim.User.userName = "#invalid name"}) (env ^. teSpar)
     !!! const 400 === statusCode
+
+-- @END
 
 -- | Test that user creation fails if handle is already in use (even on different team).
 testCreateRejectsTakenHandle :: TestSpar ()

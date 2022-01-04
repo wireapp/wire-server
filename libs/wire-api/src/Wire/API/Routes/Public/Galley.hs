@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -25,6 +26,7 @@ import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
@@ -42,13 +44,14 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
+import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
+import Wire.API.Team.Permission (Perm (..))
 
-instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
-  -- FUTUREWORK: use addHeader
-  toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
-  fromHeaders = getResponse
+instance AsHeaders '[ConvId] Conversation Conversation where
+  toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 
@@ -195,6 +198,7 @@ data Api routes = Api
         :> CanThrow CodeNotFound
         :> CanThrow ConvNotFound
         :> CanThrow ConvAccessDenied
+        :> CanThrow GuestLinksDisabled
         :> ZLocalUser
         :> "conversations"
         :> "join"
@@ -663,6 +667,12 @@ data Api routes = Api
     teamFeatureStatusSelfDeletingMessagesPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSelfDeletingMessages,
+    featureStatusGuestLinksGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureGuestLinks,
+    featureStatusGuestLinksPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureGuestLinks,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
@@ -692,10 +702,46 @@ data Api routes = Api
         :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
     featureConfigConferenceCallingGet ::
       routes
-        :- FeatureConfigGet 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling,
     featureConfigSelfDeletingMessagesGet ::
       routes
-        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    featureConfigGuestLinksGet ::
+      routes
+        :- FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks,
+    -- teams
+    createNonBindingTeam ::
+      routes
+        :- Summary "Create a new non binding team"
+        :> ZUser
+        :> ZConn
+        :> CanThrow NotConnected
+        :> "teams"
+        :> ReqBody '[Servant.JSON] NonBindingNewTeam
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[ WithHeaders
+                  '[DescHeader "Location" "Team ID" TeamId]
+                  TeamId
+                  (RespondEmpty 201 "Team ID as `Location` header value")
+              ]
+             TeamId,
+    updateTeam ::
+      routes
+        :- Summary "Update team properties"
+        :> ZUser
+        :> ZConn
+        :> CanThrow NotATeamMember
+        :> CanThrow (OperationDeniedError 'SetTeamData)
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> ReqBody '[JSON] TeamUpdateData
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Team updated"]
+             ()
   }
   deriving (Generic)
 

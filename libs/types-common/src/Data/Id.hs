@@ -325,6 +325,7 @@ newtype BotId = BotId
       Ord,
       FromByteString,
       ToByteString,
+      FromHttpApiData,
       Hashable,
       NFData,
       FromJSON,

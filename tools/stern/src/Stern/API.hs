@@ -45,6 +45,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (unpack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1)
+import qualified Galley.Types.Teams.Intra as Team
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -245,6 +246,22 @@ routes = do
       Doc.optional
     Doc.response 200 "Account deleted" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
+  put "/teams/:tid/suspend" (continue (setTeamStatusH Team.Suspended)) $
+    capture "tid"
+  document "PUT" "setTeamStatusH:suspended" $ do
+    summary "Suspend a team."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.response 200 mempty Doc.end
+
+  put "/teams/:tid/unsuspend" (continue (setTeamStatusH Team.Active)) $
+    capture "tid"
+  document "PUT" "setTeamStatusH:active" $ do
+    summary "Set a team status to 'Active', independently on previous status.  (Cannot be used to un-delete teams, though.)"
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.response 200 mempty Doc.end
 
   delete "/teams/:tid" (continue deleteTeam) $
     capture "tid"
@@ -544,6 +561,9 @@ deleteUser (uid ::: emailOrPhone) = do
     _ -> return $ setStatus status404 empty
   where
     checkUUID u = userId u == uid
+
+setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler Response
+setTeamStatusH status tid = empty <$ Intra.setStatusBindingTeam tid status
 
 deleteTeam :: TeamId ::: Email -> Handler Response
 deleteTeam (givenTid ::: email) = do

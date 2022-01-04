@@ -1,0 +1,1 @@
+This release introduces a mandatory `federationDomain` configuration setting to cargohold. Please update your `values/wire-server/values.yaml` to set `cargohold.settings.federationDomain` to the same value as the corresponding option in galley (and brig).

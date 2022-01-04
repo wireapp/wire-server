@@ -53,7 +53,7 @@ import Wire.API.Federation.Domain
 
 -- | Thrown in IO by mock federator if the server could not be started after 10
 -- seconds.
-data MockTimeout = MockTimeout Warp.Port
+newtype MockTimeout = MockTimeout Warp.Port
   deriving (Eq, Show, Typeable)
 
 instance Exception MockTimeout
@@ -159,7 +159,7 @@ withTempMockFederator headers resp action = do
                           frBody = rdBody
                         }
                     )
-              embed @IO $ modifyIORef remoteCalls $ (<> [fedRequest])
+              embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
               body <-
                 fromException @MockException
                   . handle (throw . handleException)

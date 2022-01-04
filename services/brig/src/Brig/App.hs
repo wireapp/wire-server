@@ -214,7 +214,7 @@ newEnv o = do
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
+  mSFTEnv <- mapM Calling.mkSFTEnv $ (,Opt.setSftLookup . Opt.optSettings $ o) <$> Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> Just <$> newMVar ()
     _ -> pure Nothing

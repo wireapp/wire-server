@@ -361,6 +361,10 @@ testSendLoginCode brig = do
   let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
+-- The testLoginFailure test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Test that trying to log in with a wrong password or non-existent email fails.
 testLoginFailure :: Brig -> Http ()
 testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
@@ -372,6 +376,8 @@ testLoginFailure brig = do
   let badmail = Email "wrong" "wire.com"
   login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing) PersistentCookie
     !!! const 403 === statusCode
+
+-- @END
 
 testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
@@ -395,6 +401,16 @@ testThrottleLogins conf b = do
     threadDelay (1000000 * (n + 1))
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
+-- The testLimitRetries test conforms to the following testing standards:
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- The following test tests the login retries. It checks that a user can make
+-- only a prespecified number of attempts to log in with an invalid password,
+-- after which the user is unable to try again for a configured amount of time.
+-- After the configured amount of time has passed, the test asserts the user can
+-- successfully log in again. Furthermore, the test asserts that another
+-- unrelated user can successfully log-in in parallel to the failed attempts of
+-- the aforementioned user.
 testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
   let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
@@ -440,6 +456,8 @@ testLimitRetries conf brig = do
   -- wait long enough and login successfully!
   liftIO $ threadDelay (1000000 * 2)
   login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
+
+-- @END
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
@@ -566,6 +584,10 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
+-- The testInvalidCookie test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
 testInvalidCookie z b = do
   -- Syntactically invalid
@@ -580,6 +602,8 @@ testInvalidCookie z b = do
   post (b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "expired") =~= responseBody
+
+-- @END
 
 testInvalidToken :: Brig -> Http ()
 testInvalidToken b = do
@@ -898,6 +922,14 @@ testRemoveCookiesByLabelAndId b = do
   let lbl = cookieLabel c4
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
+-- The testTooManyCookies test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test asserts that there is an upper limit for the number of user cookies
+-- per cookie type. It does that by concurrently attempting to create more
+-- persistent and session cookies than the configured maximum.
+-- Creation of new cookies beyond the limit causes deletion of the
+-- oldest cookies.
 testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
   u <- randomUser b
@@ -940,6 +972,8 @@ testTooManyCookies config b = do
                 <> "(try 29 seconds)."
             )
         xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
+
+-- @END
 
 testLogout :: Brig -> Http ()
 testLogout b = do

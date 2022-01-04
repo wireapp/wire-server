@@ -90,8 +90,8 @@ instance RequestSchemaConstraint name tables max def => ToSchema (GetMultiTableP
           ("GetPaginated_" <> textFromSymbol @name)
           (description ?~ "A request to list some or all of a user's " <> textFromSymbol @name <> ", including remote ones")
           $ GetMultiTablePageRequest
-            <$> gmtprSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @def)))
-            <*> gmtprState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
+            <$> gmtprSize .= (fromMaybe (toRange (Proxy @def)) <$> optFieldWithDocModifier "size" addSizeDoc schema)
+            <*> gmtprState .= maybe_ (optFieldWithDocModifier "paging_state" addPagingStateDoc schema)
 
 textFromNat :: forall n. KnownNat n => Text
 textFromNat = Text.pack . show . natVal $ Proxy @n
