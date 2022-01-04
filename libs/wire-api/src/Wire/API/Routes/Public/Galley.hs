@@ -47,6 +47,7 @@ import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
+import Wire.API.Team.Permission (Perm (..))
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -725,7 +726,22 @@ data Api routes = Api
                   TeamId
                   (RespondEmpty 201 "Team ID as `Location` header value")
               ]
-             TeamId
+             TeamId,
+    updateTeam ::
+      routes
+        :- Summary "Update team properties"
+        :> ZUser
+        :> ZConn
+        :> CanThrow NotATeamMember
+        :> CanThrow (OperationDeniedError 'SetTeamData)
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> ReqBody '[JSON] TeamUpdateData
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Team updated"]
+             ()
   }
   deriving (Generic)
 

@@ -331,23 +331,6 @@ updateTeamH ::
        Error NotATeamMember,
        GundeckAccess,
        Input UTCTime,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.TeamUpdateData ::: JSON ->
-  Sem r Response
-updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  updateData <- fromJsonBody req
-  updateTeam zusr zcon tid updateData
-  pure empty
-
-updateTeam ::
-  Members
-    '[ Error ActionError,
-       Error NotATeamMember,
-       GundeckAccess,
-       Input UTCTime,
        TeamStore
      ]
     r =>
@@ -356,7 +339,7 @@ updateTeam ::
   TeamId ->
   Public.TeamUpdateData ->
   Sem r ()
-updateTeam zusr zcon tid updateData = do
+updateTeamH zusr zcon tid updateData = do
   zusrMembership <- E.getTeamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $

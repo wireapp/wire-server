@@ -188,27 +188,13 @@ servantSitemap =
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
-        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH
+        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH,
+        GalleyAPI.updateTeam = Teams.updateTeamH
       }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
-
-  put "/teams/:tid" (continue Teams.updateTeamH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamUpdateData
-      .&. accept "application" "json"
-  document "PUT" "updateTeam" $ do
-    summary "Update team properties"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelUpdateData) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
-    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetTeamData))
 
   get "/teams" (continue Teams.getManyTeamsH) $
     zauthUserId
