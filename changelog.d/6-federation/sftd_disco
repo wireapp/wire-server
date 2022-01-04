@@ -1,0 +1,1 @@
+SFTD chart: provide a /sft_servers_all.json url that can be used by brig to populate /calls/config/v2
