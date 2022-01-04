@@ -19,7 +19,6 @@ data:
 
       location ~ ^/sft_servers_all.json$ {
         root /etc/wire/sftd-disco/;
-        sft_servers_all.json
       }
 
     }
