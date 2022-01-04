@@ -1,0 +1,1 @@
+When sending an activation code, the blocked domains are checked before the whitelist. This only affects staging because there is no whitelist configuration in prod.
