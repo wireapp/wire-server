@@ -47,7 +47,7 @@ instance FromJSON SearchRequest
 -- | For conventions see /docs/developer/federation-api-conventions.md
 --
 -- Maybe this module should be called Brig
-data BrigApi routes = BrigApi
+data BrigApi v routes = BrigApi
   { getUserByHandle ::
       routes
         :- "get-user-by-handle"

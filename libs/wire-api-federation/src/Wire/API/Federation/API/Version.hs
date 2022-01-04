@@ -15,17 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Cargohold where
+module Wire.API.Federation.API.Version where
 
-import Servant.API
-import Servant.API.Generic
-import Wire.API.Federation.API.Common
+import GHC.Generics
 
-data CargoholdApi v routes = CargoholdApi
-  { getAsset ::
-      routes
-        :- "get-asset"
-        :> ReqBody '[JSON] ()
-        :> Post '[JSON] EmptyResponse
-  }
+data Version = V0
   deriving (Generic)

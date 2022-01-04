@@ -49,7 +49,7 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- for the current list we need.
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
-data GalleyApi routes = GalleyApi
+data GalleyApi v routes = GalleyApi
   { -- | Register a new conversation
     onConversationCreated ::
       routes
