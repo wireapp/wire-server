@@ -25,7 +25,7 @@ import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types hiding (assetKey)
 import Control.Arrow ((&&&))
-import Control.Lens (sequenceAOf, view, _1)
+import Control.Lens (sequenceAOf, view, (.~), _1)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
@@ -629,7 +629,8 @@ testRemoteAsset brig1 brig2 ch1 ch2 = do
   alice <- userQualifiedId <$> randomUser brig1
   bob <- userQualifiedId <$> randomUser brig2
 
-  ast <- responseJsonError =<< uploadAsset ch2 (qUnqualified bob) "hello world"
+  let sts = defAssetSettings & setAssetPublic .~ True
+  ast <- responseJsonError =<< uploadAsset ch2 (qUnqualified bob) sts "hello world"
   let qkey = view assetKey ast
 
   downloadAsset ch1 (qUnqualified alice) qkey

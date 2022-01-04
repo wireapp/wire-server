@@ -407,11 +407,11 @@ uploadAsset ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   CargoHold ->
   UserId ->
+  AssetSettings ->
   ByteString ->
   m (Response (Maybe LByteString))
-uploadAsset c usr dat = do
-  let sts = defAssetSettings
-      ct = MIME.Type (MIME.Application "text") []
+uploadAsset c usr sts dat = do
+  let ct = MIME.Type (MIME.Application "text") []
       mpb = buildMultipartBody sts ct (LB.fromStrict dat)
   post
     ( c
