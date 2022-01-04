@@ -150,7 +150,7 @@ newConfig env sftStaticUrl mSftEnv limit logger = do
     Just actualSftEnv -> do
       sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
       let subsetLength = Calling.sftListLength actualSftEnv
-      liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
+      liftIO $ mapM (getRandomElements subsetLength) (unSFTServers <$> sftSrvEntries)
 
   mSftServersAll :: Maybe (Maybe [SFTServer]) <- for (mSftEnv >>= sftLookup) $ \sftl -> liftIO $ do
     httpMan <-

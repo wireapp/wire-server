@@ -100,7 +100,7 @@ tests =
           testCase "when service is not available" testSFTDiscoverWhenNotAvailable,
           testCase "when dns lookup fails" testSFTDiscoverWhenDNSFails
         ],
-      testGroup "getRandomSFTServers" $
+      testGroup "Get Random SFT Servers" $
         [ testCase "more servers in SRV than limit" testSFTManyServers,
           testCase "fewer servers in SRV than limit" testSFTFewerServers
           -- the randomization part is not (yet?) tested here.
@@ -231,7 +231,7 @@ testSFTManyServers = do
       entry7 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
       entries = entry1 :| [entry2, entry3, entry4, entry5, entry6, entry7]
       sftServers = mkSFTServers entries
-  someServers <- getRandomSFTServers (unsafeRange 3) sftServers
+  someServers <- getRandomElements (unsafeRange 3) . unSFTServers $ sftServers
   assertEqual "should return only 3 servers" 3 (length someServers)
 
 testSFTFewerServers :: IO ()
@@ -243,7 +243,7 @@ testSFTFewerServers = do
       entries = entry1 :| [entry2, entry3, entry4]
       sftServers = mkSFTServers entries
 
-  allServers <- getRandomSFTServers (unsafeRange 10) sftServers
+  allServers <- getRandomElements (unsafeRange 10) . unSFTServers $ sftServers
   assertEqual "should return all of them" (Set.fromList $ NonEmpty.toList allServers) (Set.fromList $ NonEmpty.toList entries)
 
 retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a

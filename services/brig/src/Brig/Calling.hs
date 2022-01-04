@@ -18,9 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Calling
-  ( getRandomSFTServers,
+  ( getRandomElements,
     mkSFTDomain,
     SFTServers, -- See NOTE SFTServers
+    unSFTServers,
     mkSFTServers,
     SFTEnv (..),
     Discovery (..),
@@ -71,7 +72,7 @@ import Wire.Network.DNS.SRV
 -- And limited since client currently try contacting all servers returned
 -- (and we don't want them to open 100 parallel connections unnecessarily)
 -- Therefore, we hide the constructor from the module export.
-newtype SFTServers = SFTServers (NonEmpty SrvEntry)
+newtype SFTServers = SFTServers {unSFTServers :: NonEmpty SrvEntry}
   deriving (Eq, Show)
 
 mkSFTServers :: NonEmpty SrvEntry -> SFTServers
@@ -88,10 +89,14 @@ type MaximumSFTServers = 100
 -- Currently (Sept 2020) the client initiating an SFT call will try all
 -- servers in this list. Limit this list to a smaller subset in case many
 -- SFT servers are advertised in a given environment.
-getRandomSFTServers :: MonadRandom m => Range 1 MaximumSFTServers Int -> SFTServers -> m (NonEmpty SrvEntry)
-getRandomSFTServers limit (SFTServers list) = subsetSft limit <$> randomize list
+getRandomElements ::
+  MonadRandom f =>
+  Range 1 MaximumSFTServers Int ->
+  NonEmpty a ->
+  f (NonEmpty a)
+getRandomElements limit list = subsetSft limit <$> randomize list
 
-subsetSft :: Range 1 100 Int -> NonEmpty a -> NonEmpty a
+subsetSft :: Range 1 MaximumSFTServers Int -> NonEmpty a -> NonEmpty a
 subsetSft l entries = do
   let entry1 = NonEmpty.head entries
   let entryTail = take (fromRange l - 1) (NonEmpty.tail entries)
