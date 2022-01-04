@@ -122,14 +122,12 @@ instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
 rangedSchema ::
+  forall n m d v w a b.
   (Within a n m, HasRangedSchemaDocModifier d b) =>
-  SNat n ->
-  SNat m ->
   SchemaP d v w a b ->
   SchemaP d v w a (Range n m b)
-rangedSchema sn sm sch = Range <$> untypedRangedSchema (get sn) (get sm) sch
-  where
-    get = toInteger . fromSing
+rangedSchema sch =
+  Range <$> untypedRangedSchema (toInteger (demote @n)) (toInteger (demote @m)) sch
 
 untypedRangedSchema ::
   forall d v w a b.
@@ -181,7 +179,7 @@ instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word32 where ran
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word64 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
 instance (Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a) => ToSchema (Range n m a) where
-  schema = fromRange .= rangedSchema sing sing schema
+  schema = fromRange .= rangedSchema schema
 
 instance (Within a n m, Cql a) => Cql (Range n m a) where
   ctype = retag (ctype :: Tagged a ColumnType)
