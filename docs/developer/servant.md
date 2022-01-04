@@ -4,7 +4,7 @@ We currently use Servant for the public (i.e. client-facing) API in brig, galley
 
 Client-facing APIs are defined in `Wire.API.Routes.Public.{Brig,Galley}`. Internal APIs are all over the place at the moment. Federation APIs are in `Wire.API.Federation.API.{Brig,Galley}`.
 
-Our APIs are able to generate Swagger documentation semi-automatically using `servant-swagger2`. The `schema-profunctor` library (see README in libs/schema-profunctor) is used to create "schemas" for the input and output types used in the Servant APIs. A schema contains all the information needed to serialise/deserialise JSON values, as well as the documentation and metadata needed to generate Swagger.
+Our APIs are able to generate Swagger documentation semi-automatically using `servant-swagger2`. The `schema-profunctor` library (see [`README.md`](/libs/schema-profunctor/README.md) in `libs/schema-profunctor`) is used to create "schemas" for the input and output types used in the Servant APIs. A schema contains all the information needed to serialise/deserialise JSON values, as well as the documentation and metadata needed to generate Swagger.
 
 # Combinators
 
