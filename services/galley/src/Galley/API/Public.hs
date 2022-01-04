@@ -18,7 +18,6 @@ module Galley.API.Public
   ( sitemap,
     apiDocs,
     filterMissing, -- for tests
-    servantSitemap,
   )
 where
 
@@ -31,17 +30,14 @@ import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
-import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
-import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatus)
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
-import Galley.Cassandra.Paging
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -53,9 +49,6 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
-import Servant hiding (Handler, JSON, addHeader, contentType, respond)
-import Servant.Server.Generic (genericServerT)
-import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
@@ -63,135 +56,14 @@ import qualified Wire.API.ErrorDescription as Error
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
-import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
-
-servantSitemap :: ServerT GalleyAPI.ServantAPI (Sem GalleyEffects)
-servantSitemap =
-  genericServerT $
-    GalleyAPI.Api
-      { GalleyAPI.getUnqualifiedConversation = Query.getUnqualifiedConversation,
-        GalleyAPI.getConversation = Query.getConversation,
-        GalleyAPI.getConversationRoles = Query.getConversationRoles,
-        GalleyAPI.listConversationIdsUnqualified = Query.conversationIdsPageFromUnqualified,
-        GalleyAPI.listConversationIds = Query.conversationIdsPageFrom,
-        GalleyAPI.getConversations = Query.getConversations,
-        GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
-        GalleyAPI.listConversations = Query.listConversations,
-        GalleyAPI.createGroupConversation = Create.createGroupConversation,
-        GalleyAPI.createSelfConversation = Create.createSelfConversation,
-        GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
-        GalleyAPI.addMembersToConversationUnqualified = Update.addMembersUnqualified,
-        GalleyAPI.addMembersToConversation = Update.addMembers,
-        GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
-        GalleyAPI.removeMember = Update.removeMemberQualified,
-        GalleyAPI.updateOtherMemberUnqualified = Update.updateOtherMemberUnqualified,
-        GalleyAPI.updateOtherMember = Update.updateOtherMember,
-        GalleyAPI.updateConversationNameDeprecated = Update.updateUnqualifiedConversationName,
-        GalleyAPI.updateConversationNameUnqualified = Update.updateUnqualifiedConversationName,
-        GalleyAPI.updateConversationName = Update.updateConversationName,
-        GalleyAPI.updateConversationMessageTimerUnqualified =
-          Update.updateConversationMessageTimerUnqualified,
-        GalleyAPI.updateConversationMessageTimer = Update.updateConversationMessageTimer,
-        GalleyAPI.updateConversationReceiptModeUnqualified =
-          Update.updateConversationReceiptModeUnqualified,
-        GalleyAPI.updateConversationReceiptMode = Update.updateConversationReceiptMode,
-        GalleyAPI.updateConversationAccessUnqualified =
-          Update.updateConversationAccessUnqualified,
-        GalleyAPI.updateConversationAccess = Update.updateConversationAccess,
-        GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
-        GalleyAPI.updateConversationSelfUnqualified = Update.updateUnqualifiedSelfMember,
-        GalleyAPI.updateConversationSelf = Update.updateSelfMember,
-        GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
-        GalleyAPI.getTeamConversations = Teams.getTeamConversations,
-        GalleyAPI.getTeamConversation = Teams.getTeamConversation,
-        GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
-        GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
-        GalleyAPI.postProteusMessage = Update.postProteusMessage,
-        GalleyAPI.teamFeatureStatusSSOGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusLegalHoldGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusLegalHoldPut =
-          setFeatureStatus @'Public.TeamFeatureLegalHold (Features.setLegalholdStatusInternal @InternalPaging) . DoAuth,
-        GalleyAPI.teamFeatureStatusSearchVisibilityGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusSearchVisibilityPut =
-          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedPut =
-          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusValidateSAMLEmailsDeprecatedGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusDigitalSignaturesGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusDigitalSignaturesDeprecatedGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusAppLockGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusAppLockPut =
-          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusFileSharingGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
-        GalleyAPI.teamFeatureStatusFileSharingPut =
-          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
-        GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusConferenceCallingGet =
-          getFeatureStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusSelfDeletingMessagesGet =
-          getFeatureStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal
-            . DoAuth,
-        GalleyAPI.teamFeatureStatusSelfDeletingMessagesPut =
-          setFeatureStatus @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal
-            . DoAuth,
-        GalleyAPI.featureStatusGuestLinksGet =
-          Features.getFeatureStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal
-            . DoAuth,
-        GalleyAPI.featureStatusGuestLinksPut =
-          Features.setFeatureStatus @'Public.TeamFeatureGuestLinks Features.setGuestLinkInternal
-            . DoAuth,
-        GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
-        GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
-        GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
-        GalleyAPI.featureConfigSearchVisibilityGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
-        GalleyAPI.featureConfigValidateSAMLEmailsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
-        GalleyAPI.featureConfigDigitalSignaturesGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
-        GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal,
-        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
-        GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
-        GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
-        GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
-        GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
-        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH,
-        GalleyAPI.updateTeam = Teams.updateTeamH,
-        GalleyAPI.getTeams = Teams.getManyTeams
-      }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
