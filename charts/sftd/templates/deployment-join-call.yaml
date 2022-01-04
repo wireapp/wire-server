@@ -30,7 +30,7 @@ spec:
           emptyDir: {}
       containers:
         - name: sftd-disco
-          image: quay.io/wire/sftd_disco:wip-1 # TODO configure + version
+          image: quay.io/wire/sftd_disco:wip-2 # TODO configure + version
           volumeMounts:
           - name: sftd-disco
             mountPath: /etc/wire/sftd-disco

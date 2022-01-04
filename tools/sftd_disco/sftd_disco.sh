@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -eo pipefail
 exec 2>&1
 
 # Assumes /etc/wire/sftd-disco/ directory exists.
@@ -33,21 +33,20 @@ function upstream() {
     port=${2:-'8585'}
     entries=$(dig +short +retries=3 +search SRV ${name} | sort)
     unset servers
-    comma="  "
+    comma=""
     IFS=$'\n'
     for entry in ${entries[@]}; do
         if valid_entry "$entry"; then
             sft_host_port=$(echo "$entry" | awk '{print $4":"$3}')
-            sft_url=$(curl -s http://$sft_host_port/sft/url)
+            sft_url=$(curl -s http://$sft_host_port/sft/url | xargs)
             if valid_url "$sft_url"; then
-                servers+=("\n${comma}\"${sft_url}\"")
-                comma=", "
+                servers+=(${comma}'"'${sft_url}'"')
+                comma=","
             fi
         fi
     done
-    IFS=""
     if [ -n "$servers" ]; then
-        printf "$(echo '{"sft_servers_all": [' ${servers[@]})\n]} \n" >>${new}
+        echo '{"sft_servers_all": ['${servers[@]}']}' | jq >${new}
     else
         printf "" >>${new}
     fi
@@ -55,7 +54,7 @@ function upstream() {
 
 function routing_disco() {
     srv_name=$1
-    ivl=$(echo | awk '{ srand(); printf("%f", 1.5 + rand() * 1.5) }')
+    ivl=$(echo | awk '{ srand(); printf("%f", 2.5 + rand() * 1.5) }')
 
     [[ -f $old ]] || touch -d "1970-01-01" $old
 
