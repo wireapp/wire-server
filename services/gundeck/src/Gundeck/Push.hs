@@ -68,6 +68,7 @@ import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Push.Token as Public
+import Wire.API.Routes.Public.Gundeck
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -369,14 +370,6 @@ nativeTargets psh rcps' alreadySent =
     check :: Either SomeException [a] -> m [a]
     check (Left e) = mntgtLogErr e >> return []
     check (Right r) = return r
-
-data AddTokenResponse
-  = AddTokenSuccess Public.PushToken
-  | AddTokenNoBudget
-  | AddTokenNotFound
-  | AddTokenInvalid
-  | AddTokenTooLong
-  | AddTokenMetadataTooLong
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
 addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
