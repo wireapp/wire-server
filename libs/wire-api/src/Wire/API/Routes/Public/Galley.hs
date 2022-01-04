@@ -49,6 +49,8 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission (Perm (..))
 
+-- import Wire.API.Team.Permission (Perm (..))
+
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
@@ -744,6 +746,13 @@ data Api routes = Api
              ()
   }
   deriving (Generic)
+
+type GetTeams =
+  Summary "Get teams"
+    :> ZUser
+    :> ZConn
+    :> "teams"
+    :> Capture "size" (Range 1 100 Int32)
 
 type ServantAPI = ToServantApi Api
 

@@ -83,6 +83,9 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup "Teams API" $
     [ test s "create team" testCreateTeam,
+      testGroup "get teams 12123" $
+        [ test s "get teams 1" testGetTeams
+        ],
       test s "create multiple binding teams fail" testCreateMulitpleBindingTeams,
       test s "create binding team with currency" testCreateBindingTeamWithCurrency,
       test s "create team with members" testCreateTeamWithMembers,
@@ -163,6 +166,10 @@ testCreateTeam = do
         e ^. eventTeam @?= tid
         e ^. eventData @?= Just (EdTeamCreate team)
       void $ WS.assertSuccess eventChecks
+
+testGetTeams :: TestM ()
+testGetTeams = do
+  undefined
 
 testCreateMulitpleBindingTeams :: TestM ()
 testCreateMulitpleBindingTeams = do
