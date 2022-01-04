@@ -84,9 +84,10 @@ tests s =
   testGroup "Teams API" $
     [ test s "create team" testCreateTeam,
       testGroup "get teams 12123" $
-        [ test s "get teams 1" testGetTeams
+        [ test s "get teams" testGetTeams,
+          test s "get teams empty" testGetTeamsEmpty
         ],
-      test s "create multiple binding teams fail" testCreateMulitpleBindingTeams,
+      test s "create multiple binding teams fail" testCreateMultipleBindingTeams,
       test s "create binding team with currency" testCreateBindingTeamWithCurrency,
       test s "create team with members" testCreateTeamWithMembers,
       testGroup "List Team Members" $
@@ -169,10 +170,26 @@ testCreateTeam = do
 
 testGetTeams :: TestM ()
 testGetTeams = do
-  undefined
+  owner <- Util.randomUser
+  tid <- Util.createBindingTeamInternal "foo" owner
+  teamList <- Util.getTeams owner
+  assertQueue "create team" tActivate
+  let [team] = teamList ^. teamListTeams
+  liftIO $ do
+    assertEqual "teamListHasMore" False (teamList ^. teamListHasMore)
+    assertEqual "teamId" tid (team ^. teamId)
 
-testCreateMulitpleBindingTeams :: TestM ()
-testCreateMulitpleBindingTeams = do
+testGetTeamsEmpty :: TestM ()
+testGetTeamsEmpty = do
+  owner <- Util.randomUser
+  teamList <- Util.getTeams owner
+  let teams = teamList ^. teamListTeams
+  liftIO $ do
+    assertEqual "teamListHasMore" False (teamList ^. teamListHasMore)
+    assertEqual "teams size" 0 (length teams)
+
+testCreateMultipleBindingTeams :: TestM ()
+testCreateMultipleBindingTeams = do
   g <- view tsGalley
   owner <- Util.randomUser
   _ <- Util.createBindingTeamInternal "foo" owner
