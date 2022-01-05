@@ -83,10 +83,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup "Teams API" $
     [ test s "create team" testCreateTeam,
-      testGroup "get teams 12123" $
-        [ test s "get teams" testGetTeams,
-          test s "get teams empty" testGetTeamsEmpty
-        ],
+      test s "get teams 12123" testGetTeams,
       test s "create multiple binding teams fail" testCreateMultipleBindingTeams,
       test s "create binding team with currency" testCreateBindingTeamWithCurrency,
       test s "create team with members" testCreateTeamWithMembers,
@@ -171,22 +168,22 @@ testCreateTeam = do
 testGetTeams :: TestM ()
 testGetTeams = do
   owner <- Util.randomUser
-  tid <- Util.createBindingTeamInternal "foo" owner
-  teamList <- Util.getTeams owner
-  assertQueue "create team" tActivate
-  let [team] = teamList ^. teamListTeams
-  liftIO $ do
-    assertEqual "teamListHasMore" False (teamList ^. teamListHasMore)
-    assertEqual "teamId" tid (team ^. teamId)
-
-testGetTeamsEmpty :: TestM ()
-testGetTeamsEmpty = do
-  owner <- Util.randomUser
-  teamList <- Util.getTeams owner
-  let teams = teamList ^. teamListTeams
-  liftIO $ do
-    assertEqual "teamListHasMore" False (teamList ^. teamListHasMore)
-    assertEqual "teams size" 0 (length teams)
+  Util.getTeams owner [] >>= checkTeamList Nothing
+  tid <- Util.createBindingTeamInternal "foo" owner <* assertQueue "create team" tActivate
+  Util.getTeams owner [] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("size", "1")] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", show tid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", show tid <> "," <> show tid)] >>= checkTeamList (Just tid)
+  -- start is exclusive and therefore should not return the team
+  Util.getTeams owner [("start", show tid)] >>= checkTeamList Nothing
+  where
+    checkTeamList :: Maybe TeamId -> TeamList -> TestM ()
+    checkTeamList mbTid tl = liftIO $ do
+      let teams = tl ^. teamListTeams
+      assertEqual "teamListHasMore" False (tl ^. teamListHasMore)
+      case mbTid of
+        Just tid -> assertEqual "teamId" tid (Imports.head teams ^. teamId)
+        Nothing -> assertEqual "teams size" 0 (length teams)
 
 testCreateMultipleBindingTeams :: TestM ()
 testCreateMultipleBindingTeams = do
