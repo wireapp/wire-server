@@ -115,7 +115,7 @@ db-migrate: fast
 docker:
 	$(foreach executable,$(EXECUTABLES),\
 	docker build -t $(DOCKER_USER)/$(executable):$(DOCKER_TAG) \
-	-f ../../build/alpine/Dockerfile.executable \
+	-f ../../build/ubuntu/Dockerfile.executable \
 	--build-arg executable=$(executable) \
 	../.. && \
 	docker tag $(DOCKER_USER)/$(executable):$(DOCKER_TAG) $(DOCKER_USER)/$(executable):latest && \

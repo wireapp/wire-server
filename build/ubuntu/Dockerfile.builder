@@ -1,4 +1,4 @@
-ARG prebuilder=quay.io/wire/alpine-prebuilder
+ARG prebuilder=quay.io/wire/ubuntu20-prebuilder
 
 FROM ${prebuilder}
 WORKDIR /
