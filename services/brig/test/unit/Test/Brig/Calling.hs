@@ -27,6 +27,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions
 import Imports
 import Network.DNS
 import Polysemy
@@ -264,7 +265,14 @@ testSFTDiscoverAWhenAvailable = do
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
             discoverSFTServersAll "foo.example.com"
         )
-  assertEqual "nothing should be logged" []
+  assertEqual
+    "should report discovered IP addresses"
+    [ ( Log.Info,
+        "Found the following IP addresses for SFT servers, addresses="
+          <> (cs . show $ returnedEntries)
+          <> "\n"
+      )
+    ]
     =<< readIORef (recordedLogs logRecorder)
 
 testSFTDiscoverAWhenDNSFails :: IO ()
