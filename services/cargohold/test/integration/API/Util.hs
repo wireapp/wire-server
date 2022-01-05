@@ -28,6 +28,7 @@ import Control.Monad.Codensity
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Text.Encoding (decodeLatin1)
@@ -156,6 +157,9 @@ deleteToken uid key = do
   delete $
     c . zUser uid
       . paths ["assets", "v3", toByteString' key, "token"]
+
+viewFederationDomain :: TestM Domain
+viewFederationDomain = view (tsOpts . optSettings . setFederationDomain)
 
 --------------------------------------------------------------------------------
 -- Mocking utilities

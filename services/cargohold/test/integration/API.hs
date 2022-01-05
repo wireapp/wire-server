@@ -276,10 +276,11 @@ testRemoteDownloadNoAsset = do
   (_, reqs) <- withMockFederator respond $ do
     downloadAsset uid qkey () !!! do
       const 404 === statusCode
+  localDomain <- viewFederationDomain
   liftIO $
     reqs
       @?= [ FederatedRequest
-              { frOriginDomain = Domain "example.com",
+              { frOriginDomain = localDomain,
                 frTargetDomain = Domain "faraway.example.com",
                 frComponent = Cargohold,
                 frRPC = "get-asset",
@@ -303,18 +304,19 @@ testRemoteDownload = do
       const 200 === statusCode
       const (Just "asset content") === responseBody
 
+  localDomain <- viewFederationDomain
   let ga = Aeson.encode (GetAsset uid key Nothing)
   liftIO $
     reqs
       @?= [ FederatedRequest
-              { frOriginDomain = Domain "example.com",
+              { frOriginDomain = localDomain,
                 frTargetDomain = Domain "faraway.example.com",
                 frComponent = Cargohold,
                 frRPC = "get-asset",
                 frBody = ga
               },
             FederatedRequest
-              { frOriginDomain = Domain "example.com",
+              { frOriginDomain = localDomain,
                 frTargetDomain = Domain "faraway.example.com",
                 frComponent = Cargohold,
                 frRPC = "stream-asset",
