@@ -22,7 +22,7 @@ import CargoHold.Options
 import CargoHold.Run
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
-import Control.Lens (set, view, _Just)
+import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.ByteString.Builder
@@ -48,8 +48,8 @@ uploadSimple ::
   AssetSettings ->
   (MIME.Type, ByteString) ->
   TestM (Response (Maybe Lazy.ByteString))
-uploadSimple c usr sets (ct, bs) =
-  let mp = buildMultipartBody sets ct (Lazy.fromStrict bs)
+uploadSimple c usr sts (ct, bs) =
+  let mp = buildMultipartBody sts ct (Lazy.fromStrict bs)
    in uploadRaw c usr (toLazyByteString mp)
 
 decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response b -> a
@@ -174,7 +174,8 @@ withSettingsOverrides f action = do
   liftIO . lowerCodensity $ do
     (app, _) <- mkApp opts
     p <- withMockServer app
-    liftIO $ runTestM (set (tsEndpoint . epPort) p ts) action
+    let setEndpoint = (epPort .~ p) . (epHost .~ "127.0.0.1")
+    liftIO $ runTestM (ts & tsEndpoint %~ setEndpoint) action
 
 withMockFederator ::
   (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
