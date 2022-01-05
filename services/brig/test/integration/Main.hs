@@ -69,6 +69,7 @@ import Util.Options
 import Util.Test
 import qualified Wire.API.Federation.API.Brig as F
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Version
 import Wire.API.Federation.Domain
 
 data BackendConf = BackendConf
@@ -225,10 +226,10 @@ parseConfigPaths = do
             )
 
 mkFedBrigClient :: Manager -> Endpoint -> FedBrigClient
-mkFedBrigClient = mkFedBrigClientGen @F.BrigApi
+mkFedBrigClient = mkFedBrigClientGen @(F.BrigApi 'V0)
 
 mkFedGalleyClient :: Manager -> Endpoint -> FedGalleyClient
-mkFedGalleyClient = mkFedBrigClientGen @F.GalleyApi
+mkFedGalleyClient = mkFedBrigClientGen @(F.GalleyApi 'V0)
 
 mkFedBrigClientGen ::
   forall routes.

@@ -116,8 +116,6 @@ import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
-import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Message
@@ -689,8 +687,8 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> FederatedBrig.BrigApi (AsServerT Handler)) ->
-  (Domain -> FederatedGalley.GalleyApi (AsServerT Handler)) ->
+  (Domain -> FedApi 'Brig (AsServerT Handler)) ->
+  (Domain -> FedApi 'Galley (AsServerT Handler)) ->
   TestM (ResponseLBS, [FederatedRequest])
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
@@ -2251,8 +2249,8 @@ withTempMockFederator' resp action = do
 -- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  (Domain -> FederatedBrig.BrigApi (AsServerT Handler)) ->
-  (Domain -> FederatedGalley.GalleyApi (AsServerT Handler)) ->
+  (Domain -> FedApi 'Brig (AsServerT Handler)) ->
+  (Domain -> FedApi 'Galley (AsServerT Handler)) ->
   Domain ->
   SessionT m b ->
   m (b, [FederatedRequest])
