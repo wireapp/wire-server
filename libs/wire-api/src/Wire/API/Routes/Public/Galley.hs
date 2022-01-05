@@ -749,7 +749,7 @@ data Api routes = Api
   deriving (Generic)
 
 type GetTeams =
-  Summary "Get teams"
+  Summary "Get teams (deprecated)"
     :> ZUser
     :> "teams"
     :> Get '[JSON] TeamList

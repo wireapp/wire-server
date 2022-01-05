@@ -1,0 +1,8 @@
+The deprecated endpoint `GET /teams` has changed slightly in a non-breaking way.
+The endpoint was designed to query non-binding teams. However, non-binding teams is a feature 
+that has never been implemented, but the endpoint also returns the binding team of a user and it is 
+possible that this is being used by a client, even though unlikely.
+
+The following functionality has been changed. Query parameters will be ignored, which has the effect 
+that regardless of the parameters the response will always contain the binding team of the user if 
+it exists. Even though they are ignored, the use of query parameters will not result in an error.
