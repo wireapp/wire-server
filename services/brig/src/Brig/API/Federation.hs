@@ -1,3 +1,4 @@
+{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -46,6 +47,7 @@ import Servant.API
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import UnliftIO.Async (pooledForConcurrentlyN_)
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig hiding (BrigApi (..))
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Common
@@ -58,7 +60,7 @@ import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 
-type FederationAPI = "federation" :> ToServantApi F.BrigApi
+type FederationAPI = "federation" :> ToServantApi (FedApi 'Brig)
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =

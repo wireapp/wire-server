@@ -1,3 +1,4 @@
+{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -114,6 +115,7 @@ import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
+import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Component
@@ -2264,7 +2266,9 @@ withTempServantMockFederator brigApi galleyApi originDomain =
     mock req =
       makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
 
-type CombinedBrigAndGalleyAPI = ToServantApi FederatedBrig.BrigApi :<|> ToServantApi FederatedGalley.GalleyApi
+type CombinedBrigAndGalleyAPI =
+  ToServantApi (FedApi 'Brig)
+    :<|> ToServantApi (FedApi 'Galley)
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.

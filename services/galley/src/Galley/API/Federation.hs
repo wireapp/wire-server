@@ -1,3 +1,5 @@
+{-# LANGUAGE LiberalTypeSynonyms #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -68,7 +70,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
-type FederationAPI = "federation" :> ToServantApi (VersionedFedApi 'Galley)
+type FederationAPI = "federation" :> ToServantApi (FedApi 'Galley)
 
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =

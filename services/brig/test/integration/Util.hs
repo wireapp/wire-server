@@ -93,6 +93,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as F
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Version
 import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
@@ -109,9 +110,9 @@ type Nginz = Request -> Request
 
 type Spar = Request -> Request
 
-type FedBrigClient = Domain -> F.BrigApi (AsClientT (HttpT IO))
+type FedBrigClient = Domain -> F.BrigApi 'V0 (AsClientT (HttpT IO))
 
-type FedGalleyClient = Domain -> F.GalleyApi (AsClientT (HttpT IO))
+type FedGalleyClient = Domain -> F.GalleyApi 'V0 (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
