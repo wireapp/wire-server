@@ -109,6 +109,19 @@ let
     };
   };
 
+  c-lib-out-deps = [
+    pkgs.cryptobox
+    pkgs.icu.out
+    pkgs.libsodium.out
+    pkgs.libxml2.out
+    pkgs.ncurses.out
+    pkgs.openssl.out
+    pkgs.pcre.out
+    pkgs.snappy.out
+    pkgs.zlib.out
+    pkgs.lzma.out
+  ];
+
   compile-deps = pkgs.buildEnv {
     name = "wire-server-compile-deps";
     paths = [
@@ -124,26 +137,16 @@ let
       pkgs.protobuf
 
       pkgs.cryptobox
-      pkgs.geoip
       pkgs.icu.dev
-      pkgs.icu.out
       pkgs.libsodium.dev
-      pkgs.libsodium.out
       pkgs.libxml2.dev
-      pkgs.libxml2.out
       pkgs.ncurses.dev
-      pkgs.ncurses.out
       pkgs.openssl.dev
-      pkgs.openssl.out
       pkgs.pcre.dev
-      pkgs.pcre.out
       pkgs.snappy.dev
-      pkgs.snappy.out
       pkgs.zlib.dev
-      pkgs.zlib.out
       pkgs.lzma.dev
-      pkgs.lzma.out
-    ];
+    ] ++ c-lib-out-deps;
   };
 
   # This performs roughly the same setup as direnv's load_prefix function, but
@@ -188,17 +191,5 @@ in
   # which sets LD_LIBRARY_PATH and others correctly.
   cabal-wrapper
   pkgs.haskellPackages.implicit-hie
-
-  # HLS needs these, TODO: extract variable and use for both cabal-wrapper and here.
-  pkgs.cryptobox
-  pkgs.geoip
-  pkgs.icu.out
-  pkgs.libsodium.out
-  pkgs.libxml2.out
-  pkgs.ncurses.out
-  pkgs.openssl.out
-  pkgs.pcre.out
-  pkgs.snappy.out
-  pkgs.zlib.out
-  pkgs.lzma.out
 ]
+++ c-lib-out-deps # Required to run HLS
