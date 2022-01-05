@@ -21,12 +21,12 @@ module Cannon.Run
 where
 
 import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
-import Cannon.API (sitemap)
+import Cannon.API.Internal
 import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import qualified Cannon.Dict as D
 import Cannon.Options
-import Cannon.Types (Cannon, Env, applog, clients, mkEnv, monitor, runCannon, runCannon')
+import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -67,22 +67,17 @@ run o = do
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
   let rtree = compile sitemap
-      app r k = runCannon e (Network.Wai.Utilities.Server.route rtree r k) r
+      internalApp r k = runCannon e (Network.Wai.Utilities.Server.route rtree r k) r
       middleware :: Wai.Middleware
       middleware =
         servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]
-      start :: Application
-      start = middleware app
-      -- TODO(sven): This heap of function definitions can be cleaned up.
-      serverPublicApi :: Servant.Server ServantAPI
-      serverPublicApi = hoistServer (Proxy @ServantAPI) (nt e) publicAPIServer
-      serverRaw :: Servant.Server Raw
-      serverRaw = Tagged start
+      app :: Application
+      app = middleware (serve (Proxy @API) server)
       server :: Servant.Server API
-      server = serverPublicApi :<|> serverRaw
-  runSettings s (serve (Proxy @API) server) `finally` do
+      server = hoistServer (Proxy @ServantAPI) (runCannonToServant e) publicAPIServer :<|> Tagged internalApp
+  runSettings s app `finally` do
     Async.cancel refreshMetricsThread
     L.close (applog e)
   where
@@ -95,8 +90,6 @@ run o = do
       fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
-    nt :: Cannon.Types.Env -> Cannon x -> Handler x
-    nt env c = liftIO $ runCannon' env c
 
 refreshMetrics :: Cannon ()
 refreshMetrics = do

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 87567089b2e4cf52d9968ce3c63a1ec557667791af1f0beb9adbac20a62a2f14
+-- hash: 5c6e877bcba6cc776493801203320fecfcec06a1384cc5cb0150262e4ef0f3b8
 
 name:           cannon
 version:        0.31.0
@@ -25,7 +25,6 @@ flag static
 
 library
   exposed-modules:
-      Cannon.API
       Cannon.API.Internal
       Cannon.API.Public
       Cannon.App
@@ -65,7 +64,6 @@ library
     , safe-exceptions
     , servant
     , servant-server
-    , servant-websockets
     , strict >=0.3.2
     , swagger >=0.2
     , text >=1.1

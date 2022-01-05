@@ -20,10 +20,9 @@ module Wire.API.Routes.Public.Cannon where
 import Data.Id
 import Data.Swagger
 import Servant
-import Servant.API
-import Servant.API.WebSocket
 import Servant.Swagger
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.WebSocket
 
 type ServantAPI =
   Summary "Establish websocket connection"
@@ -37,7 +36,7 @@ type ServantAPI =
          ]
          "client"
          ClientId
-    -- TODO(sven): Consider higher-level web socket combinator
+    -- FUTUREWORK: Consider higher-level web socket combinator
     :> WebSocketPending
 
 swaggerDoc :: Swagger

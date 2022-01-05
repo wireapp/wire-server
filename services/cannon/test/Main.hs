@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified Cannon.API
+import qualified Cannon.API.Internal
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Imports
@@ -35,6 +35,6 @@ main =
           assertEqual
             "inconcistent sitemap"
             mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Cannon.API.sitemap),
+            (pathsConsistencyCheck . treeToPaths . compile $ Cannon.API.Internal.sitemap),
         D.tests
       ]

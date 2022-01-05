@@ -36,7 +36,6 @@ library:
   - safe-exceptions
   - servant
   - servant-server
-  - servant-websockets
   - strict >=0.3.2
   - swagger >=0.2
   - text >=1.1

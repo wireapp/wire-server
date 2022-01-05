@@ -33,49 +33,6 @@ import Wire.API.Routes.Public.Cannon
 
 type API = ServantAPI :<|> Raw
 
--- TODO(sven): Finally, remove this.
-{-
-sitemap :: Routes ApiBuilder Cannon ()
-sitemap = do
-  get "/await" (continue awaitH) $
-    header "Z-User"
-      .&. header "Z-Connection"
-      .&. opt (query "client")
-      .&. request
-  document "GET" "await" $ do
-    summary "Establish websocket connection"
-    parameter Header "Upgrade" (string $ enum ["websocket"]) end
-    parameter Header "Connection" (string $ enum ["upgrade"]) end
-    parameter Header "Sec-WebSocket-Key" bytes' $
-      description "16-bytes base64 encoded nonce"
-    parameter Header "Sec-WebSocket-Version" (int32 $ enum [13]) end
-    parameter Query "client" string' $ do
-      optional
-      description "Client ID"
-    response 426 "Upgrade required" end
-
-apiDocs :: Routes ApiBuilder Cannon ()
-apiDocs = do
-  get "/await/api-docs" (continue docsH) $
-    accept "application" "json"
-      .&. query "base_url"
-
-docsH :: Media "application" "json" ::: Text -> Cannon Response
-docsH (_ ::: url) = do
-  let doc = mkSwaggerApi url [] sitemap
-  return $ json doc
-
-awaitH :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
-awaitH (u ::: a ::: c ::: r) = do
-  e <- wsenv
-  case websocketsApp wsoptions (wsapp (mkKey u a) c e) r of
-    Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
-    Just rs -> return rs -- ensure all middlewares ignore RawResponse - see Note [Raw Response]
-  where
-    status426 = mkStatus 426 "Upgrade Required"
-    wsoptions = Ws.defaultConnectionOptions
--}
-
 publicAPIServer :: ServerT ServantAPI Cannon
 publicAPIServer = streamData
   where

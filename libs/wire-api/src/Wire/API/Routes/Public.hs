@@ -33,7 +33,7 @@ module Wire.API.Routes.Public
   )
 where
 
-import Control.Lens (at, (.~), (<>~), (?~))
+import Control.Lens ((<>~))
 import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
@@ -46,7 +46,6 @@ import Imports hiding (All, head)
 import qualified Network.Wai as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
-import Servant.API.WebSocket
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -247,15 +246,3 @@ instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
 
 instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
   getRoutes = getRoutes @api
-
-instance HasSwagger WebSocketPending where
-  -- TODO: More swagger info regarding WebSocket protocol?
-  toSwagger _ =
-    (mempty :: Swagger) & paths . at "/"
-      ?~ ( mempty & get
-             ?~ ( mempty
-                    & summary ?~ "Websocket Endpoint"
-                    & description ?~ "This endpoint is accessible via the websocket protocol."
-                    & externalDocs ?~ (mempty & description ?~ "RFC 6455" & url .~ URL "https://datatracker.ietf.org/doc/html/rfc6455")
-                )
-         )
