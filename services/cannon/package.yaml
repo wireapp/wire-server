@@ -34,6 +34,9 @@ library:
   - mwc-random >=0.13
   - retry >=0.7
   - safe-exceptions
+  - servant
+  - servant-server
+  - servant-websockets
   - strict >=0.3.2
   - swagger >=0.2
   - text >=1.1
@@ -49,6 +52,7 @@ library:
   - wai-websockets >=3.0
   - warp >=3.0
   - websockets >=0.11.2
+  - wire-api
 executables:
   cannon:
     main: src/Main.hs

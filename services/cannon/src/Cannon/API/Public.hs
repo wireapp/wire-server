@@ -16,26 +16,25 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.API.Public
-  ( sitemap,
-    apiDocs,
+  ( API,
+    publicAPIServer,
   )
 where
 
-import Cannon.App
+import Cannon.App (wsapp)
 import Cannon.Types
 import Cannon.WS
-import Data.Id (ClientId, ConnId, UserId)
-import Data.Swagger.Build.Api hiding (Response)
-import Imports
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Handler.WebSockets
-import Network.Wai.Predicate
-import Network.Wai.Routing
-import Network.Wai.Utilities
-import Network.Wai.Utilities.Swagger
-import qualified Network.WebSockets as Ws
+import Control.Monad.IO.Class
+import Data.Id
+import GHC.Base
+import Network.WebSockets.Connection
+import Servant
+import Wire.API.Routes.Public.Cannon
 
+type API = ServantAPI :<|> Raw
+
+-- TODO(sven): Finally, remove this.
+{-
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
   get "/await" (continue awaitH) $
@@ -75,3 +74,12 @@ awaitH (u ::: a ::: c ::: r) = do
   where
     status426 = mkStatus 426 "Upgrade Required"
     wsoptions = Ws.defaultConnectionOptions
+-}
+
+publicAPIServer :: ServerT ServantAPI Cannon
+publicAPIServer = streamData
+  where
+    streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
+    streamData userId connId clientId con = do
+      e <- wsenv
+      liftIO $ wsapp (mkKey userId connId) clientId e con

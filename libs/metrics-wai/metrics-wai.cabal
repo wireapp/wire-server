@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aefa1a394ca2caa5cad577e67967aace67b79d4c94afeba4dd399b77de826a6c
+-- hash: e5fbf9c91eff6377657c234f482cceec491fd14d2c1541c49c951ac13ab27692
 
 name:           metrics-wai
 version:        0.5.7
@@ -41,6 +41,7 @@ library
     , metrics-core >=0.3
     , servant
     , servant-multipart
+    , servant-websockets
     , string-conversions
     , text >=0.11
     , wai >=3
@@ -72,6 +73,7 @@ test-suite unit
     , metrics-wai
     , servant
     , servant-multipart
+    , servant-websockets
     , string-conversions
     , text >=0.11
     , wai >=3

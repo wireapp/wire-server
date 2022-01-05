@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f2aacb81c413e8753829ba09eb08d1d2524c973346739389dfeb4284d4a16ebd
+-- hash: 0e8b5e4c9545b272b10ecaf570d0579c0b3bbddc15e3b07801505860fb535c15
 
 name:           wire-api
 version:        0.1.0
@@ -56,6 +56,7 @@ library
       Wire.API.Routes.MultiVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
+      Wire.API.Routes.Public.Cannon
       Wire.API.Routes.Public.Cargohold
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
@@ -160,6 +161,7 @@ library
     , servant-server
     , servant-swagger
     , servant-swagger-ui
+    , servant-websockets
     , singletons
     , sop-core
     , string-conversions
@@ -173,6 +175,7 @@ library
     , uuid >=1.3
     , vector >=0.12
     , wai
+    , websockets
     , wire-message-proto-lens
     , x509
   default-language: Haskell2010

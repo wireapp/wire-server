@@ -40,6 +40,7 @@ import Network.Wai.Middleware.Prometheus
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import Network.Wai.Routing (Routes, prepare)
 import Servant.API
+import Servant.API.WebSocket
 import Servant.Multipart
 
 -- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
@@ -147,4 +148,7 @@ instance
   getRoutes = getRoutes @route <> getRoutes @routes
 
 instance RoutesToPaths Raw where
+  getRoutes = []
+
+instance RoutesToPaths WebSocketPending where
   getRoutes = []

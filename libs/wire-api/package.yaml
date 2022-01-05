@@ -73,6 +73,7 @@ library:
   - servant-multipart
   - servant-server
   - servant-swagger
+  - servant-websockets
   - schema-profunctor
   - singletons
   - sop-core
@@ -88,6 +89,7 @@ library:
   - wire-message-proto-lens
   - x509
   - wai
+  - websockets
 
 tests:
   wire-api-tests:
