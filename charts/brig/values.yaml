@@ -53,6 +53,7 @@ config:
     legalholdUserTokenTimeout: 4838400
     legalholdAccessTokenTimeout: 900
   optSettings:
+    setDefaultLocale: en
     setActivationTimeout: 1209600
     setTeamInvitationTimeout: 1814400
     setUserMaxConnections: 1000
