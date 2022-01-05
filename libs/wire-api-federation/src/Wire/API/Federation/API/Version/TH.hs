@@ -15,11 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Version where
+module Wire.API.Federation.API.Version.TH (genVersions) where
 
-import Wire.API.Federation.API.Version.TH
+import Imports
+import Language.Haskell.TH
 
-data Version = V0
+genVersions :: Name -> Q [Dec]
+genVersions ty =
+  reify ty >>= \case
+    TyConI (DataD _ name _ _ cs _) -> do
+      pcs <- traverse promoteConstructor cs
+      pure $
+        [ TySynD
+            (mkName ("Supported" <> nameBase name <> "s"))
+            []
+            (foldr pcons PromotedNilT pcs)
+        ]
+    _ -> fail $ "Unsupported version type: " <> nameBase ty
 
--- FUTUREWORK: is there a way to replace this TH with GHC Generics?
-$(genVersions ''Version)
+promoteConstructor :: Con -> Q Type
+promoteConstructor (NormalC name []) = pure $ PromotedT name
+promoteConstructor _ = fail "Unsupported constructor"
+
+pcons :: Type -> Type -> Type
+pcons x y = PromotedConsT `AppT` x `AppT` y

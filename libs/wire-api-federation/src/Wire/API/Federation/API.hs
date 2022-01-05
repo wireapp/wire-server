@@ -24,6 +24,7 @@ module Wire.API.Federation.API
   )
 where
 
+import Servant.API
 import Servant.Client.Generic
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
@@ -35,25 +36,27 @@ import Wire.API.Federation.Component
 class HasFederationAPI (comp :: Component) where
   -- Note: this type family being injective means that in most cases there is no need
   -- to add component annotations when invoking the federator client
-  type FedApi comp = (api :: Version -> * -> *) | api -> comp
-  clientRoutes :: FedApi comp v (AsClientT (FederatorClient comp))
+  type FedApiV comp = (api :: Version -> * -> *) | api -> comp
+  clientRoutes :: FedApiV comp v (AsClientT (FederatorClient comp))
 
 instance HasFederationAPI 'Galley where
-  type FedApi 'Galley = GalleyApi
+  type FedApiV 'Galley = GalleyApi
   clientRoutes = genericClient
 
 instance HasFederationAPI 'Brig where
-  type FedApi 'Brig = BrigApi
+  type FedApiV 'Brig = BrigApi
   clientRoutes = genericClient
 
 instance HasFederationAPI 'Cargohold where
-  type FedApi 'Cargohold = CargoholdApi
+  type FedApiV 'Cargohold = CargoholdApi
   clientRoutes = genericClient
 
-type family CombinedAPI (versions :: [Version]) (comp :: Component) :: * -> *
+type family CombinedAPI (versions :: [Version]) (comp :: Component) (mode :: *) :: *
 
-type instance CombinedAPI '[v] comp = FedApi comp v
+type instance CombinedAPI '[v] comp mode = FedApiV comp v mode
 
-type instance CombinedAPI (v1 ': v2 ': vs) = FedApi comp v1 :<|> CombinedAPI (v2 ': vs) comp
+type instance
+  CombinedAPI (v1 ': v2 ': vs) comp mode =
+    FedApiV comp v1 mode :<|> CombinedAPI (v2 ': vs) comp mode
 
-type VersionedFedAPI comp mode = FedApi comp V0 mode
+type FedApi comp mode = CombinedAPI SupportedVersions comp mode
