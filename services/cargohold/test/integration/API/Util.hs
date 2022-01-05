@@ -174,8 +174,10 @@ withSettingsOverrides f action = do
   liftIO . lowerCodensity $ do
     (app, _) <- mkApp opts
     p <- withMockServer app
-    let setEndpoint = (epPort .~ p) . (epHost .~ "127.0.0.1")
-    liftIO $ runTestM (ts & tsEndpoint %~ setEndpoint) action
+    liftIO $ runTestM (ts & tsEndpoint %~ setLocalEndpoint p) action
+
+setLocalEndpoint :: Word16 -> Endpoint -> Endpoint
+setLocalEndpoint p = (epPort .~ p) . (epHost .~ "127.0.0.1")
 
 withMockFederator ::
   (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
@@ -184,5 +186,5 @@ withMockFederator ::
 withMockFederator respond action = do
   withTempMockFederator [] respond $ \p ->
     withSettingsOverrides
-      (set (optFederator . _Just . epPort) (fromIntegral p))
+      (optFederator . _Just %~ setLocalEndpoint (fromIntegral p))
       action
