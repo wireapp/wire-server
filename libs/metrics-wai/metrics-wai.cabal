@@ -80,6 +80,7 @@ library
     , metrics-core >=0.3
     , servant
     , servant-multipart
+    , servant-websockets
     , string-conversions
     , text >=0.11
     , wai >=3
@@ -150,6 +151,7 @@ test-suite unit
     , metrics-wai
     , servant
     , servant-multipart
+    , servant-websockets
     , string-conversions
     , text >=0.11
     , wai >=3
