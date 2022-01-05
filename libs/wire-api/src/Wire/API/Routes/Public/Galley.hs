@@ -752,7 +752,13 @@ type GetTeams =
     :> ZUser
     :> ZConn
     :> "teams"
-    :> Capture "size" (Range 1 100 Int32)
+    :> QueryParam'
+         [ Optional,
+           Strict,
+           Description "Max. number of teams to return"
+         ]
+         "size"
+         (Range 1 100 Int32)
 
 type ServantAPI = ToServantApi Api
 
