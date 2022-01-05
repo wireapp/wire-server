@@ -169,6 +169,7 @@ tests:
     - polysemy-wire-zoo
     - retry
     - servant-client-core
+    - string-conversions
     - tasty
     - tasty-hunit
     - tasty-quickcheck
