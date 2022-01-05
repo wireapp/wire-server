@@ -170,12 +170,14 @@ testGetTeams = do
   owner <- Util.randomUser
   Util.getTeams owner [] >>= checkTeamList Nothing
   tid <- Util.createBindingTeamInternal "foo" owner <* assertQueue "create team" tActivate
+  wrongTid <- (Util.randomUser >>= Util.createBindingTeamInternal "foobar") <* assertQueue "create team" tActivate
   Util.getTeams owner [] >>= checkTeamList (Just tid)
   Util.getTeams owner [("size", "1")] >>= checkTeamList (Just tid)
   Util.getTeams owner [("ids", show tid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", show tid <> "," <> show tid)] >>= checkTeamList (Just tid)
-  -- start is exclusive and therefore should not return the team
-  Util.getTeams owner [("start", show tid)] >>= checkTeamList Nothing
+  Util.getTeams owner [("ids", show tid <> "," <> show wrongTid)] >>= checkTeamList (Just tid)
+  -- these two queries do not yield responses that are equivalent to the odl wai route API
+  Util.getTeams owner [("ids", show wrongTid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("start", show tid)] >>= checkTeamList (Just tid)
   where
     checkTeamList :: Maybe TeamId -> TeamList -> TestM ()
     checkTeamList mbTid tl = liftIO $ do

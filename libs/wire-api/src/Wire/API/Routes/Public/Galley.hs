@@ -743,22 +743,16 @@ data Api routes = Api
              'PUT
              '[JSON]
              '[RespondEmpty 200 "Team updated"]
-             ()
+             (),
+    getTeams :: routes :- GetTeams
   }
   deriving (Generic)
 
 type GetTeams =
   Summary "Get teams"
     :> ZUser
-    :> ZConn
     :> "teams"
-    :> QueryParam'
-         [ Optional,
-           Strict,
-           Description "Max. number of teams to return"
-         ]
-         "size"
-         (Range 1 100 Int32)
+    :> Get '[JSON] TeamList
 
 type ServantAPI = ToServantApi Api
 

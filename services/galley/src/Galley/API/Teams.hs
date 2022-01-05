@@ -25,7 +25,7 @@ module Galley.API.Teams
     getTeamNameInternalH,
     getBindingTeamIdH,
     getBindingTeamMembersH,
-    getManyTeamsH,
+    getManyTeams,
     deleteTeamH,
     uncheckedDeleteTeam,
     addTeamMemberH,
@@ -73,6 +73,7 @@ import Data.List1 (list1)
 import qualified Data.Map as Map
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl, mkHttpsUrl)
+import Data.Proxy
 import Data.Qualified
 import Data.Range as Range
 import qualified Data.Set as Set
@@ -170,21 +171,12 @@ getTeamNameInternalH (tid ::: _) =
 getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
-getManyTeamsH ::
-  (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
-  UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON ->
-  Sem r Response
-getManyTeamsH (zusr ::: range ::: size ::: _) =
-  json <$> getManyTeams zusr range size
-
 getManyTeams ::
   (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
   UserId ->
-  Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
-  Range 1 100 Int32 ->
   Sem r Public.TeamList
-getManyTeams zusr range size =
-  withTeamIds zusr range size $ \more ids -> do
+getManyTeams zusr =
+  withTeamIds zusr Nothing (toRange (Proxy @100)) $ \more ids -> do
     teams <- mapM (lookupTeam zusr) ids
     pure (Public.newTeamList (catMaybes teams) more)
 
