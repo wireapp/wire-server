@@ -90,8 +90,6 @@ run o = do
       fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
-    nt :: Cannon.Types.Env -> Cannon x -> Handler x
-    nt env c = liftIO $ runCannon' env c
 
 refreshMetrics :: Cannon ()
 refreshMetrics = do
