@@ -17,7 +17,6 @@ dependencies:
 - containers
 - servant
 - servant-multipart
-- servant-websockets
 - string-conversions
 - text >=0.11
 - wai >=3

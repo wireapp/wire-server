@@ -200,7 +200,6 @@ library
     , servant-server
     , servant-swagger
     , servant-swagger-ui
-    , servant-websockets
     , singletons
     , sop-core
     , string-conversions

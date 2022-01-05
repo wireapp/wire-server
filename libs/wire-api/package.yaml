@@ -73,7 +73,6 @@ library:
   - servant-multipart
   - servant-server
   - servant-swagger
-  - servant-websockets
   - schema-profunctor
   - singletons
   - sop-core
