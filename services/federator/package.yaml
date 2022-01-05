@@ -94,6 +94,7 @@ executables:
     - http-client-tls
     - mtl
     - optparse-applicative
+    - QuickCheck
     - random
     - retry
     - tasty

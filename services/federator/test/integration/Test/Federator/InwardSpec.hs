@@ -34,7 +34,9 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as E
 import Test.Federator.Util
 import Test.Hspec
+import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
 import Wire.API.User
 
@@ -85,8 +87,11 @@ spec env =
 
     it "should be able to call cargohold" $
       runTestFederator env $ do
-        inwardCall "/federation/cargohold/get-asset" (encode ())
-          !!! const 500 === statusCode
+        uid <- liftIO $ generate arbitrary
+        key <- liftIO $ generate arbitrary
+        let ga = GetAsset uid key Nothing
+        inwardCall "/federation/cargohold/get-asset" (encode ga)
+          !!! const 200 === statusCode
 
     it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
