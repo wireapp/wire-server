@@ -83,7 +83,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup "Teams API" $
     [ test s "create team" testCreateTeam,
-      test s "get teams 12123" testGetTeams,
+      test s "GET /teams (deprecated)" testGetTeams,
       test s "create multiple binding teams fail" testCreateMultipleBindingTeams,
       test s "create binding team with currency" testCreateBindingTeamWithCurrency,
       test s "create team with members" testCreateTeamWithMembers,
@@ -172,12 +172,12 @@ testGetTeams = do
   tid <- Util.createBindingTeamInternal "foo" owner <* assertQueue "create team" tActivate
   wrongTid <- (Util.randomUser >>= Util.createBindingTeamInternal "foobar") <* assertQueue "create team" tActivate
   Util.getTeams owner [] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("size", "1")] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", show tid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", show tid <> "," <> show wrongTid)] >>= checkTeamList (Just tid)
-  -- these two queries do not yield responses that are equivalent to the odl wai route API
-  Util.getTeams owner [("ids", show wrongTid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("start", show tid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("size", Just "1")] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  -- these two queries do not yield responses that are equivalent to the old wai route API
+  Util.getTeams owner [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
   where
     checkTeamList :: Maybe TeamId -> TeamList -> TestM ()
     checkTeamList mbTid tl = liftIO $ do

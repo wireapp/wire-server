@@ -176,23 +176,20 @@ createBindingTeamWithQualifiedMembers num = do
   (tid, owner, users) <- createBindingTeamWithMembers num
   pure (tid, Qualified owner localDomain, map (`Qualified` localDomain) users)
 
-getTeams :: UserId -> [(String, String)] -> TestM TeamList
+getTeams :: UserId -> [(ByteString, Maybe ByteString)] -> TestM TeamList
 getTeams u queryItems = do
   g <- view tsGalley
   r <-
     get
       ( g
           . paths ["teams"]
-          . mkQueryItems queryItems
+          . query queryItems
           . zUser u
           . zConn "conn"
           . zType "access"
           . expect2xx
       )
   return $ responseJsonUnsafe r
-  where
-    mkQueryItems :: [(String, String)] -> Request -> Request
-    mkQueryItems = foldl (\f (n, v) -> f . queryItem (C.pack n) (C.pack v)) id
 
 createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
 createBindingTeamWithNMembers = createBindingTeamWithNMembersWithHandles False

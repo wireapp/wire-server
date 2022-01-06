@@ -744,15 +744,14 @@ data Api routes = Api
              '[JSON]
              '[RespondEmpty 200 "Team updated"]
              (),
-    getTeams :: routes :- GetTeams
+    getTeams ::
+      routes
+        :- Summary "Get teams (deprecated); use `GET /teams/:tid`"
+        :> ZUser
+        :> "teams"
+        :> Get '[JSON] TeamList
   }
   deriving (Generic)
-
-type GetTeams =
-  Summary "Get teams (deprecated)"
-    :> ZUser
-    :> "teams"
-    :> Get '[JSON] TeamList
 
 type ServantAPI = ToServantApi Api
 
