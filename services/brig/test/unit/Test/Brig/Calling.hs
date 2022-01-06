@@ -22,7 +22,6 @@ module Test.Brig.Calling where
 import Brig.Calling
 import Brig.Options
 import Control.Retry
-import Data.IP
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Range
@@ -104,11 +103,11 @@ tests =
         [ testCase "more servers in SRV than limit" testSFTManyServers,
           testCase "fewer servers in SRV than limit" testSFTFewerServers
           -- the randomization part is not (yet?) tested here.
-        ],
-      testGroup "discoverSFTServersAll" $
-        [ testCase "when service is available" testSFTDiscoverAWhenAvailable,
-          testCase "when dns lookup fails" testSFTDiscoverAWhenDNSFails
         ]
+        -- testGroup "discoverSFTServersAll" $
+        --   [ testCase "when service is available" testSFTDiscoverAWhenAvailable,
+        --     testCase "when dns lookup fails" testSFTDiscoverAWhenDNSFails
+        --   ]
     ]
 
 testDiscoveryLoopWhenSuccessful :: IO SFTEnv
@@ -253,36 +252,29 @@ retryEvery10MicrosWhileN n f m =
     (const (return . f))
     (const m)
 
-testSFTDiscoverAWhenAvailable :: IO ()
-testSFTDiscoverAWhenAvailable = do
-  logRecorder <- newLogRecorder
-  let entry1 = read "192.0.2.1" :: IPv4
-      entry2 = read "192.0.2.2" :: IPv4
-      returnedEntries = [entry1, entry2]
-  fakeDNSEnv <- newFakeDNSEnv undefined (const $ A.AIPv4s returnedEntries)
+-- testSFTDiscoverAWhenAvailable :: IO ()
+-- testSFTDiscoverAWhenAvailable = do
+--   logRecorder <- newLogRecorder
+--   let entry1 = read "192.0.2.1" :: IPv4
+--       entry2 = read "192.0.2.2" :: IPv4
+--       returnedEntries = [entry1, entry2]
+--   fakeDNSEnv <- newFakeDNSEnv undefined (const $ A.AIPv4s returnedEntries)
 
-  assertEqual "discovered servers should be returned" (Just returnedEntries)
-    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServersAll "foo.example.com"
-        )
-  assertEqual
-    "should report discovered IP addresses"
-    [ ( Log.Info,
-        "Found the following IP addresses for SFT servers, addresses="
-          <> (cs . show $ returnedEntries)
-          <> "\n"
-      )
-    ]
-    =<< readIORef (recordedLogs logRecorder)
+--   assertEqual "discovered servers should be returned" (Just returnedEntries)
+--     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
+--             discoverSFTServersAll "foo.example.com"
+--         )
+--   assertEqual "nothing should be logged" []
+--     =<< readIORef (recordedLogs logRecorder)
 
-testSFTDiscoverAWhenDNSFails :: IO ()
-testSFTDiscoverAWhenDNSFails = do
-  logRecorder <- newLogRecorder
-  fakeDNSEnv <- newFakeDNSEnv undefined (const $ A.AResponseError IllegalDomain)
+-- testSFTDiscoverAWhenDNSFails :: IO ()
+-- testSFTDiscoverAWhenDNSFails = do
+--   logRecorder <- newLogRecorder
+--   fakeDNSEnv <- newFakeDNSEnv undefined (const $ A.AResponseError IllegalDomain)
 
-  assertEqual "no servers should be returned" Nothing
-    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServersAll "foo.example.com"
-        )
-  assertEqual "should warn about it in the logs" [(Log.Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
-    =<< readIORef (recordedLogs logRecorder)
+--   assertEqual "no servers should be returned" Nothing
+--     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
+--             discoverSFTServersAll "foo.example.com"
+--         )
+--   assertEqual "should warn about it in the logs" [(Log.Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
+--     =<< readIORef (recordedLogs logRecorder)

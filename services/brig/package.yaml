@@ -106,6 +106,7 @@ library:
   - safe >=0.3
   - safe-exceptions >=0.1
   - saml2-web-sso
+  - schema-profunctor
   - scientific >=0.3.4
   - scrypt >=0.5
   - servant
@@ -164,7 +165,6 @@ tests:
     - dns-util
     - http-types
     - imports
-    - iproute
     - polysemy
     - polysemy-wire-zoo
     - retry

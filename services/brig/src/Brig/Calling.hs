@@ -30,7 +30,6 @@ module Brig.Calling
     newEnv,
     sftDiscoveryLoop,
     discoverSFTServers,
-    discoverSFTServersAll,
     discoveryToMaybe,
     randomize,
     startSFTServiceDiscovery,
@@ -48,7 +47,6 @@ import qualified Brig.Options as Opts
 import Brig.Types (TurnURI)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
-import Data.IP
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
@@ -62,7 +60,6 @@ import Polysemy.TinyLog
 import qualified System.Logger as Log
 import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
-import Wire.Network.DNS.A
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 
@@ -142,15 +139,16 @@ discoverSFTServers domain =
       err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
       pure Nothing
 
-discoverSFTServersAll :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe [IPv4])
-discoverSFTServersAll domain =
-  lookupA domain >>= \case
-    AIPv4s ips -> do
-      info (Log.msg ("Found the following IP addresses for SFT servers" :: ByteString) . Log.field "addresses" (show ips))
-      pure . Just $ ips
-    AResponseError e -> do
-      err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
-      pure Nothing
+-- discoverSFTServersAll :: Member TinyLog r => HttpsUrl -> Sem (SFT ': r) a -> Sem r [SFTServer]
+-- discoverSFTServersAll url prog =
+--   interpretSFT url GetAllS
+--     lookupA
+--     domain
+--     >>= \case
+--       AIPv4s ips -> pure . Just $ ips
+--       AResponseError e -> do
+--         err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
+--         pure Nothing
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
