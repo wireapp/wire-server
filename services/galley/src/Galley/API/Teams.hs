@@ -171,6 +171,19 @@ getTeamNameInternalH (tid ::: _) =
 getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
+-- | DEPRECATED.
+--
+-- The endpoint was designed to query non-binding teams. However, non-binding teams is a feature
+-- that has never been adopted by clients, but the endpoint also returns the binding team of a user and it is
+-- possible that this is being used by a client, even though unlikely.
+--
+-- The following functionality has been changed: query parameters will be ignored, which has the effect
+-- that regardless of the parameters the response will always contain the binding team of the user if
+-- it exists. Even though they are ignored, the use of query parameters will not result in an error.
+--
+-- (If you want to be pedantic, the `size` parameter is still honored: its allowed range is
+-- between 1 and 100, and that will always be an upper bound of the result set of size 0 or
+-- one.)
 getManyTeams ::
   (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
   UserId ->
