@@ -348,7 +348,8 @@ tests =
             (Test.Wire.API.Golden.Generated.RTCConfiguration_user.testObject_RTCConfiguration_user_3, "testObject_RTCConfiguration_user_3.json"),
             (Test.Wire.API.Golden.Generated.RTCConfiguration_user.testObject_RTCConfiguration_user_4, "testObject_RTCConfiguration_user_4.json"),
             (Test.Wire.API.Golden.Generated.RTCConfiguration_user.testObject_RTCConfiguration_user_5, "testObject_RTCConfiguration_user_5.json"),
-            (Test.Wire.API.Golden.Generated.RTCConfiguration_user.testObject_RTCConfiguration_user_6, "testObject_RTCConfiguration_user_6.json")
+            (Test.Wire.API.Golden.Generated.RTCConfiguration_user.testObject_RTCConfiguration_user_6, "testObject_RTCConfiguration_user_6.json"),
+            (Test.Wire.API.Golden.Generated.RTCConfiguration_user.testObject_RTCConfiguration_user_7, "testObject_RTCConfiguration_user_7.json")
           ],
       testGroup "Golden: SFTServer_user" $
         testObjects

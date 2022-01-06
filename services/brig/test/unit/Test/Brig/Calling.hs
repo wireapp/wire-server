@@ -35,29 +35,23 @@ import qualified System.Logger as Log
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
-import qualified Wire.Network.DNS.A as A
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 
 data FakeDNSEnv = FakeDNSEnv
   { fakeLookupSrv :: Domain -> SrvResponse,
-    fakeLookupA :: Domain -> A.AResponse,
-    fakeLookupSrvCalls :: IORef [Domain],
-    fakeLookupACalls :: IORef [Domain]
+    fakeLookupSrvCalls :: IORef [Domain]
   }
 
-newFakeDNSEnv :: (Domain -> SrvResponse) -> (Domain -> A.AResponse) -> IO FakeDNSEnv
-newFakeDNSEnv lookupSrvFn lookupAFn =
-  FakeDNSEnv lookupSrvFn lookupAFn <$> newIORef [] <*> newIORef []
+newFakeDNSEnv :: (Domain -> SrvResponse) -> IO FakeDNSEnv
+newFakeDNSEnv lookupSrvFn =
+  FakeDNSEnv lookupSrvFn <$> newIORef []
 
 runFakeDNSLookup :: Member (Embed IO) r => FakeDNSEnv -> Sem (DNSLookup ': r) a -> Sem r a
-runFakeDNSLookup FakeDNSEnv {..} = interpret $ \case
-  LookupSRV domain -> do
+runFakeDNSLookup FakeDNSEnv {..} = interpret $
+  \(LookupSRV domain) -> do
     modifyIORef' fakeLookupSrvCalls (++ [domain])
     pure $ fakeLookupSrv domain
-  LookupA domain -> do
-    modifyIORef' fakeLookupACalls (++ [domain])
-    pure $ fakeLookupA domain
 
 newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Log.Level, LByteString)]}
 
@@ -116,7 +110,7 @@ testDiscoveryLoopWhenSuccessful = do
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
       returnedEntries = entry1 :| [entry2, entry3]
-  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries) undefined
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
   sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing, Nothing)
 
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
@@ -131,7 +125,7 @@ testDiscoveryLoopWhenSuccessful = do
 
 testDiscoveryLoopWhenUnsuccessful :: IO ()
 testDiscoveryLoopWhenUnsuccessful = do
-  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
   sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing, Nothing)
 
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
@@ -150,7 +144,7 @@ testDiscoveryLoopWhenUnsuccessfulAfterSuccess = do
 
   -- In the following lines we re-use the 'sftEnv' from a successful lookup to
   -- replicate what will happen when a dns lookup fails after success
-  failingFakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable) undefined
+  failingFakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
   -- least once
@@ -170,7 +164,7 @@ testDiscoveryLoopWhenURLsChange = do
       entry2 = SrvEntry 0 0 (SrvTarget "sft5.foo.example.com." 443)
       newEntries = entry1 :| [entry2]
 
-  fakeDNSEnv <- newFakeDNSEnv (const $ SrvAvailable newEntries) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const $ SrvAvailable newEntries)
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
@@ -186,7 +180,7 @@ testSFTDiscoverWhenAvailable = do
   let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.example.com." 8843)
       returnedEntries = entry1 :| [entry2]
-  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries) undefined
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
 
   assertEqual "discovered servers should be returned" (Just returnedEntries)
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
@@ -198,7 +192,7 @@ testSFTDiscoverWhenAvailable = do
 testSFTDiscoverWhenNotAvailable :: IO ()
 testSFTDiscoverWhenNotAvailable = do
   logRecorder <- newLogRecorder
-  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
 
   assertEqual "discovered servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
@@ -210,7 +204,7 @@ testSFTDiscoverWhenNotAvailable = do
 testSFTDiscoverWhenDNSFails :: IO ()
 testSFTDiscoverWhenDNSFails = do
   logRecorder <- newLogRecorder
-  fakeDNSEnv <- newFakeDNSEnv (const $ SrvResponseError IllegalDomain) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const $ SrvResponseError IllegalDomain)
 
   assertEqual "no servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $

@@ -152,7 +152,7 @@ testObject_RTCConfiguration_user_1 =
       )
       (Nothing)
       (2)
-      Nothing
+      []
   )
 
 testObject_RTCConfiguration_user_2 :: RTCConfiguration
@@ -335,7 +335,7 @@ testObject_RTCConfiguration_user_2 =
           )
       )
       (4)
-      Nothing
+      []
   )
 
 testObject_RTCConfiguration_user_3 :: RTCConfiguration
@@ -482,7 +482,7 @@ testObject_RTCConfiguration_user_3 =
           )
       )
       (9)
-      Nothing
+      []
   )
 
 testObject_RTCConfiguration_user_4 :: RTCConfiguration
@@ -688,7 +688,7 @@ testObject_RTCConfiguration_user_4 =
           )
       )
       (2)
-      Nothing
+      []
   )
 
 testObject_RTCConfiguration_user_5 :: RTCConfiguration
@@ -732,7 +732,7 @@ testObject_RTCConfiguration_user_5 =
           )
       )
       (2)
-      Nothing
+      []
   )
 
 testObject_RTCConfiguration_user_6 :: RTCConfiguration
@@ -755,5 +755,45 @@ testObject_RTCConfiguration_user_6 =
       )
       Nothing
       (2)
+      []
+  )
+
+testObject_RTCConfiguration_user_7 :: RTCConfiguration
+testObject_RTCConfiguration_user_7 =
+  ( rtcConfiguration
+      ( ( rtcIceServer
+            ( (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "248.187.155.126"))) (read "1") (Nothing))
+                :| [ (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "166.155.90.230"))) (read "0") (Just TransportTCP)),
+                     (turnURI (SchemeTurns) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "1") (Just TransportTCP)),
+                     (turnURI (SchemeTurn) (TurnHostName "host.name") (read "1") (Just TransportTCP))
+                   ]
+            )
+            ( ( turnUsername (secondsToNominalDiffTime (2.000000000000)) ("tj") & tuVersion .~ (0) & tuKeyindex .~ (0)
+                  & tuT .~ ('\1011805')
+              )
+            )
+            ((fromRight undefined (validate (""))))
+        )
+          :| []
+      )
       Nothing
+      (2)
+      [ sftServer
+          ( coerce
+              URI
+                { uriScheme = Scheme {schemeBS = "https"},
+                  uriAuthority =
+                    Just
+                      ( Authority
+                          { authorityUserInfo = Nothing,
+                            authorityHost = Host {hostBS = "example.com"},
+                            authorityPort = Nothing
+                          }
+                      ),
+                  uriPath = "",
+                  uriQuery = Query {queryPairs = []},
+                  uriFragment = Nothing
+                }
+          )
+      ]
   )

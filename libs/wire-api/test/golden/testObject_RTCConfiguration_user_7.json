@@ -11,6 +11,12 @@
             "username": "d=2.v=0.k=0.t=󷁝.r=tj"
         }
     ],
-    "sft_servers_all": [],
+    "sft_servers_all": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ],
     "ttl": 2
 }
