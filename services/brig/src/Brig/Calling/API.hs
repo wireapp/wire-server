@@ -47,7 +47,6 @@ import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
-import Network.HTTP.Client (Manager)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
@@ -56,7 +55,6 @@ import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
 import Polysemy.TinyLog
-import System.Logger (Logger)
 import qualified System.Random.MWC as MWC
 import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
@@ -106,7 +104,11 @@ getCallsConfigV2 _ _ limit = do
   sftEnv' <- view sftEnv
   logger <- view applog
   manager <- view httpManager
-  newConfig env staticUrl sftEnv' limit logger manager CallsConfigV2
+  liftIO
+    . runM @IO
+    . runTinyLog logger
+    . interpretSFT manager
+    $ newConfig env staticUrl sftEnv' limit CallsConfigV2
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -117,7 +119,12 @@ getCallsConfig _ _ = do
   env <- liftIO . readIORef =<< view turnEnv
   logger <- view applog
   manager <- view httpManager
-  dropTransport <$> newConfig env Nothing Nothing Nothing logger manager CallsConfigDeprecated
+  fmap dropTransport
+    . liftIO
+    . runM @IO
+    . runTinyLog logger
+    . interpretSFT manager
+    $ newConfig env Nothing Nothing Nothing CallsConfigDeprecated
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -131,16 +138,14 @@ data CallsConfigVersion
   | CallsConfigV2
 
 newConfig ::
-  MonadIO m =>
+  Members [Embed IO, SFT] r =>
   Calling.Env ->
   Maybe HttpsUrl ->
   Maybe SFTEnv ->
   Maybe (Range 1 10 Int) ->
-  Logger ->
-  Manager ->
   CallsConfigVersion ->
-  m Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit logger httpMan version = do
+  Sem r Public.RTCConfiguration
+newConfig env sftStaticUrl mSftEnv limit version = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -169,14 +174,7 @@ newConfig env sftStaticUrl mSftEnv limit logger httpMan version = do
     CallsConfigV2 ->
       Just <$> case sftStaticUrl of
         Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-        Just url ->
-          liftIO
-            . fmap (fromRight [])
-            . runM @IO
-            . runTinyLog logger
-            . interpretSFT httpMan
-            . sftGetAllServers
-            $ url
+        Just url -> fromRight [] <$> sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll
