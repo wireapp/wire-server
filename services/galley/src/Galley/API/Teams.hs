@@ -25,7 +25,7 @@ module Galley.API.Teams
     getTeamNameInternalH,
     getBindingTeamIdH,
     getBindingTeamMembersH,
-    getManyTeamsH,
+    getManyTeams,
     deleteTeamH,
     uncheckedDeleteTeam,
     addTeamMemberH,
@@ -73,6 +73,7 @@ import Data.List1 (list1)
 import qualified Data.Map as Map
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl, mkHttpsUrl)
+import Data.Proxy
 import Data.Qualified
 import Data.Range as Range
 import qualified Data.Set as Set
@@ -170,21 +171,25 @@ getTeamNameInternalH (tid ::: _) =
 getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
-getManyTeamsH ::
-  (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
-  UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON ->
-  Sem r Response
-getManyTeamsH (zusr ::: range ::: size ::: _) =
-  json <$> getManyTeams zusr range size
-
+-- | DEPRECATED.
+--
+-- The endpoint was designed to query non-binding teams. However, non-binding teams is a feature
+-- that has never been adopted by clients, but the endpoint also returns the binding team of a user and it is
+-- possible that this is being used by a client, even though unlikely.
+--
+-- The following functionality has been changed: query parameters will be ignored, which has the effect
+-- that regardless of the parameters the response will always contain the binding team of the user if
+-- it exists. Even though they are ignored, the use of query parameters will not result in an error.
+--
+-- (If you want to be pedantic, the `size` parameter is still honored: its allowed range is
+-- between 1 and 100, and that will always be an upper bound of the result set of size 0 or
+-- one.)
 getManyTeams ::
   (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
   UserId ->
-  Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
-  Range 1 100 Int32 ->
   Sem r Public.TeamList
-getManyTeams zusr range size =
-  withTeamIds zusr range size $ \more ids -> do
+getManyTeams zusr =
+  withTeamIds zusr Nothing (toRange (Proxy @100)) $ \more ids -> do
     teams <- mapM (lookupTeam zusr) ids
     pure (Public.newTeamList (catMaybes teams) more)
 

@@ -49,6 +49,8 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission (Perm (..))
 
+-- import Wire.API.Team.Permission (Perm (..))
+
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
@@ -741,7 +743,13 @@ data Api routes = Api
              'PUT
              '[JSON]
              '[RespondEmpty 200 "Team updated"]
-             ()
+             (),
+    getTeams ::
+      routes
+        :- Summary "Get teams (deprecated); use `GET /teams/:tid`"
+        :> ZUser
+        :> "teams"
+        :> Get '[JSON] TeamList
   }
   deriving (Generic)
 
