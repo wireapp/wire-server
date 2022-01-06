@@ -19,6 +19,10 @@
 
 module Brig.Calling.API
   ( routesPublic,
+
+    -- * Exposed for testing purposes
+    newConfig,
+    CallsConfigVersion (..),
   )
 where
 
@@ -102,7 +106,7 @@ getCallsConfigV2 _ _ limit = do
   sftEnv' <- view sftEnv
   logger <- view applog
   manager <- view httpManager
-  newConfig env staticUrl sftEnv' limit logger manager
+  newConfig env staticUrl sftEnv' limit logger manager CallsConfigV2
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -113,7 +117,7 @@ getCallsConfig _ _ = do
   env <- liftIO . readIORef =<< view turnEnv
   logger <- view applog
   manager <- view httpManager
-  dropTransport <$> newConfig env Nothing Nothing Nothing logger manager
+  dropTransport <$> newConfig env Nothing Nothing Nothing logger manager CallsConfigDeprecated
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -121,6 +125,10 @@ getCallsConfig _ _ = do
       set
         (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
         Nothing
+
+data CallsConfigVersion
+  = CallsConfigDeprecated
+  | CallsConfigV2
 
 newConfig ::
   MonadIO m =>
@@ -130,8 +138,9 @@ newConfig ::
   Maybe (Range 1 10 Int) ->
   Logger ->
   Manager ->
+  CallsConfigVersion ->
   m Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit logger httpMan = do
+newConfig env sftStaticUrl mSftEnv limit logger httpMan version = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -155,19 +164,22 @@ newConfig env sftStaticUrl mSftEnv limit logger httpMan = do
       mapM (getRandomElements subsetLength) allSrvEntries
 
   -- TODO(md): remove all configuration changes, both in wire-server and in Cailleach
-  sftServersAll :: [SFTServer] <- case sftStaticUrl of
-    Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-    Just url ->
-      liftIO
-        . fmap (fromRight [])
-        . runM @IO
-        . runTinyLog logger
-        . interpretSFT httpMan
-        . sftGetAllServers
-        $ url
+  mSftServersAll :: Maybe [SFTServer] <- case version of
+    CallsConfigDeprecated -> pure Nothing
+    CallsConfigV2 ->
+      Just <$> case sftStaticUrl of
+        Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+        Just url ->
+          liftIO
+            . fmap (fromRight [])
+            . runM @IO
+            . runTinyLog logger
+            . interpretSFT httpMan
+            . sftGetAllServers
+            $ url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
-  pure $ Public.rtcConfiguration srvs mSftServers cTTL sftServersAll
+  pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =

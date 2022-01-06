@@ -106,7 +106,7 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: NonEmpty RTCIceServer,
     _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
     _rtcConfTTL :: Word32,
-    _rtcConfSftServersAll :: [SFTServer]
+    _rtcConfSftServersAll :: Maybe [SFTServer]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
@@ -115,7 +115,7 @@ rtcConfiguration ::
   NonEmpty RTCIceServer ->
   Maybe (NonEmpty SFTServer) ->
   Word32 ->
-  [SFTServer] ->
+  Maybe [SFTServer] ->
   RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
@@ -138,7 +138,7 @@ instance ToJSON RTCConfiguration where
           "ttl" .= ttl
         ]
           <> ["sft_servers" .= sfts | isJust sfts]
-          <> ["sft_servers_all" .= all_servers]
+          <> ["sft_servers_all" .= all_servers | isJust all_servers]
       )
 
 instance FromJSON RTCConfiguration where
@@ -147,7 +147,7 @@ instance FromJSON RTCConfiguration where
       <$> o .: "ice_servers"
       <*> o .:? "sft_servers"
       <*> o .: "ttl"
-      <*> o .: "sft_servers_all"
+      <*> o .:? "sft_servers_all"
 
 --------------------------------------------------------------------------------
 -- SFTServer

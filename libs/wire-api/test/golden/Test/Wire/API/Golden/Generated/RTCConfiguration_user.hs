@@ -152,7 +152,7 @@ testObject_RTCConfiguration_user_1 =
       )
       (Nothing)
       (2)
-      []
+      Nothing
   )
 
 testObject_RTCConfiguration_user_2 :: RTCConfiguration
@@ -335,7 +335,7 @@ testObject_RTCConfiguration_user_2 =
           )
       )
       (4)
-      []
+      Nothing
   )
 
 testObject_RTCConfiguration_user_3 :: RTCConfiguration
@@ -482,7 +482,7 @@ testObject_RTCConfiguration_user_3 =
           )
       )
       (9)
-      []
+      Nothing
   )
 
 testObject_RTCConfiguration_user_4 :: RTCConfiguration
@@ -688,7 +688,7 @@ testObject_RTCConfiguration_user_4 =
           )
       )
       (2)
-      []
+      Nothing
   )
 
 testObject_RTCConfiguration_user_5 :: RTCConfiguration
@@ -732,7 +732,7 @@ testObject_RTCConfiguration_user_5 =
           )
       )
       (2)
-      []
+      Nothing
   )
 
 testObject_RTCConfiguration_user_6 :: RTCConfiguration
@@ -755,7 +755,7 @@ testObject_RTCConfiguration_user_6 =
       )
       Nothing
       (2)
-      []
+      Nothing
   )
 
 testObject_RTCConfiguration_user_7 :: RTCConfiguration
@@ -778,7 +778,7 @@ testObject_RTCConfiguration_user_7 =
       )
       Nothing
       (2)
-      [ sftServer
+      (Just [ sftServer
           ( coerce
               URI
                 { uriScheme = Scheme {schemeBS = "https"},
@@ -795,5 +795,5 @@ testObject_RTCConfiguration_user_7 =
                   uriFragment = Nothing
                 }
           )
-      ]
+      ])
   )
