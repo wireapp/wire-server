@@ -14,17 +14,21 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Brig.Effects.SFT
   ( SFTError (..),
+    SFTGetResponse (..),
     SFT (..),
     sftGetAllServers,
     interpretSFT,
+    interpretSFTInMemory,
   )
 where
 
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
+import qualified Data.Map as Map
 import Data.Misc
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -38,12 +42,16 @@ import URI.ByteString (uriPath)
 import Wire.API.Call.Config
 
 newtype SFTError = SFTError {unSFTError :: String}
-  deriving (Show)
+  deriving (Eq, Show)
+
+newtype SFTGetResponse = SFTGetResponse
+  {unSFTGetResponse :: Either SFTError [SFTServer]}
+  deriving newtype (Eq)
 
 data SFT m a where
-  SFTGetAllServers :: HttpsUrl -> SFT m (Either SFTError [SFTServer])
+  SFTGetAllServers :: HttpsUrl -> SFT m SFTGetResponse
 
-sftGetAllServers :: Member SFT r => HttpsUrl -> Sem r (Either SFTError [SFTServer])
+sftGetAllServers :: Member SFT r => HttpsUrl -> Sem r SFTGetResponse
 sftGetAllServers = send . SFTGetAllServers
 
 interpretSFT :: Members [Embed IO, TinyLog] r => Manager -> Sem (SFT ': r) a -> Sem r a
@@ -60,7 +68,7 @@ interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
     Right servers ->
       info $
         Log.field "IPv4s" (show servers) . Log.msg ("Fetched the following server URLs" :: ByteString)
-  pure res
+  pure . SFTGetResponse $ res
 
 newtype AllURLs = AllURLs {unAllURLs :: [HttpsUrl]}
   deriving (Aeson.FromJSON) via Schema AllURLs
@@ -70,3 +78,16 @@ instance ToSchema AllURLs where
     object "AllURLs" $
       AllURLs
         <$> unAllURLs .= field "sft_servers_all" (array schema)
+
+interpretSFTInMemory ::
+  Member TinyLog r =>
+  Map HttpsUrl SFTGetResponse ->
+  Sem (SFT ': r) a ->
+  Sem r a
+interpretSFTInMemory m = interpret $ \(SFTGetAllServers url) ->
+  case Map.lookup url m of
+    Nothing -> do
+      let msg = "No value in the lookup map"
+      err $ Log.field "url" (show url) . Log.msg (cs msg :: ByteString)
+      pure . SFTGetResponse . Left . SFTError $ msg
+    Just ss -> pure ss

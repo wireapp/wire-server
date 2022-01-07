@@ -156,9 +156,9 @@ newConfig env sftStaticUrl mSftEnv limit version = do
   finalUris <- liftIO $ randomize limitedUris
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
-    pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
+    pure $ Public.rtcIceServer (pure uri) u (computeCred sha secret u)
 
-  let staticSft = (\url -> Public.sftServer url :| []) <$> sftStaticUrl
+  let staticSft = pure . Public.sftServer <$> sftStaticUrl
   allSrvEntries <-
     fmap join $
       for mSftEnv $
@@ -174,7 +174,7 @@ newConfig env sftStaticUrl mSftEnv limit version = do
     CallsConfigV2 ->
       Just <$> case sftStaticUrl of
         Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-        Just url -> fromRight [] <$> sftGetAllServers url
+        Just url -> fromRight [] . unSFTGetResponse <$> sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll
