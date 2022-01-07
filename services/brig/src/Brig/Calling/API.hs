@@ -137,6 +137,11 @@ data CallsConfigVersion
   = CallsConfigDeprecated
   | CallsConfigV2
 
+-- | FUTUREWORK: It is not reflected in the function type the part of the
+-- business logic that says that the SFT static URL parameter cannot be set at
+-- the same time as the SFT environment parameter. See how to allow either none
+-- to be set or only one of them (perhaps Data.These combined with error
+-- handling).
 newConfig ::
   Members [Embed IO, SFT] r =>
   Calling.Env ->

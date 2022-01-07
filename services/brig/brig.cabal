@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 78d0385f2310dabd96428ada87564c345baa3876757a419bd887953b90df647b
+-- hash: 1dc7e35fb9a4e03bbef0388cdc700536553b09b47d71f47e8ae99e45e1d57675
 
 name:           brig
 version:        2.0
@@ -492,7 +492,8 @@ test-suite brig-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
-      aeson
+      HsOpenSSL
+    , aeson
     , base
     , bloodhound
     , brig
@@ -502,6 +503,7 @@ test-suite brig-tests
     , dns-util
     , http-types
     , imports
+    , lens
     , polysemy
     , polysemy-wire-zoo
     , retry

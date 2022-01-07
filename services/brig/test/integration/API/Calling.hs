@@ -56,9 +56,7 @@ tests m b opts turn turnV2 = do
           ],
         testGroup
           "sft"
-          [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
-            -- TODO(md): rewrite as a unit test with a mock interpreter for the static URI call
-            test m "SFT servers static URI - 200" $ testSFTStatic b opts
+          [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts
           ]
       ]
 
@@ -88,18 +86,6 @@ testCallsConfigMultiple b turnUpdater = do
   -- Revert the config file back to the original
   let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
-
-testSFTStatic :: Brig -> Opts.Opts -> Http ()
-testSFTStatic b opts = do
-  uid <- userId <$> randomUser b
-  let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
-  withSettingsOverrides (opts & Opts.optionSettings . Opts.sftStaticUrl ?~ server1) $ do
-    cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
-    liftIO $
-      assertEqual
-        "when SFT static URL is enabled, sft_servers should return just one static entry."
-        (Set.fromList [sftServer server1])
-        (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
 
 testSFT :: Brig -> Opts.Opts -> Http ()
 testSFT b opts = do
