@@ -33,10 +33,12 @@ import Network.HTTP.Client
 import Polysemy
 import Polysemy.Internal
 import Polysemy.TinyLog
+import qualified System.Logger as Log
 import URI.ByteString (uriPath)
 import Wire.API.Call.Config
 
 newtype SFTError = SFTError {unSFTError :: String}
+  deriving (Show)
 
 data SFT m a where
   SFTGetAllServers :: HttpsUrl -> SFT m (Either SFTError [SFTServer])
@@ -51,10 +53,13 @@ interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
   responseURLsRaw <- liftIO (responseBody <$> httpLbs req httpManager)
   let eList = Aeson.eitherDecode @AllURLs responseURLsRaw
       res = bimap SFTError (fmap sftServer . unAllURLs) eList
-  -- TODO(md): log the outcome here
   void $ case res of
-    Left _err -> undefined
-    Right _ips -> undefined
+    Left e ->
+      err $
+        Log.field "sft_err" (show e) . Log.msg ("Error for URL: " <> toByteString' urlWithPath)
+    Right servers ->
+      info $
+        Log.field "IPv4s" (show servers) . Log.msg ("Fetched the following server URLs" :: ByteString)
   pure res
 
 newtype AllURLs = AllURLs {unAllURLs :: [HttpsUrl]}
