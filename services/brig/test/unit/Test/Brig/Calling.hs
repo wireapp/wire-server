@@ -37,7 +37,6 @@ import qualified Data.Set as Set
 import Data.String.Conversions
 import Imports
 import Network.DNS
-import OpenSSL.EVP.Digest (getDigestByName)
 import Polysemy
 import Polysemy.TinyLog
 import qualified System.Logger as Log
@@ -265,20 +264,23 @@ retryEvery10MicrosWhileN n f m =
 -- the logic of call configuration endpoints
 sftStaticEnv :: IO (Env, HttpsUrl)
 sftStaticEnv = do
-  Just digest <- getDigestByName "SHA512"
   turnUri <- generate arbitrary
   let tokenTtl = 10 -- seconds
       configTtl = 10 -- seconds
       secret = "secret word"
-  env <- newEnv digest (pure turnUri) tokenTtl configTtl secret
-  let Right staticUrl = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
+  env <- newEnv undefined (pure turnUri) tokenTtl configTtl secret
+  let Right staticUrl =
+        mkHttpsUrl
+          =<< first
+            show
+            (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
   pure (env, staticUrl)
 
 -- The deprecated endpoint `GET /calls/config` without an SFT static URL
 testSFTStaticDeprecatedEndpoint :: IO ()
 testSFTStaticDeprecatedEndpoint = do
   env <- fst <$> sftStaticEnv
-  cfgDepNoStatic <-
+  cfg <-
     runM @IO
       . discardLogs
       . interpretSFTInMemory mempty
@@ -286,7 +288,7 @@ testSFTStaticDeprecatedEndpoint = do
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
     Set.empty
-    (Set.fromList $ maybe [] NonEmpty.toList $ cfgDepNoStatic ^. rtcConfSftServers)
+    (Set.fromList $ maybe [] NonEmpty.toList $ cfg ^. rtcConfSftServers)
 
 -- The v2 endpoint `GET /calls/config/v2` without an SFT static URL
 testSFTStaticV2NoStaticUrl :: IO ()
@@ -302,7 +304,7 @@ testSFTStaticV2NoStaticUrl = do
       <*> pure "foo.example.com"
       <*> pure 5
       <*> pure (unsafeRange 1)
-  rtcConfig <-
+  cfg <-
     runM @IO
       . discardLogs
       . interpretSFTInMemory mempty
@@ -310,38 +312,36 @@ testSFTStaticV2NoStaticUrl = do
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
     (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
-    (rtcConfig ^. rtcConfSftServersAll)
+    (cfg ^. rtcConfSftServersAll)
 
 -- The v2 endpoint `GET /calls/config/v2` with an SFT static URL that gives an error
 testSFTStaticV2StaticUrlError :: IO ()
 testSFTStaticV2StaticUrlError = do
   (env, staticUrl) <- sftStaticEnv
-  do
-    rtcConfig <-
-      runM @IO
-        . discardLogs
-        . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
-        -- an error
-        $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) CallsConfigV2
-    assertEqual
-      "when SFT static URL is enabled, but returns error, sft_servers_all should be empty"
-      (Just [])
-      (rtcConfig ^. rtcConfSftServersAll)
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
+      -- an error
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) CallsConfigV2
+  assertEqual
+    "when SFT static URL is enabled, but returns error, sft_servers_all should be empty"
+    (Just [])
+    (cfg ^. rtcConfSftServersAll)
 
 -- The v2 endpoint `GET /calls/config/v2` with an SFT static URL's /sft_servers_all.json
 testSFTStaticV2StaticUrlList :: IO ()
 testSFTStaticV2StaticUrlList = do
   (env, staticUrl) <- sftStaticEnv
-  do
-    -- 10 servers compared to the limit of 3 below that should be disregarded
-    -- for sft_servers_all
-    servers <- generate $ replicateM 10 arbitrary
-    rtcConfig <-
-      runM @IO
-        . discardLogs
-        . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
-        $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) CallsConfigV2
-    assertEqual
-      "when SFT static URL is enabled, sft_servers_all should be from /sft_servers_all.json"
-      (Just servers)
-      (rtcConfig ^. rtcConfSftServersAll)
+  -- 10 servers compared to the limit of 3 below that should be disregarded
+  -- for sft_servers_all
+  servers <- generate $ replicateM 10 arbitrary
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) CallsConfigV2
+  assertEqual
+    "when SFT static URL is enabled, sft_servers_all should be from /sft_servers_all.json"
+    (Just servers)
+    (cfg ^. rtcConfSftServersAll)
