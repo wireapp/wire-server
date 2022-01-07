@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.API.Public
-  ( API,
-    publicAPIServer,
+  ( publicAPIServer,
   )
 where
 
@@ -31,9 +30,7 @@ import Network.WebSockets.Connection
 import Servant
 import Wire.API.Routes.Public.Cannon
 
-type API = ServantAPI :<|> Raw
-
-publicAPIServer :: ServerT ServantAPI Cannon
+publicAPIServer :: ServerT PublicAPI Cannon
 publicAPIServer = streamData
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()

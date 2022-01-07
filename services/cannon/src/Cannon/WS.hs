@@ -42,6 +42,7 @@ module Cannon.WS
     mkKey,
     key2bytes,
     client,
+    sendMsgConduit,
   )
 where
 
@@ -50,10 +51,12 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import qualified Cannon.Dict as D
+import Conduit
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error)
+import qualified Data.ByteString
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
@@ -233,6 +236,23 @@ sendMsg m k c = do
 sendMsgIO :: L.ByteString -> Websocket -> IO ()
 sendMsgIO m c = do
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
+
+sendMsgConduit :: Key -> Websocket -> ConduitT ByteString Void (ResourceT WS) ()
+sendMsgConduit k c = do
+  m <- await
+  case m of
+    Just m' -> do
+      lift $ traceLog m'
+      liftIO $ sendToWebsocket m'
+    Nothing -> pure ()
+  where
+    traceLog :: ByteString -> (ResourceT WS) ()
+    traceLog m = lift $ trace $ client kb . msg (val "sendMsg: \"" +++ Data.ByteString.take 128 m +++ val "...\"")
+
+    kb = key2bytes k
+
+    sendToWebsocket :: ByteString -> IO ()
+    sendToWebsocket m = recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
 close :: Key -> Websocket -> WS ()
 close k c = do
