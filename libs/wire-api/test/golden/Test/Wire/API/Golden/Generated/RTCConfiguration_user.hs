@@ -778,22 +778,24 @@ testObject_RTCConfiguration_user_7 =
       )
       Nothing
       (2)
-      (Just [ sftServer
-          ( coerce
-              URI
-                { uriScheme = Scheme {schemeBS = "https"},
-                  uriAuthority =
-                    Just
-                      ( Authority
-                          { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
-                            authorityPort = Nothing
-                          }
-                      ),
-                  uriPath = "",
-                  uriQuery = Query {queryPairs = []},
-                  uriFragment = Nothing
-                }
-          )
-      ])
+      ( Just
+          [ sftServer
+              ( coerce
+                  URI
+                    { uriScheme = Scheme {schemeBS = "https"},
+                      uriAuthority =
+                        Just
+                          ( Authority
+                              { authorityUserInfo = Nothing,
+                                authorityHost = Host {hostBS = "example.com"},
+                                authorityPort = Nothing
+                              }
+                          ),
+                      uriPath = "",
+                      uriQuery = Query {queryPairs = []},
+                      uriFragment = Nothing
+                    }
+              )
+          ]
+      )
   )
