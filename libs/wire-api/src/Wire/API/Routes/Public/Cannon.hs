@@ -24,7 +24,7 @@ import Servant.Swagger
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.WebSocket
 
-type ServantAPI =
+type PublicAPI =
   Summary "Establish websocket connection"
     :> "await"
     :> ZUser
@@ -40,4 +40,4 @@ type ServantAPI =
     :> WebSocketPending
 
 swaggerDoc :: Swagger
-swaggerDoc = toSwagger (Proxy @ServantAPI)
+swaggerDoc = toSwagger (Proxy @PublicAPI)
