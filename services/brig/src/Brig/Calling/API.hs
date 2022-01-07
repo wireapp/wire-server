@@ -173,7 +173,6 @@ newConfig env sftStaticUrl mSftEnv limit version = do
       let subsetLength = Calling.sftListLength actualSftEnv
       mapM (getRandomElements subsetLength) allSrvEntries
 
-  -- TODO(md): remove all configuration changes, both in wire-server and in Cailleach
   mSftServersAll :: Maybe [SFTServer] <- case version of
     CallsConfigDeprecated -> pure Nothing
     CallsConfigV2 ->
