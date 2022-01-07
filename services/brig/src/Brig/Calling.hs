@@ -138,17 +138,6 @@ discoverSFTServers domain =
       err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
       pure Nothing
 
--- discoverSFTServersAll :: Member TinyLog r => HttpsUrl -> Sem (SFT ': r) a -> Sem r [SFTServer]
--- discoverSFTServersAll url prog =
---   interpretSFT url GetAllS
---     lookupA
---     domain
---     >>= \case
---       AIPv4s ips -> pure . Just $ ips
---       AResponseError e -> do
---         err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
---         pure Nothing
-
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
