@@ -160,7 +160,6 @@ tests:
     - containers
     - dns
     - dns-util
-    - HsOpenSSL
     - http-types
     - imports
     - lens
