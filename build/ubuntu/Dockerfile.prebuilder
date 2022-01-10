@@ -65,7 +65,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
 
 ENV PATH=/root/.ghcup/bin:${PATH} \
     LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 ARG STACK_VERSION=2.7.3
 RUN ghcup install stack ${STACK_VERSION}
