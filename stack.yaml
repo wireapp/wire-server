@@ -64,6 +64,7 @@ packages:
 - tools/db/repair-handles
 - tools/makedeb
 - tools/rex
+- tools/sftd-disco
 - tools/stern
 
 nix:
