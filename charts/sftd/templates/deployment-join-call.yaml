@@ -39,7 +39,7 @@ spec:
             - "/bin/sh"
             - "-c"
             - |
-              /usr/bin/sftd_disco.sh _sft._tcp.{{ include "sftd.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+              /usr/bin/sftd-disco --srvRecord _sft._tcp.{{ include "sftd.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
         - name: nginx
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}

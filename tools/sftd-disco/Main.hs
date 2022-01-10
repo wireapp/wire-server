@@ -46,7 +46,7 @@ parseOpts = info (helper <*> parser) desc
 
 main :: IO ()
 main = withSocketsDo $ do
-  opts <- execParser parseOpts
-  lgr <- Log.new Log.defSettings
-  rlv <- makeResolvSeed defaultResolvConf
+  _opts <- execParser parseOpts
+  _lgr <- Log.new Log.defSettings
+  _rlv <- makeResolvSeed defaultResolvConf
   undefined
