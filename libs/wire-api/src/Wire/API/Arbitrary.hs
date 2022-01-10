@@ -25,7 +25,6 @@ module Wire.API.Arbitrary
   ( Arbitrary (..),
     GenericUniform (..),
     listOf',
-    list1Of',
     setOf',
     mapOf',
     generateExample,
@@ -89,9 +88,6 @@ customSizedOpts =
   Generic.setGenerators
     (Generic.Gen1 listOf' :+ Generic.Gen1 nonEmptyListOf' :+ ())
     Generic.sizedOpts
-
-list1Of' :: Gen a -> Gen (List1 a)
-list1Of' g = list1 <$> g <*> Generic.listOf' g
 
 nonEmptyListOf' :: Gen a -> Gen (NonEmpty a)
 nonEmptyListOf' g = (:|) <$> g <*> listOf' g
