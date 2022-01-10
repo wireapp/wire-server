@@ -100,7 +100,6 @@ import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.Schema
 import qualified Data.Set as Set
-import Data.Singletons (sing)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -366,7 +365,7 @@ instance ToSchema ListConversations where
       "ListConversations"
       (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
       $ ListConversations
-        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
+        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
 
 data ConversationsResponse = ConversationsResponse
   { crFound :: [Conversation],

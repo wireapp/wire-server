@@ -182,7 +182,7 @@ optSettings:
   # to be added to the CI environment
   setSftLookup:
     domain: sftd.integration-tests.zinfra.io
-    port: 443
+    port: 80
     isTestingEnvironment: true
 
 logLevel: Warn

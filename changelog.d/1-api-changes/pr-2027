@@ -1,0 +1,1 @@
+The deprecated endpoint `GET /teams` now ignores query parameters `ids`, `start`

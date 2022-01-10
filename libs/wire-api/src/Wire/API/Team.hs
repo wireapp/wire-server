@@ -76,7 +76,6 @@ import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Schema
-import Data.Singletons (sing)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -215,7 +214,7 @@ instance ToSchema NonBindingNewTeam where
       unwrap (NonBindingNewTeam nt) = nt
 
       sch :: ValueSchema SwaggerDoc (Range 1 127 [TeamMember])
-      sch = fromRange .= rangedSchema sing sing (array schema)
+      sch = fromRange .= rangedSchema (array schema)
 
 modelNewNonBindingTeam :: Doc.Model
 modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do

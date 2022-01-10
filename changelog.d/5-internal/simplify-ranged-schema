@@ -1,0 +1,1 @@
+`rangedSchema` does not need to be passed singletons explicitly anymore

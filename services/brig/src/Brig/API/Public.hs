@@ -999,8 +999,8 @@ sendActivationCodeH req =
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode :: Public.SendActivationCode -> Handler ()
 sendActivationCode Public.SendActivationCode {..} = do
+  either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
   checkWhitelist saUserKey
-  either customerExtensionCheckBlockedDomains (\_ -> pure ()) saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.

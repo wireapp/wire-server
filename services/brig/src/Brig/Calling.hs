@@ -140,7 +140,9 @@ discoverSFTServers domain =
 discoverSFTServersAll :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe [IPv4])
 discoverSFTServersAll domain =
   lookupA domain >>= \case
-    AIPv4s ips -> pure . Just $ ips
+    AIPv4s ips -> do
+      info (Log.msg ("Found the following IP addresses for SFT servers" :: ByteString) . Log.field "addresses" (show ips))
+      pure . Just $ ips
     AResponseError e -> do
       err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
       pure Nothing

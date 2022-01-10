@@ -24,6 +24,7 @@ custom-setup
     , containers
     , directory
     , filepath
+    , text
 
 library
   exposed-modules:
@@ -737,6 +738,7 @@ test-suite brig-tests
     , polysemy-wire-zoo
     , retry
     , servant-client-core
+    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

@@ -336,7 +336,7 @@ invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
 invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
   case (invby, invat) of
     (Just b, Just a) -> pure $ Just (b, a)
-    (Nothing, Nothing) -> pure $ Nothing
+    (Nothing, Nothing) -> pure Nothing
     _ -> fail "created_by, created_at"
 
 instance ToSchema NewTeamMember where

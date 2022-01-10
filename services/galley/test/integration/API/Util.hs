@@ -149,7 +149,7 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
   ownerid <- randomTeamCreator
-  teams <- getTeams ownerid
+  teams <- getTeams ownerid []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
@@ -176,13 +176,14 @@ createBindingTeamWithQualifiedMembers num = do
   (tid, owner, users) <- createBindingTeamWithMembers num
   pure (tid, Qualified owner localDomain, map (`Qualified` localDomain) users)
 
-getTeams :: UserId -> TestM TeamList
-getTeams u = do
+getTeams :: UserId -> [(ByteString, Maybe ByteString)] -> TestM TeamList
+getTeams u queryItems = do
   g <- view tsGalley
   r <-
     get
       ( g
           . paths ["teams"]
+          . query queryItems
           . zUser u
           . zConn "conn"
           . zType "access"

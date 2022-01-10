@@ -17,6 +17,7 @@ custom-setup:
     - containers
     - directory
     - filepath
+    - text
 extra-source-files:
   - docs/*
 library:
@@ -168,6 +169,7 @@ tests:
     - polysemy-wire-zoo
     - retry
     - servant-client-core
+    - string-conversions
     - tasty
     - tasty-hunit
     - tasty-quickcheck

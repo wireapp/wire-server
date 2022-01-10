@@ -188,46 +188,14 @@ servantSitemap =
         GalleyAPI.featureConfigConferenceCallingGet = Features.getFeatureConfig @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
         GalleyAPI.featureConfigSelfDeletingMessagesGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         GalleyAPI.featureConfigGuestLinksGet = Features.getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
-        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH
+        GalleyAPI.createNonBindingTeam = Teams.createNonBindingTeamH,
+        GalleyAPI.updateTeam = Teams.updateTeamH,
+        GalleyAPI.getTeams = Teams.getManyTeams
       }
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
-
-  put "/teams/:tid" (continue Teams.updateTeamH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamUpdateData
-      .&. accept "application" "json"
-  document "PUT" "updateTeam" $ do
-    summary "Update team properties"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelUpdateData) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
-    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetTeamData))
-
-  get "/teams" (continue Teams.getManyTeamsH) $
-    zauthUserId
-      .&. opt (query "ids" ||| query "start")
-      .&. def (unsafeRange 100) (query "size")
-      .&. accept "application" "json"
-  document "GET" "getManyTeams" $ do
-    parameter Query "ids" (array string') $ do
-      optional
-      description "At most 32 team IDs per request. Mutually exclusive with `start`."
-    parameter Query "start" string' $ do
-      optional
-      description "Team ID to start from (exclusive). Mutually exclusive with `ids`."
-    parameter Query "size" (int32Between 1 100) $ do
-      optional
-      description "Max. number of teams to return"
-    summary "Get teams"
-    returns (ref Public.modelTeamList)
-    response 200 "Teams list" end
 
   get "/teams/:tid" (continue Teams.getTeamH) $
     zauthUserId
