@@ -56,9 +56,7 @@ tests m b opts turn turnV2 = do
           ],
         testGroup
           "sft"
-          [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
-            test m "SFT servers all /calls/config/v2 - 200" $ testSFTServersAll b opts,
-            test m "SFT servers static URI - 200" $ testSFTStatic b opts
+          [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts
           ]
       ]
 
@@ -89,18 +87,6 @@ testCallsConfigMultiple b turnUpdater = do
   let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
 
-testSFTStatic :: Brig -> Opts.Opts -> Http ()
-testSFTStatic b opts = do
-  uid <- userId <$> randomUser b
-  let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
-  withSettingsOverrides (opts & Opts.optionSettings . Opts.sftStaticUrl ?~ server1) $ do
-    cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
-    liftIO $
-      assertEqual
-        "when SFT static URL is enabled, sft_servers should return just one static entry."
-        (Set.fromList [sftServer server1])
-        (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
-
 testSFT :: Brig -> Opts.Opts -> Http ()
 testSFT b opts = do
   uid <- userId <$> randomUser b
@@ -110,42 +96,16 @@ testSFT b opts = do
       "when SFT discovery is not enabled, sft_servers shouldn't be returned"
       Nothing
       (cfg ^. rtcConfSftServers)
-    assertEqual
-      "when SFT discovery is not enabled, sft_servers_all shouldn't be returned"
-      Nothing
-      (cfg ^. rtcConfSftServersAll)
   withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing) $ do
     cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
     -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
     let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
     let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
-    liftIO $ do
+    liftIO $
       assertEqual
         "when SFT discovery is enabled, sft_servers should be returned"
         (Set.fromList [sftServer server1, sftServer server2])
         (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
-
-testSFTServersAll :: Brig -> Opts.Opts -> Http ()
-testSFTServersAll b opts = do
-  uid <- userId <$> randomUser b
-  let lookupSettings = Opts.SFTLookup (Opts.LookupDomain "sftd.integration-tests.zinfra.io") (Port 80) True
-  let newOptSettings = (Opts.optSettings opts) {Opts.setSftLookup = Just lookupSettings}
-  let opts' =
-        opts
-          { Opts.sft = Just $ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing,
-            Opts.optSettings = newOptSettings
-          }
-  withSettingsOverrides opts' $ do
-    cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServersAll) (getTurnConfigurationV2 uid b)
-    -- These values are controlled by https://github.com/zinfra/cailleach/blob/459591512a02333e62abebe28656874cab3b4380/environments/dns-integration-tests
-    liftIO $ case cfg1 ^. rtcConfSftServersAll of
-      Nothing -> assertFailure "sft_servers_all not configured"
-      Just allServers -> do
-        let Right clientUrl = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.avs.zinfra.io")
-        assertEqual
-          "when SFT discovery is enabled and SFT lookup configured, sft_servers_all should be returned"
-          (Set.singleton . sftServer $ clientUrl)
-          (Set.fromList allServers)
 
 modifyAndAssert ::
   Brig ->

@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,11 +21,17 @@
 module Test.Brig.Calling where
 
 import Brig.Calling
+import Brig.Calling.API (CallsConfigVersion (..), newConfig)
+import Brig.Calling.Internal (sftServerFromSrvTarget)
+import Brig.Effects.SFT
 import Brig.Options
+import Control.Lens ((^.))
 import Control.Retry
-import Data.IP
+import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Map as Map
+import Data.Misc
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions
@@ -35,30 +42,27 @@ import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck (Arbitrary (..), generate)
+import URI.ByteString
 import qualified UnliftIO.Async as Async
-import qualified Wire.Network.DNS.A as A
+import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 
 data FakeDNSEnv = FakeDNSEnv
   { fakeLookupSrv :: Domain -> SrvResponse,
-    fakeLookupA :: Domain -> A.AResponse,
-    fakeLookupSrvCalls :: IORef [Domain],
-    fakeLookupACalls :: IORef [Domain]
+    fakeLookupSrvCalls :: IORef [Domain]
   }
 
-newFakeDNSEnv :: (Domain -> SrvResponse) -> (Domain -> A.AResponse) -> IO FakeDNSEnv
-newFakeDNSEnv lookupSrvFn lookupAFn =
-  FakeDNSEnv lookupSrvFn lookupAFn <$> newIORef [] <*> newIORef []
+newFakeDNSEnv :: (Domain -> SrvResponse) -> IO FakeDNSEnv
+newFakeDNSEnv lookupSrvFn =
+  FakeDNSEnv lookupSrvFn <$> newIORef []
 
 runFakeDNSLookup :: Member (Embed IO) r => FakeDNSEnv -> Sem (DNSLookup ': r) a -> Sem r a
-runFakeDNSLookup FakeDNSEnv {..} = interpret $ \case
-  LookupSRV domain -> do
+runFakeDNSLookup FakeDNSEnv {..} = interpret $
+  \(LookupSRV domain) -> do
     modifyIORef' fakeLookupSrvCalls (++ [domain])
     pure $ fakeLookupSrv domain
-  LookupA domain -> do
-    modifyIORef' fakeLookupACalls (++ [domain])
-    pure $ fakeLookupA domain
 
 newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Log.Level, LByteString)]}
 
@@ -100,14 +104,17 @@ tests =
           testCase "when service is not available" testSFTDiscoverWhenNotAvailable,
           testCase "when dns lookup fails" testSFTDiscoverWhenDNSFails
         ],
-      testGroup "getRandomSFTServers" $
+      testGroup "Get Random SFT Servers" $
         [ testCase "more servers in SRV than limit" testSFTManyServers,
           testCase "fewer servers in SRV than limit" testSFTFewerServers
           -- the randomization part is not (yet?) tested here.
         ],
-      testGroup "discoverSFTServersAll" $
-        [ testCase "when service is available" testSFTDiscoverAWhenAvailable,
-          testCase "when dns lookup fails" testSFTDiscoverAWhenDNSFails
+      testGroup
+        "SFT static URL"
+        [ testCase "deprecated endpoint" testSFTStaticDeprecatedEndpoint,
+          testCase "v2 endpoint, no SFT static URL" testSFTStaticV2NoStaticUrl,
+          testCase "v2 endpoint, SFT static URL without /sft_servers_all.json" testSFTStaticV2StaticUrlError,
+          testCase "v2 endpoint, SFT static URL with    /sft_servers_all.json" testSFTStaticV2StaticUrlList
         ]
     ]
 
@@ -117,8 +124,8 @@ testDiscoveryLoopWhenSuccessful = do
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
       returnedEntries = entry1 :| [entry2, entry3]
-  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries) undefined
-  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing, Nothing)
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
+  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing
 
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
@@ -132,8 +139,8 @@ testDiscoveryLoopWhenSuccessful = do
 
 testDiscoveryLoopWhenUnsuccessful :: IO ()
 testDiscoveryLoopWhenUnsuccessful = do
-  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable) undefined
-  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing, Nothing)
+  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
+  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing
 
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
@@ -151,7 +158,7 @@ testDiscoveryLoopWhenUnsuccessfulAfterSuccess = do
 
   -- In the following lines we re-use the 'sftEnv' from a successful lookup to
   -- replicate what will happen when a dns lookup fails after success
-  failingFakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable) undefined
+  failingFakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
   -- least once
@@ -171,7 +178,7 @@ testDiscoveryLoopWhenURLsChange = do
       entry2 = SrvEntry 0 0 (SrvTarget "sft5.foo.example.com." 443)
       newEntries = entry1 :| [entry2]
 
-  fakeDNSEnv <- newFakeDNSEnv (const $ SrvAvailable newEntries) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const $ SrvAvailable newEntries)
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
@@ -187,7 +194,7 @@ testSFTDiscoverWhenAvailable = do
   let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.example.com." 8843)
       returnedEntries = entry1 :| [entry2]
-  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries) undefined
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
 
   assertEqual "discovered servers should be returned" (Just returnedEntries)
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
@@ -199,7 +206,7 @@ testSFTDiscoverWhenAvailable = do
 testSFTDiscoverWhenNotAvailable :: IO ()
 testSFTDiscoverWhenNotAvailable = do
   logRecorder <- newLogRecorder
-  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
 
   assertEqual "discovered servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
@@ -211,7 +218,7 @@ testSFTDiscoverWhenNotAvailable = do
 testSFTDiscoverWhenDNSFails :: IO ()
 testSFTDiscoverWhenDNSFails = do
   logRecorder <- newLogRecorder
-  fakeDNSEnv <- newFakeDNSEnv (const $ SrvResponseError IllegalDomain) undefined
+  fakeDNSEnv <- newFakeDNSEnv (const $ SrvResponseError IllegalDomain)
 
   assertEqual "no servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
@@ -231,7 +238,7 @@ testSFTManyServers = do
       entry7 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
       entries = entry1 :| [entry2, entry3, entry4, entry5, entry6, entry7]
       sftServers = mkSFTServers entries
-  someServers <- getRandomSFTServers (unsafeRange 3) sftServers
+  someServers <- getRandomElements (unsafeRange 3) . unSFTServers $ sftServers
   assertEqual "should return only 3 servers" 3 (length someServers)
 
 testSFTFewerServers :: IO ()
@@ -243,7 +250,7 @@ testSFTFewerServers = do
       entries = entry1 :| [entry2, entry3, entry4]
       sftServers = mkSFTServers entries
 
-  allServers <- getRandomSFTServers (unsafeRange 10) sftServers
+  allServers <- getRandomElements (unsafeRange 10) . unSFTServers $ sftServers
   assertEqual "should return all of them" (Set.fromList $ NonEmpty.toList allServers) (Set.fromList $ NonEmpty.toList entries)
 
 retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
@@ -253,36 +260,88 @@ retryEvery10MicrosWhileN n f m =
     (const (return . f))
     (const m)
 
-testSFTDiscoverAWhenAvailable :: IO ()
-testSFTDiscoverAWhenAvailable = do
-  logRecorder <- newLogRecorder
-  let entry1 = read "192.0.2.1" :: IPv4
-      entry2 = read "192.0.2.2" :: IPv4
-      returnedEntries = [entry1, entry2]
-  fakeDNSEnv <- newFakeDNSEnv undefined (const $ A.AIPv4s returnedEntries)
+-- | Creates a calling environment and an https URL to be used in unit-testing
+-- the logic of call configuration endpoints
+sftStaticEnv :: IO (Env, HttpsUrl)
+sftStaticEnv = do
+  turnUri <- generate arbitrary
+  let tokenTtl = 10 -- seconds
+      configTtl = 10 -- seconds
+      secret = "secret word"
+  env <- newEnv undefined (pure turnUri) tokenTtl configTtl secret
+  let Right staticUrl =
+        mkHttpsUrl
+          =<< first
+            show
+            (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
+  pure (env, staticUrl)
 
-  assertEqual "discovered servers should be returned" (Just returnedEntries)
-    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServersAll "foo.example.com"
-        )
+-- The deprecated endpoint `GET /calls/config` without an SFT static URL
+testSFTStaticDeprecatedEndpoint :: IO ()
+testSFTStaticDeprecatedEndpoint = do
+  env <- fst <$> sftStaticEnv
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory mempty
+      $ newConfig env Nothing Nothing Nothing CallsConfigDeprecated
   assertEqual
-    "should report discovered IP addresses"
-    [ ( Log.Info,
-        "Found the following IP addresses for SFT servers, addresses="
-          <> (cs . show $ returnedEntries)
-          <> "\n"
-      )
-    ]
-    =<< readIORef (recordedLogs logRecorder)
+    "when SFT static URL is disabled, sft_servers should be empty."
+    Set.empty
+    (Set.fromList $ maybe [] NonEmpty.toList $ cfg ^. rtcConfSftServers)
 
-testSFTDiscoverAWhenDNSFails :: IO ()
-testSFTDiscoverAWhenDNSFails = do
-  logRecorder <- newLogRecorder
-  fakeDNSEnv <- newFakeDNSEnv undefined (const $ A.AResponseError IllegalDomain)
+-- The v2 endpoint `GET /calls/config/v2` without an SFT static URL
+testSFTStaticV2NoStaticUrl :: IO ()
+testSFTStaticV2NoStaticUrl = do
+  env <- fst <$> sftStaticEnv
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+      servers = entry1 :| [entry2, entry3]
+  sftEnv <-
+    SFTEnv
+      <$> newIORef (Discovered . mkSFTServers $ servers)
+      <*> pure "foo.example.com"
+      <*> pure 5
+      <*> pure (unsafeRange 1)
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory mempty
+      $ newConfig env Nothing (Just sftEnv) (Just . unsafeRange $ 2) CallsConfigV2
+  assertEqual
+    "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
+    (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
+    (cfg ^. rtcConfSftServersAll)
 
-  assertEqual "no servers should be returned" Nothing
-    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServersAll "foo.example.com"
-        )
-  assertEqual "should warn about it in the logs" [(Log.Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
-    =<< readIORef (recordedLogs logRecorder)
+-- The v2 endpoint `GET /calls/config/v2` with an SFT static URL that gives an error
+testSFTStaticV2StaticUrlError :: IO ()
+testSFTStaticV2StaticUrlError = do
+  (env, staticUrl) <- sftStaticEnv
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
+      -- an error
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) CallsConfigV2
+  assertEqual
+    "when SFT static URL is enabled, but returns error, sft_servers_all should be empty"
+    (Just [])
+    (cfg ^. rtcConfSftServersAll)
+
+-- The v2 endpoint `GET /calls/config/v2` with an SFT static URL's /sft_servers_all.json
+testSFTStaticV2StaticUrlList :: IO ()
+testSFTStaticV2StaticUrlList = do
+  (env, staticUrl) <- sftStaticEnv
+  -- 10 servers compared to the limit of 3 below that should be disregarded
+  -- for sft_servers_all
+  servers <- generate $ replicateM 10 arbitrary
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) CallsConfigV2
+  assertEqual
+    "when SFT static URL is enabled, sft_servers_all should be from /sft_servers_all.json"
+    (Just servers)
+    (cfg ^. rtcConfSftServersAll)
