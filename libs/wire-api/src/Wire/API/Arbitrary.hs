@@ -39,7 +39,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 (List1, list1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GHC.Generics (Rep)
