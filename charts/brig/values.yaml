@@ -53,7 +53,6 @@ config:
     legalholdUserTokenTimeout: 4838400
     legalholdAccessTokenTimeout: 900
   optSettings:
-    setDefaultLocale: en
     setActivationTimeout: 1209600
     setTeamInvitationTimeout: 1814400
     setUserMaxConnections: 1000
@@ -64,7 +63,8 @@ config:
       stdDev: 3000
       retryAfter: 86400
     setRichInfoLimit: 5000
-    setDefaultLocale: en
+    setDefaultTemplateLocale: en
+    setDefaultUserLocale: en
     setMaxTeamSize: 500
     setMaxConvSize: 500
     # Allowed values: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306

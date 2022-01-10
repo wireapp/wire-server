@@ -118,7 +118,7 @@ data ReAuthError
 -- there, it was claimed properly.
 newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid mbHandle = do
-  defLoc <- setDefaultLocale <$> view settings
+  defLoc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
   uid <-
     Id <$> do
@@ -132,7 +132,7 @@ newAccount u inv tid mbHandle = do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
       e <- view zauthEnv
       let ZAuth.SessionTokenTimeout defTTL = e ^. ZAuth.settings . ZAuth.sessionTokenTimeout
-          ttl = fromMaybe defTTL (fromRange <$> newUserExpiresIn u)
+          ttl = maybe defTTL fromRange (newUserExpiresIn u)
       now <- liftIO =<< view currentTime
       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> return Nothing
@@ -154,7 +154,7 @@ newAccount u inv tid mbHandle = do
 
 newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
 newAccountInviteViaScim uid tid locale name email = do
-  defLoc <- setDefaultLocale <$> view settings
+  defLoc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
   return (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
   where
@@ -370,7 +370,7 @@ deactivateUser u =
 
 lookupLocale :: UserId -> AppIO (Maybe Locale)
 lookupLocale u = do
-  defLoc <- setDefaultLocale <$> view settings
+  defLoc <- setDefaultUserLocale <$> view settings
   fmap (toLocale defLoc) <$> retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
 
 lookupName :: UserId -> AppIO (Maybe Name)
@@ -417,7 +417,7 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Ident
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: HavePendingInvitations -> [UserId] -> AppIO [User]
 lookupUsers hpi usrs = do
-  loc <- setDefaultLocale <$> view settings
+  loc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 
@@ -426,7 +426,7 @@ lookupAccount u = listToMaybe <$> lookupAccounts [u]
 
 lookupAccounts :: [UserId] -> AppIO [UserAccount]
 lookupAccounts usrs = do
-  loc <- setDefaultLocale <$> view settings
+  loc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
   fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 

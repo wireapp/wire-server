@@ -1062,7 +1062,7 @@ deleteAccount account@(accountUser -> user) = do
   revokeAllCookies uid
   where
     mkTombstone = do
-      defLoc <- setDefaultLocale <$> view settings
+      defLoc <- setDefaultUserLocale <$> view settings
       return $
         account
           { accountStatus = Deleted,
