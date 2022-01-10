@@ -59,6 +59,4 @@ streamAsset ga = do
   AssetSource <$> S3.downloadV3 (F.gaKey ga)
 
 getAsset :: F.GetAsset -> Handler F.GetAssetResponse
-getAsset ga = do
-  available <- checkAsset ga
-  pure $ F.GetAssetResponse {F.gaAvailable = available}
+getAsset = fmap F.GetAssetResponse . checkAsset
