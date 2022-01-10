@@ -33,7 +33,7 @@ import Servant.Server.Internal.Router
 import Servant.Swagger
 
 -- | A websocket that relates to a 'PendingConnection'
--- Copied and adjusted from: <https://hackage.haskell.org/package/servant-websockets-2.0.0/docs/Servant-API-WebSocket.html#t:WebSocketPending>
+-- Copied and adapted from: <https://hackage.haskell.org/package/servant-websockets-2.0.0/docs/Servant-API-WebSocket.html#t:WebSocketPending>
 data WebSocketPending
 
 instance HasServer WebSocketPending ctx where
