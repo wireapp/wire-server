@@ -137,6 +137,9 @@ instance RoutesToPaths (Verb method status cts a) where
 instance RoutesToPaths (NoContentVerb method) where
   getRoutes = []
 
+instance RoutesToPaths (Stream method status framing ct a) where
+  getRoutes = []
+
 -- route :<|> routes
 instance
   ( RoutesToPaths route,

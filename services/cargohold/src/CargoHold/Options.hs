@@ -98,11 +98,15 @@ deriveFromJSON toOptionFieldName ''Settings
 
 makeLenses ''Settings
 
+-- | Options consist of information the server needs to operate, and 'Settings'
+-- modify the behavior.
 data Opts = Opts
   { -- | Hostname and port to bind to
     _optCargohold :: !Endpoint,
     _optAws :: !AWSOpts,
     _optSettings :: !Settings,
+    -- | Federator endpoint
+    _optFederator :: Maybe Endpoint,
     -- Logging
 
     -- | Log level (Debug, Info, etc)

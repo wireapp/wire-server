@@ -9,6 +9,9 @@ spec:
     - name: "cargohold-integration"
       configMap:
         name: "cargohold-integration"
+    - name: "cargohold-config"
+      configMap:
+        name: "cargohold"
   containers:
     # NOTE: the bucket for these tests must be created.
     # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created.
@@ -17,6 +20,8 @@ spec:
     volumeMounts:
     - name: "cargohold-integration"
       mountPath: "/etc/wire/integration"
+    - name: "cargohold-config"
+      mountPath: "/etc/wire/cargohold/conf"
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID

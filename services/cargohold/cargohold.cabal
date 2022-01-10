@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3633e0db5e928a51056ef8474859ed8f6edf06bc84b9ade6db39f62c48bfce07
+-- hash: 8291075b6b5e2e43a811343e51abb02d402fbc38a5a3efd0928f3f1b4c769485
 
 name:           cargohold
 version:        1.5.0
@@ -34,6 +34,7 @@ library
       CargoHold.App
       CargoHold.AWS
       CargoHold.CloudFront
+      CargoHold.Federation
       CargoHold.Metrics
       CargoHold.Options
       CargoHold.Run
@@ -74,6 +75,7 @@ library
     , http-client-openssl >=0.2
     , http-types >=0.8
     , imports
+    , kan-extensions
     , lens >=4.1
     , metrics-wai >=0.4
     , mime >=0.4
@@ -122,6 +124,7 @@ executable cargohold
     , http-client >=0.4
     , http-types >=0.8
     , imports
+    , kan-extensions
     , mime >=0.4
     , safe >=0.3
     , text >=1.1
@@ -135,6 +138,7 @@ executable cargohold-integration
   main-is: Main.hs
   other-modules:
       API
+      API.Federation
       API.Util
       API.V3
       Metrics
@@ -154,19 +158,28 @@ executable cargohold-integration
     , bytestring-conversion >=0.2
     , cargohold
     , cargohold-types
+    , conduit
     , containers >=0.5
+    , cryptonite
     , data-default >=0.5
     , errors >=1.4
     , exceptions >=0.6
     , extended
+    , federator
     , http-client >=0.4
     , http-client-tls >=0.2
+    , http-media
     , http-types >=0.8
     , imports
+    , kan-extensions
     , lens >=3.8
     , mime >=0.4
+    , mmorph
+    , mtl
     , optparse-applicative
     , safe >=0.3
+    , servant-client
+    , servant-client-core
     , tagged >=0.8
     , tasty >=1.0
     , tasty-hunit >=0.9
@@ -174,7 +187,9 @@ executable cargohold-integration
     , time >=1.5
     , types-common >=0.7
     , uuid >=1.3
+    , wai
     , wai-utilities >=0.12
     , wire-api
+    , wire-api-federation
     , yaml >=0.8
   default-language: Haskell2010

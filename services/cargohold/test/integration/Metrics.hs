@@ -29,8 +29,9 @@ import TestSetup
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
 
-testPrometheusMetrics :: TestSignature ()
-testPrometheusMetrics cargohold =
+testPrometheusMetrics :: TestM ()
+testPrometheusMetrics = do
+  cargohold <- viewCargohold
   get (cargohold . path "/i/metrics") !!! do
     const 200 === statusCode
     -- Should contain the request duration metric in its output

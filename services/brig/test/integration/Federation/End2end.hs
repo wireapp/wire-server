@@ -23,9 +23,9 @@ import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
-import Brig.Types
+import Brig.Types hiding (assetKey)
 import Control.Arrow ((&&&))
-import Control.Lens (sequenceAOf, _1)
+import Control.Lens (sequenceAOf, view, (.~), _1)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
@@ -49,6 +49,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
+import Wire.API.Asset
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation
@@ -76,12 +77,14 @@ spec ::
   Manager ->
   Brig ->
   Galley ->
+  CargoHold ->
   Cannon ->
   Endpoint ->
   Brig ->
   Galley ->
+  CargoHold ->
   IO TestTree
-spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
+spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo cargoholdTwo =
   pure $
     testGroup
       "federation-end2end-user"
@@ -99,7 +102,8 @@ spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
         test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
         test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon,
-        test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon
+        test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon,
+        test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo
       ]
 
 -- | Path covered by this test:
@@ -619,3 +623,17 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
     WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
     WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
     WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
+
+testRemoteAsset :: Brig -> Brig -> CargoHold -> CargoHold -> Http ()
+testRemoteAsset brig1 brig2 ch1 ch2 = do
+  alice <- userQualifiedId <$> randomUser brig1
+  bob <- userQualifiedId <$> randomUser brig2
+
+  let sts = defAssetSettings & setAssetPublic .~ True
+  ast <- responseJsonError =<< uploadAsset ch2 (qUnqualified bob) sts "hello world"
+  let qkey = view assetKey ast
+
+  downloadAsset ch1 (qUnqualified alice) qkey
+    !!! do
+      const 200 === statusCode
+      const (Just "hello world") === responseBody

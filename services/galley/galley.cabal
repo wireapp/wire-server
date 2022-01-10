@@ -305,6 +305,7 @@ executable galley-integration
     , http-client-openssl
     , http-client-tls
     , http-types
+    , http-media
     , imports
     , lens
     , lens-aeson

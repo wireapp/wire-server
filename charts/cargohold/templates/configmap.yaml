@@ -11,6 +11,12 @@ data:
       host: 0.0.0.0
       port: {{ .Values.service.internalPort }}
 
+    {{- if .Values.config.enableFederator }}
+    federator:
+      host: federator
+      port: 8080
+    {{- end }}
+
     aws:
       {{- with .Values.config.aws }}
       s3Bucket: {{ .s3Bucket }}
