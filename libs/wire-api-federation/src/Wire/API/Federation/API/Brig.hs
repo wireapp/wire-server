@@ -23,11 +23,10 @@ import Data.Id
 import Data.Range
 import Imports
 import Servant.API
-import Servant.API.Generic
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.Domain (OriginDomainHeader)
+import Wire.API.Federation.Endpoint
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -47,58 +46,18 @@ instance FromJSON SearchRequest
 -- | For conventions see /docs/developer/federation-api-conventions.md
 --
 -- Maybe this module should be called Brig
-data BrigApi routes = BrigApi
-  { getUserByHandle ::
-      routes
-        :- "get-user-by-handle"
-        :> ReqBody '[JSON] Handle
-        :> Post '[JSON] (Maybe UserProfile),
-    getUsersByIds ::
-      routes
-        :- "get-users-by-ids"
-        :> ReqBody '[JSON] [UserId]
-        :> Post '[JSON] [UserProfile],
-    claimPrekey ::
-      routes
-        :- "claim-prekey"
-        :> ReqBody '[JSON] (UserId, ClientId)
-        :> Post '[JSON] (Maybe ClientPrekey),
-    claimPrekeyBundle ::
-      routes
-        :- "claim-prekey-bundle"
-        :> ReqBody '[JSON] UserId
-        :> Post '[JSON] PrekeyBundle,
-    claimMultiPrekeyBundle ::
-      routes
-        :- "claim-multi-prekey-bundle"
-        :> ReqBody '[JSON] UserClients
-        :> Post '[JSON] UserClientPrekeyMap,
-    searchUsers ::
-      routes
-        :- "search-users"
-        -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
-        -- (handles can be up to 256 chars currently)
-        :> ReqBody '[JSON] SearchRequest
-        :> Post '[JSON] [Contact],
-    getUserClients ::
-      routes
-        :- "get-user-clients"
-        :> ReqBody '[JSON] GetUserClients
-        :> Post '[JSON] (UserMap (Set PubClient)),
-    sendConnectionAction ::
-      routes
-        :- "send-connection-action"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] NewConnectionRequest
-        :> Post '[JSON] NewConnectionResponse,
-    onUserDeleted ::
-      routes
-        :- "on-user-deleted-connections"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] UserDeletedConnectionsNotification
-        :> Post '[JSON] EmptyResponse
-  }
-  deriving (Generic)
+type BrigApi =
+  FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
+    :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
+    :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
+    :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
+    :<|> FedEndpoint "claim-multi-prekey-bundle" UserClients UserClientPrekeyMap
+    -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
+    -- (handles can be up to 256 chars currently)
+    :<|> FedEndpoint "search-users" SearchRequest [Contact]
+    :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
+    :<|> FedEndpointWithDomain "send-connection-action" NewConnectionRequest NewConnectionResponse
+    :<|> FedEndpointWithDomain "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]

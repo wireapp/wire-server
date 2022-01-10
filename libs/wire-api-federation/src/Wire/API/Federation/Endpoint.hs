@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,25 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API
-  ( FedApi,
+module Wire.API.Federation.Endpoint where
 
-    -- * Re-exports
-    Component (..),
-  )
-where
+import Servant.API
+import Wire.API.Federation.Domain
+import Wire.API.Routes.Named
 
-import Wire.API.Federation.API.Brig
-import Wire.API.Federation.API.Cargohold
-import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Component
+type FedEndpoint name input output =
+  Named
+    name
+    ( name :> ReqBody '[JSON] input :> Post '[JSON] output
+    )
 
--- Note: this type family being injective means that in most cases there is no need
--- to add component annotations when invoking the federator client
-type family FedApi (comp :: Component) = (api :: *) | api -> comp
-
-type instance FedApi 'Galley = GalleyApi
-
-type instance FedApi 'Brig = BrigApi
-
-type instance FedApi 'Cargohold = CargoholdApi
+type FedEndpointWithDomain name input output =
+  Named
+    name
+    (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
