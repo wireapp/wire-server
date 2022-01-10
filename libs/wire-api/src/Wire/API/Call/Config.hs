@@ -129,7 +129,7 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
   Doc.property "ttl" Doc.int32' $
     Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
   Doc.property "sft_servers_all" (Doc.array (Doc.ref modelRtcSftServerUrl)) $
-    Doc.description "Array of 'SFTServer' URLs (optional)"
+    Doc.description "Array of all SFT servers"
 
 instance ToJSON RTCConfiguration where
   toJSON (RTCConfiguration srvs sfts ttl all_servers) =

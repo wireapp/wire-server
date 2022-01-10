@@ -18,9 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Calling
-  ( getRandomSFTServers,
+  ( getRandomElements,
     mkSFTDomain,
     SFTServers, -- See NOTE SFTServers
+    unSFTServers,
     mkSFTServers,
     SFTEnv (..),
     Discovery (..),
@@ -29,7 +30,6 @@ module Brig.Calling
     newEnv,
     sftDiscoveryLoop,
     discoverSFTServers,
-    discoverSFTServersAll,
     discoveryToMaybe,
     randomize,
     startSFTServiceDiscovery,
@@ -47,7 +47,6 @@ import qualified Brig.Options as Opts
 import Brig.Types (TurnURI)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
-import Data.IP
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
@@ -61,7 +60,6 @@ import Polysemy.TinyLog
 import qualified System.Logger as Log
 import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
-import Wire.Network.DNS.A
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 
@@ -71,7 +69,7 @@ import Wire.Network.DNS.SRV
 -- And limited since client currently try contacting all servers returned
 -- (and we don't want them to open 100 parallel connections unnecessarily)
 -- Therefore, we hide the constructor from the module export.
-newtype SFTServers = SFTServers (NonEmpty SrvEntry)
+newtype SFTServers = SFTServers {unSFTServers :: NonEmpty SrvEntry}
   deriving (Eq, Show)
 
 mkSFTServers :: NonEmpty SrvEntry -> SFTServers
@@ -88,10 +86,14 @@ type MaximumSFTServers = 100
 -- Currently (Sept 2020) the client initiating an SFT call will try all
 -- servers in this list. Limit this list to a smaller subset in case many
 -- SFT servers are advertised in a given environment.
-getRandomSFTServers :: MonadRandom m => Range 1 MaximumSFTServers Int -> SFTServers -> m (NonEmpty SrvEntry)
-getRandomSFTServers limit (SFTServers list) = subsetSft limit <$> randomize list
+getRandomElements ::
+  MonadRandom f =>
+  Range 1 MaximumSFTServers Int ->
+  NonEmpty a ->
+  f (NonEmpty a)
+getRandomElements limit list = subsetSft limit <$> randomize list
 
-subsetSft :: Range 1 100 Int -> NonEmpty a -> NonEmpty a
+subsetSft :: Range 1 MaximumSFTServers Int -> NonEmpty a -> NonEmpty a
 subsetSft l entries = do
   let entry1 = NonEmpty.head entries
   let entryTail = take (fromRange l - 1) (NonEmpty.tail entries)
@@ -112,8 +114,7 @@ data SFTEnv = SFTEnv
     sftDiscoveryInterval :: Int,
     -- | maximum amount of servers to give out,
     -- even if more are in the SRV record
-    sftListLength :: Range 1 100 Int,
-    sftLookup :: Maybe Opts.SFTLookup
+    sftListLength :: Range 1 100 Int
   }
 
 data Discovery a
@@ -137,16 +138,6 @@ discoverSFTServers domain =
       err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
       pure Nothing
 
-discoverSFTServersAll :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe [IPv4])
-discoverSFTServersAll domain =
-  lookupA domain >>= \case
-    AIPv4s ips -> do
-      info (Log.msg ("Found the following IP addresses for SFT servers" :: ByteString) . Log.field "addresses" (show ips))
-      pure . Just $ ips
-    AResponseError e -> do
-      err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
-      pure Nothing
-
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
@@ -160,14 +151,13 @@ sftDiscoveryLoop SFTEnv {..} = forever $ do
     Just es -> atomicWriteIORef sftServers (Discovered (SFTServers es))
   threadDelay sftDiscoveryInterval
 
-mkSFTEnv :: (SFTOptions, Maybe Opts.SFTLookup) -> IO SFTEnv
-mkSFTEnv (opts, msftLookup) =
+mkSFTEnv :: SFTOptions -> IO SFTEnv
+mkSFTEnv opts =
   SFTEnv
     <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
     <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
     <*> pure (fromMaybe defSftListLength (Opts.sftListLength opts))
-    <*> pure msftLookup
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =
