@@ -34,6 +34,7 @@ module Cannon.Types
     clients,
     monitor,
     wsenv,
+    runCannonToServant,
   )
 where
 
@@ -51,6 +52,7 @@ import Data.Metrics.Middleware
 import Data.Text.Encoding
 import Imports
 import Network.Wai
+import qualified Servant
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
@@ -138,3 +140,8 @@ wsenv = Cannon $ do
 
 logger :: Cannon Logger
 logger = Cannon $ asks applog
+
+-- | Natural transformation from 'Cannon' to 'Handler' monad.
+-- Used to call 'Cannon' from servant.
+runCannonToServant :: Cannon.Types.Env -> Cannon x -> Servant.Handler x
+runCannonToServant env c = liftIO $ runCannon' env c

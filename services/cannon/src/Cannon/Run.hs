@@ -21,11 +21,12 @@ module Cannon.Run
 where
 
 import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
-import Cannon.API (sitemap)
+import Cannon.API.Internal
+import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import qualified Cannon.Dict as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon, runCannon')
+import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -33,7 +34,8 @@ import Control.Lens ((^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Data.Metrics.Middleware (gaugeSet, path)
 import qualified Data.Metrics.Middleware as Middleware
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant
+import Data.Proxy
 import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Imports hiding (head)
@@ -41,10 +43,12 @@ import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import Network.Wai.Utilities.Server
+import Servant
 import qualified System.IO.Strict as Strict
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
 import System.Random.MWC (createSystemRandom)
+import Wire.API.Routes.Public.Cannon
 
 run :: Opts -> IO ()
 run o = do
@@ -63,14 +67,17 @@ run o = do
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
   let rtree = compile sitemap
-      app r k = runCannon e (route rtree r k) r
+      internalApp r k = runCannon e (Network.Wai.Utilities.Server.route rtree r k) r
       middleware :: Wai.Middleware
       middleware =
-        waiPrometheusMiddleware sitemap
+        servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]
-      start = middleware app
-  runSettings s start `finally` do
+      app :: Application
+      app = middleware (serve (Proxy @API) server)
+      server :: Servant.Server API
+      server = hoistServer (Proxy @ServantAPI) (runCannonToServant e) publicAPIServer :<|> Tagged internalApp
+  runSettings s app `finally` do
     Async.cancel refreshMetricsThread
     L.close (applog e)
   where
