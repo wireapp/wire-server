@@ -52,18 +52,18 @@ type GalleyApi =
   -- | Register a new conversation
   Summary "Register users to be in a new remote conversation"
     :> FedEndpointWithDomain "on-conversation-created" (NewRemoteConversation ConvId) ()
-    :<|> FedEndpointWithDomain "get-conversations" GetConversationsRequest GetConversationsResponse
-    -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation
-    :<|> FedEndpointWithDomain "on-conversation-updated" ConversationUpdate ()
-    :<|> FedEndpointWithDomain "leave-conversation" LeaveConversationRequest LeaveConversationResponse
-    -- used to notify this backend that a new message has been posted to a
-    -- remote conversation
-    :<|> FedEndpointWithDomain "on-message-sent" (RemoteMessage ConvId) ()
-    -- used by a remote backend to send a message to a conversation owned by
-    -- this backend
-    :<|> FedEndpointWithDomain "send-message" MessageSendRequest MessageSendResponse
-    :<|> FedEndpointWithDomain "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
+      :<|> FedEndpointWithDomain "get-conversations" GetConversationsRequest GetConversationsResponse
+      -- used by the backend that owns a conversation to inform this backend of
+      -- changes to the conversation
+      :<|> FedEndpointWithDomain "on-conversation-updated" ConversationUpdate ()
+      :<|> FedEndpointWithDomain "leave-conversation" LeaveConversationRequest LeaveConversationResponse
+      -- used to notify this backend that a new message has been posted to a
+      -- remote conversation
+      :<|> FedEndpointWithDomain "on-message-sent" (RemoteMessage ConvId) ()
+      -- used by a remote backend to send a message to a conversation owned by
+      -- this backend
+      :<|> FedEndpointWithDomain "send-message" MessageSendRequest MessageSendResponse
+      :<|> FedEndpointWithDomain "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,

@@ -43,14 +43,12 @@ import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API
-import Servant.API.Generic (ToServantApi)
-import Servant.Server.Generic (genericServerT)
 import UnliftIO.Async (pooledForConcurrentlyN_)
-import Wire.API.Federation.API.Brig hiding (BrigApi (..))
-import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Message (UserClients)
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -58,22 +56,19 @@ import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 
-type FederationAPI = "federation" :> ToServantApi F.BrigApi
+type FederationAPI = "federation" :> BrigApi
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
-  genericServerT $
-    F.BrigApi
-      { F.getUserByHandle = getUserByHandle,
-        F.getUsersByIds = getUsersByIds,
-        F.claimPrekey = claimPrekey,
-        F.claimPrekeyBundle = claimPrekeyBundle,
-        F.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
-        F.searchUsers = searchUsers,
-        F.getUserClients = getUserClients,
-        F.sendConnectionAction = sendConnectionAction,
-        F.onUserDeleted = onUserDeleted
-      }
+  Named @"get-user-by-handle" getUserByHandle
+    :<|> Named @"get-users-by-ids" getUsersByIds
+    :<|> Named @"claim-prekey" claimPrekey
+    :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
+    :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
+    :<|> Named @"search-users" searchUsers
+    :<|> Named @"get-user-clients" getUserClients
+    :<|> Named @"send-connection-action" sendConnectionAction
+    :<|> Named @"on-user-deleted-connections" onUserDeleted
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

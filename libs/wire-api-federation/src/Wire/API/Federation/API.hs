@@ -17,16 +17,24 @@
 
 module Wire.API.Federation.API
   ( FedApi,
+    HasFedEndpoint,
+    fedClient,
 
     -- * Re-exports
     Component (..),
   )
 where
 
+import Data.Proxy
+import GHC.TypeLits
+import Imports
+import Servant.Client
+import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint
 
 -- Note: this type family being injective means that in most cases there is no need
 -- to add component annotations when invoking the federator client
@@ -37,3 +45,12 @@ type instance FedApi 'Galley = GalleyApi
 type instance FedApi 'Brig = BrigApi
 
 type instance FedApi 'Cargohold = CargoholdApi
+
+type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name)
+
+-- | Return a client for a named endpoint.
+fedClient ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api) =>
+  Client m api
+fedClient = clientIn (Proxy @api) (Proxy @m)
