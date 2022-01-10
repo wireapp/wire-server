@@ -35,8 +35,8 @@ type API = ServantAPI :<|> Raw
 
 publicAPIServer :: ServerT ServantAPI Cannon
 publicAPIServer = streamData
-  where
-    streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
-    streamData userId connId clientId con = do
-      e <- wsenv
-      liftIO $ wsapp (mkKey userId connId) clientId e con
+
+streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
+streamData userId connId clientId con = do
+  e <- wsenv
+  liftIO $ wsapp (mkKey userId connId) clientId e con

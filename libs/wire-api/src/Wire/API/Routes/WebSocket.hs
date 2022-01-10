@@ -82,7 +82,7 @@ instance HasSwagger WebSocketPending where
       resps :: InsOrdHashMap HttpStatusCode (Referenced Data.Swagger.Response)
       resps =
         mempty
-          & at 101 ?~ Inline (mempty & description .~ "This endpoint is accessible via the websocket protocol.")
+          & at 101 ?~ Inline (mempty & description .~ "Connection upgraded.")
           & at 426 ?~ Inline (mempty & description .~ "Upgrade required.")
 
 instance RoutesToPaths WebSocketPending where
