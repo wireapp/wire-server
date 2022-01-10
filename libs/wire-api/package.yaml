@@ -88,6 +88,8 @@ library:
   - wire-message-proto-lens
   - x509
   - wai
+  - wai-websockets
+  - websockets
 
 tests:
   wire-api-tests:

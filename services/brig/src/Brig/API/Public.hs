@@ -104,6 +104,7 @@ import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -137,6 +138,7 @@ swaggerDocsAPI =
         <> LegalHoldAPI.swaggerDoc
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
+        <> CannonAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ Brig.Docs.Swagger.contents <> mempty

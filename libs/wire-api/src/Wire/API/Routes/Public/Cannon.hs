@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,19 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.API
-  ( sitemap,
-  )
-where
+module Wire.API.Routes.Public.Cannon where
 
-import qualified Cannon.API.Internal as Internal
-import qualified Cannon.API.Public as Public
-import Cannon.Types (Cannon)
-import qualified Data.Swagger.Build.Api as Doc
-import Network.Wai.Routing (Routes)
+import Data.Id
+import Data.Swagger
+import Servant
+import Servant.Swagger
+import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.WebSocket
 
-sitemap :: Routes Doc.ApiBuilder Cannon ()
-sitemap = do
-  Public.sitemap
-  Public.apiDocs
-  Internal.sitemap
+type ServantAPI =
+  Summary "Establish websocket connection"
+    :> "await"
+    :> ZUser
+    :> ZConn
+    :> QueryParam'
+         [ Optional,
+           Strict,
+           Description "Client ID"
+         ]
+         "client"
+         ClientId
+    -- FUTUREWORK: Consider higher-level web socket combinator
+    :> WebSocketPending
+
+swaggerDoc :: Swagger
+swaggerDoc = toSwagger (Proxy @ServantAPI)
