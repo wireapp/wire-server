@@ -732,13 +732,6 @@ packages:
   original:
     hackage: tracing-0.0.7.2
 - completed:
-    hackage: integer-simple-0.1.1.1@sha256:edfa49fb19eb8e14ce4e0edd03327f13dfb71d186295df9f8dcd4ca59321c0a8,1002
-    pantry-tree:
-      size: 487
-      sha256: d20ef6171d3ae1459afcdf238b152404fe7f1eaaab37ab04333f04de8a2dd082
-  original:
-    hackage: integer-simple-0.1.1.1@sha256:edfa49fb19eb8e14ce4e0edd03327f13dfb71d186295df9f8dcd4ca59321c0a8,1002
-- completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:
       size: 74141
