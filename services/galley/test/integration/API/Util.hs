@@ -116,7 +116,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
-import Wire.API.Federation.Component
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto

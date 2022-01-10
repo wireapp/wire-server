@@ -232,7 +232,7 @@ tests s =
           test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg
         ]
 
-emptyFederatedBrig :: F.BrigApi (AsServerT Handler)
+emptyFederatedBrig :: FedApi 'Brig (AsServerT Handler)
 emptyFederatedBrig =
   let e :: Text -> Handler a
       e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
@@ -248,7 +248,7 @@ emptyFederatedBrig =
           F.onUserDeleted = \_ _ -> e "onUserDeleted"
         }
 
-emptyFederatedGalley :: F.GalleyApi (AsServerT Handler)
+emptyFederatedGalley :: FedApi 'Galley (AsServerT Handler)
 emptyFederatedGalley =
   let e :: Text -> Handler a
       e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
