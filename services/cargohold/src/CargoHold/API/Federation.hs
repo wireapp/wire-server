@@ -49,7 +49,7 @@ federationSitemap =
 
 checkAsset :: F.GetAsset -> Handler Bool
 checkAsset ga =
-  fmap (maybe False (const True)) . runMaybeT $
+  fmap isJust . runMaybeT $
     checkMetadata Nothing (F.gaKey ga) (F.gaToken ga)
 
 streamAsset :: F.GetAsset -> Handler AssetSource
