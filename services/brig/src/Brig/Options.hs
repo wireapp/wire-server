@@ -504,11 +504,11 @@ data Settings = Settings
   }
   deriving (Show, Generic)
 
-defaultUserLocale :: Locale
-defaultUserLocale = Locale (Language EN) Nothing
-
 defaultTemplateLocale :: Locale
-defaultTemplateLocale = defaultUserLocale
+defaultTemplateLocale = Locale (Language EN) Nothing
+
+defaultUserLocale :: Locale
+defaultUserLocale = defaultUserLocale
 
 setDefaultUserLocale :: Settings -> Locale
 setDefaultUserLocale = fromMaybe defaultUserLocale . setDefaultUserLocaleInternal

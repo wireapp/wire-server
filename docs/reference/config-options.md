@@ -319,3 +319,27 @@ When a `null` value is encountered, it is assumed to be
 `defaultForNull`.
 
 (Introduced in https://github.com/wireapp/wire-server/pull/1811.)
+
+### Locale
+
+The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this release, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`. 
+
+#### `setDefaultTemplateLocale`
+
+This option determines the default locale for email templates. The language of the email communication is determined by the user locale (see above). Only if templates of the the locale of the user do not exist or if user locale is not set the `setDefaultTemplateLocale` is used as a fallback. If not set the default is `EN`. This setting should not be changed unless a complete set of templates is available for the given language.
+
+```
+# [brig.yaml]
+optSettings:
+  setDefaultTemplateLocale: en
+```
+
+#### `setDefaultUserLocale`
+
+This option is the default user locale to be used if it is not set in the user profile. This can be the case if the users are provisioned by SCIM e.g. This option determines which language to use for email communication. If not set the default is the value that is configured for `setDefaultTemplateLocale`.
+
+```
+# [brig.yaml]
+optSettings:
+  setDefaultUserLocale: en
+```
