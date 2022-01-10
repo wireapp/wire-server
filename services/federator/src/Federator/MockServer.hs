@@ -160,7 +160,7 @@ withTempMockFederator headers resp action = do
                           frBody = rdBody
                         }
                     )
-              embed @IO $ modifyIORef remoteCalls $ (<> [fedRequest])
+              embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
               (ct, body) <-
                 fromException @MockException
                   . handle (throw . handleException)
