@@ -17,13 +17,14 @@
 
 module Galley.API
   ( sitemap,
-    Public.servantSitemap,
+    servantSitemap,
   )
 where
 
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.API.Internal as Internal
 import qualified Galley.API.Public as Public
+import Galley.API.Public.Servant
 import Galley.App (GalleyEffects)
 import Network.Wai.Routing (Routes)
 import Polysemy
