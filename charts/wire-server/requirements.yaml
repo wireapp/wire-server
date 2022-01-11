@@ -108,3 +108,8 @@ dependencies:
   repository: "file://../sftd"
   tags:
     - sftd
+- name: restund
+  version: "0.0.42"
+  repository: "file://../restund"
+  tags:
+    - restund
