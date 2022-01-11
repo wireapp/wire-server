@@ -211,7 +211,7 @@ Mass-invite users to a team
 
 If you need to invite members to a specific given team, you can use the ``create_team_members.sh`` Bash script, located `here <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh>`__.
 
-This script does not create users or causes them to join a team by itself, instead, it sends invites to existing users, and when users accept the invitation, this then causes users to be added to the team as team members.
+This script does not create users or causes them to join a team by itself, instead, it sends invites to potential users via email, and when users accept the invitation, they create their account, set their password, and are added to the team as team members.
 
 Input is a `CSV file <https://en.wikipedia.org/wiki/Comma-separated_values>`__, in comma-separated format, in the form ``'Email,Suggested User Name'``.
 
