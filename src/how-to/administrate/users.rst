@@ -230,6 +230,8 @@ For example, one such execution of the script could look like:
 
    sh create_team_members.sh -a 9122e5de-b4fb-40fa-99ad-1b5d7d07bae5 -t 123e4567-e89b-12d3-a456-426614174000 -h http://localhost:9999 -c users_to_invite.csv 
 
+Note: the 'http://localhost:9999' implies you are running the 'kubectl port-forward' given at the top of this document
+.
 Once the script is run, invitations will be sent to each user in the file every second until all invitations have been sent.
 
 If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L91>`__.
