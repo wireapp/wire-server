@@ -209,19 +209,19 @@ Then delete it:
 Mass-invite users to a team
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you need to invite members to a specific given team, you can use the ``create_team_members.sh`` Bash script, located `here <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh>`.
+If you need to invite members to a specific given team, you can use the ``create_team_members.sh`` Bash script, located `here <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh>`__.
 
 This script does not create users or causes them to join a team by itself, instead, it sends invites to existing users, and when users accept the invitation, this then causes users to be added to the team as team members.
 
-Input is a `CSV file <https://en.wikipedia.org/wiki/Comma-separated_values>`, in comma-separated format, in the form ``'Email,Suggested User Name'``.
+Input is a `CSV file <https://en.wikipedia.org/wiki/Comma-separated_values>`__, in comma-separated format, in the form ``'Email,Suggested User Name'``.
 
-You also need to specify the inviting admin user, the team, the URI for the Brig (`API <https://docs.wire.com/understand/federation/api.html?highlight=brig>`) service (Host), and finally the input (CSV) file containing the users to invite.
+You also need to specify the inviting admin user, the team, the URI for the Brig (`API <https://docs.wire.com/understand/federation/api.html?highlight=brig>`__) service (Host), and finally the input (CSV) file containing the users to invite.
 
-The exact format for the parameters passed to the script is `as follows <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L17>`:
+The exact format for the parameters passed to the script is `as follows <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L17>`__:
 
 .. code:: sh
 
-    -a <admin uuid>: `User ID<https://docs.wire.com/understand/federation/api.html?highlight=user%20id#qualified-identifiers-and-names>` in `UUID format<https://en.wikipedia.org/wiki/Universally_unique_identifier>` of the inviting admin. For example ``9122e5de-b4fb-40fa-99ad-1b5d7d07bae5``.
+    -a <admin uuid>: `User ID<https://docs.wire.com/understand/federation/api.html?highlight=user%20id#qualified-identifiers-and-names>`__ in `UUID format<https://en.wikipedia.org/wiki/Universally_unique_identifier>`__ of the inviting admin. For example ``9122e5de-b4fb-40fa-99ad-1b5d7d07bae5``.
     -t <team uuid>: ID of the inviting team, same format.
     -h <host>: Base URI of brig, that is, the domain for your backend.
     -c <input file>: file containing info on the invitees in format 'Email,UserName'.
@@ -234,6 +234,6 @@ For example, one such execution of the script could look like:
 
 Once the script is run, invitations will be sent to each user in the file every second until all invitations have been sent.
 
-If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L91>`.
+If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L91>`__.
 
 
