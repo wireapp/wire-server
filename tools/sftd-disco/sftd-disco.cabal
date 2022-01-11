@@ -24,15 +24,16 @@ executable sftd-disco
     , attoparsec
     , base           == 4.*
     , bytestring
-    , clock
     , dns            >= 2.0.8
+    , string-conversions
     , exceptions
     , http-types
-    , iproute
     , mtl
     , network
     , optparse-applicative
-    , prometheus
+    , types-common
+    , http-client
+    , uri-bytestring
     , text
     , tinylog
     , unordered-containers
