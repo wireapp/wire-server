@@ -20,11 +20,14 @@ module CargoHold.Federation where
 import CargoHold.App
 import CargoHold.Options
 import Control.Error
+import Control.Exception (throw)
 import Control.Lens
+import Control.Monad.Codensity
 import Data.Id
 import Data.Qualified
 import Imports hiding (head)
 import Servant.API
+import Servant.Types.SourceT
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Cargohold
@@ -60,22 +63,41 @@ downloadRemoteAsset usr rkey tok = do
     fmap gaAvailable . executeFederated rkey $
       getAsset clientRoutes ga
   if exists
-    then do
-      fmap (Just . toSourceIO) . executeFederated rkey $
-        streamAsset clientRoutes ga
+    then Just <$> executeFederatedStreaming rkey (toSourceIO <$> streamAsset clientRoutes ga)
     else pure Nothing
 
-executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a
-executeFederated remote c = do
+mkFederatorClientEnv :: Remote x -> Handler FederatorClientEnv
+mkFederatorClientEnv remote = do
   loc <- view localUnit
   endpoint <-
     view (options . optFederator)
       >>= maybe (throwE federationNotConfigured) pure
-  let env =
-        FederatorClientEnv
-          { ceOriginDomain = tDomain loc,
-            ceTargetDomain = tDomain remote,
-            ceFederator = endpoint
-          }
+  pure
+    FederatorClientEnv
+      { ceOriginDomain = tDomain loc,
+        ceTargetDomain = tDomain remote,
+        ceFederator = endpoint
+      }
+
+executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a
+executeFederated remote c = do
+  env <- mkFederatorClientEnv remote
   liftIO (runFederatorClient @'Cargohold env c)
     >>= either (throwE . federationErrorToWai . FederationCallFailure) pure
+
+executeFederatedStreaming ::
+  Remote x ->
+  FederatorClient 'Cargohold (SourceIO ByteString) ->
+  Handler (SourceIO ByteString)
+executeFederatedStreaming remote c = do
+  env <- mkFederatorClientEnv remote
+  -- To clean up resources correctly, we exploit the Codensity wrapper around
+  -- StepT to embed the result of @runFederatorClientToCodensity@. This works, but
+  -- using this within a Servant handler has the effect of delaying exceptions to
+  -- the point where response streaming has already started (i.e. we have already
+  -- committed to a successful response).
+  pure $
+    SourceT $ \k ->
+      runCodensity
+        (runFederatorClientToCodensity @'Cargohold env c)
+        (either throw (flip unSourceT k))
