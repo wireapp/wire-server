@@ -1,0 +1,1 @@
+Specialize `setDefaultLocale` to distinguish between default user locale and default template locale if the user's locale is n/a.

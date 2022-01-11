@@ -152,7 +152,8 @@ optSettings:
   setSuspendInactiveUsers:  # if this is omitted: never suspend inactive users.
     suspendTimeout: 10
   setRichInfoLimit: 5000  # should be in sync with Spar
-  setDefaultLocale: en
+  setDefaultTemplateLocale: en
+  setDefaultUserLocale: en
   setMaxTeamSize: 32
   setMaxConvSize: 16
   setEmailVisibility: visible_to_self

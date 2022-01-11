@@ -109,7 +109,8 @@ optSettings:
     stdDev: 3000      # 50 minutes
     retryAfter: 86400 # 1 day
   setRichInfoLimit: 5000  # should be in sync with Spar
-  setDefaultLocale: en
+  setDefaultTemplateLocale: en
+  setDefaultUserLocale: en
   setMaxTeamSize: 128
   setMaxConvSize: 128
   setEmailVisibility: visible_to_self
