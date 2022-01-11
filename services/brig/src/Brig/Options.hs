@@ -508,7 +508,7 @@ defaultTemplateLocale :: Locale
 defaultTemplateLocale = Locale (Language EN) Nothing
 
 defaultUserLocale :: Locale
-defaultUserLocale = defaultUserLocale
+defaultUserLocale = defaultTemplateLocale
 
 setDefaultUserLocale :: Settings -> Locale
 setDefaultUserLocale = fromMaybe defaultUserLocale . setDefaultUserLocaleInternal
