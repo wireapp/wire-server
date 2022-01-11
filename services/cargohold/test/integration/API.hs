@@ -29,6 +29,7 @@ import qualified Codec.MIME.Type as MIME
 import Control.Exception (throw)
 import Control.Lens hiding (sets)
 import qualified Data.Aeson as Aeson
+import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Domain
@@ -66,7 +67,12 @@ tests s =
         "remote"
         [ test s "remote download wrong domain" testRemoteDownloadWrongDomain,
           test s "remote download no asset" testRemoteDownloadNoAsset,
-          test s "remote download" testRemoteDownload
+          test s "remote download" (testRemoteDownload "asset content"),
+          test s "large remote download" $
+            testRemoteDownload
+              ( toLazyByteString
+                  (mconcat (replicate 20000 (byteString "hello world\n")))
+              )
         ]
     ]
 
@@ -288,8 +294,8 @@ testRemoteDownloadNoAsset = do
               }
           ]
 
-testRemoteDownload :: TestM ()
-testRemoteDownload = do
+testRemoteDownload :: LByteString -> TestM ()
+testRemoteDownload assetContent = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
 
@@ -298,11 +304,11 @@ testRemoteDownload = do
       respond req
         | frRPC req == "get-asset" =
           pure ("application" // "json", Aeson.encode (GetAssetResponse True))
-        | otherwise = pure ("application" // "octet-stream", "asset content")
+        | otherwise = pure ("application" // "octet-stream", assetContent)
   (_, reqs) <- withMockFederator respond $ do
     downloadAsset uid qkey () !!! do
       const 200 === statusCode
-      const (Just "asset content") === responseBody
+      const (Just assetContent) === responseBody
 
   localDomain <- viewFederationDomain
   let ga = Aeson.encode (GetAsset uid key Nothing)
