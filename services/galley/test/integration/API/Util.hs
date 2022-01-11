@@ -506,12 +506,12 @@ createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc
 createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
 createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
 createTeamConvAccess u tid us name acc role mtimer convRole = do
   r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
   fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
+createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
 createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- view tsGalley
   let tinfo = ConvTeamInfo tid False
@@ -547,7 +547,7 @@ createOne2OneTeamConv u1 u2 n tid = do
           NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
+postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
 defNewConv :: NewConv
@@ -583,7 +583,7 @@ postConvWithRemoteUsers u n =
     setName Nothing = Just "federated gossip"
     setName x = x
 
-postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
+postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- view tsGalley
   let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid False)) mtimer Nothing roleNameWireAdmin
@@ -599,7 +599,7 @@ deleteTeamConv tid convId zusr = do
         . zConn "conn"
     )
 
-postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole u members name access arole timer role =
   postConvQualified
     u
@@ -607,12 +607,12 @@ postConvWithRole u members name access arole timer role =
       { newConvUsers = members,
         newConvName = name,
         newConvAccess = Set.fromList access,
-        newConvAccessRole = arole,
+        newConvAccessRoles = arole,
         newConvMessageTimer = timer,
         newConvUsersRole = role
       }
 
-postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
+postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- view tsGalley
   let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
@@ -1255,7 +1255,7 @@ registerRemoteConv convId originUser name othMembers = do
         rcCnvId = qUnqualified convId,
         rcCnvType = RegularConv,
         rcCnvAccess = [],
-        rcCnvAccessRole = ActivatedAccessRole,
+        rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
         rcCnvName = name,
         rcNonCreatorMembers = othMembers,
         rcMessageTimer = Nothing,
@@ -1468,7 +1468,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   evtConv e @?= conv
   evtType e @?= ConvAccessUpdate
   evtFrom e @?= usr
-  evtData e @?= EdConvAccessUpdate new
+  evtData e @?= (EdConvAccessUpdate new)
 
 wsAssertConvMessageTimerUpdate :: Qualified ConvId -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
@@ -2047,7 +2047,7 @@ mkConv cnvId creator selfRole otherMembers =
         RegularConv
         creator
         []
-        ActivatedAccessRole
+        (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
         (Just "federated gossip")
         Nothing
         Nothing

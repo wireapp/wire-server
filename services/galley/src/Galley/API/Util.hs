@@ -74,19 +74,18 @@ type JSON = Media "application" "json"
 
 ensureAccessRole ::
   Members '[BrigAccess, Error NotATeamMember, Error ConversationError] r =>
-  AccessRole ->
+  Set Public.AccessRoleV2 ->
   [(UserId, Maybe TeamMember)] ->
   Sem r ()
-ensureAccessRole role users = case role of
-  PrivateAccessRole -> throw ConvAccessDenied
-  TeamAccessRole ->
-    when (any (isNothing . snd) users) $
-      throwED @NotATeamMember
-  ActivatedAccessRole -> do
+ensureAccessRole roles users = do
+  unless (Set.member TeamMemberAccessRole roles) $ throw ConvAccessDenied
+  unless (Set.member NonTeamMemberAccessRole roles) $
+    when (any (isNothing . snd) users) $ throwED @NotATeamMember
+  unless (Set.member GuestAccessRole roles) $ do
     activated <- lookupActivatedUsers $ map fst users
-    when (length activated /= length users) $
-      throw ConvAccessDenied
-  NonActivatedAccessRole -> return ()
+    when (length activated /= length users) $ throw ConvAccessDenied
+  -- todo(leif): check if we need to check users for bots/services
+  unless (Set.member ServiceAccessRole roles) $ return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.
@@ -595,7 +594,7 @@ ensureConversationAccess zusr cnv access = do
   ensureAccess conv access
   zusrMembership <-
     maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
-  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
+  ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
   pure conv
 
 ensureAccess ::
@@ -645,7 +644,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       rcCnvId = convId,
       rcCnvType = convType,
       rcCnvAccess = convAccess,
-      rcCnvAccessRole = convAccessRole,
+      rcCnvAccessRoles = convAccessRoles,
       rcCnvName = convName,
       rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = convMessageTimer,
@@ -712,7 +711,7 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             -- domain
             cnvmCreator = rcOrigUserId,
             cnvmAccess = rcCnvAccess,
-            cnvmAccessRole = rcCnvAccessRole,
+            cnvmAccessRoles = rcCnvAccessRoles,
             cnvmName = rcCnvName,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain.

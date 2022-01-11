@@ -7,6 +7,7 @@ import Data.Domain
 import Data.Id (Id (Id))
 import Data.Misc
 import Data.Qualified
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation
@@ -38,7 +39,7 @@ conv1 =
           { cnvmType = One2OneConv,
             cnvmCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
             cnvmAccess = [],
-            cnvmAccessRole = PrivateAccessRole,
+            cnvmAccessRoles = Set.empty,
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
@@ -84,7 +85,7 @@ conv2 =
                 PrivateAccess,
                 InviteAccess
               ],
-            cnvmAccessRole = NonActivatedAccessRole,
+            cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],
             cnvmName = Just "",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),

@@ -14,6 +14,11 @@
         "invite"
     ],
     "access_role": "non_activated",
+    "access_role_v2": [
+        "team_member",
+        "guest",
+        "service"
+    ],
     "creator": "00000000-0000-0000-0000-000200000001",
     "id": "00000000-0000-0000-0000-000000000002",
     "last_event": "0.0",

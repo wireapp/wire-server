@@ -1,4 +1,8 @@
 {
     "access": [],
-    "access_role": "non_activated"
+    "access_role": [
+        "team_member",
+        "guest",
+        "service"
+    ]
 }

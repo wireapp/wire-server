@@ -22,6 +22,7 @@ import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified (Qualified (..))
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
@@ -41,7 +42,7 @@ testObject_ConversationList_20Conversation_user_1 =
                   { cnvmType = RegularConv,
                     cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
                     cnvmAccess = [],
-                    cnvmAccessRole = PrivateAccessRole,
+                    cnvmAccessRoles = Set.empty,
                     cnvmName = Just "",
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),

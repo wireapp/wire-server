@@ -20,7 +20,7 @@ testObject_NewRemoteConversation1 =
       rcCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
       rcCnvType = RegularConv,
       rcCnvAccess = [InviteAccess, CodeAccess],
-      rcCnvAccessRole = ActivatedAccessRole,
+      rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
       rcCnvName = Just "gossip",
       rcNonCreatorMembers =
         Set.fromList
@@ -59,7 +59,7 @@ testObject_NewRemoteConversation2 =
       rcCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
       rcCnvType = One2OneConv,
       rcCnvAccess = [],
-      rcCnvAccessRole = ActivatedAccessRole,
+      rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
       rcCnvName = Nothing,
       rcNonCreatorMembers = Set.fromList [],
       rcMessageTimer = Nothing,

@@ -816,7 +816,7 @@ addBot zuid zcon cid add = do
     throwStd tooManyMembers
   -- For team conversations: bots are not allowed in managed and in
   -- team-only conversations
-  when (cnvAccessRole cnv == TeamAccessRole) $
+  unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
     throwStd invalidConv
   for_ (cnvTeam cnv) $ \tid -> do
     tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound

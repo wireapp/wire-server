@@ -18,16 +18,17 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.ConversationAccessData_user where
 
+import qualified Data.Set as Set (fromList)
 import Wire.API.Conversation
   ( Access (InviteAccess),
-    AccessRole (ActivatedAccessRole, NonActivatedAccessRole),
+    AccessRoleV2 (..),
     ConversationAccessData (..),
   )
 
 testObject_ConversationAccessData_user_1 :: ConversationAccessData
 testObject_ConversationAccessData_user_1 =
-  ConversationAccessData {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+  ConversationAccessData {cupAccess = [], cupAccessRole = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]}
 
 testObject_ConversationAccessData_user_2 :: ConversationAccessData
 testObject_ConversationAccessData_user_2 =
-  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRole = ActivatedAccessRole}
+  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRole = Set.fromList [TeamMemberAccessRole, GuestAccessRole]}

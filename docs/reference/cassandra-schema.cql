@@ -227,6 +227,7 @@ CREATE TABLE galley_test.conversation (
     conv uuid PRIMARY KEY,
     access set<int>,
     access_role int,
+    access_roles_v2 set<int>,
     creator uuid,
     deleted boolean,
     message_timer bigint,

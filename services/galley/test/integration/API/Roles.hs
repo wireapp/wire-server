@@ -300,7 +300,7 @@ accessUpdateWithRemotes = do
       defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
-  let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
+  let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
       withTempMockFederator (const ()) $
@@ -359,9 +359,9 @@ wireAdminChecks cid admin otherAdmin mem = do
   putMessageTimerUpdate admin cid (ConversationMessageTimerUpdate $ Just 2000) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 0) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 1) !!! assertActionSucceeded
-  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   putAccessUpdate admin cid nonActivatedAccess !!! assertActionSucceeded
-  let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
+  let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
@@ -404,7 +404,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
-  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   putAccessUpdate mem cid nonActivatedAccess !!! assertActionDenied
   -- Finally, you can still do the following actions:
 

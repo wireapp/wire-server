@@ -24,6 +24,7 @@ import Data.Containers.ListUtils (nubOrdOn)
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import qualified Data.Set as Set
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Types.Conversations.Members
@@ -121,7 +122,7 @@ genConversation =
     <*> arbitrary
     <*> arbitrary
     <*> pure []
-    <*> pure ActivatedAccessRole
+    <*> pure (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
     <*> listOf genLocalMember
     <*> listOf genRemoteMember
     <*> pure Nothing

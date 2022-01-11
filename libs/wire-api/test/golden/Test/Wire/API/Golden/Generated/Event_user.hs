@@ -24,6 +24,7 @@ import Data.Id (ClientId (ClientId, client), Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
 import Data.Range (unsafeRange)
+import qualified Data.Set as Set
 import Data.Text.Ascii (validate)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust, read, undefined)
@@ -56,7 +57,7 @@ testObject_Event_user_2 =
     ( EdConvAccessUpdate
         ( ConversationAccessData
             { cupAccess = [InviteAccess, LinkAccess, PrivateAccess, InviteAccess, InviteAccess],
-              cupAccessRole = ActivatedAccessRole
+              cupAccessRole = Set.fromList [TeamMemberAccessRole, GuestAccessRole]
             }
         )
     )
@@ -149,7 +150,7 @@ testObject_Event_user_8 =
                     cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
                     cnvmAccess =
                       [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
-                    cnvmAccessRole = NonActivatedAccessRole,
+                    cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],
                     cnvmName = Just "\a\SO\r",
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 283898987885780}),

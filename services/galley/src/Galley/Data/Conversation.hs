@@ -31,12 +31,14 @@ module Galley.Data.Conversation
     convAccessData,
     defRole,
     maybeRole,
-    privateRole,
+    privateAccessRole,
     defRegularConvAccess,
+    parseAccessRoles,
   )
 where
 
 import Data.Id
+import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.UUID.Tagged as U
 import Galley.Cassandra.Instances ()
@@ -72,7 +74,7 @@ convMetadata c =
     (convType c)
     (convCreator c)
     (convAccess c)
-    (convAccessRole c)
+    (convAccessRoles c)
     (convName c)
     (convTeam c)
     (convMessageTimer c)
@@ -82,20 +84,20 @@ convAccessData :: Conversation -> ConversationAccessData
 convAccessData conv =
   ConversationAccessData
     (Set.fromList (convAccess conv))
-    (convAccessRole conv)
+    (convAccessRoles conv)
 
-defRole :: AccessRole
-defRole = ActivatedAccessRole
+defRole :: Set AccessRoleV2
+defRole = activatedAccessRole
 
-maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
-maybeRole SelfConv _ = privateRole
-maybeRole ConnectConv _ = privateRole
-maybeRole One2OneConv _ = privateRole
+maybeRole :: ConvType -> Maybe (Set AccessRoleV2) -> Set AccessRoleV2
+maybeRole SelfConv _ = privateAccessRole
+maybeRole ConnectConv _ = privateAccessRole
+maybeRole One2OneConv _ = privateAccessRole
 maybeRole RegularConv Nothing = defRole
 maybeRole RegularConv (Just r) = r
 
-privateRole :: AccessRole
-privateRole = PrivateAccessRole
-
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
+
+parseAccessRoles :: Maybe FromAccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
+parseAccessRoles = undefined

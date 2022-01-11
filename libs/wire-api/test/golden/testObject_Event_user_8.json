@@ -11,6 +11,11 @@
             "link"
         ],
         "access_role": "non_activated",
+        "access_role_v2": [
+            "team_member",
+            "guest",
+            "service"
+        ],
         "creator": "00000000-0000-0000-0000-000200000001",
         "id": "00000000-0000-0000-0000-000100000001",
         "last_event": "0.0",

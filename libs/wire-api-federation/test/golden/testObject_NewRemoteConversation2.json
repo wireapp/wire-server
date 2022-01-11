@@ -3,7 +3,10 @@
     "time": "1864-04-12T12:22:43.673Z",
     "cnv_access": [],
     "non_creator_members": [],
-    "cnv_access_role": "activated",
+    "cnv_access_roles": [
+        "team_member",
+        "non_team_member"
+    ],
     "cnv_type": 2,
     "receipt_mode": null,
     "message_timer": null,

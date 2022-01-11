@@ -6,7 +6,10 @@
             "invite",
             "link"
         ],
-        "access_role": "activated"
+        "access_role": [
+            "team_member",
+            "guest"
+        ]
     },
     "from": "00006a88-0000-2acb-0000-6aa0000061b2",
     "qualified_conversation": {

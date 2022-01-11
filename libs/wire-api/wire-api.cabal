@@ -226,7 +226,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.FromJSON
       Test.Wire.API.Golden.Generated
       Test.Wire.API.Golden.Generated.Access_user
-      Test.Wire.API.Golden.Generated.AccessRole_user
+      Test.Wire.API.Golden.Generated.AccessRoleLegacy_user
       Test.Wire.API.Golden.Generated.AccessToken_user
       Test.Wire.API.Golden.Generated.Action_user
       Test.Wire.API.Golden.Generated.Activate_user
@@ -552,6 +552,7 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.Config
+      Test.Wire.API.Conversation
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
