@@ -219,12 +219,10 @@ You also need to specify the inviting admin user, the team, the URI for the Brig
 
 The exact format for the parameters passed to the script is `as follows <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L17>`__:
 
-.. code:: sh
-
-    -a <admin uuid>: `User ID<https://docs.wire.com/understand/federation/api.html?highlight=user%20id#qualified-identifiers-and-names>`__ in `UUID format<https://en.wikipedia.org/wiki/Universally_unique_identifier>`__ of the inviting admin. For example ``9122e5de-b4fb-40fa-99ad-1b5d7d07bae5``.
-    -t <team uuid>: ID of the inviting team, same format.
-    -h <host>: Base URI of brig, that is, the domain for your backend.
-    -c <input file>: file containing info on the invitees in format 'Email,UserName'.
+* ``-a <admin uuid>``: `User ID <https://docs.wire.com/understand/federation/api.html?highlight=user%20id#qualified-identifiers-and-names>`__ in `UUID format <https://en.wikipedia.org/wiki/Universally_unique_identifier>`__ of the inviting admin. For example ``9122e5de-b4fb-40fa-99ad-1b5d7d07bae5``.
+* ``-t <team uuid>``: ID of the inviting team, same format.
+* ``-h <host>``: Base URI of brig, that is, the domain for your backend.
+* ``-c <input file>``: file containing info on the invitees in format 'Email,UserName'.
 
 For example, one such execution of the script could look like:
 
