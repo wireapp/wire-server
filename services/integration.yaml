@@ -84,3 +84,6 @@ backendTwo:
   federatorExternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
     port: 9097
+  cargohold:
+    host: 127.0.0.1
+    port: 9084
