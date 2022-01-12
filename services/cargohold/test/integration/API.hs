@@ -46,6 +46,7 @@ import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Media ((//))
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities (Error (label))
+import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
@@ -67,6 +68,7 @@ tests s =
         "remote"
         [ test s "remote download wrong domain" testRemoteDownloadWrongDomain,
           test s "remote download no asset" testRemoteDownloadNoAsset,
+          test s "federator failure on remote download" testRemoteDownloadFederationFailure,
           test s "remote download" (testRemoteDownload "asset content"),
           test s "large remote download" $
             testRemoteDownload
@@ -293,6 +295,24 @@ testRemoteDownloadNoAsset = do
                 frBody = Aeson.encode (GetAsset uid key Nothing)
               }
           ]
+
+testRemoteDownloadFederationFailure :: TestM ()
+testRemoteDownloadFederationFailure = do
+  assetId <- liftIO $ Id <$> nextRandom
+  uid <- liftIO $ Id <$> nextRandom
+  let key = AssetKeyV3 assetId AssetPersistent
+      qkey = Qualified key (Domain "faraway.example.com")
+      respond req
+        | frRPC req == "get-asset" =
+          pure ("application" // "json", Aeson.encode (GetAssetResponse True))
+        | otherwise = throw (MockErrorResponse HTTP.status500 "mock error")
+  (resp, _) <-
+    withMockFederator respond $ do
+      responseJsonError =<< downloadAsset uid qkey () <!! do
+        const 500 === statusCode
+  liftIO $ do
+    Wai.label resp @?= "mock-error"
+    Wai.message resp @?= "mock error"
 
 testRemoteDownload :: LByteString -> TestM ()
 testRemoteDownload assetContent = do
