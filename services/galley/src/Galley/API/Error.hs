@@ -127,7 +127,7 @@ data ConversationError
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
   toWai ConvNotFound = errorDescriptionTypeToWai @ConvNotFound
-  toWai TooManyMembers = tooManyMembers
+  toWai TooManyMembers = errorDescriptionTypeToWai @TooManyMembers
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
   toWai NoManagedTeamConv = noManagedTeamConv

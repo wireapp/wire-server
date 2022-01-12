@@ -295,6 +295,21 @@ type ConversationAPI =
                :> "join"
                :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
            )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    :<|> Named
+           "join-conversation-by-code-unqualified"
+           ( Summary "Join a conversation using a reusable code"
+               :> CanThrow CodeNotFound
+               :> CanThrow ConvNotFound
+               :> CanThrow TooManyMembers
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> "join"
+               :> ReqBody '[Servant.JSON] ConversationCode
+               :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
+           )
     :<|> Named
            "code-check"
            ( Summary "Check validity of a conversation code"

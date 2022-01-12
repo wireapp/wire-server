@@ -371,22 +371,6 @@ sitemap = do
   -- Conversation API ---------------------------------------------------
 
   -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/conversations/join" (continue Update.joinConversationByReusableCodeH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.ConversationCode
-  document "POST" "joinConversationByCode" $ do
-    summary "Join a conversation using a reusable code"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation joined." end
-    body (ref Public.modelConversationCode) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.CodeNotFound)
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse Error.tooManyMembers
-
-  -- This endpoint can lead to the following events being sent:
   -- - ConvCodeUpdate event to members, if code didn't exist before
   post "/conversations/:cnv/code" (continue Update.addCodeH) $
     zauthUserId

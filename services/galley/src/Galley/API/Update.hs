@@ -22,7 +22,7 @@ module Galley.API.Update
     unblockConvH,
     checkReusableCode,
     joinConversationByIdUnqualified,
-    joinConversationByReusableCodeH,
+    joinConversationByReusableCodeUnqualified,
     addCodeH,
     rmCodeH,
     getCodeH,
@@ -683,32 +683,32 @@ checkReusableCode ::
 checkReusableCode convCode =
   void $ verifyReusableCode convCode
 
-joinConversationByReusableCodeH ::
+joinConversationByReusableCodeUnqualified ::
   Members
     '[ BrigAccess,
        CodeStore,
        ConversationStore,
-       FederatorAccess,
        Error ActionError,
        Error CodeError,
        Error ConversationError,
        Error NotATeamMember,
+       FederatorAccess,
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore,
-       WaiRoutes
+       TeamStore
      ]
     r =>
-  UserId ::: ConnId ::: JsonRequest Public.ConversationCode ->
-  Sem r Response
-joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
+  UserId ->
+  ConnId ->
+  Public.ConversationCode ->
+  Sem r (UpdateResult Event)
+joinConversationByReusableCodeUnqualified zusr zcon convCode = do
   lusr <- qualifyLocal zusr
-  convCode <- fromJsonBody req
-  handleUpdateResult <$> joinConversationByReusableCode lusr zcon convCode
+  joinConversationByReusableCode lusr zcon convCode
 
 joinConversationByReusableCode ::
   Members

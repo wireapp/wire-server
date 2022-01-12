@@ -211,6 +211,8 @@ type ConvNotFound = ErrorDescription 404 "no-conversation" "Conversation not fou
 
 type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Conversation member not found"
 
+type TooManyMembers = ErrorDescription 403 "too-many-members" "Maximum number of members per conversation reached."
+
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
