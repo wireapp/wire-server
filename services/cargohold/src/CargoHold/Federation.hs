@@ -96,8 +96,12 @@ executeFederatedStreaming remote c = do
   -- using this within a Servant handler has the effect of delaying exceptions to
   -- the point where response streaming has already started (i.e. we have already
   -- committed to a successful response).
+  -- Fortunately, Warp does not actually send out the response headers until it
+  -- sees at least one chunk, so by throwing the exception in IO and having a
+  -- catch middleware in place, we make sure that the correct error response
+  -- ends up being generated.
   pure $
     SourceT $ \k ->
       runCodensity
         (runFederatorClientToCodensity @'Cargohold env c)
-        (either throw (flip unSourceT k))
+        (either (throw . federationErrorToWai . FederationCallFailure) (flip unSourceT k))
