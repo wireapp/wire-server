@@ -25,12 +25,6 @@ import Wire.API.Routes.Named
 type FedEndpoint name input output =
   Named
     name
-    ( name :> ReqBody '[JSON] input :> Post '[JSON] output
-    )
-
-type FedEndpointWithDomain name input output =
-  Named
-    name
     (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
 
 type family MappendMaybe (x :: Maybe k) (y :: Maybe k) :: Maybe k where

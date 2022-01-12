@@ -82,8 +82,8 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
 
-getUserByHandle :: Handle -> Handler (Maybe UserProfile)
-getUserByHandle handle = lift $ do
+getUserByHandle :: Domain -> Handle -> Handler (Maybe UserProfile)
+getUserByHandle _ handle = lift $ do
   maybeOwnerId <- API.lookupHandle handle
   case maybeOwnerId of
     Nothing ->
@@ -91,34 +91,34 @@ getUserByHandle handle = lift $ do
     Just ownerId ->
       listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
-getUsersByIds :: [UserId] -> Handler [UserProfile]
-getUsersByIds uids =
+getUsersByIds :: Domain -> [UserId] -> Handler [UserProfile]
+getUsersByIds _ uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
-claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
-claimPrekey (user, client) = do
+claimPrekey :: Domain -> (UserId, ClientId) -> Handler (Maybe ClientPrekey)
+claimPrekey _ (user, client) = do
   API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
-claimPrekeyBundle :: UserId -> Handler PrekeyBundle
-claimPrekeyBundle user =
+claimPrekeyBundle :: Domain -> UserId -> Handler PrekeyBundle
+claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
-claimMultiPrekeyBundle :: UserClients -> Handler UserClientPrekeyMap
-claimMultiPrekeyBundle uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
+claimMultiPrekeyBundle :: Domain -> UserClients -> Handler UserClientPrekeyMap
+claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: SearchRequest -> Handler [Contact]
-searchUsers (SearchRequest searchTerm) = do
+searchUsers :: Domain -> SearchRequest -> Handler [Contact]
+searchUsers _ (SearchRequest searchTerm) = do
   let maybeHandle = parseHandle searchTerm
   maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
   case maybeOwnerId of
     Nothing -> pure []
     Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
 
-getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
-getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+getUserClients :: Domain -> GetUserClients -> Handler (UserMap (Set PubClient))
+getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> Handler EmptyResponse
 onUserDeleted origDomain udcn = lift $ do

@@ -56,8 +56,8 @@ type BrigApi =
     -- (handles can be up to 256 chars currently)
     :<|> FedEndpoint "search-users" SearchRequest [Contact]
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
-    :<|> FedEndpointWithDomain "send-connection-action" NewConnectionRequest NewConnectionResponse
-    :<|> FedEndpointWithDomain "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
+    :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
+    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]

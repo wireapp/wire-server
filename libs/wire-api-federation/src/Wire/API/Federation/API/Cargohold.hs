@@ -47,5 +47,5 @@ data GetAssetResponse = GetAssetResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAssetResponse)
 
 type CargoholdApi =
-  FedEndpointWithDomain "get-asset" GetAsset GetAssetResponse
-    :<|> FedEndpointWithDomain "stream-asset" GetAsset AssetSource
+  FedEndpoint "get-asset" GetAsset GetAssetResponse
+    :<|> FedEndpoint "stream-asset" GetAsset AssetSource
