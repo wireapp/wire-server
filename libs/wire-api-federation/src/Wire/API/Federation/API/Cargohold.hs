@@ -48,4 +48,4 @@ data GetAssetResponse = GetAssetResponse
 
 type CargoholdApi =
   FedEndpoint "get-asset" GetAsset GetAssetResponse
-    :<|> FedEndpoint "stream-asset" GetAsset AssetSource
+    :<|> StreamingFedEndpoint "stream-asset" GetAsset AssetSource

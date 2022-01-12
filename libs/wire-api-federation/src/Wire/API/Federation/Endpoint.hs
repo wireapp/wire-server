@@ -27,6 +27,13 @@ type FedEndpoint name input output =
     name
     (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
 
+type StreamingFedEndpoint name input output =
+  Named
+    name
+    ( name :> OriginDomainHeader :> ReqBody '[JSON] input
+        :> StreamPost NoFraming OctetStream output
+    )
+
 type family MappendMaybe (x :: Maybe k) (y :: Maybe k) :: Maybe k where
   MappendMaybe 'Nothing y = y
   MappendMaybe ('Just x) y = 'Just x

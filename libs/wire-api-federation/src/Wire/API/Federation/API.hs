@@ -19,6 +19,7 @@ module Wire.API.Federation.API
   ( FedApi,
     HasFedEndpoint,
     fedClient,
+    fedClientIn,
 
     -- * Re-exports
     Component (..),
@@ -55,3 +56,9 @@ fedClient ::
   (HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
+
+fedClientIn ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api) =>
+  Client m api
+fedClientIn = clientIn (Proxy @api) (Proxy @m)
