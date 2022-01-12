@@ -1,0 +1,91 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module API.Federation.Util (mkHandler) where
+
+import Data.SOP
+import Data.String.Conversions (cs)
+import GHC.TypeLits
+import Imports
+import Servant
+import Wire.API.Federation.Domain
+import Wire.API.Routes.Named
+
+class HasTrivialHandler api where
+  trivialHandler :: String -> Server api
+
+instance HasTrivialHandler (Verb m c cs a) where
+  trivialHandler name = throwError err501 {errBody = cs ("mock not implemented: " <> name)}
+
+instance HasTrivialHandler api => HasTrivialHandler ((path :: Symbol) :> api) where
+  trivialHandler = trivialHandler @api
+
+instance HasTrivialHandler api => HasTrivialHandler (OriginDomainHeader :> api) where
+  trivialHandler name _ = trivialHandler @api name
+
+instance HasTrivialHandler api => HasTrivialHandler (ReqBody cs a :> api) where
+  trivialHandler name _ = trivialHandler @api name
+
+trivialNamedHandler ::
+  forall (name :: Symbol) api.
+  (KnownSymbol name, HasTrivialHandler api) =>
+  Server (Named name api)
+trivialNamedHandler = Named (trivialHandler @api (symbolVal (Proxy @name)))
+
+-- | Generate a servant handler from an incomplete list of handlers of named
+-- endpoints.
+class PartialAPI (api :: *) (hs :: *) where
+  mkHandler :: hs -> Server api
+
+instance
+  (KnownSymbol name, HasTrivialHandler endpoint) =>
+  PartialAPI (Named (name :: Symbol) endpoint) EmptyAPI
+  where
+  mkHandler _ = trivialNamedHandler @name @endpoint
+
+instance
+  {-# OVERLAPPING #-}
+  (KnownSymbol name, HasTrivialHandler endpoint, PartialAPI api EmptyAPI) =>
+  PartialAPI (Named (name :: Symbol) endpoint :<|> api) EmptyAPI
+  where
+  mkHandler h = trivialNamedHandler @name @endpoint :<|> mkHandler @api h
+
+instance
+  {-# OVERLAPPING #-}
+  (h ~ Server endpoint, PartialAPI api hs) =>
+  PartialAPI (Named (name :: Symbol) endpoint :<|> api) (Named name h :<|> hs)
+  where
+  mkHandler (h :<|> hs) = h :<|> mkHandler @api hs
+
+instance
+  (KnownSymbol name, HasTrivialHandler endpoint, PartialAPI api hs) =>
+  PartialAPI (Named (name :: Symbol) endpoint :<|> api) hs
+  where
+  mkHandler hs = trivialNamedHandler @name @endpoint :<|> mkHandler @api hs
+
+instance
+  (h ~ Server endpoint) =>
+  PartialAPI (Named (name :: Symbol) endpoint) (Named name h)
+  where
+  mkHandler = id
+
+instance
+  {-# OVERLAPPING #-}
+  (h ~ Server endpoint, PartialAPI api EmptyAPI) =>
+  PartialAPI (Named (name :: Symbol) endpoint :<|> api) (Named name h)
+  where
+  mkHandler h = h :<|> mkHandler @api EmptyAPI

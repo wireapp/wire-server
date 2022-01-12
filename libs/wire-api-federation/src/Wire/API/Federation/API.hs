@@ -33,6 +33,7 @@ import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 
@@ -51,6 +52,6 @@ type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) na
 -- | Return a client for a named endpoint.
 fedClient ::
   forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api) =>
+  (HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)

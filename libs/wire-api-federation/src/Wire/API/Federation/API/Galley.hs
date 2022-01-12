@@ -50,20 +50,19 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type GalleyApi =
   -- | Register a new conversation
-  Summary "Register users to be in a new remote conversation"
-    :> FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
-      :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
-      -- used by the backend that owns a conversation to inform this backend of
-      -- changes to the conversation
-      :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
-      :<|> FedEndpoint "leave-conversation" LeaveConversationRequest LeaveConversationResponse
-      -- used to notify this backend that a new message has been posted to a
-      -- remote conversation
-      :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
-      -- used by a remote backend to send a message to a conversation owned by
-      -- this backend
-      :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
-      :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
+  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
+    :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
+    -- used by the backend that owns a conversation to inform this backend of
+    -- changes to the conversation
+    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
+    :<|> FedEndpoint "leave-conversation" LeaveConversationRequest LeaveConversationResponse
+    -- used to notify this backend that a new message has been posted to a
+    -- remote conversation
+    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
+    -- used by a remote backend to send a message to a conversation owned by
+    -- this backend
+    :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
+    :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
