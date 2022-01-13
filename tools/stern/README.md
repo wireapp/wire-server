@@ -24,3 +24,8 @@ using the `--run-backoffice` option, e.g. `deploy/sevices-demo/demo.sh --run-bac
 
 When you now open `localhost:8080/swagger-ui` in a browser, you can switch to the
 "Back Office" tab.
+
+## Screenshots
+
+![screen shot 1](screenshots/1.png)
+![screen shot 2](screenshots/2.png)

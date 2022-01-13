@@ -17,6 +17,7 @@
 
 module CargoHold.Run
   ( run,
+    mkApp,
   )
 where
 
@@ -24,8 +25,9 @@ import CargoHold.API.Federation
 import CargoHold.API.Public
 import CargoHold.App
 import CargoHold.Options
+import Control.Exception (bracket)
 import Control.Lens (set, (^.))
-import Control.Monad.Catch (finally)
+import Control.Monad.Codensity
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -47,13 +49,23 @@ import qualified Wire.API.Routes.Public.Cargohold as Public
 type CombinedAPI = FederationAPI :<|> Public.ServantAPI
 
 run :: Opts -> IO ()
-run o = do
-  e <- newEnv o
-  s <- Server.newSettings (server e)
-  runSettingsWithShutdown s (middleware e $ servantApp e) 5
-    `finally` closeEnv e
+run o = lowerCodensity $ do
+  (app, e) <- mkApp o
+  liftIO $ do
+    s <-
+      Server.newSettings $
+        defaultServer
+          (unpack $ o ^. optCargohold . epHost)
+          (o ^. optCargohold . epPort)
+          (e ^. appLogger)
+          (e ^. metrics)
+    runSettingsWithShutdown s app 5
+
+mkApp :: Opts -> Codensity IO (Application, Env)
+mkApp o = Codensity $ \k ->
+  bracket (newEnv o) closeEnv $ \e ->
+    k (middleware e (servantApp e), e)
   where
-    server e = defaultServer (unpack $ o ^. optCargohold . epHost) (o ^. optCargohold . epPort) (e ^. appLogger) (e ^. metrics)
     middleware :: Env -> Wai.Middleware
     middleware e =
       servantPrometheusMiddleware (Proxy @CombinedAPI)

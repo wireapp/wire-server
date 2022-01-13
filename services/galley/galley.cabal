@@ -36,6 +36,7 @@ library
       Galley.API.Message
       Galley.API.One2One
       Galley.API.Public
+      Galley.API.Public.Servant
       Galley.API.Query
       Galley.API.Teams
       Galley.API.Teams.Features
@@ -419,6 +420,7 @@ executable galley-integration
     , http-client
     , http-client-openssl
     , http-client-tls
+    , http-media
     , http-types
     , imports
     , lens

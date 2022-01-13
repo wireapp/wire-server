@@ -29,6 +29,7 @@ dependencies:
 - hinotify
 - http-client
 - http-client-openssl
+- http-media
 - http-types
 - http2
 - kan-extensions
@@ -93,6 +94,7 @@ executables:
     - http-client-tls
     - mtl
     - optparse-applicative
+    - QuickCheck
     - random
     - retry
     - tasty

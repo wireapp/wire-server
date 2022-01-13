@@ -18,6 +18,7 @@
 module CargoHold.API.V3
   ( upload,
     download,
+    checkMetadata,
     delete,
     renewToken,
     deleteToken,
@@ -106,14 +107,14 @@ randToken :: MonadIO m => m V3.AssetToken
 randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Handler (Maybe URI)
-download own key tok = S3.getMetadataV3 key >>= maybe notFound found
-  where
-    notFound = return Nothing
-    found s3
-      | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
-      | otherwise = do
-        url <- genSignedURL (S3.mkKey key)
-        return $! Just $! url
+download own key tok = runMaybeT $ do
+  checkMetadata (Just own) key tok
+  lift $ genSignedURL (S3.mkKey key)
+
+checkMetadata :: Maybe V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler ()
+checkMetadata mown key tok = do
+  s3 <- lift (S3.getMetadataV3 key) >>= maybe mzero pure
+  guard $ mown == Just (S3.v3AssetOwner s3) || tok == S3.v3AssetToken s3
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do

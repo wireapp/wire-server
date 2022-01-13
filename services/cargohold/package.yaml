@@ -23,6 +23,7 @@ dependencies:
 - HsOpenSSL >=0.11
 - http-client >=0.4
 - http-types >=0.8
+- kan-extensions
 - mime >=0.4
 - safe >=0.3
 - text >=1.1
@@ -71,17 +72,27 @@ executables:
     - base ==4.*
     - cargohold
     - cargohold-types
+    - conduit
+    - cryptonite
+    - federator
     - http-client-tls >=0.2
+    - http-media
     - lens >=3.8
+    - mmorph
+    - mtl
     - optparse-applicative
+    - servant-client-core
+    - servant-client
     - tagged >=0.8
     - tasty >=1.0
     - tasty-hunit >=0.9
     - time >=1.5
     - types-common >=0.7
     - uuid >=1.3
+    - wai
     - wai-utilities >=0.12
     - wire-api
+    - wire-api-federation
   cargohold:
     main: src/Main.hs
     ghc-options:

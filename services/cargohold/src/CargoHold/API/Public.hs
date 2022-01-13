@@ -21,6 +21,7 @@ import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
+import CargoHold.Federation
 import qualified CargoHold.Types.V3 as V3
 import Control.Lens
 import Data.ByteString.Builder
@@ -30,7 +31,7 @@ import Data.Id
 import Data.Qualified
 import Imports hiding (head)
 import qualified Network.HTTP.Types as HTTP
-import Servant ((:<|>) (..))
+import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString
 import Wire.API.Asset
@@ -141,9 +142,19 @@ downloadAssetV4 ::
   Maybe AssetToken ->
   Maybe AssetToken ->
   Handler (Maybe LocalOrRemoteAsset)
-downloadAssetV4 usr qkey tok1 tok2 = do
-  key <- tUnqualified <$> ensureLocal qkey
-  LocalAsset <$$> downloadAssetV3 usr key tok1 tok2
+downloadAssetV4 usr qkey tok1 tok2 =
+  let tok = tok1 <|> tok2
+   in foldQualified
+        usr
+        ( \lkey ->
+            LocalAsset . AssetLocation
+              <$$> V3.download (mkPrincipal usr) (tUnqualified lkey) tok
+        )
+        ( \rkey ->
+            RemoteAsset
+              <$$> downloadRemoteAsset usr rkey tok
+        )
+        qkey
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
 deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key

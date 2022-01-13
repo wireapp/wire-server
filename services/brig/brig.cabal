@@ -503,6 +503,7 @@ executable brig-integration
     , http-api-data
     , http-client
     , http-client-tls >=0.2
+    , http-media
     , http-types
     , imports
     , lens >=3.9

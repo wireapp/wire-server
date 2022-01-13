@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -21,7 +23,10 @@ module CargoHold.API.Federation
   )
 where
 
+import CargoHold.API.Error
+import CargoHold.API.V3
 import CargoHold.App
+import qualified CargoHold.S3 as S3
 import Control.Error
 import Imports
 import Servant.API
@@ -30,15 +35,28 @@ import Servant.Server hiding (Handler)
 import Servant.Server.Generic
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Cargohold as F
-import Wire.API.Federation.API.Common
-import Wire.API.Federation.Error
+import Wire.API.Routes.AssetBody
 
 type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
   genericServerT $
-    F.CargoholdApi {F.getAsset = getAsset}
+    F.CargoholdApi
+      { F.getAsset = getAsset,
+        F.streamAsset = streamAsset
+      }
 
-getAsset :: () -> Handler EmptyResponse
-getAsset _ = throwE federationNotImplemented
+checkAsset :: F.GetAsset -> Handler Bool
+checkAsset ga =
+  fmap isJust . runMaybeT $
+    checkMetadata Nothing (F.gaKey ga) (F.gaToken ga)
+
+streamAsset :: F.GetAsset -> Handler AssetSource
+streamAsset ga = do
+  available <- checkAsset ga
+  unless available (throwE assetNotFound)
+  AssetSource <$> S3.downloadV3 (F.gaKey ga)
+
+getAsset :: F.GetAsset -> Handler F.GetAssetResponse
+getAsset = fmap F.GetAssetResponse . checkAsset

@@ -846,7 +846,7 @@ addBot zuid zcon cid add = do
   let botReq = Ext.NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
-  locale <- setDefaultLocale <$> view settings
+  locale <- Opt.setDefaultUserLocale <$> view settings
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
@@ -858,7 +858,7 @@ addBot zuid zcon cid add = do
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
   lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <- do
     _ <- do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability

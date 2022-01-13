@@ -92,6 +92,7 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
+import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
@@ -2241,11 +2242,14 @@ withTempMockFederator' ::
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   opts <- viewGalleyOpts
-  Mock.withTempMockFederator [("Content-Type", "application/json")] resp $ \mockPort -> do
-    let opts' =
-          opts & Opts.optFederator
-            ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
-    withSettingsOverrides opts' action
+  Mock.withTempMockFederator
+    [("Content-Type", "application/json")]
+    ((\r -> pure ("application" // "json", r)) <=< resp)
+    $ \mockPort -> do
+      let opts' =
+            opts & Opts.optFederator
+              ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
+      withSettingsOverrides opts' action
 
 -- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
 withTempServantMockFederator ::

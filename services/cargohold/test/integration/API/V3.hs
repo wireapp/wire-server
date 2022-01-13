@@ -24,7 +24,6 @@ import Bilge hiding (body)
 import Bilge.Assert
 import Control.Lens hiding (sets)
 import qualified Data.ByteString.Char8 as C8
-import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
@@ -50,8 +49,8 @@ tests s =
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: TestSignature ()
-testSimpleRoundtrip c = do
+testSimpleRoundtrip :: TestM ()
+testSimpleRoundtrip = do
   let def = defAssetSettings
   let rets = [minBound ..]
   let sets = def : map (\r -> def & setAssetRetention ?~ r) rets
@@ -63,11 +62,11 @@ testSimpleRoundtrip c = do
       -- Initial upload
       let bdy = (applicationText, "Hello World")
       r1 <-
-        uploadSimple (c . path "/assets/v3") uid sets bdy
+        uploadSimple (path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
       -- use v3 path instead of the one returned in the header
       let Just ast = responseJsonMaybe @Asset r1
-      let loc = "/assets/v3/" <> toByteString' (qUnqualified (ast ^. assetKey))
+      let key = qUnqualified (ast ^. assetKey)
       let Just tok = view assetToken ast
       -- Check mandatory Date header
       let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
@@ -77,7 +76,7 @@ testSimpleRoundtrip c = do
         liftIO $ assertBool "invalid expiration" (Just utc < view assetExpires ast)
       -- Lookup with token and download via redirect.
       r2 <-
-        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
+        downloadAsset uid key (Just tok) <!! do
           const 302 === statusCode
           const Nothing === responseBody
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
@@ -88,11 +87,11 @@ testSimpleRoundtrip c = do
         assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
-      deleteAssetV3 c uid2 (view assetKey ast) !!! const 403 === statusCode
+      deleteAssetV3 uid2 (view assetKey ast) !!! const 403 === statusCode
       -- Delete (allowed for creator)
-      deleteAssetV3 c uid (view assetKey ast) !!! const 200 === statusCode
+      deleteAssetV3 uid (view assetKey ast) !!! const 200 === statusCode
       r4 <-
-        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect)
+        downloadAsset uid key (Just tok)
           <!! const 404 === statusCode
       let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime

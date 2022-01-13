@@ -18,29 +18,39 @@
 module API.Util where
 
 import Bilge hiding (body)
-import qualified CargoHold.Types.V3 as V3
+import CargoHold.Options
+import CargoHold.Run
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
+import Control.Lens
+import Control.Monad.Catch
+import Control.Monad.Codensity
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Text.Encoding (decodeLatin1)
 import qualified Data.UUID as UUID
+import Federator.MockServer
 import Imports hiding (head)
+import qualified Network.HTTP.Media as HTTP
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
+import qualified Network.Wai as Wai
 import TestSetup
+import Util.Options
+import Wire.API.Asset
 
 uploadSimple ::
-  CargoHold ->
+  (Request -> Request) ->
   UserId ->
-  V3.AssetSettings ->
+  AssetSettings ->
   (MIME.Type, ByteString) ->
-  Http (Response (Maybe Lazy.ByteString))
-uploadSimple c usr sets (ct, bs) =
-  let mp = V3.buildMultipartBody sets ct (Lazy.fromStrict bs)
+  TestM (Response (Maybe Lazy.ByteString))
+uploadSimple c usr sts (ct, bs) =
+  let mp = buildMultipartBody sts ct (Lazy.fromStrict bs)
    in uploadRaw c usr (toLazyByteString mp)
 
 decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response b -> a
@@ -50,13 +60,14 @@ decodeHeaderOrFail h =
     . getHeader' h
 
 uploadRaw ::
-  CargoHold ->
+  (Request -> Request) ->
   UserId ->
   Lazy.ByteString ->
-  Http (Response (Maybe Lazy.ByteString))
-uploadRaw c usr bs =
+  TestM (Response (Maybe Lazy.ByteString))
+uploadRaw c usr bs = do
+  cargohold <- viewCargohold
   post $
-    c
+    c . cargohold
       . method POST
       . zUser usr
       . zConn "conn"
@@ -78,11 +89,14 @@ zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-deleteAssetV3 :: CargoHold -> UserId -> Qualified V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
-deleteAssetV3 c u k = delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
+deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
+deleteAssetV3 u k = do
+  c <- viewCargohold
+  delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
-deleteAsset :: CargoHold -> UserId -> Qualified V3.AssetKey -> Http (Response (Maybe Lazy.ByteString))
-deleteAsset c u k =
+deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
+deleteAsset u k = do
+  c <- viewCargohold
   delete $
     c . zUser u
       . paths
@@ -91,3 +105,90 @@ deleteAsset c u k =
           toByteString' (qDomain k),
           toByteString' (qUnqualified k)
         ]
+
+class IsAssetLocation key where
+  locationPath :: key -> Request -> Request
+
+instance IsAssetLocation AssetKey where
+  locationPath k = paths ["assets", "v3", toByteString' k]
+
+instance IsAssetLocation (Qualified AssetKey) where
+  locationPath k = paths ["assets", "v4", toByteString' (qDomain k), toByteString' (qUnqualified k)]
+
+instance IsAssetLocation ByteString where
+  locationPath = path
+
+class IsAssetToken tok where
+  tokenParam :: tok -> Request -> Request
+
+instance IsAssetToken () where
+  tokenParam _ = id
+
+instance IsAssetToken (Maybe AssetToken) where
+  tokenParam = maybe id (header "Asset-Token" . toByteString')
+
+instance IsAssetToken (Request -> Request) where
+  tokenParam = id
+
+downloadAsset ::
+  (IsAssetLocation loc, IsAssetToken tok) =>
+  UserId ->
+  loc ->
+  tok ->
+  TestM (Response (Maybe LByteString))
+downloadAsset uid loc tok = do
+  c <- viewCargohold
+  get $
+    c . zUser uid
+      . locationPath loc
+      . tokenParam tok
+      . noRedirect
+
+postToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
+postToken uid key = do
+  c <- viewCargohold
+  post $
+    c . zUser uid
+      . paths ["assets", "v3", toByteString' key, "token"]
+
+deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
+deleteToken uid key = do
+  c <- viewCargohold
+  delete $
+    c . zUser uid
+      . paths ["assets", "v3", toByteString' key, "token"]
+
+viewFederationDomain :: TestM Domain
+viewFederationDomain = view (tsOpts . optSettings . setFederationDomain)
+
+--------------------------------------------------------------------------------
+-- Mocking utilities
+
+withMockServer :: Wai.Application -> Codensity IO Word16
+withMockServer app = Codensity $ \k ->
+  bracket
+    (liftIO $ startMockServer Nothing app)
+    (liftIO . fst)
+    (k . fromIntegral . snd)
+
+withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
+withSettingsOverrides f action = do
+  ts <- ask
+  let opts = f (view tsOpts ts)
+  liftIO . lowerCodensity $ do
+    (app, _) <- mkApp opts
+    p <- withMockServer app
+    liftIO $ runTestM (ts & tsEndpoint %~ setLocalEndpoint p) action
+
+setLocalEndpoint :: Word16 -> Endpoint -> Endpoint
+setLocalEndpoint p = (epPort .~ p) . (epHost .~ "127.0.0.1")
+
+withMockFederator ::
+  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  TestM a ->
+  TestM (a, [FederatedRequest])
+withMockFederator respond action = do
+  withTempMockFederator [] respond $ \p ->
+    withSettingsOverrides
+      (optFederator . _Just %~ setLocalEndpoint (fromIntegral p))
+      action

@@ -117,6 +117,7 @@ library
     , hinotify
     , http-client
     , http-client-openssl
+    , http-media
     , http-types
     , http2
     , imports
@@ -223,6 +224,7 @@ executable federator
     , hinotify
     , http-client
     , http-client-openssl
+    , http-media
     , http-types
     , http2
     , imports
@@ -313,7 +315,8 @@ executable federator-integration
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , async
     , base
     , bilge
@@ -338,6 +341,7 @@ executable federator-integration
     , http-client
     , http-client-openssl
     , http-client-tls
+    , http-media
     , http-types
     , http2
     , imports
@@ -461,6 +465,7 @@ test-suite federator-tests
     , hinotify
     , http-client
     , http-client-openssl
+    , http-media
     , http-types
     , http2
     , imports
