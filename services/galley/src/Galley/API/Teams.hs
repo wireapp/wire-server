@@ -434,6 +434,19 @@ internalDeleteBindingTeamWithOneMember tid = do
     (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
     _ -> throw NotAOneMemberTeam
 
+-- This can be called by stern; see also: 'internalDeleteBindingTeamWithOneMember'
+internalDeleteBindingTeamWithManyMembers ::
+  Members
+    '[ Error InternalError,
+       Error TeamError,
+       Queue DeleteItem,
+       TeamStore
+     ]
+    r =>
+  TeamId ->
+  Sem r ()
+internalDeleteBindingTeamWithManyMembers = _
+
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
   forall r.
@@ -710,7 +723,7 @@ getTeamMember zusr tid uid = do
   member <- E.getTeamMember tid uid >>= note TeamMemberNotFound
   pure (member, withPerms)
 
-internalDeleteBindingTeamWithOneMemberH ::
+internalDeleteBindingTeamH ::
   Members
     '[ Error InternalError,
        Error TeamError,
@@ -719,8 +732,9 @@ internalDeleteBindingTeamWithOneMemberH ::
      ]
     r =>
   TeamId ->
+  Bool ->
   Sem r Response
-internalDeleteBindingTeamWithOneMemberH tid = do
+internalDeleteBindingTeamH tid nonEmptyDangerous = do
   internalDeleteBindingTeamWithOneMember tid
   pure (empty & setStatus status202)
 

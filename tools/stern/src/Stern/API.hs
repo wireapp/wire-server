@@ -263,7 +263,7 @@ routes = do
       description "Team ID"
     Doc.response 200 mempty Doc.end
 
-  delete "/teams/:tid" (continue deleteTeam) $
+  delete "/teams/:tid" (continue (deleteTeam False)) $
     capture "tid"
       .&. query "email"
   document "DELETE" "deleteTeam" $ do
@@ -278,6 +278,20 @@ routes = do
     Doc.response 404 "No such binding team" (Doc.model Doc.errorModel)
     Doc.response 403 "Only teams with 1 user can be deleted" (Doc.model Doc.errorModel)
     Doc.response 404 "Binding team mismatch" (Doc.model Doc.errorModel)
+
+  delete "/teams/:tid/NON_EMPTY_DANGEROUS" (continue (deleteTeam True)) $
+    capture "tid"
+      .&. query "email"
+  document "DELETE" "deleteTeam" $ do
+    summary "Delete a team (irrevocable!) EVEN IF THERE ARE LOTS OF USERS IN IT!"
+    Doc.notes "Enter 'I am sure' into the confirmation field."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.parameter Doc.Query "confirmation" Doc.string' $ do
+      Doc.description "Are you absolutely sure?"
+    Doc.response 202 "Team scheduled for deletion" Doc.end
+    Doc.response 404 "Confirmation missing" (Doc.model Doc.errorModel)
+    Doc.response 404 "No such binding team" (Doc.model Doc.errorModel)
 
   get "/ejpd-info" (continue ejpdInfoByHandles) $
     param "handles"
@@ -565,15 +579,16 @@ deleteUser (uid ::: emailOrPhone) = do
 setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler Response
 setTeamStatusH status tid = empty <$ Intra.setStatusBindingTeam tid status
 
-deleteTeam :: TeamId ::: Email -> Handler Response
-deleteTeam (givenTid ::: email) = do
-  acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left email)) >>= handleNoUser
-  userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
-  when (givenTid /= userTid) $
-    throwE bindingTeamMismatch
-  tInfo <- Intra.getTeamInfo givenTid
-  unless ((length (tiMembers tInfo)) == 1) $
-    throwE wrongMemberCount
+deleteTeam :: Bool -> TeamId ::: Email -> Handler Response
+deleteTeam nonEmptyDangerous (givenTid ::: email) = do
+  unless nonEmptyDangerous $ do
+    acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left email)) >>= handleNoUser
+    userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
+    when (givenTid /= userTid) $
+      throwE bindingTeamMismatch
+    tInfo <- Intra.getTeamInfo givenTid
+    unless ((length (tiMembers tInfo)) == 1) $
+      throwE wrongMemberCount
   void $ Intra.deleteBindingTeam givenTid
   return $ setStatus status202 empty
   where
