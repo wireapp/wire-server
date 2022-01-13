@@ -44,7 +44,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Options
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -110,7 +109,7 @@ testClientSuccess = do
     withMockFederatorClient
       defaultHeaders
       (const (pure ("application/json", Aeson.encode (Just expectedResponse))))
-      $ getUserByHandle clientRoutes handle
+      $ fedClient @'Brig @"get-user-by-handle" handle
 
   sentRequests
     @?= [ FederatedRequest
@@ -150,7 +149,7 @@ testClientFailure = do
       defaultHeaders
       (const (throw (MockErrorResponse HTTP.status422 "wrong domain")))
       $ do
-        getUserByHandle clientRoutes handle
+        fedClient @'Brig @"get-user-by-handle" handle
 
   case actualResponse of
     Right _ -> assertFailure "unexpected success"
@@ -167,7 +166,7 @@ testFederatorFailure = do
       defaultHeaders
       (const (throw (MockErrorResponse HTTP.status403 "invalid path")))
       $ do
-        getUserByHandle clientRoutes handle
+        fedClient @'Brig @"get-user-by-handle" handle
 
   case actualResponse of
     Right _ -> assertFailure "unexpected success"
@@ -181,7 +180,7 @@ testClientExceptions = do
 
   (response, _) <-
     withMockFederatorClient defaultHeaders (const (evaluate (error "unhandled exception"))) $
-      getUserByHandle clientRoutes handle
+      fedClient @'Brig @"get-user-by-handle" handle
 
   case response of
     Right _ -> assertFailure "unexpected success"
@@ -196,7 +195,7 @@ testClientConnectionError = do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" 1
           }
-  result <- runFederatorClient env (getUserByHandle clientRoutes handle)
+  result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of
     Left (FederatorClientHTTP2Error (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
