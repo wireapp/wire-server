@@ -44,9 +44,9 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (gcresConvs), RemoteConvMembers (rcmOthers), RemoteConversation (rcnvMembers))
-import Wire.API.Federation.Component
+import Wire.API.Federation.API.Galley
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 
@@ -739,7 +739,7 @@ testConnectWithAnon brig fedBrigClient = do
   fromUser <- randomId
   toUser <- userId <$> createAnonUser "anon1234" brig
   res <-
-    runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.example.com") $
+    runFedClient @"send-connection-action" @VL fedBrigClient (Domain "far-away.example.com") $
       NewConnectionRequest fromUser toUser RemoteConnect
   liftIO $
     assertEqual "The response should specify that the user is not activated" NewConnectionResponseUserNotActivated res
@@ -794,7 +794,7 @@ testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyCl
             gcrConvIds = [qUnqualified convId]
           }
 
-  res <- runFedClient @"get-conversations" fedGalleyClient (qDomain quid2) request
+  res <- runFedClient @"get-conversations" @VL fedGalleyClient (qDomain quid2) request
   liftIO $
     fmap (fmap omQualifiedId . rcmOthers . rcnvMembers) (gcresConvs res) @?= [[]]
 

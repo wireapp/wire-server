@@ -37,7 +37,7 @@ import qualified Wire.API.Federation.API.Cargohold as F
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Named
 
-type FederationAPI = "federation" :> FedApi 'Cargohold
+type FederationAPI = "federation" :> VersionedFedApi 'Cargohold
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =

@@ -686,12 +686,12 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
+  (Domain -> ServerT (FedApi 'Brig VL) Handler) ->
+  (Domain -> ServerT (FedApi 'Galley VL) Handler) ->
   TestM (ResponseLBS, [FederatedRequest])
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
-  withTempServantMockFederator brigApi galleyApi localDomain $
+  withTempServantMockFederator @VL brigApi galleyApi localDomain $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -1248,7 +1248,7 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+  runFedClient @"on-conversation-created" @VL fedGalleyClient (qDomain convId) $
     NewRemoteConversation
       { rcTime = now,
         rcOrigUserId = originUser,
@@ -2248,23 +2248,29 @@ withTempMockFederator' resp action = do
 
 -- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
 withTempServantMockFederator ::
-  (MonadMask m, MonadIO m, HasGalley m) =>
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
+  forall (v :: Version) m b.
+  ( MonadMask m,
+    MonadIO m,
+    HasGalley m,
+    HasServer (FedApi 'Brig v) '[],
+    HasServer (FedApi 'Galley v) '[]
+  ) =>
+  (Domain -> ServerT (FedApi 'Brig v) Handler) ->
+  (Domain -> ServerT (FedApi 'Galley v) Handler) ->
   Domain ->
   SessionT m b ->
   m (b, [FederatedRequest])
 withTempServantMockFederator brigApi galleyApi originDomain =
   withTempMockFederator' mock
   where
-    server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
+    server :: Domain -> ServerT (CombinedBrigAndGalleyAPI v) Handler
     server d = brigApi d :<|> galleyApi d
 
     mock :: FederatedRequest -> IO LByteString
     mock req =
-      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
+      makeFedRequestToServant @(CombinedBrigAndGalleyAPI v) originDomain (server (frTargetDomain req)) req
 
-type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
+type CombinedBrigAndGalleyAPI (v :: Version) = FedApi 'Brig v :<|> FedApi 'Galley v
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.

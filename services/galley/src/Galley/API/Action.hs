@@ -526,7 +526,7 @@ notifyConversationAction quid con lcnv targets action = do
 
   -- notify remote participants
   E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-    fedClient @'Galley @"on-conversation-updated" $
+    fedClient @'Galley @VL @"on-conversation-updated" $
       ConversationUpdate now quid (tUnqualified lcnv) (tUnqualified ruids) action
 
   -- notify local participants and bots

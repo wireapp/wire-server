@@ -61,14 +61,14 @@ downloadRemoteAsset usr rkey tok = do
           }
   exists <-
     fmap gaAvailable . executeFederated rkey $
-      fedClient @'Cargohold @"get-asset" ga
+      fedClient @'Cargohold @VL @"get-asset" ga
   if exists
     then
       Just
         <$> executeFederatedStreaming
           rkey
           ( toSourceIO
-              <$> fedClient @'Cargohold @"stream-asset" ga
+              <$> fedClient @'Cargohold @VL @"stream-asset" ga
           )
     else pure Nothing
 

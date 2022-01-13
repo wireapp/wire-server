@@ -128,8 +128,8 @@ instance MonadHttp TestM where
     liftIO $ withResponse req manager handler
 
 runFedClient ::
-  forall (name :: Symbol) comp m api.
-  ( HasFedEndpoint comp api name,
+  forall (name :: Symbol) (v :: Version) comp m api.
+  ( HasFedEndpoint comp v api name,
     Servant.HasClient Servant.ClientM api,
     MonadIO m
   ) =>

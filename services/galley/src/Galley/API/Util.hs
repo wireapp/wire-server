@@ -735,7 +735,7 @@ registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->
-    fedClient @'Galley @"on-conversation-created" rc
+    fedClient @'Galley @VL @"on-conversation-created" rc
 
 --------------------------------------------------------------------------------
 -- Legalhold

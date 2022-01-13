@@ -627,7 +627,7 @@ rmUser lusr conn = do
                 cuAlreadyPresentUsers = tUnqualified remotes,
                 cuAction = ConversationActionRemoveMembers (pure qUser)
               }
-      let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
+      let rpc = fedClient @'Galley @VL @"on-conversation-updated" convUpdate
       runFederatedEither remotes rpc
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
@@ -635,7 +635,7 @@ rmUser lusr conn = do
     leaveRemoteConversations cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = fedClient @'Galley @"on-user-deleted-conversations" userDelete
+        let rpc = fedClient @'Galley @VL @"on-user-deleted-conversations" userDelete
         runFederatedEither remoteConvs rpc
           >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 

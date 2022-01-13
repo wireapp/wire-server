@@ -27,6 +27,7 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -43,21 +44,22 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
+type family BrigApi (v :: Version)
+
 -- | For conventions see /docs/developer/federation-api-conventions.md
---
--- Maybe this module should be called Brig
-type BrigApi =
-  FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
-    :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
-    :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
-    :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
-    :<|> FedEndpoint "claim-multi-prekey-bundle" UserClients UserClientPrekeyMap
-    -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
-    -- (handles can be up to 256 chars currently)
-    :<|> FedEndpoint "search-users" SearchRequest [Contact]
-    :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
-    :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
-    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
+type instance
+  BrigApi 'V0 =
+    FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
+      :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
+      :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
+      :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
+      :<|> FedEndpoint "claim-multi-prekey-bundle" UserClients UserClientPrekeyMap
+      -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
+      -- (handles can be up to 256 chars currently)
+      :<|> FedEndpoint "search-users" SearchRequest [Contact]
+      :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
+      :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
+      :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]

@@ -67,7 +67,7 @@ import Wire.API.Routes.Named
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
-type FederationAPI = "federation" :> FedApi 'Galley
+type FederationAPI = "federation" :> VersionedFedApi 'Galley
 
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =

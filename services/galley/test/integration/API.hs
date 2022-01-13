@@ -672,7 +672,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
 
     let mkPubClient c = PubClient c Nothing
         brigApi d =
-          mkHandler @(FedApi 'Brig) $
+          mkHandler @(FedApi 'Brig VL) $
             Named @"get-user-clients" $ \_ _ ->
               pure $
                 if
@@ -685,7 +685,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
                     | otherwise -> mempty
 
         galleyApi _ =
-          mkHandler @(FedApi 'Galley) $ Named @"on-message-sent" $ \_ _ -> pure ()
+          mkHandler @(FedApi 'Galley VL) $ Named @"on-message-sent" $ \_ _ -> pure ()
 
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
@@ -790,10 +790,10 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     let brigApi _ =
-          mkHandler @(FedApi 'Brig) $
+          mkHandler @(FedApi 'Brig VL) $
             Named @"get-user-clients" $ \_ _ ->
               pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-        galleyApi _ = mkHandler @(FedApi 'Galley) EmptyAPI
+        galleyApi _ = mkHandler @(FedApi 'Galley VL) EmptyAPI
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
@@ -868,7 +868,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
 
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
     let brigApi _ =
-          mkHandler @(FedApi 'Brig) $
+          mkHandler @(FedApi 'Brig VL) $
             Named @"get-user-clients" $ \_ getUserClients ->
               let lookupClients uid
                     | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
@@ -876,7 +876,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
                     | otherwise = Nothing
                in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
         galleyApi _ =
-          mkHandler @(FedApi 'Galley) $
+          mkHandler @(FedApi 'Galley VL) $
             Named @"on-message-sent" $ \_ _ -> pure ()
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -947,10 +947,10 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   let brigApi _ =
-        mkHandler @(FedApi 'Brig) $
+        mkHandler @(FedApi 'Brig VL) $
           Named @"get-user-clients" $ \_ _ ->
             pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-      galleyApi _ = mkHandler @(FedApi 'Galley) EmptyAPI
+      galleyApi _ = mkHandler @(FedApi 'Galley VL) EmptyAPI
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
@@ -1082,11 +1082,11 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
           ]
 
     let brigApi _ =
-          mkHandler @(FedApi 'Brig) $
+          mkHandler @(FedApi 'Brig VL) $
             Named @"get-user-clients" $ \_ _ ->
               pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
         galleyApi _ =
-          mkHandler @(FedApi 'Galley) $
+          mkHandler @(FedApi 'Galley VL) $
             Named @"on-message-sent" $ \_ _ ->
               throwError err503 {errBody = "Down for maintenance."}
 
@@ -1119,9 +1119,9 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   let remoteDomain = Domain "far-away.example.com"
       convId = Qualified convIdUnqualified remoteDomain
 
-  let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
+  let brigApi _ = mkHandler @(FedApi 'Brig VL) EmptyAPI
   let galleyApi _ =
-        mkHandler @(FedApi 'Galley) $
+        mkHandler @(FedApi 'Galley VL) $
           Named @"send-message" $ \_ _ ->
             throwError err503 {errBody = "Down for maintenance."}
 
@@ -1160,8 +1160,8 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
             Message.mssFailedToSend = mempty
           }
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
-      brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ = mkHandler @(FedApi 'Galley) $
+      brigApi _ = mkHandler @(FedApi 'Brig VL) EmptyAPI
+      galleyApi _ = mkHandler @(FedApi 'Galley VL) $
         Named @"send-message" $ \_ _ ->
           pure (F.MessageSendResponse (Right mss))
 
@@ -1627,7 +1627,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1643,7 +1643,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient deeDomain cu
 
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
@@ -1688,7 +1688,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1706,7 +1706,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient deeDomain cu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -2186,10 +2186,10 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ = mkHandler @(FedApi 'Galley) $ Named @"on-conversation-updated" $ \_ _ -> pure ()
+  let brigApi _ = mkHandler @(FedApi 'Brig VL) EmptyAPI
+      galleyApi _ = mkHandler @(FedApi 'Galley VL) $ Named @"on-conversation-updated" $ \_ _ -> pure ()
 
-  (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
+  (_, received) <- withTempServantMockFederator @VL brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId
       !!! const 200 === statusCode
 
@@ -3155,7 +3155,7 @@ putRemoteConvMemberOk update = do
             cuAction =
               ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+  runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain cu
 
   -- Expected member state
   let memberAlice =
@@ -3418,10 +3418,10 @@ removeUser = do
             F.rcMessageTimer = Nothing,
             F.rcReceiptMode = Nothing
           }
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
+  runFedClient @"on-conversation-created" @VL fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
+  runFedClient @"on-conversation-created" @VL fedGalleyClient bDomain $ nc convB2 bart [alexDel]
+  runFedClient @"on-conversation-created" @VL fedGalleyClient cDomain $ nc convC1 carl [alexDel]
+  runFedClient @"on-conversation-created" @VL fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
     let handler :: FederatedRequest -> IO LByteString
@@ -3551,7 +3551,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
         RemoteActor -> do
           fedGalleyClient <- view tsFedGalleyClient
           GetConversationsResponse convs <-
-            runFedClient @"get-conversations" fedGalleyClient (tDomain bob) $
+            runFedClient @"get-conversations" @VL fedGalleyClient (tDomain bob) $
               F.GetConversationsRequest
                 { F.gcrUserId = tUnqualified bob,
                   F.gcrConvIds = [qUnqualified convId]

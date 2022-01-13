@@ -29,6 +29,7 @@ library
       Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
       Wire.API.Federation.Event
+      Wire.API.Federation.Version
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:

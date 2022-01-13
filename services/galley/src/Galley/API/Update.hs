@@ -1101,7 +1101,7 @@ removeMemberFromRemoteConv ::
 removeMemberFromRemoteConv cnv lusr victim
   | qUntagged lusr == victim = do
     let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
-    let rpc = fedClient @'Galley @"leave-conversation" lc
+    let rpc = fedClient @'Galley @VL @"leave-conversation" lc
     (either handleError handleSuccess =<<) . fmap leaveResponse $
       E.runFederated cnv rpc
   | otherwise = throw (ActionDenied RemoveConversationMember)

@@ -116,8 +116,8 @@ type Spar = Request -> Request
 data FedClient (comp :: Component) = FedClient HTTP.Manager Endpoint
 
 runFedClient ::
-  forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  forall (name :: Symbol) (v :: Version) comp api.
+  ( HasFedEndpoint comp v api name,
     Servant.HasClient Servant.ClientM api
   ) =>
   FedClient comp ->

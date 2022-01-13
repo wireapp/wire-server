@@ -225,7 +225,7 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = fedClient @'Galley @"get-conversations"
+  let rpc = fedClient @'Galley @VL @"get-conversations"
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)

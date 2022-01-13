@@ -39,6 +39,7 @@ import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.User.Client (UserClientMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
@@ -48,21 +49,24 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- for the current list we need.
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
-type GalleyApi =
-  -- | Register a new conversation
-  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
-    :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
-    -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
-    :<|> FedEndpoint "leave-conversation" LeaveConversationRequest LeaveConversationResponse
-    -- used to notify this backend that a new message has been posted to a
-    -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
-    -- used by a remote backend to send a message to a conversation owned by
-    -- this backend
-    :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
-    :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
+type family GalleyApi (v :: Version)
+
+type instance
+  GalleyApi 'V0 =
+    -- Register a new conversation
+    FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
+      :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
+      -- used by the backend that owns a conversation to inform this backend of
+      -- changes to the conversation
+      :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
+      :<|> FedEndpoint "leave-conversation" LeaveConversationRequest LeaveConversationResponse
+      -- used to notify this backend that a new message has been posted to a
+      -- remote conversation
+      :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
+      -- used by a remote backend to send a message to a conversation owned by
+      -- this backend
+      :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
+      :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,

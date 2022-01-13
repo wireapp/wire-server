@@ -17,12 +17,15 @@
 
 module Wire.API.Federation.API
   ( FedApi,
+    VersionedFedApi,
     HasFedEndpoint,
     fedClient,
     fedClientIn,
 
     -- * Re-exports
     Component (..),
+    Version (..),
+    VL,
   )
 where
 
@@ -37,28 +40,29 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 
--- Note: this type family being injective means that in most cases there is no need
--- to add component annotations when invoking the federator client
-type family FedApi (comp :: Component) = (api :: *) | api -> comp
+type family FedApi (comp :: Component) (v :: Version) :: *
 
-type instance FedApi 'Galley = GalleyApi
+type instance FedApi 'Galley v = GalleyApi v
 
-type instance FedApi 'Brig = BrigApi
+type instance FedApi 'Brig v = BrigApi v
 
-type instance FedApi 'Cargohold = CargoholdApi
+type instance FedApi 'Cargohold v = CargoholdApi v
 
-type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name)
+type HasFedEndpoint comp v api name = ('Just api ~ LookupEndpoint (FedApi comp v) name)
 
 -- | Return a client for a named endpoint.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) (v :: Version) (name :: Symbol) m api.
+  (HasFedEndpoint comp v api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedClientIn ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api) =>
+  forall (comp :: Component) (v :: Version) (name :: Symbol) m api.
+  (HasFedEndpoint comp v api name, HasClient m api) =>
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
+
+type VersionedFedApi (comp :: Component) = FedApi comp 'V0

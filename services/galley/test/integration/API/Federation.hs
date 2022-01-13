@@ -59,6 +59,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Component
+import Wire.API.Federation.Version
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
@@ -133,7 +134,7 @@ getConversationsAllFound = do
   fedGalleyClient <- view tsFedGalleyClient
 
   GetConversationsResponse convs <-
-    runFedClient @"get-conversations" fedGalleyClient (qDomain aliceQ) $
+    runFedClient @"get-conversations" @VL fedGalleyClient (qDomain aliceQ) $
       GetConversationsRequest
         (qUnqualified aliceQ)
         (map qUnqualified [cnv1Id, cnvQualifiedId cnv2])
@@ -169,7 +170,7 @@ getConversationsNotPartOf = do
   localDomain <- viewFederationDomain
   rando <- Id <$> liftIO nextRandom
   GetConversationsResponse convs <-
-    runFedClient @"get-conversations" fedGalleyClient localDomain $
+    runFedClient @"get-conversations" @VL fedGalleyClient localDomain $
       GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1]
   liftIO $ assertEqual "conversation list not empty" [] convs
 
@@ -232,7 +233,7 @@ addLocalUser = do
               ConversationActionAddMembers (qalice :| [qdee]) roleNameWireMember
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $
         wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
@@ -286,7 +287,7 @@ addUnconnectedUsersOnly = do
                 ConversationActionAddMembers (qCharlie :| []) roleNameWireMember
             }
     -- Alice receives no notifications from this
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain cu
     WS.assertNoEvent (5 # Second) [wsA]
 
 -- | This test invokes the federation endpoint:
@@ -331,9 +332,9 @@ removeLocalUser = do
 
   connectWithRemoteUser alice qBob
   WS.bracketR c alice $ \ws -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAdd
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain cuAdd
     afterAddition <- listRemoteConvs remoteDomain alice
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuRemove
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain cuRemove
     liftIO $ do
       void . WS.assertMatch (3 # Second) ws $
         wsAssertMemberJoinWithRole qconv qBob [qAlice] roleNameWireMember
@@ -394,21 +395,21 @@ removeRemoteUser = do
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain (cuRemove qEve)
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain (cuRemove qEve)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA, wsD] $
         wsAssertMembersLeave qconv qBob [qEve]
       WS.assertNoEvent (1 # Second) [wsC, wsF]
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain (cuRemove qDee)
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain (cuRemove qDee)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA, wsD] $
         wsAssertMembersLeave qconv qBob [qDee]
       WS.assertNoEvent (1 # Second) [wsC, wsF]
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain (cuRemove qFlo)
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient remoteDomain (cuRemove qFlo)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA] $
         wsAssertMembersLeave qconv qBob [qFlo]
@@ -445,7 +446,7 @@ notifyUpdate extras action etype edata = do
             FedGalley.cuAction = action
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient bdom cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
         let e = List1.head (WS.unpackPayload n)
@@ -545,7 +546,7 @@ notifyDeletedConversation = do
               FedGalley.cuAlreadyPresentUsers = [alice],
               FedGalley.cuAction = ConversationActionDelete
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient bobDomain cu
 
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
@@ -603,7 +604,7 @@ addRemoteUser = do
               ConversationActionAddMembers (qdee :| [qeve, qflo]) roleNameWireMember
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
-    runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+    runFedClient @"on-conversation-updated" @VL fedGalleyClient bdom cu
     void . liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsA, wsD] $
         wsAssertMemberJoinWithRole qconv qbob [qeve, qdee] roleNameWireMember
@@ -751,7 +752,7 @@ onMessageSent = do
             FedGalley.cuAction =
               ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+  runFedClient @"on-conversation-updated" @VL fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
       msg client = Map.fromList [(client, txt)]
@@ -773,7 +774,7 @@ onMessageSent = do
 
   -- send message to alice and check reception
   WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
-    runFedClient @"on-message-sent" fedGalleyClient bdom rm
+    runFedClient @"on-message-sent" @VL fedGalleyClient bdom rm
     liftIO $ do
       -- alice should receive the message on her first client
       WS.assertMatch_ (5 # Second) wsA1 $ \n -> do

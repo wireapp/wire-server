@@ -24,6 +24,7 @@ import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Asset
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 import Wire.API.Routes.AssetBody
 import Wire.API.Util.Aeson
 
@@ -46,6 +47,9 @@ data GetAssetResponse = GetAssetResponse
   deriving (Arbitrary) via (GenericUniform GetAssetResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAssetResponse)
 
-type CargoholdApi =
-  FedEndpoint "get-asset" GetAsset GetAssetResponse
-    :<|> StreamingFedEndpoint "stream-asset" GetAsset AssetSource
+type family CargoholdApi (v :: Version)
+
+type instance
+  CargoholdApi 'V0 =
+    FedEndpoint "get-asset" GetAsset GetAssetResponse
+      :<|> StreamingFedEndpoint "stream-asset" GetAsset AssetSource

@@ -44,6 +44,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Message (UserClients)
@@ -56,7 +57,7 @@ import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 
-type FederationAPI = "federation" :> BrigApi
+type FederationAPI = "federation" :> VersionedFedApi 'Brig
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
