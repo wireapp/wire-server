@@ -177,7 +177,7 @@ newConfig env sftStaticUrl mSftEnv limit version = do
     CallsConfigDeprecated -> pure Nothing
     CallsConfigV2 ->
       Just <$> case sftStaticUrl of
-        Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+        Nothing -> Nothing
         Just url -> fromRight [] . unSFTGetResponse <$> sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
