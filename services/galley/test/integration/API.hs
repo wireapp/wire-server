@@ -1427,6 +1427,11 @@ postConvertTeamConv = do
     -- team members (dave) can still join
     postJoinCodeConv dave j !!! const 200 === statusCode
 
+-- @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- The test asserts that, among others, remote users are removed from a
+-- conversation when an access update occurs that disallows guests from
+-- accessing.
 testAccessUpdateGuestRemoved :: TestM ()
 testAccessUpdateGuestRemoved = do
   -- alice, bob are in a team
@@ -1485,6 +1490,8 @@ testAccessUpdateGuestRemoved = do
       =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
         <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
+
+-- @END
 
 postJoinConvFail :: TestM ()
 postJoinConvFail = do
