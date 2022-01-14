@@ -1,0 +1,7 @@
+{
+    "description": "description of provider",
+    "email": "test@example.com",
+    "id": "00000018-0000-0020-0000-000e00000002",
+    "name": "provider-name",
+    "url": "https://www.example.com/meh"
+}

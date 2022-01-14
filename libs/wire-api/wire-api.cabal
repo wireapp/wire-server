@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 751fabb66be258a1c5a5cf055e0d9f8f59070f7084eb3dfdf88272f5ed177ed6
+-- hash: 6ec5258ef7e08010bf4c946c458729c6d05012e0f31570a00bdf3e293d42257c
 
 name:           wire-api
 version:        0.1.0
@@ -417,6 +417,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
       Test.Wire.API.Golden.Manual.ListConversations
+      Test.Wire.API.Golden.Manual.Provider
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserIdList
