@@ -28,6 +28,7 @@ import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.ListConversations
+import Test.Wire.API.Golden.Manual.Provider
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
@@ -100,5 +101,12 @@ tests =
         testObjects
           [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
       testGroup "ConversationsResponse" $
-        testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")]
+        testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")],
+      testGroup "Provider" $
+        testObjects [(testObject_Provider1, "testObject_Provider1.json")],
+      testGroup "NewProvider" $
+        testObjects
+          [ (testObject_NewProvider1, "testObject_NewProvider1.json"),
+            (testObject_NewProvider2, "testObject_NewProvider2.json")
+          ]
     ]
