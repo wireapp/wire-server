@@ -132,10 +132,6 @@ testValidatesCertificateWrongHostname =
             Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail",
-      -- @SF.Federation @TSFI.RESTfulAPI @S2
-      --
-      -- Refuse to connect with a server when it has no X509v3 Extended Key
-      -- Usage extension in the certificate.
       testCase "when the server's certificate does not have the server key usage flag" $
         withMockServer certWithoutServerKeyUsage $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
