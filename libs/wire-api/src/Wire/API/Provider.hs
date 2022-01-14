@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -52,12 +51,14 @@ module Wire.API.Provider
   )
 where
 
-import Data.Aeson
-import Data.Aeson.TH
+import Control.Lens ((?~))
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
-import Data.Json.Util
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.Range
+import Data.Schema
+import qualified Data.Schema as Schema (object)
+import qualified Data.Swagger as S
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Code as Code
@@ -79,32 +80,24 @@ data Provider = Provider
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Provider)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Provider
 
-instance ToJSON Provider where
-  toJSON p =
-    object $
-      "id" .= providerId p
-        # "name" .= providerName p
-        # "email" .= providerEmail p
-        # "url" .= providerUrl p
-        # "description" .= providerDescr p
-        # []
-
-instance FromJSON Provider where
-  parseJSON = withObject "Provider" $ \o ->
-    Provider
-      <$> o .: "id"
-      <*> o .: "name"
-      <*> o .: "email"
-      <*> o .: "url"
-      <*> o .: "description"
+instance ToSchema Provider where
+  schema =
+    Schema.object "Provider" $
+      Provider
+        <$> providerId .= field "id" schema
+        <*> providerName .= field "name" schema
+        <*> providerEmail .= field "email" schema
+        <*> providerUrl .= field "url" schema
+        <*> providerDescr .= field "description" schema
 
 -- | A provider profile as seen by regular users.
 -- Note: This is a placeholder that may evolve to contain only a subset of
 -- the full provider information.
 newtype ProviderProfile = ProviderProfile Provider
   deriving stock (Eq, Show)
-  deriving newtype (FromJSON, ToJSON, Arbitrary)
+  deriving newtype (FromJSON, ToJSON, S.ToSchema, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- NewProvider
@@ -120,25 +113,17 @@ data NewProvider = NewProvider
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewProvider)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema NewProvider
 
-instance ToJSON NewProvider where
-  toJSON p =
-    object $
-      "name" .= newProviderName p
-        # "email" .= newProviderEmail p
-        # "url" .= newProviderUrl p
-        # "description" .= newProviderDescr p
-        # "password" .= newProviderPassword p
-        # []
-
-instance FromJSON NewProvider where
-  parseJSON = withObject "NewProvider" $ \o ->
-    NewProvider
-      <$> o .: "name"
-      <*> o .: "email"
-      <*> o .: "url"
-      <*> o .: "description"
-      <*> o .:? "password"
+instance ToSchema NewProvider where
+  schema =
+    Schema.object "NewProvider" $
+      NewProvider
+        <$> newProviderName .= field "name" schema
+        <*> newProviderEmail .= field "email" schema
+        <*> newProviderUrl .= field "url" schema
+        <*> newProviderDescr .= field "description" schema
+        <*> newProviderPassword .= maybe_ (optField "password" schema)
 
 -- | Response data upon registering a new provider.
 data NewProviderResponse = NewProviderResponse
@@ -149,19 +134,14 @@ data NewProviderResponse = NewProviderResponse
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewProviderResponse)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema NewProviderResponse
 
-instance ToJSON NewProviderResponse where
-  toJSON r =
-    object $
-      "id" .= rsNewProviderId r
-        # "password" .= rsNewProviderPassword r
-        # []
-
-instance FromJSON NewProviderResponse where
-  parseJSON = withObject "NewProviderResponse" $ \o ->
-    NewProviderResponse
-      <$> o .: "id"
-      <*> o .:? "password"
+instance ToSchema NewProviderResponse where
+  schema =
+    Schema.object "NewProviderResponse" $
+      NewProviderResponse
+        <$> rsNewProviderId .= field "id" schema
+        <*> rsNewProviderPassword .= maybe_ (optFieldWithDocModifier "password" (S.description ?~ "The generated password, if none was provided in the request.") schema)
 
 --------------------------------------------------------------------------------
 -- UpdateProvider
@@ -174,21 +154,15 @@ data UpdateProvider = UpdateProvider
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateProvider)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UpdateProvider
 
-instance ToJSON UpdateProvider where
-  toJSON p =
-    object $
-      "name" .= updateProviderName p
-        # "url" .= updateProviderUrl p
-        # "description" .= updateProviderDescr p
-        # []
-
-instance FromJSON UpdateProvider where
-  parseJSON = withObject "UpdateProvider" $ \o ->
-    UpdateProvider
-      <$> o .:? "name"
-      <*> o .:? "url"
-      <*> o .:? "description"
+instance ToSchema UpdateProvider where
+  schema =
+    Schema.object "UpdateProvider" $
+      UpdateProvider
+        <$> updateProviderName .= maybe_ (optField "name" schema)
+        <*> updateProviderUrl .= maybe_ (optField "url" schema)
+        <*> updateProviderDescr .= maybe_ (optField "description" schema)
 
 --------------------------------------------------------------------------------
 -- ProviderActivationResponse
@@ -199,14 +173,13 @@ newtype ProviderActivationResponse = ProviderActivationResponse
   {activatedProviderIdentity :: Email}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ProviderActivationResponse
 
-instance ToJSON ProviderActivationResponse where
-  toJSON (ProviderActivationResponse e) =
-    object ["email" .= e]
-
-instance FromJSON ProviderActivationResponse where
-  parseJSON = withObject "ProviderActivationResponse" $ \o ->
-    ProviderActivationResponse <$> o .: "email"
+instance ToSchema ProviderActivationResponse where
+  schema =
+    Schema.object "ProviderActivationResponse" $
+      ProviderActivationResponse
+        <$> activatedProviderIdentity .= field "email" schema
 
 --------------------------------------------------------------------------------
 -- ProviderLogin
@@ -218,19 +191,14 @@ data ProviderLogin = ProviderLogin
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ProviderLogin)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ProviderLogin
 
-instance ToJSON ProviderLogin where
-  toJSON l =
-    object
-      [ "email" .= providerLoginEmail l,
-        "password" .= providerLoginPassword l
-      ]
-
-instance FromJSON ProviderLogin where
-  parseJSON = withObject "ProviderLogin" $ \o ->
-    ProviderLogin
-      <$> o .: "email"
-      <*> o .: "password"
+instance ToSchema ProviderLogin where
+  schema =
+    Schema.object "ProviderLogin" $
+      ProviderLogin
+        <$> providerLoginEmail .= field "email" schema
+        <*> providerLoginPassword .= field "password" schema
 
 --------------------------------------------------------------------------------
 -- DeleteProvider
@@ -240,16 +208,12 @@ newtype DeleteProvider = DeleteProvider
   {deleteProviderPassword :: PlainTextPassword}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema DeleteProvider
 
-instance ToJSON DeleteProvider where
-  toJSON d =
-    object
-      [ "password" .= deleteProviderPassword d
-      ]
-
-instance FromJSON DeleteProvider where
-  parseJSON = withObject "DeleteProvider" $ \o ->
-    DeleteProvider <$> o .: "password"
+instance ToSchema DeleteProvider where
+  schema =
+    Schema.object "DeleteProvider" $
+      DeleteProvider <$> deleteProviderPassword .= field "password" schema
 
 --------------------------------------------------------------------------------
 -- Password Change/Reset
@@ -258,8 +222,13 @@ instance FromJSON DeleteProvider where
 newtype PasswordReset = PasswordReset {nprEmail :: Email}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PasswordReset
 
-deriveJSON toJSONFieldName ''PasswordReset
+instance ToSchema PasswordReset where
+  schema =
+    Schema.object "PasswordReset" $
+      PasswordReset
+        <$> nprEmail .= field "email" schema
 
 -- | The payload for completing a password reset.
 data CompletePasswordReset = CompletePasswordReset
@@ -269,8 +238,15 @@ data CompletePasswordReset = CompletePasswordReset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CompletePasswordReset
 
-deriveJSON toJSONFieldName ''CompletePasswordReset
+instance ToSchema CompletePasswordReset where
+  schema =
+    Schema.object "CompletePasswordReset" $
+      CompletePasswordReset
+        <$> cpwrKey .= field "key" schema
+        <*> cpwrCode .= field "code" schema
+        <*> cpwrPassword .= field "password" schema
 
 -- | The payload for changing a password.
 data PasswordChange = PasswordChange
@@ -279,12 +255,23 @@ data PasswordChange = PasswordChange
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PasswordChange
 
-deriveJSON toJSONFieldName ''PasswordChange
+instance ToSchema PasswordChange where
+  schema =
+    Schema.object "PasswordChange" $
+      PasswordChange
+        <$> cpOldPassword .= field "old_password" schema
+        <*> cpNewPassword .= field "new_password" schema
 
 -- | The payload for updating an email address
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema EmailUpdate
 
-deriveJSON toJSONFieldName ''EmailUpdate
+instance ToSchema EmailUpdate where
+  schema =
+    Schema.object "EmailUpdate" $
+      EmailUpdate
+        <$> euEmail .= field "email" schema
