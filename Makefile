@@ -70,11 +70,10 @@ endif
 
 # ci here doesn't refer to continuous integration, but to cabal-integration
 # Usage: make ci package=brig test=1
-# Makefile has weird escaping rules: if you struggle to pass pattern correctly,
-# just call the script directly
+# If you struggle to pass arguments to the test-suite call the script directly.
 .PHONY: ci
 ci: c
-	./hack/bin/cabal-run-integration.sh $(package) $(pattern)
+	./hack/bin/cabal-run-integration.sh $(package)
 
 # reset db using cabal
 .PHONY: db-reset-package
