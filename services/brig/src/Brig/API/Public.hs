@@ -93,7 +93,8 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
-import Servant.Server.Generic (genericServerT)
+import Servant.API.Generic
+import Servant.Server.Generic (AsServerT, genericServerT)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
@@ -104,6 +105,7 @@ import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -128,7 +130,9 @@ import qualified Wire.API.Wrapped as Public
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI = BrigAPI.ServantAPI
+type ServantAPI =
+  BrigAPI.ServantAPI
+    :<|> ProviderAPI
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
@@ -162,48 +166,54 @@ swaggerDocsAPI =
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
 
+coreSitemap :: ToServant BrigAPI.Api (AsServerT Handler)
+coreSitemap =
+  ( genericServerT $
+      BrigAPI.Api
+        { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
+          BrigAPI.getUserQualified = getUser,
+          BrigAPI.getSelf = getSelf,
+          BrigAPI.deleteSelf = deleteUser,
+          BrigAPI.updateUserEmail = updateUserEmail,
+          BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
+          BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
+          BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
+          BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
+          BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
+          BrigAPI.getUserClientsQualified = getUserClientsQualified,
+          BrigAPI.getUserClientUnqualified = getUserClientUnqualified,
+          BrigAPI.getUserClientQualified = getUserClientQualified,
+          BrigAPI.listClientsBulk = listClientsBulk,
+          BrigAPI.listClientsBulkV2 = listClientsBulkV2,
+          BrigAPI.getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
+          BrigAPI.getUsersPrekeysClientQualified = getPrekeyH,
+          BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
+          BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
+          BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
+          BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
+          BrigAPI.addClient = addClient,
+          BrigAPI.updateClient = updateClient,
+          BrigAPI.deleteClient = deleteClient,
+          BrigAPI.listClients = listClients,
+          BrigAPI.getClient = getClient,
+          BrigAPI.getClientCapabilities = getClientCapabilities,
+          BrigAPI.getClientPrekeys = getClientPrekeys,
+          BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
+          BrigAPI.createConnection = createConnection,
+          BrigAPI.listLocalConnections = listLocalConnections,
+          BrigAPI.listConnections = listConnections,
+          BrigAPI.getConnectionUnqualified = getLocalConnection,
+          BrigAPI.getConnection = getConnection,
+          BrigAPI.updateConnectionUnqualified = updateLocalConnection,
+          BrigAPI.updateConnection = updateConnection,
+          BrigAPI.searchContacts = Search.search
+        }
+  )
+
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  genericServerT $
-    BrigAPI.Api
-      { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
-        BrigAPI.getUserQualified = getUser,
-        BrigAPI.getSelf = getSelf,
-        BrigAPI.deleteSelf = deleteUser,
-        BrigAPI.updateUserEmail = updateUserEmail,
-        BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-        BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
-        BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
-        BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
-        BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
-        BrigAPI.getUserClientsQualified = getUserClientsQualified,
-        BrigAPI.getUserClientUnqualified = getUserClientUnqualified,
-        BrigAPI.getUserClientQualified = getUserClientQualified,
-        BrigAPI.listClientsBulk = listClientsBulk,
-        BrigAPI.listClientsBulkV2 = listClientsBulkV2,
-        BrigAPI.getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
-        BrigAPI.getUsersPrekeysClientQualified = getPrekeyH,
-        BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
-        BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
-        BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
-        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
-        BrigAPI.addClient = addClient,
-        BrigAPI.updateClient = updateClient,
-        BrigAPI.deleteClient = deleteClient,
-        BrigAPI.listClients = listClients,
-        BrigAPI.getClient = getClient,
-        BrigAPI.getClientCapabilities = getClientCapabilities,
-        BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
-        BrigAPI.createConnection = createConnection,
-        BrigAPI.listLocalConnections = listLocalConnections,
-        BrigAPI.listConnections = listConnections,
-        BrigAPI.getConnectionUnqualified = getLocalConnection,
-        BrigAPI.getConnection = getConnection,
-        BrigAPI.updateConnectionUnqualified = updateLocalConnection,
-        BrigAPI.updateConnection = updateConnection,
-        BrigAPI.searchContacts = Search.search
-      }
+  coreSitemap
+    :<|> Provider.sitemap
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

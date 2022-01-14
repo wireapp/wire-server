@@ -19,6 +19,7 @@ module Brig.Provider.API
   ( -- * Main stuff
     routesPublic,
     routesInternal,
+    sitemap,
 
     -- * Event handlers
     finishDeleteService,
@@ -27,7 +28,7 @@ where
 
 import qualified Brig.API.Client as Client
 import Brig.API.Error
-import Brig.API.Handler
+import Brig.API.Handler hiding (JSON)
 import Brig.API.Types (PasswordResetError (..))
 import Brig.App (AppIO, internalEvents, settings, viewFederationDomain)
 import qualified Brig.Code as Code
@@ -92,6 +93,7 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
+import Servant (ServerT)
 import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
@@ -102,32 +104,38 @@ import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
+import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
+sitemap :: ServerT ProviderAPI Handler
+sitemap =
+  Named @"providerRegister" newAccount
+
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 
-  post "/provider/register" (continue newAccountH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.NewProvider
+  -- post "/provider/register" (continue newAccountH) $
+  --   accept "application" "json"
+  --     .&> jsonRequest @Public.NewProvider
 
-  get "/provider/activate" (continue activateAccountKeyH) $
-    accept "application" "json"
-      .&> query "key"
-      .&. query "code"
+  -- get "/provider/activate" (continue activateAccountKeyH) $
+  --   accept "application" "json"
+  --     .&> query "key"
+  --     .&. query "code"
 
-  get "/provider/approve" (continue approveAccountKeyH) $
-    accept "application" "json"
-      .&> query "key"
-      .&. query "code"
+  -- get "/provider/approve" (continue approveAccountKeyH) $
+  --   accept "application" "json"
+  --     .&> query "key"
+  --     .&. query "code"
 
-  post "/provider/login" (continue loginH) $
-    jsonRequest @Public.ProviderLogin
+  -- post "/provider/login" (continue loginH) $
+  --   jsonRequest @Public.ProviderLogin
 
   post "/provider/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"
@@ -316,9 +324,9 @@ routesInternal = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccountH :: JsonRequest Public.NewProvider -> Handler Response
-newAccountH req = do
-  setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
+-- newAccountH :: JsonRequest Public.NewProvider -> Handler Response
+-- newAccountH req = do
+--   setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
 
 newAccount :: Public.NewProvider -> Handler Public.NewProviderResponse
 newAccount new = do
