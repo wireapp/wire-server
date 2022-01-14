@@ -192,7 +192,7 @@ getRemoteClients remoteMembers =
   where
     getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
-        <$> getUserClients clientRoutes (GetUserClients uids)
+        <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
@@ -208,7 +208,7 @@ postRemoteOtrMessage sender conv rawMsg = do
             msrSender = qUnqualified sender,
             msrRawMessage = Base64ByteString rawMsg
           }
-      rpc = sendMessage clientRoutes msr
+      rpc = fedClient @'Galley @"send-message" msr
   msResponse <$> runFederated conv rpc
 
 postQualifiedOtrMessage ::
@@ -409,7 +409,7 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             rmTransient = mmTransient metadata,
             rmRecipients = UserClientMap rcpts
           }
-  let rpc = onMessageSent clientRoutes rm
+  let rpc = fedClient @'Galley @"on-message-sent" rm
   runFederatedEither domain rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))

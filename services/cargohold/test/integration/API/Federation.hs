@@ -13,11 +13,11 @@ import Data.UUID.V4
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
-import Servant.Client.Generic
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Asset
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Routes.AssetBody
 
@@ -66,7 +66,7 @@ testGetAssetAvailable isPublicAsset = do
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (getAsset genericClient ga)
+      gaAvailable <$> runFederationClient (fedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is available
   liftIO $ ok @?= True
@@ -86,7 +86,7 @@ testGetAssetNotAvailable = do
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (getAsset genericClient ga)
+      gaAvailable <$> runFederationClient (fedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -113,7 +113,7 @@ testGetAssetWrongToken = do
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (getAsset genericClient ga)
+      gaAvailable <$> runFederationClient (fedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -144,7 +144,7 @@ testLargeAsset = do
             gaKey = qUnqualified key
           }
   chunks <- withFederationClient $ do
-    source <- getAssetSource <$> runFederationClient (streamAsset genericClient ga)
+    source <- getAssetSource <$> runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
     liftIO . runResourceT $ connect source sinkList
   liftIO $ do
     let minNumChunks = 8
@@ -176,7 +176,7 @@ testStreamAsset = do
             gaKey = qUnqualified key
           }
   respBody <- withFederationClient $ do
-    source <- getAssetSource <$> runFederationClient (streamAsset genericClient ga)
+    source <- getAssetSource <$> runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
     liftIO . runResourceT $ connect source sinkLazy
   liftIO $ respBody @?= "Hello World"
 
@@ -194,7 +194,7 @@ testStreamAssetNotAvailable = do
             gaKey = key
           }
   err <- withFederationError $ do
-    runFederationClient (streamAsset genericClient ga)
+    runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
   liftIO $ do
     Wai.code err @?= HTTP.notFound404
     Wai.label err @?= "not-found"
@@ -220,7 +220,7 @@ testStreamAssetWrongToken = do
             gaKey = qUnqualified key
           }
   err <- withFederationError $ do
-    runFederationClient (streamAsset genericClient ga)
+    runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
   liftIO $ do
     Wai.code err @?= HTTP.notFound404
     Wai.label err @?= "not-found"

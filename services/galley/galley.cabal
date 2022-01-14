@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5ca30f9e591f66b924afc6773c95ecd6284e794ced766eca4ebe37af49b4984a
+-- hash: d0f941574eb095a4662d0a6333d341636673f8bbb0d097daed4d4e277ad7f37d
 
 name:           galley
 version:        0.83.0
@@ -254,6 +254,7 @@ executable galley-integration
       API
       API.CustomBackend
       API.Federation
+      API.Federation.Util
       API.MessageTimer
       API.Roles
       API.SQS
@@ -305,8 +306,8 @@ executable galley-integration
     , http-client
     , http-client-openssl
     , http-client-tls
-    , http-types
     , http-media
+    , http-types
     , imports
     , lens
     , lens-aeson

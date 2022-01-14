@@ -32,10 +32,14 @@ import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
+import Data.Proxy
 import Data.Qualified
 import Data.Range (Range)
 import qualified Data.Text as T
+import GHC.TypeLits
 import Imports
+import Servant.Client hiding (client)
+import Servant.Client.Core
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
@@ -48,29 +52,25 @@ import Wire.API.UserMap (UserMap)
 
 type FederationAppIO = ExceptT FederationError AppIO
 
--- FUTUREWORK: Maybe find a way to tranform 'clientRoutes' into a client which
--- only uses 'FederationAppIO' monad, then boilerplate in this module can all be
--- deleted.
 getUserHandleInfo :: Remote Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (qUntagged -> Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  executeFederated domain $ getUserByHandle clientRoutes handle
+  executeFederated @"get-user-by-handle" domain handle
 
 getUsersByIds :: Domain -> [UserId] -> FederationAppIO [UserProfile]
 getUsersByIds domain uids = do
   Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
-  executeFederated domain $ FederatedBrig.getUsersByIds clientRoutes uids
+  executeFederated @"get-users-by-ids" domain uids
 
--- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
 claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  executeFederated domain $ FederatedBrig.claimPrekey clientRoutes (user, client)
+  executeFederated @"claim-prekey" domain (user, client)
 
 claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
-  executeFederated domain $ FederatedBrig.claimPrekeyBundle clientRoutes user
+  executeFederated @"claim-prekey-bundle" domain user
 
 claimMultiPrekeyBundle ::
   Domain ->
@@ -78,17 +78,17 @@ claimMultiPrekeyBundle ::
   FederationAppIO UserClientPrekeyMap
 claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
+  executeFederated @"claim-multi-prekey-bundle" domain uc
 
 searchUsers :: Domain -> SearchRequest -> FederationAppIO [Public.Contact]
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
-  executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm
+  executeFederated @"search-users" domain searchTerm
 
 getUserClients :: Domain -> GetUserClients -> FederationAppIO (UserMap (Set PubClient))
 getUserClients domain guc = do
   Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
-  executeFederated domain $ FederatedBrig.getUserClients clientRoutes guc
+  executeFederated @"get-user-clients" domain guc
 
 sendConnectionAction ::
   Local UserId ->
@@ -98,7 +98,7 @@ sendConnectionAction ::
 sendConnectionAction self (qUntagged -> other) action = do
   let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
   Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
-  executeFederated (qDomain other) $ FederatedBrig.sendConnectionAction clientRoutes req
+  executeFederated @"send-connection-action" (qDomain other) req
 
 notifyUserDeleted ::
   Local UserId ->
@@ -106,13 +106,12 @@ notifyUserDeleted ::
   FederationAppIO ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
-  let fedRPC =
-        FederatedBrig.onUserDeleted clientRoutes $
-          UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
-  void $ executeFederated (tDomain remotes) fedRPC
+  void $
+    executeFederated @"on-user-deleted-connections" (tDomain remotes) $
+      UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
 
-executeFederated :: Domain -> FederatorClient 'Brig a -> FederationAppIO a
-executeFederated targetDomain action = do
+runBrigFederatorClient :: Domain -> FederatorClient 'Brig a -> FederationAppIO a
+runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
   let env =
@@ -123,3 +122,15 @@ executeFederated targetDomain action = do
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure
+
+executeFederated ::
+  forall (name :: Symbol) api.
+  ( HasFedEndpoint 'Brig api name,
+    HasClient ClientM api,
+    HasClient (FederatorClient 'Brig) api
+  ) =>
+  Domain ->
+  Client FederationAppIO api
+executeFederated domain =
+  hoistClient (Proxy @api) (runBrigFederatorClient domain) $
+    clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig))

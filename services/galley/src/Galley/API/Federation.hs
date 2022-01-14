@@ -53,8 +53,6 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
-import Servant.API.Generic (ToServantApi)
-import Servant.Server.Generic (genericServerT)
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
@@ -65,23 +63,21 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Named
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
-type FederationAPI = "federation" :> ToServantApi (FedApi 'Galley)
+type FederationAPI = "federation" :> FedApi 'Galley
 
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
-  genericServerT $
-    F.GalleyApi
-      { F.onConversationCreated = onConversationCreated,
-        F.getConversations = getConversations,
-        F.onConversationUpdated = onConversationUpdated,
-        F.leaveConversation = leaveConversation,
-        F.onMessageSent = onMessageSent,
-        F.sendMessage = sendMessage,
-        F.onUserDeleted = onUserDeleted
-      }
+  Named @"on-conversation-created" onConversationCreated
+    :<|> Named @"get-conversations" getConversations
+    :<|> Named @"on-conversation-updated" onConversationUpdated
+    :<|> Named @"leave-conversation" leaveConversation
+    :<|> Named @"on-message-sent" onMessageSent
+    :<|> Named @"send-message" sendMessage
+    :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>

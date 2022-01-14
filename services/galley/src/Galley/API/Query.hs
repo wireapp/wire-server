@@ -77,8 +77,7 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Galley hiding (getConversations)
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
@@ -226,7 +225,7 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = F.getConversations clientRoutes
+  let rpc = fedClient @'Galley @"get-conversations"
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)

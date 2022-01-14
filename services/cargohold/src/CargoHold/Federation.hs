@@ -61,9 +61,15 @@ downloadRemoteAsset usr rkey tok = do
           }
   exists <-
     fmap gaAvailable . executeFederated rkey $
-      getAsset clientRoutes ga
+      fedClient @'Cargohold @"get-asset" ga
   if exists
-    then Just <$> executeFederatedStreaming rkey (toSourceIO <$> streamAsset clientRoutes ga)
+    then
+      Just
+        <$> executeFederatedStreaming
+          rkey
+          ( toSourceIO
+              <$> fedClient @'Cargohold @"stream-asset" ga
+          )
     else pure Nothing
 
 mkFederatorClientEnv :: Remote x -> Handler FederatorClientEnv

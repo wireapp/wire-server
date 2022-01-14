@@ -40,6 +40,7 @@ import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Morph
 import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion
 import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.Yaml
@@ -53,6 +54,7 @@ import Test.Tasty.HUnit
 import Util.Options
 import Util.Options.Common
 import Util.Test
+import Wire.API.Federation.Domain
 
 type Cargohold = Request -> Request
 
@@ -114,8 +116,19 @@ runFederationClient :: ClientM a -> ReaderT TestSetup (ExceptT ClientError (Code
 runFederationClient action = do
   man <- view tsManager
   Endpoint cHost cPort <- view tsEndpoint
+  domain <- view (tsOpts . optSettings . setFederationDomain)
   let base = BaseUrl Http (T.unpack cHost) (fromIntegral cPort) "/federation"
-  let env = mkClientEnv man base
+  let env =
+        (mkClientEnv man base)
+          { makeClientRequest = \burl req ->
+              let req' = defaultMakeClientRequest burl req
+               in req'
+                    { requestHeaders =
+                        (originDomainHeaderName, toByteString' domain) :
+                        requestHeaders req'
+                    }
+          }
+
   r <- lift . lift $
     Codensity $ \k ->
       -- Servant's streaming client throws exceptions in IO for some reason

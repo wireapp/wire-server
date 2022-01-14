@@ -25,8 +25,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, Summary, (:>))
-import Servant.API.Generic
+import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
   ( Access,
@@ -39,7 +38,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.Domain (OriginDomainHeader)
+import Wire.API.Federation.Endpoint
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.User.Client (UserClientMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
@@ -49,59 +48,21 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- for the current list we need.
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
-data GalleyApi routes = GalleyApi
-  { -- | Register a new conversation
-    onConversationCreated ::
-      routes
-        :- Summary "Register users to be in a new remote conversation"
-        :> "on-conversation-created"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] (NewRemoteConversation ConvId)
-        :> Post '[JSON] (),
-    getConversations ::
-      routes
-        :- "get-conversations"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] GetConversationsRequest
-        :> Post '[JSON] GetConversationsResponse,
+type GalleyApi =
+  -- | Register a new conversation
+  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
+    :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
-    onConversationUpdated ::
-      routes
-        :- "on-conversation-updated"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] ConversationUpdate
-        :> Post '[JSON] (),
-    leaveConversation ::
-      routes
-        :- "leave-conversation"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] LeaveConversationRequest
-        :> Post '[JSON] LeaveConversationResponse,
+    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
+    :<|> FedEndpoint "leave-conversation" LeaveConversationRequest LeaveConversationResponse
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
-    onMessageSent ::
-      routes
-        :- "on-message-sent"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] (RemoteMessage ConvId)
-        :> Post '[JSON] (),
+    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
-    sendMessage ::
-      routes
-        :- "send-message"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] MessageSendRequest
-        :> Post '[JSON] MessageSendResponse,
-    onUserDeleted ::
-      routes
-        :- "on-user-deleted-conversations"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] UserDeletedConversationsNotification
-        :> Post '[JSON] EmptyResponse
-  }
-  deriving (Generic)
+    :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
+    :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,

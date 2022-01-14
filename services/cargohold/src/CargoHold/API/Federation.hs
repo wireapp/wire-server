@@ -28,35 +28,32 @@ import CargoHold.API.V3
 import CargoHold.App
 import qualified CargoHold.S3 as S3
 import Control.Error
+import Data.Domain
 import Imports
 import Servant.API
-import Servant.API.Generic
 import Servant.Server hiding (Handler)
-import Servant.Server.Generic
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Cargohold as F
 import Wire.API.Routes.AssetBody
+import Wire.API.Routes.Named
 
-type FederationAPI = "federation" :> ToServantApi (FedApi 'Cargohold)
+type FederationAPI = "federation" :> FedApi 'Cargohold
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
-  genericServerT $
-    F.CargoholdApi
-      { F.getAsset = getAsset,
-        F.streamAsset = streamAsset
-      }
+  Named @"get-asset" getAsset
+    :<|> Named @"stream-asset" streamAsset
 
 checkAsset :: F.GetAsset -> Handler Bool
 checkAsset ga =
   fmap isJust . runMaybeT $
     checkMetadata Nothing (F.gaKey ga) (F.gaToken ga)
 
-streamAsset :: F.GetAsset -> Handler AssetSource
-streamAsset ga = do
+streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
+streamAsset _ ga = do
   available <- checkAsset ga
   unless available (throwE assetNotFound)
   AssetSource <$> S3.downloadV3 (F.gaKey ga)
 
-getAsset :: F.GetAsset -> Handler F.GetAssetResponse
-getAsset = fmap F.GetAssetResponse . checkAsset
+getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse
+getAsset _ = fmap F.GetAssetResponse . checkAsset
