@@ -85,7 +85,7 @@ mkFederatorClientEnv remote = do
         ceFederator = endpoint
       }
 
-executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a
+executeFederated :: Remote x -> FederatorClient 'Cargohold v a -> Handler a
 executeFederated remote c = do
   env <- mkFederatorClientEnv remote
   liftIO (runFederatorClient @'Cargohold env c)
@@ -93,7 +93,7 @@ executeFederated remote c = do
 
 executeFederatedStreaming ::
   Remote x ->
-  FederatorClient 'Cargohold (SourceIO ByteString) ->
+  FederatorClient 'Cargohold v (SourceIO ByteString) ->
   Handler (SourceIO ByteString)
 executeFederatedStreaming remote c = do
   env <- mkFederatorClientEnv remote

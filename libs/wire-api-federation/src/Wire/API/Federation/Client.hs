@@ -52,7 +52,7 @@ import qualified Network.HPACK.Token as HTTP2
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
-import Network.TLS as TLS
+import qualified Network.TLS as TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
 import Servant.Client.Core
@@ -62,6 +62,7 @@ import Util.Options (Endpoint (..))
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 
 data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
@@ -69,7 +70,7 @@ data FederatorClientEnv = FederatorClientEnv
     ceFederator :: Endpoint
   }
 
-newtype FederatorClient (c :: Component) a = FederatorClient
+newtype FederatorClient (c :: Component) (v :: Version) a = FederatorClient
   {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError (Codensity IO)) a}
   deriving newtype
     ( Functor,
@@ -80,7 +81,7 @@ newtype FederatorClient (c :: Component) a = FederatorClient
       MonadIO
     )
 
-liftCodensity :: Codensity IO a -> FederatorClient c a
+liftCodensity :: Codensity IO a -> FederatorClient c v a
 liftCodensity = FederatorClient . lift . lift
 
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
@@ -149,7 +150,7 @@ withHTTP2Request mtlsConfig req hostname port k = do
                       responseBody = result
                     }
 
-instance KnownComponent c => RunClient (FederatorClient c) where
+instance KnownComponent c => RunClient (FederatorClient c v) where
   runRequestAcceptStatus expectedStatuses req = do
     let successfulStatus status =
           maybe
@@ -167,7 +168,7 @@ instance KnownComponent c => RunClient (FederatorClient c) where
 
   throwClientError = throwError . FederatorClientServantError
 
-instance KnownComponent c => RunStreamingClient (FederatorClient c) where
+instance KnownComponent c => RunStreamingClient (FederatorClient c v) where
   withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
 
 streamingResponseStrictBody :: StreamingResponse -> IO Builder
@@ -179,12 +180,12 @@ streamingResponseStrictBody resp =
     $ resp
 
 withHTTP2StreamingRequest ::
-  forall c a.
+  forall c v a.
   KnownComponent c =>
   (HTTP.Status -> Bool) ->
   Request ->
   (StreamingResponse -> IO a) ->
-  FederatorClient c a
+  FederatorClient c v a
 withHTTP2StreamingRequest successfulStatus req handleResponse = do
   env <- ask
   let baseUrlPath =
@@ -266,7 +267,7 @@ mkFailureResponse status domain path body
 runFederatorClient ::
   KnownComponent c =>
   FederatorClientEnv ->
-  FederatorClient c a ->
+  FederatorClient c v a ->
   IO (Either FederatorClientError a)
 runFederatorClient env =
   lowerCodensity
@@ -275,7 +276,7 @@ runFederatorClient env =
 runFederatorClientToCodensity ::
   KnownComponent c =>
   FederatorClientEnv ->
-  FederatorClient c a ->
+  FederatorClient c v a ->
   Codensity IO (Either FederatorClientError a)
 runFederatorClientToCodensity env =
   runExceptT

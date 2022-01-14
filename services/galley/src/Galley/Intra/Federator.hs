@@ -51,7 +51,7 @@ interpretFederatorAccess = interpret $ \case
 runFederatedEither ::
   KnownComponent c =>
   Remote x ->
-  FederatorClient c a ->
+  FederatorClient c v a ->
   App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
   ownDomain <- view (options . optSettings . setFederationDomain)
@@ -70,7 +70,7 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
 runFederated ::
   KnownComponent c =>
   Remote x ->
-  FederatorClient c a ->
+  FederatorClient c v a ->
   App a
 runFederated dom rpc =
   runFederatedEither dom rpc
@@ -82,7 +82,7 @@ runFederatedConcurrently ::
     KnownComponent c
   ) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c b) ->
+  (Remote [a] -> FederatorClient c v b) ->
   App [Remote b]
 runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
@@ -91,7 +91,7 @@ runFederatedConcurrently xs rpc =
 runFederatedConcurrentlyEither ::
   (Foldable f, Functor f, KnownComponent c) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c b) ->
+  (Remote [a] -> FederatorClient c v b) ->
   App [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->

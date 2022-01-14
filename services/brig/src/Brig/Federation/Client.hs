@@ -107,7 +107,7 @@ notifyUserDeleted self remotes = do
     executeFederated @"on-user-deleted-connections" @VL (tDomain remotes) $
       UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
 
-runBrigFederatorClient :: Domain -> FederatorClient 'Brig a -> FederationAppIO a
+runBrigFederatorClient :: Domain -> FederatorClient 'Brig v a -> FederationAppIO a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
@@ -124,10 +124,10 @@ executeFederated ::
   forall (name :: Symbol) (v :: Version) api.
   ( HasFedEndpoint 'Brig v api name,
     HasClient ClientM api,
-    HasClient (FederatorClient 'Brig) api
+    HasClient (FederatorClient 'Brig v) api
   ) =>
   Domain ->
   Client FederationAppIO api
 executeFederated domain =
-  hoistClient (Proxy @api) (runBrigFederatorClient domain) $
-    clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig))
+  hoistClient (Proxy @api) (runBrigFederatorClient @v domain) $
+    clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig v))

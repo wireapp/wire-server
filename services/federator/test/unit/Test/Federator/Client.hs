@@ -85,7 +85,7 @@ withMockFederatorClient ::
   KnownComponent c =>
   [HTTP.Header] ->
   (FederatedRequest -> IO (MediaType, LByteString)) ->
-  FederatorClient c a ->
+  FederatorClient c v a ->
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
   let env =
@@ -132,7 +132,7 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
           }
-  let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
+  let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig VL))
   runCodensity (runFederatorClientToCodensity env c) $ \case
     Left err -> assertFailure $ "Unexpected error: " <> displayException err
     Right out -> do
