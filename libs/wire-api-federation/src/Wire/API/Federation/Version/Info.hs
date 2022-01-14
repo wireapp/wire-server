@@ -1,5 +1,3 @@
-{-# LANGUAGE StandaloneKindSignatures #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,33 +14,23 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Wire.API.Federation.Version where
+
+module Wire.API.Federation.Version.Info
+  ( VersionInfo (..),
+    supportedVersionInfo,
+  )
+where
 
 import Data.Aeson
-import Data.Singletons
-import GHC.Generics
 import Imports
 import Wire.API.Arbitrary
-import Wire.API.Federation.Version.TH
+import Wire.API.Federation.Version
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
-data Version = V0
-  deriving (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Version)
+newtype VersionInfo = VersionInfo {vinfoSupported :: [Version]}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform VersionInfo)
+  deriving (ToJSON, FromJSON) via (CustomEncoded VersionInfo)
 
-versionOptions :: Options
-versionOptions =
-  defaultOptions
-    { constructorTagModifier = map toLower,
-      tagSingleConstructors = True
-    }
-
-instance ToJSON Version where
-  toJSON = genericToJSON @Version versionOptions
-
-instance FromJSON Version where
-  parseJSON = genericParseJSON @Version versionOptions
-
-$(genVersions ''Version)
-
-supportedVersions :: [Version]
-supportedVersions = demote @SupportedVersions
+supportedVersionInfo :: VersionInfo
+supportedVersionInfo = VersionInfo supportedVersions

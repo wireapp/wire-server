@@ -71,13 +71,14 @@ type FederationAPI = "federation" :> VersionedFedApi 'Galley
 
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
-  Named @"on-conversation-created" onConversationCreated
-    :<|> Named @"get-conversations" getConversations
-    :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"leave-conversation" leaveConversation
-    :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"send-message" sendMessage
-    :<|> Named @"on-user-deleted-conversations" onUserDeleted
+  mkVersionedServer @'Galley $
+    Named @"on-conversation-created" onConversationCreated
+      :<|> Named @"get-conversations" getConversations
+      :<|> Named @"on-conversation-updated" onConversationUpdated
+      :<|> Named @"leave-conversation" leaveConversation
+      :<|> Named @"on-message-sent" onMessageSent
+      :<|> Named @"send-message" sendMessage
+      :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>

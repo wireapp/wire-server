@@ -21,6 +21,7 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     fedClient,
     fedClientIn,
+    mkVersionedServer,
 
     -- * Re-exports
     Component (..),
@@ -32,23 +33,24 @@ where
 import Data.Proxy
 import GHC.TypeLits
 import Imports
+import Servant
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
+import Wire.API.Federation.Version.Info
+import Wire.API.Routes.Named
 
-type family FedApi (comp :: Component) (v :: Version) :: *
-
-type instance FedApi 'Galley v = GalleyApi v
-
-type instance FedApi 'Brig v = BrigApi v
-
-type instance FedApi 'Cargohold v = CargoholdApi v
+type family FedApi (comp :: Component) (v :: Version) :: * where
+  FedApi 'Galley v = GalleyApi v
+  FedApi 'Brig v = BrigApi v
+  FedApi 'Cargohold v = CargoholdApi v
 
 type HasFedEndpoint comp v api name = ('Just api ~ LookupEndpoint (FedApi comp v) name)
 
@@ -65,4 +67,23 @@ fedClientIn ::
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
-type VersionedFedApi (comp :: Component) = FedApi comp 'V0
+type family CombinedApi (comp :: Component) (vs :: [Version]) where
+  CombinedApi comp '[v0] = FedApi comp v0
+  CombinedApi comp (v0 ': vs) = FedApi comp v0 :<|> CombinedApi comp vs
+
+type ApiVersionEndpoint =
+  FedEndpoint "api-versions" EmptyRequest VersionInfo
+
+apiVersionEndpoint :: Applicative m => ServerT ApiVersionEndpoint m
+apiVersionEndpoint = Named @"api-versions" $ \_ _ -> pure supportedVersionInfo
+
+type VersionedFedApi (comp :: Component) =
+  ApiVersionEndpoint
+    :<|> CombinedApi comp SupportedVersions
+
+mkVersionedServer ::
+  forall (comp :: Component) m.
+  Applicative m =>
+  ServerT (CombinedApi comp SupportedVersions) m ->
+  ServerT (VersionedFedApi comp) m
+mkVersionedServer h = apiVersionEndpoint :<|> h

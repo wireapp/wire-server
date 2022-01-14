@@ -61,15 +61,16 @@ type FederationAPI = "federation" :> VersionedFedApi 'Brig
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
-  Named @"get-user-by-handle" getUserByHandle
-    :<|> Named @"get-users-by-ids" getUsersByIds
-    :<|> Named @"claim-prekey" claimPrekey
-    :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
-    :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
-    :<|> Named @"search-users" searchUsers
-    :<|> Named @"get-user-clients" getUserClients
-    :<|> Named @"send-connection-action" sendConnectionAction
-    :<|> Named @"on-user-deleted-connections" onUserDeleted
+  mkVersionedServer @'Brig $
+    Named @"get-user-by-handle" getUserByHandle
+      :<|> Named @"get-users-by-ids" getUsersByIds
+      :<|> Named @"claim-prekey" claimPrekey
+      :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
+      :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
+      :<|> Named @"search-users" searchUsers
+      :<|> Named @"get-user-clients" getUserClients
+      :<|> Named @"send-connection-action" sendConnectionAction
+      :<|> Named @"on-user-deleted-connections" onUserDeleted
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

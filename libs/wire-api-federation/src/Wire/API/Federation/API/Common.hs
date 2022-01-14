@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Common where
+module Wire.API.Federation.API.Common
+  ( EmptyResponse (..),
+    EmptyRequest,
+  )
+where
 
 import Data.Aeson
 import Imports
@@ -27,6 +31,8 @@ import Wire.API.Arbitrary
 data EmptyResponse = EmptyResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmptyResponse)
+
+type EmptyRequest = EmptyResponse
 
 instance FromJSON EmptyResponse where
   parseJSON = withObject "EmptyResponse" . const $ pure EmptyResponse
