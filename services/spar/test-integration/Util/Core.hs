@@ -117,6 +117,7 @@ module Util.Core
     ssoToUidSpar,
     runSimpleSP,
     runSpar,
+    runMockedSpar,
     type CanonicalEffs,
     getSsoidViaSelf,
     getSsoidViaSelf',
@@ -179,7 +180,7 @@ import Spar.CanonicalInterpreter
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Sem.Logger.TinyLog (toLevel)
+import Spar.Sem.Logger.TinyLog (toLevel, stringLoggerToTinyLog, loggerToTinyLog)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
@@ -206,6 +207,53 @@ import Wire.API.User.Identity (mkSampleUref)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
+import Polysemy (runFinal)
+import Polysemy.Final (embedToFinal)
+import Polysemy.Error (runError)
+import Polysemy.Input (runInputConst)
+import Spar.Sem.VerdictFormatStore.Mem
+import Spar.Sem.AReqIDStore.Mem
+import Spar.Sem.AReqIDStore.Cassandra (ttlErrorToSparError)
+import Spar.Sem.AssIDStore.Mem
+import Spar.Sem.Reporter.Wai
+import Spar.Sem.BindCookieStore.Mem
+import Spar.Sem.ScimExternalIdStore.Mem
+import Spar.Sem.DefaultSsoCode.Mem
+import Spar.Sem.ScimUserTimesStore.Mem
+import Spar.Sem.ScimTokenStore.Mem
+import Spar.Sem.IdP.Mem
+import Spar.Sem.IdPRawMetadataStore.Mem
+import Spar.Sem.SAMLUserStore.Mem
+import Spar.Sem.SAMLUserStore.Cassandra (interpretClientToIO)
+import Spar.Sem.SAML2.Library
+import Spar.Sem.Now.IO
+import Spar.Sem.Random.IO
+import Spar.Sem.SamlProtocolSettings.Servant
+import Spar.Sem.GalleyAccess.Http
+import Spar.Sem.BrigAccess.Http
+
+import qualified Spar.Sem.SAML2
+import qualified Spar.Sem.SamlProtocolSettings
+import qualified Spar.Sem.BindCookieStore
+import qualified Spar.Sem.AssIDStore
+import qualified Spar.Sem.AReqIDStore
+import qualified Spar.Sem.VerdictFormatStore
+import qualified Spar.Sem.ScimUserTimesStore
+import qualified Spar.Sem.ScimTokenStore
+import qualified Spar.Sem.DefaultSsoCode
+import qualified Spar.Sem.IdP
+import qualified Spar.Sem.IdPRawMetadataStore
+import qualified Spar.Sem.Now
+import qualified Spar.Sem.Random
+import qualified Spar.Sem.Logger
+import qualified Spar.Sem.BrigAccess
+import qualified Spar.Sem.GalleyAccess
+import qualified Spar.Sem.Reporter
+import qualified Polysemy.Embed
+import qualified Polysemy.Input
+import qualified Polysemy.Error
+import qualified Polysemy.Final
+import qualified Spar.Error
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1231,6 +1279,79 @@ runSpar action = do
   liftIO $ do
     result <- runSparToIO ctx action
     either (throwIO . ErrorCall . show) pure result
+
+runMockedSpar ::
+  (MonadReader TestEnv m, MonadIO m) =>
+  Sem CanonicalEffs a ->
+  m a
+runMockedSpar action = do
+  ctx <- (^. teSparEnv) <$> ask
+  liftIO $ do
+    result <- runSparMocked ctx action
+    either (throwIO . ErrorCall . show) pure result
+
+runSparMocked :: Spar.Env
+                       -> Sem
+                            '[Spar.Sem.SAML2.SAML2,
+                              Spar.Sem.SamlProtocolSettings.SamlProtocolSettings,
+                              Spar.Sem.BindCookieStore.BindCookieStore,
+                              Spar.Sem.AssIDStore.AssIDStore, Spar.Sem.AReqIDStore.AReqIDStore,
+                              Spar.Sem.VerdictFormatStore.VerdictFormatStore,
+                              ScimExternalIdStore.ScimExternalIdStore,
+                              Spar.Sem.ScimUserTimesStore.ScimUserTimesStore,
+                              Spar.Sem.ScimTokenStore.ScimTokenStore,
+                              Spar.Sem.DefaultSsoCode.DefaultSsoCode, Spar.Sem.IdP.IdP,
+                              Spar.Sem.IdPRawMetadataStore.IdPRawMetadataStore,
+                              SAMLUserStore.SAMLUserStore, Polysemy.Embed.Embed Client,
+                              Spar.Sem.BrigAccess.BrigAccess, Spar.Sem.GalleyAccess.GalleyAccess,
+                              Polysemy.Error.Error TTLError,
+                              Polysemy.Error.Error Spar.Error.SparError,
+                              Spar.Sem.Reporter.Reporter, Spar.Sem.Logger.Logger String,
+                              Spar.Sem.Logger.Logger (Log.Msg -> Log.Msg),
+                              Polysemy.Input.Input Opts, Polysemy.Input.Input Log.Logger,
+                              Spar.Sem.Random.Random, Spar.Sem.Now.Now,
+                              Polysemy.Embed.Embed IO, Polysemy.Final.Final IO]
+                            a
+                       -> IO (Either Spar.Error.SparError a)
+runSparMocked ctx action =
+  runFinal
+    . embedToFinal @IO
+    . nowToIO
+    . randomToIO
+    . runInputConst (Spar.sparCtxLogger ctx)
+    . runInputConst (Spar.sparCtxOpts ctx)
+    . loggerToTinyLog (Spar.sparCtxLogger ctx)
+    . stringLoggerToTinyLog
+    . reporterToTinyLogWai
+    . runError -- @SparError
+    . ttlErrorToSparError
+    . galleyAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpGalley ctx)
+    . brigAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpBrig ctx)
+    . interpretClientToIO (Spar.sparCtxCas ctx)
+    . fmap snd
+    . samlUserStoreToMem
+    . fmap snd
+    . idpRawMetadataStoreToMem
+    . fmap snd
+    . idPToMem
+    . fmap snd
+    . defaultSsoCodeToMem
+    . fmap snd
+    . scimTokenStoreToMem
+    . fmap snd
+    . scimUserTimesStoreToMem
+    . fmap snd
+    . scimExternalIdStoreToMem
+    . fmap snd
+    . verdictFormatStoreToMem
+    . fmap snd
+    . aReqIDStoreToMem
+    . fmap snd
+    . assIdStoreToMem
+    . fmap snd
+    . bindCookieStoreToMem
+    . sparRouteToServant (saml $ Spar.sparCtxOpts ctx)
+    $ saml2ToSaml2WebSso action
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
 getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
