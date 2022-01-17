@@ -84,6 +84,7 @@ import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
+import Web.Scim.Class.Auth (authCheck)
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -203,6 +204,8 @@ specCreateUser = describe "POST /Users" $ do
   context "team has no SAML IdP" $ do
     it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
       testCreateUserNoIdP
+    focus $ it "creates a user with PendingInvitation, and user can follow usual invitation process mocked" $ do
+      testCreateUserNoIdP'
     it "fails if no email can be extracted from externalId" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
@@ -283,6 +286,35 @@ testCreateUserWithPass = do
     -- TODO: write a FAQ entry in wire-docs, reference it in the error description.
     -- TODO: yes, we should just test for error labels consistently, i know...
     const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
+
+testCreateUserNoIdP' :: TestSpar ()
+testCreateUserNoIdP' = do
+  env <- ask
+  email <- randomEmail
+  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  -- TODO(sandy):
+  Right scimStoredUser <- runSpar $ runExceptT $ do
+    tok <- lift $ registerScimToken' tid Nothing
+    tok' <- authCheck @SparTag $ Just tok
+    Scim.UserC.postUser tok' scimUser
+
+  liftIO $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+  let userid = scimUserId scimStoredUser
+
+  -- get account from brig, status should be PendingInvitation
+  do
+    aFewTimes (runSpar $ BrigAccess.getAccount Intra.NoPendingInvitations userid) isJust
+      >>= maybe (pure ()) (error "pending user in brig is visible, even though it should not be")
+    brigUserAccount <-
+      aFewTimes (runSpar $ BrigAccess.getAccount Intra.WithPendingInvitations userid) isJust
+        >>= maybe (error "could not find user in brig") pure
+    let brigUser = accountUser brigUserAccount
+    brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+    liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
+    liftIO $ userEmail brigUser `shouldBe` Just email
+    liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+    liftIO $ userSSOId brigUser `shouldBe` Nothing
 
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do

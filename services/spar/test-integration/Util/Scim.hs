@@ -56,6 +56,7 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+import Polysemy
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -90,6 +91,26 @@ registerScimToken teamid midpid = do
           stiIdP = midpid,
           stiDescr = "test token"
         }
+  pure tok
+
+-- | Create a fresh SCIM token and register it for the team.
+registerScimToken' :: HasCallStack => TeamId -> Maybe IdPId -> Sem CanonicalEffs ScimToken
+registerScimToken' teamid midpid = do
+  tok <-
+    ScimToken <$> do
+      code <- liftIO UUID.nextRandom
+      pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
+  scimTokenId <- embed @IO randomId
+  now <- embed @IO getCurrentTime
+  ScimTokenStore.insert
+    tok
+    ScimTokenInfo
+      { stiTeam = teamid,
+        stiId = scimTokenId,
+        stiCreatedAt = now,
+        stiIdP = midpid,
+        stiDescr = "test token"
+      }
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered

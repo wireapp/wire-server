@@ -458,7 +458,7 @@ specFinalizeLogin = do
       it "rejectsSAMLResponseIfRequestIsStale" $ do
         let mkareq idp = do
               req <- negotiateAuthnRequest idp
-              runSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
+              runMockedSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
               pure req
             mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
             submitaresp = submitAuthnResponse
@@ -933,7 +933,7 @@ specCRUDIdentityProvider = do
           pure $ idpmeta1 & edIssuer .~ (idpmeta3 ^. edIssuer)
 
         do
-          midp <- runSpar $ IdPEffect.getConfig idpid1
+          midp <- runMockedSpar $ IdPEffect.getConfig idpid1
           liftIO $ do
             (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (idpmeta1 ^. edIssuer)
             (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just []
@@ -946,7 +946,7 @@ specCRUDIdentityProvider = do
               resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
               liftIO $ statusCode resp `shouldBe` 200
 
-              midp <- runSpar $ IdPEffect.getConfig idpid1
+              midp <- runMockedSpar $ IdPEffect.getConfig idpid1
               liftIO $ do
                 (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (new ^. edIssuer)
                 sort <$> (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just (sort $ olds <&> (^. edIssuer))
@@ -1361,7 +1361,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       brig <- view teBrig
       resp <- call . delete $ brig . paths ["i", "users", toByteString' uid]
       liftIO $ responseStatus resp `shouldBe` status202
-      void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Deleted)
+      void $ aFewTimes (runMockedSpar $ BrigAccess.getStatus uid) (== Deleted)
 
 specScimAndSAML :: SpecWith TestEnv
 specScimAndSAML = do

@@ -1274,11 +1274,12 @@ runSpar ::
   (MonadReader TestEnv m, MonadIO m) =>
   Sem CanonicalEffs a ->
   m a
-runSpar action = do
-  ctx <- (^. teSparEnv) <$> ask
-  liftIO $ do
-    result <- runSparToIO ctx action
-    either (throwIO . ErrorCall . show) pure result
+runSpar = runMockedSpar
+-- runSpar action = do
+--   ctx <- (^. teSparEnv) <$> ask
+--   liftIO $ do
+--     result <- runSparToIO ctx action
+--     either (throwIO . ErrorCall . show) pure result
 
 runMockedSpar ::
   (MonadReader TestEnv m, MonadIO m) =>
