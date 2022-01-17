@@ -100,4 +100,6 @@ defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
 
 parseAccessRoles :: Maybe FromAccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
-parseAccessRoles = undefined
+parseAccessRoles mbLegacy mbV2 = case mbV2 of
+  Just _ -> mbV2
+  Nothing -> farlAccessRoles <$> mbLegacy
