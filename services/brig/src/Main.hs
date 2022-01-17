@@ -27,7 +27,7 @@ import Util.Options
 
 main :: IO ()
 main = withOpenSSL $ do
-  let desc = "Brig - User Service"
+  let desc = "Brig - User Service Or is it?"
       defaultPath = "/etc/wire/brig/conf/brig.yaml"
   options <- getOptions desc Nothing defaultPath
   run options
