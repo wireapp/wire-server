@@ -1,0 +1,1 @@
+cabal-run-integration.sh - Test same services as "make i"
