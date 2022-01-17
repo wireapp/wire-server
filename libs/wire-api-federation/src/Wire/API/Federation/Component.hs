@@ -1,3 +1,5 @@
+{-# LANGUAGE StandaloneKindSignatures #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,6 +19,7 @@
 
 module Wire.API.Federation.Component where
 
+import Data.Singletons.TH
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
@@ -28,6 +31,8 @@ data Component
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform Component)
 
+$(genSingletons [''Component])
+
 parseComponent :: Text -> Maybe Component
 parseComponent "brig" = Just Brig
 parseComponent "galley" = Just Galley
@@ -38,15 +43,3 @@ componentName :: Component -> Text
 componentName Brig = "brig"
 componentName Galley = "galley"
 componentName Cargohold = "cargohold"
-
-class KnownComponent (c :: Component) where
-  componentVal :: Component
-
-instance KnownComponent 'Brig where
-  componentVal = Brig
-
-instance KnownComponent 'Galley where
-  componentVal = Galley
-
-instance KnownComponent 'Cargohold where
-  componentVal = Cargohold

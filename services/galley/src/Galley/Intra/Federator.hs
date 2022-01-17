@@ -33,7 +33,6 @@ import Polysemy
 import Polysemy.Input
 import UnliftIO
 import Wire.API.Federation.Client
-import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
@@ -50,7 +49,7 @@ interpretFederatorAccess = interpret $ \case
   IsFederationConfigured -> embedApp $ isJust <$> view federator
 
 runFederatedEither ::
-  (KnownComponent c, SingI v) =>
+  (SingI c, SingI v) =>
   Remote x ->
   FederatorClient c ('Just v) a ->
   App (Either FederationError a)
@@ -69,7 +68,7 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 
 runFederated ::
-  (KnownComponent c, SingI v) =>
+  (SingI c, SingI v) =>
   Remote x ->
   FederatorClient c ('Just v) a ->
   App a
@@ -80,7 +79,7 @@ runFederated dom rpc =
 runFederatedConcurrently ::
   ( Foldable f,
     Functor f,
-    KnownComponent c,
+    SingI c,
     SingI v
   ) =>
   f (Remote a) ->
@@ -91,7 +90,7 @@ runFederatedConcurrently xs rpc =
     qualifyAs r <$> runFederated r (rpc r)
 
 runFederatedConcurrentlyEither ::
-  (Foldable f, Functor f, KnownComponent c, SingI v) =>
+  (Foldable f, Functor f, SingI c, SingI v) =>
   f (Remote a) ->
   (Remote [a] -> FederatorClient c ('Just v) b) ->
   App [Either (Remote [a], FederationError) (Remote b)]

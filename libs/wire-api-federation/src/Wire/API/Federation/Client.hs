@@ -154,7 +154,7 @@ withHTTP2Request mtlsConfig req hostname port k = do
                       responseBody = result
                     }
 
-instance KnownComponent c => RunClient (FederatorClient c v) where
+instance SingI c => RunClient (FederatorClient c v) where
   runRequestAcceptStatus expectedStatuses req = do
     let successfulStatus status =
           maybe
@@ -172,7 +172,7 @@ instance KnownComponent c => RunClient (FederatorClient c v) where
 
   throwClientError = throwError . FederatorClientServantError
 
-instance KnownComponent c => RunStreamingClient (FederatorClient c v) where
+instance SingI c => RunStreamingClient (FederatorClient c v) where
   withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
 
 streamingResponseStrictBody :: StreamingResponse -> IO Builder
@@ -185,7 +185,7 @@ streamingResponseStrictBody resp =
 
 withHTTP2StreamingRequest ::
   forall c v a.
-  KnownComponent c =>
+  SingI c =>
   (HTTP.Status -> Bool) ->
   Request ->
   (StreamingResponse -> IO a) ->
@@ -196,7 +196,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         HTTP.encodePathSegments
           [ "rpc",
             domainText (ceTargetDomain env),
-            componentName (componentVal @c)
+            componentName (demote @c)
           ]
   let path = baseUrlPath <> requestPath req
   body <- case requestBody req of
@@ -283,7 +283,7 @@ class RunFederatorClient (c :: Component) (v :: Maybe Version) where
     Codensity IO (Either FederatorClientError a)
 
 clientToCodensity ::
-  KnownComponent c =>
+  SingI c =>
   FederatorClientEnv ->
   FederatorClient c v a ->
   ExceptT FederatorClientError (Codensity IO) a
@@ -291,10 +291,10 @@ clientToCodensity env =
   flip runReaderT env
     . unFederatorClient
 
-instance KnownComponent c => RunFederatorClient c 'Nothing where
+instance SingI c => RunFederatorClient c 'Nothing where
   runFederatorClientToCodensity env = runExceptT . clientToCodensity env
 
-instance (KnownComponent c, SingI v) => RunFederatorClient c ('Just v) where
+instance (SingI c, SingI v) => RunFederatorClient c ('Just v) where
   runFederatorClientToCodensity env cli = runExceptT $ do
     _ <- hoist lift $ runFederatorNegotiation @v env
     clientToCodensity env cli

@@ -46,7 +46,6 @@ import Test.Tasty.HUnit
 import Util.Options
 import Wire.API.Federation.API
 import Wire.API.Federation.Client
-import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.User (UserProfile)
 
@@ -83,7 +82,7 @@ newtype ResponseFailure = ResponseFailure Wai.Error
   deriving (Show)
 
 withMockFederatorClient ::
-  (KnownComponent c, SingI v) =>
+  (SingI c, SingI v) =>
   [HTTP.Header] ->
   (FederatedRequest -> IO (MediaType, LByteString)) ->
   FederatorClient c ('Just v) a ->

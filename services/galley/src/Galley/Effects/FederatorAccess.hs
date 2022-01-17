@@ -37,23 +37,23 @@ import Wire.API.Federation.Error
 
 data FederatorAccess m a where
   RunFederated ::
-    (KnownComponent c, SingI v) =>
+    (SingI c, SingI v) =>
     Remote x ->
     FederatorClient c ('Just v) a ->
     FederatorAccess m a
   RunFederatedEither ::
-    (KnownComponent c, SingI v) =>
+    (SingI c, SingI v) =>
     Remote x ->
     FederatorClient c ('Just v) a ->
     FederatorAccess m (Either FederationError a)
   RunFederatedConcurrently ::
-    (KnownComponent c, SingI v, Foldable f, Functor f) =>
+    (SingI c, SingI v, Foldable f, Functor f) =>
     f (Remote x) ->
     (Remote [x] -> FederatorClient c ('Just v) a) ->
     FederatorAccess m [Remote a]
   RunFederatedConcurrentlyEither ::
     forall (c :: Component) v f a m x.
-    (KnownComponent c, SingI v, Foldable f, Functor f) =>
+    (SingI c, SingI v, Foldable f, Functor f) =>
     f (Remote x) ->
     (Remote [x] -> FederatorClient c ('Just v) a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
@@ -62,7 +62,7 @@ data FederatorAccess m a where
 makeSem ''FederatorAccess
 
 runFederatedConcurrently_ ::
-  (KnownComponent c, SingI v, Foldable f, Functor f, Member FederatorAccess r) =>
+  (SingI c, SingI v, Foldable f, Functor f, Member FederatorAccess r) =>
   f (Remote a) ->
   (Remote [a] -> FederatorClient c ('Just v) ()) ->
   Sem r ()
