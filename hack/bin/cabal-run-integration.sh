@@ -47,12 +47,8 @@ run_integration_tests() {
 }
 
 run_all_integration_tests() {
-  for d in "$TOP_LEVEL/services/"*/; do
-    package=$(basename "$d")
-    service_dir="$TOP_LEVEL/services/$package"
-    if [ -d "$service_dir/test/integration" ] || [ -d "$service_dir/test-integration" ]; then
-      run_integration_tests "$package"
-    fi
+  for package in cargohold galley brig gundeck spar; do
+    run_integration_tests "$package"
   done
 }
 
