@@ -21,9 +21,9 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
 import Imports
 import Servant.API
-import Servant.API.Generic
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Asset
+import Wire.API.Federation.Endpoint
 import Wire.API.Routes.AssetBody
 import Wire.API.Util.Aeson
 
@@ -46,16 +46,6 @@ data GetAssetResponse = GetAssetResponse
   deriving (Arbitrary) via (GenericUniform GetAssetResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAssetResponse)
 
-data CargoholdApi routes = CargoholdApi
-  { getAsset ::
-      routes
-        :- "get-asset"
-        :> ReqBody '[JSON] GetAsset
-        :> Post '[JSON] GetAssetResponse,
-    streamAsset ::
-      routes
-        :- "stream-asset"
-        :> ReqBody '[JSON] GetAsset
-        :> StreamPost NoFraming OctetStream AssetSource
-  }
-  deriving (Generic)
+type CargoholdApi =
+  FedEndpoint "get-asset" GetAsset GetAssetResponse
+    :<|> StreamingFedEndpoint "stream-asset" GetAsset AssetSource

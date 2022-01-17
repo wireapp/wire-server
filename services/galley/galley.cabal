@@ -330,6 +330,7 @@ executable galley-integration
       API
       API.CustomBackend
       API.Federation
+      API.Federation.Util
       API.MessageTimer
       API.Roles
       API.SQS

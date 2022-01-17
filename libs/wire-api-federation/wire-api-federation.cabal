@@ -26,6 +26,7 @@ library
       Wire.API.Federation.Client
       Wire.API.Federation.Component
       Wire.API.Federation.Domain
+      Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
       Wire.API.Federation.Event
   other-modules:

@@ -40,8 +40,21 @@ import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Util.Options.Common
+import Wire.API.Federation.Component
 
-tests :: Opt.Opts -> FedBrigClient -> FedGalleyClient -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> DB.ClientState -> IO TestTree
+tests ::
+  Opt.Opts ->
+  FedClient 'Brig ->
+  FedClient 'Galley ->
+  Manager ->
+  Brig ->
+  Cannon ->
+  CargoHold ->
+  Galley ->
+  Nginz ->
+  AWS.Env ->
+  DB.ClientState ->
+  IO TestTree
 tests conf fbc fgc p b c ch g n aws db = do
   let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
   let at = Opt.setActivationTimeout (Opt.optSettings conf)

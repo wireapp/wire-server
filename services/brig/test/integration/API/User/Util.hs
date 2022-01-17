@@ -336,7 +336,7 @@ assertConnectionQualified brig u1 qu2 rel =
 receiveConnectionAction ::
   HasCallStack =>
   Brig ->
-  FedBrigClient ->
+  FedClient 'Brig ->
   UserId ->
   Qualified UserId ->
   F.RemoteConnectionAction ->
@@ -345,7 +345,7 @@ receiveConnectionAction ::
   Http ()
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
-    F.sendConnectionAction (fedBrigClient (qDomain quid2)) $
+    runFedClient @"send-connection-action" fedBrigClient (qDomain quid2) $
       F.NewConnectionRequest (qUnqualified quid2) uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction

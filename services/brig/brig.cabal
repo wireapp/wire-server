@@ -251,6 +251,7 @@ library
     , scrypt >=0.5
     , servant
     , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
     , servant-swagger-ui
