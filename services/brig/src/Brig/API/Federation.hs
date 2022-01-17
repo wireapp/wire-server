@@ -57,7 +57,7 @@ import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 
-type FederationAPI = "federation" :> VersionedFedApi 'Brig
+type FederationAPI = "federation" :> VersionedFedApi' 'Brig
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =

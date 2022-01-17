@@ -41,9 +41,8 @@ type FederationAPI = "federation" :> VersionedFedApi 'Cargohold
 
 federationSitemap :: ServerT FederationAPI Handler
 federationSitemap =
-  mkVersionedServer @'Cargohold $
-    Named @"get-asset" getAsset
-      :<|> Named @"stream-asset" streamAsset
+  Named @"get-asset" getAsset
+    :<|> Named @"stream-asset" streamAsset
 
 checkAsset :: F.GetAsset -> Handler Bool
 checkAsset ga =

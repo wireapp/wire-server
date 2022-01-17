@@ -18,6 +18,7 @@
 module Wire.API.Federation.API
   ( FedApi,
     VersionedFedApi,
+    VersionedFedApi',
     HasFedEndpoint,
     fedClient,
     fedClientIn,
@@ -77,13 +78,16 @@ type ApiVersionEndpoint =
 apiVersionEndpoint :: Applicative m => ServerT ApiVersionEndpoint m
 apiVersionEndpoint = Named @"api-versions" $ \_ _ -> pure supportedVersionInfo
 
-type VersionedFedApi (comp :: Component) =
-  ApiVersionEndpoint
-    :<|> CombinedApi comp SupportedVersions
+-- | All versions of the federation API.
+type VersionedFedApi (comp :: Component) = CombinedApi comp SupportedVersions
+
+-- | All versions of the federation API, plus an endpoint returning all versions.
+type VersionedFedApi' (comp :: Component) =
+  ApiVersionEndpoint :<|> VersionedFedApi comp
 
 mkVersionedServer ::
   forall (comp :: Component) m.
   Applicative m =>
-  ServerT (CombinedApi comp SupportedVersions) m ->
-  ServerT (VersionedFedApi comp) m
+  ServerT (VersionedFedApi comp) m ->
+  ServerT (VersionedFedApi' comp) m
 mkVersionedServer h = apiVersionEndpoint :<|> h
