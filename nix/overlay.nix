@@ -1,4 +1,9 @@
-self: super: {
+self: super:
+let
+  sources = import ./sources.nix;
+in
+{
+  naersk = self.callPackage sources.naersk { };
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
 
