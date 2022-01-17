@@ -8,14 +8,14 @@
 
 naersk.buildPackage rec {
   name = "cryptobox-c-${version}";
-  version = "2019-06-17";
+  version = "2019-10-22";
   nativeBuildInputs = [ pkg-config ];
   buildInputs = [ libsodium ];
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "cryptobox-c";
-    rev = "4067ad96b125942545dbdec8c1a89f1e1b65d013";
-    sha256 = "1i9dlhw0xk1viglyhail9fb36v1awrypps8jmhrkz8k1bhx98ci3";
+    rev = "10826e3c54b0e8d854d8d80acb9387facd36bb61";
+    sha256 = "sha256-Tg2yLKkRIor5hep1fWv4smnobhwF8+z7WfR0bv713D0=";
   };
 
   postInstall = ''
