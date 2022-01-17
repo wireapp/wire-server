@@ -28,7 +28,6 @@ import Control.Monad.Catch (MonadCatch, catch)
 import Data.Metrics.Middleware (metrics)
 import Data.String.Conversions (cs)
 import Data.Time
-import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
 import Gundeck.Options
 import Gundeck.ThreadBudget.Internal
@@ -307,10 +306,10 @@ sm =
       STM.postcondition = postcondition,
       STM.invariant = Nothing,
       STM.generator = generator,
-      STM.distribution = Nothing,
       STM.shrinker = shrinker,
       STM.semantics = semantics,
-      STM.mock = mock
+      STM.mock = mock,
+      STM.cleanup = const (pure ())
     }
 
 -- | Remove resources created by the concrete 'STM.Commands', namely watcher and budgeted

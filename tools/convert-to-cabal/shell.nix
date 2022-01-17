@@ -13,7 +13,7 @@ let
         "stack2cabal" = super.callCabal2nix "stack2cabal" source { };
       };
 
-      haskellPackages = pkgs.haskell.packages.ghc884.override {
+      haskellPackages = pkgs.haskell.packages.ghc8107.override {
         overrides = overlay;
       };
 

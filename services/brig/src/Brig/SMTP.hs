@@ -84,4 +84,4 @@ initSMTP lg host port credentials connType = do
       Logger.log lg Logger.Debug (msg $ val "Closing connection to: " +++ host)
 
 sendMail :: MonadIO m => SMTP -> Mail -> m ()
-sendMail s m = liftIO $ withResource (s ^. pool) $ SMTP.sendMimeMail2 m
+sendMail s m = liftIO $ withResource (s ^. pool) $ SMTP.sendMail m

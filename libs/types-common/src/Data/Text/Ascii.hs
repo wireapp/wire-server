@@ -339,9 +339,7 @@ encodeBase16 = unsafeFromByteString . B16.encode
 -- | Decode a text containing only hex characters.
 -- Decoding only succeeds if the text is a multiple of 2 bytes in length.
 decodeBase16 :: AsciiBase16 -> Maybe ByteString
-decodeBase16 t = case B16.decode (toByteString' t) of
-  (b, r) | r == mempty -> Just b
-  (_, _) -> Nothing
+decodeBase16 t = either (const Nothing) Just (B16.decode (toByteString' t))
 
 --------------------------------------------------------------------------------
 -- Safe Widening

@@ -1,0 +1,33 @@
+FROM ubuntu:20.04 as cryptobox-builder
+
+# compile cryptobox-c
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y cargo file libsodium-dev git pkg-config && \
+    cd /tmp && \
+    git clone https://github.com/wireapp/cryptobox-c.git && \
+    cd cryptobox-c && \
+    export SODIUM_USE_PKG_CONFIG=1 && \
+    cargo build --release
+
+# Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
+FROM ubuntu:20.04
+
+COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
+
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y \
+            libsodium23 \
+            libssl1.1 \
+            libgmp10 \
+            libffi7 \
+            libicu66 \
+            geoip-database \
+            ca-certificates \
+            dumb-init \
+            libxml2 \
+            libncurses6 \
+            zlib1g \
+            netbase && \
+    rm -rf /var/lib/apt/lists/*

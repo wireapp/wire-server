@@ -60,9 +60,9 @@ where
 import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
+import Data.ByteString.Builder (lazyByteString)
 import Data.ByteString.Conversion (List, toByteString)
 import qualified Data.ByteString.Conversion
-import Data.ByteString.Lazy.Builder (lazyByteString)
 import qualified Data.CaseInsensitive as CI
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import qualified Data.Handle as Handle
