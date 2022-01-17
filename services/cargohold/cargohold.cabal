@@ -122,6 +122,7 @@ library
     , safe >=0.3
     , servant
     , servant-server
+    , singletons
     , swagger >=0.2
     , text >=1.1
     , time >=1.4
@@ -203,6 +204,7 @@ executable cargohold
     , kan-extensions
     , mime >=0.4
     , safe >=0.3
+    , singletons
     , text >=1.1
     , types-common
     , yaml >=0.8
@@ -295,6 +297,7 @@ executable cargohold-integration
     , safe >=0.3
     , servant-client
     , servant-client-core
+    , singletons
     , tagged >=0.8
     , tasty >=1.0
     , tasty-hunit >=0.9

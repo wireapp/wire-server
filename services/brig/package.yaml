@@ -112,6 +112,7 @@ library:
   - servant-server
   - servant-swagger
   - servant-swagger-ui
+  - singletons
   - sodium-crypto-sign >=0.1
   - split >=0.2
   - ssl-util

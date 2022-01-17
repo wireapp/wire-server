@@ -27,6 +27,7 @@ import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Proxy
+import Data.Singletons
 import qualified Data.Text.Encoding as Text
 import Federator.MockServer
 import Imports
@@ -82,10 +83,10 @@ newtype ResponseFailure = ResponseFailure Wai.Error
   deriving (Show)
 
 withMockFederatorClient ::
-  KnownComponent c =>
+  (KnownComponent c, SingI v) =>
   [HTTP.Header] ->
   (FederatedRequest -> IO (MediaType, LByteString)) ->
-  FederatorClient c v a ->
+  FederatorClient c ('Just v) a ->
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
   let env =
@@ -132,7 +133,7 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
           }
-  let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig VL))
+  let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig ('Just VL)))
   runCodensity (runFederatorClientToCodensity env c) $ \case
     Left err -> assertFailure $ "Unexpected error: " <> displayException err
     Right out -> do

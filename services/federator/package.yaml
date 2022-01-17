@@ -46,6 +46,7 @@ dependencies:
 - retry
 - servant
 - servant-client-core
+- singletons
 - streaming-commons
 - string-conversions
 - text

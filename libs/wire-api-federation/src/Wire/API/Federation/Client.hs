@@ -34,6 +34,7 @@ import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Except
+import Control.Monad.Morph
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
@@ -41,6 +42,7 @@ import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import qualified Data.Sequence as Seq
+import Data.Singletons
 import Data.Streaming.Network
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
@@ -61,8 +63,10 @@ import qualified System.TimeManager
 import Util.Options (Endpoint (..))
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
+import Wire.API.Federation.Version.Info
 
 data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
@@ -70,7 +74,7 @@ data FederatorClientEnv = FederatorClientEnv
     ceFederator :: Endpoint
   }
 
-newtype FederatorClient (c :: Component) (v :: Version) a = FederatorClient
+newtype FederatorClient (c :: Component) (v :: Maybe Version) a = FederatorClient
   {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError (Codensity IO)) a}
   deriving newtype
     ( Functor,
@@ -263,25 +267,52 @@ mkFailureResponse status domain path body
         "unknown-federation-error"
         (LText.decodeUtf8With Text.lenientDecode body)
 
--- | Run federator client synchronously.
-runFederatorClient ::
-  KnownComponent c =>
-  FederatorClientEnv ->
-  FederatorClient c v a ->
-  IO (Either FederatorClientError a)
-runFederatorClient env =
-  lowerCodensity
-    . runFederatorClientToCodensity env
+class RunFederatorClient (c :: Component) (v :: Maybe Version) where
+  -- | Run federator client synchronously.
+  runFederatorClient ::
+    FederatorClientEnv ->
+    FederatorClient c v a ->
+    IO (Either FederatorClientError a)
+  runFederatorClient env =
+    lowerCodensity
+      . runFederatorClientToCodensity env
 
-runFederatorClientToCodensity ::
+  runFederatorClientToCodensity ::
+    FederatorClientEnv ->
+    FederatorClient c v a ->
+    Codensity IO (Either FederatorClientError a)
+
+clientToCodensity ::
   KnownComponent c =>
   FederatorClientEnv ->
   FederatorClient c v a ->
-  Codensity IO (Either FederatorClientError a)
-runFederatorClientToCodensity env =
-  runExceptT
-    . flip runReaderT env
+  ExceptT FederatorClientError (Codensity IO) a
+clientToCodensity env =
+  flip runReaderT env
     . unFederatorClient
+
+instance KnownComponent c => RunFederatorClient c 'Nothing where
+  runFederatorClientToCodensity env = runExceptT . clientToCodensity env
+
+instance (KnownComponent c, SingI v) => RunFederatorClient c ('Just v) where
+  runFederatorClientToCodensity env cli = runExceptT $ do
+    _ <- hoist lift $ runFederatorNegotiation @v env
+    clientToCodensity env cli
+
+runFederatorNegotiation ::
+  forall (v :: Version).
+  SingI v =>
+  FederatorClientEnv ->
+  ExceptT FederatorClientError IO Version
+runFederatorNegotiation env = do
+  vinfo <-
+    ExceptT . runFederatorClient env $
+      clientIn (Proxy @ApiVersionEndpoint) (Proxy @(FederatorClient 'Brig 'Nothing))
+  let localVersion = demote @v
+      remoteVersions = vinfoSupported vinfo
+  unless (localVersion `elem` remoteVersions) $
+    throwError $ FederationUnsupportedVersion [localVersion] remoteVersions
+  pure localVersion
 
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)

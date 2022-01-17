@@ -39,14 +39,12 @@ import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.Federation.Version.Info
-import Wire.API.Routes.Named
 
 type family FedApi (comp :: Component) (v :: Version) :: * where
   FedApi 'Galley v = GalleyApi v
@@ -58,7 +56,7 @@ type HasFedEndpoint comp v api name = ('Just api ~ LookupEndpoint (FedApi comp v
 -- | Return a client for a named endpoint.
 fedClient ::
   forall (comp :: Component) (v :: Version) (name :: Symbol) m api.
-  (HasFedEndpoint comp v api name, HasClient m api, m ~ FederatorClient comp v) =>
+  (HasFedEndpoint comp v api name, HasClient m api, m ~ FederatorClient comp ('Just v)) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
@@ -72,11 +70,8 @@ type family CombinedApi (comp :: Component) (vs :: [Version]) where
   CombinedApi comp '[v0] = FedApi comp v0
   CombinedApi comp (v0 ': vs) = FedApi comp v0 :<|> CombinedApi comp vs
 
-type ApiVersionEndpoint =
-  FedEndpoint "api-versions" EmptyRequest VersionInfo
-
 apiVersionEndpoint :: Applicative m => ServerT ApiVersionEndpoint m
-apiVersionEndpoint = Named @"api-versions" $ \_ _ -> pure supportedVersionInfo
+apiVersionEndpoint = pure supportedVersionInfo
 
 -- | All versions of the federation API.
 type VersionedFedApi (comp :: Component) = CombinedApi comp SupportedVersions

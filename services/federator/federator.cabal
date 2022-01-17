@@ -134,6 +134,7 @@ library
     , retry
     , servant
     , servant-client-core
+    , singletons
     , streaming-commons
     , string-conversions
     , text
@@ -241,6 +242,7 @@ executable federator
     , retry
     , servant
     , servant-client-core
+    , singletons
     , streaming-commons
     , string-conversions
     , text
@@ -360,6 +362,7 @@ executable federator-integration
     , retry
     , servant
     , servant-client-core
+    , singletons
     , streaming-commons
     , string-conversions
     , tasty
@@ -484,6 +487,7 @@ test-suite federator-tests
     , servant
     , servant-client
     , servant-client-core
+    , singletons
     , streaming-commons
     , string-conversions
     , tasty

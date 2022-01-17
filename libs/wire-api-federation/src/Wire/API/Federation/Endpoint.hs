@@ -20,6 +20,7 @@ module Wire.API.Federation.Endpoint where
 import Imports
 import Servant.API
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version.Info
 import Wire.API.Routes.Named
 
 type FedEndpoint name input output =
@@ -45,3 +46,5 @@ type family LookupEndpoint api name :: Maybe * where
       (LookupEndpoint api1 name)
       (LookupEndpoint api2 name)
   LookupEndpoint api name = 'Nothing
+
+type ApiVersionEndpoint = "api-versions" :> Post '[JSON] VersionInfo

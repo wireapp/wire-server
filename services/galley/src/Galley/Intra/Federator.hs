@@ -23,6 +23,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Bifunctor
 import Data.Qualified
+import Data.Singletons
 import Galley.Effects.FederatorAccess (FederatorAccess (..))
 import Galley.Env
 import Galley.Monad
@@ -49,9 +50,9 @@ interpretFederatorAccess = interpret $ \case
   IsFederationConfigured -> embedApp $ isJust <$> view federator
 
 runFederatedEither ::
-  KnownComponent c =>
+  (KnownComponent c, SingI v) =>
   Remote x ->
-  FederatorClient c v a ->
+  FederatorClient c ('Just v) a ->
   App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
   ownDomain <- view (options . optSettings . setFederationDomain)
@@ -68,9 +69,9 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 
 runFederated ::
-  KnownComponent c =>
+  (KnownComponent c, SingI v) =>
   Remote x ->
-  FederatorClient c v a ->
+  FederatorClient c ('Just v) a ->
   App a
 runFederated dom rpc =
   runFederatedEither dom rpc
@@ -79,19 +80,20 @@ runFederated dom rpc =
 runFederatedConcurrently ::
   ( Foldable f,
     Functor f,
-    KnownComponent c
+    KnownComponent c,
+    SingI v
   ) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c v b) ->
+  (Remote [a] -> FederatorClient c ('Just v) b) ->
   App [Remote b]
 runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     qualifyAs r <$> runFederated r (rpc r)
 
 runFederatedConcurrentlyEither ::
-  (Foldable f, Functor f, KnownComponent c) =>
+  (Foldable f, Functor f, KnownComponent c, SingI v) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c v b) ->
+  (Remote [a] -> FederatorClient c ('Just v) b) ->
   App [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->

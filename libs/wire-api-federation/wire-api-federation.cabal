@@ -95,6 +95,7 @@ library
     , kan-extensions
     , lifted-base
     , metrics-wai
+    , mmorph
     , mtl
     , network
     , servant >=0.16
@@ -195,6 +196,7 @@ test-suite spec
     , kan-extensions
     , lifted-base
     , metrics-wai
+    , mmorph
     , mtl
     , network
     , retry

@@ -225,6 +225,7 @@ library
     , servant-server
     , servant-swagger
     , servant-swagger-ui
+    , singletons
     , sop-core
     , split >=0.2
     , ssl-util >=0.1

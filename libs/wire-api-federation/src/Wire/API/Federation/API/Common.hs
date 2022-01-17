@@ -18,6 +18,7 @@
 module Wire.API.Federation.API.Common
   ( EmptyResponse (..),
     EmptyRequest,
+    pattern EmptyRequest,
   )
 where
 
@@ -33,6 +34,9 @@ data EmptyResponse = EmptyResponse
   deriving (Arbitrary) via (GenericUniform EmptyResponse)
 
 type EmptyRequest = EmptyResponse
+
+pattern EmptyRequest :: EmptyResponse
+pattern EmptyRequest = EmptyResponse
 
 instance FromJSON EmptyResponse where
   parseJSON = withObject "EmptyResponse" . const $ pure EmptyResponse

@@ -28,6 +28,7 @@ dependencies:
 - kan-extensions
 - lifted-base
 - metrics-wai
+- mmorph
 - mtl
 - network
 - servant >=0.16

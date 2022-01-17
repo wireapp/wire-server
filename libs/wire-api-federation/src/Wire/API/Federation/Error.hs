@@ -77,16 +77,20 @@ module Wire.API.Federation.Error
   )
 where
 
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Encoding as LT
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.HTTP2.Frame as HTTP2
-import Network.TLS
+import Network.TLS hiding (Version)
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
+import Wire.API.Federation.Version
 
 -- | Transport-layer errors in federator client.
 data FederatorClientHTTP2Error
@@ -113,6 +117,9 @@ data FederatorClientError
     FederatorClientServantError ClientError
   | -- | This error will be thrown when federator returns an error response.
     FederatorClientError Wai.Error
+  | -- | An rpc call was attempted to a backend that does not support any of
+    -- the requested versions.
+    FederationUnsupportedVersion [Version] [Version]
   deriving (Show, Typeable)
 
 instance Exception FederatorClientError
@@ -157,6 +164,8 @@ federationClientErrorToWai FederatorClientStreamingNotSupported =
 federationClientErrorToWai (FederatorClientServantError err) =
   federationServantErrorToWai err
 federationClientErrorToWai (FederatorClientError err) = err
+federationClientErrorToWai (FederationUnsupportedVersion ls rs) =
+  federationUnsupportedVersion ls rs
 
 federationRemoteHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationRemoteHTTP2Error FederatorClientNoStatusCode =
@@ -251,6 +260,9 @@ unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Resp
 federatorConnectionRefusedStatus :: Status
 federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection Refused"
 
+unsupportedVersionStatus :: Status
+unsupportedVersionStatus = HTTP.Status 531 "Unsupported Version"
+
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
   Wai.mkError
@@ -292,3 +304,13 @@ federationUnknownError =
     unexpectedFederationResponseStatus
     "unknown-federation-error"
     "Unknown federation error"
+
+federationUnsupportedVersion :: [Version] -> [Version] -> Wai.Error
+federationUnsupportedVersion ls rs =
+  Wai.mkError
+    unsupportedVersionStatus
+    "federation-version-mismatch"
+    $ "Federation API Version mismatch. Versions supported by the local backend: "
+      <> LT.decodeUtf8With T.lenientDecode (Aeson.encode ls)
+      <> ". Versions supported by the remote backend: "
+      <> LT.decodeUtf8With T.lenientDecode (Aeson.encode rs)
