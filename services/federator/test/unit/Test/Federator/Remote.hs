@@ -120,6 +120,11 @@ testValidatesCertificateSuccess =
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
     ]
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2
+--
+-- This is a group of test cases where refusing to connect with the server is
+-- checked. The second test case refuses to connect with a server when it has no
+-- X509v3 Extended Key Usage extension in the certificate.
 testValidatesCertificateWrongHostname :: TestTree
 testValidatesCertificateWrongHostname =
   testGroup
@@ -132,10 +137,6 @@ testValidatesCertificateWrongHostname =
             Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail",
-      -- @SF.Federation @TSFI.RESTfulAPI @S2
-      --
-      -- Refuse to connect with a server when it has no X509v3 Extended Key
-      -- Usage extension in the certificate.
       testCase "when the server's certificate does not have the server key usage flag" $
         withMockServer certWithoutServerKeyUsage $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
@@ -145,6 +146,8 @@ testValidatesCertificateWrongHostname =
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
+
+-- @END
 
 testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do
