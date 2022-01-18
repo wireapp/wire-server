@@ -246,7 +246,7 @@ Sometimes to investigate server issues, you (or the Wire team) will need client 
 
 In order to obtain client logs on the Android Wire client, follow this procedure:
 
-* Open the Wire app (client) on your iOS device
+* Open the Wire app (client) on your Android device
 * Click on the round user icon in the top left of the screen, leading to your user Profile.
 * Click on "Settings" at the bottom of the screen
 * Click on "Advanced" in the menu
