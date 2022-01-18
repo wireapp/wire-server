@@ -159,6 +159,7 @@ let
     export LIBRARY_PATH="${compile-deps}/lib"
     export PKG_CONFIG_PATH="${compile-deps}/lib/pkgconfig"
     export PATH="${compile-deps}/bin"
+    export CONFIG_SHELL="${compile-deps}/bin/sh"
     exec "${pkgs.cabal-install}/bin/cabal" "$@"
   '';
 in
