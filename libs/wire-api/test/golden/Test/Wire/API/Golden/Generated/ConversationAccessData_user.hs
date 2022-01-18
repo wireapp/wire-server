@@ -27,8 +27,8 @@ import Wire.API.Conversation
 
 testObject_ConversationAccessData_user_1 :: ConversationAccessData
 testObject_ConversationAccessData_user_1 =
-  ConversationAccessData {cupAccess = [], cupAccessRole = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]}
+  ConversationAccessData {cupAccess = [], cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]}
 
 testObject_ConversationAccessData_user_2 :: ConversationAccessData
 testObject_ConversationAccessData_user_2 =
-  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRole = Set.fromList [TeamMemberAccessRole, GuestAccessRole]}
+  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole]}

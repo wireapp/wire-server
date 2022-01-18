@@ -57,7 +57,7 @@ testObject_Event_user_2 =
     ( EdConvAccessUpdate
         ( ConversationAccessData
             { cupAccess = [InviteAccess, LinkAccess, PrivateAccess, InviteAccess, InviteAccess],
-              cupAccessRole = Set.fromList [TeamMemberAccessRole, GuestAccessRole]
+              cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole]
             }
         )
     )

@@ -51,7 +51,7 @@ data NewConversation = NewConversation
   { ncType :: ConvType,
     ncCreator :: UserId,
     ncAccess :: [Access],
-    ncAccessRole :: Set AccessRoleV2,
+    ncAccessRoles :: Set AccessRoleV2,
     ncName :: Maybe (Range 1 256 Text),
     ncTeam :: Maybe TeamId,
     ncMessageTimer :: Maybe Milliseconds,

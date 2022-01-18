@@ -31,7 +31,6 @@ module Galley.Data.Conversation
     convAccessData,
     defRole,
     maybeRole,
-    privateAccessRole,
     defRegularConvAccess,
     parseAccessRoles,
   )
@@ -85,16 +84,6 @@ convAccessData conv =
   ConversationAccessData
     (Set.fromList (convAccess conv))
     (convAccessRoles conv)
-
-defRole :: Set AccessRoleV2
-defRole = activatedAccessRole
-
-maybeRole :: ConvType -> Maybe (Set AccessRoleV2) -> Set AccessRoleV2
-maybeRole SelfConv _ = privateAccessRole
-maybeRole ConnectConv _ = privateAccessRole
-maybeRole One2OneConv _ = privateAccessRole
-maybeRole RegularConv Nothing = defRole
-maybeRole RegularConv (Just r) = r
 
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]

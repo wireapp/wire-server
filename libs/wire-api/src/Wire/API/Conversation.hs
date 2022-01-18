@@ -52,10 +52,8 @@ module Wire.API.Conversation
     FromAccessRoleLegacy (..),
     fromAccessRoleLegacy,
     toAccessRoleLegacy,
-    privateAccessRole,
-    teamAccessRole,
-    activatedAccessRole,
-    nonActivatedAccessRole,
+    defRole,
+    maybeRole,
 
     -- * create
     NewConv (..),
@@ -464,6 +462,16 @@ activatedAccessRole = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRol
 nonActivatedAccessRole :: Set AccessRoleV2
 nonActivatedAccessRole = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]
 
+defRole :: Set AccessRoleV2
+defRole = activatedAccessRole
+
+maybeRole :: ConvType -> Maybe (Set AccessRoleV2) -> Set AccessRoleV2
+maybeRole SelfConv _ = privateAccessRole
+maybeRole ConnectConv _ = privateAccessRole
+maybeRole One2OneConv _ = privateAccessRole
+maybeRole RegularConv Nothing = defRole
+maybeRole RegularConv (Just r) = r
+
 data AccessRoleV2
   = TeamMemberAccessRole
   | NonTeamMemberAccessRole
@@ -496,6 +504,7 @@ instance ToSchema AccessRoleV2 where
             element "service" ServiceAccessRole
           ]
 
+-- todo(leif): add docs
 instance ToSchema AccessRoleLegacy where
   schema =
     (S.schema . description ?~ "Which users can join conversations (deprecated)") $
@@ -826,7 +835,7 @@ modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
 
 data ConversationAccessData = ConversationAccessData
   { cupAccess :: Set Access,
-    cupAccessRole :: Set AccessRoleV2
+    cupAccessRoles :: Set AccessRoleV2
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAccessData)
@@ -837,7 +846,7 @@ instance ToSchema ConversationAccessData where
     object "ConversationAccessData" $
       ConversationAccessData
         <$> cupAccess .= field "access" (set schema)
-        <*> cupAccessRole .= field "access_role" (set schema)
+        <*> cupAccessRoles .= field "access_role" (set schema)
 
 modelConversationAccessData :: Doc.Model
 modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do

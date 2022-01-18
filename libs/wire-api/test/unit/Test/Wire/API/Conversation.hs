@@ -30,20 +30,24 @@ tests :: TestTree
 tests =
   testGroup
     "Conversation"
-    [ fromLegacyToV2ToLegacy,
-      fromV2ToLegacyToV2
+    [ accessRoleFromLegacyToV2ToLegacy,
+      accessRoleFromV2ToLegacyToV2
     ]
 
-fromLegacyToV2ToLegacy :: TestTree
-fromLegacyToV2ToLegacy = testProperty "Access role conversion from legacy to v2 to legacy" p
+accessRoleFromLegacyToV2ToLegacy :: TestTree
+accessRoleFromLegacyToV2ToLegacy = testProperty "Access role conversion from legacy to v2 to legacy" p
   where
     p accessRoleLegacy =
       accessRoleLegacy === (toAccessRoleLegacy . fromAccessRoleLegacy) accessRoleLegacy
 
-fromV2ToLegacyToV2 :: TestTree
-fromV2ToLegacyToV2 =
+accessRoleFromV2ToLegacyToV2 :: TestTree
+accessRoleFromV2ToLegacyToV2 =
   testProperty "Access role conversion from v2 to legacy to v2 - original should be a subset of roundtrip converted" p
   where
+    -- todo(leif): With something like [minBound..] \\ [convertedToLegacy..]
+    -- you can construct all legacy values for which originalV2 should be a superset.
+    -- Then we can make sure that it's actually in between the two legacy values where we expect it to be,
+    -- instead of just testing one bound.
     p originalV2 =
       let convertedToLegacy = toAccessRoleLegacy originalV2
           convertedBackToV2 = fromAccessRoleLegacy convertedToLegacy

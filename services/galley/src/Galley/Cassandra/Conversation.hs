@@ -90,7 +90,7 @@ createConnectConversation a b name = do
   let conv = localOne2OneConvId a b
       a' = Id . U.unpack $ a
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, Cql.Set (toList privateAccessRole), fromRange <$> name, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers conv (UserList [a'] [])
@@ -101,7 +101,7 @@ createConnectConversation a b name = do
         convCreator = a',
         convName = fmap fromRange name,
         convAccess = [PrivateAccess],
-        convAccessRoles = privateAccessRole,
+        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convTeam = Nothing,
@@ -117,7 +117,7 @@ createConnectConversationWithRemote ::
   Client Conversation
 createConnectConversationWithRemote cid creator m = do
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, Cql.Set (toList privateAccessRole), Nothing, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, Cql.Set [], Nothing, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers cid m
@@ -128,7 +128,7 @@ createConnectConversationWithRemote cid creator m = do
         convCreator = creator,
         convName = Nothing,
         convAccess = [PrivateAccess],
-        convAccessRoles = privateAccessRole,
+        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convTeam = Nothing,
@@ -164,11 +164,11 @@ createOne2OneConversation ::
   Client Conversation
 createOne2OneConversation conv self other name mtid = do
   retry x5 $ case mtid of
-    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set (toList privateAccessRole), fromRange <$> name, Nothing, Nothing, Nothing))
+    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set (toList privateAccessRole), fromRange <$> name, Just tid, Nothing, Nothing)
+      addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Just tid, Nothing, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
   (lmems, rmems) <- addMembers conv (toUserList self [qUntagged self, other])
   pure
@@ -178,7 +178,7 @@ createOne2OneConversation conv self other name mtid = do
         convCreator = tUnqualified self,
         convName = fmap fromRange name,
         convAccess = [PrivateAccess],
-        convAccessRoles = privateAccessRole,
+        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convTeam = Nothing,
@@ -193,7 +193,7 @@ createSelfConversation lusr name = do
       conv = selfConv usr
       lconv = qualifyAs lusr conv
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, Cql.Set (toList privateAccessRole), fromRange <$> name, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing))
   (lmems, rmems) <- addMembers (tUnqualified lconv) (UserList [tUnqualified lusr] [])
   pure
     Conversation
@@ -202,7 +202,7 @@ createSelfConversation lusr name = do
         convCreator = usr,
         convName = fmap fromRange name,
         convAccess = [PrivateAccess],
-        convAccessRoles = privateAccessRole,
+        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convTeam = Nothing,

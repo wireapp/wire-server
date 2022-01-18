@@ -36,8 +36,6 @@ module Galley.API.Action
   )
 where
 
--- import qualified Brig.Types.User as User
-
 import qualified Brig.Types.User as User
 import Control.Arrow
 import Control.Lens
@@ -364,7 +362,7 @@ instance IsConversationAction ConversationAccessData where
     -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
     -- so on; users are not supposed to be able to make other conversations
     -- have 'PrivateAccessRole'
-    when (PrivateAccess `elem` cupAccess target || Set.null (cupAccessRole target)) $
+    when (PrivateAccess `elem` cupAccess target || Set.null (cupAccessRoles target)) $
       throw InvalidTargetAccess
     -- Team conversations incur another round of checks
     case convTeam conv of
@@ -376,7 +374,7 @@ instance IsConversationAction ConversationAccessData where
         -- This ensures that if only `TeamMemberAccessRole` is set, the check fails,
         -- non team member, services, and guests access are valid,
         -- the empty case (private access) is already checked above
-        when (Set.fromList [TeamMemberAccessRole] == cupAccessRole target) $ throw InvalidTargetAccess
+        when (Set.fromList [TeamMemberAccessRole] == cupAccessRoles target) $ throw InvalidTargetAccess
 
   conversationActionTag' _ _ = ModifyConversationAccess
   performAction qusr lcnv conv action = do
@@ -416,13 +414,13 @@ instance IsConversationAction ConversationAccessData where
     where
       maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
       maybeRemoveBots bm =
-        if Set.member ServiceAccessRole (cupAccessRole action)
+        if Set.member ServiceAccessRole (cupAccessRoles action)
           then pure bm
           else pure $ bm {bmBots = mempty}
 
       maybeRemoveGuests :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
       maybeRemoveGuests bm =
-        if Set.member GuestAccessRole (cupAccessRole action)
+        if Set.member GuestAccessRole (cupAccessRoles action)
           then pure bm
           else do
             activated <- map User.userId <$> E.lookupActivatedUsers (toList (bmLocals bm))
@@ -431,7 +429,7 @@ instance IsConversationAction ConversationAccessData where
 
       maybeRemoveNonTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
       maybeRemoveNonTeamMembers bm =
-        if Set.member NonTeamMemberAccessRole (cupAccessRole action)
+        if Set.member NonTeamMemberAccessRole (cupAccessRoles action)
           then pure bm
           else case convTeam conv of
             Just tid -> do
@@ -441,7 +439,7 @@ instance IsConversationAction ConversationAccessData where
 
       maybeRemoveTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
       maybeRemoveTeamMembers bm =
-        if Set.member TeamMemberAccessRole (cupAccessRole action)
+        if Set.member TeamMemberAccessRole (cupAccessRoles action)
           then pure bm
           else case convTeam conv of
             Just tid -> do
