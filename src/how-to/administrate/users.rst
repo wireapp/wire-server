@@ -251,7 +251,7 @@ In order to obtain client logs on the Android Wire client, follow this procedure
 * Click on "Settings" at the bottom of the screen
 * Click on "Advanced" in the menu
 * Check/activate "Collect usage data"
-* Now go back to using your client normally, so usage data is generated
+* Now go back to using your client normally, so usage data is generated. If you have been asked to follow a specific testing regime, or log a specific problem, this is the time to do so.
 * Once enough usage data is generated, go back to the "Advanced" screen (User profile > Settings > Advanced)
 * Click on "Create debug report"
 * A menu will open allowing you to share the debug report, you can now save it or send it via email/any other means to the Wire team.
