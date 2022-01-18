@@ -46,6 +46,7 @@ module Wire.API.Conversation
     -- * Conversation properties
     Access (..),
     AccessRoleV2 (..),
+    genAccessRolesV2,
     AccessRoleLegacy (..),
     ConvType (..),
     ReceiptMode (..),
@@ -95,6 +96,7 @@ import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
+import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
@@ -107,6 +109,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import System.Random (randomRIO)
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Member
@@ -476,9 +479,22 @@ data AccessRoleV2
   | NonTeamMemberAccessRole
   | GuestAccessRole
   | ServiceAccessRole
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform AccessRoleV2)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema AccessRoleV2
+
+genAccessRolesV2 :: [AccessRoleV2] -> [AccessRoleV2] -> IO (Either String (Set AccessRoleV2))
+genAccessRolesV2 = genEnumSet
+
+genEnumSet :: forall a. (Bounded a, Enum a, Ord a, Eq a, Show a) => [a] -> [a] -> IO (Either String (Set a))
+genEnumSet with without =
+  if disjointOrd with without
+    then do
+      let xs = Set.toList . Set.powerSet . Set.fromList $ [minBound ..]
+      x <- (xs !!) <$> randomRIO (0, length xs - 1)
+      pure . Right . Set.fromList $ (Set.toList x <> with) \\ without
+    else do
+      pure $ Left ("overlapping arguments: " <> show (with, without))
 
 toAccessRoleLegacy :: Set AccessRoleV2 -> AccessRoleLegacy
 toAccessRoleLegacy accessRoles = do

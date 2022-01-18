@@ -113,7 +113,7 @@ tests s =
   where
     mainTests =
       testGroup
-        "Main API"
+        "Main Conversations API"
         [ test s "status" status,
           test s "metrics" metrics,
           test s "create conversation" postConvOk,
@@ -1190,9 +1190,9 @@ postJoinConvOk = do
 testJoinCodeConv :: TestM ()
 testJoinCodeConv = do
   let convName = "gossip"
-
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
   alice <- randomUser
-  convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])) Nothing
+  convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just noGuestsAccess) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode alice convId
 
   qbob <- randomQualifiedUser
@@ -1209,8 +1209,9 @@ testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
   galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole]
   let createConvWithGuestLink = do
-        convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])) Nothing
+        convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just accessRoles) Nothing
         void $ decodeConvCodeEvent <$> postConvCode owner convId
         pure convId
   convId <- createConvWithGuestLink
@@ -1229,7 +1230,8 @@ testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
 testPostCodeRejectedIfGuestLinksDisabled = do
   galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])) Nothing
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
   let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
   let setStatus tfStatus =
         TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
@@ -1247,7 +1249,8 @@ testJoinTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
-  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])) Nothing
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole]
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
   -- works by default
@@ -1278,7 +1281,8 @@ testJoinNonTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
-  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])) Nothing
+  Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
   -- works by default
@@ -1303,7 +1307,8 @@ postJoinCodeConvOk = do
   let bob = qUnqualified qbob
   eve <- ephemeralUser
   dave <- ephemeralUser
-  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])) Nothing
+  Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let qconv = Qualified conv (qDomain qbob)
   cCode <- decodeConvCodeEvent <$> postConvCode alice conv
   -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
@@ -1326,11 +1331,11 @@ postJoinCodeConvOk = do
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
     -- changing access to non-activated should give eve access
-    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
+    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRoles
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- after removing CodeAccess, no further people can join
-    let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
+    let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
     putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
 
@@ -1373,7 +1378,8 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 404 === statusCode
   -- create a new code; then revoking CodeAccess should make existing codes invalid
   void $ postConvCode alice conv
-  let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
+  Right accessRoles <- liftIO $ genAccessRolesV2 [] []
+  let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
   putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
 
@@ -1397,8 +1403,9 @@ postConvertTeamConv = do
   -- creating a team-only conversation containing eve should fail
   createTeamConvAccessRaw alice tid [bob, eve] (Just "blaa") acc (Just (Set.fromList [TeamMemberAccessRole])) Nothing Nothing
     !!! const 403 === statusCode
+  Right accessRolesTeamAndGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
   -- create conversation allowing any type of guest
-  conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])) Nothing Nothing
+  conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just accessRolesTeamAndGuests) Nothing Nothing
   -- mallory joins by herself
   mallory <- ephemeralUser
   let qmallory = Qualified mallory localDomain
@@ -1477,12 +1484,9 @@ testAccessUpdateGuestRemoved = do
 
     -- dee's remote receives a notification
     liftIO . assertBool "remote users are not notified" . isJust . flip find reqs $ \freq ->
-      and
-        [ frComponent freq == Galley,
-          frRPC freq == "on-conversation-updated",
-          fmap F.cuAction (eitherDecode (frBody freq))
-            == Right (ConversationActionRemoveMembers (charlie :| [dee]))
-        ]
+      (frComponent freq == Galley)
+        && (frRPC freq == "on-conversation-updated")
+        && (fmap F.cuAction (eitherDecode (frBody freq)) == Right (ConversationActionRemoveMembers (charlie :| [dee])))
 
   -- only alice and bob remain
   conv2 <-
