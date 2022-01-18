@@ -103,6 +103,32 @@ Are your servers on the public internet? Then you have the option of using TLS c
 <https://letsencrypt.org/>`__. In such a case go to subsection (A). If your servers are not on the public internet
 or you would like to use your own CA, go to subsection (B).
 
+.. note::
+
+   As of Jan 2022, we're using the `hs-tls <https://hackage.haskell.org/package/tls>` library for outgoing TLS connections to other backends, which only supports P256 for ECDSA keys.
+   Therefore, we have specified a `key size of 256 bits <https://github.com/wireapp/wire-server/blob/096c48c1f9b6b01572c737bd296dddd7cb5ddabb/charts/nginx-ingress-services/templates/certificate_federator.yaml>`__ with the use of let's encrypt (section A below, you don't need to do anything further). The key size will be visible when inspecting your certificate as a block looking similar to the following::
+
+      Subject Public Key Info:
+       Public Key Algorithm: id-ecPublicKey
+           Public-Key: (256 bit)
+           ASN1 OID: prime256v1
+           NIST CURVE: P-256
+
+   or::
+
+      Subject Public Key Info:
+       Public Key Algorithm: rsaEncryption
+            RSA Public-Key: (2048 bit)
+
+   If you create your own certificates, and use ECDSA as the algorithm, please ensure you configure a key size of 256 for the time being (There are no restrictions to key sizes if you're using RSA keys, but key sizes larger than 3000 bit are recommended).
+
+   The list of TLS ciphers for incoming requests is limited by default to the `following <https://github.com/wireapp/wire-server/blob/9d1ae79ad1904a2f5f82af652a3a346d4139c315/charts/nginx-ingress-controller/values.yaml#L7>`__ (for general server-certificates, both for federation and client API), and can be overridden on your installation if needed.
+
+   The list of TLS ciphers for outgoing federation requests is currently hardcoded, the list is `here <https://github.com/wireapp/wire-server/blob/9d1ae79ad1904a2f5f82af652a3a346d4139c315/services/federator/src/Federator/Remote.hs#L164-L180>`__.
+
+   Improvements to the TLS setup are planned (TLS 1.3 support; no restrictions on key sizes anymore), those are tracked internally under FS-33 and FS-49 (tickets only visible to Wire employees).
+
+
 (A) Let's encrypt TLS server and client certificate generation and renewal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
