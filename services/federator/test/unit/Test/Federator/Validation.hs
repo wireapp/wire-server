@@ -76,6 +76,7 @@ tests =
           validateDomainCertInvalid,
           validateDomainCertWrongDomain,
           validateDomainCertCN,
+          validateDomainCertSAN,
           validateDomainMultipleFederators,
           validateDomainDiscoveryFailed,
           validateDomainNonIdentitySRV
@@ -198,6 +199,20 @@ validateDomainCertCN =
   testCase "should succeed if the certificate has subject CN but no SAN" $ do
     exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
     let domain = Domain "foo.example.com"
+    res <-
+      runM
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just exampleCert) (toByteString' domain)
+    res @?= domain
+
+validateDomainCertSAN :: TestTree
+validateDomainCertSAN =
+  testCase "should succeed if the certificate has a longer list of domains inside SAN, one of which is the expected one" $ do
+    exampleCert <- BS.readFile "test/resources/unit/multidomain-federator.example.com.pem"
+    let domain = Domain "federator.example.com"
     res <-
       runM
         . assertNoError @ValidationError
