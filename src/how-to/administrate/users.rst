@@ -237,3 +237,42 @@ Once the script is run, invitations will be sent to each user in the file every 
 If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L91>`__.
 
 
+Obtain logs from an Android client to investigate issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Wire clients communicate with Wire servers (backend). 
+
+Sometimes to investigate server issues, you (or the Wire team) will need client information, in the form of client logs.
+
+In order to obtain client logs on the Android Wire client, follow this procedure:
+
+* Open the Wire app (client) on your Android device
+* Click on the round user icon in the top left of the screen, leading to your user Profile.
+* Click on "Settings" at the bottom of the screen
+* Click on "Advanced" in the menu
+* Check/activate "Collect usage data"
+* Now go back to using your client normally, so usage data is generated. If you have been asked to follow a specific testing regime, or log a specific problem, this is the time to do so.
+* Once enough usage data is generated, go back to the "Advanced" screen (User profile > Settings > Advanced)
+* Click on "Create debug report"
+* A menu will open allowing you to share the debug report, you can now save it or send it via email/any other means to the Wire team.
+
+
+Obtain logs from an iOS client to investigate issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Wire clients communicate with Wire servers (backend). 
+
+Sometimes to investigate server issues, you (or the Wire team) will need client information, in the form of client logs.
+
+In order to obtain client logs on the iOS Wire client, follow this procedure:
+
+* Open the Wire app (client) on your iOS device
+* Click on the round user icon in the top left of the screen, leading to your user Profile.
+* Click on "Settings" at the bottom of the screen
+* Click on "Advanced" in the menu
+* Check/activate "Collect usage data"
+* Now go back to using your client normally, so usage data is generated. If you have been asked to follow a specific testing regime, or log a specific problem, this is the time to do so.
+* Once enough usage data is generated, go back to the "Advanced" screen (User profile > Settings > Advanced)
+* Click on "Send report to wire"
+* A menu will open to share the debug report via email, allowing you to send it to the Wire team.
+
