@@ -373,6 +373,9 @@ instance IsConversationAction ConversationAccessData where
         -- conversation, so the user must have the necessary permission flag
         ensureActionAllowed RemoveConversationMember self
       Nothing ->
+        -- This ensures that if only `TeamMemberAccessRole` is set, the check fails,
+        -- non team member, services, and guests access are valid,
+        -- the empty case (private access) is already checked above
         when (Set.fromList [TeamMemberAccessRole] == cupAccessRole target) $ throw InvalidTargetAccess
 
   conversationActionTag' _ _ = ModifyConversationAccess
