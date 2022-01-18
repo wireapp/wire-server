@@ -1468,7 +1468,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   evtConv e @?= conv
   evtType e @?= ConvAccessUpdate
   evtFrom e @?= usr
-  evtData e @?= (EdConvAccessUpdate new)
+  evtData e @?= EdConvAccessUpdate new
 
 wsAssertConvMessageTimerUpdate :: Qualified ConvId -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do

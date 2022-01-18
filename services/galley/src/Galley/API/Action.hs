@@ -371,10 +371,9 @@ instance IsConversationAction ConversationAccessData where
         -- conversation, so the user must have the necessary permission flag
         ensureActionAllowed RemoveConversationMember self
       Nothing ->
-        -- This ensures that if only `TeamMemberAccessRole` is set, the check fails,
-        -- non team member, services, and guests access are valid,
-        -- the empty case (private access) is already checked above
-        when (Set.fromList [TeamMemberAccessRole] == cupAccessRoles target) $ throw InvalidTargetAccess
+        -- not a team conv, so one of the other access roles has to allow this.
+        when (Set.null $ cupAccessRoles target Set.\\ Set.fromList [TeamMemberAccessRole]) $
+          throw InvalidTargetAccess
 
   conversationActionTag' _ _ = ModifyConversationAccess
   performAction qusr lcnv conv action = do

@@ -320,7 +320,7 @@ postConvWithRemoteUsersOk = do
       F.rcCnvId cFedReqBody @?= cid
       F.rcCnvType cFedReqBody @?= RegularConv
       F.rcCnvAccess cFedReqBody @?= [InviteAccess]
-      F.rcCnvAccessRoles cFedReqBody @?= (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
+      F.rcCnvAccessRoles cFedReqBody @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
       F.rcCnvName cFedReqBody @?= Just nameMaxSize
       F.rcNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
       F.rcMessageTimer cFedReqBody @?= Nothing
@@ -2110,7 +2110,7 @@ accessConvMeta = do
           RegularConv
           alice
           [InviteAccess]
-          (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
+          (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole])
           (Just "gossip")
           Nothing
           Nothing
@@ -3412,7 +3412,7 @@ removeUser = do
             F.rcCnvId = cid,
             F.rcCnvType = RegularConv,
             F.rcCnvAccess = [],
-            F.rcCnvAccessRoles = (Set.fromList []),
+            F.rcCnvAccessRoles = Set.fromList [],
             F.rcCnvName = Just "gossip4",
             F.rcNonCreatorMembers = Set.fromList $ createOtherMember <$> quids,
             F.rcMessageTimer = Nothing,
