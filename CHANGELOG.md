@@ -1,5 +1,83 @@
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
+# [2022-01-18]
+
+## Release notes
+
+* This release introduces a mandatory `federationDomain` configuration setting to cargohold. Please update your `values/wire-server/values.yaml` to set `cargohold.settings.federationDomain` to the same value as the corresponding option in galley (and brig). (#1990)
+* The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale` (see docs/reference/config-options.md for details) (#2028)
+* From this release onwards, the images for haskell components (brig, galley,
+  cargohold, etc.) will be using Ubuntu 20.04 as the base. The images are about
+  30-35 MB larger than the previous alpine based images. (#1852)
+* Wire cloud operators: Make sure [#35](https://github.com/wireapp/ansible-sft/pull/35) is applied to all SFT servers before deploying. (#2030)
+
+## API changes
+
+* The deprecated endpoint `GET /teams` now ignores query parameters `ids`, `start` (#2027)
+* Add qualified v4 endpoints for downloading and deleting assets. The upload API is still on the same path, but the asset object it returns now contains a `domain` field. Note that federated behaviour is still not implemented. (#2002)
+* Enable downloading assets from a remote (federated) cargohold instance via the v4 API.
+  The content of remote assets is returned as stream with content type
+  `application/octet-stream`.
+  Please refer to the Swagger API documentation for more details. (#2004)
+* Remove resumable upload API (#1998)
+
+## Features
+
+* Allow configuring setDefaultLocale in brig using helm chart (#2025)
+* If the guest links team feature is disabled guest links will be revoked. (#1976)
+* Revoke guest links if feature is disabled. If the guest links team feature is disabled `get /conversations/join`, `post /conversations/:cnv/code`, and `get /conversations/:cnv/code` will return an error. (#1980)
+* Specialize `setDefaultLocale` to distinguish between default user locale and default template locale if the user's locale is n/a. (#2028)
+
+## Bug fixes and other updates
+
+* Fix an issue with remote asset streaming (#2037, #2038)
+
+## Documentation
+
+* Annotate a first batch of integration and unit tests to map them to externally-facing documentation (#1869)
+* Add the description to several test cases (#1991)
+* Improve documentation for stern tool and helm chart (#2032)
+
+## Internal changes
+
+* Replace servant-generic in Galley with a custom `Named` combinator (#2022)
+* The Swagger documentation module is not regenerated anymore if its content is unchanged (#2018)
+* cabal-run-integration.sh - remove Makefile indirection (#2044)
+* Fix test runner for global cabal make target (#1987)
+* The `cabal-install-artefacts.sh` script now creates the `dist` directory if it does not exist (#2007)
+* Set `purge: false` in fake-s3 chart (#1981)
+* Add missing backendTwo.carghold in integration.yaml (#2039)
+* Use GHC 8.10.7 and stack 2.7.3 for builds (#1852)
+* Fix non-controversial HLint issues in federator to improve code quality (#2011)
+* Added laws for DefaultSsoCode, Now, IdP and ScimExternalIdStore (#1940)
+* Moved specifications for Spar effects out of the test suite and into the library (#2005)
+* Tag integration tests for security audit. (#2000)
+* Upgrade nixpkgs pin used to provision developement dependencies (#1852)
+* Servantify Galley Teams API. (#2008, #2010, #2027)
+* When sending an activation code, the blocked domains are checked before the whitelist. This only affects the wire SaaS staging environment (there is no whitelist configuration in prod, and blocked domains are not applicable to on-prem installations). (#2023)
+* Add a helm chart that deploys [restund](https://docs.wire.com/understand/restund.html) (#2003)
+* Publish restund helm chart (#2036)
+* Improve optional field API in schema-profunctor (#1988)
+* Migrate the public API of Cannon to Servant. (There is an internal API that is not yet migrated.) (#2024)
+* sftd chart: Add multiSFT option, remove additionalArgs option (#1992)
+* sftd chart: Fix quoted args for multiSFT option (#1999)
+* `rangedSchema` does not need to be passed singletons explicitly anymore (#2017)
+* Split cannon benchmarks and tests (#1986)
+* Tag integration tests for certification. (#1985)
+* Tag integration tests for certification. (#2001)
+* New internal endpoint to configure the guest links team feature. (#1993)
+
+## Federation changes
+
+* Make federator capable of streaming responses (#1966)
+* Use `Named` routes for the federation API (#2033)
+* Fix Brig's configmap for SFT lookups (#2015)
+* SFTD chart: provide a /sft_servers_all.json url that can be used by brig to populate /calls/config/v2 (#2019)
+* Allow making HTTP-only requests to SFTs via an IPv4 address (#2026)
+* Replace IPv4-HTTP-only Approach to SFT Server Lookup with /sft_servers_all.json (#2030)
+* Extend GET /calls/config/v2 to include all SFT servers in federation (#2012)
+* Improve Brig's configuration for SFTs and fix a call to SFT servers (#2014)
+
 # [2021-12-10]
 
 ## Release notes
