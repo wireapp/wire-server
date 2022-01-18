@@ -437,7 +437,7 @@ data AccessRoleLegacy
   | -- | Team-only conversation
     TeamAccessRole
   | -- | Conversation for users who have activated
-    --   email or phone or SSO
+    --   email, phone or SSO and bots
     ActivatedAccessRole
   | -- | No checks
     NonActivatedAccessRole
@@ -459,7 +459,7 @@ teamAccessRole :: Set AccessRoleV2
 teamAccessRole = Set.fromList [TeamMemberAccessRole]
 
 activatedAccessRole :: Set AccessRoleV2
-activatedAccessRole = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole]
+activatedAccessRole = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
 
 nonActivatedAccessRole :: Set AccessRoleV2
 nonActivatedAccessRole = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]
