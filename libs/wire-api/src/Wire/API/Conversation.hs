@@ -441,7 +441,7 @@ data AccessRoleLegacy
     ActivatedAccessRole
   | -- | No checks
     NonActivatedAccessRole
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform AccessRoleLegacy)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema AccessRoleLegacy
 
@@ -475,20 +475,14 @@ data AccessRoleV2
 
 toAccessRoleLegacy :: Set AccessRoleV2 -> AccessRoleLegacy
 toAccessRoleLegacy accessRoles = do
-  maybe NonActivatedAccessRole fst $ find (allMember accessRoles . snd) accessRolesLegacyAsc
+  fromMaybe NonActivatedAccessRole $ find (allMember accessRoles . fromAccessRoleLegacy) [minBound ..]
   where
     allMember :: Ord a => Set a -> Set a -> Bool
-    allMember lhs rhs = all (`Set.member` rhs) lhs
-    accessRolesLegacyAsc =
-      [ (PrivateAccessRole, privateAccessRole),
-        (TeamAccessRole, teamAccessRole),
-        (ActivatedAccessRole, activatedAccessRole),
-        (NonActivatedAccessRole, nonActivatedAccessRole)
-      ]
+    allMember rhs lhs = all (`Set.member` lhs) rhs
 
 -- | Wrapper around `Set AccessRoleV2` for Cassandra Cql instance
 -- that converts legacy access role into access role V2
-newtype FromAccessRoleLegacy = FromAccessRoleLegacy {farlAccessRoles :: Set.Set AccessRoleV2}
+newtype FromAccessRoleLegacy = FromAccessRoleLegacy {unFromAccessRoleLegacy :: Set.Set AccessRoleV2}
 
 -- todo(leif): add docs
 instance ToSchema AccessRoleV2 where
