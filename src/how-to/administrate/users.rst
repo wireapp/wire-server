@@ -266,3 +266,13 @@ Sometimes to investigate server issues, you (or the Wire team) will need client 
 
 In order to obtain client logs on the iOS Wire client, follow this procedure:
 
+* Open the Wire app (client) on your iOS device
+* Click on the round user icon in the top left of the screen, leading to your user Profile.
+* Click on "Settings" at the bottom of the screen
+* Click on "Advanced" in the menu
+* Check/activate "Collect usage data"
+* Now go back to using your client normally, so usage data is generated. If you have been asked to follow a specific testing regime, or log a specific problem, this is the time to do so.
+* Once enough usage data is generated, go back to the "Advanced" screen (User profile > Settings > Advanced)
+* Click on "Send report to wire"
+* A menu will open to share the debug report via email, allowing you to send it to the Wire team.
+
