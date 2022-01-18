@@ -492,10 +492,9 @@ toAccessRoleLegacy accessRoles = do
 -- that converts legacy access role into access role V2
 newtype FromAccessRoleLegacy = FromAccessRoleLegacy {unFromAccessRoleLegacy :: Set.Set AccessRoleV2}
 
--- todo(leif): add docs
 instance ToSchema AccessRoleV2 where
   schema =
-    (S.schema . description ?~ "Which users/services can join conversations") $
+    (S.schema . description ?~ desc) $
       enum @Text "AccessRoleV2" $
         mconcat
           [ element "team_member" TeamMemberAccessRole,
@@ -503,11 +502,14 @@ instance ToSchema AccessRoleV2 where
             element "guest" GuestAccessRole,
             element "service" ServiceAccessRole
           ]
+    where
+      desc =
+        "Which users/services can join conversations.\
+        \This replaces the deprecated field `access_role`."
 
--- todo(leif): add docs
 instance ToSchema AccessRoleLegacy where
   schema =
-    (S.schema . description ?~ "Which users can join conversations (deprecated)") $
+    (S.schema . description ?~ desc) $
       enum @Text "AccessRoleLegacy" $
         mconcat
           [ element "private" PrivateAccessRole,
@@ -515,6 +517,14 @@ instance ToSchema AccessRoleLegacy where
             element "activated" ActivatedAccessRole,
             element "non_activated" NonActivatedAccessRole
           ]
+    where
+      desc =
+        "Which users can join conversations (deprecated, use `access_role_v2` instead)\
+        \Maps to `access_role_v2` as follows:\
+        \`private` => `[]` - nobody can be invited to this conversation (e.g. it's a 1:1 conversation)\
+        \`team` => `[team_member]` - team-only conversation\
+        \`activated` => `[team_member, non_team_member, service]` - conversation for users who have activated email, phone or SSO and services\
+        \`non_activated` => `[team_member, non_team_member, service, guest]` - no checks"
 
 data ConvType
   = RegularConv
