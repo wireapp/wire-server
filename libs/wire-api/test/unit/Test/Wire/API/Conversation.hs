@@ -44,11 +44,10 @@ accessRoleFromV2ToLegacyToV2 :: TestTree
 accessRoleFromV2ToLegacyToV2 =
   testProperty "Access role conversion from v2 to legacy to v2 - original should be a subset of roundtrip converted" p
   where
-    -- todo(leif): With something like [minBound..] \\ [convertedToLegacy..]
-    -- you can construct all legacy values for which originalV2 should be a superset.
-    -- Then we can make sure that it's actually in between the two legacy values where we expect it to be,
-    -- instead of just testing one bound.
-    p originalV2 =
-      let convertedToLegacy = toAccessRoleLegacy originalV2
-          convertedBackToV2 = fromAccessRoleLegacy convertedToLegacy
-       in originalV2 `Set.isSubsetOf` convertedBackToV2
+    p originalV2 = originalIsSubSetOfConverted && noSmallerLegacyIsSubsetOfOriginal
+      where
+        convertedToLegacy = toAccessRoleLegacy originalV2
+        convertedBackToV2 = fromAccessRoleLegacy convertedToLegacy
+        originalIsSubSetOfConverted = originalV2 `Set.isSubsetOf` convertedBackToV2
+        smallerLegacy = fromAccessRoleLegacy <$> init [minBound .. convertedToLegacy]
+        noSmallerLegacyIsSubsetOfOriginal = not (any (Set.isSubsetOf originalV2) smallerLegacy)
