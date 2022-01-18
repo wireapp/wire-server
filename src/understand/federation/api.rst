@@ -72,7 +72,7 @@ Between two federated backends, the components talk to each other via the
 When making the call to the `Federator`, the components use HTTP2. They call
 the ``Outward`` service, which accepts ``POST`` requests with path
 ``/rpc/:domain/:component/:rpc``. Such a request will be forwarded to a remote
-federator with the given :ref:`Backend domain <Backend domains>`, and converted
+federator with the given :ref:`Backend domain <Backend-domains>`, and converted
 to the appropriate request for its ``Inward`` service.
 
 .. _api-from-federator-to-components:
