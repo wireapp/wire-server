@@ -1,4 +1,0 @@
-Enable downloading assets from a remote (federated) cargohold instance via the v4 API. 
-The content of remote assets is returned as stream with content type
-`application/octet-stream`.
-Please refer to the Swagger API documentation for more details.

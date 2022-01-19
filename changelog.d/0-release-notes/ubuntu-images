@@ -1,3 +1,0 @@
-From this release onwards, the images for haskell components (brig, galley,
-cargohold, etc.) will be using Ubuntu 20.04 as the base. The images are about
-30-35 MB larger than the previous alpine based images.

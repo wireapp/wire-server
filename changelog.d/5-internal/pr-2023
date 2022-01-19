@@ -1,1 +1,0 @@
-When sending an activation code, the blocked domains are checked before the whitelist. This only affects the wire SaaS staging environment (there is no whitelist configuration in prod, and blocked domains are not applicable to on-prem installations).
