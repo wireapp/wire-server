@@ -500,7 +500,15 @@ instance ToSchema AccessRoleV2 where
     where
       desc =
         "Which users/services can join conversations.\
-        \This replaces the deprecated field `access_role`."
+        \This replaces the deprecated field `access_role`\
+        \and allows for a more fine grained configuration of access roles\
+        \in particular a separation of guest and services access.\
+        \Maps to `access_role` as follows:\
+        \`[]` => `private` - nobody can be invited to this conversation (e.g. it's a 1:1 conversation)\
+        \`[team_member]` => `team` - team-only conversation\
+        \`[team_member, non_team_member, service]` => `activated` - conversation for users who have activated email, phone or SSO and services\
+        \`[team_member, non_team_member, service, guest]` => `non_activated` - all allowed, no checks.\
+        \All other configurations of `access_role_v2` are mapped to the smallest superset containing all given access roles."
 
 instance ToSchema AccessRoleLegacy where
   schema =
