@@ -112,6 +112,18 @@ services:
     networks:
       - demo_wire
 
+  etcd:
+    container_name: demo_wire_etcd
+    image: bitnami/etcd:3.5.1
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+    ports:
+      - "127.0.0.1:2379:2379"
+      - "127.0.0.1:2380:2380"
+    networks:
+      - demo_wire
+
   db_migrations_brig_schema:
     image: quay.io/wire/brig-schema
     depends_on:
