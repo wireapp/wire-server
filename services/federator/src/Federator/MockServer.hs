@@ -117,6 +117,7 @@ startMockServer mtlsSettings app = do
 data FederatedRequest = FederatedRequest
   { frOriginDomain :: Domain,
     frTargetDomain :: Domain,
+    frVersion :: Maybe Version,
     frComponent :: Component,
     frRPC :: Text,
     frBody :: LByteString
@@ -159,17 +160,18 @@ withTempMockFederator headers resp action = do
                   MockException
                 ]
             $ do
-              RequestData {..} <- parseRequestData request
-              domainText <- note NoOriginDomain $ lookup originDomainHeaderName rdHeaders
+              rd <- parseRequestData request
+              domainText <- note NoOriginDomain $ lookup originDomainHeaderName (rdHeaders rd)
               originDomain <- parseDomain domainText
-              targetDomain <- parseDomainText rdTargetDomain
+              targetDomain <- parseDomainText (rdTargetDomain rd)
               let fedRequest =
                     ( FederatedRequest
                         { frOriginDomain = originDomain,
                           frTargetDomain = targetDomain,
-                          frComponent = rdComponent,
-                          frRPC = rdRPC,
-                          frBody = rdBody
+                          frVersion = rdVersion rd,
+                          frComponent = rdComponent rd,
+                          frRPC = rdRPC rd,
+                          frBody = rdBody rd
                         }
                     )
               (ct, body) <-

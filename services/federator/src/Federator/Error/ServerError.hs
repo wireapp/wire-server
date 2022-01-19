@@ -27,6 +27,7 @@ import Wire.API.Federation.Domain
 data ServerError
   = InvalidRoute
   | UnknownComponent Text
+  | InvalidVersion Text
   | NoOriginDomain
   deriving (Eq, Show, Typeable)
 
@@ -39,7 +40,10 @@ instance AsWai ServerError where
     Wai.mkError HTTP.status403 "unknown-component" (LText.fromStrict (waiErrorDescription e))
   toWai e@NoOriginDomain =
     Wai.mkError HTTP.status403 "no-origin-domain" (LText.fromStrict (waiErrorDescription e))
+  toWai e@(InvalidVersion _) =
+    Wai.mkError HTTP.status403 "invalid-version" (LText.fromStrict (waiErrorDescription e))
 
   waiErrorDescription InvalidRoute = "The requested endpoint does not exist"
   waiErrorDescription (UnknownComponent name) = "No such component: " <> name
   waiErrorDescription NoOriginDomain = "No " <> originDomainHeaderName <> " header"
+  waiErrorDescription (InvalidVersion v) = "Invalid version: " <> v

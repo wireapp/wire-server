@@ -23,6 +23,7 @@ module Federator.InternalServer where
 import Control.Exception (bracketOnError)
 import qualified Control.Exception as E
 import Control.Lens (view)
+import qualified Data.Aeson as Aeson
 import Data.Binary.Builder
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
@@ -51,7 +52,6 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import Network.Socket (Socket)
 import qualified Network.Socket as NS
-import Network.TLS
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Network.Wai as Wai
@@ -69,17 +69,66 @@ import Servant.Client.Core
 import qualified System.TimeManager as T
 import qualified System.X509 as TLS
 import Wire.API.Federation.Component
+import Wire.API.Federation.Version
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
 data RequestData = RequestData
-  { rdTargetDomain :: Text,
-    rdComponent :: Component,
-    rdRPC :: Text,
+  { rdPath :: RequestPath,
     rdHeaders :: [HTTP.Header],
     rdBody :: LByteString
   }
+
+rdTargetDomain :: RequestData -> Text
+rdTargetDomain = rpTargetDomain . rdPath
+
+rdVersion :: RequestData -> Maybe Version
+rdVersion = rpVersion . rdPath
+
+rdComponent :: RequestData -> Component
+rdComponent = rpComponent . rdPath
+
+rdRPC :: RequestData -> Text
+rdRPC = rpRPC . rdPath
+
+data RequestPath = RequestPath
+  { rpTargetDomain :: Text,
+    rpVersion :: Maybe Version,
+    rpComponent :: Component,
+    rpRPC :: Text
+  }
+
+parsePath :: Members '[Error ServerError] r => [Text] -> Sem r RequestPath
+parsePath [domain, comp, rpc] =
+  RequestPath
+    <$> pure domain
+    <*> pure Nothing
+    <*> parseComponent' comp
+    <*> parseRPC rpc
+parsePath [domain, v, comp, rpc] =
+  RequestPath
+    <$> pure domain
+    <*> (Just <$> parseVersion v)
+    <*> parseComponent' comp
+    <*> parseRPC rpc
+parsePath _ = throw InvalidRoute
+
+parseComponent' :: Members '[Error ServerError] r => Text -> Sem r Component
+parseComponent' comp =
+  note (UnknownComponent comp) $
+    parseComponent comp
+
+parseVersion :: Members '[Error ServerError] r => Text -> Sem r Version
+parseVersion v =
+  note (InvalidVersion v) $
+    Aeson.decode (LBS.fromStrict (Text.encodeUtf8 v))
+
+parseRPC :: Members '[Error ServerError] r => Text -> Sem r Text
+parseRPC rpc = do
+  when (Text.null rpc) $
+    throw InvalidRoute
+  pure rpc
 
 parseRequestData ::
   Members '[Error ServerError, Embed IO] r =>
@@ -93,20 +142,12 @@ parseRequestData req = do
   unless (BS.null . Wai.rawQueryString $ req) $
     throw InvalidRoute
   -- check that the path has the expected form
-  (domain, componentSeg, rpcPath) <- case Wai.pathInfo req of
-    ["rpc", domain, comp, rpc] -> pure (domain, comp, rpc)
-    _ -> throw InvalidRoute
-  when (Text.null rpcPath) $
-    throw InvalidRoute
-
-  -- get component and body
-  component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
+  path <- parsePath (Wai.pathInfo req)
+  -- get body
   body <- embed $ Wai.lazyRequestBody req
   pure $
     RequestData
-      { rdTargetDomain = domain,
-        rdComponent = component,
-        rdRPC = rpcPath,
+      { rdPath = path,
         rdHeaders = Wai.requestHeaders req,
         rdBody = body
       }
