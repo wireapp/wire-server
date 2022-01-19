@@ -237,8 +237,8 @@ Once the script is run, invitations will be sent to each user in the file every 
 If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L91>`__.
 
 
-Obtain logs from an Android client to investigate issues
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+How to obtain logs from an Android client to investigate issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Wire clients communicate with Wire servers (backend). 
 
@@ -257,8 +257,8 @@ In order to obtain client logs on the Android Wire client, follow this procedure
 * A menu will open allowing you to share the debug report, you can now save it or send it via email/any other means to the Wire team.
 
 
-Obtain logs from an iOS client to investigate issues
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+How to obtain logs from an iOS client to investigate issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Wire clients communicate with Wire servers (backend). 
 
@@ -275,4 +275,43 @@ In order to obtain client logs on the iOS Wire client, follow this procedure:
 * Once enough usage data is generated, go back to the "Advanced" screen (User profile > Settings > Advanced)
 * Click on "Send report to wire"
 * A menu will open to share the debug report via email, allowing you to send it to the Wire team.
+
+How to retrieve metric values manually
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Metric values are sets of data points about services, such as status and other measures, that can be retrieved at specific endpoints, typically by a monitoring system (such as Prometheus) for monitoring, diagnosis and graphing.
+
+Sometimes, you will want to manually obtain this data that is normally automatically grabbed by Prometheus.
+
+This command allows you to obtain the data, for example for gundeck:
+
+.. code:: sh
+
+   # Allow Gundeck to be reached via the port 7777
+   kubectl --kubeconfig kubeconfig.dec -n wire port-forward service/gundeck 7777:8080
+   # Reach Gundeck directly at port 7777 using curl, output resulting data to stdout/terminal
+   curl -v http://127.0.0.1:7777/i/metrics
+
+Output will look something like this (truncated):
+
+.. code:: sh
+
+   # HELP gc_seconds_wall Wall clock time spent on last GC
+   # TYPE gc_seconds_wall gauge
+   gc_seconds_wall 5481304.0
+   # HELP gc_seconds_cpu CPU time spent on last GC
+   # TYPE gc_seconds_cpu gauge
+   gc_seconds_cpu 5479828.0
+   # HELP gc_bytes_used_current Number of bytes in active use as of the last GC
+   # TYPE gc_bytes_used_current gauge
+   gc_bytes_used_current 1535232.0
+   # HELP gc_bytes_used_max Maximum amount of memory living on the heap after the last major GC
+   # TYPE gc_bytes_used_max gauge
+   gc_bytes_used_max 2685312.0
+   # HELP gc_bytes_allocated_total Bytes allocated since the start of the server
+   # TYPE gc_bytes_allocated_total gauge
+   gc_bytes_allocated_total 4.949156056e9
+
+This example is for Gundeck, but you can also get metrics for other services. All k8s services are listed at `this link <../../understand/overview.html?highlight=gundeck#focus-on-pods>`__.
+
 
