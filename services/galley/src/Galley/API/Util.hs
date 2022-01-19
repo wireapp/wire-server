@@ -21,7 +21,7 @@
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
-import Brig.Types.Intra (ReAuthUser (..))
+import Brig.Types.Intra (ReAuthUser (..), accountUser)
 import Control.Arrow (Arrow (second), second)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -69,6 +69,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
 
@@ -78,14 +79,17 @@ ensureAccessRole ::
   [(UserId, Maybe TeamMember)] ->
   Sem r ()
 ensureAccessRole roles users = do
-  unless (Set.member TeamMemberAccessRole roles) $ throw ConvAccessDenied
+  when (Set.null roles) $ throw ConvAccessDenied
   unless (Set.member NonTeamMemberAccessRole roles) $
     when (any (isNothing . snd) users) $ throwED @NotATeamMember
-  unless (Set.member GuestAccessRole roles) $ do
-    activated <- lookupActivatedUsers $ map fst users
-    when (length activated /= length users) $ throw ConvAccessDenied
-  -- todo(leif): check if we need to check users for bots/services
-  unless (Set.member ServiceAccessRole roles) $ return ()
+  unless (Set.member GuestAccessRole roles && Set.member ServiceAccessRole roles) $ do
+    activated <- lookupActivatedUsers (fst <$> users)
+    when (length activated /= length users) $ do
+      let guestOrBotIds = (fst <$> users) \\ (User.userId <$> activated)
+      guestOrBot <- fmap accountUser <$> getUsers guestOrBotIds
+      let (guests, bots) = partition (isJust . User.userService) guestOrBot
+      unless (null bots || Set.member ServiceAccessRole roles) $ throw ConvAccessDenied
+      unless (null guests || Set.member GuestAccessRole roles) $ throw ConvAccessDenied
 
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.

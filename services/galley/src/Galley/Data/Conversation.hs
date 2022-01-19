@@ -88,5 +88,5 @@ convAccessData conv =
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
 
-parseAccessRoles :: Maybe FromAccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
-parseAccessRoles mbLegacy mbV2 = mbV2 <|> unFromAccessRoleLegacy <$> mbLegacy
+parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
+parseAccessRoles mbLegacy mbV2 = mbV2 <|> fromAccessRoleLegacy <$> mbLegacy

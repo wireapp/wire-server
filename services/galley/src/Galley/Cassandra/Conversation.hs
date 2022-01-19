@@ -346,7 +346,7 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe FromAccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
   Maybe Conversation
 toConv cid mms remoteMems conv =
   f mms <$> conv

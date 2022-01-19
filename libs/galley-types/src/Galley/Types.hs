@@ -57,7 +57,6 @@ module Galley.Types
     Access (..),
     AccessRoleV2 (..),
     AccessRoleLegacy (..),
-    FromAccessRoleLegacy (..),
     ConversationList (..),
     ConversationRename (..),
     ConversationAccessData (..),

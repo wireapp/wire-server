@@ -32,7 +32,6 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
-import Wire.API.Conversation (fromAccessRoleLegacy, toAccessRoleLegacy)
 import qualified Wire.API.Team.Feature as Public
 
 deriving instance Cql MutedStatus
@@ -86,12 +85,6 @@ instance Cql AccessRoleLegacy where
     4 -> return NonActivatedAccessRole
     n -> Left $ "Unexpected AccessRole value: " ++ show n
   fromCql _ = Left "AccessRole value: int expected"
-
-instance Cql FromAccessRoleLegacy where
-  ctype = Tagged IntColumn
-
-  toCql (FromAccessRoleLegacy ar) = toCql @AccessRoleLegacy (toAccessRoleLegacy ar)
-  fromCql a = FromAccessRoleLegacy . fromAccessRoleLegacy <$> fromCql @AccessRoleLegacy a
 
 instance Cql AccessRoleV2 where
   ctype = Tagged IntColumn

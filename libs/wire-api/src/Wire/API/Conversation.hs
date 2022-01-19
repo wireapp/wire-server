@@ -49,7 +49,6 @@ module Wire.API.Conversation
     AccessRoleLegacy (..),
     ConvType (..),
     ReceiptMode (..),
-    FromAccessRoleLegacy (..),
     fromAccessRoleLegacy,
     toAccessRoleLegacy,
     defRole,
@@ -488,10 +487,6 @@ toAccessRoleLegacy accessRoles = do
     allMember :: Ord a => Set a -> Set a -> Bool
     allMember rhs lhs = all (`Set.member` lhs) rhs
 
--- | Wrapper around `Set AccessRoleV2` for Cassandra Cql instance
--- that converts legacy access role into access role V2
-newtype FromAccessRoleLegacy = FromAccessRoleLegacy {unFromAccessRoleLegacy :: Set.Set AccessRoleV2}
-
 instance ToSchema AccessRoleV2 where
   schema =
     (S.schema . description ?~ desc) $
@@ -519,12 +514,12 @@ instance ToSchema AccessRoleLegacy where
           ]
     where
       desc =
-        "Which users can join conversations (deprecated, use `access_role_v2` instead)\
+        "Which users can join conversations (deprecated, use `access_role_v2` instead).\
         \Maps to `access_role_v2` as follows:\
         \`private` => `[]` - nobody can be invited to this conversation (e.g. it's a 1:1 conversation)\
         \`team` => `[team_member]` - team-only conversation\
         \`activated` => `[team_member, non_team_member, service]` - conversation for users who have activated email, phone or SSO and services\
-        \`non_activated` => `[team_member, non_team_member, service, guest]` - no checks"
+        \`non_activated` => `[team_member, non_team_member, service, guest]` - all allowed, no checks"
 
 data ConvType
   = RegularConv

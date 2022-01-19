@@ -50,4 +50,4 @@ accessRoleFromV2ToLegacyToV2 =
         convertedBackToV2 = fromAccessRoleLegacy convertedToLegacy
         originalIsSubSetOfConverted = originalV2 `Set.isSubsetOf` convertedBackToV2
         smallerLegacy = fromAccessRoleLegacy <$> init [minBound .. convertedToLegacy]
-        noSmallerLegacyIsSubsetOfOriginal = not (any (Set.isSubsetOf originalV2) smallerLegacy)
+        noSmallerLegacyIsSubsetOfOriginal = not (any (originalV2 `Set.isSubsetOf`) smallerLegacy)
