@@ -851,7 +851,7 @@ instance ToSchema ConversationAccessData where
     object "ConversationAccessData" $
       ConversationAccessData
         <$> cupAccess .= field "access" (set schema)
-        <*> cupAccessRoles .= field "access_role" (set schema)
+        <*> cupAccessRoles .= accessRolesSchema
 
 modelConversationAccessData :: Doc.Model
 modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
