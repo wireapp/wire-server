@@ -14,6 +14,7 @@ dependencies:
 - dns
 - random
 - imports
+- iproute
 - polysemy
 library:
   source-dirs: src

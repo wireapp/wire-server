@@ -50,6 +50,7 @@ import GHC.IO.Exception (IOException (ioe_errno))
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Media
 import Network.Socket
 import Network.Wai.Handler.Warp (Port)
 import Network.Wai.Test (Session)
@@ -73,7 +74,7 @@ withTempMockFederator :: Opt.Opts -> LByteString -> Session a -> IO (a, [Mock.Fe
 withTempMockFederator opts resp action =
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
-    (const (pure resp))
+    (const (pure ("application" // "json", resp)))
     $ \mockPort -> do
       let opts' =
             opts

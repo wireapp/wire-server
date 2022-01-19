@@ -51,7 +51,7 @@ brig:
       sessionTokenTimeout: 20
       accessTokenTimeout: 30
       providerTokenTimeout: 60
-    enableFederator: true # keep in sync with galley.config.enableFederator and tags.federator!
+    enableFederator: true # keep in sync with galley.config.enableFederator, cargohold.config.enableFederator and tags.federator!
     optSettings:
       setActivationTimeout: 5
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
@@ -69,7 +69,8 @@ brig:
         retryLimit: 5  # how many times can you have a failed login in that timeframe.
       setSuspendInactiveUsers:
         suspendTimeout: 10
-      setDefaultLocale: en
+      setDefaultTemplateLocale: en
+      setDefaultUserLocale: en
       setMaxConvAndTeamSize: 16
       setMaxTeamSize: 32
       setMaxConvSize: 16
@@ -125,6 +126,7 @@ cargohold:
     aws:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
+    enableFederator: true # keep in sync with brig.config.enableFederator, galley.config.enableFederator and tags.federator!
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -135,7 +137,7 @@ galley:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
-    enableFederator: true # keep in sync with brig.config.enableFederator and tags.federator!
+    enableFederator: true # keep in sync with brig.config.enableFederator, cargohold.config.enableFederator and tags.federator!
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32

@@ -31,7 +31,7 @@ import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
-import Brig.Types.Client
+import Brig.Types.Client hiding (Client)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User
@@ -60,36 +60,43 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Qualified
 import Data.Range
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Federator.MockServer as Mock
+import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
+import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Media.MediaType
 import Network.HTTP.Types (Method)
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Test (Session)
 import qualified Network.Wai.Test as WaiTest
-import Servant.Client.Generic (AsClientT)
+import OpenSSL.BN (randIntegerZeroToNMinusOne)
+import qualified Servant.Client as Servant
+import qualified Servant.Client.Core as Servant
 import System.Random (randomIO, randomRIO)
 import qualified System.Timeout as System
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.AWS
-import Util.Options (Endpoint (Endpoint))
+import Util.Options
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import qualified Wire.API.Federation.API.Brig as F
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API
+import Wire.API.Federation.Domain
 import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request
@@ -106,9 +113,38 @@ type Nginz = Request -> Request
 
 type Spar = Request -> Request
 
-type FedBrigClient = Domain -> F.BrigApi (AsClientT (HttpT IO))
+data FedClient (comp :: Component) = FedClient HTTP.Manager Endpoint
 
-type FedGalleyClient = Domain -> F.GalleyApi (AsClientT (HttpT IO))
+runFedClient ::
+  forall (name :: Symbol) comp api.
+  ( HasFedEndpoint comp api name,
+    Servant.HasClient Servant.ClientM api
+  ) =>
+  FedClient comp ->
+  Domain ->
+  Servant.Client Http api
+runFedClient (FedClient mgr endpoint) domain =
+  Servant.hoistClient (Proxy @api) (servantClientMToHttp domain) $
+    Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
+  where
+    servantClientMToHttp :: Domain -> Servant.ClientM a -> Http a
+    servantClientMToHttp originDomain action = liftIO $ do
+      let brigHost = Text.unpack $ endpoint ^. epHost
+          brigPort = fromInteger . toInteger $ endpoint ^. epPort
+          baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort "/federation"
+          clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
+      eitherRes <- Servant.runClientM action clientEnv
+      case eitherRes of
+        Right res -> pure res
+        Left err -> assertFailure $ "Servant client failed with: " <> show err
+
+    makeClientRequest :: Domain -> Servant.BaseUrl -> Servant.Request -> HTTP.Request
+    makeClientRequest originDomain burl req =
+      let req' = Servant.defaultMakeClientRequest burl req
+       in req'
+            { HTTP.requestHeaders =
+                HTTP.requestHeaders req' <> [(originDomainHeaderName, toByteString' originDomain)]
+            }
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -740,6 +776,12 @@ randomPhone = liftIO $ do
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
   return $ fromMaybe (error "Invalid random phone#") phone
 
+randomActivationCode :: (HasCallStack, MonadIO m) => m ActivationCode
+randomActivationCode =
+  liftIO $
+    ActivationCode . Ascii.unsafeFromText . T.pack . printf "%06d"
+      <$> randIntegerZeroToNMinusOne 1000000
+
 updatePhone :: HasCallStack => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do
   -- update phone
@@ -1045,13 +1087,16 @@ withMockedFederatorAndGalley ::
 withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
-      Mock.withTempMockFederator [("Content-Type", "application/json")] fedResp $ \fedMockPort -> do
-        let opts' =
-              opts
-                { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),
-                  Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral fedMockPort))
-                }
-        withSettingsOverrides opts' action
+      Mock.withTempMockFederator
+        [("Content-Type", "application/json")]
+        ((\r -> pure ("application" // "json", r)) <=< fedResp)
+        $ \fedMockPort -> do
+          let opts' =
+                opts
+                  { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort galleyMockState)),
+                    Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral fedMockPort))
+                  }
+          withSettingsOverrides opts' action
   pure (combineResults result)
   where
     combineResults :: ((a, [Mock.FederatedRequest]), [ReceivedRequest]) -> (a, [Mock.FederatedRequest], [ReceivedRequest])

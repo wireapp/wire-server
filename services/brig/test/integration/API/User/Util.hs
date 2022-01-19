@@ -27,7 +27,6 @@ import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
-import qualified CargoHold.Types.V3 as CHV3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
@@ -53,6 +52,7 @@ import Imports
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Asset
 import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
@@ -336,7 +336,7 @@ assertConnectionQualified brig u1 qu2 rel =
 receiveConnectionAction ::
   HasCallStack =>
   Brig ->
-  FedBrigClient ->
+  FedClient 'Brig ->
   UserId ->
   Qualified UserId ->
   F.RemoteConnectionAction ->
@@ -345,7 +345,7 @@ receiveConnectionAction ::
   Http ()
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
-    F.sendConnectionAction (fedBrigClient (qDomain quid2)) $
+    runFedClient @"send-connection-action" fedBrigClient (qDomain quid2) $
       F.NewConnectionRequest (qUnqualified quid2) uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction
@@ -407,30 +407,33 @@ uploadAsset ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   CargoHold ->
   UserId ->
+  AssetSettings ->
   ByteString ->
-  m CHV3.Asset
-uploadAsset c usr dat = do
-  let sts = CHV3.defAssetSettings
-      ct = MIME.Type (MIME.Application "text") []
-      mpb = CHV3.buildMultipartBody sts ct (LB.fromStrict dat)
-  rsp <-
-    post
-      ( c
-          . path "/assets/v3"
-          . zUser usr
-          . zConn "conn"
-          . content "multipart/mixed"
-          . lbytes (toLazyByteString mpb)
-      )
-      <!! const 201
-      === statusCode
-  responseJsonError rsp
+  m (Response (Maybe LByteString))
+uploadAsset c usr sts dat = do
+  let ct = MIME.Type (MIME.Application "text") []
+      mpb = buildMultipartBody sts ct (LB.fromStrict dat)
+  post
+    ( c
+        . path "/assets/v3"
+        . zUser usr
+        . zConn "conn"
+        . content "multipart/mixed"
+        . lbytes (toLazyByteString mpb)
+    )
+    <!! const 201
+    === statusCode
 
-downloadAsset :: CargoHold -> UserId -> ByteString -> (MonadIO m, MonadHttp m) => m (Response (Maybe LB.ByteString))
+downloadAsset ::
+  (MonadIO m, MonadHttp m) =>
+  CargoHold ->
+  UserId ->
+  Qualified AssetKey ->
+  m (Response (Maybe LB.ByteString))
 downloadAsset c usr ast =
   get
     ( c
-        . paths ["/assets/v3", ast]
+        . paths ["/assets/v4", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
         . zUser usr
         . zConn "conn"
     )

@@ -19,7 +19,7 @@
 
 module Test.Federator.InternalServer (tests) where
 
-import Data.Binary.Builder
+import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
@@ -36,6 +36,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Servant.Client.Core
+import Servant.Types.SourceT
 import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Tasty
@@ -47,7 +49,8 @@ tests :: TestTree
 tests =
   testGroup
     "Federate"
-    [ testGroup "with remote" $
+    [ testGroup
+        "with remote"
         [ federatedRequestSuccess,
           federatedRequestFailureAllowList
         ]
@@ -78,7 +81,13 @@ federatedRequestSuccess =
             rpc @?= "get-user-by-handle"
             headers @?= requestHeaders
             toLazyByteString body @?= "\"foo\""
-            pure (HTTP.status200, fromLazyByteString "\"bar\"")
+            pure
+              Response
+                { responseStatusCode = HTTP.ok200,
+                  responseHeaders = mempty,
+                  responseHttpVersion = HTTP.http20,
+                  responseBody = source ["\"bar\""]
+                }
     res <-
       runM
         . interpretCall
@@ -91,6 +100,9 @@ federatedRequestSuccess =
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
+-- Refuse to send outgoing request to non-included domain when allowlist is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $ do
@@ -107,7 +119,14 @@ federatedRequestFailureAllowList =
 
     let checkRequest :: Sem (Remote ': r) a -> Sem r a
         checkRequest = interpret $ \case
-          DiscoverAndCall {} -> pure (HTTP.status200, fromLazyByteString "\"bar\"")
+          DiscoverAndCall {} ->
+            pure
+              Response
+                { responseStatusCode = HTTP.ok200,
+                  responseHeaders = mempty,
+                  responseHttpVersion = HTTP.http20,
+                  responseBody = source ["\"bar\""]
+                }
 
     eith <-
       runM
@@ -119,3 +138,5 @@ federatedRequestFailureAllowList =
         . runInputConst settings
         $ callOutward request
     eith @?= Left (FederationDenied targetDomain)
+
+-- @END

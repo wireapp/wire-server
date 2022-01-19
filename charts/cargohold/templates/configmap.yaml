@@ -11,6 +11,12 @@ data:
       host: 0.0.0.0
       port: {{ .Values.service.internalPort }}
 
+    {{- if .Values.config.enableFederator }}
+    federator:
+      host: federator
+      port: 8080
+    {{- end }}
+
     aws:
       {{- with .Values.config.aws }}
       s3Bucket: {{ .s3Bucket }}
@@ -30,5 +36,8 @@ data:
       {{- end }}
 
     settings:
+      {{- with .Values.config.settings }}
       maxTotalBytes: 5368709120
       downloadLinkTTL: 300      # Seconds
+      federationDomain: {{ .federationDomain }}
+      {{- end }}

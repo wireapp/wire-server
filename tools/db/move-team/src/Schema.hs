@@ -40,7 +40,7 @@ import Wire.API.User.Password (PasswordResetKey)
 
 type RowBrigClients = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text, Maybe IP, Maybe Text, Maybe Double, Maybe Double, Maybe Text, Maybe UTCTime, Maybe Int32)
 
-selectBrigClients :: PrepQuery R (Identity ([UserId])) RowBrigClients
+selectBrigClients :: PrepQuery R (Identity [UserId]) RowBrigClients
 selectBrigClients = "SELECT user, client, class, cookie, ip, label, lat, lon, model, tstamp, type FROM clients WHERE user in ?"
 
 readBrigClients :: Env -> [UserId] -> ConduitM () [RowBrigClients] IO ()
@@ -57,7 +57,7 @@ readBrigClientsAll Env {..} =
     paginateC selectBrigClientsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigClientsFull :: Env -> FilePath -> IO ()
-exportBrigClientsFull env@Env {..} path = do
+exportBrigClientsFull env path = do
   putStrLn $ "Exporting " <> "brig.clients" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -74,7 +74,7 @@ importBrigClients Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.clients"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigClients)
@@ -86,7 +86,7 @@ importBrigClients Env {..} path = do
 
 type RowBrigConnection = (Maybe UUID, Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe Text, Maybe Int32)
 
-selectBrigConnection :: PrepQuery R (Identity ([UserId])) RowBrigConnection
+selectBrigConnection :: PrepQuery R (Identity [UserId]) RowBrigConnection
 selectBrigConnection = "SELECT left, right, conv, last_update, message, status FROM connection WHERE left in ?"
 
 readBrigConnection :: Env -> [UserId] -> ConduitM () [RowBrigConnection] IO ()
@@ -103,7 +103,7 @@ readBrigConnectionAll Env {..} =
     paginateC selectBrigConnectionAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigConnectionFull :: Env -> FilePath -> IO ()
-exportBrigConnectionFull env@Env {..} path = do
+exportBrigConnectionFull env path = do
   putStrLn $ "Exporting " <> "brig.connection" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -120,7 +120,7 @@ importBrigConnection Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.connection"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigConnection)
@@ -132,7 +132,7 @@ importBrigConnection Env {..} path = do
 
 type RowBrigLoginCodes = (Maybe UUID, Maybe Text, Maybe Int32, Maybe UTCTime)
 
-selectBrigLoginCodes :: PrepQuery R (Identity ([UserId])) RowBrigLoginCodes
+selectBrigLoginCodes :: PrepQuery R (Identity [UserId]) RowBrigLoginCodes
 selectBrigLoginCodes = "SELECT user, code, retries, timeout FROM login_codes WHERE user in ?"
 
 readBrigLoginCodes :: Env -> [UserId] -> ConduitM () [RowBrigLoginCodes] IO ()
@@ -149,7 +149,7 @@ readBrigLoginCodesAll Env {..} =
     paginateC selectBrigLoginCodesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigLoginCodesFull :: Env -> FilePath -> IO ()
-exportBrigLoginCodesFull env@Env {..} path = do
+exportBrigLoginCodesFull env path = do
   putStrLn $ "Exporting " <> "brig.login_codes" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -166,7 +166,7 @@ importBrigLoginCodes Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.login_codes"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigLoginCodes)
@@ -178,7 +178,7 @@ importBrigLoginCodes Env {..} path = do
 
 type RowBrigPasswordReset = (Maybe Ascii, Maybe Ascii, Maybe Int32, Maybe UTCTime, Maybe UUID)
 
-selectBrigPasswordReset :: PrepQuery R (Identity ([PasswordResetKey])) RowBrigPasswordReset
+selectBrigPasswordReset :: PrepQuery R (Identity [PasswordResetKey]) RowBrigPasswordReset
 selectBrigPasswordReset = "SELECT key, code, retries, timeout, user FROM password_reset WHERE key in ?"
 
 readBrigPasswordReset :: Env -> [PasswordResetKey] -> ConduitM () [RowBrigPasswordReset] IO ()
@@ -195,7 +195,7 @@ readBrigPasswordResetAll Env {..} =
     paginateC selectBrigPasswordResetAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigPasswordResetFull :: Env -> FilePath -> IO ()
-exportBrigPasswordResetFull env@Env {..} path = do
+exportBrigPasswordResetFull env path = do
   putStrLn $ "Exporting " <> "brig.password_reset" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -212,7 +212,7 @@ importBrigPasswordReset Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.password_reset"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigPasswordReset)
@@ -224,7 +224,7 @@ importBrigPasswordReset Env {..} path = do
 
 type RowBrigPrekeys = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text)
 
-selectBrigPrekeys :: PrepQuery R (Identity ([UserId])) RowBrigPrekeys
+selectBrigPrekeys :: PrepQuery R (Identity [UserId]) RowBrigPrekeys
 selectBrigPrekeys = "SELECT user, client, key, data FROM prekeys WHERE user in ?"
 
 readBrigPrekeys :: Env -> [UserId] -> ConduitM () [RowBrigPrekeys] IO ()
@@ -241,7 +241,7 @@ readBrigPrekeysAll Env {..} =
     paginateC selectBrigPrekeysAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigPrekeysFull :: Env -> FilePath -> IO ()
-exportBrigPrekeysFull env@Env {..} path = do
+exportBrigPrekeysFull env path = do
   putStrLn $ "Exporting " <> "brig.prekeys" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -258,7 +258,7 @@ importBrigPrekeys Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.prekeys"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigPrekeys)
@@ -270,7 +270,7 @@ importBrigPrekeys Env {..} path = do
 
 type RowBrigProperties = (Maybe UUID, Maybe Ascii, Maybe Blob)
 
-selectBrigProperties :: PrepQuery R (Identity ([UserId])) RowBrigProperties
+selectBrigProperties :: PrepQuery R (Identity [UserId]) RowBrigProperties
 selectBrigProperties = "SELECT user, key, value FROM properties WHERE user in ?"
 
 readBrigProperties :: Env -> [UserId] -> ConduitM () [RowBrigProperties] IO ()
@@ -287,7 +287,7 @@ readBrigPropertiesAll Env {..} =
     paginateC selectBrigPropertiesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigPropertiesFull :: Env -> FilePath -> IO ()
-exportBrigPropertiesFull env@Env {..} path = do
+exportBrigPropertiesFull env path = do
   putStrLn $ "Exporting " <> "brig.properties" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -304,7 +304,7 @@ importBrigProperties Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.properties"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigProperties)
@@ -316,7 +316,7 @@ importBrigProperties Env {..} path = do
 
 type RowBrigRichInfo = (Maybe UUID, Maybe Blob)
 
-selectBrigRichInfo :: PrepQuery R (Identity ([UserId])) RowBrigRichInfo
+selectBrigRichInfo :: PrepQuery R (Identity [UserId]) RowBrigRichInfo
 selectBrigRichInfo = "SELECT user, json FROM rich_info WHERE user in ?"
 
 readBrigRichInfo :: Env -> [UserId] -> ConduitM () [RowBrigRichInfo] IO ()
@@ -333,7 +333,7 @@ readBrigRichInfoAll Env {..} =
     paginateC selectBrigRichInfoAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigRichInfoFull :: Env -> FilePath -> IO ()
-exportBrigRichInfoFull env@Env {..} path = do
+exportBrigRichInfoFull env path = do
   putStrLn $ "Exporting " <> "brig.rich_info" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -350,7 +350,7 @@ importBrigRichInfo Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.rich_info"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigRichInfo)
@@ -362,7 +362,7 @@ importBrigRichInfo Env {..} path = do
 
 type RowBrigUser = (Maybe UUID, Maybe [Float], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Ascii, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Ascii, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
 
-selectBrigUser :: PrepQuery R (Identity ([UserId])) RowBrigUser
+selectBrigUser :: PrepQuery R (Identity [UserId]) RowBrigUser
 selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
 
 readBrigUser :: Env -> [UserId] -> ConduitM () [RowBrigUser] IO ()
@@ -379,7 +379,7 @@ readBrigUserAll Env {..} =
     paginateC selectBrigUserAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserFull :: Env -> FilePath -> IO ()
-exportBrigUserFull env@Env {..} path = do
+exportBrigUserFull env path = do
   putStrLn $ "Exporting " <> "brig.user" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -396,7 +396,7 @@ importBrigUser Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.user"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigUser)
@@ -408,7 +408,7 @@ importBrigUser Env {..} path = do
 
 type RowBrigUserHandle = (Maybe Text, Maybe UUID)
 
-selectBrigUserHandle :: PrepQuery R (Identity ([Handle])) RowBrigUserHandle
+selectBrigUserHandle :: PrepQuery R (Identity [Handle]) RowBrigUserHandle
 selectBrigUserHandle = "SELECT handle, user FROM user_handle WHERE handle in ?"
 
 readBrigUserHandle :: Env -> [Handle] -> ConduitM () [RowBrigUserHandle] IO ()
@@ -425,7 +425,7 @@ readBrigUserHandleAll Env {..} =
     paginateC selectBrigUserHandleAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserHandleFull :: Env -> FilePath -> IO ()
-exportBrigUserHandleFull env@Env {..} path = do
+exportBrigUserHandleFull env path = do
   putStrLn $ "Exporting " <> "brig.user_handle" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -442,7 +442,7 @@ importBrigUserHandle Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.user_handle"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigUserHandle)
@@ -454,7 +454,7 @@ importBrigUserHandle Env {..} path = do
 
 type RowBrigUserKeys = (Maybe Text, Maybe UUID)
 
-selectBrigUserKeys :: PrepQuery R (Identity ([Int32])) RowBrigUserKeys
+selectBrigUserKeys :: PrepQuery R (Identity [Int32]) RowBrigUserKeys
 selectBrigUserKeys = "SELECT key, user FROM user_keys WHERE key in ?"
 
 readBrigUserKeys :: Env -> [Int32] -> ConduitM () [RowBrigUserKeys] IO ()
@@ -471,7 +471,7 @@ readBrigUserKeysAll Env {..} =
     paginateC selectBrigUserKeysAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserKeysFull :: Env -> FilePath -> IO ()
-exportBrigUserKeysFull env@Env {..} path = do
+exportBrigUserKeysFull env path = do
   putStrLn $ "Exporting " <> "brig.user_keys" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -488,7 +488,7 @@ importBrigUserKeys Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.user_keys"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigUserKeys)
@@ -500,7 +500,7 @@ importBrigUserKeys Env {..} path = do
 
 type RowBrigUserKeysHash = (Maybe Blob, Maybe Int32, Maybe UUID)
 
-selectBrigUserKeysHash :: PrepQuery R (Identity ([Int32])) RowBrigUserKeysHash
+selectBrigUserKeysHash :: PrepQuery R (Identity [Int32]) RowBrigUserKeysHash
 selectBrigUserKeysHash = "SELECT key, key_type, user FROM user_keys_hash WHERE key in ?"
 
 readBrigUserKeysHash :: Env -> [Int32] -> ConduitM () [RowBrigUserKeysHash] IO ()
@@ -517,7 +517,7 @@ readBrigUserKeysHashAll Env {..} =
     paginateC selectBrigUserKeysHashAll (paramsP LocalQuorum () envPageSize) x5
 
 exportBrigUserKeysHashFull :: Env -> FilePath -> IO ()
-exportBrigUserKeysHashFull env@Env {..} path = do
+exportBrigUserKeysHashFull env path = do
   putStrLn $ "Exporting " <> "brig.user_keys_hash" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -534,7 +534,7 @@ importBrigUserKeysHash Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "brig.user_keys_hash"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envBrig) (sinkTableRows insertBrigUserKeysHash)
@@ -546,7 +546,7 @@ importBrigUserKeysHash Env {..} path = do
 
 type RowGalleyBillingTeamMember = (Maybe UUID, Maybe UUID)
 
-selectGalleyBillingTeamMember :: PrepQuery R (Identity (TeamId)) RowGalleyBillingTeamMember
+selectGalleyBillingTeamMember :: PrepQuery R (Identity TeamId) RowGalleyBillingTeamMember
 selectGalleyBillingTeamMember = "SELECT team, user FROM billing_team_member WHERE team = ?"
 
 readGalleyBillingTeamMember :: Env -> TeamId -> ConduitM () [RowGalleyBillingTeamMember] IO ()
@@ -563,7 +563,7 @@ readGalleyBillingTeamMemberAll Env {..} =
     paginateC selectGalleyBillingTeamMemberAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyBillingTeamMemberFull :: Env -> FilePath -> IO ()
-exportGalleyBillingTeamMemberFull env@Env {..} path = do
+exportGalleyBillingTeamMemberFull env path = do
   putStrLn $ "Exporting " <> "galley.billing_team_member" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -580,7 +580,7 @@ importGalleyBillingTeamMember Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.billing_team_member"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyBillingTeamMember)
@@ -592,7 +592,7 @@ importGalleyBillingTeamMember Env {..} path = do
 
 type RowGalleyClients = (Maybe UUID, Maybe (Cassandra.Set Text))
 
-selectGalleyClients :: PrepQuery R (Identity ([UserId])) RowGalleyClients
+selectGalleyClients :: PrepQuery R (Identity [UserId]) RowGalleyClients
 selectGalleyClients = "SELECT user, clients FROM clients WHERE user in ?"
 
 readGalleyClients :: Env -> [UserId] -> ConduitM () [RowGalleyClients] IO ()
@@ -609,7 +609,7 @@ readGalleyClientsAll Env {..} =
     paginateC selectGalleyClientsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyClientsFull :: Env -> FilePath -> IO ()
-exportGalleyClientsFull env@Env {..} path = do
+exportGalleyClientsFull env path = do
   putStrLn $ "Exporting " <> "galley.clients" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -626,7 +626,7 @@ importGalleyClients Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.clients"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyClients)
@@ -638,7 +638,7 @@ importGalleyClients Env {..} path = do
 
 type RowGalleyConversation = (Maybe UUID, Maybe (Cassandra.Set Int32), Maybe Int32, Maybe UUID, Maybe Bool, Maybe Int64, Maybe Text, Maybe Int32, Maybe UUID, Maybe Int32)
 
-selectGalleyConversation :: PrepQuery R (Identity ([ConvId])) RowGalleyConversation
+selectGalleyConversation :: PrepQuery R (Identity [ConvId]) RowGalleyConversation
 selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation WHERE conv in ?"
 
 readGalleyConversation :: Env -> [ConvId] -> ConduitM () [RowGalleyConversation] IO ()
@@ -655,7 +655,7 @@ readGalleyConversationAll Env {..} =
     paginateC selectGalleyConversationAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyConversationFull :: Env -> FilePath -> IO ()
-exportGalleyConversationFull env@Env {..} path = do
+exportGalleyConversationFull env path = do
   putStrLn $ "Exporting " <> "galley.conversation" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -672,7 +672,7 @@ importGalleyConversation Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.conversation"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyConversation)
@@ -684,7 +684,7 @@ importGalleyConversation Env {..} path = do
 
 type RowGalleyMember = (Maybe UUID, Maybe UUID, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Int32, Maybe UUID, Maybe UUID, Maybe Int32, Maybe Text, Maybe UUID)
 
-selectGalleyMember :: PrepQuery R (Identity ([ConvId])) RowGalleyMember
+selectGalleyMember :: PrepQuery R (Identity [ConvId]) RowGalleyMember
 selectGalleyMember = "SELECT conv, user, conversation_role, hidden, hidden_ref, otr_archived, otr_archived_ref, otr_muted, otr_muted_ref, otr_muted_status, provider, service, status, user_remote_domain, user_remote_id FROM member WHERE conv in ?"
 
 readGalleyMember :: Env -> [ConvId] -> ConduitM () [RowGalleyMember] IO ()
@@ -701,7 +701,7 @@ readGalleyMemberAll Env {..} =
     paginateC selectGalleyMemberAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyMemberFull :: Env -> FilePath -> IO ()
-exportGalleyMemberFull env@Env {..} path = do
+exportGalleyMemberFull env path = do
   putStrLn $ "Exporting " <> "galley.member" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -718,7 +718,7 @@ importGalleyMember Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.member"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyMember)
@@ -730,7 +730,7 @@ importGalleyMember Env {..} path = do
 
 type RowGalleyTeam = (Maybe UUID, Maybe Bool, Maybe UUID, Maybe Bool, Maybe Text, Maybe Text, Maybe Text, Maybe Int32, Maybe Int32)
 
-selectGalleyTeam :: PrepQuery R (Identity (TeamId)) RowGalleyTeam
+selectGalleyTeam :: PrepQuery R (Identity TeamId) RowGalleyTeam
 selectGalleyTeam = "SELECT team, binding, creator, deleted, icon, icon_key, name, search_visibility, status FROM team WHERE team = ?"
 
 readGalleyTeam :: Env -> TeamId -> ConduitM () [RowGalleyTeam] IO ()
@@ -747,7 +747,7 @@ readGalleyTeamAll Env {..} =
     paginateC selectGalleyTeamAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamFull :: Env -> FilePath -> IO ()
-exportGalleyTeamFull env@Env {..} path = do
+exportGalleyTeamFull env path = do
   putStrLn $ "Exporting " <> "galley.team" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -764,7 +764,7 @@ importGalleyTeam Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.team"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeam)
@@ -776,7 +776,7 @@ importGalleyTeam Env {..} path = do
 
 type RowGalleyTeamConv = (Maybe UUID, Maybe UUID, Maybe Bool)
 
-selectGalleyTeamConv :: PrepQuery R (Identity (TeamId)) RowGalleyTeamConv
+selectGalleyTeamConv :: PrepQuery R (Identity TeamId) RowGalleyTeamConv
 selectGalleyTeamConv = "SELECT team, conv, managed FROM team_conv WHERE team = ?"
 
 readGalleyTeamConv :: Env -> TeamId -> ConduitM () [RowGalleyTeamConv] IO ()
@@ -793,7 +793,7 @@ readGalleyTeamConvAll Env {..} =
     paginateC selectGalleyTeamConvAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamConvFull :: Env -> FilePath -> IO ()
-exportGalleyTeamConvFull env@Env {..} path = do
+exportGalleyTeamConvFull env path = do
   putStrLn $ "Exporting " <> "galley.team_conv" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -810,7 +810,7 @@ importGalleyTeamConv Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.team_conv"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamConv)
@@ -822,7 +822,7 @@ importGalleyTeamConv Env {..} path = do
 
 type RowGalleyTeamFeatures = (Maybe UUID, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32)
 
-selectGalleyTeamFeatures :: PrepQuery R (Identity (TeamId)) RowGalleyTeamFeatures
+selectGalleyTeamFeatures :: PrepQuery R (Identity TeamId) RowGalleyTeamFeatures
 selectGalleyTeamFeatures = "SELECT team_id, app_lock_enforce, app_lock_inactivity_timeout_secs, app_lock_status, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails FROM team_features WHERE team_id = ?"
 
 readGalleyTeamFeatures :: Env -> TeamId -> ConduitM () [RowGalleyTeamFeatures] IO ()
@@ -839,7 +839,7 @@ readGalleyTeamFeaturesAll Env {..} =
     paginateC selectGalleyTeamFeaturesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamFeaturesFull :: Env -> FilePath -> IO ()
-exportGalleyTeamFeaturesFull env@Env {..} path = do
+exportGalleyTeamFeaturesFull env path = do
   putStrLn $ "Exporting " <> "galley.team_features" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -856,7 +856,7 @@ importGalleyTeamFeatures Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.team_features"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamFeatures)
@@ -868,7 +868,7 @@ importGalleyTeamFeatures Env {..} path = do
 
 type RowGalleyTeamMember = (Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Maybe Permissions)
 
-selectGalleyTeamMember :: PrepQuery R (Identity (TeamId)) RowGalleyTeamMember
+selectGalleyTeamMember :: PrepQuery R (Identity TeamId) RowGalleyTeamMember
 selectGalleyTeamMember = "SELECT team, user, invited_at, invited_by, legalhold_status, perms FROM team_member WHERE team = ?"
 
 readGalleyTeamMember :: Env -> TeamId -> ConduitM () [RowGalleyTeamMember] IO ()
@@ -885,7 +885,7 @@ readGalleyTeamMemberAll Env {..} =
     paginateC selectGalleyTeamMemberAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamMemberFull :: Env -> FilePath -> IO ()
-exportGalleyTeamMemberFull env@Env {..} path = do
+exportGalleyTeamMemberFull env path = do
   putStrLn $ "Exporting " <> "galley.team_member" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -902,7 +902,7 @@ importGalleyTeamMember Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.team_member"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamMember)
@@ -914,7 +914,7 @@ importGalleyTeamMember Env {..} path = do
 
 type RowGalleyTeamNotifications = (Maybe UUID, Maybe TimeUuid, Maybe Blob)
 
-selectGalleyTeamNotifications :: PrepQuery R (Identity (TeamId)) RowGalleyTeamNotifications
+selectGalleyTeamNotifications :: PrepQuery R (Identity TeamId) RowGalleyTeamNotifications
 selectGalleyTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE team = ?"
 
 readGalleyTeamNotifications :: Env -> TeamId -> ConduitM () [RowGalleyTeamNotifications] IO ()
@@ -931,7 +931,7 @@ readGalleyTeamNotificationsAll Env {..} =
     paginateC selectGalleyTeamNotificationsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyTeamNotificationsFull :: Env -> FilePath -> IO ()
-exportGalleyTeamNotificationsFull env@Env {..} path = do
+exportGalleyTeamNotificationsFull env path = do
   putStrLn $ "Exporting " <> "galley.team_notifications" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -948,7 +948,7 @@ importGalleyTeamNotifications Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.team_notifications"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamNotifications)
@@ -960,7 +960,7 @@ importGalleyTeamNotifications Env {..} path = do
 
 type RowGalleyUser = (Maybe UUID, Maybe UUID, Maybe Text, Maybe UUID)
 
-selectGalleyUser :: PrepQuery R (Identity ([UserId])) RowGalleyUser
+selectGalleyUser :: PrepQuery R (Identity [UserId]) RowGalleyUser
 selectGalleyUser = "SELECT user, conv, conv_remote_domain, conv_remote_id FROM user WHERE user in ?"
 
 readGalleyUser :: Env -> [UserId] -> ConduitM () [RowGalleyUser] IO ()
@@ -977,7 +977,7 @@ readGalleyUserAll Env {..} =
     paginateC selectGalleyUserAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyUserFull :: Env -> FilePath -> IO ()
-exportGalleyUserFull env@Env {..} path = do
+exportGalleyUserFull env path = do
   putStrLn $ "Exporting " <> "galley.user" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -994,7 +994,7 @@ importGalleyUser Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.user"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyUser)
@@ -1006,7 +1006,7 @@ importGalleyUser Env {..} path = do
 
 type RowGalleyUserTeam = (Maybe UUID, Maybe UUID)
 
-selectGalleyUserTeam :: PrepQuery R (Identity ([UserId])) RowGalleyUserTeam
+selectGalleyUserTeam :: PrepQuery R (Identity [UserId]) RowGalleyUserTeam
 selectGalleyUserTeam = "SELECT user, team FROM user_team WHERE user in ?"
 
 readGalleyUserTeam :: Env -> [UserId] -> ConduitM () [RowGalleyUserTeam] IO ()
@@ -1023,7 +1023,7 @@ readGalleyUserTeamAll Env {..} =
     paginateC selectGalleyUserTeamAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGalleyUserTeamFull :: Env -> FilePath -> IO ()
-exportGalleyUserTeamFull env@Env {..} path = do
+exportGalleyUserTeamFull env path = do
   putStrLn $ "Exporting " <> "galley.user_team" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1040,7 +1040,7 @@ importGalleyUserTeam Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "galley.user_team"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGalley) (sinkTableRows insertGalleyUserTeam)
@@ -1052,7 +1052,7 @@ importGalleyUserTeam Env {..} path = do
 
 type RowGundeckNotifications = (Maybe UUID, Maybe TimeUuid, Maybe (Cassandra.Set Text), Maybe Blob)
 
-selectGundeckNotifications :: PrepQuery R (Identity ([UserId])) RowGundeckNotifications
+selectGundeckNotifications :: PrepQuery R (Identity [UserId]) RowGundeckNotifications
 selectGundeckNotifications = "SELECT user, id, clients, payload FROM notifications WHERE user in ?"
 
 readGundeckNotifications :: Env -> [UserId] -> ConduitM () [RowGundeckNotifications] IO ()
@@ -1069,7 +1069,7 @@ readGundeckNotificationsAll Env {..} =
     paginateC selectGundeckNotificationsAll (paramsP LocalQuorum () envPageSize) x5
 
 exportGundeckNotificationsFull :: Env -> FilePath -> IO ()
-exportGundeckNotificationsFull env@Env {..} path = do
+exportGundeckNotificationsFull env path = do
   putStrLn $ "Exporting " <> "gundeck.notifications" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1086,7 +1086,7 @@ importGundeckNotifications Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "gundeck.notifications"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envGundeck) (sinkTableRows insertGundeckNotifications)
@@ -1098,7 +1098,7 @@ importGundeckNotifications Env {..} path = do
 
 type RowSparScimExternal = (Maybe UUID, Maybe Text, Maybe UUID)
 
-selectSparScimExternal :: PrepQuery R (Identity (TeamId)) RowSparScimExternal
+selectSparScimExternal :: PrepQuery R (Identity TeamId) RowSparScimExternal
 selectSparScimExternal = "SELECT team, external_id, user FROM scim_external WHERE team = ?"
 
 readSparScimExternal :: Env -> TeamId -> ConduitM () [RowSparScimExternal] IO ()
@@ -1115,7 +1115,7 @@ readSparScimExternalAll Env {..} =
     paginateC selectSparScimExternalAll (paramsP LocalQuorum () envPageSize) x5
 
 exportSparScimExternalFull :: Env -> FilePath -> IO ()
-exportSparScimExternalFull env@Env {..} path = do
+exportSparScimExternalFull env path = do
   putStrLn $ "Exporting " <> "spar.scim_external" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1132,7 +1132,7 @@ importSparScimExternal Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "spar.scim_external"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envSpar) (sinkTableRows insertSparScimExternal)
@@ -1144,7 +1144,7 @@ importSparScimExternal Env {..} path = do
 
 type RowSparScimUserTimes = (Maybe UUID, Maybe UTCTime, Maybe UTCTime)
 
-selectSparScimUserTimes :: PrepQuery R (Identity ([UserId])) RowSparScimUserTimes
+selectSparScimUserTimes :: PrepQuery R (Identity [UserId]) RowSparScimUserTimes
 selectSparScimUserTimes = "SELECT uid, created_at, last_updated_at FROM scim_user_times WHERE uid in ?"
 
 readSparScimUserTimes :: Env -> [UserId] -> ConduitM () [RowSparScimUserTimes] IO ()
@@ -1161,7 +1161,7 @@ readSparScimUserTimesAll Env {..} =
     paginateC selectSparScimUserTimesAll (paramsP LocalQuorum () envPageSize) x5
 
 exportSparScimUserTimesFull :: Env -> FilePath -> IO ()
-exportSparScimUserTimesFull env@Env {..} path = do
+exportSparScimUserTimesFull env path = do
   putStrLn $ "Exporting " <> "spar.scim_user_times" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1178,7 +1178,7 @@ importSparScimUserTimes Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "spar.scim_user_times"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envSpar) (sinkTableRows insertSparScimUserTimes)
@@ -1190,7 +1190,7 @@ importSparScimUserTimes Env {..} path = do
 
 type RowSparUser = (Maybe Text, Maybe Text, Maybe UUID)
 
-selectSparUser :: PrepQuery R (Identity ([Text])) RowSparUser
+selectSparUser :: PrepQuery R (Identity [Text]) RowSparUser
 selectSparUser = "SELECT issuer, sso_id, uid FROM user WHERE issuer in ?"
 
 readSparUser :: Env -> [Text] -> ConduitM () [RowSparUser] IO ()
@@ -1207,7 +1207,7 @@ readSparUserAll Env {..} =
     paginateC selectSparUserAll (paramsP LocalQuorum () envPageSize) x5
 
 exportSparUserFull :: Env -> FilePath -> IO ()
-exportSparUserFull env@Env {..} path = do
+exportSparUserFull env path = do
   putStrLn $ "Exporting " <> "spar.user" <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
@@ -1224,7 +1224,7 @@ importSparUser Env {..} path = do
   if exists
     then do
       putStrLn $ "Importing " <> path <> " to " <> "spar.user"
-      withBinaryFile path ReadMode $ \handle -> do
+      withBinaryFile path ReadMode $ \handle ->
         runConduit $
           sourceJsonLines handle
             .| transPipe (runClient envSpar) (sinkTableRows insertSparUser)

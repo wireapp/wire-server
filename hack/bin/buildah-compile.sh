@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This compiles wire-server inside an alpine-based container based on quay.io/wire/alpine-builder.
+# This compiles wire-server inside an ubuntu-based container based on quay.io/wire/ubuntu20-builder.
 # the tool 'buildah' is used to mount some folders in, and to
 # keep the stack caches of .stack and .stack-work (renamed to avoid conflicts) for the next compilation
 
@@ -20,9 +20,9 @@ CONTAINER_NAME=wire-server-dev
 
 # check for the existence of; or create a working container
 buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
-    || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-builder:develop
+    || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/ubuntu20-builder:develop
 
-# The first time round, we want to copy the .stack folder from the alpine-builder for future use. Afterwards, we want to re-use the "dirty" stack root folder.
+# The first time round, we want to copy the .stack folder from the ubuntu20-builder for future use. Afterwards, we want to re-use the "dirty" stack root folder.
 # Current check hinges on the existence of a config file, and hardcodes some paths
 ls "$TOP_LEVEL/.stack-root-buildah/config.yaml" 2> /dev/null \
     || buildah run "$CONTAINER_NAME" -- cp -a /root/.stack/. /src/.stack-root-buildah/

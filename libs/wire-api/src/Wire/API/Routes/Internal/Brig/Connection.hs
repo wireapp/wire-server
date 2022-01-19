@@ -22,7 +22,7 @@ instance ToSchema ConnectionsStatusRequest where
     object "ConnectionsStatusRequest" $
       ConnectionsStatusRequest
         <$> csrFrom .= field "from" (array schema)
-        <*> csrTo .= optField "to" Nothing (array schema)
+        <*> csrTo .= maybe_ (optField "to" (array schema))
 
 data ConnectionsStatusRequestV2 = ConnectionsStatusRequestV2
   { csrv2From :: ![UserId],
@@ -37,8 +37,8 @@ instance ToSchema ConnectionsStatusRequestV2 where
     object "ConnectionsStatusRequestV2" $
       ConnectionsStatusRequestV2
         <$> csrv2From .= field "from" (array schema)
-        <*> csrv2To .= optField "to" Nothing (array schema)
-        <*> csrv2Relation .= optField "relation" Nothing schema
+        <*> csrv2To .= maybe_ (optField "to" (array schema))
+        <*> csrv2Relation .= maybe_ (optField "relation" schema)
 
 data ConnectionStatus = ConnectionStatus
   { csFrom :: !UserId,

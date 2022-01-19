@@ -39,6 +39,7 @@ import Federator.InternalServer
 import Federator.Response
 import Federator.Validation
 import Imports hiding (fromException)
+import qualified Network.HTTP.Media as HTTP
 import Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -53,7 +54,7 @@ import Wire.API.Federation.Domain
 
 -- | Thrown in IO by mock federator if the server could not be started after 10
 -- seconds.
-data MockTimeout = MockTimeout Warp.Port
+newtype MockTimeout = MockTimeout Warp.Port
   deriving (Eq, Show, Typeable)
 
 instance Exception MockTimeout
@@ -125,7 +126,7 @@ data FederatedRequest = FederatedRequest
 withTempMockFederator ::
   (MonadIO m, MonadMask m) =>
   [HTTP.Header] ->
-  (FederatedRequest -> IO LByteString) ->
+  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
   (Warp.Port -> m a) ->
   m (a, [FederatedRequest])
 withTempMockFederator headers resp action = do
@@ -159,12 +160,13 @@ withTempMockFederator headers resp action = do
                           frBody = rdBody
                         }
                     )
-              embed @IO $ modifyIORef remoteCalls $ (<> [fedRequest])
-              body <-
+              embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
+              (ct, body) <-
                 fromException @MockException
                   . handle (throw . handleException)
                   $ resp fedRequest
-              pure $ Wai.responseLBS HTTP.status200 headers body
+              let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
+              pure $ Wai.responseLBS HTTP.status200 headers' body
         respond response
   result <-
     bracket

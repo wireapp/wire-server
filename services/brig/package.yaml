@@ -17,6 +17,7 @@ custom-setup:
     - containers
     - directory
     - filepath
+    - text
 extra-source-files:
   - docs/*
 library:
@@ -102,10 +103,12 @@ library:
   - safe >=0.3
   - safe-exceptions >=0.1
   - saml2-web-sso
+  - schema-profunctor
   - scientific >=0.3.4
   - scrypt >=0.5
   - servant
   - servant-client
+  - servant-client-core
   - servant-server
   - servant-swagger
   - servant-swagger-ui
@@ -160,10 +163,12 @@ tests:
     - dns-util
     - http-types
     - imports
+    - lens
     - polysemy
     - polysemy-wire-zoo
     - retry
     - servant-client-core
+    - string-conversions
     - tasty
     - tasty-hunit
     - tasty-quickcheck
@@ -222,6 +227,7 @@ executables:
     - http-api-data
     - http-client
     - http-client-tls >=0.2
+    - http-media
     - http-types
     - imports
     - lens >=3.9

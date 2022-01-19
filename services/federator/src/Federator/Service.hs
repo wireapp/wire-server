@@ -15,34 +15,56 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Service where
+module Federator.Service
+  ( Service (..),
+    ServiceStreaming,
+    interpretServiceHTTP,
+    serviceCall,
+  )
+where
 
 -- FUTUREWORK(federation): Once we authenticate the call, we should send authentication data
 -- to brig so brig can do some authorization as required.
 
 import qualified Bilge as RPC
-import Bilge.RPC (rpc')
+import Control.Exception
 import Control.Lens (view)
+import Control.Monad.Codensity
+import qualified Data.ByteString as BS
 import Data.Domain
+import qualified Data.Sequence as Seq
 import Data.String.Conversions (cs)
-import qualified Data.Text.Lazy as LText
-import Federator.App
+import qualified Data.Text.Encoding as Text
 import Federator.Env
 import Imports
+import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
+import qualified Servant.Client.Core as Servant
+import Servant.Types.SourceT
+import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 
-newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
-  deriving (Eq, Show)
+type ServiceStreaming = Service (SourceT IO ByteString)
 
-data Service m a where
-  -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service m (HTTP.Status, Maybe LByteString)
+data Service body m a where
+  -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
+  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (Servant.ResponseF body)
 
 makeSem ''Service
+
+bodyReaderToStreamT :: Monad m => m ByteString -> SourceT m ByteString
+bodyReaderToStreamT action = fromStepT go
+  where
+    go = Effect $ do
+      chunk <- action
+      pure $
+        if BS.null chunk
+          then Stop
+          else Yield chunk go
 
 -- FUTUREWORK(federation): Do we want to use servant client here? May make
 -- everything typed and safe
@@ -52,19 +74,36 @@ makeSem ''Service
 --
 -- FUTUREWORK: unify this interpretation with similar ones in Galley
 --
--- FUTUREWORK: does it make sense to use a lower level abstraction instead of bilge here?
-interpretService ::
-  Members '[Embed IO, Input Env] r =>
-  Sem (Service ': r) a ->
+interpretServiceHTTP ::
+  Members '[Embed (Codensity IO), Input Env, TinyLog] r =>
+  Sem (ServiceStreaming ': r) a ->
   Sem r a
-interpretService = interpret $ \case
-  ServiceCall component path body domain -> embedApp @IO $ do
-    serviceReq <- view service <$> ask
-    res <-
-      rpc' (LText.pack (show component)) (serviceReq component) $
-        RPC.method HTTP.POST
-          . RPC.path path
-          . RPC.body (RPC.RequestBodyLBS body)
-          . RPC.contentJson
-          . RPC.header originDomainHeaderName (cs (domainText domain))
-    pure (RPC.responseStatus res, RPC.responseBody res)
+interpretServiceHTTP = interpret $ \case
+  ServiceCall component rpcPath body domain -> do
+    Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
+    manager <- inputs (view httpManager)
+    reqId <- inputs (view requestId)
+    let req =
+          defaultRequest
+            { method = HTTP.methodPost,
+              host = Text.encodeUtf8 serviceHost,
+              port = fromIntegral servicePort,
+              requestBody = RequestBodyLBS body,
+              path = rpcPath,
+              requestHeaders =
+                [ ("Content-Type", "application/json"),
+                  (originDomainHeaderName, cs (domainText domain)),
+                  (RPC.requestIdName, RPC.unRequestId reqId)
+                ]
+            }
+
+    embed $
+      Codensity $ \k ->
+        bracket (responseOpen req manager) responseClose $ \resp ->
+          k $
+            Servant.Response
+              { Servant.responseStatusCode = responseStatus resp,
+                Servant.responseHeaders = Seq.fromList (responseHeaders resp),
+                Servant.responseHttpVersion = HTTP.http11,
+                Servant.responseBody = bodyReaderToStreamT (responseBody resp)
+              }

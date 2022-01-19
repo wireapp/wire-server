@@ -204,7 +204,8 @@ data:
         suspendTimeout: {{ .setSuspendInactiveUsers.suspendTimeout }}
       {{- end }}
       setRichInfoLimit: {{ .setRichInfoLimit }}
-      setDefaultLocale: en
+      setDefaultTemplateLocale: en
+      setDefaultUserLocale: {{ .setDefaultUserLocale }}
       setMaxTeamSize: {{ .setMaxTeamSize }}
       setMaxConvSize: {{ .setMaxConvSize }}
       setEmailVisibility: {{ .setEmailVisibility }}

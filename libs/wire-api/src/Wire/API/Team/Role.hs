@@ -29,9 +29,9 @@ where
 import qualified Cassandra as Cql
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.ByteString.Conversion.From (runParser)
-import Data.ByteString.Lazy.Builder (toLazyByteString)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Model.Api as Doc
 import Imports

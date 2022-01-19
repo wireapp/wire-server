@@ -95,6 +95,6 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
     gOptions = general (emailSMS o)
     tOptions = team (emailSMS o)
     tUrl = template $ tInvitationUrl tOptions
-    defLocale = setDefaultLocale (optSettings o)
+    defLocale = setDefaultTemplateLocale (optSettings o)
     readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
     readText = readTextWithDefault (templateDir gOptions) defLocale "team"

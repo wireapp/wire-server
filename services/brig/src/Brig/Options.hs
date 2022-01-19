@@ -26,13 +26,15 @@ import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
+import Control.Applicative
 import qualified Control.Lens as Lens
-import Data.Aeson (withText)
+import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Scientific (toBoundedInteger)
@@ -439,9 +441,12 @@ data Settings = Settings
     --   field names and values), should be in sync
     --   with Spar
     setRichInfoLimit :: !Int,
-    -- | Default locale to use
-    --   (e.g. when selecting templates)
-    setDefaultLocale :: !Locale,
+    -- | Default locale to use when selecting templates
+    -- use `setDefaultTemplateLocale` as the getter function which always provides a default value
+    setDefaultTemplateLocaleInternal :: !(Maybe Locale),
+    -- | Default locale to use for users
+    -- use `setDefaultUserLocale` as the getter function which always provides a default value
+    setDefaultUserLocaleInternal :: !(Maybe Locale),
     -- | Max. # of members in a team.
     --   NOTE: This must be in sync with galley
     setMaxTeamSize :: !Word32,
@@ -474,7 +479,7 @@ data Settings = Settings
     --   setFederationAllowedDomains:
     --     - wire.com
     --     - example.com
-    setFederationDomain :: !(Domain),
+    setFederationDomain :: !Domain,
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -498,6 +503,18 @@ data Settings = Settings
     setSftStaticUrl :: !(Maybe HttpsUrl)
   }
   deriving (Show, Generic)
+
+defaultTemplateLocale :: Locale
+defaultTemplateLocale = Locale (Language EN) Nothing
+
+defaultUserLocale :: Locale
+defaultUserLocale = defaultTemplateLocale
+
+setDefaultUserLocale :: Settings -> Locale
+setDefaultUserLocale = fromMaybe defaultUserLocale . setDefaultUserLocaleInternal
+
+setDefaultTemplateLocale :: Settings -> Locale
+setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateLocaleInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -664,7 +681,16 @@ instance FromJSON Timeout where
               maybe defaultV fromIntegral bounded
   parseJSON v = typeMismatch "activationTimeout" v
 
-instance FromJSON Settings
+instance FromJSON Settings where
+  parseJSON = genericParseJSON customOptions
+    where
+      customOptions =
+        defaultOptions
+          { fieldLabelModifier = \case
+              "setDefaultUserLocaleInternal" -> "setDefaultUserLocale"
+              "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
+              other -> other
+          }
 
 instance FromJSON Opts
 

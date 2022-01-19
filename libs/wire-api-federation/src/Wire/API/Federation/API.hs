@@ -17,34 +17,48 @@
 
 module Wire.API.Federation.API
   ( FedApi,
-    clientRoutes,
+    HasFedEndpoint,
+    fedClient,
+    fedClientIn,
 
     -- * Re-exports
     Component (..),
   )
 where
 
-import Servant.Client.Generic
+import Data.Proxy
+import GHC.TypeLits
+import Imports
+import Servant.Client
+import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint
 
-class HasFederationAPI (comp :: Component) where
-  -- Note: this type family being injective means that in most cases there is no need
-  -- to add component annotations when invoking the federator client
-  type FedApi comp = (api :: * -> *) | api -> comp
-  clientRoutes :: FedApi comp (AsClientT (FederatorClient comp))
+-- Note: this type family being injective means that in most cases there is no need
+-- to add component annotations when invoking the federator client
+type family FedApi (comp :: Component) = (api :: *) | api -> comp
 
-instance HasFederationAPI 'Galley where
-  type FedApi 'Galley = GalleyApi
-  clientRoutes = genericClient
+type instance FedApi 'Galley = GalleyApi
 
-instance HasFederationAPI 'Brig where
-  type FedApi 'Brig = BrigApi
-  clientRoutes = genericClient
+type instance FedApi 'Brig = BrigApi
 
-instance HasFederationAPI 'Cargohold where
-  type FedApi 'Cargohold = CargoholdApi
-  clientRoutes = genericClient
+type instance FedApi 'Cargohold = CargoholdApi
+
+type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name)
+
+-- | Return a client for a named endpoint.
+fedClient ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  Client m api
+fedClient = clientIn (Proxy @api) (Proxy @m)
+
+fedClientIn ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api) =>
+  Client m api
+fedClientIn = clientIn (Proxy @api) (Proxy @m)

@@ -25,7 +25,7 @@ pkgs.haskell.lib.buildStackProject {
     zlib
     lzma
   ];
-  ghc = pkgs.haskell.compiler.ghc884;
+  ghc = pkgs.haskell.compiler.ghc8107;
 
   # This is required as the environment variables exported before running stack
   # do not make it into the shell in which stack runs test.

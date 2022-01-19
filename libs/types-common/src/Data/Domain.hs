@@ -30,7 +30,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
-import Data.Schema hiding (opt)
+import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text

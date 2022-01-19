@@ -106,6 +106,12 @@ instance
 
 instance
   (RoutesToPaths rest) =>
+  RoutesToPaths (StreamBody' opts framing ct a :> rest)
+  where
+  getRoutes = getRoutes @rest
+
+instance
+  (RoutesToPaths rest) =>
   RoutesToPaths (Summary summary :> rest)
   where
   getRoutes = getRoutes @rest
@@ -129,6 +135,9 @@ instance RoutesToPaths (Verb method status cts a) where
   getRoutes = []
 
 instance RoutesToPaths (NoContentVerb method) where
+  getRoutes = []
+
+instance RoutesToPaths (Stream method status framing ct a) where
   getRoutes = []
 
 -- route :<|> routes

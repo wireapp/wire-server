@@ -13,7 +13,7 @@ self: super: {
           rev = "4067ad96b125942545dbdec8c1a89f1e1b65d013";
           sha256 = "1i9dlhw0xk1viglyhail9fb36v1awrypps8jmhrkz8k1bhx98ci3";
         };
-        cargoSha256 = "0zs8ibv7rinrrzp9naxd7yak7kn1gp3pjb3g8i4wf7xw2hkkq81z";
+        cargoSha256 = "sha256-Afr3ShCXDCwTQNdeCZbA5/aosRt+KFpGfT1mrob6cog=";
 
         patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libcryptobox.dylib $out/lib/libcryptobox.dylib
@@ -37,7 +37,7 @@ self: super: {
         src = self.nix-gitignore.gitignoreSourcePure [ ../../.gitignore ] ../../libs/libzauth;
         sourceRoot = "libzauth/libzauth-c";
 
-        cargoSha256 = "10ijvi3rnnqpy589hhhp8s4p7xfpsbb1c3mzqnf65ra96q4nd6bf"; # self.lib.fakeSha256;
+        cargoSha256 = "sha256-umwOVCFHtszu64aIc8eqMPGCS7vt1nYQFAQh2XuV+v4="; # self.lib.fakeSha256;
 
         patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libzauth.dylib $out/lib/libzauth.dylib

@@ -72,7 +72,7 @@ data WatchedPath
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform WatchedPath)
 
-mergePaths :: [WatchedPath] -> (Set WatchedPath)
+mergePaths :: [WatchedPath] -> Set WatchedPath
 mergePaths = Set.fromList . merge . sort
   where
     merge [] = []

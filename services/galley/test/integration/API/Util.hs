@@ -92,13 +92,12 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
+import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
 import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
-import Servant.API.Generic (ToServantApi)
-import Servant.Server.Generic (AsServerT, genericServerT)
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -114,14 +113,14 @@ import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
-import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Component
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Team.Member (mkNewTeamMember)
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Identity (mkSimpleSampleUref)
@@ -148,7 +147,7 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
   ownerid <- randomTeamCreator
-  teams <- getTeams ownerid
+  teams <- getTeams ownerid []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
@@ -175,13 +174,14 @@ createBindingTeamWithQualifiedMembers num = do
   (tid, owner, users) <- createBindingTeamWithMembers num
   pure (tid, Qualified owner localDomain, map (`Qualified` localDomain) users)
 
-getTeams :: UserId -> TestM TeamList
-getTeams u = do
+getTeams :: UserId -> [(ByteString, Maybe ByteString)] -> TestM TeamList
+getTeams u queryItems = do
   g <- view tsGalley
   r <-
     get
       ( g
           . paths ["teams"]
+          . query queryItems
           . zUser u
           . zConn "conn"
           . zType "access"
@@ -358,7 +358,7 @@ getTeamMemberInternal tid mid = do
 addTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
 addTeamMember usr tid muid mperms mmbinv = do
   g <- view tsGalley
-  let payload = json (newNewTeamMember muid mperms mmbinv)
+  let payload = json (mkNewTeamMember muid mperms mmbinv)
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
     !!! const 200 === statusCode
 
@@ -370,7 +370,7 @@ addTeamMemberInternal tid muid mperms mmbinv = addTeamMemberInternal' tid muid m
 addTeamMemberInternal' :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ResponseLBS
 addTeamMemberInternal' tid muid mperms mmbinv = do
   g <- view tsGalley
-  let payload = json (newNewTeamMember muid mperms mmbinv)
+  let payload = json (mkNewTeamMember muid mperms mmbinv)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
 
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
@@ -417,7 +417,7 @@ addUserToTeamWithSSO hasEmail tid = do
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
   galley <- view tsGalley
-  let changeMember = newNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
+  let changeMember = mkNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]
@@ -686,8 +686,8 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> FederatedBrig.BrigApi (AsServerT Handler)) ->
-  (Domain -> FederatedGalley.GalleyApi (AsServerT Handler)) ->
+  (Domain -> ServerT (FedApi 'Brig) Handler) ->
+  (Domain -> ServerT (FedApi 'Galley) Handler) ->
   TestM (ResponseLBS, [FederatedRequest])
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
@@ -1248,21 +1248,19 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  FederatedGalley.onConversationCreated
-    (fedGalleyClient (qDomain convId))
-    ( FederatedGalley.NewRemoteConversation
-        { FederatedGalley.rcTime = now,
-          FederatedGalley.rcOrigUserId = originUser,
-          FederatedGalley.rcCnvId = qUnqualified convId,
-          FederatedGalley.rcCnvType = RegularConv,
-          FederatedGalley.rcCnvAccess = [],
-          FederatedGalley.rcCnvAccessRole = ActivatedAccessRole,
-          FederatedGalley.rcCnvName = name,
-          FederatedGalley.rcNonCreatorMembers = othMembers,
-          FederatedGalley.rcMessageTimer = Nothing,
-          FederatedGalley.rcReceiptMode = Nothing
-        }
-    )
+  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+    NewRemoteConversation
+      { rcTime = now,
+        rcOrigUserId = originUser,
+        rcCnvId = qUnqualified convId,
+        rcCnvType = RegularConv,
+        rcCnvAccess = [],
+        rcCnvAccessRole = ActivatedAccessRole,
+        rcCnvName = name,
+        rcNonCreatorMembers = othMembers,
+        rcMessageTimer = Nothing,
+        rcReceiptMode = Nothing
+      }
 
 -------------------------------------------------------------------------------
 -- Common Assertions
@@ -1505,10 +1503,10 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
   let Just cu = decode (frBody req)
-  FederatedGalley.cuOrigUserId cu @?= remover
-  FederatedGalley.cuConvId cu @?= qUnqualified qconvId
-  sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
+  cuOrigUserId cu @?= remover
+  cuConvId cu @?= qUnqualified qconvId
+  sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
+  cuAction cu @?= ConversationActionRemoveMembers (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1738,7 +1736,10 @@ randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
 
 randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
-randomUser' isCreator hasPassword hasEmail = do
+randomUser' isCreator hasPassword hasEmail = userQualifiedId . selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
+
+randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
+randomUserProfile' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
   let p =
@@ -1747,8 +1748,7 @@ randomUser' isCreator hasPassword hasEmail = do
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
             <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
-  selfProfile <- responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
-  pure . userQualifiedId . selfUser $ selfProfile
+  responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do
@@ -2039,9 +2039,9 @@ mkConv ::
   UserId ->
   RoleName ->
   [OtherMember] ->
-  FederatedGalley.RemoteConversation
+  RemoteConversation
 mkConv cnvId creator selfRole otherMembers =
-  FederatedGalley.RemoteConversation
+  RemoteConversation
     cnvId
     ( ConversationMetadata
         RegularConv
@@ -2053,7 +2053,7 @@ mkConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
     )
-    (FederatedGalley.RemoteConvMembers selfRole otherMembers)
+    (RemoteConvMembers selfRole otherMembers)
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()
@@ -2237,17 +2237,20 @@ withTempMockFederator' ::
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   opts <- viewGalleyOpts
-  Mock.withTempMockFederator [("Content-Type", "application/json")] resp $ \mockPort -> do
-    let opts' =
-          opts & Opts.optFederator
-            ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
-    withSettingsOverrides opts' action
+  Mock.withTempMockFederator
+    [("Content-Type", "application/json")]
+    ((\r -> pure ("application" // "json", r)) <=< resp)
+    $ \mockPort -> do
+      let opts' =
+            opts & Opts.optFederator
+              ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
+      withSettingsOverrides opts' action
 
 -- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
 withTempServantMockFederator ::
   (MonadMask m, MonadIO m, HasGalley m) =>
-  (Domain -> FederatedBrig.BrigApi (AsServerT Handler)) ->
-  (Domain -> FederatedGalley.GalleyApi (AsServerT Handler)) ->
+  (Domain -> ServerT (FedApi 'Brig) Handler) ->
+  (Domain -> ServerT (FedApi 'Galley) Handler) ->
   Domain ->
   SessionT m b ->
   m (b, [FederatedRequest])
@@ -2255,13 +2258,13 @@ withTempServantMockFederator brigApi galleyApi originDomain =
   withTempMockFederator' mock
   where
     server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
-    server d = genericServerT (brigApi d) :<|> genericServerT (galleyApi d)
+    server d = brigApi d :<|> galleyApi d
 
     mock :: FederatedRequest -> IO LByteString
     mock req =
       makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
 
-type CombinedBrigAndGalleyAPI = ToServantApi FederatedBrig.BrigApi :<|> ToServantApi FederatedGalley.GalleyApi
+type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.

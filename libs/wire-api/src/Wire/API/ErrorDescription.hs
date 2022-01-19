@@ -2,7 +2,6 @@ module Wire.API.ErrorDescription where
 
 import Control.Lens (at, (%~), (.~), (<>~), (?~))
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as LBS
 import Data.Metrics.Servant
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
@@ -13,12 +12,15 @@ import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
+import Network.HTTP.Types as HTTP
 import Servant hiding (Handler, addHeader, contentType, respond)
 import Servant.API (contentType)
 import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
 import Servant.API.Status (KnownStatus, statusVal)
+import Servant.Client.Core
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
+import Wire.API.Team.Permission
 
 -- This can be added to an endpoint to document a possible failure
 -- case outside its return type (usually through an exception).
@@ -113,6 +115,7 @@ instance
   IsResponse cs (ErrorDescription s label desc)
   where
   type ResponseStatus (ErrorDescription s label desc) = s
+  type ResponseBody (ErrorDescription s label desc) = LByteString
 
   responseRender = responseRender @cs @(RespondWithErrorDescription s label desc)
   responseUnrender = responseUnrender @cs @(RespondWithErrorDescription s label desc)
@@ -160,18 +163,20 @@ instance
   IsResponse cs (EmptyErrorForLegacyReasons s desc)
   where
   type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
+  type ResponseBody (EmptyErrorForLegacyReasons s desc) = ()
 
   responseRender _ () =
     pure $
-      roAddContentType
+      addContentType
         (contentType (Proxy @PlainText))
-        (RenderOutput (statusVal (Proxy @s)) mempty mempty)
+        Response
+          { responseStatusCode = statusVal (Proxy @s),
+            responseHeaders = mempty,
+            responseBody = (),
+            responseHttpVersion = HTTP.http11
+          }
 
-  responseUnrender _ output =
-    guard
-      ( LBS.null (roBody output)
-          && roStatus output == statusVal (Proxy @s)
-      )
+  responseUnrender _ output = guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
   (KnownStatus s, KnownSymbol desc) =>
@@ -230,6 +235,11 @@ noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code 
 
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 
+-- FUTUREWORK(leif): We need this to document possible (operation denied) errors in the servant routes.
+-- Be aware that this is redundant and should be replaced by a more type safe solution in the future.
+type family OperationDeniedError (a :: Perm) :: * where
+  OperationDeniedError 'SetTeamData = ErrorDescription 403 "operation-denied" "Insufficient permissions (missing SetTeamData)"
+
 operationDeniedSpecialized :: String -> OperationDenied
 operationDeniedSpecialized p =
   ErrorDescription $
@@ -239,6 +249,8 @@ operationDenied :: Show perm => perm -> OperationDenied
 operationDenied = operationDeniedSpecialized . show
 
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
+
+type Unauthorised = ErrorDescription 403 "unauthorised" "Unauthorised operation"
 
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
@@ -260,6 +272,8 @@ type ConnectionNotFound = ErrorDescription 404 "not-found" "Connection not found
 type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
 type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
+
+type GuestLinksDisabled = ErrorDescription 409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."
 
 type MissingAuth =
   ErrorDescription
@@ -310,3 +324,9 @@ type InvalidOpOne2OneConv = InvalidOp "invalid operation for 1:1 conversations"
 type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversation"
 
 type InvalidTargetAccess = InvalidOp "invalid target access"
+
+type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
+
+type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
+
+type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"

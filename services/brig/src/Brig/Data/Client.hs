@@ -56,7 +56,7 @@ import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Random (Random (randomRIO))
+import Control.Monad.Random (randomRIO)
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')

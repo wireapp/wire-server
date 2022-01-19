@@ -21,10 +21,10 @@ import Imports
 import Network.DNS (Domain, Resolver)
 import qualified Network.DNS as DNS
 import Polysemy
-import Wire.Network.DNS.SRV
+import qualified Wire.Network.DNS.SRV as SRV
 
 data DNSLookup m a where
-  LookupSRV :: Domain -> DNSLookup m SrvResponse
+  LookupSRV :: Domain -> DNSLookup m SRV.SrvResponse
 
 makeSem ''DNSLookup
 
@@ -33,8 +33,8 @@ runDNSLookupDefault =
   interpret $ \(LookupSRV domain) -> embed $ do
     rs <- DNS.makeResolvSeed DNS.defaultResolvConf
     DNS.withResolver rs $ \resolver ->
-      interpretResponse <$> DNS.lookupSRV resolver domain
+      SRV.interpretResponse <$> DNS.lookupSRV resolver domain
 
 runDNSLookupWithResolver :: Member (Embed IO) r => Resolver -> Sem (DNSLookup ': r) a -> Sem r a
-runDNSLookupWithResolver resolver =
-  interpret $ \(LookupSRV domain) -> embed (interpretResponse <$> DNS.lookupSRV resolver domain)
+runDNSLookupWithResolver resolver = interpret $ \(LookupSRV domain) ->
+  embed (SRV.interpretResponse <$> DNS.lookupSRV resolver domain)

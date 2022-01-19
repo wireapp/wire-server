@@ -16,62 +16,27 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.API.Public
-  ( sitemap,
-    apiDocs,
+  ( API,
+    publicAPIServer,
   )
 where
 
-import Cannon.App
+import Cannon.App (wsapp)
 import Cannon.Types
 import Cannon.WS
-import Data.Id (ClientId, ConnId, UserId)
-import Data.Swagger.Build.Api hiding (Response)
-import Imports
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Handler.WebSockets
-import Network.Wai.Predicate
-import Network.Wai.Routing
-import Network.Wai.Utilities
-import Network.Wai.Utilities.Swagger
-import qualified Network.WebSockets as Ws
+import Control.Monad.IO.Class
+import Data.Id
+import GHC.Base
+import Network.WebSockets.Connection
+import Servant
+import Wire.API.Routes.Public.Cannon
 
-sitemap :: Routes ApiBuilder Cannon ()
-sitemap = do
-  get "/await" (continue awaitH) $
-    header "Z-User"
-      .&. header "Z-Connection"
-      .&. opt (query "client")
-      .&. request
-  document "GET" "await" $ do
-    summary "Establish websocket connection"
-    parameter Header "Upgrade" (string $ enum ["websocket"]) end
-    parameter Header "Connection" (string $ enum ["upgrade"]) end
-    parameter Header "Sec-WebSocket-Key" bytes' $
-      description "16-bytes base64 encoded nonce"
-    parameter Header "Sec-WebSocket-Version" (int32 $ enum [13]) end
-    parameter Query "client" string' $ do
-      optional
-      description "Client ID"
-    response 426 "Upgrade required" end
+type API = ServantAPI :<|> Raw
 
-apiDocs :: Routes ApiBuilder Cannon ()
-apiDocs = do
-  get "/await/api-docs" (continue docsH) $
-    accept "application" "json"
-      .&. query "base_url"
+publicAPIServer :: ServerT ServantAPI Cannon
+publicAPIServer = streamData
 
-docsH :: Media "application" "json" ::: Text -> Cannon Response
-docsH (_ ::: url) = do
-  let doc = mkSwaggerApi url [] sitemap
-  return $ json doc
-
-awaitH :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
-awaitH (u ::: a ::: c ::: r) = do
+streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
+streamData userId connId clientId con = do
   e <- wsenv
-  case websocketsApp wsoptions (wsapp (mkKey u a) c e) r of
-    Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
-    Just rs -> return rs -- ensure all middlewares ignore RawResponse - see Note [Raw Response]
-  where
-    status426 = mkStatus 426 "Upgrade Required"
-    wsoptions = Ws.defaultConnectionOptions
+  liftIO $ wsapp (mkKey userId connId) clientId e con

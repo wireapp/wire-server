@@ -26,7 +26,6 @@ import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
-import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
@@ -81,11 +80,6 @@ tests =
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
       testRoundTrip @Asset.Asset,
-      testRoundTrip @Asset.Resumable.ResumableSettings,
-      testRoundTrip @Asset.Resumable.TotalSize,
-      testRoundTrip @Asset.Resumable.ChunkSize,
-      testRoundTrip @Asset.Resumable.Offset,
-      testRoundTrip @Asset.Resumable.ResumableAsset,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.Scheme,
       testRoundTrip @Call.Config.Transport,

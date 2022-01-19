@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,325 +15,166 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.API.Public
-  ( sitemap,
-    apiDocs,
-  )
-where
+module CargoHold.API.Public (servantSitemap) where
 
-import qualified CargoHold.API.Error as Error
 import qualified CargoHold.API.Legacy as LegacyAPI
+import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
-import qualified CargoHold.API.V3.Resumable as Resumable
 import CargoHold.App
-import CargoHold.Options
-import qualified CargoHold.TUS as TUS
-import qualified CargoHold.Types.V3 as V3 (Principal (..))
-import Control.Error
-import Control.Lens (view, (^.))
-import Data.ByteString.Conversion
+import CargoHold.Federation
+import qualified CargoHold.Types.V3 as V3
+import Control.Lens
+import Data.ByteString.Builder
+import qualified Data.ByteString.Lazy as LBS
+import Data.Domain
 import Data.Id
-import Data.Predicate
-import qualified Data.Swagger.Build.Api as Doc
-import Data.Text.Encoding (decodeLatin1)
+import Data.Qualified
 import Imports hiding (head)
-import Network.HTTP.Types.Status
-import Network.Wai (Request, Response)
-import Network.Wai.Conduit (sourceRequestBody)
-import Network.Wai.Predicate hiding (Error, setStatus)
-import Network.Wai.Routing
-import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import qualified Network.Wai.Utilities.Swagger as Doc
-import Network.Wai.Utilities.ZAuth
+import qualified Network.HTTP.Types as HTTP
+import Servant.API
+import Servant.Server hiding (Handler)
 import URI.ByteString
-import qualified Wire.API.Asset as Public
+import Wire.API.Asset
+import Wire.API.Routes.AssetBody
+import Wire.API.Routes.Public.Cargohold
 
-sitemap :: Routes Doc.ApiBuilder Handler ()
-sitemap = do
-  ---------------------------------------------------------------------------
-  -- User API
-
-  -- Simple (one-step) Upload
-
-  post "/assets/v3" (continue uploadAssetV3) $
-    header "Z-User"
-      .&. contentType "multipart" "mixed"
-      .&. request
-  document "POST" "uploadAsset" $ do
-    Doc.summary "Upload an asset. In the multipart/mixed body, the first section's content type should be application/json. The second section's content type should be always application/octet-stream. Other content types will be ignored by the server."
-    Doc.consumes "multipart/mixed"
-    Doc.errorResponse Error.assetTooLarge
-    Doc.errorResponse Error.invalidLength
-    Doc.response 201 "Asset posted" Doc.end
-
-  --- Resumable (multi-step) Upload
-
-  -- TODO: swagger doc
-  options "/assets/v3/resumable" (continue resumableOptionsV3) $
-    header "Z-User"
-
-  -- TODO (Compliance): Require and check Tus-Resumable header
-  -- against supported version(s).
-  post "/assets/v3/resumable" (continue createResumableV3) $
-    header "Z-User"
-      .&. header "Upload-Length"
-      .&. jsonRequest @Public.ResumableSettings
-
-  -- TODO (Compliance): Require and check Tus-Resumable header
-  -- against supported version(s).
-  head "/assets/v3/resumable/:key" (continue statusResumableV3) $
-    header "Z-User"
-      .&. capture "key"
-
-  -- TODO (Compliance): Require and check Tus-Resumable header
-  -- against supported version(s).
-  patch "/assets/v3/resumable/:key" (continue uploadResumableV3) $
-    header "Z-User"
-      .&. header "Upload-Offset"
-      .&. header "Content-Length"
-      .&. contentType "application" "offset+octet-stream"
-      .&. capture "key"
-      .&. request
-
-  --- Download
-
-  get "/assets/v3/:key" (continue downloadAssetV3) $
-    header "Z-User"
-      .&. capture "key"
-      .&. opt (header "Asset-Token" .|. query "asset_token")
-  document "GET" "downloadAsset" $ do
-    Doc.summary "Download an asset"
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.parameter Doc.Header "Asset-Token" Doc.bytes' $ do
-      Doc.description "Asset token"
-      Doc.optional
-    Doc.errorResponse Error.assetNotFound
-    Doc.response 302 "Asset found" Doc.end
-
-  --- Token Management
-
-  post "/assets/v3/:key/token" (continue renewTokenV3) $
-    header "Z-User"
-      .&. capture "key"
-  document "POST" "renewAssetToken" $ do
-    Doc.summary "Renew an asset token"
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.response 200 "Asset token renewed" Doc.end
-    Doc.errorResponse Error.assetNotFound
-    Doc.errorResponse Error.unauthorised
-
-  delete "/assets/v3/:key/token" (continue deleteTokenV3) $
-    header "Z-User"
-      .&. capture "key"
-  document "DELETE" "deleteAssetToken" $ do
-    Doc.summary "Delete an asset token"
-    Doc.notes "Deleting the token makes the asset public."
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.response 200 "Asset token deleted" Doc.end
-
-  --- Deletion
-
-  delete "/assets/v3/:key" (continue deleteAssetV3) $
-    header "Z-User"
-      .&. capture "key"
-  document "DELETE" "deleteAsset" $ do
-    Doc.summary "Delete an asset"
-    Doc.parameter Doc.Path "key" Doc.bytes' $
-      Doc.description "Asset key"
-    Doc.response 200 "Asset deleted" Doc.end
-    Doc.errorResponse Error.assetNotFound
-    Doc.errorResponse Error.unauthorised
-
-  ---------------------------------------------------------------------------
-  -- Provider API
-
-  post "/provider/assets" (continue providerUploadV3) $
-    zauth ZAuthProvider
-      .&> contentType "multipart" "mixed"
-      .&> zauthProviderId
-      .&. request
-
-  get "/provider/assets/:key" (continue providerDownloadV3) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-      .&. capture "key"
-      .&. opt (header "Asset-Token" .|. query "asset_token")
-
-  delete "/provider/assets/:key" (continue providerDeleteV3) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-      .&. capture "key"
-
-  ---------------------------------------------------------------------------
-  -- Bot API
-
-  post "/bot/assets" (continue botUploadV3) $
-    zauth ZAuthBot
-      .&> contentType "multipart" "mixed"
-      .&> zauthBotId
-      .&. request
-
-  get "/bot/assets/:key" (continue botDownloadV3) $
-    zauth ZAuthBot
-      .&> zauthBotId
-      .&. capture "key"
-      .&. opt (header "Asset-Token" .|. query "asset_token")
-
-  delete "/bot/assets/:key" (continue botDeleteV3) $
-    zauth ZAuthBot
-      .&> zauthBotId
-      .&. capture "key"
-
-  -- Legacy
-
-  get "/assets/:id" (continue legacyDownloadPlain) $
-    header "Z-User"
-      .&. param "conv_id"
-      .&. capture "id"
-
-  get "/conversations/:cnv/assets/:id" (continue legacyDownloadPlain) $
-    header "Z-User"
-      .&. capture "cnv"
-      .&. capture "id"
-
-  get "/conversations/:cnv/otr/assets/:id" (continue legacyDownloadOtr) $
-    header "Z-User"
-      .&. capture "cnv"
-      .&. capture "id"
-
-apiDocs :: Routes Doc.ApiBuilder Handler ()
-apiDocs = do
-  get
-    "/assets/api-docs"
-    ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) [] sitemap
-         in k $ json doc
-    )
-    $ accept "application" "json"
-      .&. query "base_url"
-
------------------------------------------------------------------------------
--- User API Handlers
-
--- FUTUREWORK: make these types more descriptive than 'Request' -> 'Response'
-uploadAssetV3 :: UserId ::: Media "multipart" "mixed" ::: Request -> Handler Response
-uploadAssetV3 (usr ::: _ ::: req) = do
-  let principal = V3.UserPrincipal usr
-  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
-
-downloadAssetV3 :: UserId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
-downloadAssetV3 (usr ::: key ::: tok) = do
-  url <- V3.download (V3.UserPrincipal usr) key tok
-  redirect url
-
-deleteAssetV3 :: UserId ::: Public.AssetKey -> Handler Response
-deleteAssetV3 (usr ::: key) = do
-  V3.delete (V3.UserPrincipal usr) key
-  return empty
-
-renewTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
-renewTokenV3 (usr ::: key) = do
-  tok <- V3.renewToken (V3.UserPrincipal usr) key
-  return $ json (Public.NewAssetToken tok)
-
-deleteTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
-deleteTokenV3 (usr ::: key) = do
-  V3.deleteToken (V3.UserPrincipal usr) key
-  return empty
-
-resumableOptionsV3 :: UserId -> Handler Response
-resumableOptionsV3 _ = do
-  maxTotal <- view (settings . setMaxTotalBytes)
-  return $ TUS.optionsResponse (fromIntegral maxTotal) empty
-
-createResumableV3 :: UserId ::: Public.TotalSize ::: JsonRequest Public.ResumableSettings -> Handler Response
-createResumableV3 (u ::: size ::: req) = do
-  sets <- parseBody req !>> Error.clientError
-  res <- Resumable.create (V3.UserPrincipal u) sets size
-  let key = res ^. Public.resumableAsset . Public.assetKey
-  let expiry = res ^. Public.resumableExpires
-  let loc = "/assets/v3/resumable/" <> toByteString' key
-  return . TUS.createdResponse loc expiry $ json (res :: Public.ResumableAsset)
-
-statusResumableV3 :: UserId ::: Public.AssetKey -> Handler Response
-statusResumableV3 (u ::: a) = do
-  stat <- Resumable.status (V3.UserPrincipal u) a
-  return $ case stat of
-    Nothing -> setStatus status404 empty
-    Just st -> TUS.headResponse st empty
-
--- Request = raw bytestring
-uploadResumableV3 :: UserId ::: Public.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: Public.AssetKey ::: Request -> Handler Response
-uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
-  (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
-  return $ TUS.patchResponse offset' expiry empty
-
---------------------------------------------------------------------------------
--- Provider API Handlers
-
-providerUploadV3 :: ProviderId ::: Request -> Handler Response
-providerUploadV3 (prv ::: req) = do
-  let principal = V3.ProviderPrincipal prv
-  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
-
-providerDownloadV3 :: ProviderId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
-providerDownloadV3 (prv ::: key ::: tok) = do
-  url <- V3.download (V3.ProviderPrincipal prv) key tok
-  redirect url
-
-providerDeleteV3 :: ProviderId ::: Public.AssetKey -> Handler Response
-providerDeleteV3 (prv ::: key) = do
-  V3.delete (V3.ProviderPrincipal prv) key
-  return empty
-
---------------------------------------------------------------------------------
--- Bot API Handlers
-
-botUploadV3 :: BotId ::: Request -> Handler Response
-botUploadV3 (bot ::: req) = do
-  let principal = V3.BotPrincipal bot
-  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
-
-botDownloadV3 :: BotId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
-botDownloadV3 (bot ::: key ::: tok) = do
-  url <- V3.download (V3.BotPrincipal bot) key tok
-  redirect url
-
-botDeleteV3 :: BotId ::: Public.AssetKey -> Handler Response
-botDeleteV3 (bot ::: key) = do
-  V3.delete (V3.BotPrincipal bot) key
-  return empty
-
---------------------------------------------------------------------------------
--- Helpers
-
-assetResponse :: V3.Principal -> Public.Asset -> Response
-assetResponse prc asset =
-  setStatus status201 . loc (asset ^. Public.assetKey) $ json asset
+servantSitemap :: ServerT ServantAPI Handler
+servantSitemap =
+  renewTokenV3 :<|> deleteTokenV3
+    :<|> userAPI
+    :<|> botAPI
+    :<|> providerAPI
+    :<|> qualifiedAPI
+    :<|> legacyAPI
+    :<|> internalAPI
   where
-    loc k = location $ case prc of
-      V3.UserPrincipal {} -> "/assets/v3/" <> toByteString k
-      V3.BotPrincipal {} -> "/bot/assets/" <> toByteString k
-      V3.ProviderPrincipal {} -> "/provider/assets/" <> toByteString k
+    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
+    userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPIv3 tag) Handler
+    botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
+    providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
+    qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
+    internalAPI = pure ()
 
-redirect :: Maybe URI -> Handler Response
-redirect (Just url) = return . setStatus status302 $ location (serializeURIRef url) empty
-redirect Nothing = throwE Error.assetNotFound
-{-# INLINE redirect #-}
+class HasLocation (tag :: PrincipalTag) where
+  assetLocation :: Local AssetKey -> [Text]
 
-location :: ToByteString a => a -> Response -> Response
-location = addHeader "Location" . toByteString'
-{-# INLINE location #-}
+instance HasLocation 'UserPrincipalTag where
+  assetLocation key =
+    [ "assets",
+      "v4",
+      domainText (tDomain key),
+      assetKeyToText (tUnqualified key)
+    ]
 
---------------------------------------------------------------------------------
--- Legacy
+instance HasLocation 'BotPrincipalTag where
+  assetLocation key =
+    [ "bot",
+      "assets",
+      assetKeyToText (tUnqualified key)
+    ]
 
-legacyDownloadPlain :: UserId ::: ConvId ::: AssetId -> Handler Response
-legacyDownloadPlain (usr ::: cnv ::: ast) = LegacyAPI.download usr cnv ast >>= redirect
+instance HasLocation 'ProviderPrincipalTag where
+  assetLocation key =
+    [ "provider",
+      "assets",
+      assetKeyToText (tUnqualified key)
+    ]
 
-legacyDownloadOtr :: UserId ::: ConvId ::: AssetId -> Handler Response
-legacyDownloadOtr (usr ::: cnv ::: ast) = LegacyAPI.downloadOtr usr cnv ast >>= redirect
+class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
+  mkPrincipal :: id -> V3.Principal
+
+instance MakePrincipal 'UserPrincipalTag (Local UserId) where
+  mkPrincipal = V3.UserPrincipal . tUnqualified
+
+instance MakePrincipal 'BotPrincipalTag BotId where
+  mkPrincipal = V3.BotPrincipal
+
+instance MakePrincipal 'ProviderPrincipalTag ProviderId where
+  mkPrincipal = V3.ProviderPrincipal
+
+mkAssetLocation ::
+  forall (tag :: PrincipalTag).
+  HasLocation tag =>
+  Local AssetKey ->
+  AssetLocation Relative
+mkAssetLocation key =
+  AssetLocation
+    RelativeRef
+      { rrAuthority = Nothing,
+        rrPath = path,
+        rrQuery = mempty,
+        rrFragment = Nothing
+      }
+  where
+    path =
+      LBS.toStrict
+        . toLazyByteString
+        . HTTP.encodePathSegmentsRelative
+        $ assetLocation @tag key
+
+uploadAssetV3 ::
+  forall tag id.
+  MakePrincipal tag id =>
+  id ->
+  AssetSource ->
+  Handler (Asset, AssetLocation Relative)
+uploadAssetV3 pid req = do
+  let principal = mkPrincipal pid
+  asset <- V3.upload principal (getAssetSource req)
+  pure (fmap qUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
+
+downloadAssetV3 ::
+  MakePrincipal tag id =>
+  id ->
+  AssetKey ->
+  Maybe AssetToken ->
+  Maybe AssetToken ->
+  Handler (Maybe (AssetLocation Absolute))
+downloadAssetV3 usr key tok1 tok2 = do
+  AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2)
+
+downloadAssetV4 ::
+  Local UserId ->
+  Qualified AssetKey ->
+  Maybe AssetToken ->
+  Maybe AssetToken ->
+  Handler (Maybe LocalOrRemoteAsset)
+downloadAssetV4 usr qkey tok1 tok2 =
+  let tok = tok1 <|> tok2
+   in foldQualified
+        usr
+        ( \lkey ->
+            LocalAsset . AssetLocation
+              <$$> V3.download (mkPrincipal usr) (tUnqualified lkey) tok
+        )
+        ( \rkey ->
+            RemoteAsset
+              <$$> downloadRemoteAsset usr rkey tok
+        )
+        qkey
+
+deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
+deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
+
+deleteAssetV4 :: Local UserId -> Qualified AssetKey -> Handler ()
+deleteAssetV4 usr qkey = do
+  key <- tUnqualified <$> ensureLocal qkey
+  V3.delete (mkPrincipal usr) key
+
+renewTokenV3 :: Local UserId -> AssetKey -> Handler NewAssetToken
+renewTokenV3 (tUnqualified -> usr) key =
+  NewAssetToken <$> V3.renewToken (V3.UserPrincipal usr) key
+
+deleteTokenV3 :: Local UserId -> AssetKey -> Handler ()
+deleteTokenV3 (tUnqualified -> usr) key = V3.deleteToken (V3.UserPrincipal usr) key
+
+legacyDownloadPlain :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
+legacyDownloadPlain (tUnqualified -> usr) cnv ast =
+  AssetLocation <$$> LegacyAPI.download usr cnv ast
+
+legacyDownloadOtr :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
+legacyDownloadOtr (tUnqualified -> usr) cnv ast =
+  AssetLocation <$$> LegacyAPI.downloadOtr usr cnv ast

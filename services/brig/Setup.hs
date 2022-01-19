@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -15,10 +18,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+import Control.Exception
+import Control.Monad
 import Data.Char
 import Data.Foldable
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Distribution.Simple
 import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
@@ -49,17 +57,25 @@ generateDocs base src = do
   let name = moduleName src
       dest = base </> (moduleName src <> ".hs")
   createDirectoryIfMissing True base
-  putStrLn ("Generating " <> dest <> " ...")
   let out =
-        unlines
-          [ "module Brig.Docs." <> name <> " where",
+        Text.unlines
+          [ "module Brig.Docs." <> Text.pack name <> " where",
             "",
             "import Imports",
             "",
             "contents :: Text",
-            "contents = " ++ show contents
+            "contents = " <> Text.pack (show contents)
           ]
-  writeFile dest out
+  writeFileIfChanged dest out
+
+writeFileIfChanged :: FilePath -> Text -> IO ()
+writeFileIfChanged fp c' = do
+  changed <- handle @IOException (const (pure True)) $ do
+    c <- Text.readFile fp
+    pure $ c /= c'
+  when changed $ do
+    putStrLn ("Generating " <> fp <> " ...")
+    Text.writeFile fp c'
 
 moduleName :: String -> String
 moduleName = go . dropExtension

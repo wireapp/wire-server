@@ -18,6 +18,7 @@
 module Test.Federator.Remote where
 
 import Control.Exception (bracket)
+import Control.Monad.Codensity
 import Data.Domain
 import Federator.Discovery
 import Federator.Env (TLSSettings)
@@ -31,6 +32,7 @@ import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
 import Polysemy
+import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Test.Federator.Options (defRunSettings)
@@ -83,6 +85,7 @@ mkTestCall tlsSettings port =
     . runInputConst tlsSettings
     . discoverLocalhost port
     . assertNoError @DiscoveryFailure
+    . runEmbedded @(Codensity IO) @IO lowerCodensity
     . interpretRemote
     $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
 

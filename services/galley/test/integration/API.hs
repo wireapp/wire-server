@@ -25,6 +25,7 @@ where
 
 import qualified API.CustomBackend as CustomBackend
 import qualified API.Federation as Federation
+import API.Federation.Util
 import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
 import API.SQS
@@ -33,13 +34,14 @@ import qualified API.Teams.Feature as TeamFeature
 import qualified API.Teams.LegalHold as Teams.LegalHold
 import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
+import qualified API.Util as Util
+import API.Util.TeamFeature as TeamFeatures
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
-import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
@@ -53,11 +55,9 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
-import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
@@ -74,9 +74,7 @@ import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities.Error
-import Servant (ServerError (errBody), err501, err503)
-import Servant.Server (Handler)
-import Servant.Server.Generic (AsServerT)
+import Servant hiding (respond)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -93,6 +91,8 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Named
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -199,11 +199,11 @@ tests s =
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
-          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessage1,
-          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessage2,
-          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
-          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
-          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
+          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
+          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson,
+          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto,
+          test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessageNotAuthorizeUnknownClient,
+          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
           test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
@@ -218,40 +218,16 @@ tests s =
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
           test s "cannot join private conversation" postJoinConvFail,
+          test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
+          test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
+          test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
+          test s "post code rejected if guest links disabled" testPostCodeRejectedIfGuestLinksDisabled,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
-          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests
+          test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
+          test s "post message - reject if missing client" postMessageRejectIfMissingClients,
+          test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg
         ]
-
-emptyFederatedBrig :: F.BrigApi (AsServerT Handler)
-emptyFederatedBrig =
-  let e :: Text -> Handler a
-      e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
-   in F.BrigApi
-        { F.getUserByHandle = \_ -> e "getUserByHandle",
-          F.getUsersByIds = \_ -> e "getUsersByIds",
-          F.claimPrekey = \_ -> e "claimPrekey",
-          F.claimPrekeyBundle = \_ -> e "claimPrekeyBundle",
-          F.claimMultiPrekeyBundle = \_ -> e "claimMultiPrekeyBundle",
-          F.searchUsers = \_ -> e "searchUsers",
-          F.getUserClients = \_ -> e "getUserClients",
-          F.sendConnectionAction = \_ _ -> e "sendConnectionAction",
-          F.onUserDeleted = \_ _ -> e "onUserDeleted"
-        }
-
-emptyFederatedGalley :: F.GalleyApi (AsServerT Handler)
-emptyFederatedGalley =
-  let e :: Text -> Handler a
-      e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
-   in F.GalleyApi
-        { F.onConversationCreated = \_ _ -> e "onConversationCreated",
-          F.getConversations = \_ _ -> e "getConversations",
-          F.onConversationUpdated = \_ _ -> e "onConversationUpdated",
-          F.leaveConversation = \_ _ -> e "leaveConversation",
-          F.onMessageSent = \_ _ -> e "onMessageSent",
-          F.sendMessage = \_ _ -> e "sendMessage",
-          F.onUserDeleted = \_ _ -> e "onUserDeleted"
-        }
 
 -------------------------------------------------------------------------------
 -- API Tests
@@ -364,10 +340,11 @@ postConvWithRemoteUsersOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
--- | This test verifies whether a message actually gets sent all the way to
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies whether a message actually gets sent all the way to
 -- cannon.
-postCryptoMessage1 :: TestM ()
-postCryptoMessage1 = do
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
+postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
@@ -449,9 +426,12 @@ postCryptoMessage1 = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
--- | This test verifies basic mismatch behaviour of the the JSON endpoint.
-postCryptoMessage2 :: TestM ()
-postCryptoMessage2 = do
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies basic mismatch behavior of the the JSON endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -474,9 +454,12 @@ postCryptoMessage2 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
--- | This test verifies basic mismatch behaviour of the protobuf endpoint.
-postCryptoMessage3 :: TestM ()
-postCryptoMessage3 = do
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies basic mismatch behaviour of the protobuf endpoint.
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   b <- view tsBrig
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -501,10 +484,12 @@ postCryptoMessage3 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
--- | This test verfies behaviour when an unknown client posts the message. Only
+-- @END
+
+-- | This test verifies behaviour when an unknown client posts the message. Only
 -- tests the Protobuf endpoint.
-postCryptoMessage4 :: TestM ()
-postCryptoMessage4 = do
+postCryptoMessageNotAuthorizeUnknownClient :: TestM ()
+postCryptoMessageNotAuthorizeUnknownClient = do
   alice <- randomUser
   bob <- randomUser
   bc <- randomClient bob (someLastPrekeys !! 0)
@@ -516,10 +501,69 @@ postCryptoMessage4 = do
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
--- | This test verifies behaviour under various values of ignore_missing and
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies the following scenario.
+-- A client sends a message to all clients of a group and one more who is not part of the group.
+-- The server must not send this message to client ids not part of the group.
+postMessageClientNotInGroupDoesNotReceiveMsg :: TestM ()
+postMessageClientNotInGroupDoesNotReceiveMsg = do
+  localDomain <- viewFederationDomain
+  cannon <- view tsCannon
+  (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+  (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
+  (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
+  (chad, cc) <- randomUserWithClient (someLastPrekeys !! 3)
+  connectUsers alice (list1 bob [eve, chad])
+  conversationWithAllButChad <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  let qalice = Qualified alice localDomain
+      qconv = Qualified conversationWithAllButChad localDomain
+  WS.bracketR3 cannon bob eve chad $ \(wsBob, wsEve, wsChad) -> do
+    let msgToAllIncludingChad = [(bob, bc, toBase64Text "ciphertext2"), (eve, ec, toBase64Text "ciphertext2"), (chad, cc, toBase64Text "ciphertext2")]
+    postOtrMessage id alice ac conversationWithAllButChad msgToAllIncludingChad !!! const 201 === statusCode
+    let checkBobGetsMsg = void . liftIO $ WS.assertMatch (5 # Second) wsBob (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
+    let checkEveGetsMsg = void . liftIO $ WS.assertMatch (5 # Second) wsEve (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
+    let checkChadDoesNotGetMsg = assertNoMsg wsChad (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext2"))
+    checkBobGetsMsg
+    checkEveGetsMsg
+    checkChadDoesNotGetMsg
+
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
+-- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
+postMessageRejectIfMissingClients :: TestM ()
+postMessageRejectIfMissingClients = do
+  (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
+  let (receiver1, receiverClient1) : otherReceivers = allReceivers
+  connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
+  conv <- decodeConvId <$> postConv sender (receiver1 : (fst <$> otherReceivers)) (Just "gossip") [] Nothing Nothing
+  let msgToAllClients = mkMsg "hello!" <$> allReceivers
+  let msgMissingClients = mkMsg "hello!" <$> drop 1 allReceivers
+
+  let checkSendToAllClientShouldBeSuccessful =
+        postOtrMessage id sender senderClient conv msgToAllClients !!! do
+          const 201 === statusCode
+          assertMismatch [] [] []
+
+  let checkSendWitMissingClientsShouldFail =
+        postOtrMessage id sender senderClient conv msgMissingClients !!! do
+          const 412 === statusCode
+          assertMismatch [(receiver1, Set.singleton receiverClient1)] [] []
+
+  checkSendToAllClientShouldBeSuccessful
+  checkSendWitMissingClientsShouldFail
+  where
+    mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
+    mkMsg text (userId, clientId) = (userId, clientId, toBase64Text text)
+
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies behaviour under various values of ignore_missing and
 -- report_missing. Only tests the JSON endpoint.
-postCryptoMessage5 :: TestM ()
-postCryptoMessage5 = do
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam :: TestM ()
+postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -572,6 +616,8 @@ postCryptoMessage5 = do
     !!! assertMismatchWithMessage (Just "client mismatch") [(bob, Set.singleton bc)] [] []
   where
     listToByteString = BS.intercalate "," . map toByteString'
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". All user's
 -- on this backend have names begining with 'A'. The conversation has a couple
@@ -626,22 +672,20 @@ postMessageQualifiedLocalOwningBackendSuccess = do
 
     let mkPubClient c = PubClient c Nothing
         brigApi d =
-          emptyFederatedBrig
-            { F.getUserClients = \_ ->
-                pure $
-                  if
-                      | d == bDomain ->
-                        UserMap . Map.fromList $
-                          [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
-                            (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
-                          ]
-                      | d == cDomain -> UserMap (Map.singleton (qUnqualified carl) (Set.singleton (PubClient carlClient Nothing)))
-                      | otherwise -> mempty
-            }
+          mkHandler @(FedApi 'Brig) $
+            Named @"get-user-clients" $ \_ _ ->
+              pure $
+                if
+                    | d == bDomain ->
+                      UserMap . Map.fromList $
+                        [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
+                          (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
+                        ]
+                    | d == cDomain -> UserMap (Map.singleton (qUnqualified carl) (Set.singleton (PubClient carlClient Nothing)))
+                    | otherwise -> mempty
+
         galleyApi _ =
-          emptyFederatedGalley
-            { F.onMessageSent = \_ _ -> pure ()
-            }
+          mkHandler @(FedApi 'Galley) $ Named @"on-message-sent" $ \_ _ -> pure ()
 
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
@@ -706,7 +750,8 @@ postMessageQualifiedLocalOwningBackendSuccess = do
       WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
       WS.assertMatch_ t wsAmy (wsAssertOtr' encodedData convId alice aliceClient amyClient encodedTextForAmy)
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will not be sent.
 postMessageQualifiedLocalOwningBackendMissingClients :: TestM ()
@@ -745,11 +790,10 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     let brigApi _ =
-          emptyFederatedBrig
-            { F.getUserClients = \_ ->
-                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-            }
-        galleyApi _ = emptyFederatedGalley
+          mkHandler @(FedApi 'Brig) $
+            Named @"get-user-clients" $ \_ _ ->
+              pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+        galleyApi _ = mkHandler @(FedApi 'Galley) EmptyAPI
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
@@ -770,6 +814,8 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                 ]
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message, it is expected that message will
@@ -822,18 +868,16 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
 
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
     let brigApi _ =
-          emptyFederatedBrig
-            { F.getUserClients = \getUserClients ->
-                let lookupClients uid
-                      | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
-                      | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
-                      | otherwise = Nothing
-                 in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
-            }
+          mkHandler @(FedApi 'Brig) $
+            Named @"get-user-clients" $ \_ getUserClients ->
+              let lookupClients uid
+                    | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
+                    | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
+                    | otherwise = Nothing
+               in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
         galleyApi _ =
-          emptyFederatedGalley
-            { F.onMessageSent = \_ _ -> pure ()
-            }
+          mkHandler @(FedApi 'Galley) $
+            Named @"on-message-sent" $ \_ _ -> pure ()
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
@@ -864,7 +908,8 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       -- Wait less for no message
       WS.assertNoEvent (1 # Second) [wsNonMember]
 
--- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will be sent except when it is specifically
 -- requested to report on missing clients of a user.
@@ -902,10 +947,10 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   let brigApi _ =
-        emptyFederatedBrig
-          { F.getUserClients = \_ -> pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-          }
-      galleyApi _ = emptyFederatedGalley
+        mkHandler @(FedApi 'Brig) $
+          Named @"get-user-clients" $ \_ _ ->
+            pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+      galleyApi _ = mkHandler @(FedApi 'Galley) EmptyAPI
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
@@ -994,6 +1039,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
+-- @END
+
 postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
 postMessageQualifiedLocalOwningBackendFailedToSendClients = do
   -- WS receive timeout
@@ -1035,14 +1082,13 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
           ]
 
     let brigApi _ =
-          emptyFederatedBrig
-            { F.getUserClients = \_ ->
-                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-            }
+          mkHandler @(FedApi 'Brig) $
+            Named @"get-user-clients" $ \_ _ ->
+              pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
         galleyApi _ =
-          emptyFederatedGalley
-            { F.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
-            }
+          mkHandler @(FedApi 'Galley) $
+            Named @"on-message-sent" $ \_ _ ->
+              throwError err503 {errBody = "Down for maintenance."}
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
@@ -1073,13 +1119,14 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   let remoteDomain = Domain "far-away.example.com"
       convId = Qualified convIdUnqualified remoteDomain
 
+  let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
   let galleyApi _ =
-        emptyFederatedGalley
-          { F.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
-          }
+        mkHandler @(FedApi 'Galley) $
+          Named @"send-message" $ \_ _ ->
+            throwError err503 {errBody = "Down for maintenance."}
 
   (resp2, _requests) <-
-    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll (const emptyFederatedBrig) galleyApi
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll brigApi galleyApi
 
   pure resp2 !!! do
     const 503 === statusCode
@@ -1113,13 +1160,13 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
             Message.mssFailedToSend = mempty
           }
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
-      galleyApi _ =
-        emptyFederatedGalley
-          { F.sendMessage = \_ _ -> pure (F.MessageSendResponse (Right mss))
-          }
+      brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
+      galleyApi _ = mkHandler @(FedApi 'Galley) $
+        Named @"send-message" $ \_ _ ->
+          pure (F.MessageSendResponse (Right mss))
 
   (resp2, _requests) <-
-    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll (const emptyFederatedBrig) galleyApi
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
   pure resp2 !!! do
     const 201 === statusCode
@@ -1157,6 +1204,96 @@ testJoinCodeConv = do
   eve <- ephemeralUser
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 403 === statusCode
+
+testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
+testGetCodeRejectedIfGuestLinksDisabled = do
+  galley <- view tsGalley
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  let createConvWithGuestLink = do
+        convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just ActivatedAccessRole) Nothing
+        void $ decodeConvCodeEvent <$> postConvCode owner convId
+        pure convId
+  convId <- createConvWithGuestLink
+  let checkGetCode expectedStatus = getConvCode owner convId !!! statusCode === const expectedStatus
+  let setStatus tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+
+  checkGetCode 200
+  setStatus Public.TeamFeatureDisabled
+  checkGetCode 409
+  setStatus Public.TeamFeatureEnabled
+  checkGetCode 200
+
+testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
+testPostCodeRejectedIfGuestLinksDisabled = do
+  galley <- view tsGalley
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just ActivatedAccessRole) Nothing
+  let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
+  let setStatus tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+
+  checkPostCode 201
+  setStatus Public.TeamFeatureDisabled
+  checkPostCode 409
+  setStatus Public.TeamFeatureEnabled
+  checkPostCode 200
+
+testJoinTeamConvGuestLinksDisabled :: TestM ()
+testJoinTeamConvGuestLinksDisabled = do
+  galley <- view tsGalley
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  userNotInTeam <- randomUser
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+
+  -- works by default
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+  -- fails if disabled
+  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const 409 === statusCode
+
+  -- after re-enabling, the old link is still valid
+  let tfStatus' = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus' !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+testJoinNonTeamConvGuestLinksDisabled :: TestM ()
+testJoinNonTeamConvGuestLinksDisabled = do
+  galley <- view tsGalley
+  let convName = "testConversation"
+  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  userNotInTeam <- randomUser
+  convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+
+  -- works by default
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
+
+  -- for non-team conversations it still works if status is disabled for the team but not server wide
+  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+    const 200 === statusCode
+
+  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const 200 === statusCode
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
@@ -1490,7 +1627,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    F.onConversationUpdated (fedGalleyClient chadDomain) cu
+    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1506,7 +1643,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    F.onConversationUpdated (fedGalleyClient deeDomain) cu
+    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
@@ -1551,7 +1688,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    F.onConversationUpdated (fedGalleyClient chadDomain) cu
+    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1569,7 +1706,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
-    F.onConversationUpdated (fedGalleyClient deeDomain) cu
+    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -2049,11 +2186,8 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let brigApi _ = emptyFederatedBrig
-      galleyApi _ =
-        emptyFederatedGalley
-          { onConversationUpdated = \_domain _update -> pure ()
-          }
+  let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
+      galleyApi _ = mkHandler @(FedApi 'Galley) $ Named @"on-conversation-updated" $ \_ _ -> pure ()
 
   (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId
@@ -3021,7 +3155,7 @@ putRemoteConvMemberOk update = do
             cuAction =
               ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
-  F.onConversationUpdated (fedGalleyClient remoteDomain) cu
+  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
   -- Expected member state
   let memberAlice =
@@ -3284,10 +3418,10 @@ removeUser = do
             F.rcMessageTimer = Nothing,
             F.rcReceiptMode = Nothing
           }
-  F.onConversationCreated (fedGalleyClient bDomain) $ nc convB1 bart [alice, alexDel]
-  F.onConversationCreated (fedGalleyClient bDomain) $ nc convB2 bart [alexDel]
-  F.onConversationCreated (fedGalleyClient cDomain) $ nc convC1 carl [alexDel]
-  F.onConversationCreated (fedGalleyClient dDomain) $ nc convD1 dory [alexDel]
+  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
+  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
+  runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
+  runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
     let handler :: FederatedRequest -> IO LByteString
@@ -3417,8 +3551,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
         RemoteActor -> do
           fedGalleyClient <- view tsFedGalleyClient
           GetConversationsResponse convs <-
-            F.getConversations
-              (fedGalleyClient (tDomain bob))
+            runFedClient @"get-conversations" fedGalleyClient (tDomain bob) $
               F.GetConversationsRequest
                 { F.gcrUserId = tUnqualified bob,
                   F.gcrConvIds = [qUnqualified convId]

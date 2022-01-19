@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8daa0bcbe43125e8d9749dd38e62f67cb01f62a1bcd57a0391e684860203e60c
+-- hash: cca3008213a478b2de914ed4e3bb1946613cc6cf4103168bacbe9b002e73764b
 
 name:           hscim
 version:        0.3.6
@@ -69,7 +69,23 @@ library
       Paths_hscim
   hs-source-dirs:
       src
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor DeriveGeneric FlexibleContexts FlexibleInstances KindSignatures LambdaCase MultiParamTypeClasses OverloadedStrings RankNTypes ScopedTypeVariables TypeApplications TypeFamilies TypeOperators TypeSynonymInstances
+  default-extensions:
+      ConstraintKinds
+      DataKinds
+      DeriveFunctor
+      DeriveGeneric
+      FlexibleContexts
+      FlexibleInstances
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      OverloadedStrings
+      RankNTypes
+      ScopedTypeVariables
+      TypeApplications
+      TypeFamilies
+      TypeOperators
+      TypeSynonymInstances
   ghc-options: -Wall -Werror
   build-depends:
       aeson >=1.4.5 && <1.5
@@ -118,7 +134,23 @@ executable hscim-server
       Paths_hscim
   hs-source-dirs:
       server
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor DeriveGeneric FlexibleContexts FlexibleInstances KindSignatures LambdaCase MultiParamTypeClasses OverloadedStrings RankNTypes ScopedTypeVariables TypeApplications TypeFamilies TypeOperators TypeSynonymInstances
+  default-extensions:
+      ConstraintKinds
+      DataKinds
+      DeriveFunctor
+      DeriveGeneric
+      FlexibleContexts
+      FlexibleInstances
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      OverloadedStrings
+      RankNTypes
+      ScopedTypeVariables
+      TypeApplications
+      TypeFamilies
+      TypeOperators
+      TypeSynonymInstances
   ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson >=1.4.5 && <1.5
@@ -183,7 +215,23 @@ test-suite spec
       Paths_hscim
   hs-source-dirs:
       test
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor DeriveGeneric FlexibleContexts FlexibleInstances KindSignatures LambdaCase MultiParamTypeClasses OverloadedStrings RankNTypes ScopedTypeVariables TypeApplications TypeFamilies TypeOperators TypeSynonymInstances
+  default-extensions:
+      ConstraintKinds
+      DataKinds
+      DeriveFunctor
+      DeriveGeneric
+      FlexibleContexts
+      FlexibleInstances
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      OverloadedStrings
+      RankNTypes
+      ScopedTypeVariables
+      TypeApplications
+      TypeFamilies
+      TypeOperators
+      TypeSynonymInstances
   ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover

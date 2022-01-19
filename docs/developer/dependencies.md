@@ -4,11 +4,6 @@ This page documents how to install necessary dependencies to work with the wire-
 
 This repository makes use of git submodules. When cloning or updating, use `git submodule update --init --recursive` to check out the code dependencies.
 
-In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration:
-
-* [alpine setup for Haskell services](../../build/alpine/Dockerfile.builder)
-* [alpine setup for nginz](../../services/nginz/Dockerfile)
-
 ## General package dependencies (needed to compile Haskell services)
 
 *Note: all the below sections for getting compile-time dependencies necessary to compile all of wire-server may potentially go out of date; if you spot a mistake please open an issue or PR*
@@ -89,7 +84,7 @@ sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_heade
 
 Please refer to [Stack's installation instructions](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 
-When you're done, ensure `stack --version` is the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
+When you're done, ensure `stack --version` is the same as `STACK_VERSION` in [`build/ubuntu/Dockerfile.prebuilder`](../../build/ubuntu/Dockerfile.prebuilder).
 
 If you have to, you can downgrade stack with this command:
 

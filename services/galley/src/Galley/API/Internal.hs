@@ -97,7 +97,7 @@ import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
 import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Galley hiding (getConversations)
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
@@ -198,6 +198,15 @@ data InternalApi routes = InternalApi
     iTeamFeatureLockStatusSelfDeletingMessagesPut ::
       routes
         :- IFeatureStatusLockStatusPut 'Public.TeamFeatureSelfDeletingMessages,
+    iTeamFeatureStatusGuestLinksGet ::
+      routes
+        :- IFeatureStatusGet 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks,
+    iTeamFeatureStatusGuestLinksPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureGuestLinks,
+    iTeamFeatureLockStatusGuestLinksPut ::
+      routes
+        :- IFeatureStatusLockStatusPut 'Public.TeamFeatureGuestLinks,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     iDeleteUser ::
@@ -318,6 +327,9 @@ servantSitemap =
         iTeamFeatureStatusSelfDeletingMessagesPut = iPutTeamFeature @'Public.TeamFeatureSelfDeletingMessages Features.setSelfDeletingMessagesInternal,
         iTeamFeatureStatusSelfDeletingMessagesGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages Features.getSelfDeletingMessagesInternal,
         iTeamFeatureLockStatusSelfDeletingMessagesPut = Features.setLockStatus @'Public.TeamFeatureSelfDeletingMessages,
+        iTeamFeatureStatusGuestLinksGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks Features.getGuestLinkInternal,
+        iTeamFeatureStatusGuestLinksPut = iPutTeamFeature @'Public.TeamFeatureGuestLinks Features.setGuestLinkInternal,
+        iTeamFeatureLockStatusGuestLinksPut = Features.setLockStatus @'Public.TeamFeatureGuestLinks,
         iDeleteUser = rmUser,
         iConnect = Create.createConnectConversation,
         iUpsertOne2OneConversation = One2One.iUpsertOne2OneConversation
@@ -615,7 +627,7 @@ rmUser lusr conn = do
                 cuAlreadyPresentUsers = tUnqualified remotes,
                 cuAction = ConversationActionRemoveMembers (pure qUser)
               }
-      let rpc = onConversationUpdated clientRoutes convUpdate
+      let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
       runFederatedEither remotes rpc
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
@@ -623,7 +635,7 @@ rmUser lusr conn = do
     leaveRemoteConversations cids = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = onUserDeleted clientRoutes userDelete
+        let rpc = fedClient @'Galley @"on-user-deleted-conversations" userDelete
         runFederatedEither remoteConvs rpc
           >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 

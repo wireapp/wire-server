@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "restund.fullname" . }}
+  labels:
+    {{- include "restund.selectorLabels" . | nindent 4 }}
+
+data:
+  restund.conf.template: |
+    ## core
+    daemon                  no
+    debug                   no
+    realm                   dummy.io
+    syncinterval            600
+    udp_listen              ${RESTUND_HOST}:{{ .Values.restundUDPListenPort }}
+    udp_sockbuf_size        524288
+    tcp_listen              ${RESTUND_HOST}:{{ .Values.restundTCPListenPort }}
+    # tls_listen
+
+    ## modules
+    module_path             /usr/local/lib/restund/modules
+    module                  stat.so
+    module                  drain.so
+    module                  binding.so
+    module                  auth.so
+    module                  turn.so
+    module                  zrest.so
+    module                  status.so
+
+    ## auth
+    auth_nonce_expiry       3600
+
+    ## turn
+    turn_max_allocations    64000
+    turn_max_lifetime       3600
+    turn_relay_addr         ${RESTUND_HOST}
+    # # turn_public_addr is an IP which must be reachable for UDP traffic from other restund servers (and from this server itself). If unset, defaults to 'turn_relay_addr'
+    # turn_public_addr
+
+    # syslog
+    syslog_facility         24
+
+    ## status
+    status_http_addr        ${POD_IP}
+    status_http_port        {{ .Values.restundHTTPStatusPort }}
+    # status_udp_addr
+    # status_udp_port
+
+    # zrest
+    zrest_listen ${POD_IP}
+    zrest_secret ${ZREST_SECRET}

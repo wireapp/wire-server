@@ -70,7 +70,8 @@ tests s =
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
-      test s "ConversationGuestLinks" testGuestLinks
+      test s "ConversationGuestLinks - public API" testGuestLinksPublic,
+      test s "ConversationGuestLinks - internal API" testGuestLinksInternal
     ]
 
 testSSO :: TestM ()
@@ -474,26 +475,58 @@ testSelfDeletingMessages = do
   checkSetLockStatus Public.Unlocked
   checkGet TeamFeatureDisabled 30 Public.Unlocked
 
-testGuestLinks :: TestM ()
-testGuestLinks = do
+testGuestLinksInternal :: TestM ()
+testGuestLinksInternal = do
   galley <- view tsGalley
+  testGuestLinks
+    (const $ Util.getTeamFeatureFlagInternal Public.TeamFeatureGuestLinks)
+    (const $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureGuestLinks galley)
+    (Util.setLockStatusInternal @'Public.TeamFeatureGuestLinks galley)
+
+testGuestLinksPublic :: TestM ()
+testGuestLinksPublic = do
+  galley <- view tsGalley
+  testGuestLinks
+    (Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley)
+    (Util.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley)
+    (Util.setLockStatusInternal @'Public.TeamFeatureGuestLinks galley)
+
+testGuestLinks ::
+  (UserId -> TeamId -> TestM ResponseLBS) ->
+  (UserId -> TeamId -> Public.TeamFeatureStatusNoConfig -> TestM ResponseLBS) ->
+  (TeamId -> Public.LockStatusValue -> TestM ResponseLBS) ->
+  TestM ()
+testGuestLinks getStatus putStatus setLockStatusInternal = do
   (owner, tid, []) <- Util.createBindingTeamWithNMembers 0
   let checkGet :: HasCallStack => Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
       checkGet status lock =
-        do
-          Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner tid
-          !!! responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus status lock))
-      checkSet :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      checkSet status =
-        do
-          Util.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner tid (Public.TeamFeatureStatusNoConfig status)
-          !!! statusCode === const 200
+        getStatus owner tid !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus status lock))
+
+      checkSet :: HasCallStack => Public.TeamFeatureStatusValue -> Int -> TestM ()
+      checkSet status expectedStatusCode =
+        putStatus owner tid (Public.TeamFeatureStatusNoConfig status) !!! statusCode === const expectedStatusCode
+
+      checkSetLockStatusInternal :: HasCallStack => Public.LockStatusValue -> TestM ()
+      checkSetLockStatusInternal lockStatus =
+        setLockStatusInternal tid lockStatus !!! statusCode === const 200
 
   checkGet Public.TeamFeatureEnabled Public.Unlocked
-  checkSet Public.TeamFeatureDisabled
+  checkSet Public.TeamFeatureDisabled 200
   checkGet Public.TeamFeatureDisabled Public.Unlocked
-  checkSet Public.TeamFeatureEnabled
+  checkSet Public.TeamFeatureEnabled 200
   checkGet Public.TeamFeatureEnabled Public.Unlocked
+  checkSet Public.TeamFeatureDisabled 200
+  checkGet Public.TeamFeatureDisabled Public.Unlocked
+  -- when locks status is locked the team default feature status should be returned
+  -- and the team feature status can not be changed
+  checkSetLockStatusInternal Public.Locked
+  checkGet Public.TeamFeatureEnabled Public.Locked
+  checkSet Public.TeamFeatureDisabled 409
+  -- when lock status is unlocked again the previously set feature status is restored
+  checkSetLockStatusInternal Public.Unlocked
+  checkGet Public.TeamFeatureDisabled Public.Unlocked
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.

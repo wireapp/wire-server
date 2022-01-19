@@ -7,14 +7,14 @@ NAMESPACE             ?= test-$(USER)
 DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
-# The list of helm charts needed for integration tests on kubernetes
-CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana
+# The list of helm charts needed on internal kubernetes testing environments
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana sftd restund
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
+CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
@@ -70,9 +70,10 @@ endif
 
 # ci here doesn't refer to continuous integration, but to cabal-integration
 # Usage: make ci package=brig test=1
+# If you want to pass arguments to the test-suite call the script directly.
 .PHONY: ci
 ci: c
-	./hack/bin/cabal-run-integration.sh $(package) $(pattern)
+	./hack/bin/cabal-run-integration.sh $(package)
 
 # reset db using cabal
 .PHONY: db-reset-package
@@ -189,30 +190,30 @@ i-%:
 .PHONY: docker-prebuilder
 docker-prebuilder:
 	# `docker-prebuilder` needs to be built or pulled only once (unless native dependencies change)
-	$(MAKE) -C build/alpine prebuilder
+	$(MAKE) -C build/ubuntu prebuilder
 
 .PHONY: docker-deps
 docker-deps:
 	# `docker-deps` needs to be built or pulled only once (unless native dependencies change)
-	$(MAKE) -C build/alpine deps
+	$(MAKE) -C build/ubuntu deps
 
 .PHONY: docker-builder
 docker-builder:
 	# `docker-builder` needs to be built or pulled only once (unless native dependencies change)
-	$(MAKE) -C build/alpine builder
+	$(MAKE) -C build/ubuntu builder
 
 .PHONY: docker-intermediate
 docker-intermediate:
 	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `stack clean && stack install` on the whole repo
-	docker build -t $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate --build-arg builder=$(DOCKER_USER)/alpine-builder:develop --build-arg deps=$(DOCKER_USER)/alpine-deps:develop .;
-	docker tag $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/alpine-intermediate:latest;
-	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/alpine-intermediate:latest; fi;
+	docker build -t $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) -f build/ubuntu/Dockerfile.intermediate --build-arg builder=$(DOCKER_USER)/ubuntu20-builder:develop --build-arg deps=$(DOCKER_USER)/ubuntu20-deps:develop .;
+	docker tag $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/ubuntu20-intermediate:latest;
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/ubuntu20-intermediate:latest; fi;
 
 .PHONY: docker-exe-%
 docker-exe-%:
-	docker image ls | grep $(DOCKER_USER)/alpine-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
-	docker image ls | grep $(DOCKER_USER)/alpine-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
-	docker build -t $(DOCKER_USER)/"$*":$(DOCKER_TAG) -f build/alpine/Dockerfile.executable --build-arg executable="$*" --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .
+	docker image ls | grep $(DOCKER_USER)/ubuntu20-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
+	docker image ls | grep $(DOCKER_USER)/ubuntu20-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
+	docker build -t $(DOCKER_USER)/"$*":$(DOCKER_TAG) -f build/ubuntu/Dockerfile.executable --build-arg executable="$*" --build-arg intermediate=$(DOCKER_USER)/ubuntu20-intermediate --build-arg deps=$(DOCKER_USER)/ubuntu20-deps .
 	docker tag $(DOCKER_USER)/"$*":$(DOCKER_TAG) $(DOCKER_USER)/"$*":latest
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/"$*":$(DOCKER_TAG); docker push $(DOCKER_USER)/"$*":latest; fi;
 
@@ -220,8 +221,8 @@ docker-exe-%:
 docker-services:
 	# make docker-services doesn't compile, only makes small images out of the `docker-intermediate` image
 	# to recompile, run `docker-intermediate` first.
-	docker image ls | grep $(DOCKER_USER)/alpine-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
-	docker image ls | grep $(DOCKER_USER)/alpine-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
+	docker image ls | grep $(DOCKER_USER)/ubuntu20-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
+	docker image ls | grep $(DOCKER_USER)/ubuntu20-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
 	# `make -C services/brig docker` == `make docker-exe-brig docker-exe-brig-integration docker-exe-brig-schema docker-exe-brig-index`
 	$(MAKE) -C services/brig docker
 	$(MAKE) -C services/gundeck docker
@@ -235,10 +236,10 @@ docker-services:
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/wire-server
-DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:$(DOCKER_TAG)
+DOCKER_DEV_IMAGE   := quay.io/wire/ubuntu20-builder:$(DOCKER_TAG)
 .PHONY: run-docker-builder
 run-docker-builder:
-	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
+	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build/ubuntu builder'."
 	docker run --workdir /wire-server -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
 
 .PHONY: git-add-cassandra-schema

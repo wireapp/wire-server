@@ -199,6 +199,7 @@ import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
+import qualified Wire.API.Team.Member as Member
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
 import Wire.API.User.Identity (mkSampleUref)
@@ -472,7 +473,7 @@ createTeamMember brigreq galleyreq teamid perms = do
     postUser name False (Just ssoid) (Just teamid) brigreq
       <!! const 201 === statusCode
   let nobody :: UserId = Brig.userId (responseJsonUnsafe @Brig.User resp)
-  addTeamMember galleyreq teamid (Galley.newNewTeamMember nobody perms Nothing)
+  addTeamMember galleyreq teamid (Member.mkNewTeamMember nobody perms Nothing)
   pure nobody
 
 -- | FUTUREWORK(fisx): use the specified & supported flows for scaffolding; this is a hack
@@ -599,7 +600,7 @@ promoteTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestSpar ()
 promoteTeamMember usr tid memid = do
   gly <- view teGalley
   let bdy :: Galley.NewTeamMember
-      bdy = Galley.newNewTeamMember memid Galley.fullPermissions Nothing
+      bdy = Member.mkNewTeamMember memid Galley.fullPermissions Nothing
   call $
     put (gly . paths ["teams", toByteString' tid, "members"] . zAuthAccess usr "conn" . json bdy)
       !!! const 200 === statusCode
@@ -1209,7 +1210,7 @@ ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
   runSpar $
     runValidExternalId
-      (SAMLUserStore.get)
+      SAMLUserStore.get
       (ScimExternalIdStore.lookup tid)
       veid
 

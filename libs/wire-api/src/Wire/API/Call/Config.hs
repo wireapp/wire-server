@@ -25,6 +25,7 @@ module Wire.API.Call.Config
     rtcConfiguration,
     rtcConfIceServers,
     rtcConfSftServers,
+    rtcConfSftServersAll,
     rtcConfTTL,
 
     -- * RTCIceServer
@@ -104,12 +105,18 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: NonEmpty RTCIceServer,
     _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
-    _rtcConfTTL :: Word32
+    _rtcConfTTL :: Word32,
+    _rtcConfSftServersAll :: Maybe [SFTServer]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
 
-rtcConfiguration :: NonEmpty RTCIceServer -> Maybe (NonEmpty SFTServer) -> Word32 -> RTCConfiguration
+rtcConfiguration ::
+  NonEmpty RTCIceServer ->
+  Maybe (NonEmpty SFTServer) ->
+  Word32 ->
+  Maybe [SFTServer] ->
+  RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
 modelRtcConfiguration :: Doc.Model
@@ -121,19 +128,26 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
     Doc.description "Array of 'SFTServer' objects (optional)"
   Doc.property "ttl" Doc.int32' $
     Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
+  Doc.property "sft_servers_all" (Doc.array (Doc.ref modelRtcSftServerUrl)) $
+    Doc.description "Array of all SFT servers"
 
 instance ToJSON RTCConfiguration where
-  toJSON (RTCConfiguration srvs sfts ttl) =
+  toJSON (RTCConfiguration srvs sfts ttl all_servers) =
     object
       ( [ "ice_servers" .= srvs,
           "ttl" .= ttl
         ]
           <> ["sft_servers" .= sfts | isJust sfts]
+          <> ["sft_servers_all" .= all_servers | isJust all_servers]
       )
 
 instance FromJSON RTCConfiguration where
   parseJSON = withObject "RTCConfiguration" $ \o ->
-    RTCConfiguration <$> o .: "ice_servers" <*> o .:? "sft_servers" <*> o .: "ttl"
+    RTCConfiguration
+      <$> o .: "ice_servers"
+      <*> o .:? "sft_servers"
+      <*> o .: "ttl"
+      <*> o .:? "sft_servers_all"
 
 --------------------------------------------------------------------------------
 -- SFTServer
@@ -164,6 +178,12 @@ modelRtcSftServer = Doc.defineModel "RTC SFT Server" $ do
   Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
   Doc.property "urls" (Doc.array Doc.string') $
     Doc.description "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'"
+
+modelRtcSftServerUrl :: Doc.Model
+modelRtcSftServerUrl = Doc.defineModel "RTC SFT Server URL" $ do
+  Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
+  Doc.property "urls" (Doc.array Doc.string') $
+    Doc.description "Array containing exactly one SFT server URL"
 
 --------------------------------------------------------------------------------
 -- RTCIceServer

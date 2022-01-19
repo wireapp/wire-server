@@ -31,10 +31,10 @@ module TestSetup
     tsMaxConvSize,
     tsCass,
     tsFedGalleyClient,
-    mkFedGalleyClient,
     TestM (..),
     TestSetup (..),
-    FedGalleyClient,
+    FedClient (..),
+    runFedClient,
     GalleyR,
     BrigR,
     CannonR,
@@ -48,16 +48,15 @@ import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain
+import Data.Proxy
 import qualified Data.Text as Text
+import GHC.TypeLits
 import qualified Galley.Aws as Aws
 import Galley.Options (Opts)
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import qualified Servant.Client as Servant
-import Servant.Client.Core.BaseUrl
-import qualified Servant.Client.Core.Request as Client
-import Servant.Client.Generic (AsClientT)
-import qualified Servant.Client.Generic as Servant
+import qualified Servant.Client.Core as Servant
 import Test.Tasty.HUnit
 import Util.Options
 import Wire.API.Federation.API
@@ -106,7 +105,7 @@ newtype TestM a = TestM {runTestM :: ReaderT TestSetup IO a}
       MonadFail
     )
 
-type FedGalleyClient = FedApi 'Galley (AsClientT TestM)
+data FedClient (comp :: Component) = FedClient HTTP.Manager Endpoint
 
 data TestSetup = TestSetup
   { _tsGConf :: Opts,
@@ -118,7 +117,7 @@ data TestSetup = TestSetup
     _tsAwsEnv :: Maybe Aws.Env,
     _tsMaxConvSize :: Word16,
     _tsCass :: Cql.ClientState,
-    _tsFedGalleyClient :: Domain -> FedGalleyClient
+    _tsFedGalleyClient :: FedClient 'Galley
   }
 
 makeLenses ''TestSetup
@@ -128,22 +127,32 @@ instance MonadHttp TestM where
     manager <- view tsManager
     liftIO $ withResponse req manager handler
 
-mkFedGalleyClient :: Endpoint -> Domain -> FedGalleyClient
-mkFedGalleyClient galleyEndpoint originDomain = Servant.genericClientHoist servantClienMToHttp
+runFedClient ::
+  forall (name :: Symbol) comp m api.
+  ( HasFedEndpoint comp api name,
+    Servant.HasClient Servant.ClientM api,
+    MonadIO m
+  ) =>
+  FedClient comp ->
+  Domain ->
+  Servant.Client m api
+runFedClient (FedClient mgr endpoint) domain =
+  Servant.hoistClient (Proxy @api) (servantClientMToHttp domain) $
+    Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
   where
-    servantClienMToHttp :: Servant.ClientM a -> TestM a
-    servantClienMToHttp act = do
-      let galleyHost = Text.unpack $ galleyEndpoint ^. epHost
-          brigPort = fromInteger . toInteger $ galleyEndpoint ^. epPort
-          baseUrl = Servant.BaseUrl Servant.Http galleyHost brigPort "/federation"
-      mgr' <- view tsManager
-      let clientEnv = Servant.ClientEnv mgr' baseUrl Nothing makeClientRequest
-      eitherRes <- liftIO $ Servant.runClientM act clientEnv
+    servantClientMToHttp :: Domain -> Servant.ClientM a -> m a
+    servantClientMToHttp originDomain action = liftIO $ do
+      let host = Text.unpack $ endpoint ^. epHost
+          port = fromInteger . toInteger $ endpoint ^. epPort
+          baseUrl = Servant.BaseUrl Servant.Http host port "/federation"
+          clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
+      eitherRes <- Servant.runClientM action clientEnv
       case eitherRes of
         Right res -> pure res
-        Left err -> liftIO $ assertFailure $ "Servant client failed with: " <> show err
-    makeClientRequest :: BaseUrl -> Client.Request -> HTTP.Request
-    makeClientRequest burl req =
+        Left err -> assertFailure $ "Servant client failed with: " <> show err
+
+    makeClientRequest :: Domain -> Servant.BaseUrl -> Servant.Request -> HTTP.Request
+    makeClientRequest originDomain burl req =
       let req' = Servant.defaultMakeClientRequest burl req
        in req'
             { HTTP.requestHeaders =

@@ -38,42 +38,31 @@ import qualified Brig.Options as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
-import Data.ByteString.Conversion
-import Data.Domain
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
-import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import qualified Federation.End2end
 import Imports hiding (local)
 import qualified Index.Create
-import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
-import Servant.API.Generic (GenericServant, ToServant, ToServantApi)
-import qualified Servant.Client as Servant
-import Servant.Client.Core
-import qualified Servant.Client.Core.Request as Client
-import Servant.Client.Generic (AsClientT)
-import qualified Servant.Client.Generic as Servant
 import System.Environment (withArgs)
 import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util (FedBrigClient, FedGalleyClient)
+import Util
 import Util.Options
 import Util.Test
-import qualified Wire.API.Federation.API.Brig as F
-import qualified Wire.API.Federation.API.Galley as F
-import Wire.API.Federation.Domain
+import Wire.API.Federation.API
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
     remoteGalley :: Endpoint,
+    remoteCargohold :: Endpoint,
     remoteFederatorInternal :: Endpoint,
     remoteFederatorExternal :: Endpoint
   }
@@ -84,6 +73,7 @@ instance FromJSON BackendConf where
     BackendConf
       <$> o .: "brig"
       <*> o .: "galley"
+      <*> o .: "cargohold"
       <*> o .: "federatorInternal"
       <*> o .: "federatorExternal"
 
@@ -118,6 +108,7 @@ runTests iConf brigOpts otherArgs = do
       f = federatorInternal iConf
       brigTwo = mkRequest $ remoteBrig (backendTwo iConf)
       galleyTwo = mkRequest $ remoteGalley (backendTwo iConf)
+      ch2 = mkRequest $ remoteCargohold (backendTwo iConf)
 
   let turnFile = Opts.servers . Opts.turn $ brigOpts
       turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
@@ -129,8 +120,8 @@ runTests iConf brigOpts otherArgs = do
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
   mg <- newManager tlsManagerSettings
-  let fedBrigClient = mkFedBrigClient mg (brig iConf)
-  let fedGalleyClient = mkFedGalleyClient mg (galley iConf)
+  let fedBrigClient = FedClient @'Brig mg (brig iConf)
+  let fedGalleyClient = FedClient @'Galley mg (galley iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db
@@ -143,7 +134,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationEnd2End <- Federation.End2end.spec brigOpts mg b g c f brigTwo galleyTwo
+  federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
@@ -223,40 +214,3 @@ parseConfigPaths = do
                   <> showDefault
                   <> value defaultBrigPath
             )
-
-mkFedBrigClient :: Manager -> Endpoint -> FedBrigClient
-mkFedBrigClient = mkFedBrigClientGen @F.BrigApi
-
-mkFedGalleyClient :: Manager -> Endpoint -> FedGalleyClient
-mkFedGalleyClient = mkFedBrigClientGen @F.GalleyApi
-
-mkFedBrigClientGen ::
-  forall routes.
-  ( HasClient Servant.ClientM (ToServantApi routes),
-    GenericServant routes (AsClientT (HttpT IO)),
-    Servant.Client (HttpT IO) (ToServantApi routes) ~ ToServant routes (AsClientT (HttpT IO))
-  ) =>
-  Manager ->
-  Endpoint ->
-  Domain ->
-  routes (AsClientT (HttpT IO))
-mkFedBrigClientGen mgr endpoint originDomain = Servant.genericClientHoist servantClientMToHttp
-  where
-    servantClientMToHttp :: Servant.ClientM a -> Http a
-    servantClientMToHttp action = liftIO $ do
-      let brigHost = Text.unpack $ endpoint ^. epHost
-          brigPort = fromInteger . toInteger $ endpoint ^. epPort
-          baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort "/federation"
-          clientEnv = Servant.ClientEnv mgr baseUrl Nothing makeClientRequest
-      eitherRes <- Servant.runClientM action clientEnv
-      case eitherRes of
-        Right res -> pure res
-        Left err -> assertFailure $ "Servant client failed with: " <> show err
-
-    makeClientRequest :: BaseUrl -> Client.Request -> HTTP.Request
-    makeClientRequest burl req =
-      let req' = Servant.defaultMakeClientRequest burl req
-       in req'
-            { HTTP.requestHeaders =
-                HTTP.requestHeaders req' <> [(originDomainHeaderName, toByteString' originDomain)]
-            }

@@ -152,9 +152,9 @@ instance ToSchema NewOtrMessage where
         <*> newOtrRecipients .= field "recipients" schema
         <*> newOtrNativePush .= (field "native_push" schema <|> pure True)
         <*> newOtrTransient .= (field "transient" schema <|> pure False)
-        <*> newOtrNativePriority .= opt (field "native_priority" schema)
-        <*> newOtrData .= opt (field "data" schema)
-        <*> newOtrReportMissing .= opt (field "report_missing" (array schema))
+        <*> newOtrNativePriority .= maybe_ (optField "native_priority" schema)
+        <*> newOtrData .= maybe_ (optField "data" schema)
+        <*> newOtrReportMissing .= maybe_ (optField "report_missing" (array schema))
 
 instance FromProto NewOtrMessage where
   fromProto bs = protoToNewOtrMessage <$> runGetLazy Protobuf.decodeMessage bs

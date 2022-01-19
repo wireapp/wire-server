@@ -45,8 +45,8 @@ structure of lists when using the `Applicative` interface of
 
 ## Tutorial
 
-To learn how to use `SchemaP` in practice, let us walk through two
-basic examples, one for a record, and one for a sum type.
+To learn how to use `SchemaP` in practice, let us walk through some
+basic examples, including records and sum types.
 
 ### Records
 
@@ -345,9 +345,8 @@ represented on the Haskell side.
 
 ### Optional fields and default values
 
-To define a schema for a JSON object, there are multiple ways to deal
-with the serialisation of optional fields, which we will illustrate
-here.
+To define a schema for a JSON object, there are multiple ways to deal with the
+serialisation of optional fields, which we will illustrate here.
 
 The simplest (and most common) scenario is an optional field represented by a
 `Maybe` type, that is simply omitted from the generated JSON if it happens to
@@ -365,42 +364,48 @@ data User = User
 userSchema = object "User" $
   User
     <$> userName .= field "name" schema
-    <*> userHandle .= opt (field "handle" schema)
-    <*> userExpire .= opt (field "expire" schema)
+    <*> userHandle .= maybe_ (optField "handle" schema)
+    <*> userExpire .= maybe_ (optField "expire" schema)
 ```
 
-Here we apply the `opt` combinator to the optional field, to turn it from a
-schema for `Text` into a schema for `Maybe Text`. The parser for `userHandle`
-will return `Nothing` when the field is missing (or is `null`), and
-correspondingly the serialiser will not produce the field at all when its value
-is `Nothing`.
+Here we use `optField` to define schemas for optional fields, and apply the
+`maybe_` combinator to the result, which has the effect of making the
+serialiser omit the field when the corresponding value is `Nothing`.
+
+In detail, `optField "handle" schema` returns a schema from `Text` to `Maybe
+Text`, i.e. a schema that is able to parse an optional text value, but does not
+know how to serialise `Nothing`. Wrapping it in `maybe_` changes the first type
+to `Maybe Text`, and gives the serialiser the ability to serialise `Nothing` as
+well.
 
 Another possibility is a field that, when missing, is assumed to have a given
 default value. Most likely, in this case we do not want the field to be omitted
-when serialising. The schema can then be defined simply by using the
-`Alternative` instance of `SchemaP` to provide the default value:
+when serialising. Such a schema can be defined simply by omitting the call to
+`maybe_`, and instead converting a `Nothing` value coming from the parser into
+the desired default value.
 
 ```haskell
 userSchemaWithDefaultName :: ValueSchema NamedSwaggerDoc User
 userSchemaWithDefaultName =
   object "User" $
     User
-      <$> userName .= (field "name" schema <|> pure "")
-      <*> userHandle .= opt (field "handle" schema)
-      <*> userExpire .= opt (field "expire" schema)
+      <$> userName .= (fromMaybe "" <$> optField "name" schema)
+      <*> userHandle .= maybe_ (optField "handle" schema)
+      <*> userExpire .= maybe_ (optField "expire" schema)
 ```
 
-Now the `name` field is optional, and it is set to the empty string when missing.
-However, the field will still be present in the generated JSON when its value
-is the empty string. If we want the field to be omitted in that case, we can
-use the previous approach, and then convert back and forth from `Maybe Text`:
+Now the `name` field is optional, and it is set to the empty string when
+missing.  However, the field will still be present in the generated JSON when
+its value is the empty string. If we want the field to be omitted in that case,
+we can instead use the first approach, and manually convert back and forth from
+`Maybe Text`.
 
 ```haskell
 userSchemaWithDefaultName' :: ValueSchema NamedSwaggerDoc User
 userSchemaWithDefaultName' =
   object "User" $
     User
-      <$> (getOptText . userName) .= (fromMaybe "" <$> opt (field "name" schema))
+      <$> (getOptText . userName) .= maybe_ (fromMaybe "" <$> field "name" schema)
       <*> userHandle .= opt (field "handle" schema)
       <*> userExpire .= opt (field "expire" schema)
   where
@@ -417,59 +422,46 @@ techniques of the previous two examples:
 userSchema' :: ValueSchema NamedSwaggerDoc User
 userSchema' = object "User" $ User
   <$> field "name" schema
-  <*> lax (field "handle" (optWithDefault Aeson.null schema))
+  <*> optField "handle" (maybeWithDefault Aeson.Null schema)
   <*> opt (field "expire" schema)
 ```
 
 Two things to note here:
 
- - the `optWithDefault` combinator is applied to the schema value *inside*
- `field`, because the value to use if the value is `Nothing` (`Aeson.null` in
- this case) applies to the value of the field, and not the containing object.
- - we have wrapped the whole field inside a call to the `lax` combinator. All
- this does is to add a `pure Nothing` alternative for the field, which ensures
- we get a `Nothing` value (as opposed to a failure) when the field is not
- present at all in the JSON object.
+ - we are now using `maybeWithDefault` instead of `maybe_`. This is a more
+ general version of `maybe_` that takes as an argument the value to use when
+ serialising `Nothing`. Not that `maybe_` is simply `maybeWithDefault mempty`.
+ - the `maybeWithDefault` combinator is applied to the schema value *inside*
+ `field`, because the value to use when serialising `Nothing` (`Aeson.null` in
+ this case) applies to the value of the field, and not the containing
+ (one-field) object, as in the previous examples.
 
-One might wonder why we are using the special combinator `optWithDefault` here
+One might wonder why we are using the special combinator `optField` here
 instead of simply using the `Alternative` instance (via `optional` or
-directly). The reason is that the `Alternative` instance only really affects
-the parser (and its return type), whereas here we also want to encode the fact
-that the serialiser should output the default when the value of the field is
-`Nothing`. That means we need to also change the input type to a `Maybe`, which
-is what `opt` and `optWithDefault` do.
+directly), on the schema returned by the `field` combinator. The reason is that
+the `Alternative` instance would result in a slightly surprising behaviour in
+case of errors in the JSON value contained in a field.
 
-There is a subtlety here related to error messages, which can sometimes result
-in surprising behaviour when parsing optional fields with default values.
-Namely, given a field of the form
+For example, given a field of the form
 
 ```haskell
-opt (field "name" schema)
+optional (field "name" schema)
 ```
 
 the corresponding parser will return `Nothing` not only in the case where the
 `"name"` field is missing, but also if it is fails to parse correctly (for
 example, if it has an unexpected type).  This behaviour is caused by the fact
-that `opt` (and the `optWithDefault` / `lax` combo described above) are
-implemented in terms of the `Alternative` instance for `Aeson.Parser`, which
-cannot distinguish between "recoverable" and "unrecoverable" failures.
+that `optional` is implemented in terms of the `Alternative` instance for
+`Aeson.Parser`, which cannot distinguish between "recoverable" and
+"unrecoverable" failures.
 
-There are plans to improve on this behaviour in the future by directly changing
-the `Alternative` instance that `SchemaP` relies on, but for the moment, if
-this behaviour is not desirable, then one can use the ad-hoc `optField`
-combinator to introduce optional fields.
-
-For example, the above schema can be implemented using `optField` as follow:
+In some cases, this behaviour can be acceptable (or even desired), but in most
+circumstances, it is better to define the above schema using the dedicated
+`optField` combinator, as in:
 
 ```haskell
-userSchema'' :: ValueSchema NamedSwaggerDoc User
-userSchema'' = object "User" $ User
-  <$> field "name" schema
-  <*> optField "handle" (Just Aeson.Null) schema
-  <*> optField "expire" Nothing schema
+optField "name" schema
 ```
-
-The argument after the field name determines how the `Nothing` case is rendered in the generated JSON. If it is itself `Nothing`, that means that the field is completely omitted in that case.
 
 ### Redundant fields
 

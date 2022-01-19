@@ -19,6 +19,10 @@
 
 module Brig.Calling.API
   ( routesPublic,
+
+    -- * Exposed for testing purposes
+    newConfig,
+    CallsConfigVersion (..),
   )
 where
 
@@ -27,9 +31,10 @@ import Brig.App
 import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
+import Brig.Effects.SFT
 import qualified Brig.Options as Opt
 import Control.Lens
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion
 import Data.ByteString.Lens
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
@@ -48,7 +53,10 @@ import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
+import Polysemy
+import Polysemy.TinyLog
 import qualified System.Random.MWC as MWC
+import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
 
@@ -91,10 +99,16 @@ getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
-  env <- liftIO =<< readIORef <$> view turnEnvV2
+  env <- liftIO . readIORef =<< view turnEnvV2
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftEnv' <- view sftEnv
-  newConfig env staticUrl sftEnv' limit
+  logger <- view applog
+  manager <- view httpManager
+  liftIO
+    . runM @IO
+    . runTinyLog logger
+    . interpretSFT manager
+    $ newConfig env staticUrl sftEnv' limit CallsConfigV2
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -102,8 +116,15 @@ getCallsConfigH (_ ::: uid ::: connid) =
 
 getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
 getCallsConfig _ _ = do
-  env <- liftIO =<< readIORef <$> view turnEnv
-  dropTransport <$> newConfig env Nothing Nothing Nothing
+  env <- liftIO . readIORef =<< view turnEnv
+  logger <- view applog
+  manager <- view httpManager
+  fmap dropTransport
+    . liftIO
+    . runM @IO
+    . runTinyLog logger
+    . interpretSFT manager
+    $ newConfig env Nothing Nothing Nothing CallsConfigDeprecated
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -112,8 +133,24 @@ getCallsConfig _ _ = do
         (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
         Nothing
 
-newConfig :: MonadIO m => Calling.Env -> Maybe HttpsUrl -> Maybe SFTEnv -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit = do
+data CallsConfigVersion
+  = CallsConfigDeprecated
+  | CallsConfigV2
+
+-- | FUTUREWORK: It is not reflected in the function type the part of the
+-- business logic that says that the SFT static URL parameter cannot be set at
+-- the same time as the SFT environment parameter. See how to allow either none
+-- to be set or only one of them (perhaps Data.These combined with error
+-- handling).
+newConfig ::
+  Members [Embed IO, SFT] r =>
+  Calling.Env ->
+  Maybe HttpsUrl ->
+  Maybe SFTEnv ->
+  Maybe (Range 1 10 Int) ->
+  CallsConfigVersion ->
+  Sem r Public.RTCConfiguration
+newConfig env sftStaticUrl mSftEnv limit version = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -124,17 +161,27 @@ newConfig env sftStaticUrl mSftEnv limit = do
   finalUris <- liftIO $ randomize limitedUris
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
-    pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
+    pure $ Public.rtcIceServer (pure uri) u (computeCred sha secret u)
 
-  let staticSft = (\url -> Public.sftServer url :| []) <$> sftStaticUrl
-  sftEntries <- case mSftEnv of
-    Nothing -> pure Nothing
-    Just actualSftEnv -> do
-      sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
+  let staticSft = pure . Public.sftServer <$> sftStaticUrl
+  allSrvEntries <-
+    fmap join $
+      for mSftEnv $
+        (unSFTServers <$$>) . fmap discoveryToMaybe . readIORef . sftServers
+  srvEntries <- fmap join $
+    for mSftEnv $ \actualSftEnv -> liftIO $ do
       let subsetLength = Calling.sftListLength actualSftEnv
-      liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
+      mapM (getRandomElements subsetLength) allSrvEntries
 
-  pure $ Public.rtcConfiguration srvs (staticSft <|> sftServerFromSrvTarget . srvTarget <$$> sftEntries) cTTL
+  mSftServersAll :: Maybe [SFTServer] <- case version of
+    CallsConfigDeprecated -> pure Nothing
+    CallsConfigV2 ->
+      Just <$> case sftStaticUrl of
+        Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+        Just url -> fromRight [] . unSFTGetResponse <$> sftGetAllServers url
+
+  let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
+  pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =

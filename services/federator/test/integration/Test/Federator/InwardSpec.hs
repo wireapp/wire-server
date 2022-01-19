@@ -34,13 +34,18 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as E
 import Test.Federator.Util
 import Test.Hspec
+import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
 import Wire.API.User
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
+-- FUTUREWORK(fisx): better yet, reorganize integration tests (or at least the helpers) so
+-- they don't spread out over the different sevices.
 
--- | Path covered by this test
+-- | This module contains tests for the interface between federator and brig.  The tests call
+-- federator directly, circumnventing ingress:
 --
 --  +----------+
 --  |federator-|          +------+--+
@@ -72,10 +77,21 @@ spec env =
             <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
+    -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+    --
+    -- (This is tested in unit tests; search for
+    -- 'validateDomainCertInvalid' and 'testDiscoveryFailure'.)
+    it "shouldRejectMissmatchingOriginDomainInward" $
+      runTestFederator env $ pure ()
+    -- @END
+
     it "should be able to call cargohold" $
       runTestFederator env $ do
-        inwardCall "/federation/cargohold/get-asset" (encode ())
-          !!! const 500 === statusCode
+        uid <- liftIO $ generate arbitrary
+        key <- liftIO $ generate arbitrary
+        let ga = GetAsset uid key Nothing
+        inwardCall "/federation/cargohold/get-asset" (encode ga)
+          !!! const 200 === statusCode
 
     it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
@@ -98,9 +114,11 @@ spec env =
         inwardCall "/i/users" (encode o)
           !!! const 403 === statusCode
 
-    -- Matching client certificates against domain names is better tested in
-    -- unit tests.
-    it "should reject requests without a client certificate" $
+    -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+    --
+    -- See related tests in unit tests (for matching client certificates against domain names)
+    -- and "IngressSpec".
+    it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
         originDomain <- cfgOriginDomain <$> view teTstOpts
         hdl <- randomHandle
@@ -109,6 +127,10 @@ spec env =
           [(originDomainHeaderName, toByteString' originDomain)]
           (encode hdl)
           !!! const 403 === statusCode
+
+-- TODO: ORMOLU_DISABLE
+-- @END
+-- ORMOLU_ENABLE
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
@@ -132,8 +154,17 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
+  originDomain :: Text <- cfgOriginDomain <$> view teTstOpts
+  inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
+
+inwardCallWithOriginDomain ::
+  (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
+  ByteString ->
+  ByteString ->
+  LBS.ByteString ->
+  m (Response (Maybe LByteString))
+inwardCallWithOriginDomain originDomain requestPath payload = do
   Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
-  originDomain <- cfgOriginDomain <$> view teTstOpts
   clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
   clientCert <- liftIO $ BS.readFile clientCertFilename
   post
@@ -141,6 +172,6 @@ inwardCall requestPath payload = do
         . port fedPort
         . path requestPath
         . header "X-SSL-Certificate" (HTTP.urlEncode True clientCert)
-        . header originDomainHeaderName (toByteString' originDomain)
+        . header originDomainHeaderName originDomain
         . bytes (toByteString' payload)
     )

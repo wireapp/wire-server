@@ -34,16 +34,17 @@ module CargoHold.AWS
     send,
     sendCatch,
     exec,
+    execStream,
     execCatch,
   )
 where
 
 import CargoHold.CloudFront
 import CargoHold.Options
+import Conduit
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import qualified Control.Monad.Trans.AWS as AWST
-import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.ByteString.Builder (toLazyByteString)
 import Imports
@@ -90,16 +91,12 @@ newtype Amazon a = Amazon
       MonadCatch,
       MonadMask,
       MonadReader Env,
-      MonadResource
+      MonadResource,
+      MonadUnliftIO
     )
 
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
-
-instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon . ReaderT $ \r ->
-    withUnliftIO $ \u ->
-      return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
 instance AWS.MonadAWS Amazon where
   liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
@@ -157,7 +154,7 @@ instance Exception Error
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: AWSRequest r => r -> Amazon (Either AWS.Error (Rs r))
+sendCatch :: (MonadCatch m, AWS.MonadAWS m, AWSRequest r) => r -> m (Either AWS.Error (Rs r))
 sendCatch = AWST.trying AWS._Error . AWS.send
 
 send :: AWSRequest r => r -> Amazon (Rs r)
@@ -176,7 +173,7 @@ exec env request = do
   resp <- execute env (sendCatch req)
   case resp of
     Left err -> do
-      Log.info $
+      Logger.info (view logger env) $
         Log.field "remote" (Log.val "S3")
           ~~ Log.msg (show err)
           ~~ Log.msg (show req)
@@ -184,6 +181,25 @@ exec env request = do
       -- that caused it.
       throwM (GeneralError err)
     Right r -> return r
+
+execStream ::
+  (AWSRequest r, Show r) =>
+  Env ->
+  (Text -> r) ->
+  ResourceT IO (Rs r)
+execStream env request = do
+  let req = request (_s3Bucket env)
+  resp <- AWS.runAWS (view amazonkaEnv env) (sendCatch req)
+  case resp of
+    Left err -> do
+      Logger.info (view logger env) $
+        Log.field "remote" (Log.val "S3")
+          ~~ Log.msg (show err)
+          ~~ Log.msg (show req)
+      -- We just re-throw the error, but logging it here also gives us the request
+      -- that caused it.
+      throwM (GeneralError err)
+    Right r -> pure r
 
 execCatch ::
   (AWSRequest r, Show r, MonadLogger m, MonadIO m) =>

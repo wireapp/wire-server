@@ -54,7 +54,7 @@ An error in this category likely indicates an issue with the configuration of fe
 
  - **Federation unavailable** (status: 500, label: `federation-not-available`): Federation is configured for this backend, but the local federator cannot be reached. This can be transient, so clients should retry the request.
  - **Federation not implemented** (status: 500, label: `federation-not-implemented`): Federated behaviour for a certain endpoint is not yet implemented.
- - **Federator discovery failed** (status: 500, label: `discovery-failure`): A DNS error occurred during discovery of a remote backend. This can be transient, so clients should retry the request.
+ - **Federator discovery failed** (status: 400, label: `discovery-failure`): A DNS error occurred during discovery of a remote backend. This can be transient, so clients should retry the request.
  - **Local federation error** (status: 500, label: `federation-local-error`): An error occurred in the communication between this backend and its local federator. These errors are most likely caused by bugs in the backend, and should be reported as such.
 
 ### Remote federation errors

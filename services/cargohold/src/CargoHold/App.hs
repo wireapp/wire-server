@@ -29,6 +29,8 @@ module CargoHold.App
     metrics,
     appLogger,
     requestId,
+    localUnit,
+    options,
     settings,
 
     -- * App Monad
@@ -50,12 +52,13 @@ import qualified CargoHold.AWS as AWS
 import CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
-import Control.Lens (makeLenses, view, (^.))
+import Control.Lens (Lens', makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
+import Data.Qualified
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -75,10 +78,14 @@ data Env = Env
     _appLogger :: Logger,
     _httpManager :: Manager,
     _requestId :: RequestId,
-    _settings :: Opt.Settings
+    _options :: Opt.Opts,
+    _localUnit :: Local ()
   }
 
 makeLenses ''Env
+
+settings :: Lens' Env Opt.Settings
+settings = options . optSettings
 
 newEnv :: Opts -> IO Env
 newEnv o = do
@@ -86,7 +93,8 @@ newEnv o = do
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   ama <- initAws (o ^. optAws) lgr mgr
-  return $ Env ama met lgr mgr def (o ^. optSettings)
+  let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
+  return $ Env ama met lgr mgr def o loc
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l m =
