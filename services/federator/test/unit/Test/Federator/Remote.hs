@@ -123,8 +123,9 @@ testValidatesCertificateSuccess =
 -- @SF.Federation @TSFI.RESTfulAPI @S2
 --
 -- This is a group of test cases where refusing to connect with the server is
--- checked. The second test case refuses to connect with a server when it has no
--- X509v3 Extended Key Usage extension in the certificate.
+-- checked. The second test case refuses to connect with a server when the
+-- certificate's X509v3 Extended Key Usage extension is present and it does not
+-- list "TLS Web Server Authentication" among the purposes.
 testValidatesCertificateWrongHostname :: TestTree
 testValidatesCertificateWrongHostname =
   testGroup
