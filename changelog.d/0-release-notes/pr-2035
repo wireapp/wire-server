@@ -1,0 +1,1 @@
+Backend now separates conversation access control for guests and services. The old access roles are still supported but it is encouraged to upgrade clients since mapping between the old access roles and the new access roles are is not isomorphic. For more details refer to the API changes changelog, the Swagger docs, or the technical specification.
