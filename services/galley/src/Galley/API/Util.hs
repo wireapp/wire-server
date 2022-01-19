@@ -83,10 +83,10 @@ ensureAccessRole roles users = do
   unless (NonTeamMemberAccessRole `Set.member` roles) $
     when (any (isNothing . snd) users) $ throwED @NotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
-    nonGuestsAndBots <- lookupActivatedUsers (fst <$> users)
-    let guestsExist = length nonGuestsAndBots /= length users
+    activated <- lookupActivatedUsers (fst <$> users)
+    let guestsExist = length activated /= length users
     unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throw ConvAccessDenied
-    let botsExist = any (isJust . User.userService) nonGuestsAndBots
+    let botsExist = any (isJust . User.userService) activated
     unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throw ConvAccessDenied
 
 -- | Check that the given user is either part of the same team(s) as the other
