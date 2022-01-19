@@ -600,7 +600,7 @@ testUserInvalidDomain brig = do
   get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
     !!! do
       const 422 === statusCode
-      const (Just "/federation/get-users-by-ids")
+      const (Just "/federation/api-versions")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
       const (Just "invalid.example.com")
         === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value

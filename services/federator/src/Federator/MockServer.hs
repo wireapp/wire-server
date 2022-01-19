@@ -1,4 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Federator.MockServer
   ( MockTimeout (..),
@@ -30,7 +31,9 @@ import qualified Control.Concurrent.Async as Async
 import qualified Control.Exception as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
+import qualified Data.Aeson as Aeson
 import Data.Domain (Domain)
+import Data.Singletons
 import Data.Streaming.Network (bindRandomPortTCP)
 import qualified Data.Text.Lazy as LText
 import Federator.Error
@@ -49,8 +52,10 @@ import Polysemy
 import Polysemy.Error hiding (throw)
 import Polysemy.TinyLog
 import System.Timeout (timeout)
-import Wire.API.Federation.API (Component)
+import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
+import Wire.API.Federation.Version.Info
 
 -- | Thrown in IO by mock federator if the server could not be started after 10
 -- seconds.
@@ -136,6 +141,13 @@ withTempMockFederator headers resp action = do
       handleException e = case Exception.fromException e of
         Just mockE -> mockE
         Nothing -> MockErrorResponse HTTP.status500 (LText.pack (displayException e))
+      handleRequest :: FederatedRequest -> IO (HTTP.MediaType, LByteString)
+      handleRequest req
+        | frComponent req == Brig && frRPC req == "api-versions" =
+          pure ("application" HTTP.// "json", Aeson.encode (VersionInfo [demote @VL]))
+        | otherwise = do
+          modifyIORef remoteCalls (<> [req])
+          resp req
 
   let app request respond = do
         response <-
@@ -160,11 +172,10 @@ withTempMockFederator headers resp action = do
                           frBody = rdBody
                         }
                     )
-              embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
               (ct, body) <-
                 fromException @MockException
                   . handle (throw . handleException)
-                  $ resp fedRequest
+                  $ handleRequest fedRequest
               let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
               pure $ Wai.responseLBS HTTP.status200 headers' body
         respond response
