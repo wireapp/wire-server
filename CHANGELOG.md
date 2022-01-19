@@ -14,11 +14,7 @@
 ## API changes
 
 * The deprecated endpoint `GET /teams` now ignores query parameters `ids`, `start` (#2027)
-* Add qualified v4 endpoints for downloading and deleting assets. The upload API is still on the same path, but the asset object it returns now contains a `domain` field. Note that federated behaviour is still not implemented. (#2002)
-* Enable downloading assets from a remote (federated) cargohold instance via the v4 API.
-  The content of remote assets is returned as stream with content type
-  `application/octet-stream`.
-  Please refer to the Swagger API documentation for more details. (#2004)
+* Add qualified v4 endpoints for downloading and deleting assets. The upload API is still on the same path, but the asset object it returns now contains a `domain` field. (#2002)
 * Remove resumable upload API (#1998)
 
 ## Features
@@ -77,6 +73,7 @@
 * Replace IPv4-HTTP-only Approach to SFT Server Lookup with /sft_servers_all.json (#2030)
 * Extend GET /calls/config/v2 to include all SFT servers in federation (#2012)
 * Improve Brig's configuration for SFTs and fix a call to SFT servers (#2014)
+* Enable downloading assets from a remote (federated) cargohold instance via the v4 API. The content of remote assets is returned as stream with content type `application/octet-stream`. Please refer to the Swagger API documentation for more details. (#2004)
 
 # [2021-12-10]
 
