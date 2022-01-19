@@ -21,7 +21,7 @@
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
-import Brig.Types.Intra (ReAuthUser (..), accountUser)
+import Brig.Types.Intra (ReAuthUser (..))
 import Control.Arrow (Arrow (second), second)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -80,16 +80,14 @@ ensureAccessRole ::
   Sem r ()
 ensureAccessRole roles users = do
   when (Set.null roles) $ throw ConvAccessDenied
-  unless (Set.member NonTeamMemberAccessRole roles) $
+  unless (NonTeamMemberAccessRole `Set.member` roles) $
     when (any (isNothing . snd) users) $ throwED @NotATeamMember
-  unless (Set.member GuestAccessRole roles && Set.member ServiceAccessRole roles) $ do
-    activated <- lookupActivatedUsers (fst <$> users)
-    when (length activated /= length users) $ do
-      let guestOrBotIds = (fst <$> users) \\ (User.userId <$> activated)
-      guestOrBot <- fmap accountUser <$> getUsers guestOrBotIds
-      let (guests, bots) = partition (isJust . User.userService) guestOrBot
-      unless (null bots || Set.member ServiceAccessRole roles) $ throw ConvAccessDenied
-      unless (null guests || Set.member GuestAccessRole roles) $ throw ConvAccessDenied
+  unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
+    nonGuestsAndBots <- lookupActivatedUsers (fst <$> users)
+    let guestsExist = length nonGuestsAndBots /= length users
+    unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throw ConvAccessDenied
+    let botsExist = any (isJust . User.userService) nonGuestsAndBots
+    unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throw ConvAccessDenied
 
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.
