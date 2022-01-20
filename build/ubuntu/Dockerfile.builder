@@ -21,6 +21,7 @@ RUN set -x && \
     stack build haskell-src-exts && \
     stack build --pedantic --test --no-run-tests --bench --no-run-benchmarks --dependencies-only -j${THREADS} && \
     stack install ormolu && \
+    cabal build all --dependencies-only -j2 && \
     cd / && \
     # we run the build only to cache the built source in /root/.stack, we can remove the source code itself
     rm -rf /wire-server
