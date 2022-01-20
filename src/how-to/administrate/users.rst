@@ -314,4 +314,11 @@ Output will look something like this (truncated):
 
 This example is for Gundeck, but you can also get metrics for other services. All k8s services are listed at `this link <../../understand/overview.html?highlight=gundeck#focus-on-pods>`__.
 
+This is an example adapted for Cannon:
 
+.. code:: sh
+
+   kubectl --kubeconfig kubeconfig.dec -n wire port-forward service/cannon 7777:8080
+   curl -v http://127.0.0.1:7777/i/metrics
+
+In the output of this command, ``net_websocket_clients`` is roughly the number of connected clients.
