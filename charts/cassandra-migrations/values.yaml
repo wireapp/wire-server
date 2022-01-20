@@ -6,3 +6,31 @@ images:
   spar: quay.io/wire/spar-schema
   galleyMigrateData: quay.io/wire/galley-migrate-data
   sparMigrateData: quay.io/wire/spar-migrate-data
+
+# The following is mandatory to specify
+# cassandra:
+#   host: cassandra-ephemeral
+#   replicationFactor: 1
+#   replicationMap: RACK:3 # if replicationMap is set, it's used; otherwise replicationFactor is used
+
+
+# The following is optional. If set, it overrides the otherwise-used
+# cassandra.host and cassandra.replicationFactor / replicationMap for
+# the specific haskell service in case you have separate
+# cassandra clusters for each service.
+#
+# cassandraGalley:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: eu-west-1:3
+#
+# cassandraBrig:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: eu-central-1:3
+#
+# cassandraSpar:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: us-east-1:3
+#
+# cassandraGundeck:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: eu-west-1:3
