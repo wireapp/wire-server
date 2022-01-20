@@ -214,7 +214,7 @@ data FeatureFlags = FeatureFlags
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock)),
     _flagClassifiedDomains :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureFileSharing)),
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing)),
     _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
     _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
     _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks))
@@ -261,7 +261,7 @@ instance FromJSON FeatureFlags where
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
-      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
+      <*> (fromMaybe (Defaults defaultTeamFeatureFileSharing) <$> (obj .:? "fileSharing"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))

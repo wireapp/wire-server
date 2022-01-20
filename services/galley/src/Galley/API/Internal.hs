@@ -176,7 +176,7 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusFileSharingGet ::
       routes
-        :- IFeatureStatusGet 'Public.WithoutLockStatus 'Public.TeamFeatureFileSharing,
+        :- IFeatureStatusGet 'Public.WithLockStatus 'Public.TeamFeatureFileSharing,
     iTeamFeatureStatusFileSharingPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
@@ -319,7 +319,7 @@ servantSitemap =
         iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
-        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
