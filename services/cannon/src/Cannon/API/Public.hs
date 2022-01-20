@@ -28,10 +28,11 @@ import Data.Id
 import GHC.Base
 import Network.WebSockets.Connection
 import Servant
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
 
 publicAPIServer :: ServerT PublicAPI Cannon
-publicAPIServer = streamData
+publicAPIServer = Named @"await-notifications" streamData
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
