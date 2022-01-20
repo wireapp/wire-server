@@ -64,6 +64,7 @@ tests s =
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
+      test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.Unlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
@@ -381,6 +382,78 @@ testSimpleFlag defaultValue = do
   setFlagInternal defaultValue
   getFlag defaultValue
 
+testSimpleFlagWithLockStatus ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasNoConfig 'Public.WithLockStatus a,
+    Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a)
+  ) =>
+  Public.TeamFeatureStatusValue ->
+  Public.LockStatusValue ->
+  TestM ()
+testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
+  let feature = Public.knownTeamFeatureName @a
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  nonMember <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+  let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
+      getFlag expectedStatus expectedLockStatus = do
+        let flag = Util.getTeamFeatureFlag feature member tid
+        assertFlagNoConfigWithLockStatus @a flag expectedStatus expectedLockStatus
+
+      getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
+      getFeatureConfig expectedStatus expectedLockStatus = do
+        let flag = Util.getFeatureConfig feature member
+        assertFlagNoConfigWithLockStatus @a flag expectedStatus expectedLockStatus
+
+      getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
+      getFlagInternal expectedStatus expectedLockStatus = do
+        let flag = Util.getTeamFeatureFlagInternal feature tid
+        assertFlagNoConfigWithLockStatus @a flag expectedStatus expectedLockStatus
+
+      setFlagInternal :: Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
+      setFlagInternal statusValue lockStatusValue =
+        void $ Util.putTeamFeatureFlagWithLockStatusInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfigAndLockStatus statusValue lockStatusValue)
+
+  assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
+
+  let otherValue = case defaultValue of
+        Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
+        Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
+
+  -- let otherLockStatusValue = case defaultLockStatus of
+  --       Public.Locked -> Public.Unlocked
+  --       Public.Unlocked -> Public.Locked
+
+  -- Initial value should be the default value
+  getFlag defaultValue defaultLockStatus
+  getFlagInternal defaultValue defaultLockStatus
+  getFeatureConfig defaultValue defaultLockStatus
+
+  -- Setting should work
+  cannon <- view tsCannon
+  -- should receive an event
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal otherValue defaultLockStatus
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature otherValue
+
+  getFlag otherValue defaultLockStatus
+  getFeatureConfig otherValue defaultLockStatus
+  getFlagInternal otherValue defaultLockStatus
+
+  -- Clean up
+  setFlagInternal defaultValue defaultLockStatus
+  getFlag defaultValue defaultLockStatus
+  return ()
+
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
   defLockStatus :: Public.LockStatusValue <-
@@ -638,6 +711,24 @@ assertFlagNoConfig res expected = do
         . responseJsonEither @(Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
       )
       === const (Right expected)
+
+assertFlagNoConfigWithLockStatus ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasNoConfig 'Public.WithLockStatus a,
+    FromJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a),
+    Public.KnownTeamFeatureName a
+  ) =>
+  TestM ResponseLBS ->
+  Public.TeamFeatureStatusValue ->
+  Public.LockStatusValue ->
+  TestM ()
+assertFlagNoConfigWithLockStatus res expectedStatus expectedLockStatus = do
+  res !!! do
+    statusCode === const 200
+    responseJsonEither @(Public.TeamFeatureStatus 'Public.WithLockStatus a)
+      === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus expectedStatus expectedLockStatus))
 
 assertFlagWithConfig ::
   forall cfg m.

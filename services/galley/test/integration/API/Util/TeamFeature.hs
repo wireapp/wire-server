@@ -179,20 +179,34 @@ putTeamFeatureFlagInternal ::
   TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
+  putTeamFeatureFlagInternalWithGalleyAndMod @a @'Public.WithoutLockStatus g reqmod tid status
+
+putTeamFeatureFlagWithLockStatusInternal ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a)
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithLockStatus a ->
+  TestM ResponseLBS
+putTeamFeatureFlagWithLockStatusInternal reqmod tid status = do
+  g <- view tsGalley
+  putTeamFeatureFlagInternalWithGalleyAndMod @a @'Public.WithLockStatus g reqmod tid status
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
-  forall (a :: Public.TeamFeatureName) m.
+  forall (a :: Public.TeamFeatureName) (s :: Public.IncludeLockStatus) m.
   ( MonadIO m,
     MonadHttp m,
     HasCallStack,
     Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+    ToJSON (Public.TeamFeatureStatus s a)
   ) =>
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
-  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
+  Public.TeamFeatureStatus s a ->
   m ResponseLBS
 putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
   put $
