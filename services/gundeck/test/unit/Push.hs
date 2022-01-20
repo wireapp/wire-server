@@ -1,5 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -34,7 +33,8 @@ import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests =
-  testGroup "bulkpush" $
+  testGroup
+    "bulkpush"
     [ testProperty "web sockets" webBulkPushProps,
       testProperty "native pushes" pushAllProps
     ]

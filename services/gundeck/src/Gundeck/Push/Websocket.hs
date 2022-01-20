@@ -173,12 +173,11 @@ bulkSend' ::
   m BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
   req <-
-    ( check
-        . method POST
-        . contentJson
-        . lbytes jsbody
-        . timeout 3000 -- ms
-      )
+    check
+      . method POST
+      . contentJson
+      . lbytes jsbody
+      . timeout 3000 -- ms
       <$> Http.setUri empty (fromURI uri)
   try (submit req) >>= \case
     Left e -> throwM (e :: SomeException)

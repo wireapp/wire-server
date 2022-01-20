@@ -20,7 +20,7 @@ module Gundeck.API.Internal
   )
 where
 
-import qualified Cassandra as Cassandra
+import qualified Cassandra
 import Control.Lens (view)
 import Data.Id
 import qualified Gundeck.Client as Client

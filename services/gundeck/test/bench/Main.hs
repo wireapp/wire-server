@@ -37,7 +37,7 @@ import System.Random (randomRIO)
 
 main :: IO ()
 main = withOpenSSL $ do
-  prepared <- prepareBudgetState (100000)
+  prepared <- prepareBudgetState 100000
   defaultMain
     [ bgroup
         "notice"

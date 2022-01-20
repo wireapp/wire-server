@@ -71,54 +71,54 @@ tests s =
     "API tests"
     [ testGroup
         "Push"
-        [ test s "Register a user" $ addUser,
-          test s "Delete a user" $ removeUser,
-          test s "Replace presence" $ replacePresence,
-          test s "Remove stale presence" $ removeStalePresence,
-          test s "Single user push" $ singleUserPush,
+        [ test s "Register a user" addUser,
+          test s "Delete a user" removeUser,
+          test s "Replace presence" replacePresence,
+          test s "Remove stale presence" removeStalePresence,
+          test s "Single user push" singleUserPush,
           test s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8,
           test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
-          test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback,
-          test s "Targeted push by connection" $ targetConnectionPush,
-          test s "Targeted push by client" $ targetClientPush
+          test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
+          test s "Targeted push by connection" targetConnectionPush,
+          test s "Targeted push by client" targetClientPush
         ],
       testGroup
         "Notifications"
-        [ test s "No notifications" $ testNoNotifs,
-          test s "Fetch all notifications" $ testFetchAllNotifs,
-          test s "Fetch new notifications" $ testFetchNewNotifs,
-          test s "No new notifications" $ testNoNewNotifs,
-          test s "Missing notifications" $ testMissingNotifs,
-          test s "Fetch last notification" $ testFetchLastNotif,
-          test s "No last notification" $ testNoLastNotif,
-          test s "Bad 'since' parameter" $ testFetchNotifBadSince,
-          test s "Fetch notification by ID" $ testFetchNotifById,
-          test s "Filter notifications by client" $ testFilterNotifByClient,
-          test s "Paging" $ testNotificationPaging
+        [ test s "No notifications" testNoNotifs,
+          test s "Fetch all notifications" testFetchAllNotifs,
+          test s "Fetch new notifications" testFetchNewNotifs,
+          test s "No new notifications" testNoNewNotifs,
+          test s "Missing notifications" testMissingNotifs,
+          test s "Fetch last notification" testFetchLastNotif,
+          test s "No last notification" testNoLastNotif,
+          test s "Bad 'since' parameter" testFetchNotifBadSince,
+          test s "Fetch notification by ID" testFetchNotifById,
+          test s "Filter notifications by client" testFilterNotifByClient,
+          test s "Paging" testNotificationPaging
         ],
       testGroup
         "Clients"
-        [ test s "unregister a client" $ testUnregisterClient
+        [ test s "unregister a client" testUnregisterClient
         ],
       testGroup
         "Tokens"
-        [ test s "register a push token" $ testRegisterPushToken,
-          test s "unregister a push token" $ testUnregisterPushToken
+        [ test s "register a push token" testRegisterPushToken,
+          test s "unregister a push token" testUnregisterPushToken
         ],
       testGroup
         "Websocket pingpong"
-        [ test s "pings produce pongs" $ testPingPong,
-          test s "non-pings are ignored" $ testNoPingNoPong
+        [ test s "pings produce pongs" testPingPong,
+          test s "non-pings are ignored" testNoPingNoPong
         ],
       -- TODO: The following tests require (at the moment), the usage real AWS
       --       services so they are kept in a separate group to simplify testing
       testGroup
         "RealAWS"
-        [ test s "Send a push to online and offline users" $ sendMultipleUsers,
-          test s "register too many push tokens" $ testRegisterTooManyTokens,
-          test s "share push token" $ testSharePushToken,
-          test s "replace shared push token" $ testReplaceSharedPushToken,
-          test s "fail on long push token" $ testLongPushToken
+        [ test s "Send a push to online and offline users" sendMultipleUsers,
+          test s "register too many push tokens" testRegisterTooManyTokens,
+          test s "share push token" testSharePushToken,
+          test s "replace shared push token" testReplaceSharedPushToken,
+          test s "fail on long push token" testLongPushToken
         ]
     ]
 
@@ -221,7 +221,7 @@ bulkPush isE2E numUsers numConnsPerUser = do
   ca <- view tsCannon
   ca2 <- view tsCannon
   uids@(uid : _) :: [UserId] <- replicateM numUsers randomId
-  (connids@((_ : _) : _)) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
+  connids@((_ : _) : _) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
   let ucs :: [(UserId, [ConnId])] = zip uids connids
       ucs' :: [(UserId, [(ConnId, Bool)])] = toggle (mconcat $ repeat [True, False]) ucs
   chs <- do
@@ -696,7 +696,7 @@ testRegisterPushToken = do
   c1 <- randomClientId
   t11 <- randomToken c1 apnsToken
   t11' <- randomToken c1 apnsToken -- overlaps
-  t12 <- randomToken c1 apnsToken {tName = (AppName "com.wire.ent")} -- different app
+  t12 <- randomToken c1 apnsToken {tName = AppName "com.wire.ent"} -- different app
   t13 <- randomToken c1 gcmToken -- different transport
 
   -- Client 2 with 1 token
