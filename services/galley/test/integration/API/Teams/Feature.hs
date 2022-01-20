@@ -566,7 +566,7 @@ testAllFeatures = do
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
               (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
-          toS TeamFeatureFileSharing .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
+          toS TeamFeatureFileSharing .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
           toS TeamFeatureClassifiedDomains
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
