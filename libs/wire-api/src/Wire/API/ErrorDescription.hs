@@ -332,3 +332,5 @@ type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content leng
 type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"
 
 type PresenceNotRegistered = ErrorDescription 404 "not-found" "presence not registered"
+
+type ClientGone = ErrorDescription 410 "general" "client gone"

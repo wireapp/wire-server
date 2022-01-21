@@ -71,11 +71,11 @@ type InternalAPI =
                       :> StreamBody NoFraming OctetStream (SourceIO ByteString)
                       :> MultiVerb
                            'POST
-                           '[PlainText]
-                           '[ RespondEmpty 410 "General error: Client gone.",
-                              Respond 200 "Successfully pushed." String
+                           '[JSON]
+                           '[ ClientGone,
+                              RespondEmpty 200 "Successfully pushed."
                             ]
-                           (Maybe String)
+                           (Maybe ())
                   )
            :<|> Named
                   "bulk-push-notifications"
@@ -106,10 +106,10 @@ internalServer =
     :<|> Named @"bulk-push-notifications" bulkPushHandler
     :<|> Named @"get-preferences" checkPresenceHandler
 
-pushHandler :: UserId -> ConnId -> SourceIO ByteString -> Cannon (Maybe String)
+pushHandler :: UserId -> ConnId -> SourceIO ByteString -> Cannon (Maybe ())
 pushHandler user conn body =
   singlePush body (PushTarget user conn) >>= \case
-    PushStatusOk -> pure $ Just ""
+    PushStatusOk -> pure $ Just ()
     PushStatusGone -> pure Nothing
 
 -- | Take a serialized 'Notification' string and send it to the 'PushTarget'.
