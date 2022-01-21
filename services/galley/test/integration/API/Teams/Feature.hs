@@ -49,7 +49,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
-import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
+import Wire.API.Event.FeatureConfig (EventData (..))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
@@ -64,7 +64,7 @@ tests s =
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
-      test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.Unlocked,
+      test s "FS with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.Unlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
@@ -73,6 +73,7 @@ tests s =
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal
+      -- test s "ConversationGuestLinks with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked
     ]
 
 testSSO :: TestM ()
@@ -387,6 +388,7 @@ testSimpleFlagWithLockStatus ::
   ( HasCallStack,
     Typeable a,
     Public.FeatureHasNoConfig 'Public.WithLockStatus a,
+    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
     Public.KnownTeamFeatureName a,
     FromJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a),
     ToJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a)
@@ -395,6 +397,7 @@ testSimpleFlagWithLockStatus ::
   Public.LockStatusValue ->
   TestM ()
 testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
+  galley <- view tsGalley
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
   member <- Util.randomUser
@@ -417,9 +420,15 @@ testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
         let flag = Util.getTeamFeatureFlagInternal feature tid
         assertFlagNoConfigWithLockStatus @a flag expectedStatus expectedLockStatus
 
-      setFlagInternal :: Public.TeamFeatureStatusValue -> Public.LockStatusValue -> TestM ()
-      setFlagInternal statusValue lockStatusValue =
-        void $ Util.putTeamFeatureFlagWithLockStatusInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfigAndLockStatus statusValue lockStatusValue)
+      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal statusValue =
+        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+          !!! statusCode === const 200
+
+      setLockStatus :: Public.LockStatusValue -> TestM ()
+      setLockStatus lockStatus =
+        Util.setLockStatusInternal @a galley tid lockStatus
+          !!! statusCode === const 200
 
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
@@ -427,32 +436,37 @@ testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
         Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
         Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
 
-  -- let otherLockStatusValue = case defaultLockStatus of
-  --       Public.Locked -> Public.Unlocked
-  --       Public.Unlocked -> Public.Locked
+  let otherLockStatusValue = case defaultLockStatus of
+        Public.Locked -> Public.Unlocked
+        Public.Unlocked -> Public.Locked
 
   -- Initial value should be the default value
   getFlag defaultValue defaultLockStatus
   getFlagInternal defaultValue defaultLockStatus
   getFeatureConfig defaultValue defaultLockStatus
 
-  -- Setting should work
+  -- unlock feature if it is locked
+  when (defaultLockStatus == Public.Unlocked) $ setLockStatus Public.Unlocked
+
+  -- setting should work
   cannon <- view tsCannon
   -- should receive an event
   WS.bracketR cannon member $ \ws -> do
-    setFlagInternal otherValue defaultLockStatus
+    setFlagInternal otherValue
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate feature otherValue
 
-  getFlag otherValue defaultLockStatus
-  getFeatureConfig otherValue defaultLockStatus
-  getFlagInternal otherValue defaultLockStatus
+  getFlag otherValue Public.Unlocked
+  getFeatureConfig otherValue Public.Unlocked
+  getFlagInternal otherValue Public.Unlocked
 
-  -- Clean up
-  setFlagInternal defaultValue defaultLockStatus
-  getFlag defaultValue defaultLockStatus
-  return ()
+  setLockStatus otherLockStatusValue
+  getFlag otherValue otherLockStatusValue
+
+  -- clean up
+  setFlagInternal defaultValue
+  getFlag defaultValue Public.Unlocked
 
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do

@@ -252,6 +252,21 @@ data FeatureTeamSearchVisibility
   | FeatureTeamSearchVisibilityDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+data FeatureStatusWithOptionalLockStatus = FeatureStatusWithOptionalLockStatus TeamFeatureStatusValue (Maybe LockStatusValue)
+
+instance FromJSON FeatureStatusWithOptionalLockStatus where
+  parseJSON = withObject "FeatureStatusWithOptionalLockStatus" $ \obj ->
+    FeatureStatusWithOptionalLockStatus
+      <$> obj .: "status"
+      <*> obj .:? "lockStatus"
+
+fromFeatureStatusWithOptionalLockStatus :: TeamFeatureStatusNoConfigAndLockStatus -> Maybe (Defaults FeatureStatusWithOptionalLockStatus) -> TeamFeatureStatusNoConfigAndLockStatus
+fromFeatureStatusWithOptionalLockStatus (TeamFeatureStatusNoConfigAndLockStatus defStatus defLockStatus) =
+  \case
+    Just (Defaults (FeatureStatusWithOptionalLockStatus status (Just lockStatus))) -> TeamFeatureStatusNoConfigAndLockStatus status lockStatus
+    Just (Defaults (FeatureStatusWithOptionalLockStatus status Nothing)) -> TeamFeatureStatusNoConfigAndLockStatus status defLockStatus
+    Nothing -> TeamFeatureStatusNoConfigAndLockStatus defStatus defLockStatus
+
 -- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
@@ -261,7 +276,7 @@ instance FromJSON FeatureFlags where
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
-      <*> (fromMaybe (Defaults defaultTeamFeatureFileSharing) <$> (obj .:? "fileSharing"))
+      <*> (Defaults . fromFeatureStatusWithOptionalLockStatus defaultTeamFeatureFileSharing <$> (obj .:? "fileSharing"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))

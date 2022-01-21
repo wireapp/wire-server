@@ -60,7 +60,6 @@ settings:
     fileSharing:
       defaults:
         status: enabled
-        lockStatus: unlocked # TODO(leif): make optional
     conferenceCalling:
       defaults:
         status: enabled
