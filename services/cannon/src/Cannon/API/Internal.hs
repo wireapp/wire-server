@@ -38,14 +38,12 @@ import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Imports
 import Servant
+import Servant.API.Verbs
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-
--- FUTUREWORK: This has been merged to servant upstream and can be replaced once it's released.
-type HeadNoContent = NoContentVerb 'HEAD
 
 newtype PushNotificationStream = PushNotificationStream
   { getPushNotificationStream :: ConduitT () ByteString (ResourceT WS) ()
