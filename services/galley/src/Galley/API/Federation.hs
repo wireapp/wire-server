@@ -309,7 +309,7 @@ onMessageSent domain rmUnqualified = do
       (F.rmSender rm)
       (F.rmSenderClient rm)
       Nothing
-      convId
+      (Just convId)
       localMembers
       msgMetadata
       msgs

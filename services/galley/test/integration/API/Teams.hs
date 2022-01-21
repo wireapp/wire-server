@@ -39,6 +39,7 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Id
+import Data.Json.Util hiding ((#))
 import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
@@ -1624,7 +1625,12 @@ postCryptoBroadcastMessageJson = do
   ac2 <- randomClient alice (someLastPrekeys !! 4)
   -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
   let t = 1 # Second -- WS receive timeout
-  let msg = [(alice, ac2, "ciphertext0"), (bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
+  let msg =
+        [ (alice, ac2, toBase64Text "ciphertext0"),
+          (bob, bc, toBase64Text "ciphertext1"),
+          (charlie, cc, toBase64Text "ciphertext2"),
+          (dan, dc, toBase64Text "ciphertext3")
+        ]
   WS.bracketRN c [bob, charlie, dan] $ \[wsB, wsC, wsD] ->
     -- Alice's clients 1 and 2 listen to their own messages only
     WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
@@ -1633,15 +1639,19 @@ postCryptoBroadcastMessageJson = do
           const 201 === statusCode
           assertMismatch [] [] []
         -- Bob should get the broadcast (team member of alice)
-        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext1")
+        void . liftIO $
+          WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext1"))
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
-        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
+        void . liftIO $
+          WS.assertMatch t wsC (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext2"))
         -- Dan should get the broadcast (contact of alice and not user of teams feature)
-        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (q (selfConv dan)) (q alice) ac dc "ciphertext3")
+        void . liftIO $
+          WS.assertMatch t wsD (wsAssertOtr (q (selfConv dan)) (q alice) ac dc (toBase64Text "ciphertext3"))
         -- Alice's first client should not get the broadcast
-        assertNoMsg wsA1 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac "ciphertext0")
+        assertNoMsg wsA1 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac (toBase64Text "ciphertext0"))
         -- Alice's second client should get the broadcast
-        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 "ciphertext0")
+        void . liftIO $
+          WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
 postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: TestM ()
 postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
@@ -1672,7 +1682,12 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
   ac2 <- randomClient alice (someLastPrekeys !! 4)
   -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
   let t = 1 # Second -- WS receive timeout
-  let msg = [(alice, ac2, "ciphertext0"), (bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
+  let msg =
+        [ (alice, ac2, toBase64Text "ciphertext0"),
+          (bob, bc, toBase64Text "ciphertext1"),
+          (charlie, cc, toBase64Text "ciphertext2"),
+          (dan, dc, toBase64Text "ciphertext3")
+        ]
   WS.bracketRN c [bob, charlie, dan] $ \[wsB, wsC, wsD] ->
     -- Alice's clients 1 and 2 listen to their own messages only
     WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
@@ -1692,15 +1707,19 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
             const 201 === statusCode
             assertMismatch [] [] []
         -- Bob should get the broadcast (team member of alice)
-        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext1")
+        void . liftIO $
+          WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext1"))
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
-        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
+        void . liftIO $
+          WS.assertMatch t wsC (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext2"))
         -- Dan should get the broadcast (contact of alice and not user of teams feature)
-        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (q (selfConv dan)) (q alice) ac dc "ciphertext3")
+        void . liftIO $
+          WS.assertMatch t wsD (wsAssertOtr (q (selfConv dan)) (q alice) ac dc (toBase64Text "ciphertext3"))
         -- Alice's first client should not get the broadcast
-        assertNoMsg wsA1 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac "ciphertext0")
+        assertNoMsg wsA1 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac (toBase64Text "ciphertext0"))
         -- Alice's second client should get the broadcast
-        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 "ciphertext0")
+        void . liftIO $
+          WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
 postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
 postCryptoBroadcastMessageJsonReportMissingBody = do
@@ -1736,38 +1755,47 @@ postCryptoBroadcastMessageJson2 = do
   connectUsers alice (list1 charlie [])
   let t = 3 # Second -- WS receive timeout
   -- Missing charlie
-  let m1 = [(bob, bc, "ciphertext1")]
+  let m1 = [(bob, bc, toBase64Text "ciphertext1")]
   Util.postOtrBroadcastMessage id alice ac m1 !!! do
     const 412 === statusCode
     assertMismatchWithMessage (Just "1: Only Charlie and his device") [(charlie, Set.singleton cc)] [] []
   -- Complete
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
-    let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
+    let m2 = [(bob, bc, toBase64Text "ciphertext2"), (charlie, cc, toBase64Text "ciphertext2")]
     Util.postOtrBroadcastMessage id alice ac m2 !!! do
       const 201 === statusCode
       assertMismatchWithMessage (Just "No devices expected") [] [] []
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext2")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
+    void . liftIO $
+      WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext2"))
+    void . liftIO $
+      WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext2"))
   -- Redundant self
   WS.bracketR3 c alice bob charlie $ \(wsA, wsB, wsE) -> do
-    let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
+    let m3 =
+          [ (alice, ac, toBase64Text "ciphertext3"),
+            (bob, bc, toBase64Text "ciphertext3"),
+            (charlie, cc, toBase64Text "ciphertext3")
+          ]
     Util.postOtrBroadcastMessage id alice ac m3 !!! do
       const 201 === statusCode
       assertMismatchWithMessage (Just "2: Only Alice and her device") [] [(alice, Set.singleton ac)] []
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext3")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext3")
+    void . liftIO $
+      WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext3"))
+    void . liftIO $
+      WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext3"))
     -- Alice should not get it
-    assertNoMsg wsA (wsAssertOtr (q (selfConv alice)) (q alice) ac ac "ciphertext3")
+    assertNoMsg wsA (wsAssertOtr (q (selfConv alice)) (q alice) ac ac (toBase64Text "ciphertext3"))
   -- Deleted charlie
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
-    let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
+    let m4 = [(bob, bc, toBase64Text "ciphertext4"), (charlie, cc, toBase64Text "ciphertext4")]
     Util.postOtrBroadcastMessage id alice ac m4 !!! do
       const 201 === statusCode
       assertMismatchWithMessage (Just "3: Only Charlie and his device") [] [] [(charlie, Set.singleton cc)]
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext4")
+    void . liftIO $
+      WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext4"))
     -- charlie should not get it
-    assertNoMsg wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext4")
+    assertNoMsg wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext4"))
 
 postCryptoBroadcastMessageProto :: TestM ()
 postCryptoBroadcastMessageProto = do
@@ -1791,18 +1819,18 @@ postCryptoBroadcastMessageProto = do
   connectUsers alice (list1 charlie [dan])
   -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
   let t = 1 # Second -- WS receive timeout
-  let ciphertext = encodeCiphertext "hello bob"
+  let ciphertext = toBase64Text "hello bob"
   WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
     let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
     Util.postProtoOtrBroadcast alice ac msg !!! do
       const 201 === statusCode
       assertMismatch [] [] []
     -- Bob should get the broadcast (team member of alice)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (q (selfConv bob)) (q alice) ac bc ciphertext)
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (toBase64Text "data") (q (selfConv bob)) (q alice) ac bc ciphertext)
     -- Charlie should get the broadcast (contact of alice and user of teams feature)
-    void . liftIO $ WS.assertMatch t wsC (wsAssertOtr' (encodeCiphertext "data") (q (selfConv charlie)) (q alice) ac cc ciphertext)
+    void . liftIO $ WS.assertMatch t wsC (wsAssertOtr' (toBase64Text "data") (q (selfConv charlie)) (q alice) ac cc ciphertext)
     -- Dan should get the broadcast (contact of alice and not user of teams feature)
-    void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (encodeCiphertext "data") (q (selfConv dan)) (q alice) ac dc ciphertext)
+    void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (toBase64Text "data") (q (selfConv dan)) (q alice) ac dc ciphertext)
     -- Alice should not get her own broadcast
     WS.assertNoEvent timeout ws
   let inbody = Just [bob] -- body triggers report
@@ -1816,7 +1844,7 @@ postCryptoBroadcastMessageNoTeam = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   connectUsers alice (list1 bob [])
-  let msg = [(bob, bc, "ciphertext1")]
+  let msg = [(bob, bc, toBase64Text "ciphertext1")]
   Util.postOtrBroadcastMessage id alice ac msg !!! const 404 === statusCode
 
 postCryptoBroadcastMessage100OrMaxConns :: TestM ()
@@ -1831,16 +1859,17 @@ postCryptoBroadcastMessage100OrMaxConns = do
   connectUsers alice (list1 bob (fst <$> others))
   let t = 3 # Second -- WS receive timeout
   WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
-    let f (u, clt) = (u, clt, "ciphertext")
-    let msg = (bob, bc, "ciphertext") : (f <$> others)
+    let f (u, clt) = (u, clt, toBase64Text "ciphertext")
+    let msg = (bob, bc, toBase64Text "ciphertext") : (f <$> others)
     Util.postOtrBroadcastMessage id alice ac msg !!! do
       const 201 === statusCode
       assertMismatch [] [] []
     let qbobself = Qualified (selfConv bob) localDomain
-    void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr qbobself qalice ac bc "ciphertext")
+    void . liftIO $
+      WS.assertMatch t (Imports.head ws) (wsAssertOtr qbobself qalice ac bc (toBase64Text "ciphertext"))
     for_ (zip (tail ws) others) $ \(wsU, (u, clt)) -> do
       let qself = Qualified (selfConv u) localDomain
-      liftIO $ WS.assertMatch t wsU (wsAssertOtr qself qalice ac clt "ciphertext")
+      liftIO $ WS.assertMatch t wsU (wsAssertOtr qself qalice ac clt (toBase64Text "ciphertext"))
   where
     createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
       (uid, cid) <- randomUserWithClient pk

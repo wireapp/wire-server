@@ -39,6 +39,7 @@ import Control.Monad.Except (throwError)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (encode)
+import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
@@ -325,12 +326,12 @@ postBroadcast lusr con msg = runError $ do
     throw $ MessageNotSentClientMissing otrResult
 
   failedToSend <-
-    sendOnlyLocalMessages
+    sendBroadcastMessages
+      lusr
       now
       (qUntagged lusr)
       senderClient
       con
-      (fmap selfConv lusr)
       (qualifiedNewOtrMetadata msg)
       validMessages
   pure otrResult {mssFailedToSend = failedToSend}
@@ -483,26 +484,26 @@ sendMessages now sender senderClient mconn lcnv localMemberMap metadata messages
   let send dom =
         foldQualified
           lcnv
-          (\l -> sendLocalMessages l now sender senderClient mconn (qUntagged lcnv) localMemberMap metadata)
+          (\l -> sendLocalMessages l now sender senderClient mconn (Just (qUntagged lcnv)) localMemberMap metadata)
           (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
-sendOnlyLocalMessages ::
+sendBroadcastMessages ::
   Members '[GundeckAccess, P.TinyLog] r =>
+  Local x ->
   UTCTime ->
   Qualified UserId ->
   ClientId ->
   Maybe ConnId ->
-  Local ConvId ->
   MessageMetadata ->
   Map (Domain, UserId, ClientId) ByteString ->
   Sem r QualifiedUserClients
-sendOnlyLocalMessages now sender senderClient mconn lcnv metadata messages = do
+sendBroadcastMessages loc now sender senderClient mconn metadata messages = do
   let messageMap = byDomain $ fmap toBase64Text messages
-      localMessages = Map.findWithDefault mempty (tDomain lcnv) messageMap
-  failed <- sendLocalMessages lcnv now sender senderClient mconn (qUntagged lcnv) () metadata localMessages
-  pure . mkQualifiedUserClientsByDomain $ Map.singleton (tDomain lcnv) failed
+      localMessages = Map.findWithDefault mempty (tDomain loc) messageMap
+  failed <- sendLocalMessages loc now sender senderClient mconn Nothing () metadata localMessages
+  pure . mkQualifiedUserClientsByDomain $ Map.singleton (tDomain loc) failed
 
 byDomain :: Map (Domain, UserId, ClientId) a -> Map Domain (Map (UserId, ClientId) a)
 byDomain =
@@ -521,14 +522,14 @@ sendLocalMessages ::
   Qualified UserId ->
   ClientId ->
   Maybe ConnId ->
-  Qualified ConvId ->
+  Maybe (Qualified ConvId) ->
   LocalMemberMap t ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
   Sem r (Set (UserId, ClientId))
 sendLocalMessages loc now sender senderClient mconn qcnv localMemberMap metadata localMessages = do
   let events =
-        localMessages & reindexed snd itraversed
+        localMessages & reindexed (first (qualifyAs loc)) itraversed
           %@~ newMessageEvent
             qcnv
             sender
@@ -628,15 +629,24 @@ type family LocalMemberMap (t :: MessageType) = (m :: *) | m -> t where
   LocalMemberMap 'NormalMessage = Map UserId LocalMember
   LocalMemberMap 'Broadcast = ()
 
-newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
-newMessageEvent convId sender senderClient dat time receiverClient cipherText =
-  Event OtrMessageAdd convId sender time . EdOtrMessage $
-    OtrMessage
-      { otrSender = senderClient,
-        otrRecipient = receiverClient,
-        otrCiphertext = cipherText,
-        otrData = dat
-      }
+newMessageEvent ::
+  Maybe (Qualified ConvId) ->
+  Qualified UserId ->
+  ClientId ->
+  Maybe Text ->
+  UTCTime ->
+  (Local UserId, ClientId) ->
+  Text ->
+  Event
+newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
+  let convId = fromMaybe (qUntagged (fmap selfConv receiver)) mconvId
+   in Event OtrMessageAdd convId sender time . EdOtrMessage $
+        OtrMessage
+          { otrSender = senderClient,
+            otrRecipient = receiverClient,
+            otrCiphertext = cipherText,
+            otrData = dat
+          }
 
 class RunMessagePush (t :: MessageType) where
   type MessagePushEffects t :: [Effect]
@@ -651,7 +661,7 @@ class RunMessagePush (t :: MessageType) where
   runMessagePush ::
     Members (MessagePushEffects t) r =>
     Local x ->
-    Qualified ConvId ->
+    Maybe (Qualified ConvId) ->
     MessagePush t ->
     Sem r ()
 
@@ -663,7 +673,7 @@ instance RunMessagePush 'NormalMessage where
     where
       newBotMessagePush :: LocalMember -> Maybe (MessagePush 'NormalMessage)
       newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
-  runMessagePush loc qcnv mp = do
+  runMessagePush loc mqcnv mp = do
     push (userPushes mp)
     pushToBots (botPushes mp)
     where
@@ -671,7 +681,7 @@ instance RunMessagePush 'NormalMessage where
         Members '[ExternalAccess, P.TinyLog] r =>
         [(BotMember, Event)] ->
         Sem r ()
-      pushToBots pushes = do
+      pushToBots pushes = for_ mqcnv $ \qcnv ->
         if tDomain loc /= qDomain qcnv
           then unless (null pushes) $ do
             P.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
