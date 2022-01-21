@@ -60,7 +60,7 @@ module Galley.API.Update
     rmServiceH,
     Galley.API.Update.addBotH,
     rmBotH,
-    postBotMessageH,
+    postBotMessageUnqualified,
   )
 where
 
@@ -69,15 +69,13 @@ import Control.Lens
 import Control.Monad.State
 import Data.Code
 import Data.Id
-import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
+import Data.Json.Util
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
-import Galley.API.LegalHold.Conflicts
 import Galley.API.Mapping
 import Galley.API.Message
 import qualified Galley.API.Query as Query
@@ -86,7 +84,6 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
-import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
@@ -101,12 +98,9 @@ import Galley.Intra.Push
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
-import Galley.Types.Clients (Clients)
-import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Roles (Action (..), roleNameWireMember)
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Types.UserList
-import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
@@ -1127,77 +1121,6 @@ removeMemberFromLocalConv lcnv lusr con =
 
 -- OTR
 
-data OtrResult
-  = OtrSent !ClientMismatch
-  | OtrMissingRecipients !ClientMismatch
-  | OtrUnknownClient !UnknownClient
-  | OtrConversationNotFound !ConvNotFound
-
-handleOtrResult ::
-  Members
-    '[ Error ClientError,
-       Error ConversationError
-     ]
-    r =>
-  OtrResult ->
-  Sem r Response
-handleOtrResult =
-  \case
-    OtrSent m -> pure $ json m & setStatus status201
-    OtrMissingRecipients m -> pure $ json m & setStatus status412
-    OtrUnknownClient _ -> throw UnknownClient
-    OtrConversationNotFound _ -> throw ConvNotFound
-
-postBotMessageH ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       Error ClientError,
-       Error ConversationError,
-       Error LegalHoldError,
-       GundeckAccess,
-       ExternalAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       TinyLog,
-       WaiRoutes
-     ]
-    r =>
-  BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON ->
-  Sem r Response
-postBotMessageH (zbot ::: cnv ::: val ::: req ::: _) = do
-  lbot <- qualifyLocal zbot
-  lcnv <- qualifyLocal cnv
-  message <- fromJsonBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult =<< postBotMessage lbot lcnv val' message
-
-postBotMessage ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       Error LegalHoldError,
-       ExternalAccess,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  Local BotId ->
-  Local ConvId ->
-  OtrFilterMissing ->
-  NewOtrMessage ->
-  Sem r OtrResult
-postBotMessage zbot = postNewOtrMessage Bot (fmap botUserId zbot) Nothing
-
 postProteusMessage ::
   Members
     '[ BotAccess,
@@ -1257,6 +1180,38 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
           }
   unqualify (tDomain loc) <$> f qualifiedMessage
 
+postBotMessageUnqualified ::
+  Members
+    '[ BrigAccess,
+       ClientStore,
+       ConversationStore,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input (Local ()),
+       Input Opts,
+       Input UTCTime,
+       MemberStore,
+       TeamStore,
+       TinyLog
+     ]
+    r =>
+  BotId ->
+  ConvId ->
+  Maybe IgnoreMissing ->
+  Maybe ReportMissing ->
+  NewOtrMessage ->
+  Sem r (PostOtrResponse ClientMismatch)
+postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
+  lusr <- qualifyLocal (botUserId sender)
+  lcnv <- qualifyLocal cnv
+  unqualifyEndpoint
+    lusr
+    (runLocalInput lusr . postQualifiedOtrMessage Bot (qUntagged lusr) Nothing lcnv)
+    ignoreMissing
+    reportMissing
+    message
+
 postOtrBroadcastUnqualified ::
   Members
     '[ BrigAccess,
@@ -1309,82 +1264,6 @@ postOtrMessageUnqualified sender zcon cnv =
    in unqualifyEndpoint
         sender
         (runLocalInput sender . postQualifiedOtrMessage User (qUntagged sender) (Just zcon) lcnv)
-
--- internal OTR helpers
-
--- This is a work-around for the fact that we sometimes want to send larger lists of user ids
--- in the filter query than fits the url length limit.  for details, see
--- https://github.com/zinfra/backend-issues/issues/1248
-allowOtrFilterMissingInBody :: OtrFilterMissing -> NewOtrMessage -> OtrFilterMissing
-allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrepmiss of
-  Nothing -> val
-  Just uids -> OtrReportMissing $ Set.fromList uids
-
-postNewOtrMessage ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       Error LegalHoldError,
-       ExternalAccess,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  UserType ->
-  Local UserId ->
-  Maybe ConnId ->
-  Local ConvId ->
-  OtrFilterMissing ->
-  NewOtrMessage ->
-  Sem r OtrResult
-postNewOtrMessage utype lusr con lcnv val msg = do
-  let sender = newOtrSender msg
-      recvrs = newOtrRecipients msg
-  now <- input
-  withValidOtrRecipients utype (tUnqualified lusr) sender (tUnqualified lcnv) recvrs val now $ \rs -> do
-    let (toBots, toUsers) = foldr (newMessage (qUntagged lusr) con (Just (qUntagged lcnv)) msg now) ([], []) rs
-    E.push (catMaybes toUsers)
-    E.deliverAndDeleteAsync (tUnqualified lcnv) toBots
-
-newMessage ::
-  Qualified UserId ->
-  Maybe ConnId ->
-  -- | Conversation Id (if Nothing, recipient's self conversation is used)
-  Maybe (Qualified ConvId) ->
-  NewOtrMessage ->
-  UTCTime ->
-  (LocalMember, ClientId, Text) ->
-  ([(BotMember, Event)], [Maybe Push]) ->
-  ([(BotMember, Event)], [Maybe Push])
-newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
-  let o =
-        OtrMessage
-          { otrSender = newOtrSender msg,
-            otrRecipient = c,
-            otrCiphertext = t,
-            otrData = newOtrData msg
-          }
-      -- use recipient's client's self conversation on broadcast
-      -- (with federation, this might not work for remote members)
-      -- FUTUREWORK: for remote recipients, set the domain correctly here
-      qconv = fromMaybe ((`Qualified` qDomain qusr) . selfConv $ lmId m) qcnv
-      e = Event OtrMessageAdd qconv qusr now (EdOtrMessage o)
-      r = recipient m & recipientClients .~ RecipientClientsSome (singleton c)
-   in case newBotMember m of
-        Just b -> ((b, e) : toBots, toUsers)
-        Nothing ->
-          let p =
-                newPushLocal ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) [r]
-                  <&> set pushConn con
-                    . set pushNativePriority (newOtrNativePriority msg)
-                    . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
-                    . set pushTransient (newOtrTransient msg)
-           in (toBots, p : toUsers)
 
 updateConversationName ::
   Members
@@ -1686,165 +1565,3 @@ rmBot lusr zcon b = do
 ensureConvMember :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Sem r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $ throw ConvNotFound
-
--------------------------------------------------------------------------------
--- OtrRecipients Validation
-
-data CheckedOtrRecipients
-  = -- | Valid sender (user and client) and no missing recipients,
-    -- or missing recipients have been willfully ignored.
-    ValidOtrRecipients !ClientMismatch [(LocalMember, ClientId, Text)]
-  | -- | Missing recipients.
-    MissingOtrRecipients !ClientMismatch
-  | -- | Invalid sender (user).
-    InvalidOtrSenderUser
-  | -- | Invalid sender (client).
-    InvalidOtrSenderClient
-
-withValidOtrRecipients ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       Error LegalHoldError,
-       Input Opts,
-       MemberStore,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  UserType ->
-  UserId ->
-  ClientId ->
-  ConvId ->
-  OtrRecipients ->
-  OtrFilterMissing ->
-  UTCTime ->
-  ([(LocalMember, ClientId, Text)] -> Sem r ()) ->
-  Sem r OtrResult
-withValidOtrRecipients utype usr clt cnv rcps val now go = do
-  alive <- E.isConversationAlive cnv
-  if not alive
-    then do
-      E.deleteConversation cnv
-      pure $ OtrConversationNotFound mkErrorDescription
-    else do
-      localMembers <- E.getLocalMembers cnv
-      let localMemberIds = lmId <$> localMembers
-      isInternal <- E.useIntraClientListing
-      clts <-
-        if isInternal
-          then Clients.fromUserClients <$> E.lookupClients localMemberIds
-          else E.getClients localMemberIds
-      handleOtrResponse utype usr clt rcps localMembers clts val now >>= \case
-        Left otr -> pure otr
-        Right (m, r) -> go r $> OtrSent m
-
-handleOtrResponse ::
-  Members '[BrigAccess, Error LegalHoldError, Input Opts, TeamStore, TinyLog] r =>
-  -- | Type of proposed sender (user / bot)
-  UserType ->
-  -- | Proposed sender (user)
-  UserId ->
-  -- | Proposed sender (client)
-  ClientId ->
-  -- | Proposed recipients (users & clients).
-  OtrRecipients ->
-  -- | Members to consider as valid recipients.
-  [LocalMember] ->
-  -- | Clients to consider as valid recipients.
-  Clients ->
-  -- | How to filter missing clients.
-  OtrFilterMissing ->
-  -- | The current timestamp.
-  UTCTime ->
-  Sem r (Either OtrResult (ClientMismatch, [(LocalMember, ClientId, Text)]))
-handleOtrResponse utype usr clt rcps membs clts val now = case checkOtrRecipients usr clt rcps membs clts val now of
-  ValidOtrRecipients m r -> pure . Right $ (m, r)
-  MissingOtrRecipients m -> mapError @LegalholdConflicts (const MissingLegalholdConsent) $ do
-    guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
-    pure . Left $ OtrMissingRecipients m
-  InvalidOtrSenderUser -> pure . Left $ OtrConversationNotFound mkErrorDescription
-  InvalidOtrSenderClient -> pure . Left $ OtrUnknownClient mkErrorDescription
-
--- | Check OTR sender and recipients for validity and completeness
--- against a given list of valid members and clients, optionally
--- ignoring missing clients. Returns 'ValidOtrRecipients' on success
--- for further processing.
-checkOtrRecipients ::
-  -- | Proposed sender (user)
-  UserId ->
-  -- | Proposed sender (client)
-  ClientId ->
-  -- | Proposed recipients (users & clients).
-  OtrRecipients ->
-  -- | Members to consider as valid recipients.
-  [LocalMember] ->
-  -- | Clients to consider as valid recipients.
-  Clients ->
-  -- | How to filter missing clients.
-  OtrFilterMissing ->
-  -- | The current timestamp.
-  UTCTime ->
-  CheckedOtrRecipients
-checkOtrRecipients usr sid prs vms vcs val now
-  | not (Map.member usr vmembers) = InvalidOtrSenderUser
-  | not (Clients.contains usr sid vcs) = InvalidOtrSenderClient
-  | not (Clients.null missing) = MissingOtrRecipients mismatch
-  | otherwise = ValidOtrRecipients mismatch yield
-  where
-    yield :: [(LocalMember, ClientId, Text)]
-    yield = foldrOtrRecipients next [] prs
-
-    next :: r ~ [(LocalMember, ClientId, c)] => UserId -> ClientId -> c -> r -> r
-    next u c t rs
-      | Just m <- member u c = (m, c, t) : rs
-      | otherwise = rs
-
-    member :: UserId -> ClientId -> Maybe LocalMember
-    member u c
-      | Just m <- Map.lookup u vmembers,
-        Clients.contains u c vclients =
-        Just m
-      | otherwise = Nothing
-
-    -- Valid recipient members & clients
-    vmembers :: Map UserId LocalMember
-    vmembers = Map.fromList $ map (\m -> (lmId m, m)) vms
-
-    vclients :: Clients
-    vclients = Clients.rmClient usr sid vcs
-
-    -- Proposed (given) recipients
-    recipients :: Map UserId (Map ClientId Text)
-    recipients = userClientMap (otrRecipientsMap prs)
-
-    given :: Clients
-    given = Clients.fromMap (Map.map Map.keysSet recipients)
-
-    -- Differences between valid and proposed recipients
-    missing, unknown, deleted, redundant :: Clients
-    missing = filterMissing (Clients.diff vclients given)
-    unknown = Clients.diff given vcs
-    deleted = Clients.filter (`Map.member` vmembers) unknown
-    redundant =
-      Clients.diff unknown deleted
-        & if Clients.contains usr sid given
-          then Clients.insert usr sid
-          else id
-
-    mismatch :: ClientMismatch
-    mismatch =
-      ClientMismatch
-        { cmismatchTime = toUTCTimeMillis now,
-          missingClients = UserClients (Clients.toMap missing),
-          redundantClients = UserClients (Clients.toMap redundant),
-          deletedClients = UserClients (Clients.toMap deleted)
-        }
-
-    filterMissing :: Clients -> Clients
-    filterMissing miss = case val of
-      OtrReportAllMissing -> miss
-      OtrIgnoreAllMissing -> Clients.nil
-      OtrReportMissing us -> Clients.filter (`Set.member` us) miss
-      OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss

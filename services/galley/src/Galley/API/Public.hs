@@ -37,7 +37,6 @@ import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Teams.Features as Features
-import qualified Galley.API.Update as Update
 import Galley.App
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -354,16 +353,6 @@ sitemap = do
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/bot/messages" (continue Update.postBotMessageH) $
-    zauth ZAuthBot
-      .&> zauthBotId
-      .&. zauthConvId
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. jsonRequest @Public.NewOtrMessage
       .&. accept "application" "json"
 
 apiDocs :: Routes ApiBuilder (Sem r) ()

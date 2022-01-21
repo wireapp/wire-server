@@ -33,7 +33,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
-servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :<|> features
+servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<|> team :<|> features
   where
     conversations =
       Named @"get-unqualified-conversation" getUnqualifiedConversation
@@ -83,6 +83,9 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
       Named @"post-otr-message-unqualified" postOtrMessageUnqualified
         :<|> Named @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
         :<|> Named @"post-proteus-message" postProteusMessage
+
+    bot =
+      Named @"post-bot-message-unqualified" postBotMessageUnqualified
 
     team =
       Named @"create-non-binding-team" createNonBindingTeamH

@@ -108,6 +108,7 @@ type ServantAPI =
   ConversationAPI
     :<|> TeamConversationAPI
     :<|> MessagingAPI
+    :<|> BotAPI
     :<|> TeamAPI
     :<|> FeatureAPI
 
@@ -862,6 +863,23 @@ type MessagingAPI =
                     (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
            )
 
+type BotAPI =
+  Named
+    "post-bot-message-unqualified"
+    ( ZBot
+        :> ZConversation
+        :> "bot"
+        :> "messages"
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> ReqBody '[JSON] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (PostOtrResponse ClientMismatch)
+    )
+
 type FeatureAPI =
   FeatureStatusGet 'TeamFeatureSSO
     :<|> FeatureStatusGet 'TeamFeatureLegalHold
@@ -975,6 +993,9 @@ type AllFeatureConfigsGet =
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
 
+-- This is a work-around for the fact that we sometimes want to send larger lists of user ids
+-- in the filter query than fits the url length limit.  For details, see
+-- https://github.com/zinfra/backend-issues/issues/1248
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
   \To override this, the endpoint accepts two query params:\n\
