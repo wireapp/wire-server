@@ -53,8 +53,6 @@ module Galley.API.Update
     postProteusMessage,
     postOtrMessageUnqualified,
     postOtrBroadcastUnqualified,
-    postOtrBroadcastH,
-    postProtoOtrBroadcastH,
     isTypingUnqualified,
 
     -- * External Services
@@ -75,7 +73,6 @@ import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
-import Data.Range
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Action
@@ -84,7 +81,6 @@ import Galley.API.LegalHold.Conflicts
 import Galley.API.Mapping
 import Galley.API.Message
 import qualified Galley.API.Query as Query
-import Galley.API.Teams.Common
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
@@ -107,7 +103,6 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
-import Galley.Types.Conversations.Members (newMember)
 import Galley.Types.Conversations.Roles (Action (..), roleNameWireMember)
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Types.UserList
@@ -1262,6 +1257,30 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
           }
   unqualify (tDomain loc) <$> f qualifiedMessage
 
+postOtrBroadcastUnqualified ::
+  Members
+    '[ BrigAccess,
+       ClientStore,
+       Error ActionError,
+       Error TeamError,
+       GundeckAccess,
+       Input Opts,
+       Input UTCTime,
+       TeamStore,
+       TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  Maybe IgnoreMissing ->
+  Maybe ReportMissing ->
+  NewOtrMessage ->
+  Sem r (PostOtrResponse ClientMismatch)
+postOtrBroadcastUnqualified sender zcon =
+  unqualifyEndpoint
+    sender
+    (postBroadcast sender (Just zcon))
+
 postOtrMessageUnqualified ::
   Members
     '[ BotAccess,
@@ -1291,103 +1310,6 @@ postOtrMessageUnqualified sender zcon cnv =
         sender
         (runLocalInput sender . postQualifiedOtrMessage User (qUntagged sender) (Just zcon) lcnv)
 
-postOtrBroadcastUnqualified ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       Error ActionError,
-       Error TeamError,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  Local UserId ->
-  ConnId ->
-  Maybe IgnoreMissing ->
-  Maybe ReportMissing ->
-  NewOtrMessage ->
-  Sem r (PostOtrResponse ClientMismatch)
-postOtrBroadcastUnqualified sender zcon =
-  unqualifyEndpoint
-    sender
-    (postBroadcast sender (Just zcon))
-
-postProtoOtrBroadcastH ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       Error ActionError,
-       Error ClientError,
-       Error ConversationError,
-       Error LegalHoldError,
-       Error TeamError,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       TinyLog,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON ->
-  Sem r Response
-postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
-  lusr <- qualifyLocal zusr
-  message <- protoToNewOtrMessage <$> fromProtoBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult =<< postOtrBroadcast lusr zcon val' message
-
-postOtrBroadcastH ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       Error ActionError,
-       Error ClientError,
-       Error ConversationError,
-       Error LegalHoldError,
-       Error TeamError,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       TinyLog,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ->
-  Sem r Response
-postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
-  lusr <- qualifyLocal zusr
-  message <- fromJsonBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult =<< postOtrBroadcast lusr zcon val' message
-
-postOtrBroadcast ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       Error ActionError,
-       Error LegalHoldError,
-       Error TeamError,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  Local UserId ->
-  ConnId ->
-  OtrFilterMissing ->
-  NewOtrMessage ->
-  Sem r OtrResult
-postOtrBroadcast lusr zcon = postNewOtrBroadcast lusr (Just zcon)
-
 -- internal OTR helpers
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
@@ -1397,37 +1319,6 @@ allowOtrFilterMissingInBody :: OtrFilterMissing -> NewOtrMessage -> OtrFilterMis
 allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrepmiss of
   Nothing -> val
   Just uids -> OtrReportMissing $ Set.fromList uids
-
--- | bots are not supported on broadcast
-postNewOtrBroadcast ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       Error ActionError,
-       Error LegalHoldError,
-       Error TeamError,
-       Input Opts,
-       Input UTCTime,
-       GundeckAccess,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  Local UserId ->
-  Maybe ConnId ->
-  OtrFilterMissing ->
-  NewOtrMessage ->
-  Sem r OtrResult
-postNewOtrBroadcast lusr con val msg = do
-  let sender = newOtrSender msg
-      recvrs = newOtrRecipients msg
-  now <- input
-  withValidOtrBroadcastRecipients (tUnqualified lusr) sender recvrs val now >>= \case
-    Left otr -> pure otr
-    Right (m, rs) -> do
-      let (_, toUsers) = foldr (newMessage (qUntagged lusr) con Nothing msg now) ([], []) rs
-      E.push (catMaybes toUsers)
-      pure (OtrSent m)
 
 postNewOtrMessage ::
   Members
@@ -1809,64 +1700,6 @@ data CheckedOtrRecipients
     InvalidOtrSenderUser
   | -- | Invalid sender (client).
     InvalidOtrSenderClient
-
--- | bots are not supported on broadcast
-withValidOtrBroadcastRecipients ::
-  forall r.
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       Error ActionError,
-       Error LegalHoldError,
-       Error TeamError,
-       Input Opts,
-       TeamStore,
-       TinyLog
-     ]
-    r =>
-  UserId ->
-  ClientId ->
-  OtrRecipients ->
-  OtrFilterMissing ->
-  UTCTime ->
-  Sem r (Either OtrResult (ClientMismatch, [(LocalMember, ClientId, Text)]))
-withValidOtrBroadcastRecipients usr clt rcps val now = do
-  tid <- getBindingTeam usr
-  limit <- fromIntegral . fromRange <$> E.fanoutLimit
-  -- If we are going to fan this out to more than limit, we want to fail early
-  unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
-    throw BroadcastLimitExceeded
-  -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
-  -- is used and length `report_missing` < limit since we cannot fetch larger teams than
-  -- that.
-  tMembers <-
-    fmap (view userId) <$> case val of
-      OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
-      _ -> maybeFetchAllMembersInTeam tid
-  contacts <- E.getContactList usr
-  let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
-  isInternal <- E.useIntraClientListing
-  clts <-
-    if isInternal
-      then Clients.fromUserClients <$> E.lookupClients users
-      else E.getClients users
-  let membs = newMember <$> users
-  handleOtrResponse User usr clt rcps membs clts val now
-  where
-    maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
-      -- Get the users in the filter (remote ids are not in a local team)
-      let localUserIdsInFilter = toList uListInFilter
-      let localUserIdsInRcps = Map.keys $ userClientMap (otrRecipientsMap rcps)
-      let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
-      unless (length localUserIdsToLookup <= limit) $
-        throw BroadcastLimitExceeded
-      E.selectTeamMembers tid localUserIdsToLookup
-    maybeFetchAllMembersInTeam :: TeamId -> Sem r [TeamMember]
-    maybeFetchAllMembersInTeam tid = do
-      mems <- getTeamMembersForFanout tid
-      when (mems ^. teamMemberListType == ListTruncated) $
-        throw BroadcastLimitExceeded
-      pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
   Members
