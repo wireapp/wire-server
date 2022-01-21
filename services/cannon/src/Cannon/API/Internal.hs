@@ -42,6 +42,7 @@ import Servant.API.Verbs
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
+import Wire.API.ErrorDescription
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 
@@ -89,11 +90,11 @@ type InternalAPI =
                       :> Capture "conn" ConnId
                       :> MultiVerb
                            'HEAD
-                           '[PlainText]
-                           '[ RespondEmpty 404 "Not found: Presence not registered.",
-                              Respond 200 "Presence checked successfully." String
+                           '[JSON]
+                           '[ PresenceNotRegistered,
+                              RespondEmpty 200 "Presence checked successfully."
                             ]
-                           (Maybe String)
+                           (Maybe ())
                   )
        )
 
@@ -150,12 +151,12 @@ bulkPushHandler (BulkPushRequest ns) =
       [(NotificationId, PushTarget, PushStatus)]
     compileResp (notif, prcs) pss = zip3 (repeat (ntfId notif)) prcs pss
 
-checkPresenceHandler :: UserId -> ConnId -> Cannon (Maybe String)
+checkPresenceHandler :: UserId -> ConnId -> Cannon (Maybe ())
 checkPresenceHandler u c = do
   e <- wsenv
   registered <- runWS e $ isRemoteRegistered u c
   if registered
-    then pure $ Just ""
+    then pure $ Just ()
     else pure Nothing
 
 sourceLbs :: Monad m => L.ByteString -> ConduitT i S.ByteString m ()

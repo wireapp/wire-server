@@ -354,3 +354,5 @@ type ChangePasswordMustDiffer = ErrorDescription 409 "password-must-differ" "For
 type HandleExists = ErrorDescription 409 "handle-exists" "The given handle is already taken."
 
 type InvalidHandle = ErrorDescription 400 "invalid-handle" "The given handle is invalid."
+
+type PresenceNotRegistered = ErrorDescription 404 "not-found" "presence not registered"
