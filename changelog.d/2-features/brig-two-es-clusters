@@ -1,0 +1,2 @@
+Allow brig's additionalWriteIndex to be on a different ElasticSearch cluster.
+This allows migrating to a new ElasticSearch cluster.

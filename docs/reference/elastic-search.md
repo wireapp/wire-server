@@ -90,7 +90,7 @@ REPLICAS=<NUMBER_OF_REPLICAS_FOR_THE_INDEX>
 REFRESH_INTERVAL=<REFRESH_INTERVAL_IN_SECONDS>
 ```
 
-1. Create the new index (please fill out values in `<>` as required)
+1. Create the new index
    ```bash
    docker run "quay.io/wire/brig-index:$WIRE_VERSION" create \
        --elasticsearch-server "http://$ES_HOST:$ES_PORT" \
@@ -117,7 +117,57 @@ deleted from the index. Attempts at reproducing this issue in a simpler
 environment have failed. As a workaround, there is a tool in
 [tools/db/find-undead](../../tools/db/find-undead) which can be used to find the
 undead users right after the migration. If they exist, please run refill the ES
-documents from cassandra as described [above](#refill-es-documents-from-cassandra)
+documents from cassandra as described [above](#refill-es-documents-from-cassandra**
+
+## Migrate to a new cluster
+
+If the ES cluster used by brig needs to be shutdown and data must be moved to a
+new cluser, these steps can be taken to ensure minimal disruption to the
+service.
+
+Before starting, please set these environment variables:
+
+```bash
+ES_OLD_HOST=<YOUR_HOST>
+ES_OLD_PORT=<YOUR_PORT> # usually 9200
+ES_OLD_INDEX=<INDEX_NAME_ALREADY_IN_USE>
+ES_NEW_HOST=<YOUR_HOST>
+ES_NEW_PORT=<YOUR_PORT> # usually 9200
+ES_NEW_INDEX=<NEW_INDEX_NAME>
+WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+SHARDS=<NUMBER_OF_SHARDS_FOR_THE_NEW_INDEX>
+REPLICAS=<NUMBER_OF_REPLICAS_FOR_THE_INDEX>
+REFRESH_INTERVAL=<REFRESH_INTERVAL_IN_SECONDS>
+BRIG_CASSANDRA_HOST=<YOUR_C*_HOST>
+BRIG_CASSANDRA_PORT=<YOUR_C*_PORT>
+BRIG_CASSANDRA_KEYSPACE=<YOUR_C*_KEYSPACE>
+```
+
+1. Create the new index
+   ```bash
+   docker run "quay.io/wire/brig-index:$WIRE_VERSION" create \
+       --elasticsearch-server "http://$ES_NEW_HOST:$ES_NEW_PORT" \
+       --elasticsearch-index "$ES_NEW_INDEX" \
+       --elasticsearch-shards "$SHARDS" \
+       --elasticsearch-replicas "$REPLICAS" \
+       --elasticsearch-refresh-interval "$REFRESH_INTERVAL"
+   ```
+1. Redeploy brig with `elasticsearch.additionalWriteIndexUrl` set to the URL of
+   the new cluster and `elasticsearch.additionalWriteIndex` set to
+   `$ES_NEW_INDEX`. Make sure no old instances of brig are running.
+1. Reindex data to the new index
+   ```bash
+   docker run "quay.io/wire/brig-index:$WIRE_VERSION" migrate-data \
+       --elasticsearch-server "http://$ES_NEW_HOST:$ES_NEW_PORT" \
+       --elasticsearch-index "$ES_NEW_INDEX" \
+       --cassandra-host "$BRIG_CASSANDRA_HOST" \
+       --cassandra-port "$BRIG_CASSANDRA_PORT" \
+       --cassandra-keyspace "$BRIG_CASSANDRA_KEYSPACE"
+   ```
+1. Remove `elasticsearch.additionalWriteIndex` and
+   `elasticsearch.additionalWriteIndexUrl` from brig config. Set
+   `elasticsearch.url` to the URL of the new cluster and `elasticsearch.index`
+   to the name of new index. Deploy brig with these settings.
 
 ## Recreate an index (Requires downtime)
 

@@ -74,7 +74,12 @@ data ElasticSearchOpts = ElasticSearchOpts
     -- tools/db/find-undead which can be used to find the undead users right
     -- after the migration, if they exist, we can run the reindexing to get data
     -- in elasticsearch in a consistent state.
-    additionalWriteIndex :: !(Maybe Text)
+    additionalWriteIndex :: !(Maybe Text),
+    -- | An additional ES URL to write user data, useful while migrating to a
+    -- new instace of ES. It is necessary to provide 'additionalWriteIndex' for
+    -- this to be used. If this is 'Nothing' and 'additionalWriteIndex' is
+    -- configured, the 'url' field will be used.
+    additionalWriteIndexUrl :: !(Maybe Text)
   }
   deriving (Show, Generic)
 
@@ -717,7 +722,8 @@ Lens.makeLensesFor
 Lens.makeLensesFor
   [ ("url", "urlL"),
     ("index", "indexL"),
-    ("additionalWriteIndex", "additionalWriteIndexL")
+    ("additionalWriteIndex", "additionalWriteIndexL"),
+    ("additionalWriteIndexUrl", "additionalWriteIndexUrlL")
   ]
   ''ElasticSearchOpts
 
