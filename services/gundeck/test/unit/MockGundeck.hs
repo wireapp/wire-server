@@ -143,7 +143,7 @@ instance ToJSON Address where
         "transport" Aeson..= (adr ^. addrTransport),
         "app" Aeson..= (adr ^. addrApp),
         "token" Aeson..= (adr ^. addrToken),
-        "endpoint" Aeson..= (serializeFakeAddrEndpoint $ adr ^. addrEndpoint),
+        "endpoint" Aeson..= serializeFakeAddrEndpoint (adr ^. addrEndpoint),
         "conn" Aeson..= (adr ^. addrConn),
         "client" Aeson..= (adr ^. addrClient)
       ]
@@ -326,7 +326,7 @@ genPush env = do
     -- from the list of all recipient connections, sometimes add some here.
     oneof
       [ pure mempty,
-        fmap Set.fromList $ QC.sublistOf allConnIds
+        Set.fromList <$> QC.sublistOf allConnIds
       ]
   originConnection <- do
     -- if one of the recipients is the sender, we may 'Just' pick one of the devices of that
@@ -588,7 +588,7 @@ mockStreamAdd ::
   NotificationTTL ->
   m ()
 mockStreamAdd _ (toList -> targets) pay _ =
-  forM_ targets $ \tgt -> case (tgt ^. targetClients) of
+  forM_ targets $ \tgt -> case tgt ^. targetClients of
     clients@(_ : _) -> forM_ clients $ \cid ->
       msCassQueue %= deliver (tgt ^. targetUser, cid) pay
     [] ->
@@ -707,7 +707,7 @@ unsafeList1 [] = error "unsafeList1: empty list"
 unsafeList1 (x : xs) = list1 x xs
 
 deliver :: (UserId, ClientId) -> Payload -> NotifQueue -> NotifQueue
-deliver qkey qval queue = Map.alter (Just . tweak) qkey queue
+deliver qkey qval = Map.alter (Just . tweak) qkey
   where
     tweak Nothing = MSet.singleton (payloadToInt qval)
     tweak (Just qvals) = MSet.insert (payloadToInt qval) qvals

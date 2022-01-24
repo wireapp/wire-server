@@ -39,8 +39,7 @@ handlers =
       _ -> pure False,
     const . Handler $ \(_ :: ConnectionError) -> pure True,
     const . Handler $ \(_ :: Timeout) -> pure True,
-    const . Handler $ \e ->
-      case e of
-        TransactionAborted -> pure True
-        _ -> pure False
+    const . Handler $ \case
+      TransactionAborted -> pure True
+      _ -> pure False
   ]

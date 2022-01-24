@@ -141,7 +141,8 @@ mkWatcher tbs logHistory = do
 
 tests :: TestTree
 tests =
-  testGroup "thread budgets" $
+  testGroup
+    "thread budgets"
     [ -- flaky test case as described in https://wearezeta.atlassian.net/browse/BE-527
       -- testCase "unit test" testThreadBudgets,
       testProperty "qc stm (sequential)" propSequential

@@ -65,8 +65,8 @@ instance IsOption ServiceConfigFile where
   optionName = return "service-config"
   optionHelp = return "Service config file to read from"
   optionCLParser =
-    fmap ServiceConfigFile $
-      strOption $
+    ServiceConfigFile
+      <$> strOption
         ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
             <> long (untag (optionName :: Tagged ServiceConfigFile String))
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))

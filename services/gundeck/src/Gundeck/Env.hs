@@ -68,7 +68,7 @@ createEnv m o = do
   n <-
     newManager
       tlsManagerSettings
-        { managerConnCount = (o ^. optSettings . setHttpPoolSize),
+        { managerConnCount = o ^. optSettings . setHttpPoolSize,
           managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize),
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
