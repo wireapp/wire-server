@@ -60,6 +60,7 @@ settings:
     fileSharing:
       defaults:
         status: enabled
+        lockStatus: unlocked
     conferenceCalling:
       defaults:
         status: enabled

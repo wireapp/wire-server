@@ -145,13 +145,16 @@ See also: conference falling for personal accounts (below).
 
 ### File Sharing
 
-File sharing is enabled by default.  If you want to disable it for all teams, add this to your feature config settings:
+File sharing is enabled by default. If you want to disable it for all teams, add this to your feature config settings:
 
-```
+```yaml
 fileSharing:
   defaults:
-    status: enabled
+    status: disabled
+    lockStatus: locked
 ```
+
+`lockStatus` (required) can be either `unlocked` (feature status can be updated via team management) or `locked` (feature status can not be updated).
 
 ### Federation Domain
 
@@ -284,7 +287,7 @@ federator:
 
 Some features (as of the time of writing this: only
 `conferenceCalling`) allow to set defaults for personal accounts in
-brig.  Those are taken into account in galley's end-points `GET
+brig. Those are taken into account in galley's end-points `GET
 /feature-configs*`.
 
 To be specific:
