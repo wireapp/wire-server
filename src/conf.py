@@ -13,12 +13,14 @@
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
+import datetime
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'Wire'
-copyright = '2021, Wire'
+today_date = datetime.date.today()
+copyright = f'{today_date.year}, Wire'
 author = 'Wire Swiss GmbH'
 version = '0.0.3'
 # the 'release' variable is used in latex-based PDF generation
