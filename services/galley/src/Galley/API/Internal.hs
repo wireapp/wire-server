@@ -180,6 +180,9 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusFileSharingPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
+    iTeamFeatureLockStatusFileSharingPut ::
+      routes
+        :- IFeatureStatusLockStatusPut 'Public.TeamFeatureFileSharing,        
     iTeamFeatureStatusClassifiedDomainsGet ::
       routes
         :- IFeatureStatusGet 'Public.WithoutLockStatus 'Public.TeamFeatureClassifiedDomains,
@@ -321,6 +324,7 @@ servantSitemap =
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
         iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.WithLockStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
+        iTeamFeatureLockStatusFileSharingPut = Features.setLockStatus @'Public.TeamFeatureFileSharing,
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
         iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,

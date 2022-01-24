@@ -63,8 +63,7 @@ tests s =
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
-      test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
-      test s "FS with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.Unlocked,
+      test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.Unlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
@@ -72,8 +71,8 @@ tests s =
       test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
-      test s "ConversationGuestLinks - internal API" testGuestLinksInternal
-      -- test s "ConversationGuestLinks with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked
+      test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
+      test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked
     ]
 
 testSSO :: TestM ()
@@ -396,7 +395,7 @@ testSimpleFlagWithLockStatus ::
   Public.TeamFeatureStatusValue ->
   Public.LockStatusValue ->
   TestM ()
-testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
+testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   galley <- view tsGalley
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
@@ -420,10 +419,20 @@ testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
         let flag = Util.getTeamFeatureFlagInternal feature tid
         assertFlagNoConfigWithLockStatus @a flag expectedStatus expectedLockStatus
 
-      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
-      setFlagInternal statusValue =
-        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+      getFlags expectedStatus expectedLockStatus = do
+        getFlag expectedStatus expectedLockStatus
+        getFeatureConfig expectedStatus expectedLockStatus
+        getFlagInternal expectedStatus expectedLockStatus
+
+      setFlagWithGalley :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagWithGalley statusValue =
+        Util.putTeamFeatureFlagWithGalley @a galley owner tid (Public.TeamFeatureStatusNoConfig statusValue)
           !!! statusCode === const 200
+
+      assertSetStatusForbidden :: Public.TeamFeatureStatusValue -> TestM ()
+      assertSetStatusForbidden statusValue =
+        Util.putTeamFeatureFlagWithGalley @a galley owner tid (Public.TeamFeatureStatusNoConfig statusValue)
+          !!! statusCode === const 409
 
       setLockStatus :: Public.LockStatusValue -> TestM ()
       setLockStatus lockStatus =
@@ -432,41 +441,41 @@ testSimpleFlagWithLockStatus defaultValue defaultLockStatus = do
 
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
-  let otherValue = case defaultValue of
+  let otherStatus = case defaultStatus of
         Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
         Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
 
-  let otherLockStatusValue = case defaultLockStatus of
-        Public.Locked -> Public.Unlocked
-        Public.Unlocked -> Public.Locked
-
-  -- Initial value should be the default value
-  getFlag defaultValue defaultLockStatus
-  getFlagInternal defaultValue defaultLockStatus
-  getFeatureConfig defaultValue defaultLockStatus
+  -- Initial status and lock status should be the defaults
+  getFlags defaultStatus defaultLockStatus
 
   -- unlock feature if it is locked
-  when (defaultLockStatus == Public.Unlocked) $ setLockStatus Public.Unlocked
+  when (defaultLockStatus == Public.Locked) $ setLockStatus Public.Unlocked
 
   -- setting should work
   cannon <- view tsCannon
   -- should receive an event
   WS.bracketR cannon member $ \ws -> do
-    setFlagInternal otherValue
+    setFlagWithGalley otherStatus
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate feature otherValue
+        wsAssertFeatureConfigWithLockStatusUpdate feature otherStatus Public.Unlocked
 
-  getFlag otherValue Public.Unlocked
-  getFeatureConfig otherValue Public.Unlocked
-  getFlagInternal otherValue Public.Unlocked
+  getFlags otherStatus Public.Unlocked
 
-  setLockStatus otherLockStatusValue
-  getFlag otherValue otherLockStatusValue
+  -- lock feature
+  setLockStatus Public.Locked
+  -- feature status should now be the default again
+  getFlags defaultStatus Public.Locked
+  assertSetStatusForbidden defaultStatus
+  -- unlock feature
+  setLockStatus Public.Unlocked
+  -- feature status should be the previously set value
+  getFlags otherStatus Public.Unlocked
 
   -- clean up
-  setFlagInternal defaultValue
-  getFlag defaultValue Public.Unlocked
+  setFlagWithGalley defaultStatus
+  setLockStatus defaultLockStatus
+  getFlags defaultStatus defaultLockStatus
 
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
@@ -771,3 +780,12 @@ wsAssertFeatureConfigUpdate teamFeature status notification = do
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= teamFeature
   FeatureConfig._eventData e @?= EdFeatureWithoutConfigChanged (Public.TeamFeatureStatusNoConfig status)
+
+wsAssertFeatureConfigWithLockStatusUpdate :: Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Public.LockStatusValue -> Notification -> IO ()
+wsAssertFeatureConfigWithLockStatusUpdate teamFeature status lockStatus notification = do
+  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
+  FeatureConfig._eventType e @?= FeatureConfig.Update
+  FeatureConfig._eventFeatureName e @?= teamFeature
+  FeatureConfig._eventData e
+    @?= EdFeatureWithoutConfigAndLockStatusChanged
+      (Public.TeamFeatureStatusNoConfigAndLockStatus status lockStatus)

@@ -440,7 +440,6 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndLockStatus cfg)
 ----------------------------------------------------------------------
 -- TeamFeatureFileSharing
 
--- TODO(leif): check if these defaults are correct
 defaultTeamFeatureFileSharing :: TeamFeatureStatusNoConfigAndLockStatus
 defaultTeamFeatureFileSharing =
   TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
