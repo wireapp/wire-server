@@ -130,7 +130,11 @@ add-license:
 # Clean
 .PHONY: clean
 clean:
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	cabal clean
+else
 	stack clean
+endif
 	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 	-rm -f .metadata
