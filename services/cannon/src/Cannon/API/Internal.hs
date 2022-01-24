@@ -54,12 +54,12 @@ newtype PushNotificationStream = PushNotificationStream
 type InternalAPI =
   "i"
     :> ( Named
-           "get-status-plain-text"
+           "get-status"
            ( "status"
                :> Get '[PlainText] String
            )
            :<|> Named
-                  "get-status-no-content"
+                  "head-status"
                   ( "status"
                       :> HeadNoContent
                   )
@@ -84,7 +84,7 @@ type InternalAPI =
                       :> Post '[JSON] BulkPushResponse
                   )
            :<|> Named
-                  "get-preferences"
+                  "check-presence"
                   ( "presences"
                       :> Capture "uid" UserId
                       :> Capture "conn" ConnId
@@ -100,11 +100,11 @@ type InternalAPI =
 
 internalServer :: ServerT InternalAPI Cannon
 internalServer =
-  Named @"get-status-plain-text" (pure "")
-    :<|> Named @"get-status-no-content" (pure NoContent)
+  Named @"get-status" (pure "")
+    :<|> Named @"head-status" (pure NoContent)
     :<|> Named @"push-notification" pushHandler
     :<|> Named @"bulk-push-notifications" bulkPushHandler
-    :<|> Named @"get-preferences" checkPresenceHandler
+    :<|> Named @"check-presence" checkPresenceHandler
 
 pushHandler :: UserId -> ConnId -> SourceIO ByteString -> Cannon (Maybe ())
 pushHandler user conn body =
