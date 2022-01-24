@@ -22,7 +22,7 @@ import Wire.API.Event.FeatureConfig
 import Wire.API.Team.Feature
 
 testObject_FeatureConfigEvent_1 :: Event
-testObject_FeatureConfigEvent_1 = Event Update TeamFeatureFileSharing (EdFeatureWithoutConfigChanged (TeamFeatureStatusNoConfig TeamFeatureEnabled))
+testObject_FeatureConfigEvent_1 = Event Update TeamFeatureFileSharing (EdFeatureWithoutConfigAndLockStatusChanged (TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked))
 
 testObject_FeatureConfigEvent_2 :: Event
 testObject_FeatureConfigEvent_2 = Event Update TeamFeatureSSO (EdFeatureWithoutConfigChanged (TeamFeatureStatusNoConfig TeamFeatureDisabled))
