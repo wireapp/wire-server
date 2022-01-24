@@ -11,6 +11,7 @@ WORKDIR /
 
 ARG wire_server_branch=develop
 ARG THREADS=4
+ARG CABAL_BUILD_ARGS=
 RUN set -x && \
     echo ${wire_server_branch} && \
     git clone -b ${wire_server_branch} https://github.com/wireapp/wire-server.git && \
@@ -21,7 +22,7 @@ RUN set -x && \
     stack build haskell-src-exts && \
     stack build --pedantic --test --no-run-tests --bench --no-run-benchmarks --dependencies-only -j${THREADS} && \
     stack install ormolu && \
-    cabal build all --dependencies-only -j2 && \
+    cabal build all --dependencies-only ${CABAL_BUILD_ARGS} && \
     cd / && \
     # we run the build only to cache the built source in /root/.stack, we can remove the source code itself
     rm -rf /wire-server
