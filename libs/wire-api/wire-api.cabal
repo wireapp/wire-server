@@ -55,6 +55,7 @@ library
       Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
       Wire.API.Routes.Named
+      Wire.API.Routes.NoContentWithStatusCodeVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
       Wire.API.Routes.Public.Cannon

@@ -38,13 +38,13 @@ import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Imports
 import Servant
-import Servant.API.Verbs
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
 import Wire.API.ErrorDescription
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
+import Wire.API.Routes.NoContentWithStatusCodeVerb
 
 newtype PushNotificationStream = PushNotificationStream
   { getPushNotificationStream :: ConduitT () ByteString (ResourceT WS) ()
@@ -56,12 +56,12 @@ type InternalAPI =
     :> ( Named
            "get-status"
            ( "status"
-               :> Get '[PlainText] String
+               :> NoContentWithStatusCodeVerb 'GET 200
            )
            :<|> Named
                   "head-status"
                   ( "status"
-                      :> HeadNoContent
+                      :> NoContentWithStatusCodeVerb 'HEAD 200
                   )
            :<|> Named
                   "push-notification"
@@ -100,7 +100,7 @@ type InternalAPI =
 
 internalServer :: ServerT InternalAPI Cannon
 internalServer =
-  Named @"get-status" (pure "")
+  Named @"get-status" (pure NoContent)
     :<|> Named @"head-status" (pure NoContent)
     :<|> Named @"push-notification" pushHandler
     :<|> Named @"bulk-push-notifications" bulkPushHandler
