@@ -24,12 +24,12 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Time
 import Imports
-import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import URI.ByteString
-import Wire.API.User.Saml
 import Polysemy
 import Spar.Data
+import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
 import Spar.Sem.VerdictFormatStore
+import URI.ByteString
+import Wire.API.User.Saml
 
 verdictFormatStoreToCassandra ::
   forall m r a.

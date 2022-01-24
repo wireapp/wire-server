@@ -17,23 +17,22 @@
 
 module Spar.Sem.AReqIDStore.Cassandra where
 
-
 import Cassandra as Cas
-import Spar.Data.Instances ()
 import Control.Lens
 import Control.Monad.Except
 import Imports
-import qualified SAML2.WebSSO as SAML
-import Wire.API.User.Saml
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
 import SAML2.WebSSO (fromTime)
+import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
+import Spar.Data.Instances ()
 import Spar.Error
 import Spar.Sem.AReqIDStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
+import Wire.API.User.Saml
 
 aReqIDStoreToCassandra ::
   forall m r a.

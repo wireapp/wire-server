@@ -20,18 +20,18 @@ module Spar.Sem.AssIDStore.Cassandra where
 import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except
-import Spar.Data.Instances ()
 import Imports
-import qualified SAML2.WebSSO as SAML
-import Wire.API.User.Saml
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import SAML2.WebSSO (fromTime)
+import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
+import Spar.Data.Instances ()
 import Spar.Sem.AssIDStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
+import Wire.API.User.Saml
 
 assIDStoreToCassandra ::
   forall m r a.

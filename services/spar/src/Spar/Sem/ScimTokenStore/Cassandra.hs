@@ -27,13 +27,13 @@ import Control.Monad.Except
 import Data.Id
 import Data.Time
 import Imports
+import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
+import Spar.Sem.ScimTokenStore
 import Text.RawString.QQ
 import Wire.API.User.Scim
 import qualified Prelude
-import Polysemy
-import Spar.Sem.ScimTokenStore
 
 scimTokenStoreToCassandra ::
   forall m r a.
@@ -117,7 +117,6 @@ lookupScimToken token = do
       let tokenInfo = fromScimTokenRow row
       connvertPlaintextToken plain tokenInfo
       pure (Just tokenInfo)
-
 
 connvertPlaintextToken ::
   (HasCallStack, MonadClient m) =>

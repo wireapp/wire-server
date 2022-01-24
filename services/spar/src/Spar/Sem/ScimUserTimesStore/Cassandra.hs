@@ -17,15 +17,14 @@
 
 module Spar.Sem.ScimUserTimesStore.Cassandra where
 
-import Imports
-import Polysemy
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore(..))
 import Cassandra as Cas
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Imports
+import Polysemy
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore (..))
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
-
 
 scimUserTimesStoreToCassandra :: forall m r a. (MonadClient m, Member (Embed m) r) => Sem (ScimUserTimesStore ': r) a -> Sem r a
 scimUserTimesStoreToCassandra =

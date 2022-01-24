@@ -22,9 +22,9 @@ module Spar.Sem.DefaultSsoCode.Cassandra where
 import Cassandra
 import Imports
 import Polysemy
-import Spar.Sem.DefaultSsoCode
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Data.Instances ()
+import Spar.Sem.DefaultSsoCode
 
 defaultSsoCodeToCassandra ::
   forall m r a.

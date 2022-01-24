@@ -21,10 +21,10 @@ import Cassandra as Cas
 import Control.Lens
 import Data.String.Conversions
 import Imports
-import qualified SAML2.WebSSO as SAML
 import Polysemy
-import Spar.Sem.IdPRawMetadataStore
+import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
+import Spar.Sem.IdPRawMetadataStore
 
 idpRawMetadataStoreToCassandra ::
   forall m r a.

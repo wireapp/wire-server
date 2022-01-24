@@ -19,20 +19,20 @@
 
 module Spar.Sem.IdP.Cassandra where
 
-import           Cassandra
-import           Control.Lens ((^.))
-import           Control.Monad.Except
-import           Data.Id
+import Cassandra
+import Control.Lens ((^.))
+import Control.Monad.Except
+import Data.Id
 import qualified Data.List.NonEmpty as NL
-import           Data.X509 (SignedCertificate)
-import           Imports
-import           Polysemy
+import Data.X509 (SignedCertificate)
+import Imports
+import Polysemy
 import qualified SAML2.WebSSO as SAML
-import           Spar.Data.Instances ()
-import           Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
+import Spar.Data.Instances ()
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdP as Eff
-import           URI.ByteString
-import           Wire.API.User.IdentityProvider
+import URI.ByteString
+import Wire.API.User.IdentityProvider
 
 idPToCassandra ::
   forall m r a.
@@ -102,7 +102,6 @@ storeIdPConfig idp = retry x5 . batch $ do
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
 
 getIdPConfig ::
   forall m.
@@ -230,4 +229,3 @@ clearReplacedBy (Replaced old) = do
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = null WHERE idp = ?"
-

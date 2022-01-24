@@ -26,18 +26,18 @@ import Data.Id
 import Data.String.Conversions
 import Data.Time
 import Imports
-import qualified SAML2.WebSSO as SAML
-import qualified Web.Cookie as Cky
-import Wire.API.Cookie
-import Wire.API.User.Saml
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import SAML2.WebSSO (fromTime)
+import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Sem.BindCookieStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
+import qualified Web.Cookie as Cky
+import Wire.API.Cookie
+import Wire.API.User.Saml
 
 bindCookieStoreToCassandra ::
   forall m r a.
@@ -78,4 +78,3 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)
     sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
-
