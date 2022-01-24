@@ -17,9 +17,13 @@
 
 module Spar.Sem.AssIDStore.Cassandra where
 
-import Cassandra
-import Control.Monad.Except (runExceptT)
-import Imports hiding (MonadReader (..), Reader)
+import Cassandra as Cas
+import Control.Lens
+import Control.Monad.Except
+import Spar.Data.Instances ()
+import Imports
+import qualified SAML2.WebSSO as SAML
+import Wire.API.User.Saml
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -28,7 +32,6 @@ import qualified Spar.Data as Data
 import Spar.Sem.AssIDStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
-import Wire.API.User.Saml (Opts, TTLError)
 
 assIDStoreToCassandra ::
   forall m r a.
@@ -39,9 +42,41 @@ assIDStoreToCassandra =
   interpret $ \case
     Store itla t -> do
       denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
-      a <- embed @m $ runExceptT $ runReaderT (Data.storeAssID itla t) denv
+      a <- embed @m $ runExceptT $ runReaderT (storeAssID itla t) denv
       case a of
         Left err -> throw err
         Right () -> pure ()
-    UnStore itla -> embed @m $ Data.unStoreAssID itla
-    IsAlive itla -> embed @m $ Data.isAliveAssID itla
+    UnStore itla -> embed @m $ unStoreAssID itla
+    IsAlive itla -> embed @m $ isAliveAssID itla
+
+storeAssID ::
+  (HasCallStack, MonadReader Data.Env m, MonadClient m, MonadError TTLError m) =>
+  AssId ->
+  SAML.Time ->
+  m ()
+storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
+  env <- ask
+  TTL ttl <- Data.mkTTLAssertions env endOfLife
+  retry x5 . write ins $ params LocalQuorum (aid, ttl)
+  where
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
+    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
+
+unStoreAssID ::
+  (HasCallStack, MonadClient m) =>
+  AssId ->
+  m ()
+unStoreAssID (SAML.ID aid) = retry x5 . write del . params LocalQuorum $ Identity aid
+  where
+    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del = "DELETE FROM authresp WHERE resp = ?"
+
+isAliveAssID ::
+  (HasCallStack, MonadClient m) =>
+  AssId ->
+  m Bool
+isAliveAssID (SAML.ID aid) =
+  (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity aid)
+  where
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"

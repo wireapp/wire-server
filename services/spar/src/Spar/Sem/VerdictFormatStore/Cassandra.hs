@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,10 +19,16 @@
 
 module Spar.Sem.VerdictFormatStore.Cassandra where
 
-import Cassandra
-import Imports hiding (MonadReader (..), Reader)
+import Cassandra as Cas
+import Control.Lens
+import Control.Monad.Except
+import Data.Time
+import Imports
+import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
+import URI.ByteString
+import Wire.API.User.Saml
 import Polysemy
-import qualified Spar.Data as Data
+import Spar.Data
 import Spar.Sem.VerdictFormatStore
 
 verdictFormatStoreToCassandra ::
@@ -29,5 +37,32 @@ verdictFormatStoreToCassandra ::
   Sem (VerdictFormatStore ': r) a ->
   Sem r a
 verdictFormatStoreToCassandra = interpret $ \case
-  Store ndt itla vf -> embed @m $ Data.storeVerdictFormat ndt itla vf
-  Get itla -> embed @m $ Data.getVerdictFormat itla
+  Store ndt itla vf -> embed @m $ storeVerdictFormat ndt itla vf
+  Get itla -> embed @m $ getVerdictFormat itla
+
+-- | First argument is the life expectancy of the request.  (We store the verdict format for twice
+-- as long.  Reason: if there is some delay in processing a very old request, it would be bad for
+-- error handling if we couldn't figure out where the error will land.)
+storeVerdictFormat ::
+  (HasCallStack, MonadClient m) =>
+  NominalDiffTime ->
+  AReqId ->
+  VerdictFormat ->
+  m ()
+storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr)) = do
+  let ttl = nominalDiffToSeconds diffTime * 2
+  retry x5 . write cql $ params LocalQuorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
+  where
+    cql :: PrepQuery W (AReqId, VerdictFormatCon, Maybe URI, Maybe URI, Int32) ()
+    cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error) VALUES (?, ?, ?, ?) USING TTL ?"
+
+getVerdictFormat ::
+  (HasCallStack, MonadClient m) =>
+  AReqId ->
+  m (Maybe VerdictFormat)
+getVerdictFormat req =
+  (>>= toVerdictFormat)
+    <$> (retry x1 . query1 cql $ params LocalQuorum (Identity req))
+  where
+    cql :: PrepQuery R (Identity AReqId) VerdictFormatRow
+    cql = "SELECT format_con, format_mobile_success, format_mobile_error FROM verdict WHERE req = ?"

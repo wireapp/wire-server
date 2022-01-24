@@ -19,9 +19,17 @@
 
 module Spar.Sem.BindCookieStore.Cassandra where
 
-import Cassandra
-import Control.Monad.Except (runExceptT)
-import Imports hiding (MonadReader (..), Reader)
+import Cassandra as Cas
+import Control.Lens
+import Control.Monad.Except
+import Data.Id
+import Data.String.Conversions
+import Data.Time
+import Imports
+import qualified SAML2.WebSSO as SAML
+import qualified Web.Cookie as Cky
+import Wire.API.Cookie
+import Wire.API.User.Saml
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -30,7 +38,6 @@ import qualified Spar.Data as Data
 import Spar.Sem.BindCookieStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
-import Wire.API.User.Saml (Opts, TTLError)
 
 bindCookieStoreToCassandra ::
   forall m r a.
@@ -40,8 +47,35 @@ bindCookieStoreToCassandra ::
 bindCookieStoreToCassandra = interpret $ \case
   Insert sbc uid ndt -> do
     denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
-    a <- embed @m $ runExceptT $ runReaderT (Data.insertBindCookie sbc uid ndt) denv
+    a <- embed @m $ runExceptT $ runReaderT (insertBindCookie sbc uid ndt) denv
     case a of
       Left err -> throw err
       Right () -> pure ()
-  Lookup bc -> embed @m $ Data.lookupBindCookie bc
+  Lookup bc -> embed @m $ lookupBindCookie bc
+
+-- | Associate the value of a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the
+-- same as the one of the 'AuthnRequest' sent with the cookie.
+insertBindCookie ::
+  (HasCallStack, MonadClient m, MonadReader Data.Env m, MonadError TTLError m) =>
+  SetBindCookie ->
+  UserId ->
+  NominalDiffTime ->
+  m ()
+insertBindCookie cky uid ttlNDT = do
+  env <- ask
+  TTL ttlInt32 <- Data.mkTTLAuthnRequestsNDT env ttlNDT
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ cky
+  retry x5 . write ins $ params LocalQuorum (ckyval, uid, ttlInt32)
+  where
+    ins :: PrepQuery W (ST, UserId, Int32) ()
+    ins = "INSERT INTO bind_cookie (cookie, session_owner) VALUES (?, ?) USING TTL ?"
+
+-- | The counter-part of 'insertBindCookie'.
+lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
+lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
+  runIdentity <$$> do
+    (retry x1 . query1 sel $ params LocalQuorum (Identity ckyval))
+  where
+    sel :: PrepQuery R (Identity ST) (Identity UserId)
+    sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
+
