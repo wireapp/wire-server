@@ -502,13 +502,7 @@ instance ToSchema AccessRoleV2 where
         "Which users/services can join conversations.\
         \This replaces the deprecated field `access_role`\
         \and allows for a more fine grained configuration of access roles\
-        \in particular a separation of guest and services access.\
-        \Maps to `access_role` as follows:\
-        \`[]` => `private` - nobody can be invited to this conversation (e.g. it's a 1:1 conversation)\
-        \`[team_member]` => `team` - team-only conversation\
-        \`[team_member, non_team_member, service]` => `activated` - conversation for users who have activated email, phone or SSO and services\
-        \`[team_member, non_team_member, service, guest]` => `non_activated` - all allowed, no checks.\
-        \All other configurations of `access_role_v2` are mapped to the smallest superset containing all given access roles."
+        \in particular a separation of guest and services access."
 
 instance ToSchema AccessRoleLegacy where
   schema =
@@ -527,7 +521,14 @@ instance ToSchema AccessRoleLegacy where
         \`private` => `[]` - nobody can be invited to this conversation (e.g. it's a 1:1 conversation)\
         \`team` => `[team_member]` - team-only conversation\
         \`activated` => `[team_member, non_team_member, service]` - conversation for users who have activated email, phone or SSO and services\
-        \`non_activated` => `[team_member, non_team_member, service, guest]` - all allowed, no checks"
+        \`non_activated` => `[team_member, non_team_member, service, guest]` - all allowed, no checks\
+        \\
+        \Maps from `access_role_v2` as follows:\
+        \`[]` => `private` - nobody can be invited to this conversation (e.g. it's a 1:1 conversation)\
+        \`[team_member]` => `team` - team-only conversation\
+        \`[team_member, non_team_member, service]` => `activated` - conversation for users who have activated email, phone or SSO and services\
+        \`[team_member, non_team_member, service, guest]` => `non_activated` - all allowed, no checks.\
+        \All other configurations of `access_role_v2` are mapped to the smallest superset containing all given access roles."
 
 data ConvType
   = RegularConv
