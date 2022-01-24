@@ -182,7 +182,7 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
     iTeamFeatureLockStatusFileSharingPut ::
       routes
-        :- IFeatureStatusLockStatusPut 'Public.TeamFeatureFileSharing,        
+        :- IFeatureStatusLockStatusPut 'Public.TeamFeatureFileSharing,
     iTeamFeatureStatusClassifiedDomainsGet ::
       routes
         :- IFeatureStatusGet 'Public.WithoutLockStatus 'Public.TeamFeatureClassifiedDomains,
