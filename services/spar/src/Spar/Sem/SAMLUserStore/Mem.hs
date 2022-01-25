@@ -18,8 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Spar.Sem.SAMLUserStore.Mem
-  ( UserRefOrd (..),
-    samlUserStoreToMem,
+  ( samlUserStoreToMem,
   )
 where
 
