@@ -66,7 +66,7 @@ type InternalAPI =
                   ( "push"
                       :> Capture "user" UserId
                       :> Capture "conn" ConnId
-                      :> StreamBody NoFraming OctetStream (SourceIO ByteString)
+                      :> StreamBody NoFraming OctetStream PushNotificationStream
                       :> MultiVerb
                            'POST
                            '[JSON]
@@ -103,15 +103,15 @@ internalServer =
     :<|> Named @"bulk-push-notifications" bulkPushHandler
     :<|> Named @"check-presence" checkPresenceHandler
 
-pushHandler :: UserId -> ConnId -> SourceIO ByteString -> Cannon (Maybe ())
+pushHandler :: UserId -> ConnId -> PushNotificationStream -> Cannon (Maybe ())
 pushHandler user conn body =
   singlePush body (PushTarget user conn) >>= \case
     PushStatusOk -> pure $ Just ()
     PushStatusGone -> pure Nothing
 
 -- | Take a serialized 'Notification' string and send it to the 'PushTarget'.
-singlePush :: SourceIO ByteString -> PushTarget -> Cannon PushStatus
-singlePush notification = singlePush' (getPushNotificationStream (fromSourceIO notification))
+singlePush :: PushNotificationStream -> PushTarget -> Cannon PushStatus
+singlePush = singlePush' . getPushNotificationStream
 
 singlePush' :: ConduitM () ByteString (ResourceT WS) () -> PushTarget -> Cannon PushStatus
 singlePush' notificationC (PushTarget usrid conid) = do
