@@ -17,22 +17,44 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Utils (viaRunHttp, RunHttpEnv(..)) where
+module Spar.Sem.Utils (viaRunHttp, RunHttpEnv(..), interpretClientToIO, ttlErrorToSparError) where
 
 import Bilge
 import Control.Monad.Except
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Error
-import Spar.Error (SparError)
 import Spar.Intra.Brig (MonadSparToBrig (..))
 import Spar.Intra.Galley (MonadSparToGalley)
+import Wire.API.User.Saml
 import qualified Spar.Intra.Galley as Intra
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Logger.TinyLog (fromLevel)
 import qualified System.Logger as TinyLog
 import qualified System.Logger.Class as TinyLog
+import Cassandra as Cas
+import qualified Control.Monad.Catch as Catch
+import Data.String.Conversions
+import Polysemy.Final
+import qualified SAML2.WebSSO as SAML
+import Spar.Error
+
+-- | Run an embedded Cassandra 'Client'  in @Final IO@.
+interpretClientToIO ::
+  Members '[Error SparError, Final IO] r =>
+  ClientState ->
+  Sem (Embed Client ': r) a ->
+  Sem r a
+interpretClientToIO ctx = interpret $ \case
+  Embed action -> withStrategicToFinal @IO $ do
+    action' <- liftS $ runClient ctx action
+    st <- getInitialStateS
+    handler' <- bindS $ throw @SparError . SAML.CustomError . SparCassandraError . cs . show @SomeException
+    pure $ action' `Catch.catch` \e -> handler' $ e <$ st
+
+ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a
+ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)
 
 data RunHttpEnv r = RunHttpEnv
   { rheManager :: Bilge.Manager,

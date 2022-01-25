@@ -50,19 +50,6 @@ samlUserStoreToCassandra =
       DeleteByIssuer is -> deleteSAMLUsersByIssuer is
       Delete uid ur -> deleteSAMLUser uid ur
 
--- TODO(sandy): move me
-interpretClientToIO ::
-  Members '[Error SparError, Final IO] r =>
-  ClientState ->
-  Sem (Embed Client ': r) a ->
-  Sem r a
-interpretClientToIO ctx = interpret $ \case
-  Embed action -> withStrategicToFinal @IO $ do
-    action' <- liftS $ runClient ctx action
-    st <- getInitialStateS
-    handler' <- bindS $ throw @SparError . SAML.CustomError . SparCassandraError . cs . show @SomeException
-    pure $ action' `Catch.catch` \e -> handler' $ e <$ st
-
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
 insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params LocalQuorum (tenant, Data.normalizeQualifiedNameId subject, subject, uid)
