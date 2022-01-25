@@ -26,12 +26,12 @@ import qualified Data.Set as Set (fromList)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
-  ( AccessRole (ActivatedAccessRole),
+  ( AccessRoleV2 (..),
     ConvTeamInfo (ConvTeamInfo, cnvManaged, cnvTeamId),
     NewConv
       ( NewConv,
         newConvAccess,
-        newConvAccessRole,
+        newConvAccessRoles,
         newConvMessageTimer,
         newConvName,
         newConvQualifiedUsers,
@@ -56,7 +56,7 @@ testObject_NewConvManaged_user_1 =
           newConvQualifiedUsers = [],
           newConvName = Nothing,
           newConvAccess = Set.fromList [],
-          newConvAccessRole = Just ActivatedAccessRole,
+          newConvAccessRoles = Just (Set.fromList [TeamMemberAccessRole, GuestAccessRole]),
           newConvTeam =
             Just
               ( ConvTeamInfo

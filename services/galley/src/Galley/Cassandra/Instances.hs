@@ -70,7 +70,7 @@ instance Cql Access where
     n -> Left $ "Unexpected Access value: " ++ show n
   fromCql _ = Left "Access value: int expected"
 
-instance Cql AccessRole where
+instance Cql AccessRoleLegacy where
   ctype = Tagged IntColumn
 
   toCql PrivateAccessRole = CqlInt 1
@@ -85,6 +85,23 @@ instance Cql AccessRole where
     4 -> return NonActivatedAccessRole
     n -> Left $ "Unexpected AccessRole value: " ++ show n
   fromCql _ = Left "AccessRole value: int expected"
+
+instance Cql AccessRoleV2 where
+  ctype = Tagged IntColumn
+
+  toCql = \case
+    TeamMemberAccessRole -> CqlInt 1
+    NonTeamMemberAccessRole -> CqlInt 2
+    GuestAccessRole -> CqlInt 3
+    ServiceAccessRole -> CqlInt 4
+
+  fromCql (CqlInt i) = case i of
+    1 -> return TeamMemberAccessRole
+    2 -> return NonTeamMemberAccessRole
+    3 -> return GuestAccessRole
+    4 -> return ServiceAccessRole
+    n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
+  fromCql _ = Left "AccessRoleV2 value: int expected"
 
 instance Cql ConvTeamInfo where
   ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]

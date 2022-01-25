@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,18 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.AccessRole_user where
+module V58_ConversationAccessRoleV2
+  ( migration,
+  )
+where
 
-import Wire.API.Conversation (AccessRole (..))
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-testObject_AccessRole_user_1 :: AccessRole
-testObject_AccessRole_user_1 = PrivateAccessRole
-
-testObject_AccessRole_user_2 :: AccessRole
-testObject_AccessRole_user_2 = NonActivatedAccessRole
-
-testObject_AccessRole_user_3 :: AccessRole
-testObject_AccessRole_user_3 = ActivatedAccessRole
-
-testObject_AccessRole_user_4 :: AccessRole
-testObject_AccessRole_user_4 = TeamAccessRole
+migration :: Migration
+migration = Migration 58 "Add access_roles_v2 to conversation" $ do
+  schema'
+    [r| ALTER TABLE conversation ADD (
+          access_roles_v2 set<int>
+        )
+     |]

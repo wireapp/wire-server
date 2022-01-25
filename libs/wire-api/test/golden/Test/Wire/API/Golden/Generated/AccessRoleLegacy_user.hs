@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,20 +14,18 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Test.Wire.API.Golden.Generated.AccessRoleLegacy_user where
 
-module Test.Wire.API.Golden.Generated.ConversationAccessData_user where
+import Wire.API.Conversation (AccessRoleLegacy (..))
 
-import qualified Data.Set as Set (fromList)
-import Wire.API.Conversation
-  ( Access (InviteAccess),
-    AccessRoleV2 (..),
-    ConversationAccessData (..),
-  )
+testObject_AccessRoleLegacy_user_1 :: AccessRoleLegacy
+testObject_AccessRoleLegacy_user_1 = PrivateAccessRole
 
-testObject_ConversationAccessData_user_1 :: ConversationAccessData
-testObject_ConversationAccessData_user_1 =
-  ConversationAccessData {cupAccess = [], cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]}
+testObject_AccessRoleLegacy_user_2 :: AccessRoleLegacy
+testObject_AccessRoleLegacy_user_2 = NonActivatedAccessRole
 
-testObject_ConversationAccessData_user_2 :: ConversationAccessData
-testObject_ConversationAccessData_user_2 =
-  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole]}
+testObject_AccessRoleLegacy_user_3 :: AccessRoleLegacy
+testObject_AccessRoleLegacy_user_3 = ActivatedAccessRole
+
+testObject_AccessRoleLegacy_user_4 :: AccessRoleLegacy
+testObject_AccessRoleLegacy_user_4 = TeamAccessRole

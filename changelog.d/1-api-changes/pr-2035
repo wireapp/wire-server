@@ -1,0 +1,1 @@
+Endpoints that recently have accepted `access_role` in their payload will now accept `access_role_v2` as well which will take precedence over `access_role`. See Swagger docs for how values are mapped. Endpoints that recently have returned `access_role` in their payload will now additionally return the `access_role_v2` field.

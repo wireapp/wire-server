@@ -3,7 +3,11 @@
         "private",
         "invite"
     ],
-    "access_role": "activated",
+    "access_role": "non_activated",
+    "access_role_v2": [
+        "team_member",
+        "guest"
+    ],
     "conversation_role": "8tp2gs7b6",
     "message_timer": 3320987366258987,
     "qualified_users": [],

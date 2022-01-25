@@ -213,7 +213,7 @@ createRegularGroupConv lusr zcon (NewConvUnmanaged body) = do
         { ncType = RegularConv,
           ncCreator = tUnqualified lusr,
           ncAccess = access body,
-          ncAccessRole = accessRole body,
+          ncAccessRoles = accessRoles body,
           ncName = name,
           ncTeam = fmap cnvTeamId (newConvTeam body),
           ncMessageTimer = newConvMessageTimer body,
@@ -260,7 +260,7 @@ createTeamGroupConv lusr zcon tinfo body = do
   o <- input
   checkedUsers <- checkedConvSize o allUsers
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
-  ensureAccessRole (accessRole body) (zip (ulLocals allUsers) convLocalMemberships)
+  ensureAccessRole (accessRoles body) (zip (ulLocals allUsers) convLocalMemberships)
   -- In teams we don't have 1:1 conversations, only regular conversations. We want
   -- users without the 'AddRemoveConvMember' permission to still be able to create
   -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -284,7 +284,7 @@ createTeamGroupConv lusr zcon tinfo body = do
         { ncType = RegularConv,
           ncCreator = tUnqualified lusr,
           ncAccess = access body,
-          ncAccessRole = accessRole body,
+          ncAccessRoles = accessRoles body,
           ncName = name,
           ncTeam = fmap cnvTeamId (newConvTeam body),
           ncMessageTimer = newConvMessageTimer body,
@@ -655,8 +655,8 @@ toUUIDs a b = do
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4
   return (a', b')
 
-accessRole :: NewConv -> AccessRole
-accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
+accessRoles :: NewConv -> Set AccessRoleV2
+accessRoles b = fromMaybe Data.defRole (newConvAccessRoles b)
 
 access :: NewConv -> [Access]
 access a = case Set.toList (newConvAccess a) of

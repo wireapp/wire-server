@@ -23,6 +23,7 @@ import Data.Domain
 import Data.Id (Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
@@ -41,7 +42,7 @@ testObject_Conversation_user_1 =
           { cnvmType = One2OneConv,
             cnvmCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
             cnvmAccess = [],
-            cnvmAccessRole = PrivateAccessRole,
+            cnvmAccessRoles = Set.empty,
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
@@ -87,7 +88,7 @@ testObject_Conversation_user_2 =
                 PrivateAccess,
                 InviteAccess
               ],
-            cnvmAccessRole = NonActivatedAccessRole,
+            cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],
             cnvmName = Just "",
             cnvmTeam = Nothing,
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),

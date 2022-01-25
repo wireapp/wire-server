@@ -1,6 +1,10 @@
 {
     "access": [],
-    "access_role": "activated",
+    "access_role": "non_activated",
+    "access_role_v2": [
+        "team_member",
+        "guest"
+    ],
     "conversation_role": "37q9eeybycp5972td4oo9_r7y16eh6n67z5spda8sffy8qv",
     "message_timer": 193643728192048,
     "qualified_users": [],

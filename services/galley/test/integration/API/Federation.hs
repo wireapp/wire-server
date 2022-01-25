@@ -505,7 +505,7 @@ notifyReceiptMode = do
 
 notifyAccess :: TestM ()
 notifyAccess = do
-  let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) TeamAccessRole
+  let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) (Set.fromList [TeamMemberAccessRole])
   notifyUpdate
     []
     (ConversationActionAccessUpdate d)
