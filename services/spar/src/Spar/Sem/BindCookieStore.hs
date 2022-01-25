@@ -24,7 +24,7 @@ where
 
 import Data.Id (UserId)
 import Data.Time (NominalDiffTime)
-import Imports
+import Imports (Maybe)
 import Polysemy
 import Wire.API.Cookie
 
