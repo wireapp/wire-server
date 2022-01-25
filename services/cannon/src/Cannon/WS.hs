@@ -29,7 +29,6 @@ module Cannon.WS
     unregisterLocal,
     isRemoteRegistered,
     registerRemote,
-    sendMsg,
     sendMsgIO,
     Clock,
     mkClock,
@@ -227,12 +226,6 @@ isRemoteRegistered u c = do
   cs <- map connId <$> parseResponse (mkError status502 "server-error") rs
   return $ c `elem` cs
 
-sendMsg :: L.ByteString -> Key -> Websocket -> WS ()
-sendMsg m k c = do
-  let kb = key2bytes k
-  trace $ client kb . msg (val "sendMsg: \"" +++ L.take 128 m +++ val "...\"")
-  liftIO $ sendMsgIO m c
-
 sendMsgIO :: L.ByteString -> Websocket -> IO ()
 sendMsgIO m c = do
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
@@ -247,7 +240,10 @@ sendMsgConduit k c = do
     Nothing -> pure ()
   where
     traceLog :: ByteString -> (ResourceT WS) ()
-    traceLog m = lift $ trace $ client kb . msg (val "sendMsg: \"" +++ Data.ByteString.take 128 m +++ val "...\"")
+    traceLog m = lift $ trace $ client kb . msg (logMsg m)
+
+    logMsg :: ByteString -> Builder
+    logMsg m = (val "sendMsgConduit: \"" +++ Data.ByteString.take 128 m +++ val "...\"")
 
     kb = key2bytes k
 
