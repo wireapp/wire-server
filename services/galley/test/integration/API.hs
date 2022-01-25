@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -1427,6 +1427,11 @@ postConvertTeamConv = do
     -- team members (dave) can still join
     postJoinCodeConv dave j !!! const 200 === statusCode
 
+-- @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- The test asserts that, among others, remote users are removed from a
+-- conversation when an access update occurs that disallows guests from
+-- accessing.
 testAccessUpdateGuestRemoved :: TestM ()
 testAccessUpdateGuestRemoved = do
   -- alice, bob are in a team
@@ -1485,6 +1490,8 @@ testAccessUpdateGuestRemoved = do
       =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
         <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
+
+-- @END
 
 postJoinConvFail :: TestM ()
 postJoinConvFail = do

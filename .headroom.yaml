@@ -12,7 +12,7 @@ variables:
   organization: Wire Swiss GmbH
   email: opensource@wire.com
   project: This file is part of the Wire Server implementation.
-  year: '2020'
+  year: '2022'
 license-headers:
   haskell:
     file-extensions: ["hs", "hsc"]

@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -120,6 +120,12 @@ testValidatesCertificateSuccess =
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
     ]
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2
+--
+-- This is a group of test cases where refusing to connect with the server is
+-- checked. The second test case refuses to connect with a server when the
+-- certificate's X509v3 Extended Key Usage extension is present and it does not
+-- list "TLS Web Server Authentication" among the purposes.
 testValidatesCertificateWrongHostname :: TestTree
 testValidatesCertificateWrongHostname =
   testGroup
@@ -141,6 +147,8 @@ testValidatesCertificateWrongHostname =
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
+
+-- @END
 
 testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do

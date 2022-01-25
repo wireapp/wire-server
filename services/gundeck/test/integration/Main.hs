@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -65,8 +65,8 @@ instance IsOption ServiceConfigFile where
   optionName = return "service-config"
   optionHelp = return "Service config file to read from"
   optionCLParser =
-    fmap ServiceConfigFile $
-      strOption $
+    ServiceConfigFile
+      <$> strOption
         ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
             <> long (untag (optionName :: Tagged ServiceConfigFile String))
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))

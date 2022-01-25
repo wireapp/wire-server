@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -158,8 +158,8 @@ endpointTopicParser = do
 
 transportParser :: Parser Transport
 transportParser =
-  string "GCM" *> pure GCM
-    <|> string "APNS_VOIP_SANDBOX" *> pure APNSVoIPSandbox
-    <|> string "APNS_VOIP" *> pure APNSVoIP
-    <|> string "APNS_SANDBOX" *> pure APNSSandbox
-    <|> string "APNS" *> pure APNS
+  string "GCM" $> GCM
+    <|> string "APNS_VOIP_SANDBOX" $> APNSVoIPSandbox
+    <|> string "APNS_VOIP" $> APNSVoIP
+    <|> string "APNS_SANDBOX" $> APNSSandbox
+    <|> string "APNS" $> APNS

@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -39,8 +39,7 @@ handlers =
       _ -> pure False,
     const . Handler $ \(_ :: ConnectionError) -> pure True,
     const . Handler $ \(_ :: Timeout) -> pure True,
-    const . Handler $ \e ->
-      case e of
-        TransactionAborted -> pure True
-        _ -> pure False
+    const . Handler $ \case
+      TransactionAborted -> pure True
+      _ -> pure False
   ]

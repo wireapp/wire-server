@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -173,12 +173,11 @@ bulkSend' ::
   m BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
   req <-
-    ( check
-        . method POST
-        . contentJson
-        . lbytes jsbody
-        . timeout 3000 -- ms
-      )
+    check
+      . method POST
+      . contentJson
+      . lbytes jsbody
+      . timeout 3000 -- ms
       <$> Http.setUri empty (fromURI uri)
   try (submit req) >>= \case
     Left e -> throwM (e :: SomeException)

@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -76,6 +76,7 @@ tests =
           validateDomainCertInvalid,
           validateDomainCertWrongDomain,
           validateDomainCertCN,
+          validateDomainCertSAN,
           validateDomainMultipleFederators,
           validateDomainDiscoveryFailed,
           validateDomainNonIdentitySRV
@@ -198,6 +199,20 @@ validateDomainCertCN =
   testCase "should succeed if the certificate has subject CN but no SAN" $ do
     exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
     let domain = Domain "foo.example.com"
+    res <-
+      runM
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        $ validateDomain (Just exampleCert) (toByteString' domain)
+    res @?= domain
+
+validateDomainCertSAN :: TestTree
+validateDomainCertSAN =
+  testCase "should succeed if the certificate has a longer list of domains inside SAN, one of which is the expected one" $ do
+    exampleCert <- BS.readFile "test/resources/unit/multidomain-federator.example.com.pem"
+    let domain = Domain "federator.example.com"
     res <-
       runM
         . assertNoError @ValidationError

@@ -19,6 +19,7 @@ extra-source-files:
     test/resources/integration-leaf.pem
     test/resources/unit/example.com.pem
     test/resources/unit/gen-certs.sh
+    test/resources/unit/gen-multidomain-certs.sh
     test/resources/unit/invalid.pem
     test/resources/unit/localhost-dot-key.pem
     test/resources/unit/localhost-dot.pem
@@ -28,6 +29,8 @@ extra-source-files:
     test/resources/unit/localhost.example.com-key.pem
     test/resources/unit/localhost.example.com.pem
     test/resources/unit/localhost.pem
+    test/resources/unit/multidomain-federator.example.com-key.pem
+    test/resources/unit/multidomain-federator.example.com.pem
     test/resources/unit/README.md
     test/resources/unit/second-federator.example.com-key.pem
     test/resources/unit/second-federator.example.com.pem
