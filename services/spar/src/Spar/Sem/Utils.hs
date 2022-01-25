@@ -17,28 +17,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Utils (viaRunHttp, RunHttpEnv(..), interpretClientToIO, ttlErrorToSparError) where
+module Spar.Sem.Utils (viaRunHttp, RunHttpEnv (..), interpretClientToIO, ttlErrorToSparError) where
 
 import Bilge
+import Cassandra as Cas
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
+import Data.String.Conversions
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Final
+import qualified SAML2.WebSSO as SAML
+import Spar.Error
 import Spar.Intra.Brig (MonadSparToBrig (..))
 import Spar.Intra.Galley (MonadSparToGalley)
-import Wire.API.User.Saml
 import qualified Spar.Intra.Galley as Intra
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Logger.TinyLog (fromLevel)
 import qualified System.Logger as TinyLog
 import qualified System.Logger.Class as TinyLog
-import Cassandra as Cas
-import qualified Control.Monad.Catch as Catch
-import Data.String.Conversions
-import Polysemy.Final
-import qualified SAML2.WebSSO as SAML
-import Spar.Error
+import Wire.API.User.Saml
 
 -- | Run an embedded Cassandra 'Client'  in @Final IO@.
 interpretClientToIO ::
@@ -102,4 +102,3 @@ instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSpar
   call modreq = do
     req <- asks rheRequest
     httpLbs req modreq
-
