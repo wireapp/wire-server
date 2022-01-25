@@ -82,7 +82,7 @@ import Spar.Scim.Auth
 import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.IdP (IdPConfigStore)
+import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)

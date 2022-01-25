@@ -73,8 +73,8 @@ import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.Types as ST
 import Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.IdP (IdPConfigStore)
-import qualified Spar.Sem.IdP as IdPConfigStore
+import Spar.Sem.IdPConfigStore (IdPConfigStore)
+import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Now (Now)

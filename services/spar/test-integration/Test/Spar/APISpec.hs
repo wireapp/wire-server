@@ -74,7 +74,7 @@ import SAML2.WebSSO.Test.Util
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.BrigAccess as BrigAccess
-import qualified Spar.Sem.IdP as IdPEffect
+import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)

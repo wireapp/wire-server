@@ -21,13 +21,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Spar.Sem.IdPSpec where
+module Test.Spar.Sem.IdPConfigStoreSpec where
 
 import Arbitrary ()
 import Imports
 import Polysemy
-import Spar.Sem.IdP.Mem
-import Spar.Sem.IdP.Spec
+import Spar.Sem.IdPConfigStore.Mem
+import Spar.Sem.IdPConfigStore.Spec
 import Test.Hspec
 import Test.Hspec.QuickCheck
 

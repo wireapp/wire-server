@@ -21,7 +21,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP.Spec (propsForInterpreter) where
+module Spar.Sem.IdPConfigStore.Spec (propsForInterpreter) where
 
 import Control.Arrow
 import Control.Lens
@@ -31,7 +31,7 @@ import Polysemy
 import Polysemy.Check
 import SAML2.WebSSO.Types
 import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.IdP
+import Spar.Sem.IdPConfigStore
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

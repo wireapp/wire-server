@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP.Cassandra where
+module Spar.Sem.IdPConfigStore.Cassandra where
 
 import Cassandra
 import Control.Lens ((^.))
@@ -29,7 +29,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
-import Spar.Sem.IdP (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
 import URI.ByteString
 import Wire.API.User.IdentityProvider
 

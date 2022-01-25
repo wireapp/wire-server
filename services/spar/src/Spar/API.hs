@@ -75,8 +75,8 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdP (GetIdPResult (..), IdPConfigStore, Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdP as IdPConfigStore
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore, Replaced (..), Replacing (..))
+import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Logger (Logger)

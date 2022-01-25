@@ -39,7 +39,7 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import Spar.Sem.IdP (IdPConfigStore)
+import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.SAML2

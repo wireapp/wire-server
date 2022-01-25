@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP.Mem (idPToMem, TypedState) where
+module Spar.Sem.IdPConfigStore.Mem (idPToMem, TypedState) where
 
 import Control.Lens ((.~), (^.))
 import Data.Id (TeamId)
@@ -26,7 +26,7 @@ import Imports
 import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.IdP (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
 import qualified Wire.API.User.IdentityProvider as IP
 
 type TypedState = Map SAML.IdPId IP.IdP
