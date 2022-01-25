@@ -108,7 +108,8 @@ createScimToken spar' owner = do
     createToken spar' owner $
       CreateScimToken
         { createScimTokenDescr = "testCreateToken",
-          createScimTokenPassword = Just defPassword
+          createScimTokenPassword = Just defPassword,
+          createScimTokenCode = Nothing
         }
   pure tok
 
