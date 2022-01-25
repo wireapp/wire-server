@@ -29,7 +29,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
-import Spar.Sem.IdP (IdConfigStore(..), GetIdPResult (..), Replaced (..), Replacing (..))
+import Spar.Sem.IdP (GetIdPResult (..), IdConfigStore (..), Replaced (..), Replacing (..))
 import URI.ByteString
 import Wire.API.User.IdentityProvider
 

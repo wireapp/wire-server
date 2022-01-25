@@ -26,8 +26,8 @@ import Imports
 import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
+import Spar.Sem.IdP (GetIdPResult (..), IdConfigStore (..), Replaced (..), Replacing (..))
 import qualified Wire.API.User.IdentityProvider as IP
-import Spar.Sem.IdP (IdConfigStore(..), Replaced (..), Replacing (..), GetIdPResult(..))
 
 type TypedState = Map SAML.IdPId IP.IdP
 

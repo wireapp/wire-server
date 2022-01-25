@@ -86,7 +86,7 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdP (IdConfigStore, GetIdPResult (..))
+import Spar.Sem.IdP (GetIdPResult (..), IdConfigStore)
 import qualified Spar.Sem.IdP as IdConfigStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
