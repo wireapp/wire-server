@@ -1484,9 +1484,12 @@ testAccessUpdateGuestRemoved = do
 
     -- dee's remote receives a notification
     liftIO . assertBool "remote users are not notified" . isJust . flip find reqs $ \freq ->
-      (frComponent freq == Galley)
-        && (frRPC freq == "on-conversation-updated")
-        && (fmap F.cuAction (eitherDecode (frBody freq)) == Right (ConversationActionRemoveMembers (charlie :| [dee])))
+      and
+        [ frComponent freq == Galley,
+          frRPC freq == "on-conversation-updated",
+          fmap F.cuAction (eitherDecode (frBody freq))
+            == Right (ConversationActionRemoveMembers (charlie :| [dee]))
+        ]
 
   -- only alice and bob remain
   conv2 <-
