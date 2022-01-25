@@ -58,7 +58,6 @@ import Data.Aeson hiding (Error)
 import qualified Data.ByteString
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
@@ -226,7 +225,7 @@ isRemoteRegistered u c = do
   cs <- map connId <$> parseResponse (mkError status502 "server-error") rs
   return $ c `elem` cs
 
-sendMsgIO :: L.ByteString -> Websocket -> IO ()
+sendMsgIO :: WebSocketsData a => a -> Websocket -> IO ()
 sendMsgIO m c = do
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
@@ -236,7 +235,7 @@ sendMsgConduit k c = do
   case m of
     Just m' -> do
       lift $ traceLog m'
-      liftIO $ sendToWebsocket m'
+      liftIO $ sendMsgIO m' c
     Nothing -> pure ()
   where
     traceLog :: ByteString -> (ResourceT WS) ()
@@ -246,9 +245,6 @@ sendMsgConduit k c = do
     logMsg m = (val "sendMsgConduit: \"" +++ Data.ByteString.take 128 m +++ val "...\"")
 
     kb = key2bytes k
-
-    sendToWebsocket :: ByteString -> IO ()
-    sendToWebsocket m = recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
 close :: Key -> Websocket -> WS ()
 close k c = do
