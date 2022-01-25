@@ -122,7 +122,7 @@ api ::
        ScimUserTimesStore,
        ScimTokenStore,
        DefaultSsoCode,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        SAMLUserStore,
        Random,
@@ -159,7 +159,7 @@ apiSSO ::
        AReqIDStore,
        ScimTokenStore,
        DefaultSsoCode,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Random,
        Error SparError,
        SAML2,
@@ -186,7 +186,7 @@ apiIDP ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        SAMLUserStore,
        Error SparError
@@ -205,7 +205,7 @@ apiINTERNAL ::
   Members
     '[ ScimTokenStore,
        DefaultSsoCode,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error SparError,
        SAMLUserStore
      ]
@@ -224,7 +224,7 @@ appName = "spar"
 
 authreqPrecheck ::
   Members
-    '[ IdPEffect.IdP,
+    '[ IdPEffect.IdConfigStore,
        Error SparError
      ]
     r =>
@@ -249,7 +249,7 @@ authreq ::
        SAML2,
        SamlProtocolSettings,
        Error SparError,
-       IdPEffect.IdP
+       IdPEffect.IdConfigStore
      ]
     r =>
   NominalDiffTime ->
@@ -331,7 +331,7 @@ authresp ::
        VerdictFormatStore,
        AReqIDStore,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        SAML2,
        SamlProtocolSettings,
        Error SparError,
@@ -368,7 +368,7 @@ ssoSettings = do
   SsoSettings <$> DefaultSsoCode.get
 
 ----------------------------------------------------------------------------
--- IdP API
+-- IdConfigStore API
 
 idpGet ::
   Members
@@ -376,7 +376,7 @@ idpGet ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error SparError
      ]
     r =>
@@ -392,7 +392,7 @@ idpGetRaw ::
   Members
     '[ GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -413,7 +413,7 @@ idpGetAll ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error SparError
      ]
     r =>
@@ -441,7 +441,7 @@ idpDelete ::
        BrigAccess,
        ScimTokenStore,
        SAMLUserStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -510,7 +510,7 @@ idpCreate ::
        BrigAccess,
        ScimTokenStore,
        IdPRawMetadataStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error SparError
      ]
     r =>
@@ -529,7 +529,7 @@ idpCreateXML ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -559,7 +559,7 @@ assertNoScimOrNoIdP ::
   Members
     '[ ScimTokenStore,
        Error SparError,
-       IdPEffect.IdP
+       IdPEffect.IdConfigStore
      ]
     r =>
   TeamId ->
@@ -598,7 +598,7 @@ validateNewIdP ::
   Members
     '[ Random,
        Logger String,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error SparError
      ]
     r =>
@@ -653,7 +653,7 @@ idpUpdate ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -670,7 +670,7 @@ idpUpdateXML ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -702,7 +702,7 @@ validateIdPUpdate ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error SparError
      ]
     r =>
@@ -776,7 +776,7 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => TeamId -> Sem r NoContent
+internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdConfigStore, SAMLUserStore] r => TeamId -> Sem r NoContent
 internalDeleteTeam team = do
   deleteTeam team
   pure NoContent
@@ -785,7 +785,7 @@ internalPutSsoSettings ::
   Members
     '[ DefaultSsoCode,
        Error SparError,
-       IdPEffect.IdP
+       IdPEffect.IdConfigStore
      ]
     r =>
   SsoSettings ->

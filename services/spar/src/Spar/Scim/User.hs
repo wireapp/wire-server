@@ -122,7 +122,7 @@ instance
        BrigAccess,
        ScimExternalIdStore,
        ScimUserTimesStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        SAMLUserStore
      ]
     r =>
@@ -203,7 +203,7 @@ instance
 validateScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Sem r)) =>
-  Members '[Input Opts, IdPEffect.IdP] r =>
+  Members '[Input Opts, IdPEffect.IdConfigStore] r =>
   Text ->
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
@@ -214,7 +214,7 @@ validateScimUser errloc tokinfo user = do
   richInfoLimit <- lift $ inputs richInfoLimit
   validateScimUser' errloc mIdpConfig richInfoLimit user
 
-tokenInfoToIdP :: Member IdPEffect.IdP r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
+tokenInfoToIdP :: Member IdPEffect.IdConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} = do
   maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
 
@@ -505,7 +505,7 @@ updateValidScimUser ::
        BrigAccess,
        ScimExternalIdStore,
        ScimUserTimesStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        SAMLUserStore
      ]
     r =>
@@ -647,7 +647,7 @@ deleteScimUser ::
        ScimExternalIdStore,
        ScimUserTimesStore,
        SAMLUserStore,
-       IdPEffect.IdP
+       IdPEffect.IdConfigStore
      ]
     r =>
   ScimTokenInfo ->

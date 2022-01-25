@@ -81,7 +81,7 @@ type CanonicalEffs =
      ScimUserTimesStore,
      ScimTokenStore,
      DefaultSsoCode,
-     IdPEffect.IdP,
+     IdPEffect.IdConfigStore,
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed (Cas.Client),

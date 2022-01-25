@@ -88,7 +88,7 @@ instance Members '[Error SparError, Final IO, AssIDStore] r => SPStoreID Asserti
   unStoreID = wrapMonadClientSPImpl . AssIDStore.unStore
   isAliveID = wrapMonadClientSPImpl . AssIDStore.isAlive
 
-instance Members '[Error SparError, IdPEffect.IdP, Final IO] r => SPStoreIdP SparError (SPImpl r) where
+instance Members '[Error SparError, IdPEffect.IdConfigStore, Final IO] r => SPStoreIdP SparError (SPImpl r) where
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
@@ -109,7 +109,7 @@ saml2ToSaml2WebSso ::
     '[ AReqIDStore,
        AssIDStore,
        Error SparError,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Input Opts,
        Logger String,
        Embed IO,
@@ -149,7 +149,7 @@ inspectOrBomb ::
     '[ AReqIDStore,
        AssIDStore,
        Error SparError,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Logger String,
        Input Opts,
        Embed IO,

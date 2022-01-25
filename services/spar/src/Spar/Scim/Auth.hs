@@ -93,7 +93,7 @@ apiScimToken ::
        BrigAccess,
        ScimTokenStore,
        Now,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Error E.SparError
      ]
     r =>
@@ -114,7 +114,7 @@ createScimToken ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        Now,
        Error E.SparError
      ]

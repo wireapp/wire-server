@@ -42,7 +42,7 @@ deriving instance Data IdPId
 deriving instance Data (E.GetIdPResult IdPId)
 
 propsForInterpreter ::
-  (Member E.IdP r, PropConstraints r f) =>
+  (Member E.IdConfigStore r, PropConstraints r f) =>
   String ->
   (forall x. f x -> x) ->
   (forall x. Show x => Maybe (f x -> String)) ->
@@ -62,18 +62,18 @@ propsForInterpreter interpreter extract labeler lower = do
     prop "storeConfig/storeConfig (different keys)" $ prop_storeStoreInterleave Nothing lower
     prop "storeConfig/storeConfig (same keys)" $ prop_storeStore Nothing lower
 
-getReplacedBy :: Member E.IdP r => SAML.IdPId -> Sem r (Maybe (Maybe SAML.IdPId))
+getReplacedBy :: Member E.IdConfigStore r => SAML.IdPId -> Sem r (Maybe (Maybe SAML.IdPId))
 getReplacedBy idpid = fmap (view $ SAML.idpExtraInfo . IP.wiReplacedBy) <$> E.getConfig idpid
 
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Arbitrary Issuer, CoArbitrary Issuer, Arbitrary E.Replaced, Arbitrary E.Replaced, Arbitrary E.Replacing, Arbitrary IdPId, CoArbitrary IdPId, Arbitrary IP.IdP, CoArbitrary IP.IdP, CoArbitrary (E.GetIdPResult IdPId), Functor f, Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary Issuer, CoArbitrary Issuer, Arbitrary E.Replaced, Arbitrary E.Replaced, Arbitrary E.Replacing, Arbitrary IdPId, CoArbitrary IdPId, Arbitrary IP.IdP, CoArbitrary IP.IdP, CoArbitrary (E.GetIdPResult IdPId), Functor f, Member E.IdConfigStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Arbitrary Issuer, CoArbitrary Issuer, Arbitrary E.Replaced, Arbitrary E.Replaced, Arbitrary E.Replacing, Arbitrary IdPId, CoArbitrary IdPId, Arbitrary IP.IdP, CoArbitrary IP.IdP, CoArbitrary (E.GetIdPResult IdPId), Functor f, Member E.IdP r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary Issuer, CoArbitrary Issuer, Arbitrary E.Replaced, Arbitrary E.Replaced, Arbitrary E.Replacing, Arbitrary IdPId, CoArbitrary IdPId, Arbitrary IP.IdP, CoArbitrary IP.IdP, CoArbitrary (E.GetIdPResult IdPId), Functor f, Member E.IdConfigStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 prop_storeStore ::
@@ -82,7 +82,7 @@ prop_storeStore ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeStore =
-  prepropLaw @'[E.IdP] $ do
+  prepropLaw @'[E.IdConfigStore] $ do
     s <- arbitrary
     s' <- arbitrary
     pure $
@@ -102,7 +102,7 @@ prop_storeStoreInterleave ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeStoreInterleave =
-  prepropLaw @'[E.IdP] $ do
+  prepropLaw @'[E.IdConfigStore] $ do
     s <- arbitrary
     s' <- arbitrary
     !_ <-
@@ -125,7 +125,7 @@ prop_storeGet ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeGet =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       s <- arbitrary
       pure $
@@ -145,7 +145,7 @@ prop_deleteGet ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_deleteGet =
-  prepropLaw @'[E.IdP] $ do
+  prepropLaw @'[E.IdConfigStore] $ do
     s <- arbitrary
     pure $
       Law
@@ -167,7 +167,7 @@ prop_deleteDelete ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_deleteDelete =
-  prepropLaw @'[E.IdP] $ do
+  prepropLaw @'[E.IdConfigStore] $ do
     s <- arbitrary
     pure $
       simpleLaw
@@ -185,7 +185,7 @@ prop_storeGetByIssuer ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_storeGetByIssuer =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       s <- arbitrary
       pure $
@@ -206,7 +206,7 @@ prop_setClear ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_setClear =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       idp <- arbitrary
       replaced_id <- arbitrary
@@ -234,7 +234,7 @@ prop_getGet ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_getGet =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       idpid <- arbitrary
       idp <- arbitrary
@@ -257,7 +257,7 @@ prop_getStore ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_getStore =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       idpid <- arbitrary
       s <- arbitrary
@@ -282,7 +282,7 @@ prop_setSet ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_setSet =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       replaced_id <- arbitrary
       s <- arbitrary
@@ -310,7 +310,7 @@ prop_setGet ::
   (forall x. Sem r x -> IO (f x)) ->
   Property
 prop_setGet =
-  prepropLaw @'[E.IdP] $
+  prepropLaw @'[E.IdConfigStore] $
     do
       idp <- arbitrary
       replaced_id <- arbitrary

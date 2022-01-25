@@ -33,14 +33,14 @@ type TypedState = Map SAML.IdPId IP.IdP
 
 idPToMem ::
   forall r a.
-  Sem (Eff.IdP ': r) a ->
+  Sem (Eff.IdConfigStore ': r) a ->
   Sem r (TypedState, a)
 idPToMem = evState . evEff
   where
     evState :: Sem (State TypedState : r) a -> Sem r (TypedState, a)
     evState = runState mempty
 
-    evEff :: Sem (Eff.IdP ': r) a -> Sem (State TypedState ': r) a
+    evEff :: Sem (Eff.IdConfigStore ': r) a -> Sem (State TypedState ': r) a
     evEff = reinterpret @_ @(State TypedState) $ \case
       Eff.StoreConfig iw ->
         modify' (storeConfig iw)

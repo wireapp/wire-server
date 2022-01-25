@@ -37,7 +37,7 @@ import Wire.API.User.IdentityProvider
 idPToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
-  Sem (Eff.IdP ': r) a ->
+  Sem (Eff.IdConfigStore ': r) a ->
   Sem r a
 idPToCassandra =
   interpret $

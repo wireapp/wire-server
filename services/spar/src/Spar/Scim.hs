@@ -125,7 +125,7 @@ apiScim ::
        ScimUserTimesStore,
        ScimTokenStore,
        Reporter,
-       IdPEffect.IdP,
+       IdPEffect.IdConfigStore,
        -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
        Final IO,
        SAMLUserStore
