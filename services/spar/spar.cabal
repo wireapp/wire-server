@@ -86,6 +86,7 @@ library
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
       Spar.Sem.ScimUserTimesStore.Mem
+      Spar.Sem.Utils
       Spar.Sem.VerdictFormatStore
       Spar.Sem.VerdictFormatStore.Cassandra
       Spar.Sem.VerdictFormatStore.Mem
