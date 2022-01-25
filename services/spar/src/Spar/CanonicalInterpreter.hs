@@ -17,7 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.CanonicalInterpreter where
+module Spar.CanonicalInterpreter (
+  CanonicalEffs,
+  runSparToIO,
+  runSparToHandler ) where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except

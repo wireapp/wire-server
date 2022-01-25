@@ -17,7 +17,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.DefaultSsoCode.Cassandra where
+module Spar.Sem.DefaultSsoCode.Cassandra (
+  defaultSsoCodeToCassandra,
+  getDefaultSsoCode,
+  storeDefaultSsoCode,
+  deleteDefaultSsoCode ) where
 
 import Cassandra
 import Imports

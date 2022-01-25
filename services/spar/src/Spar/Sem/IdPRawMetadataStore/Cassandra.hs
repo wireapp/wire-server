@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPRawMetadataStore.Cassandra where
+module Spar.Sem.IdPRawMetadataStore.Cassandra (
+  idpRawMetadataStoreToCassandra,
+  storeIdPRawMetadata,
+  getIdPRawMetadata,
+  deleteIdPRawMetadata ) where
 
 import Cassandra as Cas
 import Control.Lens

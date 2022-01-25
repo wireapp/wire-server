@@ -17,7 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SAMLUserStore.Mem where
+module Spar.Sem.SAMLUserStore.Mem (
+  UserRefOrd(..),
+  samlUserStoreToMem ) where
 
 import Control.Lens (view)
 import Data.Coerce (coerce)

@@ -17,7 +17,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP.Cassandra where
+module Spar.Sem.IdP.Cassandra (
+  IdPConfigRow,
+  idPToCassandra,
+  storeIdPConfig,
+  getIdPConfig,
+  getIdPIdByIssuerWithoutTeam,
+  getIdPIdByIssuerWithTeam,
+  getIdPConfigsByTeam,
+  deleteIdPConfig,
+  setReplacedBy,
+  clearReplacedBy ) where
 
 import Cassandra
 import Control.Lens ((^.))

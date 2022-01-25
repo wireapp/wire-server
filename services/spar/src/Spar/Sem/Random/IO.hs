@@ -15,7 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Random.IO where
+module Spar.Sem.Random.IO (
+  randomToIO ) where
 
 import Data.Id (randomId)
 import qualified Data.UUID.V4 as UUID

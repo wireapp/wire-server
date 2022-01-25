@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPRawMetadataStore where
+module Spar.Sem.IdPRawMetadataStore (
+  IdPRawMetadataStore(..),
+  store,
+  get,
+  delete ) where
 
 import Imports
 import Polysemy
