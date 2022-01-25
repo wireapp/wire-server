@@ -727,7 +727,7 @@ test-suite spec
       Test.Spar.ScimSpec
       Test.Spar.Sem.DefaultSsoCodeSpec
       Test.Spar.Sem.IdPRawMetadataStoreSpec
-      Test.Spar.Sem.IdPConfigStoreSpec
+      Test.Spar.Sem.IdPSpec
       Test.Spar.Sem.NowSpec
       Test.Spar.Sem.ScimExternalIdStoreSpec
       Test.Spar.TypesSpec
