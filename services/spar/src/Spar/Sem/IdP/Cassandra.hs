@@ -29,31 +29,30 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
-import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdP as Eff
+import Spar.Sem.IdP (IdConfigStore(..), GetIdPResult (..), Replaced (..), Replacing (..))
 import URI.ByteString
 import Wire.API.User.IdentityProvider
 
 idPToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
-  Sem (Eff.IdConfigStore ': r) a ->
+  Sem (IdConfigStore ': r) a ->
   Sem r a
 idPToCassandra =
   interpret $
     embed @m . \case
-      Eff.StoreConfig iw -> storeIdPConfig iw
-      Eff.GetConfig i -> getIdPConfig i
-      Eff.GetIdByIssuerWithoutTeam i -> getIdPIdByIssuerWithoutTeam i
-      Eff.GetIdByIssuerWithTeam i t -> getIdPIdByIssuerWithTeam i t
-      Eff.GetConfigsByTeam itlt -> getIdPConfigsByTeam itlt
-      Eff.DeleteConfig idp ->
+      StoreConfig iw -> storeIdPConfig iw
+      GetConfig i -> getIdPConfig i
+      GetIdByIssuerWithoutTeam i -> getIdPIdByIssuerWithoutTeam i
+      GetIdByIssuerWithTeam i t -> getIdPIdByIssuerWithTeam i t
+      GetConfigsByTeam itlt -> getIdPConfigsByTeam itlt
+      DeleteConfig idp ->
         let idpid = idp ^. SAML.idpId
             issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
             team = idp ^. SAML.idpExtraInfo . wiTeam
          in deleteIdPConfig idpid issuer team
-      Eff.SetReplacedBy r r11 -> setReplacedBy r r11
-      Eff.ClearReplacedBy r -> clearReplacedBy r
+      SetReplacedBy r r11 -> setReplacedBy r r11
+      ClearReplacedBy r -> clearReplacedBy r
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId)
 

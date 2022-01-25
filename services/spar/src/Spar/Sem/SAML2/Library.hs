@@ -39,7 +39,7 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdP (IdConfigStore)
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.SAML2
@@ -88,7 +88,7 @@ instance Members '[Error SparError, Final IO, AssIDStore] r => SPStoreID Asserti
   unStoreID = wrapMonadClientSPImpl . AssIDStore.unStore
   isAliveID = wrapMonadClientSPImpl . AssIDStore.isAlive
 
-instance Members '[Error SparError, IdPEffect.IdConfigStore, Final IO] r => SPStoreIdP SparError (SPImpl r) where
+instance Members '[Error SparError, IdConfigStore, Final IO] r => SPStoreIdP SparError (SPImpl r) where
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
@@ -109,7 +109,7 @@ saml2ToSaml2WebSso ::
     '[ AReqIDStore,
        AssIDStore,
        Error SparError,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        Input Opts,
        Logger String,
        Embed IO,
@@ -149,7 +149,7 @@ inspectOrBomb ::
     '[ AReqIDStore,
        AssIDStore,
        Error SparError,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        Logger String,
        Input Opts,
        Embed IO,

@@ -73,7 +73,8 @@ import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.Types as ST
 import Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdP (IdConfigStore)
+import qualified Spar.Sem.IdP as IdConfigStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Now (Now)
@@ -122,7 +123,7 @@ instance
        BrigAccess,
        ScimExternalIdStore,
        ScimUserTimesStore,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        SAMLUserStore
      ]
     r =>
@@ -141,7 +142,7 @@ instance
           . logFilter filter'
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . IdConfigStore.getConfig) stiIdP
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
@@ -164,7 +165,7 @@ instance
           . logTokenInfo tokeninfo
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . IdConfigStore.getConfig) stiIdP
         let notfound = Scim.notFound "User" (idToText uid)
         brigUser <- lift (BrigAccess.getAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
         unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
@@ -203,7 +204,7 @@ instance
 validateScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Sem r)) =>
-  Members '[Input Opts, IdPEffect.IdConfigStore] r =>
+  Members '[Input Opts, IdConfigStore] r =>
   Text ->
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
@@ -214,9 +215,9 @@ validateScimUser errloc tokinfo user = do
   richInfoLimit <- lift $ inputs richInfoLimit
   validateScimUser' errloc mIdpConfig richInfoLimit user
 
-tokenInfoToIdP :: Member IdPEffect.IdConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
+tokenInfoToIdP :: Member IdConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} = do
-  maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
+  maybe (pure Nothing) (lift . IdConfigStore.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -505,7 +506,7 @@ updateValidScimUser ::
        BrigAccess,
        ScimExternalIdStore,
        ScimUserTimesStore,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        SAMLUserStore
      ]
     r =>
@@ -647,7 +648,7 @@ deleteScimUser ::
        ScimExternalIdStore,
        ScimUserTimesStore,
        SAMLUserStore,
-       IdPEffect.IdConfigStore
+       IdConfigStore
      ]
     r =>
   ScimTokenInfo ->
@@ -674,7 +675,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- maybe (pure Nothing) (lift . IdPEffect.getConfig) stiIdP
+          mIdpConfig <- maybe (pure Nothing) (lift . IdConfigStore.getConfig) stiIdP
 
           case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
             Left _ -> pure ()

@@ -82,7 +82,7 @@ import Spar.Scim.Auth
 import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdP (IdConfigStore)
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)
@@ -125,7 +125,7 @@ apiScim ::
        ScimUserTimesStore,
        ScimTokenStore,
        Reporter,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
        Final IO,
        SAMLUserStore

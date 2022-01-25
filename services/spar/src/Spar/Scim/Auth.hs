@@ -54,7 +54,8 @@ import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdP (IdConfigStore)
+import qualified Spar.Sem.IdP as IdConfigStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
 import Spar.Sem.Random (Random)
@@ -93,7 +94,7 @@ apiScimToken ::
        BrigAccess,
        ScimTokenStore,
        Now,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        Error E.SparError
      ]
     r =>
@@ -114,7 +115,7 @@ createScimToken ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdConfigStore,
+       IdConfigStore,
        Now,
        Error E.SparError
      ]
@@ -132,7 +133,7 @@ createScimToken zusr CreateScimToken {..} = do
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
     throwSparSem E.SparProvisioningTokenLimitReached
-  idps <- IdPEffect.getConfigsByTeam teamid
+  idps <- IdConfigStore.getConfigsByTeam teamid
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Sem r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
