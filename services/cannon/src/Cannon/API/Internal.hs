@@ -44,7 +44,6 @@ import qualified System.Logger.Class as LC
 import Wire.API.ErrorDescription
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.NoContentWithStatusCodeVerb
 
 newtype PushNotificationStream = PushNotificationStream
   { getPushNotificationStream :: ConduitT () ByteString (ResourceT WS) ()
@@ -56,13 +55,12 @@ type InternalAPI =
     :> ( Named
            "get-status"
            ( "status"
-               :> NoContentWithStatusCodeVerb 'GET 200
+               :> MultiVerb
+                    'GET
+                    '[PlainText]
+                    '[RespondEmpty 200 "Service is alive."]
+                    ()
            )
-           :<|> Named
-                  "head-status"
-                  ( "status"
-                      :> NoContentWithStatusCodeVerb 'HEAD 200
-                  )
            :<|> Named
                   "push-notification"
                   ( "push"
@@ -100,8 +98,7 @@ type InternalAPI =
 
 internalServer :: ServerT InternalAPI Cannon
 internalServer =
-  Named @"get-status" (pure NoContent)
-    :<|> Named @"head-status" (pure NoContent)
+  Named @"get-status" (pure ())
     :<|> Named @"push-notification" pushHandler
     :<|> Named @"bulk-push-notifications" bulkPushHandler
     :<|> Named @"check-presence" checkPresenceHandler
