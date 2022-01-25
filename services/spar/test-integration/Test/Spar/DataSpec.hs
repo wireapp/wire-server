@@ -285,7 +285,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokenInfo `shouldBe` Nothing
   -- The team from 'team_provisioning_by_team':
   do
-    tokens <- runSpar $ ScimTokenStore.getByTeam tid
+    tokens <- runSpar $ ScimTokenStore.lookupByTeam tid
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
