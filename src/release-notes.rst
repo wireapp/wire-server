@@ -4,6 +4,9 @@
 Release notes of helm charts
 ****************************
 
+Also read `understand release tags
+<operations.html#understand-release-tags>`__.
+
 We have recently migrated all the helm charts from
 https://github.com/wireapp/wire-server-deploy to the
 https://github.com/wireapp/wire-server repository as we want to decouple
