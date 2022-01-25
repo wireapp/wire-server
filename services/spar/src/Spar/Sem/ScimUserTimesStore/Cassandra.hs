@@ -17,9 +17,6 @@
 
 module Spar.Sem.ScimUserTimesStore.Cassandra
   ( scimUserTimesStoreToCassandra,
-    writeScimUserTimes,
-    readScimUserTimes,
-    deleteScimUserTimes,
   )
 where
 

@@ -19,9 +19,6 @@
 
 module Spar.Sem.DefaultSsoCode.Cassandra
   ( defaultSsoCodeToCassandra,
-    getDefaultSsoCode,
-    storeDefaultSsoCode,
-    deleteDefaultSsoCode,
   )
 where
 

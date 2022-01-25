@@ -17,9 +17,6 @@
 
 module Spar.Sem.AssIDStore.Cassandra
   ( assIDStoreToCassandra,
-    storeAssID,
-    unStoreAssID,
-    isAliveAssID,
   )
 where
 

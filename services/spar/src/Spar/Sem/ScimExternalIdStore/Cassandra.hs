@@ -17,9 +17,6 @@
 
 module Spar.Sem.ScimExternalIdStore.Cassandra
   ( scimExternalIdStoreToCassandra,
-    insertScimExternalId,
-    lookupScimExternalId,
-    deleteScimExternalId,
   )
 where
 

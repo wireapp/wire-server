@@ -20,12 +20,6 @@
 module Spar.Sem.SAMLUserStore.Cassandra
   ( samlUserStoreToCassandra,
     interpretClientToIO,
-    insertSAMLUser,
-    getSAMLAnyUserByIssuer,
-    getSAMLSomeUsersByIssuer,
-    getSAMLUser,
-    deleteSAMLUsersByIssuer,
-    deleteSAMLUser,
   )
 where
 

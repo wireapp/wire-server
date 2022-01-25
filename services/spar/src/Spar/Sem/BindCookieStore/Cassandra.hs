@@ -19,8 +19,6 @@
 
 module Spar.Sem.BindCookieStore.Cassandra
   ( bindCookieStoreToCassandra,
-    insertBindCookie,
-    lookupBindCookie,
   )
 where
 

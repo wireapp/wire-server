@@ -19,8 +19,6 @@
 
 module Spar.Sem.VerdictFormatStore.Cassandra
   ( verdictFormatStoreToCassandra,
-    storeVerdictFormat,
-    getVerdictFormat,
   )
 where
 

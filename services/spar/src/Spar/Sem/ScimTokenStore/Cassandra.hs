@@ -19,20 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Spar.Sem.ScimTokenStore.Cassandra
-  ( ScimTokenRow,
-    scimTokenStoreToCassandra,
-    insertScimToken,
-    insByToken,
-    insByTeam,
-    scimTokenLookupKey,
-    lookupScimToken,
-    connvertPlaintextToken,
-    getScimTokens,
-    deleteScimToken,
-    delById,
-    delByTokenLookup,
-    deleteTeamScimTokens,
-    fromScimTokenRow,
+  ( scimTokenStoreToCassandra,
   )
 where
 

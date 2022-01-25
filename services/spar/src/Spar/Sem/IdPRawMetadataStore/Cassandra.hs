@@ -17,9 +17,6 @@
 
 module Spar.Sem.IdPRawMetadataStore.Cassandra
   ( idpRawMetadataStoreToCassandra,
-    storeIdPRawMetadata,
-    getIdPRawMetadata,
-    deleteIdPRawMetadata,
   )
 where
 

@@ -18,16 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Spar.Sem.IdP.Cassandra
-  ( IdPConfigRow,
-    idPToCassandra,
-    storeIdPConfig,
-    getIdPConfig,
-    getIdPIdByIssuerWithoutTeam,
-    getIdPIdByIssuerWithTeam,
-    getIdPConfigsByTeam,
-    deleteIdPConfig,
-    setReplacedBy,
-    clearReplacedBy,
+  ( idPToCassandra,
   )
 where
 

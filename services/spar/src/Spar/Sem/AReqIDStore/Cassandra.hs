@@ -18,9 +18,6 @@
 module Spar.Sem.AReqIDStore.Cassandra
   ( aReqIDStoreToCassandra,
     ttlErrorToSparError,
-    storeAReqID,
-    unStoreAReqID,
-    isAliveAReqID,
   )
 where
 
