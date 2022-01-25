@@ -44,19 +44,19 @@ newtype Replaced = Replaced SAML.IdPId
 newtype Replacing = Replacing SAML.IdPId
   deriving (Eq, Ord, Show)
 
-data IdConfigStore m a where
-  StoreConfig :: IP.IdP -> IdConfigStore m ()
-  GetConfig :: SAML.IdPId -> IdConfigStore m (Maybe IP.IdP)
-  GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdConfigStore m (GetIdPResult SAML.IdPId)
-  GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdConfigStore m (Maybe SAML.IdPId)
-  GetConfigsByTeam :: TeamId -> IdConfigStore m [IP.IdP]
-  DeleteConfig :: IP.IdP -> IdConfigStore m ()
+data IdPConfigStore m a where
+  StoreConfig :: IP.IdP -> IdPConfigStore m ()
+  GetConfig :: SAML.IdPId -> IdPConfigStore m (Maybe IP.IdP)
+  GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdPConfigStore m (GetIdPResult SAML.IdPId)
+  GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdPConfigStore m (Maybe SAML.IdPId)
+  GetConfigsByTeam :: TeamId -> IdPConfigStore m [IP.IdP]
+  DeleteConfig :: IP.IdP -> IdPConfigStore m ()
   -- affects _wiReplacedBy in GetConfig
-  SetReplacedBy :: Replaced -> Replacing -> IdConfigStore m ()
-  ClearReplacedBy :: Replaced -> IdConfigStore m ()
+  SetReplacedBy :: Replaced -> Replacing -> IdPConfigStore m ()
+  ClearReplacedBy :: Replaced -> IdPConfigStore m ()
 
-deriving stock instance Show (IdConfigStore m a)
+deriving stock instance Show (IdPConfigStore m a)
 
 -- TODO(sandy): Inline this definition --- no TH
-makeSem ''IdConfigStore
-deriveGenericK ''IdConfigStore
+makeSem ''IdPConfigStore
+deriveGenericK ''IdPConfigStore

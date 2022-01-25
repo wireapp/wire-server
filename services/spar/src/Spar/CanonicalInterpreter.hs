@@ -41,7 +41,7 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
-import Spar.Sem.IdP (IdConfigStore)
+import Spar.Sem.IdP (IdPConfigStore)
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
@@ -81,7 +81,7 @@ type CanonicalEffs =
      ScimUserTimesStore,
      ScimTokenStore,
      DefaultSsoCode,
-     IdConfigStore,
+     IdPConfigStore,
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed (Cas.Client),

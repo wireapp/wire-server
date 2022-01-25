@@ -29,14 +29,14 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
-import Spar.Sem.IdP (GetIdPResult (..), IdConfigStore (..), Replaced (..), Replacing (..))
+import Spar.Sem.IdP (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
 import URI.ByteString
 import Wire.API.User.IdentityProvider
 
 idPToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
-  Sem (IdConfigStore ': r) a ->
+  Sem (IdPConfigStore ': r) a ->
   Sem r a
 idPToCassandra =
   interpret $

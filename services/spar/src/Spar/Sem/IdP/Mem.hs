@@ -26,21 +26,21 @@ import Imports
 import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.IdP (GetIdPResult (..), IdConfigStore (..), Replaced (..), Replacing (..))
+import Spar.Sem.IdP (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
 import qualified Wire.API.User.IdentityProvider as IP
 
 type TypedState = Map SAML.IdPId IP.IdP
 
 idPToMem ::
   forall r a.
-  Sem (IdConfigStore ': r) a ->
+  Sem (IdPConfigStore ': r) a ->
   Sem r (TypedState, a)
 idPToMem = evState . evEff
   where
     evState :: Sem (State TypedState : r) a -> Sem r (TypedState, a)
     evState = runState mempty
 
-    evEff :: Sem (IdConfigStore ': r) a -> Sem (State TypedState ': r) a
+    evEff :: Sem (IdPConfigStore ': r) a -> Sem (State TypedState ': r) a
     evEff = reinterpret @_ @(State TypedState) $ \case
       StoreConfig iw ->
         modify' (storeConfig iw)
