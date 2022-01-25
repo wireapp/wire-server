@@ -294,7 +294,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
     guardScimTokens :: IdP -> Sem r ()
     guardScimTokens idp = do
       let teamid = idp ^. idpExtraInfo . wiTeam
-      scimtoks <- ScimTokenStore.getByTeam teamid
+      scimtoks <- ScimTokenStore.lookupByTeam teamid
       unless (null scimtoks) $ do
         throwSparSem SparSamlCredentialsNotFound
 

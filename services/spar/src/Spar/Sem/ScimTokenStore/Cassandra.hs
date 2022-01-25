@@ -45,7 +45,7 @@ scimTokenStoreToCassandra =
     embed @m . \case
       Insert st sti -> insertScimToken st sti
       Lookup st -> lookupScimToken st
-      GetByTeam tid -> getScimTokens tid
+      LookupByTeam tid -> getScimTokens tid
       Delete tid ur -> deleteScimToken tid ur
       DeleteByTeam tid -> deleteTeamScimTokens tid
 
