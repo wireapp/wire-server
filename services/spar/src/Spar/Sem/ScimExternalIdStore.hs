@@ -24,7 +24,7 @@ module Spar.Sem.ScimExternalIdStore
 where
 
 import Data.Id (TeamId, UserId)
-import Imports
+import Imports (Show, Maybe)
 import Polysemy
 import Polysemy.Check (deriveGenericK)
 import Wire.API.User.Identity (Email)

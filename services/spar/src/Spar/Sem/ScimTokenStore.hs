@@ -26,7 +26,7 @@ module Spar.Sem.ScimTokenStore
 where
 
 import Data.Id
-import Imports
+import Imports (Maybe)
 import Polysemy
 import Wire.API.User.Scim
 

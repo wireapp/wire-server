@@ -25,7 +25,7 @@ where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
-import Imports
+import Imports (Maybe)
 import Polysemy
 import Web.Scim.Schema.Common (WithId)
 import Web.Scim.Schema.Meta (WithMeta)
