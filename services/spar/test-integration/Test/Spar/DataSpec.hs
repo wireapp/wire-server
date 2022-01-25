@@ -33,11 +33,11 @@ import Imports
 import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
-import Spar.Data as Data
 import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -219,10 +219,10 @@ spec = do
           pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
           idp1 <- makeTestIdP
           idp2 <- makeTestIdP
-          runSpar $ IdPEffect.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId))
+          runSpar $ IdPEffect.setReplacedBy (Replaced (idp1 ^. idpId)) (Replacing (idp2 ^. idpId))
           idp1' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
           liftIO $ idp1' `shouldBe` Nothing
-          runSpar $ IdPEffect.clearReplacedBy (Data.Replaced (idp1 ^. idpId))
+          runSpar $ IdPEffect.clearReplacedBy (Replaced (idp1 ^. idpId))
           idp2' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
           liftIO $ idp2' `shouldBe` Nothing
 

@@ -17,20 +17,22 @@
 
 module Spar.Sem.AReqIDStore.Cassandra where
 
-import Cassandra
-import Control.Monad.Except (runExceptT)
-import Imports hiding (MonadReader (..), Reader)
+import Cassandra as Cas
+import Control.Lens
+import Control.Monad.Except
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
 import SAML2.WebSSO (fromTime)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
+import Spar.Data.Instances ()
 import Spar.Error
 import Spar.Sem.AReqIDStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
-import Wire.API.User.Saml (Opts, TTLError)
+import Wire.API.User.Saml
 
 aReqIDStoreToCassandra ::
   forall m r a.
@@ -40,12 +42,44 @@ aReqIDStoreToCassandra ::
 aReqIDStoreToCassandra = interpret $ \case
   Store itla t -> do
     denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
-    a <- embed @m $ runExceptT $ runReaderT (Data.storeAReqID itla t) denv
+    a <- embed @m $ runExceptT $ runReaderT (storeAReqID itla t) denv
     case a of
       Left err -> throw err
       Right () -> pure ()
-  UnStore itla -> embed @m $ Data.unStoreAReqID itla
-  IsAlive itla -> embed @m $ Data.isAliveAReqID itla
+  UnStore itla -> embed @m $ unStoreAReqID itla
+  IsAlive itla -> embed @m $ isAliveAReqID itla
 
 ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a
 ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)
+
+storeAReqID ::
+  (HasCallStack, MonadReader Data.Env m, MonadClient m, MonadError TTLError m) =>
+  AReqId ->
+  SAML.Time ->
+  m ()
+storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
+  env <- ask
+  TTL ttl <- Data.mkTTLAuthnRequests env endOfLife
+  retry x5 . write ins $ params LocalQuorum (rid, ttl)
+  where
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
+    ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
+
+unStoreAReqID ::
+  (HasCallStack, MonadClient m) =>
+  AReqId ->
+  m ()
+unStoreAReqID (SAML.ID rid) = retry x5 . write del . params LocalQuorum $ Identity rid
+  where
+    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del = "DELETE FROM authreq WHERE req = ?"
+
+isAliveAReqID ::
+  (HasCallStack, MonadClient m) =>
+  AReqId ->
+  m Bool
+isAliveAReqID (SAML.ID rid) =
+  (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity rid)
+  where
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
