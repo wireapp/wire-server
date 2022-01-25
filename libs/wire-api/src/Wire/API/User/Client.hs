@@ -730,11 +730,10 @@ instance ToSchema UpdateClient where
       UpdateClient
         <$> updateClientPrekeys
           .= ( fromMaybe []
-                 <$> ( optFieldWithDocModifier
-                         "prekeys"
-                         (description ?~ "New prekeys for other clients to establish OTR sessions.")
-                         (array schema)
-                     )
+                 <$> optFieldWithDocModifier
+                   "prekeys"
+                   (description ?~ "New prekeys for other clients to establish OTR sessions.")
+                   (array schema)
              )
         <*> updateClientLastKey
           .= maybe_

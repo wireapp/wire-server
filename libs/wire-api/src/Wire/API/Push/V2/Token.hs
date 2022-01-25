@@ -83,7 +83,7 @@ data PushToken = PushToken
   deriving (Arbitrary) via (GenericUniform PushToken)
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl
+pushToken = PushToken
 
 modelPushToken :: Doc.Model
 modelPushToken = Doc.defineModel "PushToken" $ do

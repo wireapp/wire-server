@@ -75,8 +75,7 @@ instance ToSchema Prekey where
         <*> prekeyKey .= field "key" schema
 
 clientIdFromPrekey :: Prekey -> ClientId
-clientIdFromPrekey prekey =
-  newClientId . fromIntegral . hash . prekeyKey $ prekey
+clientIdFromPrekey = newClientId . fromIntegral . hash . prekeyKey
 
 --------------------------------------------------------------------------------
 -- LastPrekey
