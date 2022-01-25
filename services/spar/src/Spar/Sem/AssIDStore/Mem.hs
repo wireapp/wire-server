@@ -17,8 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.AssIDStore.Mem (
-  assIdStoreToMem ) where
+module Spar.Sem.AssIDStore.Mem
+  ( assIdStoreToMem,
+  )
+where
 
 import qualified Data.Map as M
 import Imports

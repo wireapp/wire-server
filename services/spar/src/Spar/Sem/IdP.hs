@@ -15,19 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP (
-  IdP(..),
-  Replacing(..),
-  Replaced(..),
-  GetIdPResult(..),
-  storeConfig,
-  getConfig,
-  getIdByIssuerWithoutTeam,
-  getIdByIssuerWithTeam,
-  getConfigsByTeam,
-  deleteConfig,
-  setReplacedBy,
-  clearReplacedBy ) where
+module Spar.Sem.IdP
+  ( IdP (..),
+    Replacing (..),
+    Replaced (..),
+    GetIdPResult (..),
+    storeConfig,
+    getConfig,
+    getIdByIssuerWithoutTeam,
+    getIdByIssuerWithTeam,
+    getConfigsByTeam,
+    deleteConfig,
+    setReplacedBy,
+    clearReplacedBy,
+  )
+where
 
 import Data.Id
 import Imports

@@ -18,21 +18,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimTokenStore.Cassandra (
-  ScimTokenRow,
-  scimTokenStoreToCassandra,
-  insertScimToken,
-  insByToken,
-  insByTeam,
-  scimTokenLookupKey,
-  lookupScimToken,
-  connvertPlaintextToken,
-  getScimTokens,
-  deleteScimToken,
-  delById,
-  delByTokenLookup,
-  deleteTeamScimTokens,
-  fromScimTokenRow ) where
+module Spar.Sem.ScimTokenStore.Cassandra
+  ( ScimTokenRow,
+    scimTokenStoreToCassandra,
+    insertScimToken,
+    insByToken,
+    insByTeam,
+    scimTokenLookupKey,
+    lookupScimToken,
+    connvertPlaintextToken,
+    getScimTokens,
+    deleteScimToken,
+    delById,
+    delByTokenLookup,
+    deleteTeamScimTokens,
+    fromScimTokenRow,
+  )
+where
 
 import Cassandra as Cas
 import Control.Arrow (Arrow ((&&&)))

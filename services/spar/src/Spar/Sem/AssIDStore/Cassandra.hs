@@ -15,11 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.AssIDStore.Cassandra (
-  assIDStoreToCassandra,
-  storeAssID,
-  unStoreAssID,
-  isAliveAssID ) where
+module Spar.Sem.AssIDStore.Cassandra
+  ( assIDStoreToCassandra,
+    storeAssID,
+    unStoreAssID,
+    isAliveAssID,
+  )
+where
 
 import Cassandra as Cas
 import Control.Lens

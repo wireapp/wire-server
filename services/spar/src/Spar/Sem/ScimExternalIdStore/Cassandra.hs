@@ -15,11 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimExternalIdStore.Cassandra (
-  scimExternalIdStoreToCassandra,
-  insertScimExternalId,
-  lookupScimExternalId,
-  deleteScimExternalId ) where
+module Spar.Sem.ScimExternalIdStore.Cassandra
+  ( scimExternalIdStoreToCassandra,
+    insertScimExternalId,
+    lookupScimExternalId,
+    deleteScimExternalId,
+  )
+where
 
 import Brig.Types.Common (Email, fromEmail)
 import Cassandra

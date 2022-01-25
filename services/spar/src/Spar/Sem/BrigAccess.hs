@@ -15,27 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.BrigAccess (
-  BrigAccess(..),
-  createSAML,
-  createNoSAML,
-  updateEmail,
-  getAccount,
-  getByHandle,
-  getByEmail,
-  setName,
-  setHandle,
-  setManagedBy,
-  setVeid,
-  setRichInfo,
-  getRichInfo,
-  checkHandleAvailable,
-  delete,
-  ensureReAuthorised,
-  ssoLogin,
-  getStatus,
-  getStatusMaybe,
-  setStatus ) where
+module Spar.Sem.BrigAccess
+  ( BrigAccess (..),
+    createSAML,
+    createNoSAML,
+    updateEmail,
+    getAccount,
+    getByHandle,
+    getByEmail,
+    setName,
+    setHandle,
+    setManagedBy,
+    setVeid,
+    setRichInfo,
+    getRichInfo,
+    checkHandleAvailable,
+    delete,
+    ensureReAuthorised,
+    ssoLogin,
+    getStatus,
+    getStatusMaybe,
+    setStatus,
+  )
+where
 
 import Brig.Types.Intra
 import Brig.Types.User

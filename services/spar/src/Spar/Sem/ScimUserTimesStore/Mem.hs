@@ -17,8 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimUserTimesStore.Mem (
-  scimUserTimesStoreToMem ) where
+module Spar.Sem.ScimUserTimesStore.Mem
+  ( scimUserTimesStoreToMem,
+  )
+where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)

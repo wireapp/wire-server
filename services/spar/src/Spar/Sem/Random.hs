@@ -15,11 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Random (
-  Random(..),
-  bytes,
-  uuid,
-  scimTokenId ) where
+module Spar.Sem.Random
+  ( Random (..),
+    bytes,
+    uuid,
+    scimTokenId,
+  )
+where
 
 import Data.Id (ScimTokenId)
 import Data.UUID (UUID)

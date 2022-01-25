@@ -15,10 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.BindCookieStore (
-  BindCookieStore(..),
-  insert,
-  lookup ) where
+module Spar.Sem.BindCookieStore
+  ( BindCookieStore (..),
+    insert,
+    lookup,
+  )
+where
 
 import Data.Id (UserId)
 import Data.Time (NominalDiffTime)

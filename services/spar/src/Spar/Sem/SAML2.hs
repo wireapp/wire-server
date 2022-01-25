@@ -15,12 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SAML2 (
-  SAML2(..),
-  authReq,
-  authResp,
-  meta,
-  toggleCookie ) where
+module Spar.Sem.SAML2
+  ( SAML2 (..),
+    authReq,
+    authResp,
+    meta,
+    toggleCookie,
+  )
+where
 
 import Data.Id (TeamId)
 import Data.String.Conversions (SBS, ST)
