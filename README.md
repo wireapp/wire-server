@@ -11,10 +11,10 @@ Visit https://docs.wire.com/
 The structure of this document has been heavily inspired by [this blog
 post](https://www.divio.com/blog/documentation/).
 
-We use [sphinx](http://sphinx-doc.org/) for rendering.  Here is a [cheat
-sheet](http://docutils.sourceforge.net/docs/user/rst/quickref.html)
+We use [sphinx](https://sphinx-doc.org/) for rendering.  Here is a [cheat
+sheet](https://docutils.sourceforge.net/docs/user/rst/quickref.html)
 for writing re-structured text (`*.rst`).
-[here is another one](http://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
+[here is another one](https://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
 And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
 ### Conventions

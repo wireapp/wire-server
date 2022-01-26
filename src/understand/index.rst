@@ -1,7 +1,7 @@
 .. _understand:
 
 Understanding wire-server components
-=======================================
+====================================
 
 This section is almost empty, more documentation will come soon...
 
