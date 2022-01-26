@@ -149,7 +149,7 @@ readLoop ws s = loop
       (DataMessage _ _ _ (Text "ping" _)) -> True
       (DataMessage _ _ _ (Binary "ping")) -> True
       _ -> False
-    sendAppLevelPong = sendMsgIO @ByteString "pong" ws
+    sendAppLevelPong = sendMsgIO "pong" ws
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do

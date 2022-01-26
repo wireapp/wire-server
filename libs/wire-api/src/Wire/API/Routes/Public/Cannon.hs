@@ -21,27 +21,23 @@ import Data.Id
 import Data.Swagger
 import Servant
 import Servant.Swagger
-import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.WebSocket
 
-type PublicAPI =
-  Named
-    "await-notifications"
-    ( Summary "Establish websocket connection"
-        :> "await"
-        :> ZUser
-        :> ZConn
-        :> QueryParam'
-             [ Optional,
-               Strict,
-               Description "Client ID"
-             ]
-             "client"
-             ClientId
-        -- FUTUREWORK: Consider higher-level web socket combinator
-        :> WebSocketPending
-    )
+type ServantAPI =
+  Summary "Establish websocket connection"
+    :> "await"
+    :> ZUser
+    :> ZConn
+    :> QueryParam'
+         [ Optional,
+           Strict,
+           Description "Client ID"
+         ]
+         "client"
+         ClientId
+    -- FUTUREWORK: Consider higher-level web socket combinator
+    :> WebSocketPending
 
 swaggerDoc :: Swagger
-swaggerDoc = toSwagger (Proxy @PublicAPI)
+swaggerDoc = toSwagger (Proxy @ServantAPI)
