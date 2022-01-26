@@ -1249,7 +1249,7 @@ testJoinTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
@@ -1307,7 +1307,7 @@ postJoinCodeConvOk = do
   let bob = qUnqualified qbob
   eve <- ephemeralUser
   dave <- ephemeralUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let qconv = Qualified conv (qDomain qbob)
   cCode <- decodeConvCodeEvent <$> postConvCode alice conv
@@ -1331,8 +1331,9 @@ postJoinCodeConvOk = do
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
     -- changing access to non-activated should give eve access
-    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRoles
-    putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
+    Right accessRoleswithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
+    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRoleswithGuests
+    putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode -- fails with 204
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
@@ -1378,8 +1379,10 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 404 === statusCode
   -- create a new code; then revoking CodeAccess should make existing codes invalid
   void $ postConvCode alice conv
-  Right accessRoles <- liftIO $ genAccessRolesV2 [] []
-  let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
+  let noCodeAccess =
+        ConversationAccessData
+          (Set.singleton InviteAccess)
+          (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
 
@@ -1403,9 +1406,9 @@ postConvertTeamConv = do
   -- creating a team-only conversation containing eve should fail
   createTeamConvAccessRaw alice tid [bob, eve] (Just "blaa") acc (Just (Set.fromList [TeamMemberAccessRole])) Nothing Nothing
     !!! const 403 === statusCode
-  Right accessRolesTeamAndGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
   -- create conversation allowing any type of guest
-  conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just accessRolesTeamAndGuests) Nothing Nothing
+  conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just accessRoles) Nothing Nothing
   -- mallory joins by herself
   mallory <- ephemeralUser
   let qmallory = Qualified mallory localDomain
