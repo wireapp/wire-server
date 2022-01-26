@@ -27,3 +27,8 @@ restundTCPListenPort: 3478
 restundUDPStatusPort: 33000
 restundHTTPStatusPort: 8080
 restundMetricsListenPort: 8443
+
+# host:
+tls:
+  listenPort: 5349
+  enabled: False

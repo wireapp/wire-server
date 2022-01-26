@@ -39,6 +39,11 @@ spec:
         - name: secrets
           secret:
             secretName: restund
+        {{- if .Values.tls.enabled }}
+        - name: tls-certificate
+          secret:
+            secretName: "{{ include "restund.fullname" . }}"
+        {{- end }}
       initContainers:
         - name: get-external-ip
           image: bitnami/kubectl:1.19.7
@@ -81,6 +86,11 @@ spec:
             - name: secrets
               mountPath: /secrets/
               readOnly: true
+            {{- if .Values.tls.enabled }}
+            - name: tls-certificate
+              mountPath: /tls-certificate
+              readOnly: true
+            {{- end }}
           command:
             - /bin/sh
             - -c
@@ -90,8 +100,12 @@ spec:
               export RESTUND_HOST="$EXTERNAL_IP"
               export ZREST_SECRET="$(cat /secrets/zrest_secret.txt)"
               envsubst '$RESTUND_HOST $POD_IP $ZREST_SECRET' < /restund-template/restund.conf.template > /home/restund/restund.conf
-              exec /usr/local/sbin/restund -n -f /home/restund/restund.conf
 
+              {{- if .Values.tls.enabled }}
+              echo -en "\n" | cat /tls-certificate/tls.crt - /tls-certificate/tls.key > /home/restund/server.pem
+              {{- end }}
+
+              exec /usr/local/sbin/restund -n -f /home/restund/restund.conf
           ports:
             - name: restund-tcp
               containerPort: 3478

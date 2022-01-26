@@ -15,7 +15,9 @@ data:
     udp_listen              ${RESTUND_HOST}:{{ .Values.restundUDPListenPort }}
     udp_sockbuf_size        524288
     tcp_listen              ${RESTUND_HOST}:{{ .Values.restundTCPListenPort }}
-    # tls_listen
+{{- if .Values.tls.enabled }}
+    tls_listen              ${RESTUND_HOST}:{{ .Values.tls.listenPort }},/home/restund/server.pem
+{{- end }}
 
     ## modules
     module_path             /usr/local/lib/restund/modules
