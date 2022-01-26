@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.API.Public
-  ( publicAPIServer,
+  ( API,
+    publicAPIServer,
   )
 where
 
@@ -28,11 +29,12 @@ import Data.Id
 import GHC.Base
 import Network.WebSockets.Connection
 import Servant
-import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
 
-publicAPIServer :: ServerT PublicAPI Cannon
-publicAPIServer = Named @"await-notifications" streamData
+type API = ServantAPI :<|> Raw
+
+publicAPIServer :: ServerT ServantAPI Cannon
+publicAPIServer = streamData
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
