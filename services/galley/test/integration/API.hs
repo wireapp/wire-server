@@ -1331,8 +1331,8 @@ postJoinCodeConvOk = do
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
     -- changing access to non-activated should give eve access
-    Right accessRoleswithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
-    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRoleswithGuests
+    Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
+    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode -- fails with 204
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- after removing CodeAccess, no further people can join
