@@ -161,7 +161,7 @@ moreRichInfoNormalizationTests =
               y = (fromRichInfoAssocList . toRichInfoAssocList) x
           assertEqual mempty (toRichInfoAssocList x) (toRichInfoAssocList y),
         testProperty "works (property)" $ \(someAssocs :: RichInfoAssocList) ->
-          (jsonroundtrip someAssocs) === someAssocs
+          jsonroundtrip someAssocs === someAssocs
             .&&. (toRichInfoAssocList . fromRichInfoAssocList $ someAssocs) === someAssocs
             .&&. (toRichInfoAssocList . jsonroundtrip . fromRichInfoAssocList $ someAssocs) === someAssocs
       ]

@@ -123,7 +123,7 @@ newtype TTL (tablename :: Symbol) = TTL {fromTTL :: Int32}
   deriving (Eq, Ord, Show, Num)
 
 showTTL :: KnownSymbol a => TTL a -> String
-showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
+showTTL (TTL i :: TTL a) = "TTL:" <> symbolVal (Proxy @a) <> ":" <> show i
 
 instance FromJSON (TTL a) where
   parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)

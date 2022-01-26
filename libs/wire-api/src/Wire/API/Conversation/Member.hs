@@ -252,13 +252,12 @@ instance Arbitrary MemberUpdate where
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
-  if ( isJust (mupOtrMuteStatus u)
-         || isJust (mupOtrMuteRef u)
-         || isJust (mupOtrArchive u)
-         || isJust (mupOtrArchiveRef u)
-         || isJust (mupHidden u)
-         || isJust (mupHiddenRef u)
-     )
+  if isJust (mupOtrMuteStatus u)
+    || isJust (mupOtrMuteRef u)
+    || isJust (mupOtrArchive u)
+    || isJust (mupOtrArchiveRef u)
+    || isJust (mupHidden u)
+    || isJust (mupHiddenRef u)
     then Right u
     else
       Left
