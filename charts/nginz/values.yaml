@@ -56,7 +56,7 @@ nginx_conf:
   allowlisted_origins:
     - webapp
     - teams
-    - accounts
+    - account
   upstreams:
     cargohold:
     - path: ~* ^/conversations/([^/]*)/assets

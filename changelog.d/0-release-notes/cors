@@ -7,7 +7,7 @@ nginz:
     allowlisted_origins:
     - webapp
     - teams
-    - accounts
+    - account
 ```
 
 If you changed the names of these services, you must adjust those names in the
