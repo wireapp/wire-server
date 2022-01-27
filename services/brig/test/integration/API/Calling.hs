@@ -34,6 +34,7 @@ import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (Port (..), mkHttpsUrl)
 import qualified Data.Set as Set
+import Data.String.Conversions
 import Imports
 import System.FilePath ((</>))
 import Test.Tasty
@@ -56,7 +57,9 @@ tests m b opts turn turnV2 = do
           ],
         testGroup
           "sft"
-          [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts
+          [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
+            test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailble b opts "https://example.com",
+            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailble b opts "https://sft.example.com"
           ]
       ]
 
@@ -106,6 +109,17 @@ testSFT b opts = do
         "when SFT discovery is enabled, sft_servers should be returned"
         (Set.fromList [sftServer server1, sftServer server2])
         (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
+
+testSFTUnavailble :: Brig -> Opts.Opts -> String -> Http ()
+testSFTUnavailble b opts domain = do
+  uid <- userId <$> randomUser b
+  withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setSftStaticUrl = fromByteString (cs domain)}}) $ do
+    cfg <- getTurnConfigurationV2 uid b
+    liftIO $ do
+      assertEqual
+        "sft_servers_all should be missing"
+        Nothing
+        (cfg ^. rtcConfSftServersAll)
 
 modifyAndAssert ::
   Brig ->
