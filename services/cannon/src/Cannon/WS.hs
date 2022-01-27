@@ -236,13 +236,14 @@ sendMsgConduit k c = do
     Just m' -> do
       lift $ traceLog m'
       liftIO $ sendMsgIO m' c
+      sendMsgConduit k c
     Nothing -> pure ()
   where
     traceLog :: ByteString -> (ResourceT WS) ()
     traceLog m = lift $ trace $ client kb . msg (logMsg m)
 
     logMsg :: ByteString -> Builder
-    logMsg m = (val "sendMsgConduit: \"" +++ Data.ByteString.take 128 m +++ val "...\"")
+    logMsg m = val "sendMsgConduit: \"" +++ Data.ByteString.take 128 m +++ val "...\""
 
     kb = key2bytes k
 
