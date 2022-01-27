@@ -325,8 +325,8 @@ testSFTStaticV2StaticUrlError = do
       -- an error
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) CallsConfigV2
   assertEqual
-    "when SFT static URL is enabled, but returns error, sft_servers_all should be empty"
-    (Just [])
+    "when SFT static URL is enabled, but returns error, sft_servers_all should be omitted"
+    Nothing
     (cfg ^. rtcConfSftServersAll)
 
 -- The v2 endpoint `GET /calls/config/v2` with an SFT static URL's /sft_servers_all.json
