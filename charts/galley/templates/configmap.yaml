@@ -64,5 +64,9 @@ data:
         teamSearchVisibility: {{ .settings.featureFlags.teamSearchVisibility }}
         classifiedDomains:
           {{- toYaml .settings.featureFlags.classifiedDomains | nindent 10 }}
+        {{- if .settings.featureFlags.fileSharing }}
+        fileSharing:
+          {{- toYaml .settings.featureFlags.fileSharing | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

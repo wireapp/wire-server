@@ -34,6 +34,12 @@ config:
         status: disabled
         config:
           domains: []
+      # fileSharing setting is optional
+      # if not set the default feature status is enabled and the default lock status is unlocked
+      # fileSharing:
+      #   defaults:
+      #     status: enabled
+      #     lockStatus: unlocked          
   aws:
     region: "eu-west-1"
   proxy: {}

@@ -143,9 +143,9 @@ The `conferenceCalling` section is optional in `featureFlags`. If it is omitted 
 
 See also: conference falling for personal accounts (below).
 
-### File Sharing
+### File Sharing (optional)
 
-File sharing is enabled by default. If you want to disable it for all teams, add this to your feature config settings:
+File sharing is enabled and unlocked by default. If you want to disable and/or lock it for all teams, add this to your feature config settings:
 
 ```yaml
 fileSharing:
