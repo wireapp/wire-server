@@ -7,13 +7,26 @@ images:
   galleyMigrateData: quay.io/wire/galley-migrate-data
   sparMigrateData: quay.io/wire/spar-migrate-data
 
-# The following is mandatory to specify
+# Setting cassandra host name and replication is mandatory to specify.
+#
+# Example production case:
+#
+# cassandra:
+#   host: cassandra-external
+#   replicationFactor: 3
+#
+# Example demo case (single cassandra machine, test deployment):
+#
 # cassandra:
 #   host: cassandra-ephemeral
 #   replicationFactor: 1
-#   replicationMap: RACK:3 # if replicationMap is set, it's used; otherwise replicationFactor is used
-
-
+#
+# The following is optional and useful only in a multi-datacenter setup.
+# if 'replicationMap' is set, it's used; otherwise replicationFactor is used.
+#
+# cassandra:
+#   replicationMap: DC1:3,DC2:5
+#
 # The following is optional. If set, it overrides the otherwise-used
 # cassandra.host and cassandra.replicationFactor / replicationMap for
 # the specific haskell service in case you have separate

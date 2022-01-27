@@ -32,13 +32,13 @@ spec:
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
              - --cassandra-host-spar
-             - "{{ .Values.cassandra.host }}"
+             - "{{ template "cassandraSparHost" . }}"
              - --cassandra-port-spar
              - "9042"
              - --cassandra-keyspace-spar
              - spar
              - --cassandra-host-brig
-             - "{{ .Values.cassandra.host }}"
+             - "{{ template "cassandraBrigHost" . }}"
              - --cassandra-port-brig
              - "9042"
              - --cassandra-keyspace-brig

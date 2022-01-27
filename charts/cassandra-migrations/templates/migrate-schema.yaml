@@ -29,13 +29,13 @@ spec:
           command:
             - gundeck-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraGundeckHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - gundeck
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraGundeckReplicationType" . }}
+            - "{{ template "cassandraGundeckReplicationArg" . }}"
 
         - name: brig-schema
           image: "{{ .Values.images.brig }}:{{ .Values.images.tag }}"
@@ -43,13 +43,13 @@ spec:
           command:
             - brig-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraBrigHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - brig
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraBrigReplicationType" . }}
+            - "{{ template "cassandraBrigReplicationArg" . }}"
 
         - name: galley-schema
           image: "{{ .Values.images.galley }}:{{ .Values.images.tag }}"
@@ -57,13 +57,13 @@ spec:
           command:
             - galley-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraGalleyHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - galley
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraGalleyReplicationType" . }}
+            - "{{ template "cassandraGalleyReplicationArg" . }}"
 
         - name: spar-schema
           image: "{{ .Values.images.spar }}:{{ .Values.images.tag }}"
@@ -71,13 +71,13 @@ spec:
           command:
             - spar-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraSparHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - spar
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraSparReplicationType" . }}
+            - "{{ template "cassandraSparReplicationArg" . }}"
       containers:
         - name: job-done
           image: busybox:1.32.0

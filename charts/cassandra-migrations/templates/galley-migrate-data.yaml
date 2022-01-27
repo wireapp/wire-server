@@ -32,7 +32,7 @@ spec:
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
            - --cassandra-host
-           - "{{ .Values.cassandra.host }}"
+           - "{{ template "cassandraGalleyHost" . }}"
            - --cassandra-port
            - "9042"
            - --cassandra-keyspace
