@@ -21,18 +21,13 @@ module Spar.Sem.SAMLUserStore.Cassandra where
 
 import Cassandra as Cas
 import Control.Lens
-import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Id
-import Data.String.Conversions
 import Imports
 import Polysemy
-import Polysemy.Error
-import Polysemy.Final
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Error
 import Spar.Sem.SAMLUserStore
 
 samlUserStoreToCassandra ::
