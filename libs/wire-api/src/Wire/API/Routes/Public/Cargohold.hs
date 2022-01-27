@@ -209,7 +209,7 @@ type LegacyAPI =
          )
 
 type InternalAPI =
-  "i" :> "status" :> MultiVerb 'GET '[PlainText] '[RespondEmpty 200 "OK"] ()
+  "i" :> "status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

@@ -426,7 +426,7 @@ combineSwaggerSchema s1 s2
 --    instance.
 --  * Headers can be attached to individual responses, also without affecting
 --    the handler return type.
-data MultiVerb (method :: StdMethod) (cs :: [*]) (as :: [*]) (r :: *)
+data MultiVerb (method :: StdMethod) cs (as :: [*]) (r :: *)
 
 -- | This class is used to convert a handler return type to a union type
 -- including all possible responses of a 'MultiVerb' endpoint.
@@ -601,8 +601,27 @@ instance
   fromUnion (S (S x)) = case x of
 
 instance
+  (SwaggerMethod method, IsSwaggerResponseList as) =>
+  S.HasSwagger (MultiVerb method '() as r)
+  where
+  toSwagger _ =
+    mempty
+      & S.definitions <>~ defs
+      & S.paths
+        . at "/"
+        ?~ ( mempty
+               & method
+                 ?~ ( mempty
+                        & S.responses . S.responses .~ fmap S.Inline responses
+                    )
+           )
+    where
+      method = S.swaggerMethod (Proxy @method)
+      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+
+instance
   (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>
-  S.HasSwagger (MultiVerb method cs as r)
+  S.HasSwagger (MultiVerb method (cs :: [*]) as r)
   where
   toSwagger _ =
     mempty
@@ -672,8 +691,21 @@ fromSomeResponse (SomeResponse Response {..}) = do
         ..
       }
 
+class HasAcceptCheck cs where
+  acceptCheck' :: Proxy cs -> AcceptHeader -> DelayedIO ()
+
+instance AllMime cs => HasAcceptCheck cs where
+  acceptCheck' = acceptCheck
+
+instance HasAcceptCheck '() where
+  acceptCheck' _ _ = pure ()
+
 instance
-  (AllMime cs, IsResponseList cs as, AsUnion as r, ReflectMethod method) =>
+  ( HasAcceptCheck cs,
+    IsResponseList cs as,
+    AsUnion as r,
+    ReflectMethod method
+  ) =>
   HasServer (MultiVerb method cs as r) ctx
   where
   type ServerT (MultiVerb method cs as r) m = m r
@@ -690,7 +722,7 @@ instance
     let acc = getAcceptHeader req
         action' =
           action `addMethodCheck` methodCheck method req
-            `addAcceptCheck` acceptCheck (Proxy @cs) acc
+            `addAcceptCheck` acceptCheck' (Proxy @cs) acc
     runAction action' env req k $ \output -> do
       let mresp = responseListRender @cs @as acc (toUnion @as output)
       someResponseToWai <$> case mresp of
