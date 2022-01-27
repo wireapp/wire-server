@@ -1,4 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- This file is part of the Wire Server implementation.
@@ -34,13 +33,13 @@ import Test.Tasty.HUnit
 import Wire.API.User
 
 tests :: TestTree
-tests = testGroup "User (types vs. aeson)" $ unitTests
+tests = testGroup "User (types vs. aeson)" unitTests
 
 unitTests :: [TestTree]
 unitTests = parseIdentityTests ++ jsonNullTests
 
 jsonNullTests :: [TestTree]
-jsonNullTests = [testGroup "JSON null" [testCase "userProfile" $ testUserProfile]]
+jsonNullTests = [testGroup "JSON null" [testCase "userProfile" testUserProfile]]
 
 testUserProfile :: Assertion
 testUserProfile = do

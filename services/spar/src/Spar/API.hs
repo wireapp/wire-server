@@ -473,7 +473,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   -- Delete tokens associated with given IdP (we rely on the fact that
   -- each IdP has exactly one team so we can look up all tokens
   -- associated with the team and then filter them)
-  tokens <- ScimTokenStore.getByTeam team
+  tokens <- ScimTokenStore.lookupByTeam team
   for_ tokens $ \ScimTokenInfo {..} ->
     when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
   -- Delete IdP config
@@ -565,7 +565,7 @@ assertNoScimOrNoIdP ::
   TeamId ->
   Sem r ()
 assertNoScimOrNoIdP teamid = do
-  numTokens <- length <$> ScimTokenStore.getByTeam teamid
+  numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $ do
     throwSparSem $

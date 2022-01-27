@@ -198,6 +198,5 @@ instance Cql.Cql Permissions where
     let f = intToPerms . fromIntegral :: Int64 -> Set.Set Perm
     s <- Err.note "missing 'self' permissions" ("self" `lookup` p) >>= Cql.fromCql
     d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
-    r <- Err.note "invalid permissions" (newPermissions (f s) (f d))
-    pure r
+    Err.note "invalid permissions" (newPermissions (f s) (f d))
   fromCql _ = Left "permissions: udt expected"
