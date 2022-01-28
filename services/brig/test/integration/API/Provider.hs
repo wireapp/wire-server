@@ -133,7 +133,8 @@ tests dom conf p db b c g = do
           "bot"
           [ test p "add-remove" $ testAddRemoveBot conf db b g c,
             test p "message" $ testMessageBot conf db b g c,
-            test p "bad fingerprint" $ testBadFingerprint conf db b g c
+            test p "bad fingerprint" $ testBadFingerprint conf db b g c,
+            test p "add bot forbidden" $ testAddBotForbidden conf db b g
           ],
         testGroup
           "bot-teams"
@@ -520,24 +521,41 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
 
 testAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
+  (pid, sid, u1, u2, h) <- prepareUsers sref brig
+  let uid1 = userId u1
+      quid1 = userQualifiedId u1
+      localDomain = qDomain quid1
+      uid2 = userId u2
+  -- Create conversation
+  _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
+  let Just cnv = responseJsonMaybe _rs
+  let cid = qUnqualified . cnvQualifiedId $ cnv
+  testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
+
+testAddBotForbidden :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testAddBotForbidden config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, userId -> uid1, userId -> uid2, _) <- prepareUsers sref brig
+  -- Create conversation without the service access role
+  let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole]
+  _rs <- createConvWithAccessRoles (Just accessRoles) galley uid1 [uid2] <!! const 201 === statusCode
+  let Just cnv = responseJsonMaybe _rs
+  let cid = qUnqualified . cnvQualifiedId $ cnv
+  addBot brig uid1 pid sid cid !!! const 403 === statusCode
+
+prepareUsers :: ServiceRef -> Brig -> Http (ProviderId, ServiceId, User, User, Text)
+prepareUsers sref brig = do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
   -- Prepare users
   u1 <- createUser "Ernie" brig
   u2 <- createUser "Bert" brig
   let uid1 = userId u1
-      quid1 = userQualifiedId u1
-      localDomain = qDomain quid1
       uid2 = userId u2
   h <- randomHandle
   putHandle brig uid1 h !!! const 200 === statusCode
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  -- Create conversation
-  _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
-  let Just cnv = responseJsonMaybe _rs
-  let cid = qUnqualified . cnvQualifiedId $ cnv
-  testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
+  pure (pid, sid, u1, u2, h)
 
 testMessageBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1257,7 +1275,15 @@ createConv ::
   UserId ->
   [UserId] ->
   Http ResponseLBS
-createConv g u us =
+createConv = createConvWithAccessRoles Nothing
+
+createConvWithAccessRoles ::
+  Maybe (Set AccessRoleV2) ->
+  Galley ->
+  UserId ->
+  [UserId] ->
+  Http ResponseLBS
+createConvWithAccessRoles ars g u us =
   post $
     g
       . path "/conversations"
@@ -1267,7 +1293,7 @@ createConv g u us =
       . contentJson
       . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv us [] Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin
 
 postMessage ::
   Galley ->
