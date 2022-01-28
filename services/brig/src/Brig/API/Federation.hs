@@ -24,10 +24,13 @@ import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
+import Brig.API.Util (lookupDomainConfig)
 import Brig.App (qualifyLocal)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
+import Brig.Options (AllowedUserSearch (..))
+import qualified Brig.Options as Opts
 import Brig.Types (PrekeyBundle, Relation (Accepted))
 import Brig.Types.User.Event
 import Brig.User.API.Handle
@@ -110,29 +113,39 @@ claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFede
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: Domain -> SearchRequest -> (Handler r) [Contact]
-searchUsers _ (SearchRequest searchTerm) = do
+searchUsers :: Domain -> SearchRequest -> Handler [Contact]
+searchUsers domain (SearchRequest searchTerm) = do
+  allowedUserSearch <- fromMaybe FullSearch <$> (Opts.search <$$> lookupDomainConfig domain)
+
+  let searches = case allowedUserSearch of
+        NoSearch -> []
+        ExactHandleSearch -> [exactHandleSearch]
+        FullSearch -> [exactHandleSearch, fullSearch]
+
   let maxResults = 15
 
-  maybeExactHandleMatch <- exactHandleSearch
-
-  let exactHandleMatchCount = length maybeExactHandleMatch
-      esMaxResults = maxResults - exactHandleMatchCount
-
-  esResult <-
-    if esMaxResults > 0
-      then Q.searchIndex Nothing Nothing searchTerm esMaxResults
-      else pure $ SearchResult 0 0 0 []
-
-  pure $ maybeToList maybeExactHandleMatch <> searchResults esResult
+  go [] maxResults searches
   where
-    exactHandleSearch :: (Handler r) (Maybe Contact)
-    exactHandleSearch = do
-      let maybeHandle = parseHandle searchTerm
-      maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
-      case maybeOwnerId of
-        Nothing -> pure Nothing
-        Just foundUser -> lift $ fmap listToMaybe $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+    go :: [Contact] -> Int -> [Int -> (Handler r) [Contact]] -> (Handler r) [Contact]
+    go contacts _ [] = pure contacts
+    go contacts maxResult (search : searches) = do
+      contactsNew <- search maxResult
+      go (contacts <> contactsNew) (maxResult - length contactsNew) searches
+
+    fullSearch :: Int -> (Handler r) [Contact]
+    fullSearch n
+      | n > 0 = searchResults <$> Q.searchIndex Nothing Nothing searchTerm n
+      | otherwise = pure []
+
+    exactHandleSearch :: Int -> (Handler r) [Contact]
+    exactHandleSearch n
+      | n > 0 = do
+        let maybeHandle = parseHandle searchTerm
+        maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
+        case maybeOwnerId of
+          Nothing -> pure []
+          Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+      | otherwise = pure []
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError

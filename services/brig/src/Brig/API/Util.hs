@@ -24,6 +24,7 @@ module Brig.API.Util
     logEmail,
     traverseConcurrentlyWithErrors,
     exceptTToMaybe,
+    lookupDomainConfig,
   )
 where
 
@@ -31,12 +32,16 @@ import Brig.API.Error
 import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.App (AppIO)
+import Brig.App (AppIO, settings)
 import qualified Brig.Data.User as Data
+import Brig.Options (FederationDomainConfig, federationDomainConfigs)
+import qualified Brig.Options as Opts
 import Brig.Types
 import Brig.Types.Intra (accountUser)
+import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
+import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
@@ -92,3 +97,8 @@ traverseConcurrentlyWithErrors f =
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
+
+lookupDomainConfig :: Domain -> Handler (Maybe FederationDomainConfig)
+lookupDomainConfig domain = do
+  domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
+  pure $ find ((== domain) . Opts.domain) domainConfigs
