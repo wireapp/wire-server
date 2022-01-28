@@ -155,6 +155,8 @@ tests s =
           test s "add members" postMembersOk,
           test s "add existing members" postMembersOk2,
           test s "add past members" postMembersOk3,
+          test s "add guest forbidden when no guest access role" postMembersFailNoGuestAccess,
+          test s "generate guest link forbidden when no guest access role" generateGuestLinkFailNoGuestAccess,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
@@ -212,7 +214,7 @@ tests s =
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
-          test s "get code-access conversation information" testJoinCodeConv,
+          test s "guest can't join after revoking guest access role" testGuestCantJoinAfterGuestAccessRevoked,
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
@@ -1187,21 +1189,24 @@ postJoinConvOk = do
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
 
-testJoinCodeConv :: TestM ()
-testJoinCodeConv = do
+testGuestCantJoinAfterGuestAccessRevoked :: TestM ()
+testGuestCantJoinAfterGuestAccessRevoked = do
   let convName = "gossip"
-  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole, GuestAccessRole] []
   alice <- randomUser
-  convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just noGuestsAccess) Nothing
+  convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode alice convId
 
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-  getJoinCodeConv bob (conversationKey cCode) (conversationCode cCode) !!! do
+  eve <- ephemeralUser
+  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
 
-  -- A user that would not be able to join conversation cannot view it either.
-  eve <- ephemeralUser
+  -- revoke guest access
+  let noGuestAccess = GuestAccessRole `Set.delete` accessRoles
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) noGuestAccess
+  putAccessUpdate alice convId nonActivatedAccess !!! const 200 === statusCode
+
+  -- ephemeral user can't join
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 403 === statusCode
 
@@ -1209,7 +1214,7 @@ testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
   galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
   let createConvWithGuestLink = do
         convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just accessRoles) Nothing
         void $ decodeConvCodeEvent <$> postConvCode owner convId
@@ -1230,7 +1235,7 @@ testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
 testPostCodeRejectedIfGuestLinksDisabled = do
   galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole, GuestAccessRole] []
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
   let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
   let setStatus tfStatus =
@@ -1249,7 +1254,7 @@ testJoinTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
@@ -1281,7 +1286,7 @@ testJoinNonTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole, GuestAccessRole] []
   convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
@@ -1307,7 +1312,7 @@ postJoinCodeConvOk = do
   let bob = qUnqualified qbob
   eve <- ephemeralUser
   dave <- ephemeralUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let qconv = Qualified conv (qDomain qbob)
   cCode <- decodeConvCodeEvent <$> postConvCode alice conv
@@ -1325,15 +1330,10 @@ postJoinCodeConvOk = do
     postJoinCodeConv bob payload !!! const 200 === statusCode
     -- test no-op
     postJoinCodeConv bob payload !!! const 204 === statusCode
-    -- eve cannot join
-    postJoinCodeConv eve payload !!! const 403 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
-    -- changing access to non-activated should give eve access
-    Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
-    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
-    putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
+    -- guest can join
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
@@ -2536,6 +2536,26 @@ postMembersOk3 = do
   postMembers alice (singleton bob) conv !!! const 200 === statusCode
   -- Fetch bob again
   getSelfMember bob conv !!! const 200 === statusCode
+
+postMembersFailNoGuestAccess :: TestM ()
+postMembersFailNoGuestAccess = do
+  alice <- randomUser
+  bob <- randomUser
+  peter <- randomUser
+  eve <- ephemeralUser
+  connectUsers alice (list1 bob [peter])
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  conv <- decodeConvId <$> postConv alice [bob, peter] (Just "gossip") [] (Just noGuestsAccess) Nothing
+  postMembers alice (singleton eve) conv !!! const 403 === statusCode
+
+generateGuestLinkFailNoGuestAccess :: TestM ()
+generateGuestLinkFailNoGuestAccess = do
+  alice <- randomUser
+  bob <- randomUser
+  connectUsers alice (singleton bob)
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  convId <- decodeConvId <$> postConv alice [bob] (Just "gossip") [CodeAccess] (Just noGuestsAccess) Nothing
+  postConvCode alice convId !!! const 403 === statusCode
 
 postMembersFail :: TestM ()
 postMembersFail = do
