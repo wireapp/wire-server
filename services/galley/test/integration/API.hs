@@ -36,6 +36,7 @@ import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
 import qualified API.Util as Util
 import API.Util.TeamFeature as TeamFeatures
+import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
@@ -1250,32 +1251,41 @@ testJoinTeamConvGuestLinksDisabled = do
   galley <- view tsGalley
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  userNotInTeam <- randomUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  eve <- ephemeralUser
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
-  -- works by default
-  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+  let checkFeatureStatus fstatus =
+        Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner teamId !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus fstatus Public.Unlocked))
+
+  -- guest can join if guest link feature is enabled
+  checkFeatureStatus Public.TeamFeatureEnabled
+  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
 
-  -- fails if disabled
-  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+  -- disabled guest links feature
+  let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId disabled !!! do
     const 200 === statusCode
 
-  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+  -- guest can't join if guest link feature is disabled
+  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
+  -- check feature status is still disabled
+  checkFeatureStatus Public.TeamFeatureDisabled
 
   -- after re-enabling, the old link is still valid
-  let tfStatus' = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus' !!! do
+  let enabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId enabled !!! do
     const 200 === statusCode
-
-  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  checkFeatureStatus Public.TeamFeatureEnabled
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
 testJoinNonTeamConvGuestLinksDisabled = do
