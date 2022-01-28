@@ -120,7 +120,7 @@ testValidatesCertificateSuccess =
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
     ]
 
--- @SF.Federation @TSFI.RESTfulAPI @S2
+-- @SF.Federation @TSFI.Federate @TSFI.DNS @S2
 --
 -- This is a group of test cases where refusing to connect with the server is
 -- checked. The second test case refuses to connect with a server when the

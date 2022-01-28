@@ -402,7 +402,7 @@ testThrottleLogins conf b = do
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 -- The testLimitRetries test conforms to the following testing standards:
--- @SF.Channel @TSFI.RESTfulAPI @S2
+-- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- The following test tests the login retries. It checks that a user can make
 -- only a prespecified number of attempts to log in with an invalid password,
@@ -585,7 +585,7 @@ testNoUserSsoLogin brig = do
 -- Token Refresh
 
 -- The testInvalidCookie test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
+-- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
