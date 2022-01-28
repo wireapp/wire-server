@@ -31,7 +31,6 @@ import GHC.TypeNats (Nat)
 import Imports hiding (head)
 import Network.HTTP.Types as HTTP
 import Servant
-import Servant.API.ContentTypes
 import Servant.API.Status
 import Servant.Client.Core
 import Servant.Swagger.Internal
@@ -122,9 +121,7 @@ type RespondWithErrorDescription s label desc =
 type instance ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
 
 instance
-  ( AllMimeRender cs (ErrorDescription s label desc),
-    AllMimeUnrender cs (ErrorDescription s label desc),
-    KnownStatus s,
+  ( KnownStatus s,
     KnownSymbol label,
     KnownSymbol desc
   ) =>

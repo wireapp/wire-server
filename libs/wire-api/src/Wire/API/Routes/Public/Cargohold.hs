@@ -163,7 +163,7 @@ type QualifiedAPI =
       :> QueryParam "asset_token" AssetToken
       :> MultiVerb
            'GET
-           '[JSON]
+           '()
            '[ AssetNotFound,
               AssetRedirect,
               AssetStreaming
