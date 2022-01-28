@@ -607,31 +607,14 @@ instance
   toUnion (GenericAsUnion x) = fromSOP @xss @rs (GSOP.from x)
   fromUnion = GenericAsUnion . GSOP.to . toSOP @xss @rs
 
--- | A handler for a pair of empty responses can be implemented simply by
--- returning a boolean value. The convention is that the "failure" case, normally
--- represented by 'False', corresponds to the /first/ response.
-instance
-  AsUnion
-    '[ RespondEmpty s1 desc1,
-       RespondEmpty s2 desc2
-     ]
-    Bool
-  where
-  toUnion False = Z (I ())
-  toUnion True = S (Z (I ()))
-
-  fromUnion (Z (I ())) = False
-  fromUnion (S (Z (I ()))) = True
-  fromUnion (S (S x)) = case x of
-
 -- | A handler for a pair of responses where the first is empty can be
 -- implemented simply by returning a 'Maybe' value. The convention is that the
 -- "failure" case, normally represented by 'Nothing', corresponds to the /first/
 -- response.
 instance
-  AsUnion
-    '[RespondEmpty s1 desc1, Respond s2 desc2 a]
-    (Maybe a)
+  {-# OVERLAPPABLE #-}
+  (ResponseType r1 ~ (), ResponseType r2 ~ a) =>
+  AsUnion '[r1, r2] (Maybe a)
   where
   toUnion Nothing = Z (I ())
   toUnion (Just x) = S (Z (I x))

@@ -205,21 +205,6 @@ instance
                  <> "(**Note**: This error has an empty body for legacy reasons)"
              )
 
-instance
-  ( ResponseType r ~ a,
-    KnownStatus s,
-    KnownSymbol desc
-  ) =>
-  AsUnion
-    '[EmptyErrorForLegacyReasons s desc, r]
-    (Maybe a)
-  where
-  toUnion Nothing = Z (I ())
-  toUnion (Just x) = S (Z (I x))
-  fromUnion (Z (I ())) = Nothing
-  fromUnion (S (Z (I x))) = Just x
-  fromUnion (S (S x)) = case x of
-
 -- * Errors
 
 mkErrorDescription :: forall code label desc. KnownSymbol desc => ErrorDescription code label desc
