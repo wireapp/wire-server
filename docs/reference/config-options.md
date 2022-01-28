@@ -143,18 +143,29 @@ The `conferenceCalling` section is optional in `featureFlags`. If it is omitted 
 
 See also: conference falling for personal accounts (below).
 
-### File Sharing (optional)
+### File Sharing
 
-File sharing is enabled and unlocked by default. If you want to disable and/or lock it for all teams, add this to your feature config settings:
+File sharing is enabled and unlocked by default. If you want a different configuration, use the following syntax:
 
 ```yaml
 fileSharing:
   defaults:
-    status: disabled
-    lockStatus: locked
+    status: disabled|enabled
+    lockStatus: locked|unlocked
 ```
 
-`lockStatus` (required) can be either `unlocked` (feature status can be updated via team management) or `locked` (feature status can not be updated).
+These are all the possible combinations of `status` and `lockStatus`:
+
+| `status`   | `lockStatus` |                                                   |
+| ---------- | ------------ | ------------------------------------------------- |
+| `enabled`  | `locked`     | Feature enabled, cannot be disabled by team admin |
+| `enabled`  | `unlocked`   | Feature enabled, can be disabled by team admin    |
+| `disabled` | `locked`     | Feature disabled, cannot be enabled by team admin |
+| `disabled` | `unlocked`   | Feature disabled, can be enabled by team admin    |
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/fileSharing/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
 ### Federation Domain
 

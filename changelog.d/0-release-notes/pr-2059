@@ -1,1 +1,0 @@
-The optional file sharing team feature config now has a new required attribute: `lockStatus`. For more information refer to the `config-options` documentation. Prior to this change the file sharing team feature was not configurable for on-premise installations. It has now been added as an optional mapping to the `configmap.yaml` galley template.
