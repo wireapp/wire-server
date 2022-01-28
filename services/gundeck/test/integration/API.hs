@@ -76,6 +76,7 @@ tests s =
           test s "Replace presence" replacePresence,
           test s "Remove stale presence" removeStalePresence,
           test s "Single user push" singleUserPush,
+          test s "Single user push with large message" singleUserPushLargeMessage,
           test s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8,
           test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
@@ -195,7 +196,13 @@ removeStalePresence = do
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 singleUserPush :: TestM ()
-singleUserPush = do
+singleUserPush = testSingleUserPush smallMsgPayload
+  where
+    -- JSON: {"foo":42}
+    smallMsgPayload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
+
+testSingleUserPush :: List1 Object -> TestM ()
+testSingleUserPush msgPayload = do
   ca <- view tsCannon
   uid <- randomId
   ch <- connectUser ca uid =<< randomConnId
@@ -205,12 +212,18 @@ singleUserPush = do
     assertBool "No push message received" (isJust msg)
     assertEqual
       "Payload altered during transmission"
-      (Just pload)
+      (Just msgPayload)
       (ntfPayload <$> (decode . fromStrict . fromJust) msg)
   where
-    pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) msgPayload & pushOriginConnection .~ Just (ConnId "dev")
 
+singleUserPushLargeMessage :: TestM ()
+singleUserPushLargeMessage = testSingleUserPush largeMsgPayload
+  where
+    -- JSON: {"list":["1","2", ... ,"10000"]}
+    largeMsgPayload = List1.singleton $ HashMap.fromList ["list" .= [show i | i <- [1 .. 10000] :: [Int]]]
+
+-- | Create a number of users with a number of connections each, and connect each user's connections
 -- | Create a number of users with a number of connections each, and connect each user's connections
 -- to one of two cannons at random.  Push either encrypted notifications (@isE2E == True@) or
 -- notifications from server (@isE2E == False@) to all connections, and make sure they all arrive at

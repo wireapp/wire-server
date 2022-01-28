@@ -55,9 +55,9 @@ import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error)
-import qualified Data.ByteString
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
@@ -225,25 +225,21 @@ isRemoteRegistered u c = do
   cs <- map connId <$> parseResponse (mkError status502 "server-error") rs
   return $ c `elem` cs
 
-sendMsgIO :: WebSocketsData a => a -> Websocket -> IO ()
-sendMsgIO m c = do
+sendMsgIO :: (WebSocketsData a) => a -> Websocket -> IO ()
+sendMsgIO m c =
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
 sendMsgConduit :: Key -> Websocket -> ConduitT ByteString Void (ResourceT WS) ()
 sendMsgConduit k c = do
-  m <- await
-  case m of
-    Just m' -> do
-      lift $ traceLog m'
-      liftIO $ sendMsgIO m' c
-      sendMsgConduit k c
-    Nothing -> pure ()
+  m <- sinkLazy
+  lift $ traceLog m
+  liftIO $ sendMsgIO m c
   where
-    traceLog :: ByteString -> (ResourceT WS) ()
+    traceLog :: L.ByteString -> (ResourceT WS) ()
     traceLog m = lift $ trace $ client kb . msg (logMsg m)
 
-    logMsg :: ByteString -> Builder
-    logMsg m = val "sendMsgConduit: \"" +++ Data.ByteString.take 128 m +++ val "...\""
+    logMsg :: L.ByteString -> Builder
+    logMsg m = val "sendMsgConduit: \"" +++ L.take 128 m +++ val "...\""
 
     kb = key2bytes k
 
