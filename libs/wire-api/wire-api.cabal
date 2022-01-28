@@ -189,6 +189,7 @@ library
     , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , random >=1.2.0
     , resourcet
     , saml2-web-sso
     , schema-profunctor

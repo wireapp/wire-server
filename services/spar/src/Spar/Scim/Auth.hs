@@ -128,7 +128,7 @@ createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   BrigAccess.ensureReAuthorised zusr createScimTokenPassword
-  tokenNumber <- fmap length $ ScimTokenStore.getByTeam teamid
+  tokenNumber <- fmap length $ ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
     throwSparSem E.SparProvisioningTokenLimitReached
@@ -190,4 +190,4 @@ listScimTokens ::
   Sem r ScimTokenList
 listScimTokens zusr = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  ScimTokenList <$> ScimTokenStore.getByTeam teamid
+  ScimTokenList <$> ScimTokenStore.lookupByTeam teamid
