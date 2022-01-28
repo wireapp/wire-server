@@ -19,7 +19,7 @@ module Spar.Sem.ScimTokenStore
   ( ScimTokenStore (..),
     insert,
     lookup,
-    getByTeam,
+    lookupByTeam,
     delete,
     deleteByTeam,
   )
