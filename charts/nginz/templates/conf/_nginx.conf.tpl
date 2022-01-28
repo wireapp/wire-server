@@ -126,7 +126,7 @@ http {
   map $http_origin $cors_header {
       default "";
     {{ range $origin := .Values.nginx_conf.allowlisted_origins }}
-      "https://{{ $origin }}.{{ $.Values.nginx_conf.external_env_domain}} "$http_origin";
+      "https://{{ $origin }}.{{ $.Values.nginx_conf.external_env_domain}}" "$http_origin";
     {{ end }}
   }
 
