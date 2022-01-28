@@ -1,5 +1,16 @@
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
+# [2022-01-28]
+
+## Release notes
+
+* Bump the webapp version. (#2082)
+
+## Internal changes
+
+* Additional integration testing for conversation access control. (#2057)
+
+
 # [2022-01-27]
 
 ## Release notes
