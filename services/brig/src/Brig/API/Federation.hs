@@ -31,6 +31,7 @@ import Brig.IO.Intra (notify)
 import Brig.Types (PrekeyBundle, Relation (Accepted))
 import Brig.Types.User.Event
 import Brig.User.API.Handle
+import qualified Brig.User.Search.SearchIndex as Q
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
@@ -111,11 +112,27 @@ claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFede
 -- (This decision may change in the future)
 searchUsers :: Domain -> SearchRequest -> Handler [Contact]
 searchUsers _ (SearchRequest searchTerm) = do
-  let maybeHandle = parseHandle searchTerm
-  maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
-  case maybeOwnerId of
-    Nothing -> pure []
-    Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+  let maxResults = 15
+
+  maybeExactHandleMatch <- exactHandleSearch
+
+  let exactHandleMatchCount = length maybeExactHandleMatch
+      esMaxResults = maxResults - exactHandleMatchCount
+
+  esResult <-
+    if esMaxResults > 0
+      then Q.searchIndex Nothing Nothing searchTerm esMaxResults
+      else pure $ SearchResult 0 0 0 []
+
+  pure $ maybeToList maybeExactHandleMatch <> searchResults esResult
+  where
+    exactHandleSearch :: Handler (Maybe Contact)
+    exactHandleSearch = do
+      let maybeHandle = parseHandle searchTerm
+      maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
+      case maybeOwnerId of
+        Nothing -> pure Nothing
+        Just foundUser -> lift $ fmap listToMaybe $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
 
 getUserClients :: Domain -> GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError

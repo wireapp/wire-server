@@ -42,8 +42,8 @@ import Wire.API.User (ColourId (..), Name (fromName))
 searchIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
   -- | The user performing the search.
-  UserId ->
-  TeamSearchInfo ->
+  (Maybe UserId) ->
+  Maybe TeamSearchInfo ->
   -- | The search query
   Text ->
   -- | The maximum number of results.
@@ -90,7 +90,7 @@ userDocToContact localDomain UserDoc {..} = do
 -- it allows to experiment with different queries (perhaps in an A/B context).
 --
 -- FUTUREWORK: Drop legacyPrefixMatch
-defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
+defaultUserQuery :: Maybe UserId -> Maybe TeamSearchInfo -> Text -> IndexQuery Contact
 defaultUserQuery u teamSearchInfo (normalized -> term') =
   let matchPhraseOrPrefix =
         ES.QueryMultiMatchQuery $
@@ -143,32 +143,32 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
             }
    in mkUserQuery u teamSearchInfo queryWithBoost
 
-mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
-mkUserQuery (review _TextId -> self) teamSearchInfo q =
+mkUserQuery :: Maybe UserId -> Maybe TeamSearchInfo -> ES.Query -> IndexQuery Contact
+mkUserQuery (fmap (review _TextId) -> self) teamSearchInfo q =
   IndexQuery
     q
     ( ES.Filter . ES.QueryBoolQuery $
         boolQuery
-          { ES.boolQueryMustNotMatch = [termQ "_id" self],
+          { ES.boolQueryMustNotMatch = [termQ "_id" uid | uid <- maybeToList self],
             ES.boolQueryMustMatch =
-              [ optionallySearchWithinTeam teamSearchInfo,
-                ES.QueryBoolQuery
-                  boolQuery
-                    { ES.boolQueryShouldMatch =
-                        [ termQ "account_status" "active",
-                          -- Also match entries where the account_status field is not present.
-                          -- These must have been inserted before we added the account_status
-                          -- and at that time we only inserted active users in the first place.
-                          -- This should be unnecessary after re-indexing, but let's be lenient
-                          -- here for a while.
-                          ES.QueryBoolQuery
-                            boolQuery
-                              { ES.boolQueryMustNotMatch =
-                                  [ES.QueryExistsQuery (ES.FieldName "account_status")]
-                              }
-                        ]
-                    }
-              ]
+              maybe [] (pure . optionallySearchWithinTeam) teamSearchInfo
+                ++ [ ES.QueryBoolQuery
+                       boolQuery
+                         { ES.boolQueryShouldMatch =
+                             [ termQ "account_status" "active",
+                               -- Also match entries where the account_status field is not present.
+                               -- These must have been inserted before we added the account_status
+                               -- and at that time we only inserted active users in the first place.
+                               -- This should be unnecessary after re-indexing, but let's be lenient
+                               -- here for a while.
+                               ES.QueryBoolQuery
+                                 boolQuery
+                                   { ES.boolQueryMustNotMatch =
+                                       [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                                   }
+                             ]
+                         }
+                   ]
           }
     )
     []
