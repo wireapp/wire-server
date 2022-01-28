@@ -15,7 +15,7 @@
       - account
   ```
 
-  If you changed the names of these services, you must adjust those names in the nginz config as well. (#1630)
+  If you changed the names of these services, you must adjust those names in the nginz config as well. (#1630, #2073, 116988c62732)
 
 * Backend now separates conversation access control for guests and services. The old access roles are still supported but it is encouraged to upgrade clients since mapping between the old access roles and the new access roles is not isomorphic. For more details refer to the API changes below or the Swagger docs.
   Old clients are fully supported; if new clients and old clients are mixed, to old clients, either guests of services may appear to be enable if they are not, which may lead to error messages (confusing but harmless). (#2035)
@@ -30,7 +30,7 @@
 
 ## Bug fixes and other updates
 
-* There is now an explicit CORS allow list for *all* endpoints. In previous releases, all subdomains were accepted, however they must now be listed explicitly. This is a **breaking change**, as now only known Javascript applications may access the backend. (#1630, #2073)
+* There is now an explicit CORS allow list for *all* endpoints. In previous releases, all subdomains were accepted, however they must now be listed explicitly. This is a **breaking change**, as now only known Javascript applications may access the backend. (#1630, #2073, 116988c62732)
 * Prevent 500s when SFTs are not reachable from Backend (#2077)
 
 ## Internal changes
