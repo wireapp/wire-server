@@ -30,10 +30,9 @@ import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
 import Network.HTTP.Types as HTTP
-import Servant hiding (Handler, addHeader, contentType, respond)
-import Servant.API (contentType)
-import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
-import Servant.API.Status (KnownStatus, statusVal)
+import Servant
+import Servant.API.ContentTypes
+import Servant.API.Status
 import Servant.Client.Core
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
@@ -118,7 +117,7 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 -- * MultiVerb errors
 
 type RespondWithErrorDescription s label desc =
-  Respond s desc (ErrorDescription s label desc)
+  RespondAs JSON s desc (ErrorDescription s label desc)
 
 type instance ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
 
@@ -184,8 +183,7 @@ instance
 
   responseRender _ () =
     pure $
-      addContentType
-        (contentType (Proxy @PlainText))
+      addContentType @PlainText
         Response
           { responseStatusCode = statusVal (Proxy @s),
             responseHeaders = mempty,
