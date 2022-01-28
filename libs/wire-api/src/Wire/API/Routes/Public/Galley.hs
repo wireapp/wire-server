@@ -48,8 +48,6 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission (Perm (..))
 
--- import Wire.API.Team.Permission (Perm (..))
-
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
@@ -731,59 +729,64 @@ type FeatureAPI =
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
 
-type FeatureStatusGet featureName =
+type FeatureStatusGet f =
   Named
-    '("get", featureName)
-    ( Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "features"
-        :> KnownTeamFeatureNameSymbol featureName
-        :> Get '[Servant.JSON] (TeamFeatureStatus 'WithLockStatus featureName)
-    )
+    '("get", f)
+    (ZUser :> FeatureStatusBaseGet 'WithLockStatus f)
 
-type FeatureStatusPut featureName =
+type FeatureStatusPut f =
   Named
-    '("put", featureName)
-    ( Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "features"
-        :> KnownTeamFeatureNameSymbol featureName
-        :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
-        :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
-    )
+    '("put", f)
+    (ZUser :> FeatureStatusBasePut f)
+
+type FeatureStatusDeprecatedGet l f =
+  Named
+    '("get-deprecated", f)
+    (ZUser :> FeatureStatusBaseDeprecatedGet l f)
+
+type FeatureStatusDeprecatedPut f =
+  Named
+    '("put-deprecated", f)
+    (ZUser :> FeatureStatusBaseDeprecatedPut f)
+
+type FeatureStatusBaseGet lockStatus featureName =
+  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus lockStatus featureName)
+
+type FeatureStatusBasePut featureName =
+  Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type FeatureStatusDeprecatedGet ps featureName =
-  Named
-    '("get-deprecated", featureName)
-    ( Summary
-        (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "features"
-        :> DeprecatedFeatureName featureName
-        :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
-    )
+type FeatureStatusBaseDeprecatedGet lockStatus featureName =
+  ( Summary
+      (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+      :> "teams"
+      :> Capture "tid" TeamId
+      :> "features"
+      :> DeprecatedFeatureName featureName
+      :> Get '[Servant.JSON] (TeamFeatureStatus lockStatus featureName)
+  )
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
-type FeatureStatusDeprecatedPut featureName =
-  Named
-    '("put-deprecated", featureName)
-    ( Summary
-        (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "features"
-        :> DeprecatedFeatureName featureName
-        :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
-        :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
-    )
+type FeatureStatusBaseDeprecatedPut featureName =
+  Summary
+    (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
 type FeatureConfigGet ps featureName =
   Named

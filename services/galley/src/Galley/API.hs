@@ -22,7 +22,7 @@ module Galley.API
 where
 
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Galley.API.Internal as Internal
+import Galley.API.Internal
 import qualified Galley.API.Public as Public
 import Galley.API.Public.Servant
 import Galley.App (GalleyEffects)
@@ -33,4 +33,4 @@ sitemap :: Routes Doc.ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
-  Internal.sitemap
+  internalSitemap
