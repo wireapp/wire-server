@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -16,18 +16,20 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Wire.API.Golden.Generated.ConversationAccessData_user where
 
+import qualified Data.Set as Set (fromList)
 import Wire.API.Conversation
   ( Access (InviteAccess),
-    AccessRole (ActivatedAccessRole, NonActivatedAccessRole),
+    AccessRoleV2 (..),
     ConversationAccessData (..),
   )
 
 testObject_ConversationAccessData_user_1 :: ConversationAccessData
 testObject_ConversationAccessData_user_1 =
-  ConversationAccessData {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+  ConversationAccessData {cupAccess = [], cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]}
 
 testObject_ConversationAccessData_user_2 :: ConversationAccessData
 testObject_ConversationAccessData_user_2 =
-  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRole = ActivatedAccessRole}
+  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole]}

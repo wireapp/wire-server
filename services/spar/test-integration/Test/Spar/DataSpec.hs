@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -33,11 +33,11 @@ import Imports
 import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
-import Spar.Data as Data
 import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -219,10 +219,10 @@ spec = do
           pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
           idp1 <- makeTestIdP
           idp2 <- makeTestIdP
-          runSpar $ IdPEffect.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId))
+          runSpar $ IdPEffect.setReplacedBy (Replaced (idp1 ^. idpId)) (Replacing (idp2 ^. idpId))
           idp1' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
           liftIO $ idp1' `shouldBe` Nothing
-          runSpar $ IdPEffect.clearReplacedBy (Data.Replaced (idp1 ^. idpId))
+          runSpar $ IdPEffect.clearReplacedBy (Replaced (idp1 ^. idpId))
           idp2' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
           liftIO $ idp2' `shouldBe` Nothing
 
@@ -285,7 +285,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokenInfo `shouldBe` Nothing
   -- The team from 'team_provisioning_by_team':
   do
-    tokens <- runSpar $ ScimTokenStore.getByTeam tid
+    tokens <- runSpar $ ScimTokenStore.lookupByTeam tid
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do

@@ -4,7 +4,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -76,7 +76,6 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data (GetIdPResult (..))
 import Spar.Error hiding (sparToServerErrorWithLogging)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Orphans ()
@@ -141,11 +140,11 @@ storeIdPConfig idp = IdPEffect.storeConfig idp
 getIdPConfigByIssuerOptionalSPId :: Members '[IdPEffect.IdP, Error SparError] r => Issuer -> Maybe TeamId -> Sem r IdP
 getIdPConfigByIssuerOptionalSPId issuer mbteam = do
   getIdPConfigByIssuerAllowOld issuer mbteam >>= \case
-    Data.GetIdPFound idp -> pure idp
-    Data.GetIdPNotFound -> throwSparSem $ SparIdPNotFound mempty
-    res@(Data.GetIdPDanglingId _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
-    res@(Data.GetIdPNonUnique _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
-    res@(Data.GetIdPWrongTeam _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
+    GetIdPFound idp -> pure idp
+    GetIdPNotFound -> throwSparSem $ SparIdPNotFound mempty
+    res@(GetIdPDanglingId _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
+    res@(GetIdPNonUnique _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
+    res@(GetIdPWrongTeam _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
 
 insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Sem r ()
 insertUser uref uid = SAMLUserStore.insert uref uid
@@ -295,7 +294,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
     guardScimTokens :: IdP -> Sem r ()
     guardScimTokens idp = do
       let teamid = idp ^. idpExtraInfo . wiTeam
-      scimtoks <- ScimTokenStore.getByTeam teamid
+      scimtoks <- ScimTokenStore.lookupByTeam teamid
       unless (null scimtoks) $ do
         throwSparSem SparSamlCredentialsNotFound
 
@@ -338,11 +337,11 @@ bindUser buid userref = do
         err = throwSparSem . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid :: TeamId <-
       getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing >>= \case
-        Data.GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
-        Data.GetIdPNotFound -> err
-        Data.GetIdPDanglingId _ -> err -- database inconsistency
-        Data.GetIdPNonUnique is -> throwSparSem $ SparUserRefInNoOrMultipleTeams (cs $ show (buid, is))
-        Data.GetIdPWrongTeam _ -> err -- impossible
+        GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
+        GetIdPNotFound -> err
+        GetIdPDanglingId _ -> err -- database inconsistency
+        GetIdPNonUnique is -> throwSparSem $ SparUserRefInNoOrMultipleTeams (cs $ show (buid, is))
+        GetIdPWrongTeam _ -> err -- impossible
     acc <- BrigAccess.getAccount Intra.WithPendingInvitations buid >>= maybe err pure
     teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err

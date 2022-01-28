@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -16,6 +16,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Wire.API.Golden.Generated.NewConvUnmanaged_user where
 
 import Data.Domain (Domain (Domain))
@@ -24,17 +25,15 @@ import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified (Qualified (Qualified))
 import qualified Data.Set as Set (fromList)
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Conversation
   ( Access (CodeAccess, InviteAccess, LinkAccess, PrivateAccess),
-    AccessRole
-      ( ActivatedAccessRole
-      ),
+    AccessRoleV2 (..),
     ConvTeamInfo (ConvTeamInfo, cnvManaged, cnvTeamId),
     NewConv
       ( NewConv,
         newConvAccess,
-        newConvAccessRole,
+        newConvAccessRoles,
         newConvMessageTimer,
         newConvName,
         newConvQualifiedUsers,
@@ -62,7 +61,7 @@ testObject_NewConvUnmanaged_user_1 =
           newConvQualifiedUsers = [],
           newConvName = Nothing,
           newConvAccess = Set.fromList [PrivateAccess, InviteAccess],
-          newConvAccessRole = Just ActivatedAccessRole,
+          newConvAccessRoles = Just $ Set.fromList [TeamMemberAccessRole, GuestAccessRole],
           newConvTeam =
             Just
               ( ConvTeamInfo
@@ -84,7 +83,7 @@ testObject_NewConvUnmanaged_user_2 =
           newConvQualifiedUsers = [Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) testDomain],
           newConvName = Just "\128527\1061495",
           newConvAccess = Set.fromList [],
-          newConvAccessRole = Nothing,
+          newConvAccessRoles = Nothing,
           newConvTeam =
             Just
               ( ConvTeamInfo
@@ -110,7 +109,7 @@ testObject_NewConvUnmanaged_user_3 =
           newConvQualifiedUsers = [],
           newConvName = Nothing,
           newConvAccess = Set.fromList [InviteAccess, LinkAccess, CodeAccess],
-          newConvAccessRole = Just ActivatedAccessRole,
+          newConvAccessRoles = Just (Set.fromList [TeamMemberAccessRole, GuestAccessRole]),
           newConvTeam = Nothing,
           newConvMessageTimer = Nothing,
           newConvReceiptMode = Nothing,

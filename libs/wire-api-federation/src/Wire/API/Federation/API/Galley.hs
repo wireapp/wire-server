@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -29,7 +29,7 @@ import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
   ( Access,
-    AccessRole,
+    AccessRoleV2,
     ConvType,
     ConversationMetadata,
     ReceiptMode,
@@ -118,7 +118,7 @@ data NewRemoteConversation conv = NewRemoteConversation
     -- | The conversation type
     rcCnvType :: ConvType,
     rcCnvAccess :: [Access],
-    rcCnvAccessRole :: AccessRole,
+    rcCnvAccessRoles :: Set AccessRoleV2,
     -- | The conversation name,
     rcCnvName :: Maybe Text,
     -- | Members of the conversation apart from the creator

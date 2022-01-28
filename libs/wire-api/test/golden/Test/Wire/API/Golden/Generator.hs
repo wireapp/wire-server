@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -154,7 +154,6 @@ generateTestModule = do
   generateBindingModule @(Conversation.ConversationList ConvId) "user" ref
   generateBindingModule @(Conversation.ConversationList Conversation.Conversation) "user" ref
   generateBindingModule @Conversation.Access "user" ref
-  generateBindingModule @Conversation.AccessRole "user" ref
   generateBindingModule @Conversation.ConvType "user" ref
   generateBindingModule @Conversation.ReceiptMode "user" ref
   generateBindingModule @Conversation.ConvTeamInfo "user" ref

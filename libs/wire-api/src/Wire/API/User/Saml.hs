@@ -4,7 +4,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -123,7 +123,7 @@ newtype TTL (tablename :: Symbol) = TTL {fromTTL :: Int32}
   deriving (Eq, Ord, Show, Num)
 
 showTTL :: KnownSymbol a => TTL a -> String
-showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
+showTTL (TTL i :: TTL a) = "TTL:" <> symbolVal (Proxy @a) <> ":" <> show i
 
 instance FromJSON (TTL a) where
   parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)

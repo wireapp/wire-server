@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -137,7 +137,7 @@ instance FromJSON ConversationRole where
   parseJSON = A.withObject "conversationRole" $ \o -> do
     role <- o A..: "conversation_role"
     actions <- o A..: "actions"
-    case (toConvRole role (Just $ Actions actions)) of
+    case toConvRole role (Just $ Actions actions) of
       Just cr -> return cr
       Nothing -> fail ("Failed to parse: " ++ show o)
 

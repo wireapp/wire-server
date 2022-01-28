@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -325,8 +325,8 @@ testSFTStaticV2StaticUrlError = do
       -- an error
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) CallsConfigV2
   assertEqual
-    "when SFT static URL is enabled, but returns error, sft_servers_all should be empty"
-    (Just [])
+    "when SFT static URL is enabled, but returns error, sft_servers_all should be omitted"
+    Nothing
     (cfg ^. rtcConfSftServersAll)
 
 -- The v2 endpoint `GET /calls/config/v2` with an SFT static URL's /sft_servers_all.json

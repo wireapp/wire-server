@@ -5,7 +5,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -141,7 +141,8 @@ mkWatcher tbs logHistory = do
 
 tests :: TestTree
 tests =
-  testGroup "thread budgets" $
+  testGroup
+    "thread budgets"
     [ -- flaky test case as described in https://wearezeta.atlassian.net/browse/BE-527
       -- testCase "unit test" testThreadBudgets,
       testProperty "qc stm (sequential)" propSequential

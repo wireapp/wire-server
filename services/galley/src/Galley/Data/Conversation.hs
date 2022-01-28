@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -31,12 +31,13 @@ module Galley.Data.Conversation
     convAccessData,
     defRole,
     maybeRole,
-    privateRole,
     defRegularConvAccess,
+    parseAccessRoles,
   )
 where
 
 import Data.Id
+import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.UUID.Tagged as U
 import Galley.Cassandra.Instances ()
@@ -72,7 +73,7 @@ convMetadata c =
     (convType c)
     (convCreator c)
     (convAccess c)
-    (convAccessRole c)
+    (convAccessRoles c)
     (convName c)
     (convTeam c)
     (convMessageTimer c)
@@ -82,20 +83,10 @@ convAccessData :: Conversation -> ConversationAccessData
 convAccessData conv =
   ConversationAccessData
     (Set.fromList (convAccess conv))
-    (convAccessRole conv)
-
-defRole :: AccessRole
-defRole = ActivatedAccessRole
-
-maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
-maybeRole SelfConv _ = privateRole
-maybeRole ConnectConv _ = privateRole
-maybeRole One2OneConv _ = privateRole
-maybeRole RegularConv Nothing = defRole
-maybeRole RegularConv (Just r) = r
-
-privateRole :: AccessRole
-privateRole = PrivateAccessRole
+    (convAccessRoles conv)
 
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
+
+parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
+parseAccessRoles mbLegacy mbV2 = mbV2 <|> fromAccessRoleLegacy <$> mbLegacy

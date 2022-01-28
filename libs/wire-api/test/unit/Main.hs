@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -23,6 +23,7 @@ where
 import Imports
 import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
+import qualified Test.Wire.API.Conversation as Conversation
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -47,5 +48,6 @@ main =
         Roundtrip.ByteString.tests,
         Swagger.tests,
         Roundtrip.CSV.tests,
-        Routes.tests
+        Routes.tests,
+        Conversation.tests
       ]

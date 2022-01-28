@@ -1,11 +1,19 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
 -- Software Foundation, either version 3 of the License, or (at your option) any
 -- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- This program is distributed in the hope that it will be useful, but WITHOUT
 -- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
@@ -205,7 +213,7 @@ createRegularGroupConv lusr zcon (NewConvUnmanaged body) = do
         { ncType = RegularConv,
           ncCreator = tUnqualified lusr,
           ncAccess = access body,
-          ncAccessRole = accessRole body,
+          ncAccessRoles = accessRoles body,
           ncName = name,
           ncTeam = fmap cnvTeamId (newConvTeam body),
           ncMessageTimer = newConvMessageTimer body,
@@ -252,7 +260,7 @@ createTeamGroupConv lusr zcon tinfo body = do
   o <- input
   checkedUsers <- checkedConvSize o allUsers
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
-  ensureAccessRole (accessRole body) (zip (ulLocals allUsers) convLocalMemberships)
+  ensureAccessRole (accessRoles body) (zip (ulLocals allUsers) convLocalMemberships)
   -- In teams we don't have 1:1 conversations, only regular conversations. We want
   -- users without the 'AddRemoveConvMember' permission to still be able to create
   -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -276,7 +284,7 @@ createTeamGroupConv lusr zcon tinfo body = do
         { ncType = RegularConv,
           ncCreator = tUnqualified lusr,
           ncAccess = access body,
-          ncAccessRole = accessRole body,
+          ncAccessRoles = accessRoles body,
           ncName = name,
           ncTeam = fmap cnvTeamId (newConvTeam body),
           ncMessageTimer = newConvMessageTimer body,
@@ -647,8 +655,8 @@ toUUIDs a b = do
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4
   return (a', b')
 
-accessRole :: NewConv -> AccessRole
-accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
+accessRoles :: NewConv -> Set AccessRoleV2
+accessRoles b = fromMaybe Data.defRole (newConvAccessRoles b)
 
 access :: NewConv -> [Access]
 access a = case Set.toList (newConvAccess a) of

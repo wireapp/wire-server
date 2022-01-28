@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -36,7 +36,7 @@ data Conversation = Conversation
     convCreator :: UserId,
     convName :: Maybe Text,
     convAccess :: [Access],
-    convAccessRole :: AccessRole,
+    convAccessRoles :: Set AccessRoleV2,
     convLocalMembers :: [LocalMember],
     convRemoteMembers :: [RemoteMember],
     convTeam :: Maybe TeamId,
@@ -51,7 +51,7 @@ data NewConversation = NewConversation
   { ncType :: ConvType,
     ncCreator :: UserId,
     ncAccess :: [Access],
-    ncAccessRole :: AccessRole,
+    ncAccessRoles :: Set AccessRoleV2,
     ncName :: Maybe (Range 1 256 Text),
     ncTeam :: Maybe TeamId,
     ncMessageTimer :: Maybe Milliseconds,

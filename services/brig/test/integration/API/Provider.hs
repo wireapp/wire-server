@@ -4,7 +4,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -594,24 +594,24 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       qcid = Qualified cid localDomain
   -- Make the conversation team-only and check that the bot can't be added
   -- to the conversation
-  setAccessRole uid1 cid TeamAccessRole
+  setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole])
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
   -- Make the conversation allowed for guests and add the bot successfully
-  setAccessRole uid1 cid NonActivatedAccessRole
+  setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   let lbuid = qualifyAs luid1 . botUserId $ bid
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
-    setAccessRole uid1 cid TeamAccessRole
+    setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole])
     _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
     svcAssertConvAccessUpdate
       buf
       (qUntagged luid1)
-      (ConversationAccessData (Set.singleton InviteAccess) TeamAccessRole)
+      (ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole]))
       qcid
     svcAssertMemberLeave buf (qUntagged lbuid) [qUntagged lbuid] qcid
     wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
@@ -1322,7 +1322,7 @@ updateConversationAccess ::
   UserId ->
   ConvId ->
   [Access] ->
-  AccessRole ->
+  Set AccessRoleV2 ->
   Http ResponseLBS
 updateConversationAccess galley uid cid access role =
   put $

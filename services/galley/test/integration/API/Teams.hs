@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -875,7 +875,7 @@ testAddTeamConvAsExternalPartner = do
     [memMember1 ^. userId, memMember2 ^. userId]
     (Just "blaa")
     acc
-    (Just TeamAccessRole)
+    (Just (Set.fromList [TeamMemberAccessRole]))
     Nothing
     Nothing
     !!! do
@@ -1208,7 +1208,7 @@ testDeleteTeamConv = do
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) ActivatedAccessRole
+  let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putAccessUpdate owner cid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
   cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing

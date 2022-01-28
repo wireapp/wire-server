@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -99,7 +99,8 @@ tests =
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
-      testRoundTrip @Conversation.AccessRole,
+      testRoundTrip @Conversation.AccessRoleLegacy,
+      testRoundTrip @Conversation.AccessRoleV2,
       testRoundTrip @Conversation.ConvType,
       testRoundTrip @Conversation.ReceiptMode,
       testRoundTrip @Conversation.ConvTeamInfo,
@@ -109,6 +110,7 @@ tests =
       testRoundTrip @Conversation.ConversationAccessData,
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
       testRoundTrip @Conversation.ConversationMessageTimerUpdate,
+      testRoundTrip @Conversation.ConversationMetadata,
       testRoundTrip @Conversation.Bot.AddBot,
       testRoundTrip @Conversation.Bot.AddBotResponse,
       testRoundTrip @Conversation.Bot.RemoveBotResponse,

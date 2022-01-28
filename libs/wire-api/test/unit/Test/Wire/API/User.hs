@@ -1,9 +1,8 @@
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -34,13 +33,13 @@ import Test.Tasty.HUnit
 import Wire.API.User
 
 tests :: TestTree
-tests = testGroup "User (types vs. aeson)" $ unitTests
+tests = testGroup "User (types vs. aeson)" unitTests
 
 unitTests :: [TestTree]
 unitTests = parseIdentityTests ++ jsonNullTests
 
 jsonNullTests :: [TestTree]
-jsonNullTests = [testGroup "JSON null" [testCase "userProfile" $ testUserProfile]]
+jsonNullTests = [testGroup "JSON null" [testCase "userProfile" testUserProfile]]
 
 testUserProfile :: Assertion
 testUserProfile = do

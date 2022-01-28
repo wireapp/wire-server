@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -16,6 +16,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Wire.API.Golden.Generated.NewConvManaged_user where
 
 import Data.Domain
@@ -25,12 +26,12 @@ import qualified Data.Set as Set (fromList)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
-  ( AccessRole (ActivatedAccessRole),
+  ( AccessRoleV2 (..),
     ConvTeamInfo (ConvTeamInfo, cnvManaged, cnvTeamId),
     NewConv
       ( NewConv,
         newConvAccess,
-        newConvAccessRole,
+        newConvAccessRoles,
         newConvMessageTimer,
         newConvName,
         newConvQualifiedUsers,
@@ -55,7 +56,7 @@ testObject_NewConvManaged_user_1 =
           newConvQualifiedUsers = [],
           newConvName = Nothing,
           newConvAccess = Set.fromList [],
-          newConvAccessRole = Just ActivatedAccessRole,
+          newConvAccessRoles = Just (Set.fromList [TeamMemberAccessRole, GuestAccessRole]),
           newConvTeam =
             Just
               ( ConvTeamInfo

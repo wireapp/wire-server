@@ -7,7 +7,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -128,7 +128,7 @@ createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   BrigAccess.ensureReAuthorised zusr createScimTokenPassword
-  tokenNumber <- fmap length $ ScimTokenStore.getByTeam teamid
+  tokenNumber <- fmap length $ ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
     throwSparSem E.SparProvisioningTokenLimitReached
@@ -190,4 +190,4 @@ listScimTokens ::
   Sem r ScimTokenList
 listScimTokens zusr = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  ScimTokenList <$> ScimTokenStore.getByTeam teamid
+  ScimTokenList <$> ScimTokenStore.lookupByTeam teamid

@@ -16,6 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Effects.SFT
   ( SFTError (..),
     SFTGetResponse (..),
@@ -32,9 +49,10 @@ import qualified Data.Map as Map
 import Data.Misc
 import Data.Schema
 import Data.String.Conversions (cs)
-import Imports hiding (intercalate)
+import Imports hiding (fromException, intercalate)
 import Network.HTTP.Client
 import Polysemy
+import Polysemy.Error hiding (try)
 import Polysemy.Internal
 import Polysemy.TinyLog
 import qualified System.Logger as Log
@@ -57,18 +75,22 @@ sftGetAllServers = send . SFTGetAllServers
 interpretSFT :: Members [Embed IO, TinyLog] r => Manager -> Sem (SFT ': r) a -> Sem r a
 interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
   let urlWithPath = ensureHttpsUrl $ (httpsUrl url) {uriPath = "/sft_servers_all.json"}
-      req = parseRequest_ . cs . toByteString' $ urlWithPath
-  responseURLsRaw <- liftIO (responseBody <$> httpLbs req httpManager)
-  let eList = Aeson.eitherDecode @AllURLs responseURLsRaw
-      res = bimap SFTError (fmap sftServer . unAllURLs) eList
-  void $ case res of
-    Left e ->
-      err $
-        Log.field "sft_err" (show e) . Log.msg ("Error for URL: " <> toByteString' urlWithPath)
-    Right servers ->
-      info $
-        Log.field "IPv4s" (show servers) . Log.msg ("Fetched the following server URLs" :: ByteString)
-  pure . SFTGetResponse $ res
+  fmap SFTGetResponse . runSftError urlWithPath $ do
+    let req = parseRequest_ . cs . toByteString' $ urlWithPath
+    response <- fromExceptionVia @HttpException (SFTError . show) (responseBody <$> httpLbs req httpManager)
+    let eList = Aeson.eitherDecode @AllURLs response
+    res <- fromEither $ bimap SFTError (fmap sftServer . unAllURLs) eList
+    debug $ Log.field "URLs" (show res) . Log.msg ("Fetched the following server URLs" :: ByteString)
+    pure res
+
+runSftError :: Members '[TinyLog] r => HttpsUrl -> Sem (Error SFTError : r) a -> Sem r (Either SFTError a)
+runSftError urlWithPath act =
+  runError $
+    act
+      `catch` ( \(e :: SFTError) -> do
+                  err $ Log.field "sft_err" (show e) . Log.msg ("Error for URL: " <> toByteString' urlWithPath)
+                  throw e
+              )
 
 newtype AllURLs = AllURLs {unAllURLs :: [HttpsUrl]}
   deriving (Aeson.FromJSON) via Schema AllURLs

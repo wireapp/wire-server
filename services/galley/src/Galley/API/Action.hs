@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -185,10 +185,10 @@ instance IsConversationAction ConversationJoin where
           Map.fromList . map (view userId &&& id)
             <$> E.selectTeamMembers tid newUsers
         let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
-        ensureAccessRole (convAccessRole conv) userMembershipMap
+        ensureAccessRole (convAccessRoles conv) userMembershipMap
         ensureConnectedOrSameTeam lusr newUsers
       checkLocals lusr Nothing newUsers = do
-        ensureAccessRole (convAccessRole conv) (zip newUsers $ repeat Nothing)
+        ensureAccessRole (convAccessRoles conv) (zip newUsers $ repeat Nothing)
         ensureConnectedOrSameTeam lusr newUsers
 
       checkRemotes ::
@@ -362,11 +362,8 @@ instance IsConversationAction ConversationAccessData where
     -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
     -- so on; users are not supposed to be able to make other conversations
     -- have 'PrivateAccessRole'
-    when
-      ( PrivateAccess `elem` cupAccess target
-          || PrivateAccessRole == cupAccessRole target
-      )
-      $ throw InvalidTargetAccess
+    when (PrivateAccess `elem` cupAccess target || Set.null (cupAccessRoles target)) $
+      throw InvalidTargetAccess
     -- Team conversations incur another round of checks
     case convTeam conv of
       Just _ -> do
@@ -374,8 +371,10 @@ instance IsConversationAction ConversationAccessData where
         -- conversation, so the user must have the necessary permission flag
         ensureActionAllowed RemoveConversationMember self
       Nothing ->
-        when (cupAccessRole target == TeamAccessRole) $
+        -- not a team conv, so one of the other access roles has to allow this.
+        when (Set.null $ cupAccessRoles target Set.\\ Set.fromList [TeamMemberAccessRole]) $
           throw InvalidTargetAccess
+
   conversationActionTag' _ _ = ModifyConversationAccess
   performAction qusr lcnv conv action = do
     when (convAccessData conv == action) noChanges
@@ -389,7 +388,8 @@ instance IsConversationAction ConversationAccessData where
         E.deleteCode key ReusableCode
 
     -- Determine bots and members to be removed
-    let filterBotsAndMembers = filterActivated >=> filterTeammates
+    let filterBotsAndMembers =
+          maybeRemoveBots >=> maybeRemoveGuests >=> maybeRemoveNonTeamMembers >=> maybeRemoveTeamMembers
     let current = convBotsAndMembers conv -- initial bots and members
     desired <- filterBotsAndMembers current -- desired bots and members
     let toRemove = bmDiff current desired -- bots and members to be removed
@@ -401,38 +401,50 @@ instance IsConversationAction ConversationAccessData where
       traverse_ (E.deleteBot (tUnqualified lcnv) . botMemId) (bmBots toRemove)
 
       -- Update current bots and members
-      let current' = current {bmBots = bmBots desired}
+      -- current bots and members but only desired bots
+      let bmToNotify = current {bmBots = bmBots desired}
 
       -- Remove users and notify everyone
       void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
         let rAction = ConversationLeave usersToRemove
         void . runError @NoChanges $ performAction qusr lcnv conv rAction
-        notifyConversationAction qusr Nothing lcnv current' (conversationAction rAction)
+        notifyConversationAction qusr Nothing lcnv bmToNotify (conversationAction rAction)
     pure (mempty, action)
     where
-      filterActivated :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
-      filterActivated bm
-        | convAccessRole conv > ActivatedAccessRole
-            && cupAccessRole action <= ActivatedAccessRole = do
-          activated <- map User.userId <$> E.lookupActivatedUsers (toList (bmLocals bm))
-          -- FUTUREWORK: should we also remove non-activated remote users?
-          pure $ bm {bmLocals = Set.fromList activated}
-        | otherwise = pure bm
+      maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+      maybeRemoveBots bm =
+        if Set.member ServiceAccessRole (cupAccessRoles action)
+          then pure bm
+          else pure $ bm {bmBots = mempty}
 
-      filterTeammates :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
-      filterTeammates bm = do
-        -- In a team-only conversation we also want to remove bots and guests
-        case (cupAccessRole action, convTeam conv) of
-          (TeamAccessRole, Just tid) -> do
-            onlyTeamUsers <- flip filterM (toList (bmLocals bm)) $ \user ->
-              isJust <$> E.getTeamMember tid user
-            pure $
-              BotsAndMembers
-                { bmLocals = Set.fromList onlyTeamUsers,
-                  bmBots = mempty,
-                  bmRemotes = mempty
-                }
-          _ -> pure bm
+      maybeRemoveGuests :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+      maybeRemoveGuests bm =
+        if Set.member GuestAccessRole (cupAccessRoles action)
+          then pure bm
+          else do
+            activated <- map User.userId <$> E.lookupActivatedUsers (toList (bmLocals bm))
+            -- FUTUREWORK: should we also remove non-activated remote users?
+            pure $ bm {bmLocals = Set.fromList activated}
+
+      maybeRemoveNonTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
+      maybeRemoveNonTeamMembers bm =
+        if Set.member NonTeamMemberAccessRole (cupAccessRoles action)
+          then pure bm
+          else case convTeam conv of
+            Just tid -> do
+              onlyTeamUsers <- filterM (fmap isJust . E.getTeamMember tid) (toList (bmLocals bm))
+              pure $ bm {bmLocals = Set.fromList onlyTeamUsers, bmRemotes = mempty}
+            Nothing -> pure bm
+
+      maybeRemoveTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
+      maybeRemoveTeamMembers bm =
+        if Set.member TeamMemberAccessRole (cupAccessRoles action)
+          then pure bm
+          else case convTeam conv of
+            Just tid -> do
+              noTeamMembers <- filterM (fmap isNothing . E.getTeamMember tid) (toList (bmLocals bm))
+              pure $ bm {bmLocals = Set.fromList noTeamMembers}
+            Nothing -> pure bm
 
 -- | Update a local conversation, and notify all local and remote members.
 updateLocalConversation ::

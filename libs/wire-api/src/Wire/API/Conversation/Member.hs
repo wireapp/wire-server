@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -252,13 +252,12 @@ instance Arbitrary MemberUpdate where
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
-  if ( isJust (mupOtrMuteStatus u)
-         || isJust (mupOtrMuteRef u)
-         || isJust (mupOtrArchive u)
-         || isJust (mupOtrArchiveRef u)
-         || isJust (mupHidden u)
-         || isJust (mupHiddenRef u)
-     )
+  if isJust (mupOtrMuteStatus u)
+    || isJust (mupOtrMuteRef u)
+    || isJust (mupOtrArchive u)
+    || isJust (mupOtrArchiveRef u)
+    || isJust (mupHidden u)
+    || isJust (mupHiddenRef u)
     then Right u
     else
       Left

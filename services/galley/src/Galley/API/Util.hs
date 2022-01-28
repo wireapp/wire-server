@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -69,24 +69,25 @@ import Wire.API.ErrorDescription
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
 
 ensureAccessRole ::
   Members '[BrigAccess, Error NotATeamMember, Error ConversationError] r =>
-  AccessRole ->
+  Set Public.AccessRoleV2 ->
   [(UserId, Maybe TeamMember)] ->
   Sem r ()
-ensureAccessRole role users = case role of
-  PrivateAccessRole -> throw ConvAccessDenied
-  TeamAccessRole ->
-    when (any (isNothing . snd) users) $
-      throwED @NotATeamMember
-  ActivatedAccessRole -> do
-    activated <- lookupActivatedUsers $ map fst users
-    when (length activated /= length users) $
-      throw ConvAccessDenied
-  NonActivatedAccessRole -> return ()
+ensureAccessRole roles users = do
+  when (Set.null roles) $ throw ConvAccessDenied
+  unless (NonTeamMemberAccessRole `Set.member` roles) $
+    when (any (isNothing . snd) users) $ throwED @NotATeamMember
+  unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
+    activated <- lookupActivatedUsers (fst <$> users)
+    let guestsExist = length activated /= length users
+    unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throw ConvAccessDenied
+    let botsExist = any (isJust . User.userService) activated
+    unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throw ConvAccessDenied
 
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.
@@ -595,7 +596,7 @@ ensureConversationAccess zusr cnv access = do
   ensureAccess conv access
   zusrMembership <-
     maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
-  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
+  ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
   pure conv
 
 ensureAccess ::
@@ -645,7 +646,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       rcCnvId = convId,
       rcCnvType = convType,
       rcCnvAccess = convAccess,
-      rcCnvAccessRole = convAccessRole,
+      rcCnvAccessRoles = convAccessRoles,
       rcCnvName = convName,
       rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = convMessageTimer,
@@ -712,7 +713,7 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             -- domain
             cnvmCreator = rcOrigUserId,
             cnvmAccess = rcCnvAccess,
-            cnvmAccessRole = rcCnvAccessRole,
+            cnvmAccessRoles = rcCnvAccessRoles,
             cnvmName = rcCnvName,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain.

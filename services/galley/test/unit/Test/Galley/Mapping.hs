@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -24,6 +24,7 @@ import Data.Containers.ListUtils (nubOrdOn)
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import qualified Data.Set as Set
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Types.Conversations.Members
@@ -121,7 +122,7 @@ genConversation =
     <*> arbitrary
     <*> arbitrary
     <*> pure []
-    <*> pure ActivatedAccessRole
+    <*> pure (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
     <*> listOf genLocalMember
     <*> listOf genRemoteMember
     <*> pure Nothing

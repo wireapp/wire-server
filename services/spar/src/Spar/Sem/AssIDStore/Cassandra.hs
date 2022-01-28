@@ -1,17 +1,37 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Spar.Sem.AssIDStore.Cassandra where
 
-import Cassandra
-import Control.Monad.Except (runExceptT)
-import Imports hiding (MonadReader (..), Reader)
+import Cassandra as Cas
+import Control.Lens
+import Control.Monad.Except
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import SAML2.WebSSO (fromTime)
+import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
+import Spar.Data.Instances ()
 import Spar.Sem.AssIDStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
-import Wire.API.User.Saml (Opts, TTLError)
+import Wire.API.User.Saml
 
 assIDStoreToCassandra ::
   forall m r a.
@@ -22,9 +42,41 @@ assIDStoreToCassandra =
   interpret $ \case
     Store itla t -> do
       denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
-      a <- embed @m $ runExceptT $ runReaderT (Data.storeAssID itla t) denv
+      a <- embed @m $ runExceptT $ runReaderT (storeAssID itla t) denv
       case a of
         Left err -> throw err
         Right () -> pure ()
-    UnStore itla -> embed @m $ Data.unStoreAssID itla
-    IsAlive itla -> embed @m $ Data.isAliveAssID itla
+    UnStore itla -> embed @m $ unStoreAssID itla
+    IsAlive itla -> embed @m $ isAliveAssID itla
+
+storeAssID ::
+  (HasCallStack, MonadReader Data.Env m, MonadClient m, MonadError TTLError m) =>
+  AssId ->
+  SAML.Time ->
+  m ()
+storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
+  env <- ask
+  TTL ttl <- Data.mkTTLAssertions env endOfLife
+  retry x5 . write ins $ params LocalQuorum (aid, ttl)
+  where
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
+    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
+
+unStoreAssID ::
+  (HasCallStack, MonadClient m) =>
+  AssId ->
+  m ()
+unStoreAssID (SAML.ID aid) = retry x5 . write del . params LocalQuorum $ Identity aid
+  where
+    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del = "DELETE FROM authresp WHERE resp = ?"
+
+isAliveAssID ::
+  (HasCallStack, MonadClient m) =>
+  AssId ->
+  m Bool
+isAliveAssID (SAML.ID aid) =
+  (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity aid)
+  where
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"

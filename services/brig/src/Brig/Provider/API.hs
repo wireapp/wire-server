@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -816,7 +816,7 @@ addBot zuid zcon cid add = do
     throwStd tooManyMembers
   -- For team conversations: bots are not allowed in managed and in
   -- team-only conversations
-  when (cnvAccessRole cnv == TeamAccessRole) $
+  unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
     throwStd invalidConv
   for_ (cnvTeam cnv) $ \tid -> do
     tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound

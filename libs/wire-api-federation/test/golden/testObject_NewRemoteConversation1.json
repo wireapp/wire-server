@@ -29,7 +29,10 @@
             "id": "6801e49b-918c-4eef-baed-f18522152fca"
         }
     ],
-    "cnv_access_role": "activated",
+    "cnv_access_roles": [
+        "team_member",
+        "non_team_member"
+    ],
     "cnv_type": 0,
     "receipt_mode": 42,
     "message_timer": 1000,

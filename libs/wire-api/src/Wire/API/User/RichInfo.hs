@@ -1,10 +1,9 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -49,6 +48,7 @@ where
 
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.Bifunctor
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
@@ -130,7 +130,7 @@ toRichInfoAssocList (RichInfoMapAndList mp al) =
     go rfs (key, val) =
       case break (\(RichField rfKey _) -> rfKey == key) rfs of
         (xs, []) -> xs <> [RichField key val]
-        (xs, (_ : ys)) -> xs <> [RichField key val] <> ys
+        (xs, _ : ys) -> xs <> [RichField key val] <> ys
 
 -- | This is called by spar to recover the more type that also contains a map.  Since we don't
 -- know where the data came from when it was posted or where the SCIM peer expects the data to
@@ -168,7 +168,7 @@ instance ToJSON RichInfoMapAndList where
                     "version" .= (0 :: Int)
                   ]
             ],
-        richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
+        richInfoMapURN .= Map.mapKeys CI.original (richInfoMap u)
       ]
 
 instance FromJSON RichInfoMapAndList where
@@ -197,14 +197,13 @@ instance FromJSON RichInfoMapAndList where
             richInfo <- lookupOrFail "richinfo" $ hmMapKeys CI.mk innerObj
             case richInfo of
               Object richinfoObj -> do
-                fields <- richInfoAssocListFromObject richinfoObj
-                pure fields
+                richInfoAssocListFromObject richinfoObj
               Array fields -> parseJSON (Array fields)
               v -> Aeson.typeMismatch "Object or Array" v
           Just v -> Aeson.typeMismatch "Object" v
 
       hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
-      hmMapKeys f = HashMap.fromList . (map (\(k, v) -> (f k, v))) . HashMap.toList
+      hmMapKeys f = HashMap.fromList . map (Data.Bifunctor.first f) . HashMap.toList
 
       lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
       lookupOrFail key theMap = case HM.lookup key theMap of

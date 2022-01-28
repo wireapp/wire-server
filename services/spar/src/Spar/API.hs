@@ -4,7 +4,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -61,7 +61,6 @@ import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.App
 import Spar.CanonicalInterpreter
-import qualified Spar.Data as Data (GetIdPResult (..), Replaced (..), Replacing (..))
 import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Orphans ()
@@ -76,6 +75,7 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
@@ -473,7 +473,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   -- Delete tokens associated with given IdP (we rely on the fact that
   -- each IdP has exactly one team so we can look up all tokens
   -- associated with the team and then filter them)
-  tokens <- ScimTokenStore.getByTeam team
+  tokens <- ScimTokenStore.lookupByTeam team
   for_ tokens $ \ScimTokenInfo {..} ->
     when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
   -- Delete IdP config
@@ -494,11 +494,11 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Sem r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
-        Data.GetIdPFound iid -> IdPEffect.clearReplacedBy $ Data.Replaced iid
-        Data.GetIdPNotFound -> pure ()
-        Data.GetIdPDanglingId _ -> pure ()
-        Data.GetIdPNonUnique _ -> pure ()
-        Data.GetIdPWrongTeam _ -> pure ()
+        GetIdPFound iid -> IdPEffect.clearReplacedBy $ Replaced iid
+        GetIdPNotFound -> pure ()
+        GetIdPDanglingId _ -> pure ()
+        GetIdPNonUnique _ -> pure ()
+        GetIdPWrongTeam _ -> pure ()
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
@@ -548,7 +548,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   storeIdPConfig idp
   forM_ mReplaces $ \replaces -> do
-    IdPEffect.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
+    IdPEffect.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
 
 -- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
@@ -565,7 +565,7 @@ assertNoScimOrNoIdP ::
   TeamId ->
   Sem r ()
 assertNoScimOrNoIdP teamid = do
-  numTokens <- length <$> ScimTokenStore.getByTeam teamid
+  numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPEffect.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $ do
     throwSparSem $
@@ -636,11 +636,11 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
             pure ()
 
   case idp of
-    Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
-    Data.GetIdPNotFound -> pure ()
-    res@(Data.GetIdPDanglingId _) -> throwSparSem . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
-    Data.GetIdPNonUnique ids' {- same team didn't yield anything, but there are at least two other teams with this issuer already -} -> handleIdPClash (Left ids')
-    Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
+    GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
+    GetIdPNotFound -> pure ()
+    res@(GetIdPDanglingId _) -> throwSparSem . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
+    GetIdPNonUnique ids' {- same team didn't yield anything, but there are at least two other teams with this issuer already -} -> handleIdPClash (Left ids')
+    GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
 
   pure SAML.IdPConfig {..}
 
@@ -726,11 +726,11 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
       else do
         foundConfig <- getIdPConfigByIssuerAllowOld newIssuer (Just teamId)
         notInUseByOthers <- case foundConfig of
-          Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
-          Data.GetIdPNotFound -> pure True
-          res@(Data.GetIdPDanglingId _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
-          res@(Data.GetIdPNonUnique _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
-          Data.GetIdPWrongTeam _ -> pure False
+          GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
+          GetIdPNotFound -> pure True
+          res@(GetIdPDanglingId _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
+          res@(GetIdPNonUnique _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
+          GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSparSem SparIdPIssuerInUse

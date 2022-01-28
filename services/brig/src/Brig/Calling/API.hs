@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -33,6 +33,7 @@ import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
 import Brig.Effects.SFT
 import qualified Brig.Options as Opt
+import Control.Error (hush)
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lens
@@ -176,9 +177,9 @@ newConfig env sftStaticUrl mSftEnv limit version = do
   mSftServersAll :: Maybe [SFTServer] <- case version of
     CallsConfigDeprecated -> pure Nothing
     CallsConfigV2 ->
-      Just <$> case sftStaticUrl of
-        Nothing -> pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-        Just url -> fromRight [] . unSFTGetResponse <$> sftGetAllServers url
+      case sftStaticUrl of
+        Nothing -> pure . Just $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+        Just url -> hush . unSFTGetResponse <$> sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll

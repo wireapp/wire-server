@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -134,18 +134,18 @@ runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
     let softLimitBreached = maybe False (oldsize >=) (limits ^. limitSoft)
         hardLimitBreached = maybe False (oldsize >=) (limits ^. limitHard)
     warnNoBudget softLimitBreached hardLimitBreached oldsize
-    if (maybe True (oldsize <) (limits ^. limitHard))
+    if maybe True (oldsize <) (limits ^. limitHard)
       then go key oldsize
       else pure fallback
   where
     go :: UUID -> Int -> m a
     go key oldsize = do
       LC.debug $
-        "key" LC..= (toText key)
+        "key" LC..= toText key
           LC.~~ "spent" LC..= oldsize
           LC.~~ LC.msg (LC.val "runWithBudget: go")
       handle <- async action
-      _ <- register ref key (const () <$> handle)
+      _ <- register ref key (void handle)
       wait handle
     -- iff soft and/or hard limit are breached, log a warning-level message.
     warnNoBudget :: Bool -> Bool -> Int -> m ()

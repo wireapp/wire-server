@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generated where
 
 import Imports
 import Test.Tasty
-import qualified Test.Wire.API.Golden.Generated.AccessRole_user
+import qualified Test.Wire.API.Golden.Generated.AccessRoleLegacy_user
 import qualified Test.Wire.API.Golden.Generated.AccessToken_user
 import qualified Test.Wire.API.Golden.Generated.Access_user
 import qualified Test.Wire.API.Golden.Generated.Action_user
@@ -423,12 +423,12 @@ tests =
             (Test.Wire.API.Golden.Generated.Access_user.testObject_Access_user_3, "testObject_Access_user_3.json"),
             (Test.Wire.API.Golden.Generated.Access_user.testObject_Access_user_4, "testObject_Access_user_4.json")
           ],
-      testGroup "Golden: AccessRole_user" $
+      testGroup "Golden: AccessRoleLegacy_user" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.AccessRole_user.testObject_AccessRole_user_1, "testObject_AccessRole_user_1.json"),
-            (Test.Wire.API.Golden.Generated.AccessRole_user.testObject_AccessRole_user_2, "testObject_AccessRole_user_2.json"),
-            (Test.Wire.API.Golden.Generated.AccessRole_user.testObject_AccessRole_user_3, "testObject_AccessRole_user_3.json"),
-            (Test.Wire.API.Golden.Generated.AccessRole_user.testObject_AccessRole_user_4, "testObject_AccessRole_user_4.json")
+          [ (Test.Wire.API.Golden.Generated.AccessRoleLegacy_user.testObject_AccessRoleLegacy_user_1, "testObject_AccessRoleLegacy_user_1.json"),
+            (Test.Wire.API.Golden.Generated.AccessRoleLegacy_user.testObject_AccessRoleLegacy_user_2, "testObject_AccessRoleLegacy_user_2.json"),
+            (Test.Wire.API.Golden.Generated.AccessRoleLegacy_user.testObject_AccessRoleLegacy_user_3, "testObject_AccessRoleLegacy_user_3.json"),
+            (Test.Wire.API.Golden.Generated.AccessRoleLegacy_user.testObject_AccessRoleLegacy_user_4, "testObject_AccessRoleLegacy_user_4.json")
           ],
       testGroup "Golden: ConvType_user" $
         testObjects

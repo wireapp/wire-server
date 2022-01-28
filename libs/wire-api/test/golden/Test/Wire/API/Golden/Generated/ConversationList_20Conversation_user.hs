@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -16,12 +16,14 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user where
 
 import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified (Qualified (..))
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
@@ -41,7 +43,7 @@ testObject_ConversationList_20Conversation_user_1 =
                   { cnvmType = RegularConv,
                     cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
                     cnvmAccess = [],
-                    cnvmAccessRole = PrivateAccessRole,
+                    cnvmAccessRoles = Set.empty,
                     cnvmName = Just "",
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),

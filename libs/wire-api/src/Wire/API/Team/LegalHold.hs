@@ -1,9 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -198,8 +197,8 @@ instance ToSchema ViewLegalHoldServiceInfo where
           [ ("team_id", Inline (toSchema (Proxy @UUID))),
             ("base_url", Inline (toSchema (Proxy @HttpsUrl))),
             ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa)))),
-            ("auth_token", Inline (toSchema (Proxy @(ServiceToken)))),
-            ("public_key", Inline (toSchema (Proxy @(ServiceKeyPEM))))
+            ("auth_token", Inline (toSchema (Proxy @ServiceToken))),
+            ("public_key", Inline (toSchema (Proxy @ServiceKeyPEM)))
           ]
       example_ =
         ViewLegalHoldService
