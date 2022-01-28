@@ -49,6 +49,7 @@ library
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
+      Wire.API.Routes.Internal.LegalHold
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
