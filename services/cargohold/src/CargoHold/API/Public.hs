@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.API.Public (servantSitemap) where
+module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
@@ -36,17 +36,18 @@ import Servant.Server hiding (Handler)
 import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Routes.AssetBody
+import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  renewTokenV3 :<|> deleteTokenV3
+  renewTokenV3
+    :<|> deleteTokenV3
     :<|> userAPI
     :<|> botAPI
     :<|> providerAPI
     :<|> qualifiedAPI
     :<|> legacyAPI
-    :<|> internalAPI
   where
     userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
@@ -56,7 +57,9 @@ servantSitemap =
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
-    internalAPI = pure ()
+
+internalSitemap :: ServerT InternalAPI Handler
+internalSitemap = pure ()
 
 class HasLocation (tag :: PrincipalTag) where
   assetLocation :: Local AssetKey -> [Text]
