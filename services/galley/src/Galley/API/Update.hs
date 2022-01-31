@@ -672,7 +672,8 @@ joinConversationByReusableCode ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamFeatureStore
      ]
     r =>
   Local UserId ->
@@ -696,7 +697,8 @@ joinConversationById ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamFeatureStore
      ]
     r =>
   Local UserId ->
@@ -719,7 +721,8 @@ joinConversation ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamFeatureStore
      ]
     r =>
   Local UserId ->
@@ -730,6 +733,7 @@ joinConversation ::
 joinConversation lusr zcon cnv access = do
   let lcnv = qualifyAs lusr cnv
   conv <- ensureConversationAccess (tUnqualified lusr) cnv access
+  Query.ensureGuestLinksEnabled conv
   ensureGroupConversation $ conv
   -- FUTUREWORK: remote users?
   ensureMemberLimit (toList $ Data.convLocalMembers conv) [tUnqualified lusr]

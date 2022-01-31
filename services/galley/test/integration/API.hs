@@ -1266,6 +1266,7 @@ testJoinTeamConvGuestLinksDisabled = do
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  postJoinCodeConv eve cCode !!! const 200 === statusCode
 
   -- disabled guest links feature
   let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
@@ -1275,6 +1276,7 @@ testJoinTeamConvGuestLinksDisabled = do
   -- guest can't join if guest link feature is disabled
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
+  postJoinCodeConv eve cCode !!! const 409 === statusCode
   -- check feature status is still disabled
   checkFeatureStatus Public.TeamFeatureDisabled
 
@@ -1285,6 +1287,7 @@ testJoinTeamConvGuestLinksDisabled = do
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  postJoinCodeConv eve cCode !!! const 204 === statusCode
   checkFeatureStatus Public.TeamFeatureEnabled
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
