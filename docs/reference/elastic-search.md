@@ -117,7 +117,7 @@ deleted from the index. Attempts at reproducing this issue in a simpler
 environment have failed. As a workaround, there is a tool in
 [tools/db/find-undead](../../tools/db/find-undead) which can be used to find the
 undead users right after the migration. If they exist, please run refill the ES
-documents from cassandra as described [above](#refill-es-documents-from-cassandra**
+documents from cassandra as described [above](#refill-es-documents-from-cassandra)
 
 ## Migrate to a new cluster
 
@@ -135,9 +135,13 @@ ES_NEW_HOST=<YOUR_HOST>
 ES_NEW_PORT=<YOUR_PORT> # usually 9200
 ES_NEW_INDEX=<NEW_INDEX_NAME>
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+
+# Use curl http://$ES_OLD_HOST:$ES_OLD_PORT/$ES_OLD_INDEX/_settings
+# to know previous values of SHARDS, REPLICAS and REFRESH_INTERVAL
 SHARDS=<NUMBER_OF_SHARDS_FOR_THE_NEW_INDEX>
 REPLICAS=<NUMBER_OF_REPLICAS_FOR_THE_INDEX>
 REFRESH_INTERVAL=<REFRESH_INTERVAL_IN_SECONDS>
+
 BRIG_CASSANDRA_HOST=<YOUR_C*_HOST>
 BRIG_CASSANDRA_PORT=<YOUR_C*_PORT>
 BRIG_CASSANDRA_KEYSPACE=<YOUR_C*_KEYSPACE>
@@ -154,7 +158,8 @@ BRIG_CASSANDRA_KEYSPACE=<YOUR_C*_KEYSPACE>
    ```
 1. Redeploy brig with `elasticsearch.additionalWriteIndexUrl` set to the URL of
    the new cluster and `elasticsearch.additionalWriteIndex` set to
-   `$ES_NEW_INDEX`. Make sure no old instances of brig are running.
+   `$ES_NEW_INDEX`.
+1. Make sure no old instances of brig are running.
 1. Reindex data to the new index
    ```bash
    docker run "quay.io/wire/brig-index:$WIRE_VERSION" migrate-data \
