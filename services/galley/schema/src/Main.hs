@@ -61,6 +61,7 @@ import qualified V55_SelfDeletingMessagesLockStatus
 import qualified V56_GuestLinksTeamFeatureStatus
 import qualified V57_GuestLinksLockStatus
 import qualified V58_ConversationAccessRoleV2
+import qualified V59_FileSharingLockStatus
 
 main :: IO ()
 main = do
@@ -107,7 +108,8 @@ main = do
       V55_SelfDeletingMessagesLockStatus.migration,
       V56_GuestLinksTeamFeatureStatus.migration,
       V57_GuestLinksLockStatus.migration,
-      V58_ConversationAccessRoleV2.migration
+      V58_ConversationAccessRoleV2.migration,
+      V59_FileSharingLockStatus.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)

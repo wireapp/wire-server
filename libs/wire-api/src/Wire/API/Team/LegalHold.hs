@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -198,8 +197,8 @@ instance ToSchema ViewLegalHoldServiceInfo where
           [ ("team_id", Inline (toSchema (Proxy @UUID))),
             ("base_url", Inline (toSchema (Proxy @HttpsUrl))),
             ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa)))),
-            ("auth_token", Inline (toSchema (Proxy @(ServiceToken)))),
-            ("public_key", Inline (toSchema (Proxy @(ServiceKeyPEM))))
+            ("auth_token", Inline (toSchema (Proxy @ServiceToken))),
+            ("public_key", Inline (toSchema (Proxy @ServiceKeyPEM)))
           ]
       example_ =
         ViewLegalHoldService

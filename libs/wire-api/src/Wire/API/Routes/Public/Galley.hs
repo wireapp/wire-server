@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -726,7 +725,7 @@ type FeatureAPI =
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureAppLock
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureFileSharing
+    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureFileSharing
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages

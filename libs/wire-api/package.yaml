@@ -66,6 +66,7 @@ library:
   - proto-lens
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
+  - random >=1.2.0
   - resourcet
   - servant-client
   - servant-client-core

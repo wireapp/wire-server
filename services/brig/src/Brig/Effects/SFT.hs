@@ -49,9 +49,10 @@ import qualified Data.Map as Map
 import Data.Misc
 import Data.Schema
 import Data.String.Conversions (cs)
-import Imports hiding (intercalate)
+import Imports hiding (fromException, intercalate)
 import Network.HTTP.Client
 import Polysemy
+import Polysemy.Error hiding (try)
 import Polysemy.Internal
 import Polysemy.TinyLog
 import qualified System.Logger as Log
@@ -74,18 +75,22 @@ sftGetAllServers = send . SFTGetAllServers
 interpretSFT :: Members [Embed IO, TinyLog] r => Manager -> Sem (SFT ': r) a -> Sem r a
 interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
   let urlWithPath = ensureHttpsUrl $ (httpsUrl url) {uriPath = "/sft_servers_all.json"}
-      req = parseRequest_ . cs . toByteString' $ urlWithPath
-  responseURLsRaw <- liftIO (responseBody <$> httpLbs req httpManager)
-  let eList = Aeson.eitherDecode @AllURLs responseURLsRaw
-      res = bimap SFTError (fmap sftServer . unAllURLs) eList
-  void $ case res of
-    Left e ->
-      err $
-        Log.field "sft_err" (show e) . Log.msg ("Error for URL: " <> toByteString' urlWithPath)
-    Right servers ->
-      info $
-        Log.field "IPv4s" (show servers) . Log.msg ("Fetched the following server URLs" :: ByteString)
-  pure . SFTGetResponse $ res
+  fmap SFTGetResponse . runSftError urlWithPath $ do
+    let req = parseRequest_ . cs . toByteString' $ urlWithPath
+    response <- fromExceptionVia @HttpException (SFTError . show) (responseBody <$> httpLbs req httpManager)
+    let eList = Aeson.eitherDecode @AllURLs response
+    res <- fromEither $ bimap SFTError (fmap sftServer . unAllURLs) eList
+    debug $ Log.field "URLs" (show res) . Log.msg ("Fetched the following server URLs" :: ByteString)
+    pure res
+
+runSftError :: Members '[TinyLog] r => HttpsUrl -> Sem (Error SFTError : r) a -> Sem r (Either SFTError a)
+runSftError urlWithPath act =
+  runError $
+    act
+      `catch` ( \(e :: SFTError) -> do
+                  err $ Log.field "sft_err" (show e) . Log.msg ("Error for URL: " <> toByteString' urlWithPath)
+                  throw e
+              )
 
 newtype AllURLs = AllURLs {unAllURLs :: [HttpsUrl]}
   deriving (Aeson.FromJSON) via Schema AllURLs

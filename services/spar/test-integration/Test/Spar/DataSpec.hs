@@ -37,8 +37,8 @@ import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
-import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), Replaced (..), Replacing (..))
+import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
@@ -285,7 +285,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokenInfo `shouldBe` Nothing
   -- The team from 'team_provisioning_by_team':
   do
-    tokens <- runSpar $ ScimTokenStore.getByTeam tid
+    tokens <- runSpar $ ScimTokenStore.lookupByTeam tid
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do

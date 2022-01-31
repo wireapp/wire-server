@@ -1,6 +1,7 @@
 # This jobs runs data migrations for the spar DB using the spar-migrate-data tool.
 # The source for the tool can be found at services/spar/migrate-data
 #
+{{- if (and .Values.enableSparMigrations .Values.enableBrigMigrations) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -32,14 +33,15 @@ spec:
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
              - --cassandra-host-spar
-             - "{{ .Values.cassandra.host }}"
+             - "{{ template "cassandraSparHost" . }}"
              - --cassandra-port-spar
              - "9042"
              - --cassandra-keyspace-spar
              - spar
              - --cassandra-host-brig
-             - "{{ .Values.cassandra.host }}"
+             - "{{ template "cassandraBrigHost" . }}"
              - --cassandra-port-brig
              - "9042"
              - --cassandra-keyspace-brig
              - brig
+{{- end }}

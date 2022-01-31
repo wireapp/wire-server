@@ -1,3 +1,9 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,18 +21,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimTokenStore where
+module Test.Spar.Sem.IdPConfigStoreSpec where
 
-import Data.Id
+import Arbitrary ()
 import Imports
 import Polysemy
-import Wire.API.User.Scim
+import Spar.Sem.IdPConfigStore.Mem
+import Spar.Sem.IdPConfigStore.Spec
+import Test.Hspec
+import Test.Hspec.QuickCheck
 
-data ScimTokenStore m a where
-  Insert :: ScimToken -> ScimTokenInfo -> ScimTokenStore m ()
-  Lookup :: ScimToken -> ScimTokenStore m (Maybe ScimTokenInfo)
-  LookupByTeam :: TeamId -> ScimTokenStore m [ScimTokenInfo]
-  Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
-  DeleteByTeam :: TeamId -> ScimTokenStore m ()
-
-makeSem ''ScimTokenStore
+spec :: Spec
+spec = modifyMaxSuccess (const 1000) $ do
+  propsForInterpreter "idPToMem" snd (Just $ show . snd) $ pure . run . idPToMem

@@ -75,8 +75,8 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore, Replaced (..), Replacing (..))
+import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Logger (Logger)
@@ -122,7 +122,7 @@ api ::
        ScimUserTimesStore,
        ScimTokenStore,
        DefaultSsoCode,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        SAMLUserStore,
        Random,
@@ -159,7 +159,7 @@ apiSSO ::
        AReqIDStore,
        ScimTokenStore,
        DefaultSsoCode,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Random,
        Error SparError,
        SAML2,
@@ -186,7 +186,7 @@ apiIDP ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        SAMLUserStore,
        Error SparError
@@ -205,7 +205,7 @@ apiINTERNAL ::
   Members
     '[ ScimTokenStore,
        DefaultSsoCode,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        SAMLUserStore
      ]
@@ -224,7 +224,7 @@ appName = "spar"
 
 authreqPrecheck ::
   Members
-    '[ IdPEffect.IdP,
+    '[ IdPConfigStore,
        Error SparError
      ]
     r =>
@@ -249,7 +249,7 @@ authreq ::
        SAML2,
        SamlProtocolSettings,
        Error SparError,
-       IdPEffect.IdP
+       IdPConfigStore
      ]
     r =>
   NominalDiffTime ->
@@ -264,7 +264,7 @@ authreq _ DoInitiateBind Nothing _ _ _ = throwSparSem SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
-    idp :: IdP <- IdPEffect.getConfig idpid >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
+    idp :: IdP <- IdPConfigStore.getConfig idpid >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
           WireIdPAPIV1 -> Nothing
@@ -331,7 +331,7 @@ authresp ::
        VerdictFormatStore,
        AReqIDStore,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        SAML2,
        SamlProtocolSettings,
        Error SparError,
@@ -368,7 +368,7 @@ ssoSettings = do
   SsoSettings <$> DefaultSsoCode.get
 
 ----------------------------------------------------------------------------
--- IdP API
+-- IdPConfigStore API
 
 idpGet ::
   Members
@@ -376,7 +376,7 @@ idpGet ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError
      ]
     r =>
@@ -392,7 +392,7 @@ idpGetRaw ::
   Members
     '[ GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -413,7 +413,7 @@ idpGetAll ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError
      ]
     r =>
@@ -421,7 +421,7 @@ idpGetAll ::
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
-  _idplProviders <- IdPEffect.getConfigsByTeam teamid
+  _idplProviders <- IdPConfigStore.getConfigsByTeam teamid
   pure IdPList {..}
 
 -- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users
@@ -441,7 +441,7 @@ idpDelete ::
        BrigAccess,
        ScimTokenStore,
        SAMLUserStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -473,12 +473,12 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   -- Delete tokens associated with given IdP (we rely on the fact that
   -- each IdP has exactly one team so we can look up all tokens
   -- associated with the team and then filter them)
-  tokens <- ScimTokenStore.getByTeam team
+  tokens <- ScimTokenStore.lookupByTeam team
   for_ tokens $ \ScimTokenInfo {..} ->
     when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
   -- Delete IdP config
   do
-    IdPEffect.deleteConfig idp
+    IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
   return NoContent
   where
@@ -494,7 +494,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Sem r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
-        GetIdPFound iid -> IdPEffect.clearReplacedBy $ Replaced iid
+        GetIdPFound iid -> IdPConfigStore.clearReplacedBy $ Replaced iid
         GetIdPNotFound -> pure ()
         GetIdPDanglingId _ -> pure ()
         GetIdPNonUnique _ -> pure ()
@@ -510,7 +510,7 @@ idpCreate ::
        BrigAccess,
        ScimTokenStore,
        IdPRawMetadataStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError
      ]
     r =>
@@ -529,7 +529,7 @@ idpCreateXML ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -548,7 +548,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   storeIdPConfig idp
   forM_ mReplaces $ \replaces -> do
-    IdPEffect.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+    IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
 
 -- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
@@ -559,14 +559,14 @@ assertNoScimOrNoIdP ::
   Members
     '[ ScimTokenStore,
        Error SparError,
-       IdPEffect.IdP
+       IdPConfigStore
      ]
     r =>
   TeamId ->
   Sem r ()
 assertNoScimOrNoIdP teamid = do
-  numTokens <- length <$> ScimTokenStore.getByTeam teamid
-  numIdps <- length <$> IdPEffect.getConfigsByTeam teamid
+  numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
+  numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $ do
     throwSparSem $
       SparProvisioningMoreThanOneIdP
@@ -598,7 +598,7 @@ validateNewIdP ::
   Members
     '[ Random,
        Logger String,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError
      ]
     r =>
@@ -612,7 +612,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
-      idp <- IdPEffect.getConfig replaces >>= maybe (throwSparSem (SparIdPNotFound (cs $ show mReplaces))) pure
+      idp <- IdPConfigStore.getConfig replaces >>= maybe (throwSparSem (SparIdPNotFound (cs $ show mReplaces))) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
@@ -653,7 +653,7 @@ idpUpdate ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -670,7 +670,7 @@ idpUpdateXML ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        IdPRawMetadataStore,
        Error SparError
      ]
@@ -702,7 +702,7 @@ validateIdPUpdate ::
        Logger String,
        GalleyAccess,
        BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError
      ]
     r =>
@@ -712,7 +712,7 @@ validateIdPUpdate ::
   m (TeamId, IdP)
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <-
-    IdPEffect.getConfig _idpId >>= \case
+    IdPConfigStore.getConfig _idpId >>= \case
       Nothing -> throw errUnknownIdPId
       Just idp -> pure idp
   teamId <- authorizeIdP zusr previousIdP
@@ -776,7 +776,7 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => TeamId -> Sem r NoContent
+internalDeleteTeam :: Members '[ScimTokenStore, IdPConfigStore, SAMLUserStore] r => TeamId -> Sem r NoContent
 internalDeleteTeam team = do
   deleteTeam team
   pure NoContent
@@ -785,7 +785,7 @@ internalPutSsoSettings ::
   Members
     '[ DefaultSsoCode,
        Error SparError,
-       IdPEffect.IdP
+       IdPConfigStore
      ]
     r =>
   SsoSettings ->
@@ -794,7 +794,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   DefaultSsoCode.delete
   pure NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
-  IdPEffect.getConfig code >>= \case
+  IdPConfigStore.getConfig code >>= \case
     Nothing ->
       -- this will return a 404, which is not quite right,
       -- but it's an internal endpoint and the message clearly says
