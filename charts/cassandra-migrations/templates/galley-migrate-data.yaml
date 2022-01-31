@@ -1,6 +1,7 @@
 # This jobs runs migrations on the galley DB using the galley-migrate-data tool.
 # The source for the tool can be found at services/galley in the wire-server
 # repository.
+{{- if .Values.enableGalleyMigrations }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -32,8 +33,9 @@ spec:
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
            - --cassandra-host
-           - "{{ .Values.cassandra.host }}"
+           - "{{ template "cassandraGalleyHost" . }}"
            - --cassandra-port
            - "9042"
            - --cassandra-keyspace
            - galley
+{{- end }}
