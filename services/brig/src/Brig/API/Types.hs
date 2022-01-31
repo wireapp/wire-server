@@ -101,10 +101,6 @@ data CreateUserError
   | -- | Some precondition on another Wire service failed. We propagate this error.
     ExternalPreconditionFailed Wai.Error
 
-data UpdateProfileError
-  = DisplayNameManagedByScim
-  | ProfileNotFound UserId
-
 data InvitationError
   = InviteeEmailExists UserId
   | InviteInvalidEmail Email

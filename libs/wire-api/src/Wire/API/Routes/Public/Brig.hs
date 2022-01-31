@@ -135,6 +135,16 @@ data Api routes = Api
         :> "self"
         :> ReqBody '[JSON] DeleteUser
         :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
+    -- This endpoint can lead to the following events being sent:
+    -- - UserUpdated event to contacts of self
+    putSelf ::
+      routes
+        :- Summary "Update your profile"
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> ReqBody '[JSON] UserUpdate
+        :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError),
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."

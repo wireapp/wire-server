@@ -39,6 +39,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API.Status
 import Wire.API.ErrorDescription
 import Wire.API.Federation.Error
+import Wire.API.User (UpdateProfileError (..))
 
 errorDescriptionToWai ::
   forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
@@ -262,7 +263,7 @@ phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudge
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError (ProfileNotFound _) = StdError (errorDescriptionTypeToWai @UserNotFound)
+updateProfileError ProfileNotFound = StdError (errorDescriptionTypeToWai @UserNotFound)
 
 -- WAI Errors -----------------------------------------------------------------
 

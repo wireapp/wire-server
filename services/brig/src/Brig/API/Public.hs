@@ -170,6 +170,7 @@ servantSitemap =
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.deleteSelf = deleteUser,
+        BrigAPI.putSelf = updateUser,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -254,18 +255,6 @@ sitemap = do
     Doc.errorResponse insufficientTeamPermissions
 
   -- User Self API ------------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self" (continue updateUserH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.UserUpdate
-  document "PUT" "updateSelf" $ do
-    Doc.summary "Update your profile"
-    Doc.body (Doc.ref Public.modelUserUpdate) $
-      Doc.description "JSON body"
-    Doc.response 200 "Update successful." Doc.end
 
   get "/self/name" (continue getUserDisplayNameH) $
     accept "application" "json"
@@ -894,11 +883,10 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
-updateUserH (uid ::: conn ::: req) = do
-  uu <- parseJsonBody req
-  API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
-  return empty
+updateUser :: UserId -> ConnId -> Public.UserUpdate -> Handler (Maybe Public.UpdateProfileError)
+updateUser uid conn uu = do
+  eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
+  pure $ either Just (const Nothing) eithErr
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
 changePhoneH (u ::: c ::: req) =

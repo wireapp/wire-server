@@ -334,3 +334,5 @@ type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
 type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
 
 type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"
+
+type NameManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM"

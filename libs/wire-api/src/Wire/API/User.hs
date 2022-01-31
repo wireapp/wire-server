@@ -56,6 +56,8 @@ module Wire.API.User
 
     -- * Profile Updates
     UserUpdate (..),
+    UpdateProfileError (..),
+    PutSelfResponses,
     PasswordChange (..),
     LocaleUpdate (..),
     EmailUpdate (..),
@@ -113,9 +115,9 @@ import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
 import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
-import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
+import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -128,7 +130,9 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.ErrorDescription
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
+import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam (BindingNewTeam), NewTeam (..), modelNewBindingTeam)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
@@ -830,6 +834,7 @@ data UserUpdate = UserUpdate
     uupAccentId :: Maybe ColourId
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
   deriving (Arbitrary) via (GenericUniform UserUpdate)
 
 modelUserUpdate :: Doc.Model
@@ -845,22 +850,33 @@ modelUserUpdate = Doc.defineModel "UserUpdate" $ do
     Doc.description "Accent colour ID"
     Doc.optional
 
-instance ToJSON UserUpdate where
-  toJSON u =
-    A.object $
-      "name" A..= uupName u
-        # "picture" A..= uupPict u
-        # "assets" A..= uupAssets u
-        # "accent_id" A..= uupAccentId u
-        # []
+instance ToSchema UserUpdate where
+  schema =
+    object "UserUpdate" $
+      UserUpdate
+        <$> uupName .= maybe_ (optField "name" schema)
+        <*> uupPict .= maybe_ (optField "picture" schema)
+        <*> uupAssets .= maybe_ (optField "assets" (array schema))
+        <*> uupAccentId .= maybe_ (optField "accent_id" schema)
 
-instance FromJSON UserUpdate where
-  parseJSON = A.withObject "UserUpdate" $ \o ->
-    UserUpdate
-      <$> o A..:? "name"
-      <*> o A..:? "picture"
-      <*> o A..:? "assets"
-      <*> o A..:? "accent_id"
+data UpdateProfileError
+  = DisplayNameManagedByScim
+  | ProfileNotFound
+
+type PutSelfResponses =
+  '[ UserNotFound,
+     NameManagedByScim,
+     RespondEmpty 200 "User updated"
+   ]
+
+instance AsUnion PutSelfResponses (Maybe UpdateProfileError) where
+  toUnion (Just ProfileNotFound) = Z (I mkErrorDescription)
+  toUnion (Just DisplayNameManagedByScim) = S (Z (I mkErrorDescription))
+  toUnion Nothing = S (S (Z (I ())))
+  fromUnion (Z (I _)) = Just ProfileNotFound
+  fromUnion (S (Z (I _))) = Just DisplayNameManagedByScim
+  fromUnion (S (S (Z (I _)))) = Nothing
+  fromUnion (S (S (S x))) = case x of
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange

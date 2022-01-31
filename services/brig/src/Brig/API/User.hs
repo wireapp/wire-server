@@ -153,6 +153,7 @@ import UnliftIO.Async
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
+import Wire.API.User (UpdateProfileError (..))
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -454,7 +455,7 @@ updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> Except
 updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
     mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
-    user <- maybe (throwE (ProfileNotFound uid)) pure mbUser
+    user <- maybe (throwE ProfileNotFound) pure mbUser
     unless
       ( userManagedBy user /= ManagedByScim
           || userDisplayName user == newName
