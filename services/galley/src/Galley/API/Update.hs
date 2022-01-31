@@ -567,7 +567,7 @@ addCode lusr zcon lcnv = do
   Query.ensureGuestLinksEnabled conv
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
-  ensureGuestsAllowed conv
+  ensureGuestsOrNonTeamMembersAllowed conv
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
   key <- E.makeKey (tUnqualified lcnv)
   mCode <- E.getCode key ReusableCode
@@ -587,8 +587,8 @@ addCode lusr zcon lcnv = do
     createCode :: Code -> Sem r ConversationCode
     createCode code = do
       mkConversationCode (codeKey code) (codeValue code) <$> E.getConversationCodeURI
-    ensureGuestsAllowed :: Data.Conversation -> Sem r ()
-    ensureGuestsAllowed conv =
+    ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
+    ensureGuestsOrNonTeamMembersAllowed conv =
       unless (GuestAccessRole `Set.member` convAccessRoles conv || NonTeamMemberAccessRole `Set.member` convAccessRoles conv) $ throw ConvAccessDenied
 
 rmCodeH ::
