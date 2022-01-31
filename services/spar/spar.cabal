@@ -726,8 +726,8 @@ test-suite spec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
       Test.Spar.Sem.DefaultSsoCodeSpec
+      Test.Spar.Sem.IdPConfigStoreSpec
       Test.Spar.Sem.IdPRawMetadataStoreSpec
-      Test.Spar.Sem.IdPSpec
       Test.Spar.Sem.NowSpec
       Test.Spar.Sem.ScimExternalIdStoreSpec
       Test.Spar.TypesSpec
