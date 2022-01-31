@@ -37,8 +37,8 @@ import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
-import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), Replaced (..), Replacing (..))
+import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore

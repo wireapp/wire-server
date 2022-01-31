@@ -32,7 +32,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types
 import Servant.API.ContentTypes
 import Spar.Scim
-import qualified Spar.Sem.IdP as E
+import qualified Spar.Sem.IdPConfigStore as E
 import Test.QuickCheck
 import URI.ByteString
 import Wire.API.User.IdentityProvider

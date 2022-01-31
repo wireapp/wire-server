@@ -86,8 +86,8 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdP (GetIdPResult (..))
-import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore)
+import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Random (Random)
@@ -126,18 +126,18 @@ data Env = Env
 
 getIdPConfig ::
   Members
-    '[ IdPEffect.IdP,
+    '[ IdPConfigStore,
        Error SparError
      ]
     r =>
   IdPId ->
   Sem r IdP
-getIdPConfig = (>>= maybe (throwSparSem (SparIdPNotFound mempty)) pure) . IdPEffect.getConfig
+getIdPConfig = (>>= maybe (throwSparSem (SparIdPNotFound mempty)) pure) . IdPConfigStore.getConfig
 
-storeIdPConfig :: Member IdPEffect.IdP r => IdP -> Sem r ()
-storeIdPConfig idp = IdPEffect.storeConfig idp
+storeIdPConfig :: Member IdPConfigStore r => IdP -> Sem r ()
+storeIdPConfig idp = IdPConfigStore.storeConfig idp
 
-getIdPConfigByIssuerOptionalSPId :: Members '[IdPEffect.IdP, Error SparError] r => Issuer -> Maybe TeamId -> Sem r IdP
+getIdPConfigByIssuerOptionalSPId :: Members '[IdPConfigStore, Error SparError] r => Issuer -> Maybe TeamId -> Sem r IdP
 getIdPConfigByIssuerOptionalSPId issuer mbteam = do
   getIdPConfigByIssuerAllowOld issuer mbteam >>= \case
     GetIdPFound idp -> pure idp
@@ -248,7 +248,7 @@ autoprovisionSamlUser ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        SAMLUserStore
      ]
@@ -268,7 +268,7 @@ autoprovisionSamlUserWithId ::
     '[ GalleyAccess,
        BrigAccess,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        SAMLUserStore
      ]
@@ -323,7 +323,7 @@ bindUser ::
   forall r.
   Members
     '[ BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        SAMLUserStore
      ]
@@ -377,7 +377,7 @@ verdictHandler ::
        AReqIDStore,
        VerdictFormatStore,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        Reporter,
        SAMLUserStore
@@ -421,7 +421,7 @@ verdictHandlerResult ::
        BrigAccess,
        BindCookieStore,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        Reporter,
        SAMLUserStore
@@ -462,7 +462,7 @@ findUserIdWithOldIssuer ::
   forall r.
   Members
     '[ BrigAccess,
-       IdPEffect.IdP,
+       IdPConfigStore,
        SAMLUserStore,
        Error SparError
      ]
@@ -496,7 +496,7 @@ verdictHandlerResultCore ::
        BrigAccess,
        BindCookieStore,
        ScimTokenStore,
-       IdPEffect.IdP,
+       IdPConfigStore,
        Error SparError,
        SAMLUserStore
      ]
@@ -698,16 +698,16 @@ errorPage err mpInputs mcky =
 -- single solution can be found without.
 getIdPIdByIssuerAllowOld ::
   (HasCallStack) =>
-  Member IdPEffect.IdP r =>
+  Member IdPConfigStore r =>
   SAML.Issuer ->
   Maybe TeamId ->
   Sem r (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerAllowOld issuer mbteam = do
-  mbv2 <- maybe (pure Nothing) (IdPEffect.getIdByIssuerWithTeam issuer) mbteam
-  mbv1v2 <- maybe (IdPEffect.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
+  mbv2 <- maybe (pure Nothing) (IdPConfigStore.getIdByIssuerWithTeam issuer) mbteam
+  mbv1v2 <- maybe (IdPConfigStore.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
   case (mbv1v2, mbteam) of
     (GetIdPFound idpid, Just team) -> do
-      IdPEffect.getConfig idpid >>= \case
+      IdPConfigStore.getConfig idpid >>= \case
         Nothing -> do
           pure $ GetIdPDanglingId idpid
         Just idp ->
@@ -719,7 +719,7 @@ getIdPIdByIssuerAllowOld issuer mbteam = do
 
 -- | See 'getIdPIdByIssuer'.
 getIdPConfigByIssuer ::
-  (HasCallStack, Member IdPEffect.IdP r) =>
+  (HasCallStack, Member IdPConfigStore r) =>
   SAML.Issuer ->
   TeamId ->
   Sem r (GetIdPResult IdP)
@@ -728,7 +728,7 @@ getIdPConfigByIssuer issuer =
 
 -- | See 'getIdPIdByIssuerAllowOld'.
 getIdPConfigByIssuerAllowOld ::
-  (HasCallStack, Member IdPEffect.IdP r) =>
+  (HasCallStack, Member IdPConfigStore r) =>
   SAML.Issuer ->
   Maybe TeamId ->
   Sem r (GetIdPResult IdP)
@@ -738,7 +738,7 @@ getIdPConfigByIssuerAllowOld issuer = do
 -- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
 -- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
 getIdPIdByIssuer ::
-  (HasCallStack, Member IdPEffect.IdP r) =>
+  (HasCallStack, Member IdPConfigStore r) =>
   SAML.Issuer ->
   TeamId ->
   Sem r (GetIdPResult SAML.IdPId)
@@ -746,8 +746,8 @@ getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
 
 -- | (There are probably category theoretical models for what we're doing here, but it's more
 -- straight-forward to just handle the one instance we need.)
-mapGetIdPResult :: (HasCallStack, Member IdPEffect.IdP r) => GetIdPResult SAML.IdPId -> Sem r (GetIdPResult IdP)
-mapGetIdPResult (GetIdPFound i) = IdPEffect.getConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
+mapGetIdPResult :: (HasCallStack, Member IdPConfigStore r) => GetIdPResult SAML.IdPId -> Sem r (GetIdPResult IdP)
+mapGetIdPResult (GetIdPFound i) = IdPConfigStore.getConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
 mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
 mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
 mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
@@ -755,18 +755,18 @@ mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
 
 -- | Delete all tokens belonging to a team.
 deleteTeam ::
-  (HasCallStack, Members '[ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r) =>
+  (HasCallStack, Members '[ScimTokenStore, SAMLUserStore, IdPConfigStore] r) =>
   TeamId ->
   Sem r ()
 deleteTeam team = do
   ScimTokenStore.deleteByTeam team
   -- Since IdPs are not shared between teams, we can look at the set of IdPs
   -- used by the team, and remove everything related to those IdPs, too.
-  idps <- IdPEffect.getConfigsByTeam team
+  idps <- IdPConfigStore.getConfigsByTeam team
   for_ idps $ \idp -> do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
     SAMLUserStore.deleteByIssuer issuer
-    IdPEffect.deleteConfig idp
+    IdPConfigStore.deleteConfig idp
 
 sparToServerErrorWithLogging :: Member Reporter r => SparError -> Sem r ServerError
 sparToServerErrorWithLogging err = do
