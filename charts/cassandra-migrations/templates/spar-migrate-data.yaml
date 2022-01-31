@@ -1,6 +1,7 @@
 # This jobs runs data migrations for the spar DB using the spar-migrate-data tool.
 # The source for the tool can be found at services/spar/migrate-data
 #
+{{- if (and .Values.enableSparMigrations .Values.enableBrigMigrations) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -43,3 +44,4 @@ spec:
              - "9042"
              - --cassandra-keyspace-brig
              - brig
+{{- end }}

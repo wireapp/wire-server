@@ -47,3 +47,11 @@ images:
 # cassandraGundeck:
 #   host: cassandra-ephemeral-galley
 #   replicationMap: eu-west-1:3
+
+
+# Overriding the following is only useful during datacenter migration time periods,
+# where some other job already migrates schemas.
+enableGalleyMigrations: true
+enableBrigMigrations: true
+enableGundeckMigrations: true
+enableSparMigrations: true

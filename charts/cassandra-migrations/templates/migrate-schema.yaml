@@ -23,6 +23,7 @@ spec:
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
       initContainers:
+        {{- if .Values.enableGundeckMigrations }}
         - name: gundeck-schema
           image: "{{ .Values.images.gundeck }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
@@ -36,7 +37,9 @@ spec:
             - gundeck
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
+        {{- end }}
 
+        {{- if .Values.enableBrigMigrations }}
         - name: brig-schema
           image: "{{ .Values.images.brig }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
@@ -50,7 +53,9 @@ spec:
             - brig
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
+        {{- end }}
 
+        {{- if .Values.enableGalleyMigrations }}
         - name: galley-schema
           image: "{{ .Values.images.galley }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
@@ -64,7 +69,9 @@ spec:
             - galley
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
+        {{- end }}
 
+        {{- if .Values.enableSparMigrations }}
         - name: spar-schema
           image: "{{ .Values.images.spar }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
@@ -78,6 +85,8 @@ spec:
             - spar
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
+        {{- end }}
+
       containers:
         - name: job-done
           image: busybox:1.32.0
