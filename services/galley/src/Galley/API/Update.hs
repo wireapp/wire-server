@@ -589,7 +589,7 @@ addCode lusr zcon lcnv = do
       mkConversationCode (codeKey code) (codeValue code) <$> E.getConversationCodeURI
     ensureGuestsAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsAllowed conv =
-      unless (GuestAccessRole `Set.member` convAccessRoles conv) $ throw ConvAccessDenied
+      unless (GuestAccessRole `Set.member` convAccessRoles conv || NonTeamMemberAccessRole `Set.member` convAccessRoles conv) $ throw ConvAccessDenied
 
 rmCodeH ::
   Members
