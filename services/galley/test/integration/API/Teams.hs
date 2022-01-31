@@ -1208,7 +1208,7 @@ testDeleteTeamConv = do
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole])
+  let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putAccessUpdate owner cid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
   cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
