@@ -725,7 +725,7 @@ type FeatureAPI =
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureAppLock
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureFileSharing
+    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureFileSharing
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages

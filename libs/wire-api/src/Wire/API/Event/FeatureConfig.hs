@@ -72,7 +72,7 @@ taggedEventDataSchema =
       TeamFeatureValidateSAMLEmails -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
       TeamFeatureDigitalSignatures -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
       TeamFeatureAppLock -> tag _EdFeatureApplockChanged (unnamed schema)
-      TeamFeatureFileSharing -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
+      TeamFeatureFileSharing -> tag _EdFeatureWithoutConfigAndLockStatusChanged (unnamed schema)
       TeamFeatureClassifiedDomains -> tag _EdFeatureClassifiedDomainsChanged (unnamed schema)
       TeamFeatureConferenceCalling -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
       TeamFeatureSelfDeletingMessages -> tag _EdFeatureSelfDeletingMessagesChanged (unnamed schema)

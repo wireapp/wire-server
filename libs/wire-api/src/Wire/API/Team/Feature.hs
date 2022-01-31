@@ -41,6 +41,7 @@ module Wire.API.Team.Feature
     defaultClassifiedDomains,
     defaultSelfDeletingMessagesStatus,
     defaultGuestLinksStatus,
+    defaultTeamFeatureFileSharing,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -310,7 +311,8 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus _ 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-  TeamFeatureStatus _ 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfigAndLockStatus
   TeamFeatureStatus _ 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
   TeamFeatureStatus _ 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig
@@ -434,6 +436,13 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndLockStatus cfg)
         <$> tfwcapsStatus .= field "status" schema
         <*> tfwcapsConfig .= field "config" schema
         <*> tfwcapsLockStatus .= field "lockStatus" schema
+
+----------------------------------------------------------------------
+-- TeamFeatureFileSharing
+
+defaultTeamFeatureFileSharing :: TeamFeatureStatusNoConfigAndLockStatus
+defaultTeamFeatureFileSharing =
+  TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig

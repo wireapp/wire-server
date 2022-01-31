@@ -421,6 +421,7 @@ CREATE TABLE galley_test.team_features (
     conference_calling int,
     digital_signatures int,
     file_sharing int,
+    file_sharing_lock_status int,
     guest_links_lock_status int,
     guest_links_status int,
     legalhold_status int,
