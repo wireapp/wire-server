@@ -148,7 +148,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
               . DoAuth
           )
         :<|> Named @'("get", 'TeamFeatureFileSharing)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureFileSharing
+          ( getFeatureStatus @'WithLockStatus @'TeamFeatureFileSharing
               getFileSharingInternal
               . DoAuth
           )
@@ -213,7 +213,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
               getAppLockInternal
           )
         :<|> Named @'("get-config", 'TeamFeatureFileSharing)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureFileSharing
+          ( getFeatureConfig @'WithLockStatus @'TeamFeatureFileSharing
               getFileSharingInternal
           )
         :<|> Named @'("get-config", 'TeamFeatureClassifiedDomains)

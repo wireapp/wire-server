@@ -68,6 +68,9 @@ instance HasLockStatusCol 'TeamFeatureSelfDeletingMessages where
 instance HasLockStatusCol 'TeamFeatureGuestLinks where
   lockStatusCol = "guest_links_lock_status"
 
+instance HasLockStatusCol 'TeamFeatureFileSharing where
+  lockStatusCol = "file_sharing_lock_status"
+
 instance MaybeHasLockStatusCol 'TeamFeatureLegalHold where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureSSO where maybeLockStatusCol = Nothing
@@ -79,7 +82,5 @@ instance MaybeHasLockStatusCol 'TeamFeatureValidateSAMLEmails where maybeLockSta
 instance MaybeHasLockStatusCol 'TeamFeatureDigitalSignatures where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureAppLock where maybeLockStatusCol = Nothing
-
-instance MaybeHasLockStatusCol 'TeamFeatureFileSharing where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureConferenceCalling where maybeLockStatusCol = Nothing

@@ -231,7 +231,7 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock getAppLockInternal,
-        getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
@@ -280,7 +280,7 @@ getAllFeatures uid tid = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureAppLock getAppLockInternal,
-        getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
@@ -493,11 +493,34 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
 
 getFileSharingInternal ::
-  Members '[Input Opts, TeamFeatureStore] r =>
+  forall r.
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   GetFeatureInternalParam ->
-  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureFileSharing)
-getFileSharingInternal =
-  getFeatureStatusWithDefaultConfig @'Public.TeamFeatureFileSharing flagFileSharing . either (const Nothing) Just
+  Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureFileSharing)
+getFileSharingInternal = \case
+  Left _ -> getCfgDefault
+  Right tid -> do
+    cfgDefault <- getCfgDefault
+    (mbFeatureStatus, fromMaybe (Public.tfwoapsLockStatus cfgDefault) -> lockStatus) <- TeamFeatures.getFeatureStatusNoConfigAndLockStatus @'Public.TeamFeatureFileSharing tid
+    pure $ determineFeatureStatus cfgDefault lockStatus mbFeatureStatus
+  where
+    getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureFileSharing)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
+
+determineFeatureStatus ::
+  Public.TeamFeatureStatusNoConfigAndLockStatus ->
+  Public.LockStatusValue ->
+  Maybe Public.TeamFeatureStatusNoConfig ->
+  Public.TeamFeatureStatusNoConfigAndLockStatus
+determineFeatureStatus cfgDefault lockStatus mbFeatureStatus = case (lockStatus, mbFeatureStatus) of
+  (Public.Unlocked, Just featureStatus) ->
+    Public.TeamFeatureStatusNoConfigAndLockStatus
+      (Public.tfwoStatus featureStatus)
+      lockStatus
+  (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
+  (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
 
 getFeatureStatusWithDefaultConfig ::
   forall (a :: TeamFeatureName) r.
@@ -520,11 +543,31 @@ getFeatureStatusWithDefaultConfig lens' =
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal ::
-  Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
+  forall r.
+  ( Member GundeckAccess r,
+    Member TeamFeatureStore r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    Member (Error TeamFeatureError) r,
+    Member (Input Opts) r
+  ) =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureFileSharing ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureFileSharing)
-setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_status _tid -> pure ()
+setFileSharingInternal tid status = do
+  getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureFileSharing tid
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event
+            Event.Update
+            Public.TeamFeatureFileSharing
+            ( EdFeatureWithoutConfigAndLockStatusChanged
+                (Public.TeamFeatureStatusNoConfigAndLockStatus (Public.tfwoStatus status) Public.Unlocked)
+            )
+  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing tid status <* pushEvent
+  where
+    getDftLockStatus :: Sem r Public.LockStatusValue
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults . to Public.tfwoapsLockStatus)
 
 getAppLockInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
@@ -636,13 +679,7 @@ getGuestLinkInternal = \case
   Right tid -> do
     cfgDefault <- getCfgDefault
     (mbFeatureStatus, fromMaybe (Public.tfwoapsLockStatus cfgDefault) -> lockStatus) <- TeamFeatures.getFeatureStatusNoConfigAndLockStatus @'Public.TeamFeatureGuestLinks tid
-    pure $ case (lockStatus, mbFeatureStatus) of
-      (Public.Unlocked, Just featureStatus) ->
-        Public.TeamFeatureStatusNoConfigAndLockStatus
-          (Public.tfwoStatus featureStatus)
-          lockStatus
-      (Public.Unlocked, Nothing) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
-      (Public.Locked, _) -> cfgDefault {Public.tfwoapsLockStatus = lockStatus}
+    pure $ determineFeatureStatus cfgDefault lockStatus mbFeatureStatus
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureGuestLinks)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
