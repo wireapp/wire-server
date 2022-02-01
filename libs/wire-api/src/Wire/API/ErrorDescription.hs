@@ -258,6 +258,7 @@ type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient per
 -- Be aware that this is redundant and should be replaced by a more type safe solution in the future.
 type family OperationDeniedError (a :: Perm) :: * where
   OperationDeniedError 'SetTeamData = ErrorDescription 403 "operation-denied" "Insufficient permissions (missing SetTeamData)"
+  OperationDeniedError 'DeleteTeam = ErrorDescription 403 "operation-denied" "Insufficient permissions (missing DeleteTeam)"
 
 operationDeniedSpecialized :: String -> OperationDenied
 operationDeniedSpecialized p =
@@ -270,6 +271,8 @@ operationDenied = operationDeniedSpecialized . show
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
 type Unauthorised = ErrorDescription 403 "unauthorised" "Unauthorised operation"
+
+type ReAuthFailed = ErrorDescription 403 "access-denied" "This operation requires reauthentication"
 
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
@@ -332,6 +335,8 @@ type InvalidOp desc =
     403
     "invalid-op"
     desc
+
+type DeleteQueueFull = ErrorDescription 503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
 
 invalidOpErrorDesc :: KnownSymbol desc => proxy desc -> InvalidOp desc
 invalidOpErrorDesc = ErrorDescription . Text.pack . symbolVal

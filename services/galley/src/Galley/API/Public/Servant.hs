@@ -81,6 +81,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
         :<|> Named @"update-team" updateTeamH
         :<|> Named @"get-teams" getManyTeams
         :<|> Named @"get-team" getTeamH
+        :<|> Named @"delete-team" deleteTeamH
 
     features =
       Named @'("get", 'TeamFeatureSSO)

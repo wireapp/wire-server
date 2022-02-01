@@ -361,46 +361,24 @@ updateTeamH zusr zcon tid updateData = do
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error AuthenticationError,
-       Error InternalError,
-       Error InvalidInput,
-       Error TeamError,
-       Error NotATeamMember,
-       Queue DeleteItem,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON ->
-  Sem r Response
-deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  mBody <- fromOptionalJsonBody req
-  deleteTeam zusr zcon tid mBody
-  pure (empty & setStatus status202)
-
--- | 'TeamDeleteData' is only required for binding teams
-deleteTeam ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error AuthenticationError,
-       Error InternalError,
-       Error InvalidInput,
-       Error TeamError,
-       Error NotATeamMember,
-       Queue DeleteItem,
-       TeamStore
-     ]
-    r =>
+  forall r.
+  ( Member BrigAccess r,
+    Member (Error ActionError) r,
+    Member (Error AuthenticationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (Error TeamError) r,
+    Member (Error NotATeamMember) r,
+    Member (Queue DeleteItem) r,
+    Member TeamStore r,
+    Member WaiRoutes r
+  ) =>
   UserId ->
   ConnId ->
   TeamId ->
   Maybe Public.TeamDeleteData ->
   Sem r ()
-deleteTeam zusr zcon tid mBody = do
+deleteTeamH zusr zcon tid mBody = do
   team <- E.getTeam tid >>= note TeamNotFound
   case tdStatus team of
     Deleted -> throw TeamNotFound
