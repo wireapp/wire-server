@@ -30,10 +30,8 @@ import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
 import Network.HTTP.Types as HTTP
-import Servant hiding (Handler, addHeader, contentType, respond)
-import Servant.API (contentType)
-import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
-import Servant.API.Status (KnownStatus, statusVal)
+import Servant
+import Servant.API.Status
 import Servant.Client.Core
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
@@ -118,14 +116,12 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 -- * MultiVerb errors
 
 type RespondWithErrorDescription s label desc =
-  Respond s desc (ErrorDescription s label desc)
+  RespondAs JSON s desc (ErrorDescription s label desc)
 
 type instance ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
 
 instance
-  ( AllMimeRender cs (ErrorDescription s label desc),
-    AllMimeUnrender cs (ErrorDescription s label desc),
-    KnownStatus s,
+  ( KnownStatus s,
     KnownSymbol label,
     KnownSymbol desc
   ) =>
@@ -184,8 +180,7 @@ instance
 
   responseRender _ () =
     pure $
-      addContentType
-        (contentType (Proxy @PlainText))
+      addContentType @PlainText
         Response
           { responseStatusCode = statusVal (Proxy @s),
             responseHeaders = mempty,
@@ -206,21 +201,6 @@ instance
           .~ ( Text.pack (symbolVal (Proxy @desc))
                  <> "(**Note**: This error has an empty body for legacy reasons)"
              )
-
-instance
-  ( ResponseType r ~ a,
-    KnownStatus s,
-    KnownSymbol desc
-  ) =>
-  AsUnion
-    '[EmptyErrorForLegacyReasons s desc, r]
-    (Maybe a)
-  where
-  toUnion Nothing = Z (I ())
-  toUnion (Just x) = S (Z (I x))
-  fromUnion (Z (I ())) = Nothing
-  fromUnion (S (Z (I x))) = Just x
-  fromUnion (S (S x)) = case x of
 
 -- * Errors
 

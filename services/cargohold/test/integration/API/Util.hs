@@ -130,19 +130,29 @@ instance IsAssetToken (Maybe AssetToken) where
 instance IsAssetToken (Request -> Request) where
   tokenParam = id
 
+downloadAssetWith ::
+  (IsAssetLocation loc, IsAssetToken tok) =>
+  (Request -> Request) ->
+  UserId ->
+  loc ->
+  tok ->
+  TestM (Response (Maybe LByteString))
+downloadAssetWith r uid loc tok = do
+  c <- viewCargohold
+  get $
+    c . r
+      . zUser uid
+      . locationPath loc
+      . tokenParam tok
+      . noRedirect
+
 downloadAsset ::
   (IsAssetLocation loc, IsAssetToken tok) =>
   UserId ->
   loc ->
   tok ->
   TestM (Response (Maybe LByteString))
-downloadAsset uid loc tok = do
-  c <- viewCargohold
-  get $
-    c . zUser uid
-      . locationPath loc
-      . tokenParam tok
-      . noRedirect
+downloadAsset = downloadAssetWith id
 
 postToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
 postToken uid key = do
