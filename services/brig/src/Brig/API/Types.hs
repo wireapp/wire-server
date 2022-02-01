@@ -188,11 +188,6 @@ data ClientError
   | ClientCapabilitiesCannotBeRemoved
   | ClientMissingLegalholdConsent
 
-data RemoveIdentityError
-  = LastIdentity
-  | NoPassword
-  | NoIdentity
-
 data DeleteUserError
   = DeleteUserInvalid
   | DeleteUserInvalidCode

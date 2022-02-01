@@ -64,6 +64,8 @@ module Wire.API.User
     PhoneUpdate (..),
     ChangePhoneError (..),
     ChangePhoneResponses,
+    RemoveIdentityError (..),
+    RemoveIdentityResponses,
     HandleUpdate (..),
     NameUpdate (..),
 
@@ -992,6 +994,31 @@ instance AsUnion ChangePhoneResponses (Maybe ChangePhoneError) where
     Z _ -> Just PhoneExists
     S (Z _) -> Just InvalidNewPhone
     S (S (Z _)) -> Just BlacklistedNewPhone
+    S (S (S (Z _))) -> Nothing
+    S (S (S (S x))) -> case x of
+
+data RemoveIdentityError
+  = LastIdentity
+  | NoPassword
+  | NoIdentity
+
+type RemoveIdentityResponses =
+  [ LastIdentity,
+    NoPassword,
+    NoIdentity,
+    RespondEmpty 200 "Identity Removed"
+  ]
+
+instance AsUnion RemoveIdentityResponses (Maybe RemoveIdentityError) where
+  toUnion = \case
+    Just LastIdentity -> Z (I mkErrorDescription)
+    Just NoPassword -> S (Z (I mkErrorDescription))
+    Just NoIdentity -> S (S (Z (I (noIdentity 3)))) -- 3 is code for error which removing identity?
+    Nothing -> S (S (S (Z (I ()))))
+  fromUnion = \case
+    Z _ -> Just LastIdentity
+    S (Z _) -> Just NoPassword
+    S (S (Z _)) -> Just NoIdentity
     S (S (S (Z _))) -> Nothing
     S (S (S (S x))) -> case x of
 

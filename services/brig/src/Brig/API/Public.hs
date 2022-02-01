@@ -172,6 +172,8 @@ servantSitemap =
         BrigAPI.deleteSelf = deleteUser,
         BrigAPI.putSelf = updateUser,
         BrigAPI.changePhone = changePhone,
+        BrigAPI.removePhone = removePhone,
+        BrigAPI.removeEmail = removeEmail,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -308,33 +310,6 @@ sitemap = do
     Doc.errorResponse handleExists
     Doc.errorResponse invalidHandle
     Doc.response 200 "Handle changed." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/phone" (continue removePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removePhone" $ do
-    Doc.summary "Remove your phone number."
-    Doc.notes
-      "Your phone number can only be removed if you also have an \
-      \email address and a password."
-    Doc.response 200 "Phone number removed." Doc.end
-    Doc.errorResponse lastIdentity
-    Doc.errorResponse noPassword
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/email" (continue removeEmailH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removeEmail" $ do
-    Doc.summary "Remove your email address."
-    Doc.notes
-      "Your email address can only be removed if you also have a \
-      \phone number."
-    Doc.response 200 "Email address removed." Doc.end
-    Doc.errorResponse lastIdentity
 
   -- TODO put  where?
 
@@ -885,15 +860,13 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   let apair = (activationKey adata, activationCode adata)
   lift $ sendActivationSms pn apair loc
 
-removePhoneH :: UserId ::: ConnId -> Handler Response
-removePhoneH (self ::: conn) = do
-  API.removePhone self conn !>> idtError
-  return empty
+removePhone :: UserId -> ConnId -> Handler (Maybe Public.RemoveIdentityError)
+removePhone self conn =
+  lift . exceptTToMaybe $ API.removePhone self conn
 
-removeEmailH :: UserId ::: ConnId -> Handler Response
-removeEmailH (self ::: conn) = do
-  API.removeEmail self conn !>> idtError
-  return empty
+removeEmail :: UserId -> ConnId -> Handler (Maybe Public.RemoveIdentityError)
+removeEmail self conn =
+  lift . exceptTToMaybe $ API.removeEmail self conn
 
 checkPasswordExistsH :: UserId -> Handler Response
 checkPasswordExistsH self = do

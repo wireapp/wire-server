@@ -226,11 +226,6 @@ clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
 
-idtError :: RemoveIdentityError -> Error
-idtError LastIdentity = StdError lastIdentity
-idtError NoPassword = StdError noPassword
-idtError NoIdentity = StdError (errorDescriptionToWai (noIdentity 3))
-
 propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 

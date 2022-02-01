@@ -342,3 +342,7 @@ type InvalidPhone = ErrorDescription 400 "invalid-phone" "Invalid mobile phone n
 type UserKeyExists = ErrorDescription 409 "key-exists" "The give e-mail address or phone number is in use."
 
 type BlacklistedPhone = ErrorDescription 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint."
+
+type LastIdentity = ErrorDescription 403 "last-identity" "The last user identity (email or phone number) cannot be removed."
+
+type NoPassword = ErrorDescription 403 "no-password" "The user has no password."
