@@ -505,6 +505,7 @@ executable brig-integration
     , http-client
     , http-client-tls >=0.2
     , http-media
+    , http-reverse-proxy
     , http-types
     , imports
     , lens >=3.9
