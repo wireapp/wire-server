@@ -180,6 +180,19 @@ data Api routes = Api
         :> "self"
         :> "email"
         :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError),
+    checkPasswordExists ::
+      routes
+        :- Summary "Check that your password is set."
+        :> ZUser
+        :> "self"
+        :> "password"
+        :> MultiVerb
+             'HEAD
+             '()
+             '[ RespondEmpty 404 "Password is not set",
+                RespondEmpty 200 "Password is set"
+              ]
+             Bool,
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."

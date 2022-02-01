@@ -174,6 +174,7 @@ servantSitemap =
         BrigAPI.changePhone = changePhone,
         BrigAPI.removePhone = removePhone,
         BrigAPI.removeEmail = removeEmail,
+        BrigAPI.checkPasswordExists = checkPasswordExists,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -266,15 +267,6 @@ sitemap = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  head
-    "/self/password"
-    (continue checkPasswordExistsH)
-    zauthUserId
-  document "HEAD" "checkPassword" $ do
-    Doc.summary "Check that your password is set"
-    Doc.response 200 "Password is set." Doc.end
-    Doc.response 404 "Password is not set." Doc.end
 
   put "/self/password" (continue changePasswordH) $
     zauthUserId
@@ -868,10 +860,8 @@ removeEmail :: UserId -> ConnId -> Handler (Maybe Public.RemoveIdentityError)
 removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
-checkPasswordExistsH :: UserId -> Handler Response
-checkPasswordExistsH self = do
-  exists <- lift $ isJust <$> API.lookupPassword self
-  return $ if exists then empty else setStatus status404 empty
+checkPasswordExists :: UserId -> Handler Bool
+checkPasswordExists = fmap isJust . lift . API.lookupPassword
 
 changePasswordH :: UserId ::: JsonRequest Public.PasswordChange -> Handler Response
 changePasswordH (u ::: req) = do
