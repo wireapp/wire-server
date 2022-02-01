@@ -678,7 +678,21 @@ type TeamAPI =
                :> CanThrow ReAuthFailed
                :> "teams"
                :> Capture "tid" TeamId
-               :> ReqBody '[Servant.JSON] (Maybe TeamDeleteData)
+               :> ReqBody '[Servant.JSON] TeamDeleteData
+               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 202 "Team is scheduled for removal"] ()
+           )
+    :<|> Named
+           "delete-non-binding-team"
+           ( Summary "Delete a non-binding-team"
+               :> ZUser
+               :> ZConn
+               :> CanThrow TeamNotFound
+               :> CanThrow (OperationDeniedError 'DeleteTeam)
+               :> CanThrow NotATeamMember
+               :> CanThrow DeleteQueueFull
+               :> CanThrow ReAuthFailed
+               :> "teams"
+               :> Capture "tid" TeamId
                :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 202 "Team is scheduled for removal"] ()
            )
 

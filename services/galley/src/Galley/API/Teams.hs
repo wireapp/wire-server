@@ -27,6 +27,7 @@ module Galley.API.Teams
     getBindingTeamMembersH,
     getManyTeams,
     deleteTeamH,
+    deleteNonBindingTeam,
     uncheckedDeleteTeam,
     addTeamMemberH,
     getTeamNotificationsH,
@@ -360,6 +361,24 @@ updateTeamH zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
+deleteNonBindingTeam ::
+  forall r.
+  ( Member BrigAccess r,
+    Member (Error ActionError) r,
+    Member (Error AuthenticationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (Error TeamError) r,
+    Member (Error NotATeamMember) r,
+    Member (Queue DeleteItem) r,
+    Member TeamStore r
+  ) =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  Sem r ()
+deleteNonBindingTeam zusr zcon tid = deleteTeam zusr zcon tid Nothing
+
 deleteTeamH ::
   forall r.
   ( Member BrigAccess r,
@@ -370,15 +389,33 @@ deleteTeamH ::
     Member (Error TeamError) r,
     Member (Error NotATeamMember) r,
     Member (Queue DeleteItem) r,
-    Member TeamStore r,
-    Member WaiRoutes r
+    Member TeamStore r
+  ) =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  Public.TeamDeleteData ->
+  Sem r ()
+deleteTeamH zusr zcon tid body = deleteTeam zusr zcon tid (Just body)
+
+deleteTeam ::
+  forall r.
+  ( Member BrigAccess r,
+    Member (Error ActionError) r,
+    Member (Error AuthenticationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (Error TeamError) r,
+    Member (Error NotATeamMember) r,
+    Member (Queue DeleteItem) r,
+    Member TeamStore r
   ) =>
   UserId ->
   ConnId ->
   TeamId ->
   Maybe Public.TeamDeleteData ->
   Sem r ()
-deleteTeamH zusr zcon tid mBody = do
+deleteTeam zusr zcon tid mBody = do
   team <- E.getTeam tid >>= note TeamNotFound
   case tdStatus team of
     Deleted -> throw TeamNotFound
