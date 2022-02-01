@@ -123,7 +123,6 @@ tests s =
       test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty),
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
       test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember),
-      test s "delete non-binding team" testDeleteTeam,
       test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
@@ -1000,55 +999,6 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
   liftIO $ assertEqual "status conv" convRoleCheck (statusCode resp)
   where
     convRoleCheck = if isActionAllowed ModifyConversationName convRole == Just True then 200 else 403
-
-testDeleteTeam :: TestM ()
-testDeleteTeam = do
-  localDomain <- viewFederationDomain
-  g <- view tsGalley
-  c <- view tsCannon
-  owner <- Util.randomUser
-  qOwner <- Qualified <$> pure owner <*> viewFederationDomain
-  let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
-  member <- newTeamMember' p <$> Util.randomUser
-  qMember <- Qualified <$> pure (member ^. userId) <*> viewFederationDomain
-  extern <- Util.randomUser
-  qExtern <- Qualified <$> pure extern <*> viewFederationDomain
-
-  let members = [owner, member ^. userId]
-  Util.connectUsers owner (list1 (member ^. userId) [extern])
-  tid <- Util.createNonBindingTeam "foo" owner [member]
-  cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  cid2 <- Util.createTeamConv owner tid members (Just "blup") Nothing Nothing
-  Util.assertConvMember qOwner cid2
-  Util.assertConvMember qMember cid2
-  Util.assertNotConvMember extern cid2
-  Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
-  Util.assertConvMember qOwner cid1
-  Util.assertConvMember qExtern cid1
-  Util.assertNotConvMember (member ^. userId) cid1
-  void . WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
-    delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn")
-      !!! const 202 === statusCode
-    checkTeamDeleteEvent tid wsOwner
-    checkTeamDeleteEvent tid wsMember
-    -- team members should not receive conversation delete events
-    checkConvDeleteEvent (Qualified cid1 localDomain) wsExtern
-    WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
-  get (g . paths ["teams", toByteString' tid] . zUser owner)
-    !!! const 404 === statusCode
-  get (g . paths ["teams", toByteString' tid, "members"] . zUser owner)
-    !!! const 403 === statusCode
-  get (g . paths ["teams", toByteString' tid, "conversations"] . zUser owner)
-    !!! const 403 === statusCode
-  for_ [owner, extern, member ^. userId] $ \u -> do
-    -- Ensure no user got deleted
-    Util.ensureDeletedState False owner u
-    for_ [cid1, cid2] $ \x -> do
-      Util.getConv u x !!! const 404 === statusCode
-      Util.getSelfMember u x !!! do
-        const 200 === statusCode
-        const (Just Null) === responseJsonMaybe
-  assertQueueEmpty
 
 testDeleteBindingTeamSingleMember :: TestM ()
 testDeleteBindingTeamSingleMember = do

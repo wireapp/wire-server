@@ -26,8 +26,7 @@ module Galley.API.Teams
     getBindingTeamIdH,
     getBindingTeamMembersH,
     getManyTeams,
-    deleteTeamH,
-    deleteNonBindingTeam,
+    deleteTeam,
     uncheckedDeleteTeam,
     addTeamMemberH,
     getTeamNotificationsH,
@@ -361,25 +360,7 @@ updateTeamH zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
-deleteNonBindingTeam ::
-  forall r.
-  ( Member BrigAccess r,
-    Member (Error ActionError) r,
-    Member (Error AuthenticationError) r,
-    Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
-    Member (Error TeamError) r,
-    Member (Error NotATeamMember) r,
-    Member (Queue DeleteItem) r,
-    Member TeamStore r
-  ) =>
-  UserId ->
-  ConnId ->
-  TeamId ->
-  Sem r ()
-deleteNonBindingTeam zusr zcon tid = deleteTeam zusr zcon tid Nothing
-
-deleteTeamH ::
+deleteTeam ::
   forall r.
   ( Member BrigAccess r,
     Member (Error ActionError) r,
@@ -396,26 +377,7 @@ deleteTeamH ::
   TeamId ->
   Public.TeamDeleteData ->
   Sem r ()
-deleteTeamH zusr zcon tid body = deleteTeam zusr zcon tid (Just body)
-
-deleteTeam ::
-  forall r.
-  ( Member BrigAccess r,
-    Member (Error ActionError) r,
-    Member (Error AuthenticationError) r,
-    Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
-    Member (Error TeamError) r,
-    Member (Error NotATeamMember) r,
-    Member (Queue DeleteItem) r,
-    Member TeamStore r
-  ) =>
-  UserId ->
-  ConnId ->
-  TeamId ->
-  Maybe Public.TeamDeleteData ->
-  Sem r ()
-deleteTeam zusr zcon tid mBody = do
+deleteTeam zusr zcon tid body = do
   team <- E.getTeam tid >>= note TeamNotFound
   case tdStatus team of
     Deleted -> throw TeamNotFound
@@ -428,7 +390,6 @@ deleteTeam zusr zcon tid mBody = do
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        body <- mBody & note (InvalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
 
 -- This can be called by stern
