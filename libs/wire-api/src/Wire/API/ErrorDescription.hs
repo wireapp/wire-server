@@ -235,6 +235,8 @@ type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
+type TeamNotFound = ErrorDescription 404 "no-team" "team not found"
+
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
 type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."

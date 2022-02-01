@@ -70,18 +70,6 @@ sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team API -----------------------------------------------------------
 
-  get "/teams/:tid" (continue Teams.getTeamH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeam" $ do
-    summary "Get a team by ID"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeam)
-    response 200 "Team data" end
-    errorResponse Error.teamNotFound
-
   delete "/teams/:tid" (continue Teams.deleteTeamH) $
     zauthUserId
       .&. zauthConnId

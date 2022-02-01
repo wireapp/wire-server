@@ -657,6 +657,15 @@ type TeamAPI =
                :> "teams"
                :> Get '[JSON] TeamList
            )
+    :<|> Named
+           "get-team"
+           ( Summary "Get a team by ID"
+               :> ZUser
+               :> CanThrow TeamNotFound
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> Get '[JSON] Team
+           )
 
 type MessagingAPI =
   Named

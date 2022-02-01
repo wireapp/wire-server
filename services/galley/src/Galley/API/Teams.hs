@@ -146,11 +146,13 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH ::
-  Members '[Error TeamError, Queue DeleteItem, TeamStore] r =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getTeamH (zusr ::: tid ::: _) =
-  maybe (throw TeamNotFound) (pure . json) =<< lookupTeam zusr tid
+  forall r.
+  (Member (Error TeamError) r, Member (Queue DeleteItem) r, Member TeamStore r) =>
+  UserId ->
+  TeamId ->
+  Sem r Public.Team
+getTeamH zusr tid =
+  maybe (throw TeamNotFound) pure =<< lookupTeam zusr tid
 
 getTeamInternalH ::
   Members '[Error TeamError, TeamStore] r =>
