@@ -153,7 +153,7 @@ import UnliftIO.Async
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
-import Wire.API.User (UpdateProfileError (..))
+import Wire.API.User (ChangePhoneError (..), UpdateProfileError (..))
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -612,22 +612,21 @@ changePhone :: UserId -> Phone -> ExceptT ChangePhoneError AppIO (Activation, Ph
 changePhone u phone = do
   canonical <-
     maybe
-      (throwE $ InvalidNewPhone phone)
+      (throwE InvalidNewPhone)
       return
       =<< lift (validatePhone phone)
   let pk = userPhoneKey canonical
   available <- lift $ Data.keyAvailable pk (Just u)
   unless available $
-    throwE $
-      PhoneExists phone
+    throwE PhoneExists
   timeout <- setActivationTimeout <$> view settings
   blacklisted <- lift $ Blacklist.exists pk
   when blacklisted $
-    throwE (BlacklistedNewPhone canonical)
+    throwE BlacklistedNewPhone
   -- check if any prefixes of this phone number are blocked
   prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
   when prefixExcluded $
-    throwE (BlacklistedNewPhone canonical)
+    throwE BlacklistedNewPhone
   act <- lift $ Data.newActivation pk timeout (Just u)
   return (act, canonical)
 

@@ -137,6 +137,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
       test' aws p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
+      test' aws p "put /self/phone - 409" $ testPhoneUpdateConflict b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
@@ -933,6 +934,17 @@ testPhoneUpdateBlacklisted brig = do
 
   -- cleanup to avoid other tests failing sporadically
   deletePrefix brig (phonePrefix prefix)
+
+testPhoneUpdateConflict :: Brig -> Http ()
+testPhoneUpdateConflict brig = do
+  uid1 <- userId <$> randomUser brig
+  phn <- randomPhone
+  updatePhone brig uid1 phn
+
+  uid2 <- userId <$> randomUser brig
+  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+  put (brig . path "/self/phone" . contentJson . zUser uid2 . zConn "c" . body phoneUpdate)
+    !!! (const 409 === statusCode)
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()

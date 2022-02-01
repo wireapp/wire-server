@@ -23,6 +23,7 @@ module Brig.API.Util
     validateHandle,
     logEmail,
     traverseConcurrentlyWithErrors,
+    exceptTToMaybe,
   )
 where
 
@@ -86,3 +87,6 @@ traverseConcurrentlyWithErrors ::
 traverseConcurrentlyWithErrors f =
   ExceptT . try . (traverse (either throwIO pure) =<<)
     . pooledMapConcurrentlyN 8 (runExceptT . f)
+
+exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
+exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT

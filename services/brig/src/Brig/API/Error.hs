@@ -163,11 +163,6 @@ changeEmailError (EmailExists _) = StdError userKeyExists
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
-changePhoneError :: ChangePhoneError -> Error
-changePhoneError (InvalidNewPhone _) = StdError invalidPhone
-changePhoneError (PhoneExists _) = StdError userKeyExists
-changePhoneError (BlacklistedNewPhone _) = StdError blacklistedPhone
-
 changePwError :: ChangePasswordError -> Error
 changePwError InvalidCurrentPassword = StdError (errorDescriptionTypeToWai @BadCredentials)
 changePwError ChangePasswordNoIdentity = StdError (errorDescriptionToWai (noIdentity 1))

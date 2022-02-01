@@ -171,6 +171,7 @@ servantSitemap =
         BrigAPI.getSelf = getSelf,
         BrigAPI.deleteSelf = deleteUser,
         BrigAPI.putSelf = updateUser,
+        BrigAPI.changePhone = changePhone,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -263,17 +264,6 @@ sitemap = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/phone" (continue changePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.PhoneUpdate
-  document "PUT" "changePhone" $ do
-    Doc.summary "Change your phone number"
-    Doc.body (Doc.ref Public.modelPhoneUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
-    Doc.errorResponse userKeyExists
 
   head
     "/self/password"
@@ -888,13 +878,9 @@ updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
 
-changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
-changePhoneH (u ::: c ::: req) =
-  setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
-
-changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
-changePhone u _ (Public.puPhone -> phone) = do
-  (adata, pn) <- API.changePhone u phone !>> changePhoneError
+changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler (Maybe Public.ChangePhoneError)
+changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
+  (adata, pn) <- API.changePhone u phone
   loc <- lift $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
   lift $ sendActivationSms pn apair loc

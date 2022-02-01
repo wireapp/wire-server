@@ -62,6 +62,8 @@ module Wire.API.User
     LocaleUpdate (..),
     EmailUpdate (..),
     PhoneUpdate (..),
+    ChangePhoneError (..),
+    ChangePhoneResponses,
     HandleUpdate (..),
     NameUpdate (..),
 
@@ -954,6 +956,7 @@ instance FromJSON EmailUpdate where
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PhoneUpdate
 
 modelPhoneUpdate :: Doc.Model
 modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
@@ -961,12 +964,36 @@ modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
   Doc.property "phone" Doc.string' $
     Doc.description "E.164 phone number"
 
-instance ToJSON PhoneUpdate where
-  toJSON p = A.object ["phone" A..= puPhone p]
+instance ToSchema PhoneUpdate where
+  schema =
+    object "PhoneUpdate" $
+      PhoneUpdate
+        <$> puPhone .= field "phone" schema
 
-instance FromJSON PhoneUpdate where
-  parseJSON = A.withObject "phone-update" $ \o ->
-    PhoneUpdate <$> o A..: "phone"
+data ChangePhoneError
+  = PhoneExists
+  | InvalidNewPhone
+  | BlacklistedNewPhone
+
+type ChangePhoneResponses =
+  '[ UserKeyExists,
+     InvalidPhone,
+     BlacklistedPhone,
+     RespondEmpty 202 "Phone updated"
+   ]
+
+instance AsUnion ChangePhoneResponses (Maybe ChangePhoneError) where
+  toUnion = \case
+    Just PhoneExists -> Z (I mkErrorDescription)
+    Just InvalidNewPhone -> S (Z (I mkErrorDescription))
+    Just BlacklistedNewPhone -> S (S (Z (I mkErrorDescription)))
+    Nothing -> S (S (S (Z (I ()))))
+  fromUnion = \case
+    Z _ -> Just PhoneExists
+    S (Z _) -> Just InvalidNewPhone
+    S (S (Z _)) -> Just BlacklistedNewPhone
+    S (S (S (Z _))) -> Nothing
+    S (S (S (S x))) -> case x of
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)

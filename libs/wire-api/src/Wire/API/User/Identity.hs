@@ -50,7 +50,7 @@ module Wire.API.User.Identity
 where
 
 import Control.Applicative (optional)
-import Control.Lens ((.~), (?~), (^.))
+import Control.Lens (over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
@@ -242,13 +242,12 @@ validateEmail =
 
 newtype Phone = Phone {fromPhone :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, S.ToSchema)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Phone)
 
-instance FromJSON Phone where
-  parseJSON (A.String s) = case parsePhone s of
-    Just p -> return p
-    Nothing -> fail "Invalid phone number. Expected E.164 format."
-  parseJSON _ = mempty
+instance ToSchema Phone where
+  schema =
+    over doc (S.description ?~ "E.164 phone number") $
+      fromPhone .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
 
 instance ToByteString Phone where
   builder = builder . fromPhone

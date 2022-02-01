@@ -145,6 +145,15 @@ data Api routes = Api
         :> "self"
         :> ReqBody '[JSON] UserUpdate
         :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError),
+    changePhone ::
+      routes
+        :- Summary "Change your phone number"
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "phone"
+        :> ReqBody '[JSON] PhoneUpdate
+        :> MultiVerb 'PUT '[JSON] ChangePhoneResponses (Maybe ChangePhoneError),
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."

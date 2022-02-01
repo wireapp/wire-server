@@ -336,3 +336,9 @@ type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content leng
 type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"
 
 type NameManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM"
+
+type InvalidPhone = ErrorDescription 400 "invalid-phone" "Invalid mobile phone number"
+
+type UserKeyExists = ErrorDescription 409 "key-exists" "The give e-mail address or phone number is in use."
+
+type BlacklistedPhone = ErrorDescription 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint."
