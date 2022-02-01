@@ -21,18 +21,13 @@ module Spar.Sem.SAMLUserStore.Cassandra where
 
 import Cassandra as Cas
 import Control.Lens
-import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Id
-import Data.String.Conversions
 import Imports
 import Polysemy
-import Polysemy.Error
-import Polysemy.Final
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Error
 import Spar.Sem.SAMLUserStore
 
 samlUserStoreToCassandra ::
@@ -49,19 +44,6 @@ samlUserStoreToCassandra =
       GetSomeByIssuer is -> getSAMLSomeUsersByIssuer is
       DeleteByIssuer is -> deleteSAMLUsersByIssuer is
       Delete uid ur -> deleteSAMLUser uid ur
-
--- TODO(sandy): move me
-interpretClientToIO ::
-  Members '[Error SparError, Final IO] r =>
-  ClientState ->
-  Sem (Embed Client ': r) a ->
-  Sem r a
-interpretClientToIO ctx = interpret $ \case
-  Embed action -> withStrategicToFinal @IO $ do
-    action' <- liftS $ runClient ctx action
-    st <- getInitialStateS
-    handler' <- bindS $ throw @SparError . SAML.CustomError . SparCassandraError . cs . show @SomeException
-    pure $ action' `Catch.catch` \e -> handler' $ e <$ st
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
