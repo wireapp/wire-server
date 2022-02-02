@@ -23,6 +23,7 @@ module Wire.API.Federation.Client
     FederatorClient,
     runFederatorClient,
     runFederatorClientToCodensity,
+    runFederatorNegotiation,
     performHTTP2Request,
     withHTTP2Request,
     streamingResponseStrictBody,
@@ -34,7 +35,6 @@ import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Except
-import Control.Monad.Morph
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
@@ -61,7 +61,6 @@ import Servant.Client.Core
 import Servant.Types.SourceT
 import qualified System.TimeManager
 import Util.Options (Endpoint (..))
-import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
@@ -74,7 +73,7 @@ data FederatorClientEnv = FederatorClientEnv
     ceFederator :: Endpoint
   }
 
-newtype FederatorClient (c :: Component) (v :: Maybe Version) a = FederatorClient
+newtype FederatorClient a = FederatorClient
   {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError (Codensity IO)) a}
   deriving newtype
     ( Functor,
@@ -85,7 +84,7 @@ newtype FederatorClient (c :: Component) (v :: Maybe Version) a = FederatorClien
       MonadIO
     )
 
-liftCodensity :: Codensity IO a -> FederatorClient c v a
+liftCodensity :: Codensity IO a -> FederatorClient a
 liftCodensity = FederatorClient . lift . lift
 
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
@@ -154,7 +153,7 @@ withHTTP2Request mtlsConfig req hostname port k = do
                       responseBody = result
                     }
 
-instance SingI c => RunClient (FederatorClient c v) where
+instance RunClient FederatorClient where
   runRequestAcceptStatus expectedStatuses req = do
     let successfulStatus status =
           maybe
@@ -172,7 +171,7 @@ instance SingI c => RunClient (FederatorClient c v) where
 
   throwClientError = throwError . FederatorClientServantError
 
-instance SingI c => RunStreamingClient (FederatorClient c v) where
+instance RunStreamingClient FederatorClient where
   withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
 
 streamingResponseStrictBody :: StreamingResponse -> IO Builder
@@ -184,19 +183,16 @@ streamingResponseStrictBody resp =
     $ resp
 
 withHTTP2StreamingRequest ::
-  forall c v a.
-  SingI c =>
   (HTTP.Status -> Bool) ->
   Request ->
   (StreamingResponse -> IO a) ->
-  FederatorClient c v a
+  FederatorClient a
 withHTTP2StreamingRequest successfulStatus req handleResponse = do
   env <- ask
   let baseUrlPath =
         HTTP.encodePathSegments
           [ "rpc",
-            domainText (ceTargetDomain env),
-            componentName (demote @c)
+            domainText (ceTargetDomain env)
           ]
   let path = baseUrlPath <> requestPath req
   body <- case requestBody req of
@@ -267,37 +263,23 @@ mkFailureResponse status domain path body
         "unknown-federation-error"
         (LText.decodeUtf8With Text.lenientDecode body)
 
-class RunFederatorClient (c :: Component) (v :: Maybe Version) where
-  -- | Run federator client synchronously.
-  runFederatorClient ::
-    FederatorClientEnv ->
-    FederatorClient c v a ->
-    IO (Either FederatorClientError a)
-  runFederatorClient env =
-    lowerCodensity
-      . runFederatorClientToCodensity env
-
-  runFederatorClientToCodensity ::
-    FederatorClientEnv ->
-    FederatorClient c v a ->
-    Codensity IO (Either FederatorClientError a)
-
-clientToCodensity ::
-  SingI c =>
+-- | Run federator client synchronously.
+runFederatorClient ::
   FederatorClientEnv ->
-  FederatorClient c v a ->
-  ExceptT FederatorClientError (Codensity IO) a
-clientToCodensity env =
-  flip runReaderT env
+  FederatorClient a ->
+  IO (Either FederatorClientError a)
+runFederatorClient env =
+  lowerCodensity
+    . runFederatorClientToCodensity env
+
+runFederatorClientToCodensity ::
+  FederatorClientEnv ->
+  FederatorClient a ->
+  Codensity IO (Either FederatorClientError a)
+runFederatorClientToCodensity env =
+  runExceptT
+    . flip runReaderT env
     . unFederatorClient
-
-instance SingI c => RunFederatorClient c 'Nothing where
-  runFederatorClientToCodensity env = runExceptT . clientToCodensity env
-
-instance (SingI c, SingI v) => RunFederatorClient c ('Just v) where
-  runFederatorClientToCodensity env cli = runExceptT $ do
-    _ <- hoist lift $ runFederatorNegotiation @v env
-    clientToCodensity env cli
 
 runFederatorNegotiation ::
   forall (v :: Version).
@@ -307,7 +289,7 @@ runFederatorNegotiation ::
 runFederatorNegotiation env = do
   vinfo <-
     ExceptT . runFederatorClient env $
-      clientIn (Proxy @ApiVersionEndpoint) (Proxy @(FederatorClient 'Brig 'Nothing))
+      clientIn (Proxy @ApiVersionEndpoint) (Proxy @FederatorClient)
   let localVersion = demote @v
       remoteVersions = vinfoSupported vinfo
   unless (localVersion `elem` remoteVersions) $

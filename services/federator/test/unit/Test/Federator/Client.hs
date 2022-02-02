@@ -82,10 +82,9 @@ newtype ResponseFailure = ResponseFailure Wai.Error
   deriving (Show)
 
 withMockFederatorClient ::
-  (SingI c, SingI v) =>
   [HTTP.Header] ->
   (FederatedRequest -> IO (MediaType, LByteString)) ->
-  FederatorClient c ('Just v) a ->
+  FederatorClient a ->
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
   let env =
@@ -117,7 +116,8 @@ testClientSuccess = do
               frBody = Aeson.encode handle,
               frOriginDomain = originDomain,
               frRPC = "get-user-by-handle",
-              frComponent = Brig
+              frComponent = Brig,
+              frVersion = Just (demote @VL)
             }
         ]
   first (const ()) actualResponse @?= Right (Just expectedResponse)
@@ -132,7 +132,7 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
           }
-  let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig ('Just VL)))
+  let c = clientIn (Proxy @StreamingAPI) (Proxy @FederatorClient)
   runCodensity (runFederatorClientToCodensity env c) $ \case
     Left err -> assertFailure $ "Unexpected error: " <> displayException err
     Right out -> do

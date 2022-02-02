@@ -25,7 +25,6 @@ import Control.Lens
 import Control.Monad.Codensity
 import Data.Id
 import Data.Qualified
-import Data.Singletons
 import Imports hiding (head)
 import Servant.API
 import Servant.Types.SourceT
@@ -86,16 +85,15 @@ mkFederatorClientEnv remote = do
         ceFederator = endpoint
       }
 
-executeFederated :: SingI v => Remote x -> FederatorClient 'Cargohold ('Just v) a -> Handler a
+executeFederated :: Remote x -> FederatorClient a -> Handler a
 executeFederated remote c = do
   env <- mkFederatorClientEnv remote
-  liftIO (runFederatorClient @'Cargohold env c)
+  liftIO (runFederatorClient env c)
     >>= either (throwE . federationErrorToWai . FederationCallFailure) pure
 
 executeFederatedStreaming ::
-  SingI v =>
   Remote x ->
-  FederatorClient 'Cargohold ('Just v) (SourceIO ByteString) ->
+  FederatorClient (SourceIO ByteString) ->
   Handler (SourceIO ByteString)
 executeFederatedStreaming remote c = do
   env <- mkFederatorClientEnv remote
@@ -111,5 +109,5 @@ executeFederatedStreaming remote c = do
   pure $
     SourceT $ \k ->
       runCodensity
-        (runFederatorClientToCodensity @'Cargohold env c)
+        (runFederatorClientToCodensity env c)
         (either (throw . federationErrorToWai . FederationCallFailure) (flip unSourceT k))

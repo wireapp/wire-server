@@ -55,16 +55,22 @@ type HasFedEndpoint comp v api name = ('Just api ~ LookupEndpoint (FedApi comp v
 
 -- | Return a client for a named endpoint.
 fedClient ::
-  forall (comp :: Component) (v :: Version) (name :: Symbol) m api.
-  (HasFedEndpoint comp v api name, HasClient m api, m ~ FederatorClient comp ('Just v)) =>
-  Client m api
-fedClient = clientIn (Proxy @api) (Proxy @m)
+  forall (comp :: Component) (v :: Version) (name :: Symbol) api.
+  ( HasFedEndpoint comp v api name,
+    HasClient FederatorClient api,
+    KnownSymbol (ComponentPrefix comp)
+  ) =>
+  Client FederatorClient api
+fedClient = fedClientIn @comp @v @name @FederatorClient
 
 fedClientIn ::
   forall (comp :: Component) (v :: Version) (name :: Symbol) m api.
-  (HasFedEndpoint comp v api name, HasClient m api) =>
+  ( HasFedEndpoint comp v api name,
+    HasClient m api,
+    KnownSymbol (ComponentPrefix comp)
+  ) =>
   Client m api
-fedClientIn = clientIn (Proxy @api) (Proxy @m)
+fedClientIn = clientIn (Proxy @(ComponentPrefix comp :> api)) (Proxy @m)
 
 type family CombinedApi (comp :: Component) (vs :: [Version]) where
   CombinedApi comp '[v0] = FedApi comp v0

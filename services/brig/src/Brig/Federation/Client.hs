@@ -37,7 +37,6 @@ import qualified Data.Text as T
 import GHC.TypeLits
 import Imports
 import Servant.Client hiding (client)
-import Servant.Client.Core
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
@@ -108,7 +107,7 @@ notifyUserDeleted self remotes = do
     executeFederated @"on-user-deleted-connections" @VL (tDomain remotes) $
       UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
 
-runBrigFederatorClient :: SingI v => Domain -> FederatorClient 'Brig ('Just v) a -> FederationAppIO a
+runBrigFederatorClient :: Domain -> FederatorClient a -> FederationAppIO a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
@@ -125,11 +124,11 @@ executeFederated ::
   forall (name :: Symbol) (v :: Version) api.
   ( HasFedEndpoint 'Brig v api name,
     HasClient ClientM api,
-    HasClient (FederatorClient 'Brig ('Just v)) api,
+    HasClient FederatorClient api,
     SingI v
   ) =>
   Domain ->
   Client FederationAppIO api
 executeFederated domain =
-  hoistClient (Proxy @api) (runBrigFederatorClient @v domain) $
-    clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig ('Just v)))
+  hoistClient (Proxy @api) (runBrigFederatorClient domain) $
+    fedClient @'Brig @v @name

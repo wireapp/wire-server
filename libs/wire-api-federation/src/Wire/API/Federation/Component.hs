@@ -20,6 +20,7 @@
 module Wire.API.Federation.Component where
 
 import Data.Singletons.TH
+import GHC.TypeLits
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
@@ -43,3 +44,8 @@ componentName :: Component -> Text
 componentName Brig = "brig"
 componentName Galley = "galley"
 componentName Cargohold = "cargohold"
+
+type family ComponentPrefix (c :: Component) :: Symbol where
+  ComponentPrefix 'Brig = "brig"
+  ComponentPrefix 'Galley = "galley"
+  ComponentPrefix 'Cargohold = "cargohold"
