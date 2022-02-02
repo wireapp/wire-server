@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2022-01-27-federation-M2"
+  tag: "2022-01-27-production.0-v0.28.29-0-42c9a1e"
 service:
   https:
     externalPort: 443
