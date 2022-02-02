@@ -1,0 +1,1 @@
+Endpoints based on `MultiVerb` can now be made to return content types not listed in the `Accept` header

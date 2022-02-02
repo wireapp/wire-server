@@ -28,7 +28,6 @@ import SAML2.WebSSO (fromTime)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Error
 import Spar.Sem.AReqIDStore
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
@@ -48,9 +47,6 @@ aReqIDStoreToCassandra = interpret $ \case
       Right () -> pure ()
   UnStore itla -> embed @m $ unStoreAReqID itla
   IsAlive itla -> embed @m $ isAliveAReqID itla
-
-ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a
-ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)
 
 storeAReqID ::
   (HasCallStack, MonadReader Data.Env m, MonadClient m, MonadError TTLError m) =>

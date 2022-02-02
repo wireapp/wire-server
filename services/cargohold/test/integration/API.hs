@@ -60,6 +60,7 @@ tests s =
     [ testGroup
         "simple"
         [ test s "roundtrip" testSimpleRoundtrip,
+          test s "download with accept header" testDownloadWithAcceptHeader,
           test s "tokens" testSimpleTokens,
           test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
           test s "client-compatibility" testUploadCompatibility
@@ -125,6 +126,16 @@ testSimpleRoundtrip = do
       let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       liftIO $ assertBool "bad date" (utc' >= utc)
+
+testDownloadWithAcceptHeader :: TestM ()
+testDownloadWithAcceptHeader = do
+  assetId <- liftIO $ Id <$> nextRandom
+  uid <- liftIO $ Id <$> nextRandom
+  domain <- viewFederationDomain
+  let key = AssetKeyV3 assetId AssetPersistent
+      qkey = Qualified key domain
+  downloadAssetWith (header "Accept" "image/jpeg") uid qkey ()
+    !!! const 404 === statusCode
 
 testSimpleTokens :: TestM ()
 testSimpleTokens = do

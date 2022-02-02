@@ -1,12 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -21,16 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Spar.Sem.IdPSpec where
+module V59_FileSharingLockStatus
+  ( migration,
+  )
+where
 
-import Arbitrary ()
+import Cassandra.Schema
 import Imports
-import Polysemy
-import Spar.Sem.IdP.Mem
-import Spar.Sem.IdP.Spec
-import Test.Hspec
-import Test.Hspec.QuickCheck
+import Text.RawString.QQ
 
-spec :: Spec
-spec = modifyMaxSuccess (const 1000) $ do
-  propsForInterpreter "idPToMem" snd (Just $ show . snd) $ pure . run . idPToMem
+migration :: Migration
+migration = Migration 59 "Add lock status for file sharing team feature" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          file_sharing_lock_status int
+        )
+     |]

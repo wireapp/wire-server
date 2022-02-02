@@ -30,7 +30,7 @@ import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
+import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.BindCookieStore (BindCookieStore)
@@ -41,8 +41,8 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
-import qualified Spar.Sem.IdP as IdPEffect
-import Spar.Sem.IdP.Cassandra (idPToCassandra)
+import Spar.Sem.IdPConfigStore (IdPConfigStore)
+import Spar.Sem.IdPConfigStore.Cassandra (idPToCassandra)
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.Logger (Logger)
@@ -56,7 +56,7 @@ import Spar.Sem.Reporter.Wai (reporterToTinyLogWai)
 import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import Spar.Sem.SAMLUserStore.Cassandra (interpretClientToIO, samlUserStoreToCassandra)
+import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
 import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
 import Spar.Sem.SamlProtocolSettings.Servant (sparRouteToServant)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -65,6 +65,7 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.Utils (interpretClientToIO, ttlErrorToSparError)
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
@@ -81,7 +82,7 @@ type CanonicalEffs =
      ScimUserTimesStore,
      ScimTokenStore,
      DefaultSsoCode,
-     IdPEffect.IdP,
+     IdPConfigStore,
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed (Cas.Client),

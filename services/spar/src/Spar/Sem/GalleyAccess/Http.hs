@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -20,67 +18,15 @@
 module Spar.Sem.GalleyAccess.Http where
 
 import Bilge
-import Control.Monad.Except
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Error
 import Spar.Error (SparError)
-import Spar.Intra.Brig (MonadSparToBrig (..))
-import Spar.Intra.Galley (MonadSparToGalley)
 import qualified Spar.Intra.Galley as Intra
 import Spar.Sem.GalleyAccess
 import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
-import Spar.Sem.Logger.TinyLog (fromLevel)
+import Spar.Sem.Utils
 import qualified System.Logger as TinyLog
-import qualified System.Logger.Class as TinyLog
-
-data RunHttpEnv r = RunHttpEnv
-  { rheManager :: Bilge.Manager,
-    rheRequest :: Bilge.Request
-  }
-
-newtype RunHttp r a = RunHttp
-  { unRunHttp :: ReaderT (RunHttpEnv r) (ExceptT SparError (HttpT (Sem r))) a
-  }
-  deriving newtype (Functor, Applicative, Monad, MonadError SparError, MonadReader (RunHttpEnv r))
-
-instance Member (Embed IO) r => MonadIO (RunHttp r) where
-  liftIO = semToRunHttp . embed
-
-instance Member (Embed IO) r => MonadHttp (RunHttp r) where
-  handleRequestWithCont r fribia =
-    RunHttp $
-      lift $
-        lift $
-          handleRequestWithCont r fribia
-
-semToRunHttp :: Sem r a -> RunHttp r a
-semToRunHttp = RunHttp . lift . lift . lift
-
-viaRunHttp ::
-  Members '[Error SparError, Embed IO] r =>
-  RunHttpEnv r ->
-  RunHttp r a ->
-  Sem r a
-viaRunHttp env m = do
-  ma <- runHttpT (rheManager env) $ runExceptT $ flip runReaderT env $ unRunHttp m
-  case ma of
-    Left err -> throw err
-    Right a -> pure a
-
-instance Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r => TinyLog.MonadLogger (RunHttp r) where
-  log lvl msg = semToRunHttp $ Logger.log (fromLevel lvl) msg
-
-instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToGalley (RunHttp r) where
-  call modreq = do
-    req <- asks rheRequest
-    httpLbs req modreq
-
-instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToBrig (RunHttp r) where
-  call modreq = do
-    req <- asks rheRequest
-    httpLbs req modreq
 
 galleyAccessToHttp ::
   Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Error SparError, Embed IO] r =>

@@ -51,10 +51,10 @@ library
       Spar.Sem.DefaultSsoCode.Spec
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
-      Spar.Sem.IdP
-      Spar.Sem.IdP.Cassandra
-      Spar.Sem.IdP.Mem
-      Spar.Sem.IdP.Spec
+      Spar.Sem.IdPConfigStore
+      Spar.Sem.IdPConfigStore.Cassandra
+      Spar.Sem.IdPConfigStore.Mem
+      Spar.Sem.IdPConfigStore.Spec
       Spar.Sem.IdPRawMetadataStore
       Spar.Sem.IdPRawMetadataStore.Cassandra
       Spar.Sem.IdPRawMetadataStore.Mem
@@ -86,6 +86,7 @@ library
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
       Spar.Sem.ScimUserTimesStore.Mem
+      Spar.Sem.Utils
       Spar.Sem.VerdictFormatStore
       Spar.Sem.VerdictFormatStore.Cassandra
       Spar.Sem.VerdictFormatStore.Mem
@@ -726,8 +727,8 @@ test-suite spec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
       Test.Spar.Sem.DefaultSsoCodeSpec
+      Test.Spar.Sem.IdPConfigStoreSpec
       Test.Spar.Sem.IdPRawMetadataStoreSpec
-      Test.Spar.Sem.IdPSpec
       Test.Spar.Sem.NowSpec
       Test.Spar.Sem.ScimExternalIdStoreSpec
       Test.Spar.TypesSpec
