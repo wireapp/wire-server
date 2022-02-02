@@ -69,6 +69,8 @@ module Wire.API.User
     RemoveIdentityError (..),
     RemoveIdentityResponses,
     HandleUpdate (..),
+    ChangeHandleError (..),
+    ChangeHandleResponses,
     NameUpdate (..),
 
     -- * Account Deletion
@@ -1040,7 +1042,7 @@ instance AsUnion RemoveIdentityResponses (Maybe RemoveIdentityError) where
   toUnion = \case
     Just LastIdentity -> inject $ I (mkErrorDescription :: LastIdentity)
     Just NoPassword -> inject $ I (mkErrorDescription :: NoPassword)
-    Just NoIdentity -> inject $ I (noIdentity 3) -- 3 is code for error which removing identity?
+    Just NoIdentity -> inject $ I (noIdentity 3) -- 3 is code for error while removing phone?
     Nothing -> inject $ I ()
   fromUnion = \case
     Z _ -> Just LastIdentity
@@ -1052,6 +1054,7 @@ instance AsUnion RemoveIdentityResponses (Maybe RemoveIdentityError) where
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema HandleUpdate)
 
 modelChangeHandle :: Doc.Model
 modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
@@ -1059,12 +1062,37 @@ modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
   Doc.property "handle" Doc.string' $
     Doc.description "Handle to set"
 
-instance ToJSON HandleUpdate where
-  toJSON h = A.object ["handle" A..= huHandle h]
+instance ToSchema HandleUpdate where
+  schema =
+    object "HandleUpdate" $
+      HandleUpdate <$> huHandle .= field "handle" schema
 
-instance FromJSON HandleUpdate where
-  parseJSON = A.withObject "handle-update" $ \o ->
-    HandleUpdate <$> o A..: "handle"
+data ChangeHandleError
+  = ChangeHandleNoIdentity
+  | ChangeHandleExists
+  | ChangeHandleInvalid
+  | ChangeHandleManagedByScim
+
+type ChangeHandleResponses =
+  '[ NoIdentity,
+     HandleExists,
+     InvalidHandle,
+     HandleManagedByScim,
+     RespondEmpty 200 "HandleChanged"
+   ]
+
+instance AsUnion ChangeHandleResponses (Maybe ChangeHandleError) where
+  toUnion (Just ChangeHandleNoIdentity) = inject $ I (noIdentity 2) -- 2 is code for error while removing handle?
+  toUnion (Just ChangeHandleExists) = inject $ I (mkErrorDescription :: HandleExists)
+  toUnion (Just ChangeHandleInvalid) = inject $ I (mkErrorDescription :: InvalidHandle)
+  toUnion (Just ChangeHandleManagedByScim) = inject $ I (mkErrorDescription :: HandleManagedByScim)
+  toUnion Nothing = inject $ I ()
+  fromUnion (Z _) = Just ChangeHandleNoIdentity
+  fromUnion (S (Z _)) = Just ChangeHandleExists
+  fromUnion (S (S (Z _))) = Just ChangeHandleInvalid
+  fromUnion (S (S (S (Z _)))) = Just ChangeHandleManagedByScim
+  fromUnion (S (S (S (S (Z _))))) = Nothing
+  fromUnion (S (S (S (S (S x))))) = case x of
 
 newtype NameUpdate = NameUpdate {nuHandle :: Text}
   deriving stock (Eq, Show, Generic)

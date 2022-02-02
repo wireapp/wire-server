@@ -210,6 +210,15 @@ data Api routes = Api
         :> "locale"
         :> ReqBody '[JSON] LocaleUpdate
         :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] (),
+    changeHandle ::
+      routes
+        :- Summary "Change your handle."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "handle"
+        :> ReqBody '[JSON] HandleUpdate
+        :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError),
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."

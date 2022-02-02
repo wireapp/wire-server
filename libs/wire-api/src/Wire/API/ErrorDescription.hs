@@ -337,6 +337,8 @@ type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"
 
 type NameManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM"
 
+type HandleManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating handle is not allowed, because it is managed by SCIM"
+
 type InvalidPhone = ErrorDescription 400 "invalid-phone" "Invalid mobile phone number"
 
 type UserKeyExists = ErrorDescription 409 "key-exists" "The give e-mail address or phone number is in use."
@@ -348,3 +350,7 @@ type LastIdentity = ErrorDescription 403 "last-identity" "The last user identity
 type NoPassword = ErrorDescription 403 "no-password" "The user has no password."
 
 type PasswordMustDiffer = ErrorDescription 409 "password-must-differ" "For password change, new and old password must be different."
+
+type HandleExists = ErrorDescription 409 "handle-exists" "The given handle is already taken."
+
+type InvalidHandle = ErrorDescription 400 "invalid-handle" "The given handle is invalid."

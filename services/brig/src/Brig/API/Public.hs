@@ -177,6 +177,7 @@ servantSitemap =
         BrigAPI.checkPasswordExists = checkPasswordExists,
         BrigAPI.changePassword = changePassword,
         BrigAPI.changeLocale = changeLocale,
+        BrigAPI.changeHandle = changeHandle,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -269,20 +270,6 @@ sitemap = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self/handle" (continue changeHandleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.HandleUpdate
-  document "PUT" "changeHandle" $ do
-    Doc.summary "Change your handle"
-    Doc.body (Doc.ref Public.modelChangeHandle) $
-      Doc.description "JSON body"
-    Doc.errorResponse handleExists
-    Doc.errorResponse invalidHandle
-    Doc.response 200 "Handle changed." Doc.end
 
   -- TODO put  where?
 
@@ -876,15 +863,10 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
-changeHandleH (u ::: conn ::: req) =
-  empty <$ (changeHandle u conn =<< parseJsonBody req)
-
-changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
-changeHandle u conn (Public.HandleUpdate h) = do
-  handle <- API.validateHandle h
-  -- TODO check here
-  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
+changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler (Maybe Public.ChangeHandleError)
+changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
+  handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
+  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) =

@@ -39,7 +39,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API.Status
 import Wire.API.ErrorDescription
 import Wire.API.Federation.Error
-import Wire.API.User (UpdateProfileError (..))
+import Wire.API.User (ChangeHandleError (..), UpdateProfileError (..))
 
 errorDescriptionToWai ::
   forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
@@ -165,9 +165,9 @@ changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
 changeHandleError :: ChangeHandleError -> Error
 changeHandleError ChangeHandleNoIdentity = StdError (errorDescriptionToWai (noIdentity 2))
-changeHandleError ChangeHandleExists = StdError handleExists
-changeHandleError ChangeHandleInvalid = StdError invalidHandle
-changeHandleError ChangeHandleManagedByScim = StdError $ propertyManagedByScim "handle"
+changeHandleError ChangeHandleExists = StdError (errorDescriptionToWai (mkErrorDescription :: HandleExists))
+changeHandleError ChangeHandleInvalid = StdError (errorDescriptionToWai (mkErrorDescription :: InvalidHandle))
+changeHandleError ChangeHandleManagedByScim = StdError (errorDescriptionToWai (mkErrorDescription :: HandleManagedByScim))
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam

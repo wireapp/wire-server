@@ -158,12 +158,6 @@ data ChangeEmailError
   | ChangeBlacklistedEmail !Email
   | EmailManagedByScim
 
-data ChangeHandleError
-  = ChangeHandleNoIdentity
-  | ChangeHandleExists
-  | ChangeHandleInvalid
-  | ChangeHandleManagedByScim
-
 data SendActivationCodeError
   = InvalidRecipient UserKey
   | UserKeyInUse UserKey
