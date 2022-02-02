@@ -59,6 +59,8 @@ module Wire.API.User
     UpdateProfileError (..),
     PutSelfResponses,
     PasswordChange (..),
+    ChangePasswordError (..),
+    ChangePasswordResponses,
     LocaleUpdate (..),
     EmailUpdate (..),
     PhoneUpdate (..),
@@ -890,6 +892,7 @@ data PasswordChange = PasswordChange
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PasswordChange)
 
 modelChangePassword :: Doc.Model
 modelChangePassword = Doc.defineModel "ChangePassword" $ do
@@ -902,18 +905,41 @@ modelChangePassword = Doc.defineModel "ChangePassword" $ do
   Doc.property "new_password" Doc.string' $
     Doc.description "New password (6 - 1024 characters)"
 
-instance ToJSON PasswordChange where
-  toJSON (PasswordChange old new) =
-    A.object
-      [ "old_password" A..= old,
-        "new_password" A..= new
-      ]
+instance ToSchema PasswordChange where
+  schema =
+    over
+      doc
+      ( description
+          ?~ "Data to change a password. The old password is required if \
+             \a password already exists."
+      )
+      . object "PasswordChange"
+      $ PasswordChange
+        <$> cpOldPassword .= maybe_ (optField "old_password" schema)
+        <*> cpNewPassword .= field "new_password" schema
 
-instance FromJSON PasswordChange where
-  parseJSON = A.withObject "PasswordChange" $ \o ->
-    PasswordChange
-      <$> o A..:? "old_password"
-      <*> o A..: "new_password"
+data ChangePasswordError
+  = InvalidCurrentPassword
+  | ChangePasswordNoIdentity
+  | ChangePasswordMustDiffer
+
+type ChangePasswordResponses =
+  [ BadCredentials,
+    NoIdentity,
+    PasswordMustDiffer,
+    RespondEmpty 200 "Password Changed"
+  ]
+
+instance AsUnion ChangePasswordResponses (Maybe ChangePasswordError) where
+  toUnion (Just InvalidCurrentPassword) = inject $ I (mkErrorDescription :: BadCredentials)
+  toUnion (Just ChangePasswordNoIdentity) = inject $ I (mkErrorDescription :: NoIdentity)
+  toUnion (Just ChangePasswordMustDiffer) = inject $ I (mkErrorDescription :: PasswordMustDiffer)
+  toUnion Nothing = inject $ I ()
+  fromUnion (Z _) = Just InvalidCurrentPassword
+  fromUnion (S (Z _)) = Just ChangePasswordNoIdentity
+  fromUnion (S (S (Z _))) = Just ChangePasswordMustDiffer
+  fromUnion (S (S (S (Z _)))) = Nothing
+  fromUnion (S (S (S (S x)))) = case x of
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)

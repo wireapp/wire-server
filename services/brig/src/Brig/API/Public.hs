@@ -175,6 +175,7 @@ servantSitemap =
         BrigAPI.removePhone = removePhone,
         BrigAPI.removeEmail = removeEmail,
         BrigAPI.checkPasswordExists = checkPasswordExists,
+        BrigAPI.changePassword = changePassword,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -267,17 +268,6 @@ sitemap = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/password" (continue changePasswordH) $
-    zauthUserId
-      .&. jsonRequest @Public.PasswordChange
-  document "PUT" "changePassword" $ do
-    Doc.summary "Change your password"
-    Doc.body (Doc.ref Public.modelChangePassword) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
-    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
@@ -863,11 +853,8 @@ removeEmail self conn =
 checkPasswordExists :: UserId -> Handler Bool
 checkPasswordExists = fmap isJust . lift . API.lookupPassword
 
-changePasswordH :: UserId ::: JsonRequest Public.PasswordChange -> Handler Response
-changePasswordH (u ::: req) = do
-  cp <- parseJsonBody req
-  API.changePassword u cp !>> changePwError
-  return empty
+changePassword :: UserId -> Public.PasswordChange -> Handler (Maybe Public.ChangePasswordError)
+changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.LocaleUpdate -> Handler Response
 changeLocaleH (u ::: conn ::: req) = do

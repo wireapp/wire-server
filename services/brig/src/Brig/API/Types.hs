@@ -152,11 +152,6 @@ data LoginError
   | LoginThrottled RetryAfter
   | LoginBlocked RetryAfter
 
-data ChangePasswordError
-  = InvalidCurrentPassword
-  | ChangePasswordNoIdentity
-  | ChangePasswordMustDiffer
-
 data ChangeEmailError
   = InvalidNewEmail !Email !String
   | EmailExists !Email

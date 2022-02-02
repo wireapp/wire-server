@@ -346,3 +346,5 @@ type BlacklistedPhone = ErrorDescription 403 "blacklisted-phone" "The given phon
 type LastIdentity = ErrorDescription 403 "last-identity" "The last user identity (email or phone number) cannot be removed."
 
 type NoPassword = ErrorDescription 403 "no-password" "The user has no password."
+
+type PasswordMustDiffer = ErrorDescription 409 "password-must-differ" "For password change, new and old password must be different."

@@ -153,7 +153,7 @@ import UnliftIO.Async
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
-import Wire.API.User (ChangePhoneError (..), RemoveIdentityError (..), UpdateProfileError (..))
+import Wire.API.User
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates

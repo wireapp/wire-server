@@ -193,6 +193,14 @@ data Api routes = Api
                 RespondEmpty 200 "Password is set"
               ]
              Bool,
+    changePassword ::
+      routes
+        :- Summary "Change your password."
+        :> ZUser
+        :> "self"
+        :> "password"
+        :> ReqBody '[JSON] PasswordChange
+        :> MultiVerb 'PUT '[JSON] ChangePasswordResponses (Maybe ChangePasswordError),
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."
