@@ -132,6 +132,7 @@ import Deriving.Swagger
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
 import qualified SAML2.WebSSO as SAML
+import Servant (inject)
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.ErrorDescription
@@ -874,9 +875,9 @@ type PutSelfResponses =
    ]
 
 instance AsUnion PutSelfResponses (Maybe UpdateProfileError) where
-  toUnion (Just ProfileNotFound) = Z (I mkErrorDescription)
-  toUnion (Just DisplayNameManagedByScim) = S (Z (I mkErrorDescription))
-  toUnion Nothing = S (S (Z (I ())))
+  toUnion (Just ProfileNotFound) = inject $ I (mkErrorDescription :: UserNotFound)
+  toUnion (Just DisplayNameManagedByScim) = inject $ I (mkErrorDescription :: NameManagedByScim)
+  toUnion Nothing = inject $ I ()
   fromUnion (Z (I _)) = Just ProfileNotFound
   fromUnion (S (Z (I _))) = Just DisplayNameManagedByScim
   fromUnion (S (S (Z (I _)))) = Nothing
@@ -986,10 +987,10 @@ type ChangePhoneResponses =
 
 instance AsUnion ChangePhoneResponses (Maybe ChangePhoneError) where
   toUnion = \case
-    Just PhoneExists -> Z (I mkErrorDescription)
-    Just InvalidNewPhone -> S (Z (I mkErrorDescription))
-    Just BlacklistedNewPhone -> S (S (Z (I mkErrorDescription)))
-    Nothing -> S (S (S (Z (I ()))))
+    Just PhoneExists -> inject $ I (mkErrorDescription :: UserKeyExists)
+    Just InvalidNewPhone -> inject $ I (mkErrorDescription :: InvalidPhone)
+    Just BlacklistedNewPhone -> inject $ I (mkErrorDescription :: BlacklistedPhone)
+    Nothing -> inject $ I ()
   fromUnion = \case
     Z _ -> Just PhoneExists
     S (Z _) -> Just InvalidNewPhone
@@ -1011,10 +1012,10 @@ type RemoveIdentityResponses =
 
 instance AsUnion RemoveIdentityResponses (Maybe RemoveIdentityError) where
   toUnion = \case
-    Just LastIdentity -> Z (I mkErrorDescription)
-    Just NoPassword -> S (Z (I mkErrorDescription))
-    Just NoIdentity -> S (S (Z (I (noIdentity 3)))) -- 3 is code for error which removing identity?
-    Nothing -> S (S (S (Z (I ()))))
+    Just LastIdentity -> inject $ I (mkErrorDescription :: LastIdentity)
+    Just NoPassword -> inject $ I (mkErrorDescription :: NoPassword)
+    Just NoIdentity -> inject $ I (noIdentity 3) -- 3 is code for error which removing identity?
+    Nothing -> inject $ I ()
   fromUnion = \case
     Z _ -> Just LastIdentity
     S (Z _) -> Just NoPassword
