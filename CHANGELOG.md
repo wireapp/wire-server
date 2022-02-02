@@ -1,3 +1,29 @@
+# [2022-02-02]
+## Features
+
+
+* Allow brig's additionalWriteIndex to be on a different ElasticSearch cluster.
+  This allows migrating to a new ElasticSearch cluster. (#2063)
+
+* The file sharing team feature now has a server wide configurable lock status. For more information please refer to [/docs/reference/config-options.md#file-sharing](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#file-sharing). (#2059)
+
+
+## Internal changes
+
+
+* Rename Spar.Sem.IdP to Spar.Sem.IdPConfigStore (#2067)
+
+* Endpoints based on `MultiVerb` can now be made to return content types not listed in the `Accept` header (#2074)
+
+* The lock status of the file sharing team feature can be updated via the internal API (`PUT /i/teams/:tid/features/fileSharing/(un)?locked`). (#2059)
+
+* Servantify Galley Teams API (`GET /teams/:tid` and `DELETE /teams/:tid`). (#2092)
+
+* Add explicit export lists to all Spar.Sem modules (#2070)
+
+* Separate some Spar.Sem utility functions into their own module (#2069)
+
+
 <!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
 # [2022-01-28]
