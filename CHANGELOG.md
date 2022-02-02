@@ -1,4 +1,5 @@
 # [2022-02-02]
+
 ## Release notes
 
 
@@ -31,8 +32,6 @@
 
 * Separate some Spar.Sem utility functions into their own module (#2069)
 
-
-<!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
 # [2022-01-28]
 
