@@ -26,7 +26,7 @@ module Galley.API.Teams
     getBindingTeamIdH,
     getBindingTeamMembersH,
     getManyTeams,
-    deleteTeamH,
+    deleteTeam,
     uncheckedDeleteTeam,
     addTeamMemberH,
     getTeamNotificationsH,
@@ -146,11 +146,13 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH ::
-  Members '[Error TeamError, Queue DeleteItem, TeamStore] r =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getTeamH (zusr ::: tid ::: _) =
-  maybe (throw TeamNotFound) (pure . json) =<< lookupTeam zusr tid
+  forall r.
+  (Member (Error TeamError) r, Member (Queue DeleteItem) r, Member TeamStore r) =>
+  UserId ->
+  TeamId ->
+  Sem r Public.Team
+getTeamH zusr tid =
+  maybe (throw TeamNotFound) pure =<< lookupTeam zusr tid
 
 getTeamInternalH ::
   Members '[Error TeamError, TeamStore] r =>
@@ -358,47 +360,24 @@ updateTeamH zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
-deleteTeamH ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error AuthenticationError,
-       Error InternalError,
-       Error InvalidInput,
-       Error TeamError,
-       Error NotATeamMember,
-       Queue DeleteItem,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON ->
-  Sem r Response
-deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  mBody <- fromOptionalJsonBody req
-  deleteTeam zusr zcon tid mBody
-  pure (empty & setStatus status202)
-
--- | 'TeamDeleteData' is only required for binding teams
 deleteTeam ::
-  Members
-    '[ BrigAccess,
-       Error ActionError,
-       Error AuthenticationError,
-       Error InternalError,
-       Error InvalidInput,
-       Error TeamError,
-       Error NotATeamMember,
-       Queue DeleteItem,
-       TeamStore
-     ]
-    r =>
+  forall r.
+  ( Member BrigAccess r,
+    Member (Error ActionError) r,
+    Member (Error AuthenticationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (Error TeamError) r,
+    Member (Error NotATeamMember) r,
+    Member (Queue DeleteItem) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   ConnId ->
   TeamId ->
-  Maybe Public.TeamDeleteData ->
+  Public.TeamDeleteData ->
   Sem r ()
-deleteTeam zusr zcon tid mBody = do
+deleteTeam zusr zcon tid body = do
   team <- E.getTeam tid >>= note TeamNotFound
   case tdStatus team of
     Deleted -> throw TeamNotFound
@@ -411,7 +390,6 @@ deleteTeam zusr zcon tid mBody = do
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        body <- mBody & note (InvalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
 
 -- This can be called by stern

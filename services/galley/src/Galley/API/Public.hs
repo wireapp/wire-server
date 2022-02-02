@@ -58,7 +58,6 @@ import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
-import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
@@ -68,40 +67,6 @@ import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
-  -- Team API -----------------------------------------------------------
-
-  get "/teams/:tid" (continue Teams.getTeamH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeam" $ do
-    summary "Get a team by ID"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeam)
-    response 200 "Team data" end
-    errorResponse Error.teamNotFound
-
-  delete "/teams/:tid" (continue Teams.deleteTeamH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. optionalJsonRequest @Public.TeamDeleteData
-      .&. accept "application" "json"
-  document "DELETE" "deleteTeam" $ do
-    summary "Delete a team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelTeamDelete) $ do
-      optional
-      description "JSON body, required only for binding teams."
-    response 202 "Team is scheduled for removal" end
-    errorResponse (Error.errorDescriptionTypeToWai @Error.NotATeamMember)
-    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.DeleteTeam))
-    errorResponse Error.deleteQueueFull
-    errorResponse Error.reAuthFailed
-    errorResponse Error.teamNotFound
-
   -- Team Member API -----------------------------------------------------
 
   get "/teams/:tid/members" (continue Teams.getTeamMembersH) $

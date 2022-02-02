@@ -657,6 +657,30 @@ type TeamAPI =
                :> "teams"
                :> Get '[JSON] TeamList
            )
+    :<|> Named
+           "get-team"
+           ( Summary "Get a team by ID"
+               :> ZUser
+               :> CanThrow TeamNotFound
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> Get '[JSON] Team
+           )
+    :<|> Named
+           "delete-team"
+           ( Summary "Delete a team"
+               :> ZUser
+               :> ZConn
+               :> CanThrow TeamNotFound
+               :> CanThrow (OperationDeniedError 'DeleteTeam)
+               :> CanThrow NotATeamMember
+               :> CanThrow DeleteQueueFull
+               :> CanThrow ReAuthFailed
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> ReqBody '[Servant.JSON] TeamDeleteData
+               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 202 "Team is scheduled for removal"] ()
+           )
 
 type MessagingAPI =
   Named
