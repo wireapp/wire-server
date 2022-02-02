@@ -15,7 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.GalleyAccess where
+module Spar.Sem.GalleyAccess
+  ( GalleyAccess (..),
+    getTeamMembers,
+    assertHasPermission,
+    assertSSOEnabled,
+    isEmailValidationEnabledTeam,
+  )
+where
 
 import Data.Id (TeamId, UserId)
 import Galley.Types.Teams (IsPerm, TeamMember)

@@ -17,7 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.VerdictFormatStore.Mem where
+module Spar.Sem.VerdictFormatStore.Mem
+  ( verdictFormatStoreToMem,
+  )
+where
 
 import qualified Data.Map as M
 import Imports

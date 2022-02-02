@@ -15,7 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SAMLUserStore where
+module Spar.Sem.SAMLUserStore
+  ( SAMLUserStore (..),
+    insert,
+    get,
+    getAnyByIssuer,
+    getSomeByIssuer,
+    deleteByIssuer,
+    delete,
+  )
+where
 
 import Data.Id
 import Imports

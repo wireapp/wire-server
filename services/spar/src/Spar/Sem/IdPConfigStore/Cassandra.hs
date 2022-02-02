@@ -17,7 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPConfigStore.Cassandra where
+module Spar.Sem.IdPConfigStore.Cassandra
+  ( idPToCassandra,
+  )
+where
 
 import Cassandra
 import Control.Lens ((^.))
