@@ -8,8 +8,9 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.User
 
 example :: FederatorClientEnv -> Handle -> ExceptT FederatorClientError (Codensity IO) (Maybe UserProfile)
 example env h = case runFederatorClientWithNegotiation @(BrigApi @! "get-user-by-handle") env of
-  SomeClient _ cli -> cli h
+  SomeClient SV0 cli -> cli h

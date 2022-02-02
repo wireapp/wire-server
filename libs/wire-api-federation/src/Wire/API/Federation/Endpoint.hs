@@ -65,6 +65,7 @@ type instance (api @! name) @@ v = FromJust (LookupEndpoint (api @@ v) name)
 class VersionedApi (vapi :: *) where
   hoistV :: Sing v -> (forall x. m x -> n x) -> Client m (vapi @@ v) -> Client n (vapi @@ v)
   clientV :: RunClient m => Proxy m -> Sing v -> Client m (vapi @@ v)
+  flattenV :: Monad m => Sing v -> m (Client m (vapi @@ v)) -> Client m (vapi @@ v)
 
 -- flattenV :: m (Client m (vapi @@ v)) -> Client m (vapi @@ v)
 
