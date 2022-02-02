@@ -944,6 +944,7 @@ instance AsUnion ChangePasswordResponses (Maybe ChangePasswordError) where
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LocaleUpdate)
 
 modelChangeLocale :: Doc.Model
 modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
@@ -951,12 +952,11 @@ modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
   Doc.property "locale" Doc.string' $
     Doc.description "Locale to be set"
 
-instance ToJSON LocaleUpdate where
-  toJSON l = A.object ["locale" A..= luLocale l]
-
-instance FromJSON LocaleUpdate where
-  parseJSON = A.withObject "locale-update" $ \o ->
-    LocaleUpdate <$> o A..: "locale"
+instance ToSchema LocaleUpdate where
+  schema =
+    object "LocaleUpdate" $
+      LocaleUpdate
+        <$> luLocale .= field "locale" schema
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)

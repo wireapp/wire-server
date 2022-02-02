@@ -201,6 +201,15 @@ data Api routes = Api
         :> "password"
         :> ReqBody '[JSON] PasswordChange
         :> MultiVerb 'PUT '[JSON] ChangePasswordResponses (Maybe ChangePasswordError),
+    changeLocale ::
+      routes
+        :- Summary "Change your locale."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "locale"
+        :> ReqBody '[JSON] LocaleUpdate
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] (),
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."

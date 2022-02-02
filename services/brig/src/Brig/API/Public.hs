@@ -176,6 +176,7 @@ servantSitemap =
         BrigAPI.removeEmail = removeEmail,
         BrigAPI.checkPasswordExists = checkPasswordExists,
         BrigAPI.changePassword = changePassword,
+        BrigAPI.changeLocale = changeLocale,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -268,16 +269,6 @@ sitemap = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/locale" (continue changeLocaleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.LocaleUpdate
-  document "PUT" "changeLocale" $ do
-    Doc.summary "Change your locale"
-    Doc.body (Doc.ref Public.modelChangeLocale) $
-      Doc.description "JSON body"
-    Doc.response 200 "Locale changed." Doc.end
 
   -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
@@ -856,11 +847,8 @@ checkPasswordExists = fmap isJust . lift . API.lookupPassword
 changePassword :: UserId -> Public.PasswordChange -> Handler (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
-changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.LocaleUpdate -> Handler Response
-changeLocaleH (u ::: conn ::: req) = do
-  l <- parseJsonBody req
-  lift $ API.changeLocale u conn l
-  return empty
+changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> Handler ()
+changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
