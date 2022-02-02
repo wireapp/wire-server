@@ -20,6 +20,8 @@ module Wire.API.Routes.Named where
 import Data.Metrics.Servant
 import Data.Proxy
 import Imports
+import Servant.Client
+import Servant.Client.Core
 import Servant.Server
 import Servant.Swagger
 
@@ -35,6 +37,11 @@ instance HasServer api ctx => HasServer (Named name api) ctx where
   route _ ctx action = route (Proxy @api) ctx (fmap unnamed action)
   hoistServerWithContext _ ctx f =
     fmap (hoistServerWithContext (Proxy @api) ctx f)
+
+instance (RunClient m, HasClient m api) => HasClient m (Named name api) where
+  type Client m (Named name api) = Client m api
+  clientWithRoute m _ = clientWithRoute m (Proxy @api)
+  hoistClientMonad m _ = hoistClientMonad m (Proxy @api)
 
 instance RoutesToPaths api => RoutesToPaths (Named name api) where
   getRoutes = getRoutes @api

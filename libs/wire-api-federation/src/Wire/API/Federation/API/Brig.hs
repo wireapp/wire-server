@@ -20,9 +20,12 @@ module Wire.API.Federation.API.Brig where
 import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
+import Data.Proxy
 import Data.Range
 import Imports
 import Servant.API
+import Servant.Client
+import Servant.Client.Core
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
@@ -44,11 +47,11 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
-type family BrigApi (v :: Version)
+data BrigApi
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type instance
-  BrigApi 'V0 =
+  BrigApi @@ v =
     FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
       :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
       :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
@@ -60,6 +63,20 @@ type instance
       :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
       :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
       :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
+
+type GetUserByHandle = BrigApi @! "get-user-by-handle"
+
+instance VersionedApi GetUserByHandle where
+  hoistV SV0 f = hoistClient (Proxy @(GetUserByHandle @@ 'V0)) f
+  clientV m SV0 = clientIn (Proxy @(GetUserByHandle @@ 'V0)) m
+
+-- instance HasEndpoint BrigApi "get-user-by-handle" 'V0
+
+-- instance VersionedApi BrigApi where
+--   hoistV = go
+--     where
+--       go :: forall (v :: Version) m n. Sing v -> (forall x. m x -> n x) -> Client m (BrigApi @@ v) -> Client n (BrigApi @@ v)
+--       go _ = hoistClient (Proxy @(BrigApi @@ v))
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]

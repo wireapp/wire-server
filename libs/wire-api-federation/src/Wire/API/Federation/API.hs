@@ -22,6 +22,8 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     fedClient,
     fedClientIn,
+    vClient,
+    vFedClient,
     mkVersionedServer,
 
     -- * Re-exports
@@ -32,6 +34,7 @@ module Wire.API.Federation.API
 where
 
 import Data.Proxy
+import Data.Singletons hiding (type (@@))
 import GHC.TypeLits
 import Imports
 import Servant
@@ -48,7 +51,7 @@ import Wire.API.Federation.Version.Info
 
 type family FedApi (comp :: Component) (v :: Version) :: * where
   FedApi 'Galley v = GalleyApi v
-  FedApi 'Brig v = BrigApi v
+  FedApi 'Brig v = BrigApi @@ v
   FedApi 'Cargohold v = CargoholdApi v
 
 type HasFedEndpoint comp v api name = ('Just api ~ LookupEndpoint (FedApi comp v) name)
@@ -71,6 +74,20 @@ fedClientIn ::
   ) =>
   Client m api
 fedClientIn = clientIn (Proxy @(ComponentPrefix comp :> api)) (Proxy @m)
+
+vClient ::
+  forall (vapi :: *) (m :: * -> *) (v :: Version).
+  HasClient m (vapi @@ v) =>
+  Sing v ->
+  Client m (vapi @@ v)
+vClient _ = clientIn (Proxy @(vapi @@ v)) (Proxy @m)
+
+vFedClient ::
+  forall vapi v.
+  HasClient FederatorClient (vapi @@ v) =>
+  Sing v ->
+  Client FederatorClient (vapi @@ v)
+vFedClient s = vClient @vapi @FederatorClient s
 
 type family CombinedApi (comp :: Component) (vs :: [Version]) where
   CombinedApi comp '[v0] = FedApi comp v0

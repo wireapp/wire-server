@@ -35,6 +35,7 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import Data.Singletons
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.Time.Clock
@@ -52,6 +53,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Component
+import Wire.API.Federation.Version
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -292,7 +294,8 @@ testRemoteDownloadNoAsset = do
                 frTargetDomain = Domain "faraway.example.com",
                 frComponent = Cargohold,
                 frRPC = "get-asset",
-                frBody = Aeson.encode (GetAsset uid key Nothing)
+                frBody = Aeson.encode (GetAsset uid key Nothing),
+                frVersion = Just (demote @VL)
               }
           ]
 
@@ -339,13 +342,15 @@ testRemoteDownload assetContent = do
                 frTargetDomain = Domain "faraway.example.com",
                 frComponent = Cargohold,
                 frRPC = "get-asset",
-                frBody = ga
+                frBody = ga,
+                frVersion = Just (demote @VL)
               },
             FederatedRequest
               { frOriginDomain = localDomain,
                 frTargetDomain = Domain "faraway.example.com",
                 frComponent = Cargohold,
                 frRPC = "stream-asset",
-                frBody = ga
+                frBody = ga,
+                frVersion = Just (demote @VL)
               }
           ]

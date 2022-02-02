@@ -109,5 +109,5 @@ executeFederatedStreaming remote c = do
   pure $
     SourceT $ \k ->
       runCodensity
-        (runFederatorClientToCodensity env c)
+        (runExceptT (runFederatorClientToCodensity env c))
         (either (throw . federationErrorToWai . FederationCallFailure) (flip unSourceT k))

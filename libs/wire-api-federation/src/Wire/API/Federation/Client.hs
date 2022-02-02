@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,6 +16,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.API.Federation.Client
   ( FederatorClientEnv (..),
@@ -28,6 +28,8 @@ module Wire.API.Federation.Client
     withHTTP2Request,
     streamingResponseStrictBody,
     headersFromTable,
+    runFederatorClientWithNegotiation,
+    SomeClient (..),
   )
 where
 
@@ -35,6 +37,7 @@ import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Except
+import Control.Monad.Morph
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
@@ -42,7 +45,8 @@ import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import qualified Data.Sequence as Seq
-import Data.Singletons
+import qualified Data.Set as Set
+import Data.Singletons hiding (type (@@))
 import Data.Streaming.Network
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
@@ -270,16 +274,50 @@ runFederatorClient ::
   IO (Either FederatorClientError a)
 runFederatorClient env =
   lowerCodensity
+    . runExceptT
     . runFederatorClientToCodensity env
 
 runFederatorClientToCodensity ::
   FederatorClientEnv ->
   FederatorClient a ->
-  Codensity IO (Either FederatorClientError a)
+  ExceptT FederatorClientError (Codensity IO) a
 runFederatorClientToCodensity env =
-  runExceptT
-    . flip runReaderT env
+  flip runReaderT env
     . unFederatorClient
+
+data SomeClient m (api :: *) where
+  SomeClient :: Sing v -> Client m (api @@ v) -> SomeClient m api
+
+flattenSomeClient :: m (SomeClient m api) -> SomeClient m api
+flattenSomeClient = undefined
+
+runFederatorClientWithNegotiation ::
+  forall vapi.
+  (VersionedApi vapi) =>
+  FederatorClientEnv ->
+  SomeClient (ExceptT FederatorClientError (Codensity IO)) vapi
+runFederatorClientWithNegotiation env = flattenSomeClient $ do
+  v <- hoist lift $ runFederatorNegotiation' env
+  case toSing v of
+    SomeSing sv -> pure $ SomeClient sv (hoistV @vapi sv (runFederatorClientToCodensity env) (cli sv))
+  where
+    cli :: forall (v :: Version). Sing v -> Client FederatorClient (vapi @@ v)
+    cli = clientV @vapi (Proxy @FederatorClient)
+
+runFederatorNegotiation' ::
+  FederatorClientEnv ->
+  ExceptT FederatorClientError IO Version
+runFederatorNegotiation' env = do
+  vinfo <-
+    ExceptT . runFederatorClient env $
+      clientIn (Proxy @ApiVersionEndpoint) (Proxy @FederatorClient)
+  let remoteVersions = Set.fromList (vinfoSupported vinfo)
+      localVersions = Set.fromList supportedVersions
+      commonVersions = Set.intersection localVersions remoteVersions
+  case Set.lookupMax commonVersions of
+    Just v -> pure v
+    Nothing ->
+      throwError $ FederationUnsupportedVersion (toList localVersions) (toList remoteVersions)
 
 runFederatorNegotiation ::
   forall (v :: Version).

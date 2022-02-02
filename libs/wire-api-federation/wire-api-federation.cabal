@@ -29,6 +29,7 @@ library
       Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
       Wire.API.Federation.Event
+      Wire.API.Federation.Example
       Wire.API.Federation.Version
       Wire.API.Federation.Version.Info
       Wire.API.Federation.Version.TH

@@ -133,7 +133,7 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
           }
   let c = clientIn (Proxy @StreamingAPI) (Proxy @FederatorClient)
-  runCodensity (runFederatorClientToCodensity env c) $ \case
+  runCodensity (runExceptT (runFederatorClientToCodensity env c)) $ \case
     Left err -> assertFailure $ "Unexpected error: " <> displayException err
     Right out -> do
       let expected = mconcat (replicate 500 "Hello")

@@ -17,9 +17,13 @@
 
 module Wire.API.Federation.Endpoint where
 
+import Data.Singletons hiding (type (@@))
 import Imports
 import Servant.API
+import Servant.Client
+import Servant.Client.Core
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
 import Wire.API.Federation.Version.Info
 import Wire.API.Routes.Named
 
@@ -47,4 +51,28 @@ type family LookupEndpoint api name :: Maybe * where
       (LookupEndpoint api2 name)
   LookupEndpoint api name = 'Nothing
 
+type family FromJust (x :: Maybe k) where
+  FromJust ('Just x) = x
+
 type ApiVersionEndpoint = "api-versions" :> Post '[JSON] VersionInfo
+
+type family (@@) (e :: *) (v :: Version) :: *
+
+data (@!) :: * -> name -> *
+
+type instance (api @! name) @@ v = FromJust (LookupEndpoint (api @@ v) name)
+
+class VersionedApi (vapi :: *) where
+  hoistV :: Sing v -> (forall x. m x -> n x) -> Client m (vapi @@ v) -> Client n (vapi @@ v)
+  clientV :: RunClient m => Proxy m -> Sing v -> Client m (vapi @@ v)
+
+-- flattenV :: m (Client m (vapi @@ v)) -> Client m (vapi @@ v)
+
+hoistV0 ::
+  forall vapi v m n.
+  HasClient ClientM (vapi @@ v) =>
+  Sing v ->
+  (forall x. m x -> n x) ->
+  Client m (vapi @@ v) ->
+  Client n (vapi @@ v)
+hoistV0 _ = hoistClient (Proxy @(vapi @@ v))
