@@ -19,7 +19,6 @@
 
 module Spar.Sem.SAMLUserStore.Cassandra
   ( samlUserStoreToCassandra,
-    interpretClientToIO,
   )
 where
 
