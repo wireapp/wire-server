@@ -15,11 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Team.Export (TeamExportUser (..)) where
+module Wire.API.Team.Export (TeamExportUser (..), quoted, unquoted) where
 
 import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString.Lazy (parseOnly)
-import Data.ByteString.Conversion (FromByteString (..), toByteString')
+import qualified Data.ByteString.Char8 as C
+import Data.ByteString.Conversion (FromByteString (..), ToByteString, toByteString')
 import Data.Csv (DefaultOrdered (..), FromNamedRecord (..), Parser, ToNamedRecord (..), namedRecord, (.:))
 import Data.Handle (Handle)
 import Data.Id (UserId)
@@ -56,19 +57,22 @@ data TeamExportUser = TeamExportUser
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =
     namedRecord
-      [ ("display_name", toByteString' (tExportDisplayName row)),
-        ("handle", maybe "" toByteString' (tExportHandle row)),
-        ("email", maybe "" toByteString' (tExportEmail row)),
-        ("role", maybe "" toByteString' (tExportRole row)),
-        ("created_on", maybe "" toByteString' (tExportCreatedOn row)),
-        ("invited_by", maybe "" toByteString' (tExportInvitedBy row)),
-        ("idp_issuer", maybe "" toByteString' (tExportIdpIssuer row)),
-        ("managed_by", toByteString' (tExportManagedBy row)),
-        ("saml_name_id", toByteString' (tExportSAMLNamedId row)),
-        ("scim_external_id", toByteString' (tExportSCIMExternalId row)),
+      [ ("display_name", secureCsvFieldToByteString (tExportDisplayName row)),
+        ("handle", maybe "" secureCsvFieldToByteString (tExportHandle row)),
+        ("email", maybe "" secureCsvFieldToByteString (tExportEmail row)),
+        ("role", maybe "" secureCsvFieldToByteString (tExportRole row)),
+        ("created_on", maybe "" secureCsvFieldToByteString (tExportCreatedOn row)),
+        ("invited_by", maybe "" secureCsvFieldToByteString (tExportInvitedBy row)),
+        ("idp_issuer", maybe "" secureCsvFieldToByteString (tExportIdpIssuer row)),
+        ("managed_by", secureCsvFieldToByteString (tExportManagedBy row)),
+        ("saml_name_id", secureCsvFieldToByteString (tExportSAMLNamedId row)),
+        ("scim_external_id", secureCsvFieldToByteString (tExportSCIMExternalId row)),
         ("scim_rich_info", maybe "" (cs . Aeson.encode) (tExportSCIMRichInfo row)),
-        ("user_id", toByteString' (tExportUserId row))
+        ("user_id", secureCsvFieldToByteString (tExportUserId row))
       ]
+
+secureCsvFieldToByteString :: forall a. ToByteString a => a -> ByteString
+secureCsvFieldToByteString = quoted . toByteString'
 
 instance DefaultOrdered TeamExportUser where
   headerOrder =
@@ -94,7 +98,7 @@ allowEmpty p str = Just <$> p str
 
 parseByteString :: forall a. FromByteString a => ByteString -> Parser a
 parseByteString bstr =
-  case parseOnly (parser @a) bstr of
+  case parseOnly (parser @a) (unquoted bstr) of
     Left err -> fail err
     Right thing -> pure thing
 
@@ -113,3 +117,24 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "scim_external_id" >>= parseByteString)
       <*> (nrec .: "scim_rich_info" >>= allowEmpty (maybe (fail "failed to decode RichInfo") pure . Aeson.decode . cs))
       <*> (nrec .: "user_id" >>= parseByteString)
+
+quoted :: ByteString -> ByteString
+quoted bs = case C.uncons bs of
+  -- fields that begin with a disallowed character are prepended with a single quote
+  Just ('=', _) -> '\'' `C.cons` bs
+  Just ('+', _) -> '\'' `C.cons` bs
+  Just ('-', _) -> '\'' `C.cons` bs
+  Just ('@', _) -> '\'' `C.cons` bs
+  -- tab
+  Just ('\x0009', _) -> '\'' `C.cons` bs
+  -- carriage return
+  Just ('\x000D', _) -> '\'' `C.cons` bs
+  -- if a field begins with a single quote we have to prepend another single quote to be able to decode back correctly
+  Just ('\'', _) -> '\'' `C.cons` bs
+  -- everything else is fine
+  _ -> bs
+
+unquoted :: ByteString -> ByteString
+unquoted bstr = case C.uncons bstr of
+  Just ('\'', t) -> t
+  _ -> bstr

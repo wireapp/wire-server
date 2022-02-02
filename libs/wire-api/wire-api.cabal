@@ -559,6 +559,7 @@ test-suite wire-api-tests
       Test.Wire.API.Roundtrip.CSV
       Test.Wire.API.Routes
       Test.Wire.API.Swagger
+      Test.Wire.API.Team.Export
       Test.Wire.API.Team.Member
       Test.Wire.API.User
       Test.Wire.API.User.RichInfo
@@ -614,6 +615,7 @@ test-suite wire-api-tests
     , aeson-qq
     , base
     , bytestring
+    , bytestring-arbitrary
     , bytestring-conversion
     , case-insensitive
     , cassava

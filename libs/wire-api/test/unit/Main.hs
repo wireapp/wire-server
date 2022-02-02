@@ -29,6 +29,7 @@ import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
 import qualified Test.Wire.API.Routes as Routes
 import qualified Test.Wire.API.Swagger as Swagger
+import qualified Test.Wire.API.Team.Export as Team.Export
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
@@ -41,6 +42,7 @@ main =
       "Tests"
       [ Call.Config.tests,
         Team.Member.tests,
+        Team.Export.tests,
         User.tests,
         User.Search.tests,
         User.RichInfo.tests,
