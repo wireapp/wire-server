@@ -1258,8 +1258,8 @@ testJoinTeamConvGuestLinksDisabled = do
 
   let checkFeatureStatus fstatus =
         Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner teamId !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus fstatus Public.Unlocked))
+          const 200 === statusCode
+          const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus fstatus Public.Unlocked)) === responseJsonEither
 
   -- guest can join if guest link feature is enabled
   checkFeatureStatus Public.TeamFeatureEnabled
