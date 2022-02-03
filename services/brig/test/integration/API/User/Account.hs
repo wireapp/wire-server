@@ -824,12 +824,13 @@ testUserUpdate brig cannon aws = do
   bobUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bobUser)
   let bob = userId bobUser
+  aliceNewName <- randomName
   connectUsers brig alice (singleton bob)
   let newColId = Just 5
       newAssets = Just [ImageAsset "abc" (Just AssetComplete)]
-      newName = Just $ Name "dogbert"
+      mNewName = Just $ aliceNewName
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate newName newPic newAssets newColId
+      userUpdate = UserUpdate mNewName newPic newAssets newColId
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
@@ -841,7 +842,7 @@ testUserUpdate brig cannon aws = do
   -- get the updated profile
   get (brig . path "/self" . zUser alice) !!! do
     const 200 === statusCode
-    const (newName, newColId, newAssets)
+    const (mNewName, newColId, newAssets)
       === ( \u ->
               ( fmap userDisplayName u,
                 fmap userAccentId u,
@@ -852,7 +853,7 @@ testUserUpdate brig cannon aws = do
   -- get only the new name
   get (brig . path "/self/name" . zUser alice) !!! do
     const 200 === statusCode
-    const (String . fromName <$> newName)
+    const (String . fromName <$> mNewName)
       === ( \r -> do
               b <- responseBody r
               b ^? key "name"
@@ -860,7 +861,7 @@ testUserUpdate brig cannon aws = do
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCanFind brig suid aliceQ "dogbert"
+  Search.assertCanFind brig suid aliceQ (fromName aliceNewName)
 
 -- This tests the behavior of `/i/self/email` instead of `/self/email` or
 -- `/access/self/email`.  tests for session token handling under `/access/self/email` are in
