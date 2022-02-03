@@ -332,11 +332,11 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
+    validatedPhone <- maybe (throwStd (errorDescriptionTypeToWai @InvalidPhone)) return =<< lift (Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ Blacklist.exists ukp
     when blacklistedPh $
-      throwStd blacklistedPhone
+      throwStd (errorDescriptionTypeToWai @BlacklistedPhone)
     phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
     when phoneTaken $
       throwStd phoneExists

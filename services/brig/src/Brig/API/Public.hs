@@ -243,7 +243,7 @@ sitemap = do
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse invalidHandle
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidHandle)
     Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
 
   -- some APIs moved to servant
@@ -380,10 +380,10 @@ sitemap = do
     Doc.errorResponse whitelistError
     Doc.errorResponse invalidInvitationCode
     Doc.errorResponse missingIdentity
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse activationCodeNotFound
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
@@ -432,10 +432,10 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
     Doc.errorResponse invalidEmail
-    Doc.errorResponse invalidPhone
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
     Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
@@ -842,7 +842,7 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 checkHandleH :: UserId ::: Text -> Handler Response
 checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 

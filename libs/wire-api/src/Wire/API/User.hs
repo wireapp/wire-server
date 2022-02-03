@@ -928,14 +928,14 @@ data ChangePasswordError
 type ChangePasswordResponses =
   [ BadCredentials,
     NoIdentity,
-    PasswordMustDiffer,
+    ChangePasswordMustDiffer,
     RespondEmpty 200 "Password Changed"
   ]
 
 instance AsUnion ChangePasswordResponses (Maybe ChangePasswordError) where
   toUnion (Just InvalidCurrentPassword) = inject $ I (mkErrorDescription :: BadCredentials)
   toUnion (Just ChangePasswordNoIdentity) = inject $ I (mkErrorDescription :: NoIdentity)
-  toUnion (Just ChangePasswordMustDiffer) = inject $ I (mkErrorDescription :: PasswordMustDiffer)
+  toUnion (Just ChangePasswordMustDiffer) = inject $ I (mkErrorDescription :: ChangePasswordMustDiffer)
   toUnion Nothing = inject $ I ()
   fromUnion (Z _) = Just InvalidCurrentPassword
   fromUnion (S (Z _)) = Just ChangePasswordNoIdentity
