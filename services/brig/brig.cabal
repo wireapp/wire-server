@@ -616,6 +616,7 @@ executable brig-schema
       V64_ClientCapabilities
       V65_FederatedConnections
       V66_PersonalFeatureConfCallInit
+      V67_MLSKeyPackages
       V9
       Paths_brig
   hs-source-dirs:
