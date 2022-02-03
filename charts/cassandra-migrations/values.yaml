@@ -6,3 +6,52 @@ images:
   spar: quay.io/wire/spar-schema
   galleyMigrateData: quay.io/wire/galley-migrate-data
   sparMigrateData: quay.io/wire/spar-migrate-data
+
+# Setting cassandra host name and replication is mandatory to specify.
+#
+# Example production case:
+#
+# cassandra:
+#   host: cassandra-external
+#   replicationFactor: 3
+#
+# Example demo case (single cassandra machine, test deployment):
+#
+# cassandra:
+#   host: cassandra-ephemeral
+#   replicationFactor: 1
+#
+# The following is optional and useful only in a multi-datacenter setup.
+# if 'replicationMap' is set, it's used; otherwise replicationFactor is used.
+#
+# cassandra:
+#   replicationMap: DC1:3,DC2:5
+#
+# The following is optional. If set, it overrides the otherwise-used
+# cassandra.host and cassandra.replicationFactor / replicationMap for
+# the specific haskell service in case you have separate
+# cassandra clusters for each service.
+#
+# cassandraGalley:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: eu-west-1:3
+#
+# cassandraBrig:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: eu-central-1:3
+#
+# cassandraSpar:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: us-east-1:3
+#
+# cassandraGundeck:
+#   host: cassandra-ephemeral-galley
+#   replicationMap: eu-west-1:3
+
+
+# Overriding the following is only useful during datacenter migration time periods,
+# where some other job already migrates schemas.
+enableGalleyMigrations: true
+enableBrigMigrations: true
+enableGundeckMigrations: true
+enableSparMigrations: true

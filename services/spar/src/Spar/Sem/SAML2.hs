@@ -15,15 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SAML2 where
+module Spar.Sem.SAML2
+  ( SAML2 (..),
+    authReq,
+    authResp,
+    meta,
+    toggleCookie,
+  )
+where
 
 import Data.Id (TeamId)
 import Data.String.Conversions (SBS, ST)
 import Data.Time (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
-import Imports hiding (log)
+import Imports (Maybe)
 import Polysemy
-import SAML2.WebSSO
+import SAML2.WebSSO hiding (meta, toggleCookie)
 import URI.ByteString (URI)
 
 data SAML2 m a where

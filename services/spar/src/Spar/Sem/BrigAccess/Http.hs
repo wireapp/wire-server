@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.BrigAccess.Http where
+module Spar.Sem.BrigAccess.Http
+  ( brigAccessToHttp,
+  )
+where
 
 import Bilge
 import Imports
@@ -24,8 +27,8 @@ import Polysemy.Error (Error)
 import Spar.Error (SparError)
 import qualified Spar.Intra.Brig as Intra
 import Spar.Sem.BrigAccess
-import Spar.Sem.GalleyAccess.Http (RunHttpEnv (..), viaRunHttp)
 import Spar.Sem.Logger (Logger)
+import Spar.Sem.Utils (RunHttpEnv (..), viaRunHttp)
 import qualified System.Logger as TinyLog
 
 brigAccessToHttp ::

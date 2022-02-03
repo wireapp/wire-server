@@ -80,6 +80,8 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
       Named @"create-non-binding-team" createNonBindingTeamH
         :<|> Named @"update-team" updateTeamH
         :<|> Named @"get-teams" getManyTeams
+        :<|> Named @"get-team" getTeamH
+        :<|> Named @"delete-team" deleteTeam
 
     features =
       Named @'("get", 'TeamFeatureSSO)
@@ -148,7 +150,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
               . DoAuth
           )
         :<|> Named @'("get", 'TeamFeatureFileSharing)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureFileSharing
+          ( getFeatureStatus @'WithLockStatus @'TeamFeatureFileSharing
               getFileSharingInternal
               . DoAuth
           )
@@ -213,7 +215,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
               getAppLockInternal
           )
         :<|> Named @'("get-config", 'TeamFeatureFileSharing)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureFileSharing
+          ( getFeatureConfig @'WithLockStatus @'TeamFeatureFileSharing
               getFileSharingInternal
           )
         :<|> Named @'("get-config", 'TeamFeatureClassifiedDomains)

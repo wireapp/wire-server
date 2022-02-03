@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Reporter.Wai where
+module Spar.Sem.Reporter.Wai
+  ( reporterToTinyLogWai,
+  )
+where
 
 import Imports
 import qualified Network.Wai.Utilities.Server as Wai

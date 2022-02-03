@@ -23,61 +23,70 @@ spec:
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
       initContainers:
+        {{- if .Values.enableGundeckMigrations }}
         - name: gundeck-schema
           image: "{{ .Values.images.gundeck }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - gundeck-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraGundeckHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - gundeck
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraGundeckReplicationType" . }}
+            - "{{ template "cassandraGundeckReplicationArg" . }}"
+        {{- end }}
 
+        {{- if .Values.enableBrigMigrations }}
         - name: brig-schema
           image: "{{ .Values.images.brig }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - brig-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraBrigHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - brig
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraBrigReplicationType" . }}
+            - "{{ template "cassandraBrigReplicationArg" . }}"
+        {{- end }}
 
+        {{- if .Values.enableGalleyMigrations }}
         - name: galley-schema
           image: "{{ .Values.images.galley }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - galley-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraGalleyHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - galley
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraGalleyReplicationType" . }}
+            - "{{ template "cassandraGalleyReplicationArg" . }}"
+        {{- end }}
 
+        {{- if .Values.enableSparMigrations }}
         - name: spar-schema
           image: "{{ .Values.images.spar }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - spar-schema
             - --host
-            - "{{ .Values.cassandra.host }}"
+            - "{{ template "cassandraSparHost" . }}"
             - --port
             - "9042"
             - --keyspace
             - spar
-            - --replication-factor
-            - "{{ .Values.cassandra.replicaCount }}"
+            - {{ template "cassandraSparReplicationType" . }}
+            - "{{ template "cassandraSparReplicationArg" . }}"
+        {{- end }}
+
       containers:
         - name: job-done
           image: busybox:1.32.0

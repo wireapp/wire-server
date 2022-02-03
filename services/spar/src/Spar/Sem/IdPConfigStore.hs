@@ -15,7 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP where
+module Spar.Sem.IdPConfigStore
+  ( IdPConfigStore (..),
+    Replacing (..),
+    Replaced (..),
+    GetIdPResult (..),
+    storeConfig,
+    getConfig,
+    getIdByIssuerWithoutTeam,
+    getIdByIssuerWithTeam,
+    getConfigsByTeam,
+    deleteConfig,
+    setReplacedBy,
+    clearReplacedBy,
+  )
+where
 
 import Data.Id
 import Imports
@@ -44,19 +58,19 @@ newtype Replaced = Replaced SAML.IdPId
 newtype Replacing = Replacing SAML.IdPId
   deriving (Eq, Ord, Show)
 
-data IdP m a where
-  StoreConfig :: IP.IdP -> IdP m ()
-  GetConfig :: SAML.IdPId -> IdP m (Maybe IP.IdP)
-  GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdP m (GetIdPResult SAML.IdPId)
-  GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdP m (Maybe SAML.IdPId)
-  GetConfigsByTeam :: TeamId -> IdP m [IP.IdP]
-  DeleteConfig :: IP.IdP -> IdP m ()
+data IdPConfigStore m a where
+  StoreConfig :: IP.IdP -> IdPConfigStore m ()
+  GetConfig :: SAML.IdPId -> IdPConfigStore m (Maybe IP.IdP)
+  GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdPConfigStore m (GetIdPResult SAML.IdPId)
+  GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdPConfigStore m (Maybe SAML.IdPId)
+  GetConfigsByTeam :: TeamId -> IdPConfigStore m [IP.IdP]
+  DeleteConfig :: IP.IdP -> IdPConfigStore m ()
   -- affects _wiReplacedBy in GetConfig
-  SetReplacedBy :: Replaced -> Replacing -> IdP m ()
-  ClearReplacedBy :: Replaced -> IdP m ()
+  SetReplacedBy :: Replaced -> Replacing -> IdPConfigStore m ()
+  ClearReplacedBy :: Replaced -> IdPConfigStore m ()
 
-deriving stock instance Show (IdP m a)
+deriving stock instance Show (IdPConfigStore m a)
 
 -- TODO(sandy): Inline this definition --- no TH
-makeSem ''IdP
-deriveGenericK ''IdP
+makeSem ''IdPConfigStore
+deriveGenericK ''IdPConfigStore

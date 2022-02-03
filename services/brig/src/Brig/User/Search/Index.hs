@@ -101,7 +101,8 @@ data IndexEnv = IndexEnv
     idxElastic :: ES.BHEnv,
     idxRequest :: Maybe RequestId,
     idxName :: ES.IndexName,
-    idxAdditional :: Maybe ES.IndexName
+    idxAdditionalName :: Maybe ES.IndexName,
+    idxAdditionalElastic :: Maybe ES.BHEnv
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
@@ -137,6 +138,18 @@ instance MonadLogger (ExceptT e IndexIO) where
 instance ES.MonadBH IndexIO where
   getBHEnv = asks idxElastic
 
+withDefaultESUrl :: (MonadIndexIO m) => ES.BH m a -> m a
+withDefaultESUrl action = do
+  bhEnv <- liftIndexIO $ asks idxElastic
+  ES.runBH bhEnv action
+
+-- | When the additional URL is not provided, uses the default url.
+withAdditionalESUrl :: (MonadIndexIO m) => ES.BH m a -> m a
+withAdditionalESUrl action = do
+  mAdditionalBHEnv <- liftIndexIO $ asks idxAdditionalElastic
+  defaultBHEnv <- liftIndexIO $ asks idxElastic
+  ES.runBH (fromMaybe defaultBHEnv mAdditionalBHEnv) action
+
 --------------------------------------------------------------------------------
 -- Updates
 
@@ -153,12 +166,12 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
     field "user" (Bytes.toByteString (view iuUserId iu))
       . msg (val "Indexing user")
   idx <- asks idxName
-  indexDoc idx
-  traverse_ indexDoc =<< asks idxAdditional
+  withDefaultESUrl $ indexDoc idx
+  withAdditionalESUrl $ traverse_ indexDoc =<< asks idxAdditionalName
   where
-    indexDoc :: MonadIndexIO m => ES.IndexName -> m ()
-    indexDoc idx = liftIndexIO $ do
-      m <- asks idxMetrics
+    indexDoc :: (MonadIndexIO m, MonadThrow m) => ES.IndexName -> ES.BH m ()
+    indexDoc idx = do
+      m <- lift . liftIndexIO $ asks idxMetrics
       r <- ES.indexDocument idx mappingName versioning (indexToDoc iu) docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         counterIncr (path "user.index.update.err") m

@@ -30,10 +30,8 @@ import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
 import Network.HTTP.Types as HTTP
-import Servant hiding (Handler, addHeader, contentType, respond)
-import Servant.API (contentType)
-import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
-import Servant.API.Status (KnownStatus, statusVal)
+import Servant
+import Servant.API.Status
 import Servant.Client.Core
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
@@ -118,14 +116,12 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 -- * MultiVerb errors
 
 type RespondWithErrorDescription s label desc =
-  Respond s desc (ErrorDescription s label desc)
+  RespondAs JSON s desc (ErrorDescription s label desc)
 
 type instance ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
 
 instance
-  ( AllMimeRender cs (ErrorDescription s label desc),
-    AllMimeUnrender cs (ErrorDescription s label desc),
-    KnownStatus s,
+  ( KnownStatus s,
     KnownSymbol label,
     KnownSymbol desc
   ) =>
@@ -184,8 +180,7 @@ instance
 
   responseRender _ () =
     pure $
-      addContentType
-        (contentType (Proxy @PlainText))
+      addContentType @PlainText
         Response
           { responseStatusCode = statusVal (Proxy @s),
             responseHeaders = mempty,
@@ -207,21 +202,6 @@ instance
                  <> "(**Note**: This error has an empty body for legacy reasons)"
              )
 
-instance
-  ( ResponseType r ~ a,
-    KnownStatus s,
-    KnownSymbol desc
-  ) =>
-  AsUnion
-    '[EmptyErrorForLegacyReasons s desc, r]
-    (Maybe a)
-  where
-  toUnion Nothing = Z (I ())
-  toUnion (Just x) = S (Z (I x))
-  fromUnion (Z (I ())) = Nothing
-  fromUnion (S (Z (I x))) = Just x
-  fromUnion (S (S x)) = case x of
-
 -- * Errors
 
 mkErrorDescription :: forall code label desc. KnownSymbol desc => ErrorDescription code label desc
@@ -234,6 +214,8 @@ type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Convers
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
+
+type TeamNotFound = ErrorDescription 404 "no-team" "team not found"
 
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
@@ -256,6 +238,7 @@ type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient per
 -- Be aware that this is redundant and should be replaced by a more type safe solution in the future.
 type family OperationDeniedError (a :: Perm) :: * where
   OperationDeniedError 'SetTeamData = ErrorDescription 403 "operation-denied" "Insufficient permissions (missing SetTeamData)"
+  OperationDeniedError 'DeleteTeam = ErrorDescription 403 "operation-denied" "Insufficient permissions (missing DeleteTeam)"
 
 operationDeniedSpecialized :: String -> OperationDenied
 operationDeniedSpecialized p =
@@ -268,6 +251,8 @@ operationDenied = operationDeniedSpecialized . show
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
 type Unauthorised = ErrorDescription 403 "unauthorised" "Unauthorised operation"
+
+type ReAuthFailed = ErrorDescription 403 "access-denied" "This operation requires reauthentication"
 
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
@@ -330,6 +315,8 @@ type InvalidOp desc =
     403
     "invalid-op"
     desc
+
+type DeleteQueueFull = ErrorDescription 503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
 
 invalidOpErrorDesc :: KnownSymbol desc => proxy desc -> InvalidOp desc
 invalidOpErrorDesc = ErrorDescription . Text.pack . symbolVal

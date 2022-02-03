@@ -22,6 +22,7 @@ module Wire.API.Routes.MultiVerb
   ( -- * MultiVerb types
     MultiVerb,
     Respond,
+    RespondAs,
     RespondEmpty,
     RespondStreaming,
     WithHeaders,
@@ -84,13 +85,21 @@ type Declare = S.Declare (S.Definitions S.Schema)
 
 -- | A type to describe a 'MultiVerb' response.
 --
--- Includes status code, description, and return type.
+-- Includes status code, description, and return type. The content type of the
+-- response is determined dynamically using the accept header and the list of
+-- supported content types specified in the containing 'MultiVerb' type.
 data Respond (s :: Nat) (desc :: Symbol) (a :: *)
+
+-- | A type to describe a 'MultiVerb' response with a fixed content type.
+--
+-- Similar to 'Respond', but hardcodes the content type to be used for
+-- generating the response.
+data RespondAs ct (s :: Nat) (desc :: Symbol) (a :: *)
 
 -- | A type to describe a 'MultiVerb' response with an empty body.
 --
 -- Includes status code and description.
-data RespondEmpty (s :: Nat) (desc :: Symbol)
+type RespondEmpty s desc = RespondAs '() s desc ()
 
 -- | A type to describe a streaming 'MultiVerb' response.
 --
@@ -160,7 +169,7 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
     where
       mkRenderOutput :: M.MediaType -> LByteString -> (M.MediaType, Response)
       mkRenderOutput c body =
-        (c,) . addContentType c $
+        (c,) . addContentType' c $
           Response
             { responseStatusCode = statusVal (Proxy @s),
               responseBody = body,
@@ -175,25 +184,52 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
       Nothing -> empty
       Just f -> either UnrenderError UnrenderSuccess (f (responseBody output))
 
+simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Response
+simpleResponseSwagger = do
+  ref <- S.declareSchemaRef (Proxy @a)
+  pure $
+    mempty
+      & S.description .~ Text.pack (symbolVal (Proxy @desc))
+      & S.schema ?~ ref
+
 instance
   (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
-  responseSwagger = do
-    ref <- S.declareSchemaRef (Proxy @a)
-    pure $
-      mempty
-        & S.description .~ Text.pack (symbolVal (Proxy @desc))
-        & S.schema ?~ ref
+  responseSwagger = simpleResponseSwagger @a @desc
 
-type instance ResponseType (RespondEmpty s desc) = ()
+type instance ResponseType (RespondAs ct s desc a) = a
 
-instance KnownStatus s => IsResponse cs (RespondEmpty s desc) where
-  type ResponseStatus (RespondEmpty s desc) = s
-  type ResponseBody (RespondEmpty s desc) = ()
+instance
+  ( KnownStatus s,
+    MimeRender ct a,
+    MimeUnrender ct a
+  ) =>
+  IsResponse cs (RespondAs (ct :: *) s desc a)
+  where
+  type ResponseStatus (RespondAs ct s desc a) = s
+  type ResponseBody (RespondAs ct s desc a) = LByteString
+
+  responseRender _ x =
+    pure . addContentType @ct $
+      Response
+        { responseStatusCode = statusVal (Proxy @s),
+          responseBody = mimeRender (Proxy @ct) x,
+          responseHeaders = mempty,
+          responseHttpVersion = HTTP.http11
+        }
+
+  responseUnrender _ output = do
+    guard (responseStatusCode output == statusVal (Proxy @s))
+    either UnrenderError UnrenderSuccess $
+      mimeUnrender (Proxy @ct) (responseBody output)
+
+instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
+  type ResponseStatus (RespondAs '() s desc ()) = s
+  type ResponseBody (RespondAs '() s desc ()) = ()
 
   responseRender _ _ =
-    Just $
+    pure $
       Response
         { responseStatusCode = statusVal (Proxy @s),
           responseBody = (),
@@ -204,11 +240,11 @@ instance KnownStatus s => IsResponse cs (RespondEmpty s desc) where
   responseUnrender _ output =
     guard (responseStatusCode output == statusVal (Proxy @s))
 
-instance (KnownStatus s, KnownSymbol desc) => IsSwaggerResponse (RespondEmpty s desc) where
-  responseSwagger =
-    pure $
-      mempty
-        & S.description .~ Text.pack (symbolVal (Proxy @desc))
+instance
+  (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
+  IsSwaggerResponse (RespondAs ct s desc a)
+  where
+  responseSwagger = simpleResponseSwagger @a @desc
 
 type instance ResponseType (RespondStreaming s desc framing ct) = SourceIO ByteString
 
@@ -219,7 +255,7 @@ instance
   type ResponseStatus (RespondStreaming s desc framing ct) = s
   type ResponseBody (RespondStreaming s desc framing ct) = SourceIO ByteString
   responseRender _ x =
-    pure . addContentType (contentType (Proxy @ct)) $
+    pure . addContentType @ct $
       Response
         { responseStatusCode = statusVal (Proxy @s),
           responseBody = x,
@@ -426,7 +462,7 @@ combineSwaggerSchema s1 s2
 --    instance.
 --  * Headers can be attached to individual responses, also without affecting
 --    the handler return type.
-data MultiVerb (method :: StdMethod) (cs :: [*]) (as :: [*]) (r :: *)
+data MultiVerb (method :: StdMethod) cs (as :: [*]) (r :: *)
 
 -- | This class is used to convert a handler return type to a union type
 -- including all possible responses of a 'MultiVerb' endpoint.
@@ -529,6 +565,10 @@ instance AsConstructor '[a] (Respond code desc a) where
   toConstructor x = I x :* Nil
   fromConstructor = unI . hd
 
+instance AsConstructor '[a] (RespondAs (ct :: *) code desc a) where
+  toConstructor x = I x :* Nil
+  fromConstructor = unI . hd
+
 instance AsConstructor '[] (RespondEmpty code desc) where
   toConstructor _ = Nil
   fromConstructor _ = ()
@@ -567,31 +607,14 @@ instance
   toUnion (GenericAsUnion x) = fromSOP @xss @rs (GSOP.from x)
   fromUnion = GenericAsUnion . GSOP.to . toSOP @xss @rs
 
--- | A handler for a pair of empty responses can be implemented simply by
--- returning a boolean value. The convention is that the "failure" case, normally
--- represented by 'False', corresponds to the /first/ response.
-instance
-  AsUnion
-    '[ RespondEmpty s1 desc1,
-       RespondEmpty s2 desc2
-     ]
-    Bool
-  where
-  toUnion False = Z (I ())
-  toUnion True = S (Z (I ()))
-
-  fromUnion (Z (I ())) = False
-  fromUnion (S (Z (I ()))) = True
-  fromUnion (S (S x)) = case x of
-
 -- | A handler for a pair of responses where the first is empty can be
 -- implemented simply by returning a 'Maybe' value. The convention is that the
 -- "failure" case, normally represented by 'Nothing', corresponds to the /first/
 -- response.
 instance
-  AsUnion
-    '[RespondEmpty s1 desc1, Respond s2 desc2 a]
-    (Maybe a)
+  {-# OVERLAPPABLE #-}
+  (ResponseType r1 ~ (), ResponseType r2 ~ a) =>
+  AsUnion '[r1, r2] (Maybe a)
   where
   toUnion Nothing = Z (I ())
   toUnion (Just x) = S (Z (I x))
@@ -601,8 +624,27 @@ instance
   fromUnion (S (S x)) = case x of
 
 instance
+  (SwaggerMethod method, IsSwaggerResponseList as) =>
+  S.HasSwagger (MultiVerb method '() as r)
+  where
+  toSwagger _ =
+    mempty
+      & S.definitions <>~ defs
+      & S.paths
+        . at "/"
+        ?~ ( mempty
+               & method
+                 ?~ ( mempty
+                        & S.responses . S.responses .~ fmap S.Inline responses
+                    )
+           )
+    where
+      method = S.swaggerMethod (Proxy @method)
+      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+
+instance
   (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>
-  S.HasSwagger (MultiVerb method cs as r)
+  S.HasSwagger (MultiVerb method (cs :: [*]) as r)
   where
   toSwagger _ =
     mempty
@@ -651,8 +693,11 @@ instance IsWaiBody (SourceIO ByteString) where
 
 data SomeResponse = forall a. IsWaiBody a => SomeResponse (ResponseF a)
 
-addContentType :: M.MediaType -> ResponseF a -> ResponseF a
-addContentType c r = r {responseHeaders = (hContentType, M.renderHeader c) <| responseHeaders r}
+addContentType :: forall ct a. Accept ct => ResponseF a -> ResponseF a
+addContentType = addContentType' (contentType (Proxy @ct))
+
+addContentType' :: M.MediaType -> ResponseF a -> ResponseF a
+addContentType' c r = r {responseHeaders = (hContentType, M.renderHeader c) <| responseHeaders r}
 
 setEmptyBody :: SomeResponse -> SomeResponse
 setEmptyBody (SomeResponse r) = SomeResponse (go r)
@@ -672,8 +717,21 @@ fromSomeResponse (SomeResponse Response {..}) = do
         ..
       }
 
+class HasAcceptCheck cs where
+  acceptCheck' :: Proxy cs -> AcceptHeader -> DelayedIO ()
+
+instance AllMime cs => HasAcceptCheck cs where
+  acceptCheck' = acceptCheck
+
+instance HasAcceptCheck '() where
+  acceptCheck' _ _ = pure ()
+
 instance
-  (AllMime cs, IsResponseList cs as, AsUnion as r, ReflectMethod method) =>
+  ( HasAcceptCheck cs,
+    IsResponseList cs as,
+    AsUnion as r,
+    ReflectMethod method
+  ) =>
   HasServer (MultiVerb method cs as r) ctx
   where
   type ServerT (MultiVerb method cs as r) m = m r
@@ -690,7 +748,7 @@ instance
     let acc = getAcceptHeader req
         action' =
           action `addMethodCheck` methodCheck method req
-            `addAcceptCheck` acceptCheck (Proxy @cs) acc
+            `addAcceptCheck` acceptCheck' (Proxy @cs) acc
     runAction action' env req k $ \output -> do
       let mresp = responseListRender @cs @as acc (toUnion @as output)
       someResponseToWai <$> case mresp of

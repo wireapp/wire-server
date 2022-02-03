@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdP.Mem (idPToMem, TypedState) where
+module Spar.Sem.IdPConfigStore.Mem (idPToMem, TypedState) where
 
 import Control.Lens ((.~), (^.))
 import Data.Id (TeamId)
@@ -26,37 +26,37 @@ import Imports
 import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
-import qualified Spar.Sem.IdP as Eff
+import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
 import qualified Wire.API.User.IdentityProvider as IP
 
 type TypedState = Map SAML.IdPId IP.IdP
 
 idPToMem ::
   forall r a.
-  Sem (Eff.IdP ': r) a ->
+  Sem (IdPConfigStore ': r) a ->
   Sem r (TypedState, a)
 idPToMem = evState . evEff
   where
     evState :: Sem (State TypedState : r) a -> Sem r (TypedState, a)
     evState = runState mempty
 
-    evEff :: Sem (Eff.IdP ': r) a -> Sem (State TypedState ': r) a
+    evEff :: Sem (IdPConfigStore ': r) a -> Sem (State TypedState ': r) a
     evEff = reinterpret @_ @(State TypedState) $ \case
-      Eff.StoreConfig iw ->
+      StoreConfig iw ->
         modify' (storeConfig iw)
-      Eff.GetConfig i ->
+      GetConfig i ->
         gets (getConfig i)
-      Eff.GetIdByIssuerWithoutTeam iss ->
+      GetIdByIssuerWithoutTeam iss ->
         gets (getIdByIssuerWithoutTeam iss)
-      Eff.GetIdByIssuerWithTeam iss team ->
+      GetIdByIssuerWithTeam iss team ->
         gets (getIdByIssuerWithTeam iss team)
-      Eff.GetConfigsByTeam team ->
+      GetConfigsByTeam team ->
         gets (getConfigsByTeam team)
-      Eff.DeleteConfig idp ->
+      DeleteConfig idp ->
         modify' (deleteConfig idp)
-      Eff.SetReplacedBy (Eff.Replaced replaced) (Eff.Replacing replacing) ->
+      SetReplacedBy (Replaced replaced) (Replacing replacing) ->
         modify' (updateReplacedBy (Just replacing) replaced <$>)
-      Eff.ClearReplacedBy (Eff.Replaced replaced) ->
+      ClearReplacedBy (Replaced replaced) ->
         modify' (updateReplacedBy Nothing replaced <$>)
 
 storeConfig :: IP.IdP -> TypedState -> TypedState
@@ -73,12 +73,12 @@ storeConfig iw =
 getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
 getConfig = M.lookup
 
-getIdByIssuerWithoutTeam :: SAML.Issuer -> TypedState -> Eff.GetIdPResult SAML.IdPId
+getIdByIssuerWithoutTeam :: SAML.Issuer -> TypedState -> GetIdPResult SAML.IdPId
 getIdByIssuerWithoutTeam iss mp =
   case filter (\idp -> idp ^. SAML.idpMetadata . SAML.edIssuer == iss) $ M.elems mp of
-    [] -> Eff.GetIdPNotFound
-    [a] -> Eff.GetIdPFound (a ^. SAML.idpId)
-    as@(_ : _ : _) -> Eff.GetIdPNonUnique ((^. SAML.idpId) <$> as)
+    [] -> GetIdPNotFound
+    [a] -> GetIdPFound (a ^. SAML.idpId)
+    as@(_ : _ : _) -> GetIdPNonUnique ((^. SAML.idpId) <$> as)
 
 getIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> TypedState -> Maybe SAML.IdPId
 getIdByIssuerWithTeam iss team mp =
@@ -86,8 +86,8 @@ getIdByIssuerWithTeam iss team mp =
     [] -> Nothing
     [a] -> Just (a ^. SAML.idpId)
     (_ : _ : _) ->
-      -- (Eff.StoreConfig doesn't let this happen)
-      error "Eff.GetIdByIssuerWithTeam: impossible"
+      -- (StoreConfig doesn't let this happen)
+      error "GetIdByIssuerWithTeam: impossible"
   where
     fl :: IP.IdP -> Bool
     fl idp =

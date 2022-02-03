@@ -28,7 +28,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Control.Lens ((^?))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
@@ -268,7 +268,7 @@ deleteTeam g tid u = do
         . paths ["teams", toByteString' tid]
         . zUser u
         . zConn "conn"
-        . lbytes (encode $ Team.newTeamDeleteData $ Just Util.defPassword)
+        . json (Team.newTeamDeleteData $ Just Util.defPassword)
     )
     !!! const 202
     === statusCode

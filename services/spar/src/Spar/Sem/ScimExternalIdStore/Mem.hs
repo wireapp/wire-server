@@ -17,7 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimExternalIdStore.Mem where
+module Spar.Sem.ScimExternalIdStore.Mem
+  ( scimExternalIdStoreToMem,
+  )
+where
 
 import Data.Id (TeamId, UserId)
 import qualified Data.Map as M

@@ -15,10 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimTokenStore where
+module Spar.Sem.ScimTokenStore
+  ( ScimTokenStore (..),
+    insert,
+    lookup,
+    lookupByTeam,
+    delete,
+    deleteByTeam,
+  )
+where
 
 import Data.Id
-import Imports
+import Imports (Maybe)
 import Polysemy
 import Wire.API.User.Scim
 
