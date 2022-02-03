@@ -589,12 +589,11 @@ rmCodeUnqualified ::
        Input UTCTime
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   Sem r Event
-rmCodeUnqualified usr zcon cnv = do
-  lusr <- qualifyLocal usr
+rmCodeUnqualified lusr zcon cnv = do
   lcnv <- qualifyLocal cnv
   rmCode lusr zcon lcnv
 

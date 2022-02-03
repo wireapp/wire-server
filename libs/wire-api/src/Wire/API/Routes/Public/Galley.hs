@@ -365,7 +365,7 @@ type ConversationAPI =
            ( Summary "Delete conversation code"
                :> CanThrow ConvNotFound
                :> CanThrow InvalidAccessOp
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
