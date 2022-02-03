@@ -1252,8 +1252,9 @@ testJoinTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   eve <- ephemeralUser
+  bob <- randomUser
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
-  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess, LinkAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
   let checkFeatureStatus fstatus =
@@ -1267,6 +1268,8 @@ testJoinTeamConvGuestLinksDisabled = do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
   postJoinCodeConv eve cCode !!! const 200 === statusCode
+  -- non-team-members can join as well
+  postJoinConv bob convId !!! const 200 === statusCode
 
   -- disabled guest links feature
   let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
@@ -1274,9 +1277,13 @@ testJoinTeamConvGuestLinksDisabled = do
     const 200 === statusCode
 
   -- guest can't join if guest link feature is disabled
-  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
+  eve' <- ephemeralUser
+  bob' <- randomUser
+  getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
-  postJoinCodeConv eve cCode !!! const 409 === statusCode
+  postJoinCodeConv eve' cCode !!! const 409 === statusCode
+  -- non-team-members can't join either
+  postJoinConv bob' convId !!! const 409 === statusCode
   -- check feature status is still disabled
   checkFeatureStatus Public.TeamFeatureDisabled
 
@@ -1284,10 +1291,11 @@ testJoinTeamConvGuestLinksDisabled = do
   let enabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
   TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId enabled !!! do
     const 200 === statusCode
-  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
+  getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
-  postJoinCodeConv eve cCode !!! const 204 === statusCode
+  postJoinCodeConv eve' cCode !!! const 200 === statusCode
+  postJoinConv bob' convId !!! const 200 === statusCode
   checkFeatureStatus Public.TeamFeatureEnabled
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
