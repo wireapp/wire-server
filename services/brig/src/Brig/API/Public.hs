@@ -22,7 +22,6 @@ module Brig.API.Public
     apiDocs,
     servantSitemap,
     swaggerDocsAPI,
-    ServantAPI,
     SwaggerDocsAPI,
   )
 where
@@ -93,7 +92,6 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
-import Servant.Server.Generic (genericServerT)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
@@ -102,8 +100,8 @@ import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
-import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -128,12 +126,10 @@ import qualified Wire.API.Wrapped as Public
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI = BrigAPI.ServantAPI
-
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    ( BrigAPI.swagger
+    ( brigSwagger
         <> GalleyAPI.swaggerDoc
         <> LegalHoldAPI.swaggerDoc
         <> SparAPI.swaggerDoc
@@ -162,56 +158,53 @@ swaggerDocsAPI =
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
 
-servantSitemap :: ServerT ServantAPI Handler
+servantSitemap :: ServerT BrigAPI Handler
 servantSitemap =
-  genericServerT $
-    BrigAPI.Api
-      { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
-        BrigAPI.getUserQualified = getUser,
-        BrigAPI.getSelf = getSelf,
-        BrigAPI.deleteSelf = deleteUser,
-        BrigAPI.putSelf = updateUser,
-        BrigAPI.changePhone = changePhone,
-        BrigAPI.removePhone = removePhone,
-        BrigAPI.removeEmail = removeEmail,
-        BrigAPI.checkPasswordExists = checkPasswordExists,
-        BrigAPI.changePassword = changePassword,
-        BrigAPI.changeLocale = changeLocale,
-        BrigAPI.changeHandle = changeHandle,
-        BrigAPI.updateUserEmail = updateUserEmail,
-        BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-        BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
-        BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
-        BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
-        BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
-        BrigAPI.getUserClientsQualified = getUserClientsQualified,
-        BrigAPI.getUserClientUnqualified = getUserClientUnqualified,
-        BrigAPI.getUserClientQualified = getUserClientQualified,
-        BrigAPI.listClientsBulk = listClientsBulk,
-        BrigAPI.listClientsBulkV2 = listClientsBulkV2,
-        BrigAPI.getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
-        BrigAPI.getUsersPrekeysClientQualified = getPrekeyH,
-        BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
-        BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
-        BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
-        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
-        BrigAPI.addClient = addClient,
-        BrigAPI.updateClient = updateClient,
-        BrigAPI.deleteClient = deleteClient,
-        BrigAPI.listClients = listClients,
-        BrigAPI.getClient = getClient,
-        BrigAPI.getClientCapabilities = getClientCapabilities,
-        BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
-        BrigAPI.createConnection = createConnection,
-        BrigAPI.listLocalConnections = listLocalConnections,
-        BrigAPI.listConnections = listConnections,
-        BrigAPI.getConnectionUnqualified = getLocalConnection,
-        BrigAPI.getConnection = getConnection,
-        BrigAPI.updateConnectionUnqualified = updateLocalConnection,
-        BrigAPI.updateConnection = updateConnection,
-        BrigAPI.searchContacts = Search.search
-      }
+  Named @"get-user-unqualified" getUserUnqualifiedH
+    :<|> Named @"get-user-qualified" getUser
+    :<|> Named @"get-self" getSelf
+    :<|> Named @"delete-self" deleteUser
+    :<|> Named @"put-self" updateUser
+    :<|> Named @"change-phone" changePhone
+    :<|> Named @"remove-phone" removePhone
+    :<|> Named @"remove-email" removeEmail
+    :<|> Named @"check-password-exists" checkPasswordExists
+    :<|> Named @"change-password" changePassword
+    :<|> Named @"change-locale" changeLocale
+    :<|> Named @"change-handle" changeHandle
+    :<|> Named @"update-user-email" updateUserEmail
+    :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
+    :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
+    :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
+    :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+    :<|> Named @"get-user-clients-unqualified" getUserClientsUnqualified
+    :<|> Named @"get-user-clients-qualified" getUserClientsQualified
+    :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
+    :<|> Named @"get-user-client-qualified" getUserClientQualified
+    :<|> Named @"list-clients-bulk" listClientsBulk
+    :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
+    :<|> Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
+    :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
+    :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
+    :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
+    :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
+    :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
+    :<|> Named @"add-client" addClient
+    :<|> Named @"update-client" updateClient
+    :<|> Named @"delete-client" deleteClient
+    :<|> Named @"list-clients" listClients
+    :<|> Named @"get-client" getClient
+    :<|> Named @"get-client-capabilities" getClientCapabilities
+    :<|> Named @"get-client-prekeys" getClientPrekeys
+    :<|> Named @"create-connection-unqualified" createConnectionUnqualified
+    :<|> Named @"create-connection" createConnection
+    :<|> Named @"list-local-connections" listLocalConnections
+    :<|> Named @"list-connections" listConnections
+    :<|> Named @"get-connection-unqualified" getLocalConnection
+    :<|> Named @"get-connection" getConnection
+    :<|> Named @"update-connection-unqualified" updateLocalConnection
+    :<|> Named @"update-connection" updateConnection
+    :<|> Named @"search-contacts" Search.search
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -588,14 +581,14 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwErrorDescriptionType @TooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
+addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
   where
-    clientResponse :: Public.Client -> BrigAPI.NewClientResponse
+    clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
 deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler ()
@@ -626,11 +619,11 @@ getUserClientUnqualified uid cid = do
   x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: UserId -> Range 1 BrigAPI.MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
-listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: Qualified UserId -> ClientId -> Handler Public.PubClient
