@@ -63,7 +63,6 @@ config:
       stdDev: 3000
       retryAfter: 86400
     setRichInfoLimit: 5000
-    setDefaultTemplateLocale: en
     setDefaultUserLocale: en
     setMaxTeamSize: 500
     setMaxConvSize: 500

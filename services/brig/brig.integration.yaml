@@ -152,7 +152,6 @@ optSettings:
   setSuspendInactiveUsers:  # if this is omitted: never suspend inactive users.
     suspendTimeout: 10
   setRichInfoLimit: 5000  # should be in sync with Spar
-  setDefaultTemplateLocale: en
   setDefaultUserLocale: en
   setMaxTeamSize: 32
   setMaxConvSize: 16
