@@ -159,52 +159,70 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI Handler
-servantSitemap =
-  Named @"get-user-unqualified" getUserUnqualifiedH
-    :<|> Named @"get-user-qualified" getUser
-    :<|> Named @"get-self" getSelf
-    :<|> Named @"delete-self" deleteUser
-    :<|> Named @"put-self" updateUser
-    :<|> Named @"change-phone" changePhone
-    :<|> Named @"remove-phone" removePhone
-    :<|> Named @"remove-email" removeEmail
-    :<|> Named @"check-password-exists" checkPasswordExists
-    :<|> Named @"change-password" changePassword
-    :<|> Named @"change-locale" changeLocale
-    :<|> Named @"change-handle" changeHandle
-    :<|> Named @"update-user-email" updateUserEmail
-    :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
-    :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
-    :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
-    :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
-    :<|> Named @"get-user-clients-unqualified" getUserClientsUnqualified
-    :<|> Named @"get-user-clients-qualified" getUserClientsQualified
-    :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
-    :<|> Named @"get-user-client-qualified" getUserClientQualified
-    :<|> Named @"list-clients-bulk" listClientsBulk
-    :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
-    :<|> Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
-    :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
-    :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
-    :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
-    :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
-    :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
-    :<|> Named @"add-client" addClient
-    :<|> Named @"update-client" updateClient
-    :<|> Named @"delete-client" deleteClient
-    :<|> Named @"list-clients" listClients
-    :<|> Named @"get-client" getClient
-    :<|> Named @"get-client-capabilities" getClientCapabilities
-    :<|> Named @"get-client-prekeys" getClientPrekeys
-    :<|> Named @"create-connection-unqualified" createConnectionUnqualified
-    :<|> Named @"create-connection" createConnection
-    :<|> Named @"list-local-connections" listLocalConnections
-    :<|> Named @"list-connections" listConnections
-    :<|> Named @"get-connection-unqualified" getLocalConnection
-    :<|> Named @"get-connection" getConnection
-    :<|> Named @"update-connection-unqualified" updateLocalConnection
-    :<|> Named @"update-connection" updateConnection
-    :<|> Named @"search-contacts" Search.search
+servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI
+  where
+    userAPI :: ServerT UserAPI Handler
+    userAPI =
+      Named @"get-user-unqualified" getUserUnqualifiedH
+        :<|> Named @"get-user-qualified" getUser
+        :<|> Named @"update-user-email" updateUserEmail
+        :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
+        :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
+        :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+
+    selfAPI :: ServerT SelfAPI Handler
+    selfAPI =
+      Named @"get-self" getSelf
+        :<|> Named @"delete-self" deleteUser
+        :<|> Named @"put-self" updateUser
+        :<|> Named @"change-phone" changePhone
+        :<|> Named @"remove-phone" removePhone
+        :<|> Named @"remove-email" removeEmail
+        :<|> Named @"check-password-exists" checkPasswordExists
+        :<|> Named @"change-password" changePassword
+        :<|> Named @"change-locale" changeLocale
+        :<|> Named @"change-handle" changeHandle
+
+    clientAPI :: ServerT ClientAPI Handler
+    clientAPI =
+      Named @"get-user-clients-unqualified" getUserClientsUnqualified
+        :<|> Named @"get-user-clients-qualified" getUserClientsQualified
+        :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
+        :<|> Named @"get-user-client-qualified" getUserClientQualified
+        :<|> Named @"list-clients-bulk" listClientsBulk
+        :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
+
+    prekeyAPI :: ServerT PrekeyAPI Handler
+    prekeyAPI =
+      Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
+        :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
+        :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
+        :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
+        :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
+
+    userClientAPI :: ServerT UserClientAPI Handler
+    userClientAPI =
+      Named @"add-client" addClient
+        :<|> Named @"update-client" updateClient
+        :<|> Named @"delete-client" deleteClient
+        :<|> Named @"list-clients" listClients
+        :<|> Named @"get-client" getClient
+        :<|> Named @"get-client-capabilities" getClientCapabilities
+        :<|> Named @"get-client-prekeys" getClientPrekeys
+
+    connectionAPI :: ServerT ConnectionAPI Handler
+    connectionAPI =
+      Named @"create-connection-unqualified" createConnectionUnqualified
+        :<|> Named @"create-connection" createConnection
+        :<|> Named @"list-local-connections" listLocalConnections
+        :<|> Named @"list-connections" listConnections
+        :<|> Named @"get-connection-unqualified" getLocalConnection
+        :<|> Named @"get-connection" getConnection
+        :<|> Named @"update-connection-unqualified" updateLocalConnection
+        :<|> Named @"update-connection" updateConnection
+        :<|> Named @"search-contacts" Search.search
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

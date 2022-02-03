@@ -88,7 +88,7 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
-type BrigAPI =
+type UserAPI =
   -- See Note [ephemeral user sideeffect]
   Named
     "get-user-unqualified"
@@ -109,12 +109,78 @@ type BrigAPI =
           :> GetUserVerb
       )
     :<|> Named
-           "get-self"
-           ( Summary "Get your own profile"
+           "update-user-email"
+           ( Summary "Resend email address validation email."
+               :> Description "If the user has a pending email validation, the validation email will be resent."
                :> ZUser
-               :> "self"
-               :> Get '[JSON] SelfProfile
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "email"
+               :> ReqBody '[JSON] EmailUpdate
+               :> Put '[JSON] ()
            )
+    :<|> Named
+           "get-handle-info-unqualified"
+           ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
+               :> ZUser
+               :> "users"
+               :> "handles"
+               :> Capture' '[Description "The user handle"] "handle" Handle
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ HandleNotFound,
+                       Respond 200 "User found" UserHandleInfo
+                     ]
+                    (Maybe UserHandleInfo)
+           )
+    :<|> Named
+           "get-user-by-handle-qualified"
+           ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
+               :> ZUser
+               :> "users"
+               :> "by-handle"
+               :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ HandleNotFound,
+                       Respond 200 "User found" UserProfile
+                     ]
+                    (Maybe UserProfile)
+           )
+    :<|>
+    -- See Note [ephemeral user sideeffect]
+    Named
+      "list-users-by-unqualified-ids-or-handles"
+      ( Summary "List users (deprecated)"
+          :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+          :> ZUser
+          :> "users"
+          :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+          :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
+          :> Get '[JSON] [UserProfile]
+      )
+    :<|>
+    -- See Note [ephemeral user sideeffect]
+    Named
+      "list-users-by-ids-or-handles"
+      ( Summary "List users"
+          :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+          :> ZUser
+          :> "list-users"
+          :> ReqBody '[JSON] ListUsersQuery
+          :> Post '[JSON] [UserProfile]
+      )
+
+type SelfAPI =
+  Named
+    "get-self"
+    ( Summary "Get your own profile"
+        :> ZUser
+        :> "self"
+        :> Get '[JSON] SelfProfile
+    )
     :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserDeleted event to contacts of self
@@ -235,133 +301,18 @@ type BrigAPI =
                :> ReqBody '[JSON] HandleUpdate
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
            )
-    :<|> Named
-           "update-user-email"
-           ( Summary "Resend email address validation email."
-               :> Description "If the user has a pending email validation, the validation email will be resent."
-               :> ZUser
-               :> "users"
-               :> CaptureUserId "uid"
-               :> "email"
-               :> ReqBody '[JSON] EmailUpdate
-               :> Put '[JSON] ()
-           )
-    :<|> Named
-           "get-handle-info-unqualified"
-           ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
-               :> ZUser
-               :> "users"
-               :> "handles"
-               :> Capture' '[Description "The user handle"] "handle" Handle
-               :> MultiVerb
-                    'GET
-                    '[JSON]
-                    '[ HandleNotFound,
-                       Respond 200 "User found" UserHandleInfo
-                     ]
-                    (Maybe UserHandleInfo)
-           )
-    :<|> Named
-           "get-user-by-handle-qualified"
-           ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
-               :> ZUser
-               :> "users"
-               :> "by-handle"
-               :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
-               :> MultiVerb
-                    'GET
-                    '[JSON]
-                    '[ HandleNotFound,
-                       Respond 200 "User found" UserProfile
-                     ]
-                    (Maybe UserProfile)
-           )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "list-users-by-unqualified-ids-or-handles"
-      ( Summary "List users (deprecated)"
-          :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-          :> ZUser
-          :> "users"
-          :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
-          :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-          :> Get '[JSON] [UserProfile]
-      )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "list-users-by-ids-or-handles"
-      ( Summary "List users"
-          :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-          :> ZUser
-          :> "list-users"
-          :> ReqBody '[JSON] ListUsersQuery
-          :> Post '[JSON] [UserProfile]
-      )
-    :<|> Named
-           "get-user-clients-unqualified"
-           ( Summary "Get all of a user's clients (deprecated)."
-               :> "users"
-               :> CaptureUserId "uid"
-               :> "clients"
-               :> Get '[JSON] [PubClient]
-           )
-    :<|> Named
-           "get-user-clients-qualified"
-           ( Summary "Get all of a user's clients."
-               :> "users"
-               :> QualifiedCaptureUserId "uid"
-               :> "clients"
-               :> Get '[JSON] [PubClient]
-           )
-    :<|> Named
-           "get-user-client-unqualified"
-           ( Summary "Get a specific client of a user (deprecated)."
-               :> "users"
-               :> CaptureUserId "uid"
-               :> "clients"
-               :> CaptureClientId "client"
-               :> Get '[JSON] PubClient
-           )
-    :<|> Named
-           "get-user-client-qualified"
-           ( Summary "Get a specific client of a user."
-               :> "users"
-               :> QualifiedCaptureUserId "uid"
-               :> "clients"
-               :> CaptureClientId "client"
-               :> Get '[JSON] PubClient
-           )
-    :<|> Named
-           "list-clients-bulk"
-           ( Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
-               :> ZUser
-               :> "users"
-               :> "list-clients"
-               :> ReqBody '[JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
-               :> Post '[JSON] (QualifiedUserMap (Set PubClient))
-           )
-    :<|> Named
-           "list-clients-bulk-v2"
-           ( Summary "List all clients for a set of user ids"
-               :> ZUser
-               :> "users"
-               :> "list-clients"
-               :> "v2"
-               :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
-               :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient))
-           )
-    :<|> Named
-           "get-users-prekeys-client-unqualified"
-           ( Summary "(deprecated) Get a prekey for a specific client of a user."
-               :> ZUser
-               :> "users"
-               :> CaptureUserId "uid"
-               :> "prekeys"
-               :> CaptureClientId "client"
-               :> Get '[JSON] ClientPrekey
-           )
+
+type PrekeyAPI =
+  Named
+    "get-users-prekeys-client-unqualified"
+    ( Summary "(deprecated) Get a prekey for a specific client of a user."
+        :> ZUser
+        :> "users"
+        :> CaptureUserId "uid"
+        :> "prekeys"
+        :> CaptureClientId "client"
+        :> Get '[JSON] ClientPrekey
+    )
     :<|> Named
            "get-users-prekeys-client-qualified"
            ( Summary "Get a prekey for a specific client of a user."
@@ -414,24 +365,25 @@ type BrigAPI =
                :> ReqBody '[JSON] QualifiedUserClients
                :> Post '[JSON] QualifiedUserClientPrekeyMap
            )
-    :<|>
-    -- User Client API ----------------------------------------------------
 
-    -- This endpoint can lead to the following events being sent:
-    -- - ClientAdded event to self
-    -- - ClientRemoved event to self, if removing old clients due to max number
-    Named
-      "add-client"
-      ( CanThrow TooManyClients
-          :> CanThrow MissingAuth
-          :> CanThrow MalformedPrekeys
-          :> ZUser
-          :> ZConn
-          :> "clients"
-          :> Header "X-Forwarded-For" IpAddr
-          :> ReqBody '[JSON] NewClient
-          :> Verb 'POST 201 '[JSON] NewClientResponse
-      )
+type UserClientAPI =
+  -- User Client API ----------------------------------------------------
+
+  -- This endpoint can lead to the following events being sent:
+  -- - ClientAdded event to self
+  -- - ClientRemoved event to self, if removing old clients due to max number
+  Named
+    "add-client"
+    ( CanThrow TooManyClients
+        :> CanThrow MissingAuth
+        :> CanThrow MalformedPrekeys
+        :> ZUser
+        :> ZConn
+        :> "clients"
+        :> Header "X-Forwarded-For" IpAddr
+        :> ReqBody '[JSON] NewClient
+        :> Verb 'POST 201 '[JSON] NewClientResponse
+    )
     :<|> Named
            "update-client"
            ( CanThrow MalformedPrekeys
@@ -488,36 +440,92 @@ type BrigAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
-    :<|>
-    -- Connection API -----------------------------------------------------
-    --
-    -- This endpoint can lead to the following events being sent:
-    -- - ConnectionUpdated event to self and other, if any side's connection state changes
-    -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
-    -- - ConvCreate event to self, if creating a connect conversation (via galley)
-    -- - ConvConnect event to self, in some cases (via galley),
-    --   for details see 'Galley.API.Create.createConnectConversation'
-    Named
-      "create-connection-unqualified"
-      ( CanThrow MissingLegalholdConsent
-          :> CanThrow InvalidUser
-          :> CanThrow ConnectionLimitReached
-          :> CanThrow NoIdentity
-          -- Config value 'setUserMaxConnections' value in production/by default
-          -- is currently 1000 and has not changed in the last few years.
-          -- While it would be more correct to use the config value here, that
-          -- might not be time well spent.
-          :> Description "You can have no more than 1000 connections in accepted or sent state"
-          :> ZUser
-          :> ZConn
-          :> "connections"
-          :> ReqBody '[JSON] ConnectionRequest
-          :> MultiVerb
-               'POST
-               '[JSON]
-               (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
-               (ResponseForExistedCreated UserConnection)
-      )
+
+type ClientAPI =
+  Named
+    "get-user-clients-unqualified"
+    ( Summary "Get all of a user's clients (deprecated)."
+        :> "users"
+        :> CaptureUserId "uid"
+        :> "clients"
+        :> Get '[JSON] [PubClient]
+    )
+    :<|> Named
+           "get-user-clients-qualified"
+           ( Summary "Get all of a user's clients."
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "clients"
+               :> Get '[JSON] [PubClient]
+           )
+    :<|> Named
+           "get-user-client-unqualified"
+           ( Summary "Get a specific client of a user (deprecated)."
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "clients"
+               :> CaptureClientId "client"
+               :> Get '[JSON] PubClient
+           )
+    :<|> Named
+           "get-user-client-qualified"
+           ( Summary "Get a specific client of a user."
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "clients"
+               :> CaptureClientId "client"
+               :> Get '[JSON] PubClient
+           )
+    :<|> Named
+           "list-clients-bulk"
+           ( Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
+               :> ZUser
+               :> "users"
+               :> "list-clients"
+               :> ReqBody '[JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
+               :> Post '[JSON] (QualifiedUserMap (Set PubClient))
+           )
+    :<|> Named
+           "list-clients-bulk-v2"
+           ( Summary "List all clients for a set of user ids"
+               :> ZUser
+               :> "users"
+               :> "list-clients"
+               :> "v2"
+               :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
+               :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient))
+           )
+
+-- Connection API -----------------------------------------------------
+--
+-- This endpoint can lead to the following events being sent:
+-- - ConnectionUpdated event to self and other, if any side's connection state changes
+-- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
+-- - ConvCreate event to self, if creating a connect conversation (via galley)
+-- - ConvConnect event to self, in some cases (via galley),
+--   for details see 'Galley.API.Create.createConnectConversation'
+type ConnectionAPI =
+  Named
+    "create-connection-unqualified"
+    ( CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NoIdentity
+        -- Config value 'setUserMaxConnections' value in production/by default
+        -- is currently 1000 and has not changed in the last few years.
+        -- While it would be more correct to use the config value here, that
+        -- might not be time well spent.
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> ReqBody '[JSON] ConnectionRequest
+        :> MultiVerb
+             'POST
+             '[JSON]
+             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
+             (ResponseForExistedCreated UserConnection)
+    )
     :<|> Named
            "create-connection"
            ( CanThrow MissingLegalholdConsent
@@ -642,6 +650,8 @@ type BrigAPI =
                :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
+
+type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
