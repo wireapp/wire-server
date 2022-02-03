@@ -309,7 +309,7 @@ type ConversationAPI =
            "join-conversation-by-id-unqualified"
            ( Summary "Join a conversation by its ID (if link access enabled)"
                :> CanThrow ConvNotFound
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId

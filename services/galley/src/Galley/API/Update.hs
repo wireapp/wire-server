@@ -21,8 +21,8 @@ module Galley.API.Update
     blockConvH,
     unblockConvH,
     checkReusableCode,
-    joinConversationByIdUnqualified,
     joinConversationByReusableCodeUnqualified,
+    joinConversationById,
     addCodeUnqualified,
     rmCodeUnqualified,
     getCode,
@@ -73,6 +73,7 @@ import Data.Json.Util
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -709,31 +710,6 @@ joinConversationByReusableCode ::
 joinConversationByReusableCode lusr zcon convCode = do
   c <- verifyReusableCode convCode
   joinConversation lusr zcon (codeConversation c) CodeAccess
-
-joinConversationByIdUnqualified ::
-  Members
-    '[ BrigAccess,
-       FederatorAccess,
-       ConversationStore,
-       Error ActionError,
-       Error ConversationError,
-       Error NotATeamMember,
-       ExternalAccess,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
-  UserId ->
-  ConnId ->
-  ConvId ->
-  Sem r (UpdateResult Event)
-joinConversationByIdUnqualified zusr zcon cnv = do
-  lusr <- qualifyLocal zusr
-  joinConversationById lusr zcon cnv
 
 joinConversationById ::
   Members
