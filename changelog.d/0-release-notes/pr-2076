@@ -1,0 +1,1 @@
+Enforce conversation access roles more tightly on the backend: if a guests or non-team-members are not allowed, block guest link creation (new behavior) as well as ephemeral users joining (old behavior).

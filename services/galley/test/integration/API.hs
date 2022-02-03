@@ -155,6 +155,8 @@ tests s =
           test s "add members" postMembersOk,
           test s "add existing members" postMembersOk2,
           test s "add past members" postMembersOk3,
+          test s "add guest forbidden when no guest access role" postMembersFailNoGuestAccess,
+          test s "generate guest link forbidden when no guest or non-team-member access role" generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
@@ -1209,7 +1211,7 @@ testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
   galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
   let createConvWithGuestLink = do
         convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just accessRoles) Nothing
         void $ decodeConvCodeEvent <$> postConvCode owner convId
@@ -2536,6 +2538,26 @@ postMembersOk3 = do
   postMembers alice (singleton bob) conv !!! const 200 === statusCode
   -- Fetch bob again
   getSelfMember bob conv !!! const 200 === statusCode
+
+postMembersFailNoGuestAccess :: TestM ()
+postMembersFailNoGuestAccess = do
+  alice <- randomUser
+  bob <- randomUser
+  peter <- randomUser
+  eve <- ephemeralUser
+  connectUsers alice (list1 bob [peter])
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  conv <- decodeConvId <$> postConv alice [bob, peter] (Just "gossip") [] (Just noGuestsAccess) Nothing
+  postMembers alice (singleton eve) conv !!! const 403 === statusCode
+
+generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess :: TestM ()
+generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
+  alice <- randomUser
+  bob <- randomUser
+  connectUsers alice (singleton bob)
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole, NonTeamMemberAccessRole]
+  convId <- decodeConvId <$> postConv alice [bob] (Just "gossip") [CodeAccess] (Just noGuestsAccess) Nothing
+  postConvCode alice convId !!! const 403 === statusCode
 
 postMembersFail :: TestM ()
 postMembersFail = do
