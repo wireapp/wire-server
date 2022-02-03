@@ -151,7 +151,8 @@ bulkSend ::
     MonadMask m,
     HasRequestId m,
     MonadHttp m,
-    MonadUnliftIO m
+    MonadUnliftIO m,
+    Log.MonadLogger m
   ) =>
   URI ->
   BulkPushRequest ->
@@ -166,12 +167,21 @@ bulkSend' ::
     MonadMask m,
     HasRequestId m,
     MonadHttp m,
-    MonadUnliftIO m
+    MonadUnliftIO m,
+    Log.MonadLogger m
   ) =>
   URI ->
   BulkPushRequest ->
   m BulkPushResponse
-bulkSend' uri (encode -> jsbody) = do
+bulkSend' uri bulkPushRequest = do
+  forM_ (fromBulkPushRequest bulkPushRequest) $ \(notification, targets) ->
+    Log.debug $
+      Log.msg ("Bulk sending notification to Cannon." :: Text)
+        . Log.field "ntf_id" (show (ntfId notification))
+        . Log.field "user_ids" (show (map ptUserId targets))
+        . Log.field "conn_ids" (show (map ptConnId targets))
+
+  let jsbody = encode bulkPushRequest
   req <-
     check
       . method POST
@@ -387,5 +397,5 @@ send n pp =
 
 logPresence :: Presence -> Log.Msg -> Log.Msg
 logPresence p =
-  Log.field "user" (toByteString (userId p))
-    ~~ Log.field "zconn" (toByteString (connId p))
+  Log.field "user_id" (toByteString (userId p))
+    ~~ Log.field "conn_id" (toByteString (connId p))
