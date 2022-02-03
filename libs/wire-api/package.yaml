@@ -41,6 +41,7 @@ library:
   - currency-codes >=2.0
   - deriving-aeson >=0.2
   - deriving-swagger2
+  - either
   - email-validate >=2.0
   - errors
   - extended

@@ -95,7 +95,7 @@ routesPublic = do
       Doc.description "JSON body"
     Doc.returns (Doc.ref Public.modelLoginCodeResponse)
     Doc.response 200 "Login code sent." Doc.end
-    Doc.errorResponse invalidPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
     Doc.errorResponse passwordExists
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
 
@@ -155,9 +155,9 @@ routesPublic = do
     Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
     Doc.response 204 "No update, current and new email address are the same." Doc.end
     Doc.errorResponse invalidEmail
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
     Doc.errorResponse missingAccessToken
     Doc.errorResponse invalidAccessToken
     Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)

@@ -137,6 +137,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
       test' aws p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
+      test' aws p "put /self/phone - 409" $ testPhoneUpdateConflict b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
@@ -823,12 +824,13 @@ testUserUpdate brig cannon aws = do
   bobUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bobUser)
   let bob = userId bobUser
+  aliceNewName <- randomName
   connectUsers brig alice (singleton bob)
   let newColId = Just 5
       newAssets = Just [ImageAsset "abc" (Just AssetComplete)]
-      newName = Just $ Name "dogbert"
+      mNewName = Just $ aliceNewName
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate newName newPic newAssets newColId
+      userUpdate = UserUpdate mNewName newPic newAssets newColId
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
@@ -840,7 +842,7 @@ testUserUpdate brig cannon aws = do
   -- get the updated profile
   get (brig . path "/self" . zUser alice) !!! do
     const 200 === statusCode
-    const (newName, newColId, newAssets)
+    const (mNewName, newColId, newAssets)
       === ( \u ->
               ( fmap userDisplayName u,
                 fmap userAccentId u,
@@ -851,7 +853,7 @@ testUserUpdate brig cannon aws = do
   -- get only the new name
   get (brig . path "/self/name" . zUser alice) !!! do
     const 200 === statusCode
-    const (String . fromName <$> newName)
+    const (String . fromName <$> mNewName)
       === ( \r -> do
               b <- responseBody r
               b ^? key "name"
@@ -859,7 +861,7 @@ testUserUpdate brig cannon aws = do
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCanFind brig suid aliceQ "dogbert"
+  Search.assertCanFind brig suid aliceQ (fromName aliceNewName)
 
 -- This tests the behavior of `/i/self/email` instead of `/self/email` or
 -- `/access/self/email`.  tests for session token handling under `/access/self/email` are in
@@ -933,6 +935,17 @@ testPhoneUpdateBlacklisted brig = do
 
   -- cleanup to avoid other tests failing sporadically
   deletePrefix brig (phonePrefix prefix)
+
+testPhoneUpdateConflict :: Brig -> Http ()
+testPhoneUpdateConflict brig = do
+  uid1 <- userId <$> randomUser brig
+  phn <- randomPhone
+  updatePhone brig uid1 phn
+
+  uid2 <- userId <$> randomUser brig
+  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+  put (brig . path "/self/phone" . contentJson . zUser uid2 . zConn "c" . body phoneUpdate)
+    !!! (const 409 === statusCode)
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()

@@ -23,9 +23,11 @@ module Brig.API.Util
     validateHandle,
     logEmail,
     traverseConcurrentlyWithErrors,
+    exceptTToMaybe,
   )
 where
 
+import Brig.API.Error
 import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
@@ -46,6 +48,7 @@ import qualified System.Logger as Log
 import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
+import Wire.API.ErrorDescription
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> Handler [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -68,7 +71,7 @@ lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
     mk a = SelfProfile (accountUser a)
 
 validateHandle :: Text -> Handler Handle
-validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . parseHandle
+validateHandle = maybe (throwE (Error.StdError (errorDescriptionTypeToWai @InvalidHandle))) return . parseHandle
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =
@@ -86,3 +89,6 @@ traverseConcurrentlyWithErrors ::
 traverseConcurrentlyWithErrors f =
   ExceptT . try . (traverse (either throwIO pure) =<<)
     . pooledMapConcurrentlyN 8 (runExceptT . f)
+
+exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
+exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT

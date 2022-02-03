@@ -170,6 +170,14 @@ servantSitemap =
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.deleteSelf = deleteUser,
+        BrigAPI.putSelf = updateUser,
+        BrigAPI.changePhone = changePhone,
+        BrigAPI.removePhone = removePhone,
+        BrigAPI.removeEmail = removeEmail,
+        BrigAPI.checkPasswordExists = checkPasswordExists,
+        BrigAPI.changePassword = changePassword,
+        BrigAPI.changeLocale = changeLocale,
+        BrigAPI.changeHandle = changeHandle,
         BrigAPI.updateUserEmail = updateUserEmail,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
@@ -235,7 +243,7 @@ sitemap = do
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse invalidHandle
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidHandle)
     Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
 
   -- some APIs moved to servant
@@ -255,18 +263,6 @@ sitemap = do
 
   -- User Self API ------------------------------------------------------
 
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self" (continue updateUserH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.UserUpdate
-  document "PUT" "updateSelf" $ do
-    Doc.summary "Update your profile"
-    Doc.body (Doc.ref Public.modelUserUpdate) $
-      Doc.description "JSON body"
-    Doc.response 200 "Update successful." Doc.end
-
   get "/self/name" (continue getUserDisplayNameH) $
     accept "application" "json"
       .&. zauthUserId
@@ -274,88 +270,6 @@ sitemap = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/phone" (continue changePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.PhoneUpdate
-  document "PUT" "changePhone" $ do
-    Doc.summary "Change your phone number"
-    Doc.body (Doc.ref Public.modelPhoneUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
-    Doc.errorResponse userKeyExists
-
-  head
-    "/self/password"
-    (continue checkPasswordExistsH)
-    zauthUserId
-  document "HEAD" "checkPassword" $ do
-    Doc.summary "Check that your password is set"
-    Doc.response 200 "Password is set." Doc.end
-    Doc.response 404 "Password is not set." Doc.end
-
-  put "/self/password" (continue changePasswordH) $
-    zauthUserId
-      .&. jsonRequest @Public.PasswordChange
-  document "PUT" "changePassword" $ do
-    Doc.summary "Change your password"
-    Doc.body (Doc.ref Public.modelChangePassword) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
-    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
-
-  put "/self/locale" (continue changeLocaleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.LocaleUpdate
-  document "PUT" "changeLocale" $ do
-    Doc.summary "Change your locale"
-    Doc.body (Doc.ref Public.modelChangeLocale) $
-      Doc.description "JSON body"
-    Doc.response 200 "Locale changed." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self/handle" (continue changeHandleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.HandleUpdate
-  document "PUT" "changeHandle" $ do
-    Doc.summary "Change your handle"
-    Doc.body (Doc.ref Public.modelChangeHandle) $
-      Doc.description "JSON body"
-    Doc.errorResponse handleExists
-    Doc.errorResponse invalidHandle
-    Doc.response 200 "Handle changed." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/phone" (continue removePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removePhone" $ do
-    Doc.summary "Remove your phone number."
-    Doc.notes
-      "Your phone number can only be removed if you also have an \
-      \email address and a password."
-    Doc.response 200 "Phone number removed." Doc.end
-    Doc.errorResponse lastIdentity
-    Doc.errorResponse noPassword
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/email" (continue removeEmailH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removeEmail" $ do
-    Doc.summary "Remove your email address."
-    Doc.notes
-      "Your email address can only be removed if you also have a \
-      \phone number."
-    Doc.response 200 "Email address removed." Doc.end
-    Doc.errorResponse lastIdentity
 
   -- TODO put  where?
 
@@ -466,10 +380,10 @@ sitemap = do
     Doc.errorResponse whitelistError
     Doc.errorResponse invalidInvitationCode
     Doc.errorResponse missingIdentity
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse activationCodeNotFound
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
@@ -518,10 +432,10 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
     Doc.errorResponse invalidEmail
-    Doc.errorResponse invalidPhone
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
     Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
@@ -894,56 +808,41 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
-updateUserH (uid ::: conn ::: req) = do
-  uu <- parseJsonBody req
-  API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
-  return empty
+updateUser :: UserId -> ConnId -> Public.UserUpdate -> Handler (Maybe Public.UpdateProfileError)
+updateUser uid conn uu = do
+  eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
+  pure $ either Just (const Nothing) eithErr
 
-changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
-changePhoneH (u ::: c ::: req) =
-  setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
-
-changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
-changePhone u _ (Public.puPhone -> phone) = do
-  (adata, pn) <- API.changePhone u phone !>> changePhoneError
+changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler (Maybe Public.ChangePhoneError)
+changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
+  (adata, pn) <- API.changePhone u phone
   loc <- lift $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
   lift $ sendActivationSms pn apair loc
 
-removePhoneH :: UserId ::: ConnId -> Handler Response
-removePhoneH (self ::: conn) = do
-  API.removePhone self conn !>> idtError
-  return empty
+removePhone :: UserId -> ConnId -> Handler (Maybe Public.RemoveIdentityError)
+removePhone self conn =
+  lift . exceptTToMaybe $ API.removePhone self conn
 
-removeEmailH :: UserId ::: ConnId -> Handler Response
-removeEmailH (self ::: conn) = do
-  API.removeEmail self conn !>> idtError
-  return empty
+removeEmail :: UserId -> ConnId -> Handler (Maybe Public.RemoveIdentityError)
+removeEmail self conn =
+  lift . exceptTToMaybe $ API.removeEmail self conn
 
-checkPasswordExistsH :: UserId -> Handler Response
-checkPasswordExistsH self = do
-  exists <- lift $ isJust <$> API.lookupPassword self
-  return $ if exists then empty else setStatus status404 empty
+checkPasswordExists :: UserId -> Handler Bool
+checkPasswordExists = fmap isJust . lift . API.lookupPassword
 
-changePasswordH :: UserId ::: JsonRequest Public.PasswordChange -> Handler Response
-changePasswordH (u ::: req) = do
-  cp <- parseJsonBody req
-  API.changePassword u cp !>> changePwError
-  return empty
+changePassword :: UserId -> Public.PasswordChange -> Handler (Maybe Public.ChangePasswordError)
+changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
-changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.LocaleUpdate -> Handler Response
-changeLocaleH (u ::: conn ::: req) = do
-  l <- parseJsonBody req
-  lift $ API.changeLocale u conn l
-  return empty
+changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> Handler ()
+changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
 checkHandleH :: UserId ::: Text -> Handler Response
 checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
@@ -964,15 +863,10 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
-changeHandleH (u ::: conn ::: req) =
-  empty <$ (changeHandle u conn =<< parseJsonBody req)
-
-changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
-changeHandle u conn (Public.HandleUpdate h) = do
-  handle <- API.validateHandle h
-  -- TODO check here
-  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
+changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler (Maybe Public.ChangeHandleError)
+changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
+  handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
+  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) =

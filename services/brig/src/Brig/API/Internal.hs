@@ -593,7 +593,7 @@ updateUserName uid (NameUpdate nameUpd) = do
 checkHandleInternalH :: Text -> Handler Response
 checkHandleInternalH =
   API.checkHandle >=> \case
-    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 

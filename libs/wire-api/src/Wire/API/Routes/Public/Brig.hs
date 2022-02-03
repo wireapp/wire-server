@@ -135,6 +135,90 @@ data Api routes = Api
         :> "self"
         :> ReqBody '[JSON] DeleteUser
         :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
+    -- This endpoint can lead to the following events being sent:
+    -- - UserUpdated event to contacts of self
+    putSelf ::
+      routes
+        :- Summary "Update your profile."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> ReqBody '[JSON] UserUpdate
+        :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError),
+    changePhone ::
+      routes
+        :- Summary "Change your phone number."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "phone"
+        :> ReqBody '[JSON] PhoneUpdate
+        :> MultiVerb 'PUT '[JSON] ChangePhoneResponses (Maybe ChangePhoneError),
+    -- This endpoint can lead to the following events being sent:
+    -- - UserIdentityRemoved event to self
+    removePhone ::
+      routes
+        :- Summary "Remove your phone number."
+        :> Description
+             "Your phone number can only be removed if you also have an \
+             \email address and a password."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "phone"
+        :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError),
+    -- This endpoint can lead to the following events being sent:
+    -- - UserIdentityRemoved event to self
+    removeEmail ::
+      routes
+        :- Summary "Remove your email address."
+        :> Description
+             "Your email address can only be removed if you also have a \
+             \phone number."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "email"
+        :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError),
+    checkPasswordExists ::
+      routes
+        :- Summary "Check that your password is set."
+        :> ZUser
+        :> "self"
+        :> "password"
+        :> MultiVerb
+             'HEAD
+             '()
+             '[ RespondEmpty 404 "Password is not set",
+                RespondEmpty 200 "Password is set"
+              ]
+             Bool,
+    changePassword ::
+      routes
+        :- Summary "Change your password."
+        :> ZUser
+        :> "self"
+        :> "password"
+        :> ReqBody '[JSON] PasswordChange
+        :> MultiVerb 'PUT '[JSON] ChangePasswordResponses (Maybe ChangePasswordError),
+    changeLocale ::
+      routes
+        :- Summary "Change your locale."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "locale"
+        :> ReqBody '[JSON] LocaleUpdate
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] (),
+    changeHandle ::
+      routes
+        :- Summary "Change your handle."
+        :> ZUser
+        :> ZConn
+        :> "self"
+        :> "handle"
+        :> ReqBody '[JSON] HandleUpdate
+        :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError),
     updateUserEmail ::
       routes
         :- Summary "Resend email address validation email."

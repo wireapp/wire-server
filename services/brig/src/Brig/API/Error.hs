@@ -39,6 +39,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API.Status
 import Wire.API.ErrorDescription
 import Wire.API.Federation.Error
+import Wire.API.User (ChangeHandleError (..), UpdateProfileError (..))
 
 errorDescriptionToWai ::
   forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
@@ -110,18 +111,18 @@ connError InvalidTransition {} = StdError (errorDescriptionTypeToWai @InvalidTra
 connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
 connError InvalidUser {} = StdError (errorDescriptionTypeToWai @InvalidUser)
 connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))
-connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
+connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
-connError ConnectInvalidPhone {} = StdError invalidPhone
+connError ConnectInvalidPhone {} = StdError (errorDescriptionTypeToWai @InvalidPhone)
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
 connError ConnectMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
 connError (ConnectFederationError e) = fedError e
 
 actError :: ActivationError -> Error
-actError (UserKeyExists _) = StdError userKeyExists
+actError (UserKeyExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
 actError (InvalidActivationCode e) = StdError (invalidActivationCode e)
 actError (InvalidActivationEmail _ _) = StdError invalidEmail
-actError (InvalidActivationPhone _) = StdError invalidPhone
+actError (InvalidActivationPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
 
 pwResetError :: PasswordResetError -> Error
 pwResetError InvalidPasswordResetKey = StdError invalidPwResetKey
@@ -138,45 +139,35 @@ newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode = StdError invalidInvitationCode
 newUserError MissingIdentity = StdError missingIdentity
 newUserError (InvalidEmail _ _) = StdError invalidEmail
-newUserError (InvalidPhone _) = StdError invalidPhone
-newUserError (DuplicateUserKey _) = StdError userKeyExists
+newUserError (InvalidPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
+newUserError (DuplicateUserKey _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
 newUserError (EmailActivationError e) = actError e
 newUserError (PhoneActivationError e) = actError e
-newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
+newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
 newUserError TooManyTeamMembers = StdError tooManyTeamMembers
 newUserError UserCreationRestricted = StdError userCreationRestricted
 newUserError (ExternalPreconditionFailed e) = StdError e
 
 sendLoginCodeError :: SendLoginCodeError -> Error
-sendLoginCodeError (SendLoginInvalidPhone _) = StdError invalidPhone
+sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
 sendLoginCodeError SendLoginPasswordExists = StdError passwordExists
 
 sendActCodeError :: SendActivationCodeError -> Error
-sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const invalidEmail) (const invalidPhone) k
-sendActCodeError (UserKeyInUse _) = StdError userKeyExists
-sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
+sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const invalidEmail) (const (errorDescriptionTypeToWai @InvalidPhone)) k
+sendActCodeError (UserKeyInUse _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
+sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
 
 changeEmailError :: ChangeEmailError -> Error
 changeEmailError (InvalidNewEmail _ _) = StdError invalidEmail
-changeEmailError (EmailExists _) = StdError userKeyExists
+changeEmailError (EmailExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
-changePhoneError :: ChangePhoneError -> Error
-changePhoneError (InvalidNewPhone _) = StdError invalidPhone
-changePhoneError (PhoneExists _) = StdError userKeyExists
-changePhoneError (BlacklistedNewPhone _) = StdError blacklistedPhone
-
-changePwError :: ChangePasswordError -> Error
-changePwError InvalidCurrentPassword = StdError (errorDescriptionTypeToWai @BadCredentials)
-changePwError ChangePasswordNoIdentity = StdError (errorDescriptionToWai (noIdentity 1))
-changePwError ChangePasswordMustDiffer = StdError changePasswordMustDiffer
-
 changeHandleError :: ChangeHandleError -> Error
 changeHandleError ChangeHandleNoIdentity = StdError (errorDescriptionToWai (noIdentity 2))
-changeHandleError ChangeHandleExists = StdError handleExists
-changeHandleError ChangeHandleInvalid = StdError invalidHandle
-changeHandleError ChangeHandleManagedByScim = StdError $ propertyManagedByScim "handle"
+changeHandleError ChangeHandleExists = StdError (errorDescriptionToWai (mkErrorDescription :: HandleExists))
+changeHandleError ChangeHandleInvalid = StdError (errorDescriptionToWai (mkErrorDescription :: InvalidHandle))
+changeHandleError ChangeHandleManagedByScim = StdError (errorDescriptionToWai (mkErrorDescription :: HandleManagedByScim))
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
@@ -230,11 +221,6 @@ clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
 
-idtError :: RemoveIdentityError -> Error
-idtError LastIdentity = StdError lastIdentity
-idtError NoPassword = StdError noPassword
-idtError NoIdentity = StdError (errorDescriptionToWai (noIdentity 3))
-
 propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 
@@ -256,13 +242,13 @@ accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 
 phoneError :: PhoneException -> Error
-phoneError PhoneNumberUnreachable = StdError invalidPhone
-phoneError PhoneNumberBarred = StdError blacklistedPhone
+phoneError PhoneNumberUnreachable = StdError (errorDescriptionTypeToWai @InvalidPhone)
+phoneError PhoneNumberBarred = StdError (errorDescriptionTypeToWai @BlacklistedPhone)
 phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError (ProfileNotFound _) = StdError (errorDescriptionTypeToWai @UserNotFound)
+updateProfileError ProfileNotFound = StdError (errorDescriptionTypeToWai @UserNotFound)
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -281,12 +267,6 @@ clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-c
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
 
-lastIdentity :: Wai.Error
-lastIdentity = Wai.mkError status403 "last-identity" "The last user identity (email or phone number) cannot be removed."
-
-noPassword :: Wai.Error
-noPassword = Wai.mkError status403 "no-password" "The user has no password."
-
 invalidEmail :: Wai.Error
 invalidEmail = Wai.mkError status400 "invalid-email" "Invalid e-mail address."
 
@@ -295,12 +275,6 @@ invalidPwResetKey = Wai.mkError status400 "invalid-key" "Invalid email or mobile
 
 resetPasswordMustDiffer :: Wai.Error
 resetPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For password reset, new and old password must be different."
-
-changePasswordMustDiffer :: Wai.Error
-changePasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For password change, new and old password must be different."
-
-invalidPhone :: Wai.Error
-invalidPhone = Wai.mkError status400 "invalid-phone" "Invalid mobile phone number."
 
 invalidInvitationCode :: Wai.Error
 invalidInvitationCode = Wai.mkError status400 "invalid-invitation-code" "Invalid invitation code."
@@ -314,20 +288,11 @@ invalidPwResetCode = Wai.mkError status400 "invalid-code" "Invalid password rese
 duplicatePwResetCode :: Wai.Error
 duplicatePwResetCode = Wai.mkError status409 "code-exists" "A password reset is already in progress."
 
-userKeyExists :: Wai.Error
-userKeyExists = Wai.mkError status409 "key-exists" "The given e-mail address or phone number is in use."
-
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."
 
 phoneExists :: Wai.Error
 phoneExists = Wai.mkError status409 "phone-exists" "The given phone number is in use."
-
-handleExists :: Wai.Error
-handleExists = Wai.mkError status409 "handle-exists" "The given handle is already taken."
-
-invalidHandle :: Wai.Error
-invalidHandle = Wai.mkError status400 "invalid-handle" "The given handle is invalid."
 
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
@@ -379,14 +344,6 @@ blacklistedEmail =
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
 
-blacklistedPhone :: Wai.Error
-blacklistedPhone =
-  Wai.mkError
-    status403
-    "blacklisted-phone"
-    "The given phone number has been blacklisted due to suspected abuse \
-    \or a complaint."
-
 passwordExists :: Wai.Error
 passwordExists =
   Wai.mkError
@@ -416,9 +373,6 @@ authMissingToken = Wai.mkError status403 "invalid-credentials" "Missing token"
 authMissingCookieAndToken :: Wai.Error
 authMissingCookieAndToken = Wai.mkError status403 "invalid-credentials" "Missing cookie and token"
 
-invalidUserToken :: Wai.Error
-invalidUserToken = Wai.mkError status403 "invalid-credentials" "Invalid user token"
-
 invalidAccessToken :: Wai.Error
 invalidAccessToken = Wai.mkError status403 "invalid-credentials" "Invalid access token"
 
@@ -436,9 +390,6 @@ authTokenInvalid = Wai.mkError status403 "invalid-credentials" "Invalid token"
 
 authTokenUnsupported :: Wai.Error
 authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported token operation for this token type"
-
-incorrectPermissions :: Wai.Error
-incorrectPermissions = Wai.mkError status403 "invalid-permissions" "Copy permissions must be a subset of self permissions"
 
 -- | User's relation to the team is not what we expect it to be. Examples:
 --
