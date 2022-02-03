@@ -129,9 +129,10 @@ import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
 import GHC.TypeLits (KnownNat, Nat)
+import qualified Generics.SOP as GSOP
 import Imports
 import qualified SAML2.WebSSO as SAML
-import Servant (inject)
+import Servant (type (.++))
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.ErrorDescription
@@ -853,21 +854,18 @@ instance ToSchema UserUpdate where
 data UpdateProfileError
   = DisplayNameManagedByScim
   | ProfileNotFound
+  deriving (Generic)
+  deriving (AsUnion PutSelfErrorResponses) via GenericAsUnion PutSelfErrorResponses UpdateProfileError
 
-type PutSelfResponses =
-  '[ UserNotFound,
-     NameManagedByScim,
-     RespondEmpty 200 "User updated"
-   ]
+instance GSOP.Generic UpdateProfileError
 
-instance AsUnion PutSelfResponses (Maybe UpdateProfileError) where
-  toUnion (Just ProfileNotFound) = inject $ I (mkErrorDescription :: UserNotFound)
-  toUnion (Just DisplayNameManagedByScim) = inject $ I (mkErrorDescription :: NameManagedByScim)
-  toUnion Nothing = inject $ I ()
-  fromUnion (Z (I _)) = Just ProfileNotFound
-  fromUnion (S (Z (I _))) = Just DisplayNameManagedByScim
-  fromUnion (S (S (Z (I _)))) = Nothing
-  fromUnion (S (S (S x))) = case x of
+type PutSelfErrorResponses = '[NameManagedByScim, UserNotFound]
+
+type PutSelfResponses = PutSelfErrorResponses .++ '[RespondEmpty 200 "User updated"]
+
+instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) where
+  toUnion = maybeToUnion (toUnion @PutSelfErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @PutSelfErrorResponses)
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
@@ -895,24 +893,19 @@ data ChangePasswordError
   = InvalidCurrentPassword
   | ChangePasswordNoIdentity
   | ChangePasswordMustDiffer
+  deriving (Generic)
+  deriving (AsUnion ChangePasswordErrorResponses) via GenericAsUnion ChangePasswordErrorResponses ChangePasswordError
+
+instance GSOP.Generic ChangePasswordError
+
+type ChangePasswordErrorResponses = [BadCredentials, NoIdentity, ChangePasswordMustDiffer]
 
 type ChangePasswordResponses =
-  [ BadCredentials,
-    NoIdentity,
-    ChangePasswordMustDiffer,
-    RespondEmpty 200 "Password Changed"
-  ]
+  ChangePasswordErrorResponses .++ '[RespondEmpty 200 "Password Changed"]
 
-instance AsUnion ChangePasswordResponses (Maybe ChangePasswordError) where
-  toUnion (Just InvalidCurrentPassword) = inject $ I (mkErrorDescription :: BadCredentials)
-  toUnion (Just ChangePasswordNoIdentity) = inject $ I (mkErrorDescription :: NoIdentity)
-  toUnion (Just ChangePasswordMustDiffer) = inject $ I (mkErrorDescription :: ChangePasswordMustDiffer)
-  toUnion Nothing = inject $ I ()
-  fromUnion (Z _) = Just InvalidCurrentPassword
-  fromUnion (S (Z _)) = Just ChangePasswordNoIdentity
-  fromUnion (S (S (Z _))) = Just ChangePasswordMustDiffer
-  fromUnion (S (S (S (Z _)))) = Nothing
-  fromUnion (S (S (S (S x)))) = case x of
+instance (res ~ ChangePasswordResponses) => AsUnion res (Maybe ChangePasswordError) where
+  toUnion = maybeToUnion (toUnion @ChangePasswordErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangePasswordErrorResponses)
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)
@@ -964,51 +957,37 @@ data ChangePhoneError
   = PhoneExists
   | InvalidNewPhone
   | BlacklistedNewPhone
+  deriving (Generic)
+  deriving (AsUnion ChangePhoneErrorResponses) via GenericAsUnion ChangePhoneErrorResponses ChangePhoneError
+
+instance GSOP.Generic ChangePhoneError
+
+type ChangePhoneErrorResponses = [UserKeyExists, InvalidPhone, BlacklistedPhone]
 
 type ChangePhoneResponses =
-  '[ UserKeyExists,
-     InvalidPhone,
-     BlacklistedPhone,
-     RespondEmpty 202 "Phone updated"
-   ]
+  ChangePhoneErrorResponses .++ '[RespondEmpty 202 "Phone updated"]
 
-instance AsUnion ChangePhoneResponses (Maybe ChangePhoneError) where
-  toUnion = \case
-    Just PhoneExists -> inject $ I (mkErrorDescription :: UserKeyExists)
-    Just InvalidNewPhone -> inject $ I (mkErrorDescription :: InvalidPhone)
-    Just BlacklistedNewPhone -> inject $ I (mkErrorDescription :: BlacklistedPhone)
-    Nothing -> inject $ I ()
-  fromUnion = \case
-    Z _ -> Just PhoneExists
-    S (Z _) -> Just InvalidNewPhone
-    S (S (Z _)) -> Just BlacklistedNewPhone
-    S (S (S (Z _))) -> Nothing
-    S (S (S (S x))) -> case x of
+instance (res ~ ChangePhoneResponses) => AsUnion res (Maybe ChangePhoneError) where
+  toUnion = maybeToUnion (toUnion @ChangePhoneErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangePhoneErrorResponses)
 
 data RemoveIdentityError
   = LastIdentity
   | NoPassword
   | NoIdentity
+  deriving (Generic)
+  deriving (AsUnion RemoveIdentityErrorResponses) via GenericAsUnion RemoveIdentityErrorResponses RemoveIdentityError
+
+instance GSOP.Generic RemoveIdentityError
+
+type RemoveIdentityErrorResponses = [LastIdentity, NoPassword, NoIdentity]
 
 type RemoveIdentityResponses =
-  [ LastIdentity,
-    NoPassword,
-    NoIdentity,
-    RespondEmpty 200 "Identity Removed"
-  ]
+  RemoveIdentityErrorResponses .++ '[RespondEmpty 200 "Identity Removed"]
 
-instance AsUnion RemoveIdentityResponses (Maybe RemoveIdentityError) where
-  toUnion = \case
-    Just LastIdentity -> inject $ I (mkErrorDescription :: LastIdentity)
-    Just NoPassword -> inject $ I (mkErrorDescription :: NoPassword)
-    Just NoIdentity -> inject $ I (noIdentity 3) -- 3 is code for error while removing phone?
-    Nothing -> inject $ I ()
-  fromUnion = \case
-    Z _ -> Just LastIdentity
-    S (Z _) -> Just NoPassword
-    S (S (Z _)) -> Just NoIdentity
-    S (S (S (Z _))) -> Nothing
-    S (S (S (S x))) -> case x of
+instance (res ~ RemoveIdentityResponses) => AsUnion res (Maybe RemoveIdentityError) where
+  toUnion = maybeToUnion (toUnion @RemoveIdentityErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @RemoveIdentityErrorResponses)
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
@@ -1025,27 +1004,19 @@ data ChangeHandleError
   | ChangeHandleExists
   | ChangeHandleInvalid
   | ChangeHandleManagedByScim
+  deriving (Generic)
+  deriving (AsUnion ChangeHandleErrorResponses) via GenericAsUnion ChangeHandleErrorResponses ChangeHandleError
+
+instance GSOP.Generic ChangeHandleError
+
+type ChangeHandleErrorResponses = [NoIdentity, HandleExists, InvalidHandle, HandleManagedByScim]
 
 type ChangeHandleResponses =
-  '[ NoIdentity,
-     HandleExists,
-     InvalidHandle,
-     HandleManagedByScim,
-     RespondEmpty 200 "HandleChanged"
-   ]
+  ChangeHandleErrorResponses .++ '[RespondEmpty 200 "Handle Changed"]
 
-instance AsUnion ChangeHandleResponses (Maybe ChangeHandleError) where
-  toUnion (Just ChangeHandleNoIdentity) = inject $ I (noIdentity 2) -- 2 is code for error while removing handle?
-  toUnion (Just ChangeHandleExists) = inject $ I (mkErrorDescription :: HandleExists)
-  toUnion (Just ChangeHandleInvalid) = inject $ I (mkErrorDescription :: InvalidHandle)
-  toUnion (Just ChangeHandleManagedByScim) = inject $ I (mkErrorDescription :: HandleManagedByScim)
-  toUnion Nothing = inject $ I ()
-  fromUnion (Z _) = Just ChangeHandleNoIdentity
-  fromUnion (S (Z _)) = Just ChangeHandleExists
-  fromUnion (S (S (Z _))) = Just ChangeHandleInvalid
-  fromUnion (S (S (S (Z _)))) = Just ChangeHandleManagedByScim
-  fromUnion (S (S (S (S (Z _))))) = Nothing
-  fromUnion (S (S (S (S (S x))))) = case x of
+instance (res ~ ChangeHandleResponses) => AsUnion res (Maybe ChangeHandleError) where
+  toUnion = maybeToUnion (toUnion @ChangeHandleErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangeHandleErrorResponses)
 
 newtype NameUpdate = NameUpdate {nuHandle :: Text}
   deriving stock (Eq, Show, Generic)

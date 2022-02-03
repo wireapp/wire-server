@@ -31,6 +31,8 @@ module Wire.API.Routes.MultiVerb
     AsUnion (..),
     eitherToUnion,
     eitherFromUnion,
+    maybeToUnion,
+    maybeFromUnion,
     AsConstructor (..),
     GenericAsConstructor (..),
     GenericAsUnion (..),
@@ -50,6 +52,7 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Containers.ListUtils
+import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Metrics.Servant
@@ -528,6 +531,21 @@ instance EitherFromUnion '[] bs where
 instance EitherFromUnion as bs => EitherFromUnion (a ': as) bs where
   eitherFromUnion f _ (Z x) = Left (f (Z x))
   eitherFromUnion f g (S x) = eitherFromUnion @as @bs (f . S) g x
+
+maybeToUnion ::
+  forall as a.
+  (InjectAfter as '[()], InjectBefore as '[()]) =>
+  (a -> Union as) ->
+  (Maybe a -> Union (as .++ '[()]))
+maybeToUnion f (Just a) = injectBefore @as @'[()] (f a)
+maybeToUnion _ Nothing = injectAfter @as @'[()] (Z (I ()))
+
+maybeFromUnion ::
+  forall as a.
+  EitherFromUnion as '[()] =>
+  (Union as -> a) ->
+  (Union (as .++ '[()]) -> Maybe a)
+maybeFromUnion f = leftToMaybe . eitherFromUnion @as @'[()] f (const (Z (I ())))
 
 -- | This class can be instantiated to get automatic derivation of 'AsUnion'
 -- instances via 'GenericAsUnion'. The idea is that one has to make sure that for
