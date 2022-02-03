@@ -397,7 +397,7 @@ type ConversationAPI =
            "member-typing-unqualified"
            ( Summary "Sending typing notifications"
                :> CanThrow ConvNotFound
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId

@@ -1314,13 +1314,12 @@ isTypingUnqualified ::
        WaiRoutes
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   ConvId ->
   TypingData ->
   Sem r ()
-isTypingUnqualified zusr zcon cnv typingData = do
-  lusr <- qualifyLocal zusr
+isTypingUnqualified lusr zcon cnv typingData = do
   lcnv <- qualifyLocal cnv
   isTyping lusr zcon lcnv typingData
 
