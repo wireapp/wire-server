@@ -26,35 +26,44 @@ import qualified Data.ByteString.Char8 as C
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck (Property, counterexample, testProperty, (.||.), (===))
+import Test.Tasty.QuickCheck (conjoin, counterexample, testProperty, (.||.), (===))
 import Wire.API.Team.Export
 
 tests :: TestTree
 tests =
   testGroup
     "Export"
-    [ testUnquoted,
+    [ testTrivialExamples,
       testRoundTrip,
-      testUnquotedProp
+      testUnquotedProp,
+      testQuotedProp
     ]
 
-testUnquoted :: TestTree
-testUnquoted = testCase "unquoted" $ do
+testTrivialExamples :: TestTree
+testTrivialExamples = testCase "quoted/unquoted examples" $ do
   unquoted "'foobar" @?= "foobar"
   unquoted "foobar" @?= "foobar"
+  unquoted "" @?= ""
+  quoted "" @?= ""
+  quoted "foobar" @?= "foobar"
+  quoted "=1+2" @?= "'=1+2"
+
+testRoundTrip :: TestTree
+testRoundTrip = testProperty "quoted roundtrip" prop
+  where
+    prop (ABS bs) = counterexample (show $ quoted bs) $ bs === (unquoted . quoted) bs
 
 testUnquotedProp :: TestTree
-testUnquotedProp = testProperty msg prop
+testUnquotedProp = testProperty "unquoted arbitrary" prop
   where
-    msg = "unquoted arbitrary"
-    prop (ABS bs) = counterexample (show $ unquoted bs) $ startsWithSingleQuote bs .||. bs === unquoted bs
+    prop (ABS bs) = counterexample (show $ unquoted bs) $ (bs === unquoted bs) .||. startsWithSingleQuote bs
     startsWithSingleQuote bs = case C.uncons bs of
       Just ('\'', _) -> True
       _ -> False
 
-testRoundTrip :: TestTree
-testRoundTrip = testProperty msg prop
+testQuotedProp :: TestTree
+testQuotedProp = testProperty "quoted" prop
   where
-    msg = "quoted roundtrip"
-    prop :: ArbByteString -> Property
-    prop (ABS bs) = counterexample (show $ quoted bs) $ bs === (unquoted . quoted) bs
+    prop (ABS bs) = counterexample (show $ quoted bs) $ conjoin (checkQuoted bs <$> disallowedChars)
+    checkQuoted bs char = quoted (char `C.cons` bs) === '\'' `C.cons` char `C.cons` bs
+    disallowedChars = ['@', '+', '-', '=', '\'', '\x0009', '\x000D']

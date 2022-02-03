@@ -615,7 +615,7 @@ test-suite wire-api-tests
     , aeson-qq
     , base
     , bytestring
-    , bytestring-arbitrary
+    , bytestring-arbitrary >=0.1.3
     , bytestring-conversion
     , case-insensitive
     , cassava
