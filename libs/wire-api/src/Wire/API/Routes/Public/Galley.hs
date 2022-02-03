@@ -324,7 +324,7 @@ type ConversationAPI =
                :> CanThrow CodeNotFound
                :> CanThrow ConvNotFound
                :> CanThrow TooManyMembers
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "conversations"
                :> "join"

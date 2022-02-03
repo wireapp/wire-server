@@ -50,7 +50,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<
         :<|> Named @"add-members-to-conversation-unqualified" addMembersUnqualified
         :<|> Named @"add-members-to-conversation" addMembers
         :<|> Named @"join-conversation-by-id-unqualified" joinConversationById
-        :<|> Named @"join-conversation-by-code-unqualified" joinConversationByReusableCodeUnqualified
+        :<|> Named @"join-conversation-by-code-unqualified" joinConversationByReusableCode
         :<|> Named @"code-check" checkReusableCode
         :<|> Named @"create-conversation-code-unqualified" addCodeUnqualified
         :<|> Named @"remove-code-unqualified" rmCodeUnqualified
