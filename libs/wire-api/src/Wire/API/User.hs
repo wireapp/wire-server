@@ -91,16 +91,11 @@ module Wire.API.User
     module Wire.API.User.Profile,
 
     -- * Swagger
-    modelChangeHandle,
-    modelChangeLocale,
-    modelChangePassword,
     modelDelete,
     modelEmailUpdate,
     modelNewUser,
-    modelPhoneUpdate,
     modelUser,
     modelUserIdList,
-    modelUserUpdate,
     modelVerifyDelete,
   )
 where
@@ -846,19 +841,6 @@ data UserUpdate = UserUpdate
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
   deriving (Arbitrary) via (GenericUniform UserUpdate)
 
-modelUserUpdate :: Doc.Model
-modelUserUpdate = Doc.defineModel "UserUpdate" $ do
-  Doc.description "User Update Data"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "Name (1 - 128 characters)"
-    Doc.optional
-  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $ do
-    Doc.description "Profile assets"
-    Doc.optional
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent colour ID"
-    Doc.optional
-
 instance ToSchema UserUpdate where
   schema =
     object "UserUpdate" $
@@ -895,17 +877,6 @@ data PasswordChange = PasswordChange
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PasswordChange)
-
-modelChangePassword :: Doc.Model
-modelChangePassword = Doc.defineModel "ChangePassword" $ do
-  Doc.description
-    "Data to change a password. The old password is required if \
-    \a password already exists."
-  Doc.property "old_password" Doc.string' $ do
-    Doc.description "Old password"
-    Doc.optional
-  Doc.property "new_password" Doc.string' $
-    Doc.description "New password (6 - 1024 characters)"
 
 instance ToSchema PasswordChange where
   schema =
@@ -948,12 +919,6 @@ newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LocaleUpdate)
 
-modelChangeLocale :: Doc.Model
-modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
-  Doc.description "Data to change a locale."
-  Doc.property "locale" Doc.string' $
-    Doc.description "Locale to be set"
-
 instance ToSchema LocaleUpdate where
   schema =
     object "LocaleUpdate" $
@@ -988,12 +953,6 @@ newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema PhoneUpdate
-
-modelPhoneUpdate :: Doc.Model
-modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
-  Doc.description "Phone Update Data"
-  Doc.property "phone" Doc.string' $
-    Doc.description "E.164 phone number"
 
 instance ToSchema PhoneUpdate where
   schema =
@@ -1055,12 +1014,6 @@ newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema HandleUpdate)
-
-modelChangeHandle :: Doc.Model
-modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
-  Doc.description "Change the handle."
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle to set"
 
 instance ToSchema HandleUpdate where
   schema =
