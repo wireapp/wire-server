@@ -41,7 +41,7 @@ module Cannon.WS
     mkKey,
     key2bytes,
     client,
-    sendMsgConduit,
+    sendMsg,
   )
 where
 
@@ -229,17 +229,16 @@ sendMsgIO :: (WebSocketsData a) => a -> Websocket -> IO ()
 sendMsgIO m c =
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
-sendMsgConduit :: Key -> Websocket -> ConduitT ByteString Void (ResourceT WS) ()
-sendMsgConduit k c = do
-  m <- sinkLazy
-  lift $ traceLog m
-  liftIO $ sendMsgIO m c
+sendMsg :: (WebSocketsData a) => a -> Key -> Websocket -> WS ()
+sendMsg message k c = do
+  traceLog message
+  liftIO $ sendMsgIO message c
   where
-    traceLog :: L.ByteString -> (ResourceT WS) ()
-    traceLog m = lift $ trace $ client kb . msg (logMsg m)
+    traceLog :: (WebSocketsData a) => a -> WS ()
+    traceLog m = trace $ client kb . msg (logMsg m)
 
-    logMsg :: L.ByteString -> Builder
-    logMsg m = val "sendMsgConduit: \"" +++ L.take 128 m +++ val "...\""
+    logMsg :: (WebSocketsData a) => a -> Builder
+    logMsg m = val "sendMsgConduit: \"" +++ L.take 128 (toLazyByteString m) +++ val "...\""
 
     kb = key2bytes k
 

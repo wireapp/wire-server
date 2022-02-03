@@ -27,16 +27,13 @@ import Cannon.App
 import qualified Cannon.Dict as D
 import Cannon.Types
 import Cannon.WS
-import Conduit
 import Control.Monad.Catch
 import Data.Aeson (encode)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import Data.Conduit.List
 import Data.Id hiding (client)
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Imports
+import Network.WebSockets
 import Servant
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
@@ -44,11 +41,6 @@ import qualified System.Logger.Class as LC
 import Wire.API.ErrorDescription
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-
-newtype PushNotificationStream = PushNotificationStream
-  { getPushNotificationStream :: ConduitT () ByteString (ResourceT WS) ()
-  }
-  deriving newtype (FromSourceIO ByteString)
 
 type InternalAPI =
   "i"
@@ -66,7 +58,7 @@ type InternalAPI =
                   ( "push"
                       :> Capture "user" UserId
                       :> Capture "conn" ConnId
-                      :> StreamBody NoFraming OctetStream PushNotificationStream
+                      :> ReqBody '[JSON] Text
                       :> MultiVerb
                            'POST
                            '[JSON]
@@ -103,18 +95,15 @@ internalServer =
     :<|> Named @"bulk-push-notifications" bulkPushHandler
     :<|> Named @"check-presence" checkPresenceHandler
 
-pushHandler :: UserId -> ConnId -> PushNotificationStream -> Cannon (Maybe ())
+pushHandler :: UserId -> ConnId -> Text -> Cannon (Maybe ())
 pushHandler user conn body =
   singlePush body (PushTarget user conn) >>= \case
     PushStatusOk -> pure $ Just ()
     PushStatusGone -> pure Nothing
 
--- | Take a serialized 'Notification' string and send it to the 'PushTarget'.
-singlePush :: PushNotificationStream -> PushTarget -> Cannon PushStatus
-singlePush = singlePush' . getPushNotificationStream
-
-singlePush' :: ConduitM () ByteString (ResourceT WS) () -> PushTarget -> Cannon PushStatus
-singlePush' notificationC (PushTarget usrid conid) = do
+-- | Take notification @n@ and send it to the 'PushTarget'.
+singlePush :: (WebSocketsData a) => a -> PushTarget -> Cannon PushStatus
+singlePush n (PushTarget usrid conid) = do
   let k = mkKey usrid conid
   d <- clients
   LC.debug $ client (key2bytes k) . msg (val "push")
@@ -127,9 +116,7 @@ singlePush' notificationC (PushTarget usrid conid) = do
       e <- wsenv
       runWS e $ do
         catchAll
-          ( runConduitRes $
-              notificationC .| (sendMsgConduit k x >> pure PushStatusOk)
-          )
+          (runWS e (sendMsg n k x) >> pure PushStatusOk)
           (const (terminate k x >> pure PushStatusGone))
 
 bulkPushHandler :: BulkPushRequest -> Cannon BulkPushResponse
@@ -138,10 +125,7 @@ bulkPushHandler (BulkPushRequest ns) =
   where
     doNotify :: Notification -> [PushTarget] -> Cannon [PushStatus]
     doNotify (encode -> notification) =
-      mapConcurrentlyCannon
-        ( singlePush'
-            (sourceLbs notification)
-        )
+      mapConcurrentlyCannon (singlePush notification)
     compileResp ::
       (Notification, [PushTarget]) ->
       [PushStatus] ->
@@ -155,6 +139,3 @@ checkPresenceHandler u c = do
   if registered
     then pure $ Just ()
     else pure Nothing
-
-sourceLbs :: Monad m => L.ByteString -> ConduitT i S.ByteString m ()
-sourceLbs = sourceList . L.toChunks
