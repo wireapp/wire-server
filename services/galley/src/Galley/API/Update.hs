@@ -633,15 +633,15 @@ getCode ::
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
-  UserId ->
+  Local UserId ->
   ConvId ->
   Sem r ConversationCode
-getCode usr cnv = do
+getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
   Query.ensureGuestLinksEnabled conv
   ensureAccess conv CodeAccess
-  ensureConvMember (Data.convLocalMembers conv) usr
+  ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
   c <- E.getCode key ReusableCode >>= note CodeNotFound
   returnCode c

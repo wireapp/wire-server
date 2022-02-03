@@ -381,7 +381,7 @@ type ConversationAPI =
            ( Summary "Get existing conversation code"
                :> CanThrow ConvNotFound
                :> CanThrow InvalidAccessOp
-               :> ZUser
+               :> ZLocalUser
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "code"
