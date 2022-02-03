@@ -79,6 +79,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/search-users : unconfigured : NotFound" (testSearchNotFound fedBrigClient),
         test m "POST /federation/search-users : unconfigured : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
         test m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
+        test m "POST /federation/get-user-by-handle : configured restrictions" (testGetUserByHandleRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : unconfigured : Found" (testGetUserByHandleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-by-handle : unconfigured : NotFound" (testGetUserByHandleNotFound fedBrigClient),
         test m "POST /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
@@ -186,6 +187,34 @@ testSearchRestrictions opts brig = do
     expectSearch domainExactHandle (fromName (userDisplayName user)) []
     expectSearch domainFullSearch (fromHandle handle) [quid]
     expectSearch domainFullSearch (fromName (userDisplayName user)) [quid]
+
+testGetUserByHandleRestrictions :: Opt.Opts -> Brig -> Http ()
+testGetUserByHandleRestrictions opts brig = do
+  let domainNoSearch = Domain "no-search.example.com"
+      domainExactHandle = Domain "exact-handle-only.example.com"
+      domainFullSearch = Domain "full-search.example.com"
+
+  (handle, user) <- createUserWithHandle brig
+  let quid = userQualifiedId user
+  refreshIndex brig
+
+  let opts' =
+        opts & Opt.optionSettings . Opt.federationDomainConfigs
+          ?~ [ Opt.FederationDomainConfig domainNoSearch Opt.NoSearch,
+               Opt.FederationDomainConfig domainExactHandle Opt.ExactHandleSearch,
+               Opt.FederationDomainConfig domainFullSearch Opt.FullSearch
+             ]
+
+  let expectSearch domain expectedUser = do
+        maybeUserProfile <-
+          runWaiTestFedClient domain $
+            createWaiTestFedClient @"get-user-by-handle" @'Brig handle
+        liftIO $ assertEqual "Unexpected search result" expectedUser (profileQualifiedId <$> maybeUserProfile)
+
+  withSettingsOverrides opts' $ do
+    expectSearch domainNoSearch Nothing
+    expectSearch domainExactHandle (Just quid)
+    expectSearch domainFullSearch (Just quid)
 
 testGetUserByHandleSuccess :: Brig -> FedClient 'Brig -> Http ()
 testGetUserByHandleSuccess brig fedBrigClient = do

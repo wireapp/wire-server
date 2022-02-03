@@ -24,7 +24,7 @@ module Brig.API.Util
     logEmail,
     traverseConcurrentlyWithErrors,
     exceptTToMaybe,
-    lookupDomainConfig,
+    lookupAllowedUserSearch,
   )
 where
 
@@ -34,7 +34,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.App (AppIO, settings)
 import qualified Brig.Data.User as Data
-import Brig.Options (FederationDomainConfig, federationDomainConfigs)
+import Brig.Options (AllowedUserSearch (FullSearch), FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
 import Brig.Types
 import Brig.Types.Intra (accountUser)
@@ -102,3 +102,7 @@ lookupDomainConfig :: Domain -> Handler (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
   pure $ find ((== domain) . Opts.domain) domainConfigs
+
+-- | If domain is not configured fall back to `FullSearch`
+lookupAllowedUserSearch :: Domain -> Handler Opts.AllowedUserSearch
+lookupAllowedUserSearch domain = fromMaybe FullSearch <$> (Opts.search <$$> lookupDomainConfig domain)

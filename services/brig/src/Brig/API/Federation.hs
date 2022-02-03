@@ -24,13 +24,12 @@ import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import Brig.API.Util (lookupDomainConfig)
+import Brig.API.Util (lookupAllowedUserSearch)
 import Brig.App (qualifyLocal)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
 import Brig.Options (AllowedUserSearch (..))
-import qualified Brig.Options as Opts
 import Brig.Types (PrekeyBundle, Relation (Accepted))
 import Brig.Types.User.Event
 import Brig.User.API.Handle
@@ -87,13 +86,23 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle :: Domain -> Handle -> (Handler r) (Maybe UserProfile)
-getUserByHandle _ handle = lift $ do
-  maybeOwnerId <- API.lookupHandle handle
-  case maybeOwnerId of
-    Nothing ->
-      pure Nothing
-    Just ownerId ->
-      listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
+getUserByHandle domain handle = do
+  allowedUserSearch <- lookupAllowedUserSearch domain
+
+  let performHandleLookup =
+        case allowedUserSearch of
+          NoSearch -> False
+          ExactHandleSearch -> True
+          FullSearch -> True
+  if not performHandleLookup
+    then pure Nothing
+    else lift $ do
+      maybeOwnerId <- API.lookupHandle handle
+      case maybeOwnerId of
+        Nothing ->
+          pure Nothing
+        Just ownerId ->
+          listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds :: Domain -> [UserId] -> (Handler r) [UserProfile]
 getUsersByIds _ uids =
@@ -115,7 +124,7 @@ claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFede
 -- (This decision may change in the future)
 searchUsers :: Domain -> SearchRequest -> Handler [Contact]
 searchUsers domain (SearchRequest searchTerm) = do
-  allowedUserSearch <- fromMaybe FullSearch <$> (Opts.search <$$> lookupDomainConfig domain)
+  allowedUserSearch <- lookupAllowedUserSearch domain
 
   let searches = case allowedUserSearch of
         NoSearch -> []
