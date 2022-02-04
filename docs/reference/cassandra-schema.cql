@@ -230,8 +230,10 @@ CREATE TABLE galley_test.conversation (
     access_roles_v2 set<int>,
     creator uuid,
     deleted boolean,
+    group_id blob,
     message_timer bigint,
     name text,
+    protocol int,
     receipt_mode int,
     team uuid,
     type int
