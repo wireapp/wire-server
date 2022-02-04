@@ -37,6 +37,7 @@ library
       Brig.API.Federation
       Brig.API.Handler
       Brig.API.Internal
+      Brig.API.MLS.KeyPackages
       Brig.API.Properties
       Brig.API.Public
       Brig.API.Types

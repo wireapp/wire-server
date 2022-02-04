@@ -36,9 +36,10 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
+import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
@@ -675,7 +676,26 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
-type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI
+type MLSKeyPackageAPI =
+  "key-packages"
+    :> ( Named
+           "mls-key-packages-upload"
+           ( "self"
+               :> ReqBody '[JSON] KeyPackageUpload
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Key packages uploaded"] ()
+           )
+       )
+
+type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
+
+type BrigAPI =
+  UserAPI
+    :<|> SelfAPI
+    :<|> ClientAPI
+    :<|> PrekeyAPI
+    :<|> UserClientAPI
+    :<|> ConnectionAPI
+    :<|> MLSAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)

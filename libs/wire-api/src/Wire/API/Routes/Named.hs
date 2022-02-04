@@ -19,8 +19,9 @@ module Wire.API.Routes.Named where
 
 import Data.Metrics.Servant
 import Data.Proxy
+import GHC.TypeLits
 import Imports
-import Servant.Server
+import Servant
 import Servant.Swagger
 
 newtype Named named x = Named {unnamed :: x}
@@ -38,3 +39,18 @@ instance HasServer api ctx => HasServer (Named name api) ctx where
 
 instance RoutesToPaths api => RoutesToPaths (Named name api) where
   getRoutes = getRoutes @api
+
+type family FindName n (api :: *) :: (n, *) where
+  FindName n (Named name api) = '(name, api)
+  FindName n (x :> api) = AddPrefix x (FindName n api)
+  FindName n api = '(TypeError ('Text "Named combinator not found"), api)
+
+type family AddPrefix x napi where
+  AddPrefix x '(name, api) = '(name, x :> api)
+
+type family LiftNamed' napi where
+  LiftNamed' '(name, api) = Named name api
+
+type LiftNamedOfKind n api = LiftNamed' (FindName n api)
+
+type LiftNamed api = LiftNamedOfKind Symbol api

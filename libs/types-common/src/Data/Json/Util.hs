@@ -41,6 +41,7 @@ module Data.Json.Util
     fromBase64TextLenient,
     fromBase64Text,
     toBase64Text,
+    base64Schema,
   )
 where
 
@@ -203,6 +204,9 @@ instance IsString Base64ByteString where
 
 instance Arbitrary Base64ByteString where
   arbitrary = Base64ByteString <$> arbitrary
+
+base64Schema :: ValueSchema SwaggerDoc Base64ByteString
+base64Schema = mkSchema mempty A.parseJSON (pure . A.toJSON)
 
 --------------------------------------------------------------------------------
 -- Utilities

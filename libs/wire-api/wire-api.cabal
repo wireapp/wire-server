@@ -36,6 +36,7 @@ library
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
+      Wire.API.MLS.KeyPackage
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
