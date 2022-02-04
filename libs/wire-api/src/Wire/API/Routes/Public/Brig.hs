@@ -374,7 +374,8 @@ type UserClientAPI =
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
     "add-client"
-    ( CanThrow TooManyClients
+    ( Summary "Register a new client"
+        :> CanThrow TooManyClients
         :> CanThrow MissingAuth
         :> CanThrow MalformedPrekeys
         :> ZUser
@@ -386,7 +387,8 @@ type UserClientAPI =
     )
     :<|> Named
            "update-client"
-           ( CanThrow MalformedPrekeys
+           ( Summary "Update a registered client"
+               :> CanThrow MalformedPrekeys
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -398,7 +400,8 @@ type UserClientAPI =
     -- - ClientRemoved event to self
     Named
       "delete-client"
-      ( ZUser
+      ( Summary "Delete an existing client"
+          :> ZUser
           :> ZConn
           :> "clients"
           :> CaptureClientId "client"
@@ -407,13 +410,15 @@ type UserClientAPI =
       )
     :<|> Named
            "list-clients"
-           ( ZUser
+           ( Summary "List the registered clients"
+               :> ZUser
                :> "clients"
                :> Get '[JSON] [Client]
            )
     :<|> Named
            "get-client"
-           ( ZUser
+           ( Summary "Get a registered client by ID"
+               :> ZUser
                :> "clients"
                :> CaptureClientId "client"
                :> MultiVerb
@@ -426,7 +431,8 @@ type UserClientAPI =
            )
     :<|> Named
            "get-client-capabilities"
-           ( ZUser
+           ( Summary "Read back what the client has been posting about itself"
+               :> ZUser
                :> "clients"
                :> CaptureClientId "client"
                :> "capabilities"
@@ -434,7 +440,8 @@ type UserClientAPI =
            )
     :<|> Named
            "get-client-prekeys"
-           ( ZUser
+           ( Summary "List the remaining prekey IDs of a client"
+               :> ZUser
                :> "clients"
                :> CaptureClientId "client"
                :> "prekeys"
@@ -507,7 +514,8 @@ type ClientAPI =
 type ConnectionAPI =
   Named
     "create-connection-unqualified"
-    ( CanThrow MissingLegalholdConsent
+    ( Summary "Create a connection to another user (deprecated)"
+        :> CanThrow MissingLegalholdConsent
         :> CanThrow InvalidUser
         :> CanThrow ConnectionLimitReached
         :> CanThrow NoIdentity
@@ -528,7 +536,8 @@ type ConnectionAPI =
     )
     :<|> Named
            "create-connection"
-           ( CanThrow MissingLegalholdConsent
+           ( Summary "Create a connection to another user"
+               :> CanThrow MissingLegalholdConsent
                :> CanThrow InvalidUser
                :> CanThrow ConnectionLimitReached
                :> CanThrow NoIdentity
@@ -549,7 +558,8 @@ type ConnectionAPI =
            )
     :<|> Named
            "list-local-connections"
-           ( ZUser
+           ( Summary "List the local connections to other users (deprecated)"
+               :> ZUser
                :> "connections"
                :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
                :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
@@ -557,14 +567,16 @@ type ConnectionAPI =
            )
     :<|> Named
            "list-connections"
-           ( ZUser
+           ( Summary "List the connections to other users, including remote users"
+               :> ZUser
                :> "list-connections"
                :> ReqBody '[JSON] ListConnectionsRequestPaginated
                :> Post '[JSON] ConnectionsPage
            )
     :<|> Named
            "get-connection-unqualified"
-           ( ZUser
+           ( Summary "Get an existing connection to another user (deprecated)"
+               :> ZUser
                :> "connections"
                :> CaptureUserId "uid"
                :> MultiVerb
@@ -577,7 +589,8 @@ type ConnectionAPI =
            )
     :<|> Named
            "get-connection"
-           ( ZUser
+           ( Summary "Get an existing connection to another user (local or remote)"
+               :> ZUser
                :> "connections"
                :> QualifiedCaptureUserId "uid"
                :> MultiVerb
@@ -597,7 +610,8 @@ type ConnectionAPI =
     -- - MemberJoin event to self and other (via galley)
     Named
       "update-connection-unqualified"
-      ( CanThrow MissingLegalholdConsent
+      ( Summary "Update a connection to another user (deprecated)"
+          :> CanThrow MissingLegalholdConsent
           :> CanThrow InvalidUser
           :> CanThrow ConnectionLimitReached
           :> CanThrow NotConnected
@@ -623,7 +637,8 @@ type ConnectionAPI =
     -- - MemberJoin event to self and other (via galley)
     Named
       "update-connection"
-      ( CanThrow MissingLegalholdConsent
+      ( Summary "Update a connection to another user (deprecatd)"
+          :> CanThrow MissingLegalholdConsent
           :> CanThrow InvalidUser
           :> CanThrow ConnectionLimitReached
           :> CanThrow NotConnected
@@ -642,7 +657,8 @@ type ConnectionAPI =
       )
     :<|> Named
            "search-contacts"
-           ( ZUser
+           ( Summary "Search for users"
+               :> ZUser
                :> "search"
                :> "contacts"
                :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
