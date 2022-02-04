@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,10 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.CipherSuite where
+module Wire.API.MLS.Proposal where
 
-import Data.Word
+import Data.Binary
+import Imports
 import Wire.API.MLS.Serialisation
 
-newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
-  deriving newtype (ParseMLS)
+data ProposalType
+  = AddProposal
+  | UpdateProposal
+  | RemoveProposal
+  | PreSharedKeyProposal
+  | ReInitProposal
+  | ExternalInitProposal
+  | AppAckProposal
+  | GroupContextExtensionsProposal
+  | ExternalProposal
+  deriving stock (Bounded, Enum)
+  deriving (ParseMLS) via (EnumMLS Word16 ProposalType)

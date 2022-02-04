@@ -34,9 +34,13 @@ data Credential = BasicCredential
     bcSignatureScheme :: SignatureScheme,
     bcSignatureKey :: ByteString
   }
-  deriving (Generic)
 
-instance Binary Credential
+instance ParseMLS Credential where
+  parseMLS =
+    BasicCredential
+      <$> parseMLSBytes @Word16
+      <*> parseMLS
+      <*> parseMLSBytes @Word16
 
 data CredentialType = BasicCredentialType
 
@@ -47,7 +51,7 @@ credentialType (BasicCredential _ _ _) = BasicCredentialType
 --
 -- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
 newtype SignatureScheme = SignatureScheme {signatureSchemeNumber :: Word16}
-  deriving newtype (Binary)
+  deriving newtype (ParseMLS)
 
 data ClientIdentity = ClientIdentity
   { ciDomain :: Domain,

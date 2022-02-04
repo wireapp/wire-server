@@ -15,11 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.MLS.KeyPackages where
+module Brig.API.MLS.KeyPackages
+  ( uploadKeyPackages,
+  )
+where
 
 import Brig.API.Error
 import Brig.API.Handler
 import qualified Brig.Data.MLS.KeyPackage as Data
+import Control.Applicative
 import Control.Monad.Trans.Except
 import Data.Id
 import Data.Json.Util
@@ -45,6 +49,7 @@ parseKeyPackage (fromBase64ByteString . kpData -> kpd) =
 validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
 validateKeyPackage identity (kpTBS -> kp) = do
   validateCredential identity (kpCredential kp)
+  validateExtensions (kpExtensions kp)
 
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do
@@ -54,3 +59,38 @@ validateCredential identity cred = do
       decodeMLS' (bcIdentity cred)
   when (identity /= identity') $
     throwE mlsIdentityMismatch
+
+data RequiredExtensions f = RequiredExtensions
+  { reLifetime :: f Lifetime,
+    reCapabilities :: f ()
+  }
+
+instance Alternative f => Semigroup (RequiredExtensions f) where
+  RequiredExtensions lt1 cap1 <> RequiredExtensions lt2 cap2 =
+    RequiredExtensions (lt1 <|> lt2) (cap1 <|> cap2)
+
+instance Alternative f => Monoid (RequiredExtensions f) where
+  mempty = RequiredExtensions empty empty
+
+checkRequiredExtensions :: Applicative f => RequiredExtensions f -> f (RequiredExtensions Identity)
+checkRequiredExtensions re =
+  RequiredExtensions
+    <$> (Identity <$> reLifetime re)
+    <*> (Identity <$> reCapabilities re)
+
+findExtensions :: [Extension] -> Maybe (RequiredExtensions Identity)
+findExtensions = checkRequiredExtensions . foldMap findExtension
+
+findExtension :: Extension -> RequiredExtensions Maybe
+findExtension e = case decodeExtension e of
+  Just (SomeExtension SLifetimeExtensionTag lt) -> RequiredExtensions (pure lt) Nothing
+  Just (SomeExtension SCapabilitiesExtensionTag _) -> RequiredExtensions Nothing (pure ())
+  _ -> mempty
+
+validateExtensions :: [Extension] -> Handler ()
+validateExtensions exts = do
+  _re <-
+    maybe (throwE (mlsProtocolError "Missing required extensions")) pure $
+      findExtensions exts
+  -- TODO: validate lifetime
+  pure ()

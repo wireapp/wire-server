@@ -39,6 +39,7 @@ library
       Wire.API.MLS.CipherSuite
       Wire.API.MLS.Credential
       Wire.API.MLS.KeyPackage
+      Wire.API.MLS.Proposal
       Wire.API.MLS.Serialisation
       Wire.API.Notification
       Wire.API.Properties

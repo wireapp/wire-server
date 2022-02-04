@@ -17,13 +17,19 @@
 
 module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
+    parseMLSVector,
+    parseMLSBytes,
     BinaryMLS (..),
-    EnumBinary (..),
+    EnumMLS (..),
+    safeToEnum,
     decodeMLS,
     decodeMLS',
+    decodeMLSWith,
+    decodeMLSWith',
   )
 where
 
+import Control.Applicative
 import Data.Binary
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as LBS
@@ -34,8 +40,30 @@ import Imports
 class ParseMLS a where
   parseMLS :: Get a
 
-instance ParseMLS ByteString where
-  parseMLS = get
+parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
+parseMLSVector getItem = do
+  len <- get @w
+  pos <- bytesRead
+  isolate (fromIntegral len) $ go (pos + fromIntegral len)
+  where
+    go :: Int64 -> Get [a]
+    go endPos = do
+      x <- getItem
+      pos <- bytesRead
+      (:) <$> pure x <*> if pos < endPos then go endPos else pure []
+
+parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString
+parseMLSBytes = do
+  len <- fromIntegral <$> get @w
+  getByteString len
+
+instance ParseMLS Word8 where parseMLS = get
+
+instance ParseMLS Word16 where parseMLS = get
+
+instance ParseMLS Word32 where parseMLS = get
+
+instance ParseMLS Word64 where parseMLS = get
 
 -- | A wrapper to generate a 'ParseMLS' instance given a 'Binary' instance.
 newtype BinaryMLS a = BinaryMLS a
@@ -44,11 +72,15 @@ instance Binary a => ParseMLS (BinaryMLS a) where
   parseMLS = BinaryMLS <$> get
 
 -- | A wrapper to generate a 'Binary' instance for an enumerated type.
-newtype EnumBinary w a = EnumBinary {unEnumBinary :: a}
+newtype EnumMLS w a = EnumMLS {unEnumMLS :: a}
 
-instance (Binary w, Integral w, Enum a) => Binary (EnumBinary w a) where
-  get = EnumBinary . toEnum . fromIntegral <$> get @w
-  put = put @w . fromIntegral . fromEnum . unEnumBinary
+safeToEnum :: forall a f. (Bounded a, Enum a, Alternative f) => Int -> f a
+safeToEnum n = guard (n >= fromEnum @a minBound && n <= fromEnum @a maxBound) $> toEnum n
+
+instance (Binary w, Integral w, Bounded a, Enum a) => ParseMLS (EnumMLS w a) where
+  parseMLS = do
+    n <- fromIntegral <$> get @w
+    EnumMLS <$> safeToEnum n
 
 -- | Decode an MLS value from a lazy bytestring. Return an error message in case of failure.
 decodeMLS :: ParseMLS a => LByteString -> Either Text a
@@ -65,3 +97,6 @@ decodeMLSWith p b = case runGetOrFail p b of
   Right (remainder, pos, x)
     | LBS.null remainder -> Right x
     | otherwise -> Left $ "Trailing data at position " <> T.pack (show pos)
+
+decodeMLSWith' :: Get a -> ByteString -> Either Text a
+decodeMLSWith' p = decodeMLSWith p . LBS.fromStrict

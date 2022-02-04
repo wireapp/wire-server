@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,14 +20,19 @@
 
 module Wire.API.MLS.KeyPackage where
 
+import Control.Applicative
+import Control.Error.Util
 import Data.Aeson (FromJSON)
 import Data.Binary
 import Data.Json.Util
 import Data.Schema
+import Data.Singletons
+import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
 data KeyPackageUpload = KeyPackageUpload
@@ -47,16 +55,77 @@ instance ToSchema KeyPackageData where
 --------------------------------------------------------------------------------
 
 data ProtocolVersion = ProtocolReserved | ProtocolMLS
-  deriving stock (Enum)
-  deriving (Binary) via EnumBinary Word8 ProtocolVersion
+  deriving stock (Bounded, Enum)
+  deriving (ParseMLS) via EnumMLS Word8 ProtocolVersion
 
 data Extension = Extension
   { extType :: Word16,
     extData :: ByteString
   }
-  deriving (Generic)
 
-instance Binary Extension
+instance ParseMLS Extension where
+  parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
+
+data ExtensionTag
+  = ReservedExtensionTag
+  | CapabilitiesExtensionTag
+  | LifetimeExtensionTag
+  deriving (Bounded, Enum)
+
+$(genSingletons [''ExtensionTag])
+
+type family ExtensionType (t :: ExtensionTag) :: * where
+  ExtensionType 'ReservedExtensionTag = ()
+  ExtensionType 'CapabilitiesExtensionTag = Capabilities
+  ExtensionType 'LifetimeExtensionTag = Lifetime
+
+parseExtension :: Sing t -> Get (ExtensionType t)
+parseExtension SReservedExtensionTag = pure ()
+parseExtension SCapabilitiesExtensionTag = parseMLS
+parseExtension SLifetimeExtensionTag = parseMLS
+
+data SomeExtension where
+  SomeExtension :: Sing t -> ExtensionType t -> SomeExtension
+
+decodeExtension :: Extension -> Maybe SomeExtension
+decodeExtension e = do
+  t <- safeToEnum (fromIntegral (extType e))
+  hush $
+    withSomeSing t $ \st ->
+      decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)
+
+-- t <- parse
+-- parseMLS = do
+--   t <- parseMLS
+--   case toSing t of
+--     SomeSing st -> SomeExtension st <$> parseExtension st
+
+data Capabilities = Capabilities
+  { capVersions :: [ProtocolVersion],
+    capCiphersuites :: [CipherSuite],
+    capExtensions :: [Word16],
+    capProposals :: [ProposalType]
+  }
+
+instance ParseMLS Capabilities where
+  parseMLS =
+    Capabilities
+      <$> parseMLSVector @Word8 parseMLS
+      <*> parseMLSVector @Word8 parseMLS
+      <*> parseMLSVector @Word8 parseMLS
+      <*> parseMLSVector @Word8 parseMLS
+
+-- | Seconds since the UNIX epoch.
+newtype Timestamp = Timestamp {timestampSeconds :: Word64}
+  deriving newtype (ParseMLS)
+
+data Lifetime = Lifetime
+  { ltNotBefore :: Timestamp,
+    ltNotAfter :: Timestamp
+  }
+
+instance ParseMLS Lifetime where
+  parseMLS = Lifetime <$> parseMLS <*> parseMLS
 
 data KeyPackageTBS = KeyPackageTBS
   { kpProtocolVersion :: ProtocolVersion,
@@ -65,15 +134,20 @@ data KeyPackageTBS = KeyPackageTBS
     kpCredential :: Credential,
     kpExtensions :: [Extension]
   }
-  deriving (Generic)
 
-instance Binary KeyPackageTBS
+instance ParseMLS KeyPackageTBS where
+  parseMLS =
+    KeyPackageTBS
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLSBytes @Word16
+      <*> parseMLS
+      <*> parseMLSVector @Word32 parseMLS
 
 data KeyPackage = KeyPackage
   { kpTBS :: KeyPackageTBS,
     kpSignature :: ByteString
   }
-  deriving (Generic)
-  deriving (ParseMLS) via BinaryMLS KeyPackage
 
-instance Binary KeyPackage
+instance ParseMLS KeyPackage where
+  parseMLS = KeyPackage <$> parseMLS <*> parseMLSBytes @Word16
