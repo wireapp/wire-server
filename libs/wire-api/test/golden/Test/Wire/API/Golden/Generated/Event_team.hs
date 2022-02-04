@@ -20,6 +20,7 @@
 module Test.Wire.API.Golden.Generated.Event_team where
 
 import Control.Lens ((.~))
+import Data.ByteString.Conversion (fromByteString')
 import Data.Id (Id (Id))
 import Data.Range (unsafeRange)
 import qualified Data.UUID as UUID (fromString)
@@ -115,8 +116,7 @@ testObject_Event_team_2 =
                            ( unsafeRange
                                ("i5\EOT\1002575\1097973\1066101\&1u\1105430\&1\41840U*/*\999102\1001662\DC3\994167d\1096830\&4uG\173887\fUh09\\\1028574\vPy\t\171003\SI\GS0bV\CAN]\17049\96404\15202\RS\SYNX\ESC3[\CANf\NAK")
                            ),
-                       _iconUpdate =
-                         Nothing,
+                       _iconUpdate = fromByteString' "3-1-f595b8ed-6dcf-41f2-8a2f-f662a9c0fce4",
                        _iconKeyUpdate =
                          Just (unsafeRange ("\131355Pp\1067299\987603\ENQS\22773S\ACK\NAKmM\19084\&0\19257\31361$rL,XvJ"))
                      }
@@ -149,8 +149,7 @@ testObject_Event_team_4 =
                            ( unsafeRange
                                ("d\SI\172132@o\988798s&na\136232\1090952\149487|\83503\1016948/\989099v\NAKu\DC2f\1093640\1011936KC\47338\1066997\1059386\&9_\v_^\1045398K\155463\SO Y*T\CAN\1086598<\1056774>\171907\4929\rt\1038163\1072126w2E\127366hS>\ACK_PQN,Vk\SYN\1083970=90\EM2e\984550\USVA!\EM\FS\EOTe;\189780\&1<H\STX\188937-\ETB8{0\1004484\r\ETB\v~\1060588\EOT!Jg8\US,L\1110751\1075966\1093284\SI\SIkU\143468\1052059\DC3\71711TM{Hzq\r\983328^\ACK'\rUD1etTd4qcW]\154666J|s#(\1003055.\1083560f\10371\DC2\STX)Th\CAN\aI)QvQ\1101685\1017867\160406t'\995737\&5\NAK\145601\1057120e@nS:vB/\135299\173384/\94788\r\1102961*n\RS\917893\1059056\182978lvv53S\990514j\DC4\96540/.!6\1044119.\USg&\NULO,upd$Zz'Y!\"e0\GS\33604\a")
                            ),
-                       _iconUpdate =
-                         Nothing,
+                       _iconUpdate = fromByteString' "3-1-f595b8ed-6dcf-41f2-8a2f-f662a9c0fce4",
                        _iconKeyUpdate =
                          Just
                            ( unsafeRange
