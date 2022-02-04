@@ -681,6 +681,7 @@ type MLSKeyPackageAPI =
     :> ( Named
            "mls-key-packages-upload"
            ( "self"
+               :> CaptureClientId "client"
                :> ReqBody '[JSON] KeyPackageUpload
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Key packages uploaded"] ()
            )

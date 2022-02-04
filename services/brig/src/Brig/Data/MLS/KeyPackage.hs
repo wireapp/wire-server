@@ -15,19 +15,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.MLS.KeyPackages where
+module Brig.Data.MLS.KeyPackage
+  ( insertKeyPackages,
+  )
+where
 
-import Brig.API.Handler
-import qualified Brig.Data.MLS.KeyPackage as Data
+import Brig.App
+import Cassandra
 import Data.Id
-import Data.Qualified
+import Data.Json.Util
 import Imports
 import Wire.API.MLS.KeyPackage
 
-uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
-uploadKeyPackages (tUnqualified -> uid) cid (kpuKeyPackages -> kps) = do
-  traverse_ validateKeyPackage kps
-  lift $ Data.insertKeyPackages uid cid kps
+kpBlob :: KeyPackage -> Blob
+kpBlob = Blob . fromBase64ByteString . kpData
 
-validateKeyPackage :: KeyPackage -> Handler r ()
-validateKeyPackage _ = pure ()
+insertKeyPackages :: UserId -> ClientId -> [KeyPackage] -> AppIO r ()
+insertKeyPackages uid cid kps = retry x5 . batch $ do
+  setType BatchLogged
+  setConsistency LocalQuorum
+  for_ kps $ \kp -> addPrepQuery q (uid, client cid, kpBlob kp)
+  where
+    q :: PrepQuery W (UserId, Text, Blob) ()
+    q = "INSERT INTO mls_key_packages (uid, text, data) VALUES (?, ?, ?)"
