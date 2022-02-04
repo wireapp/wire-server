@@ -1,0 +1,1 @@
+Removed redundant `setDefaultTemplateLocale` config from the brig helm template.
