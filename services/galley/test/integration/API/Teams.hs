@@ -128,6 +128,7 @@ tests s =
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
+      test s "update team data icon validation" testUpdateTeamIconValidation,
       test s "update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
@@ -1195,6 +1196,33 @@ testDeleteTeamConv = do
       Util.assertNotConvMember u x
   postConvCodeCheck code !!! const 404 === statusCode
 
+testUpdateTeamIconValidation :: TestM ()
+testUpdateTeamIconValidation = do
+  g <- view tsGalley
+  owner <- Util.randomUser
+  let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
+  member <- newTeamMember' p <$> Util.randomUser
+  Util.connectUsers owner (list1 (member ^. userId) [])
+  tid <- Util.createNonBindingTeam "foo" owner [member]
+  let update payload expectedStatusCode =
+        put
+          ( g
+              . paths ["teams", toByteString' tid]
+              . zUser owner
+              . zConn "conn"
+              . json payload
+          )
+          !!! const expectedStatusCode
+          === statusCode
+  let payloadWithInvalidIcon = object ["name" .= String "name", "icon" .= String "invalid"]
+  update payloadWithInvalidIcon 400
+  let payloadWithValidIcon =
+        object
+          [ "name" .= String "name",
+            "icon" .= String "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
+          ]
+  update payloadWithValidIcon 200
+
 testUpdateTeam :: TestM ()
 testUpdateTeam = do
   g <- view tsGalley
@@ -1217,7 +1245,7 @@ testUpdateTeam = do
   let u =
         newTeamUpdateData
           & nameUpdate .~ (Just $ unsafeRange "bar")
-          & iconUpdate .~ (Just $ unsafeRange "xxx")
+          & iconUpdate .~ fromByteString "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     put

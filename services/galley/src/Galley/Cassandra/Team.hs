@@ -29,12 +29,14 @@ import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Extra (ifM)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.Map.Strict as Map
 import Data.Range
 import qualified Data.Set as Set
+import Data.Text.Encoding
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Aws as Aws
 import qualified Galley.Cassandra.Conversation as C
@@ -375,7 +377,7 @@ updateTeam tid u = retry x5 . batch $ do
   for_ (u ^. nameUpdate) $ \n ->
     addPrepQuery Cql.updateTeamName (fromRange n, tid)
   for_ (u ^. iconUpdate) $ \i ->
-    addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
+    addPrepQuery Cql.updateTeamIcon (decodeUtf8 . toByteString' $ i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
 
