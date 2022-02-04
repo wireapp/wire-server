@@ -45,6 +45,7 @@ library
       Wire.API.Provider.Service.Tag
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.RawJson
       Wire.API.Routes.AssetBody
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection

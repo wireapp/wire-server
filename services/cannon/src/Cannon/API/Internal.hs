@@ -1,4 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -39,6 +41,7 @@ import Servant.Conduit ()
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
 import Wire.API.ErrorDescription
+import Wire.API.RawJson
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 
@@ -58,7 +61,7 @@ type InternalAPI =
                   ( "push"
                       :> Capture "user" UserId
                       :> Capture "conn" ConnId
-                      :> ReqBody '[JSON] Text
+                      :> ReqBody '[JSON] RawJson
                       :> MultiVerb
                            'POST
                            '[JSON]
@@ -95,9 +98,9 @@ internalServer =
     :<|> Named @"bulk-push-notifications" bulkPushHandler
     :<|> Named @"check-presence" checkPresenceHandler
 
-pushHandler :: UserId -> ConnId -> Text -> Cannon (Maybe ())
+pushHandler :: UserId -> ConnId -> RawJson -> Cannon (Maybe ())
 pushHandler user conn body =
-  singlePush body (PushTarget user conn) >>= \case
+  singlePush (rawJsonBytes body) (PushTarget user conn) >>= \case
     PushStatusOk -> pure $ Just ()
     PushStatusGone -> pure Nothing
 
