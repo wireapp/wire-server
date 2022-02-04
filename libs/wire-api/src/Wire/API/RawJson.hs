@@ -15,26 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.API.Public
-  ( publicAPIServer,
-  )
-where
+module Wire.API.RawJson where
 
-import Cannon.App (wsapp)
-import Cannon.Types
-import Cannon.WS
-import Control.Monad.IO.Class
-import Data.Id
-import GHC.Base
-import Network.WebSockets.Connection
+import Imports
 import Servant
-import Wire.API.Routes.Named
-import Wire.API.Routes.Public.Cannon
 
-publicAPIServer :: ServerT PublicAPI Cannon
-publicAPIServer = Named @"await-notifications" streamData
+-- | Wrap json content as plain 'LByteString'
+-- This type is intented to be used to receive json content as 'LByteString'.
+-- Warning: There is no validation of the json content. It may be any string.
+newtype RawJson = RawJson {rawJsonBytes :: LByteString}
 
-streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
-streamData userId connId clientId con = do
-  e <- wsenv
-  liftIO $ wsapp (mkKey userId connId) clientId e con
+instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
+  mimeUnrender _ = pure . RawJson

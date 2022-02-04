@@ -17,6 +17,7 @@
 
 module Cannon.Run
   ( run,
+    CombinedAPI,
   )
 where
 
@@ -26,7 +27,7 @@ import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import qualified Cannon.Dict as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon, runCannon', runCannonToServant)
+import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -50,6 +51,8 @@ import qualified System.Logger.Extended as L
 import System.Random.MWC (createSystemRandom)
 import Wire.API.Routes.Public.Cannon
 
+type CombinedAPI = PublicAPI :<|> InternalAPI
+
 run :: Opts -> IO ()
 run o = do
   ext <- loadExternal
@@ -66,17 +69,17 @@ run o = do
       <*> mkClock
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
-  let rtree = compile sitemap
-      internalApp r k = runCannon e (Network.Wai.Utilities.Server.route rtree r k) r
-      middleware :: Wai.Middleware
+  let middleware :: Wai.Middleware
       middleware =
-        servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantAPI)
+        servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]
       app :: Application
-      app = middleware (serve (Proxy @API) server)
-      server :: Servant.Server API
-      server = hoistServer (Proxy @ServantAPI) (runCannonToServant e) publicAPIServer :<|> Tagged internalApp
+      app = middleware (serve (Proxy @CombinedAPI) server)
+      server :: Servant.Server CombinedAPI
+      server =
+        hoistServer (Proxy @PublicAPI) (runCannonToServant e) publicAPIServer
+          :<|> hoistServer (Proxy @InternalAPI) (runCannonToServant e) internalServer
   runSettings s app `finally` do
     Async.cancel refreshMetricsThread
     L.close (applog e)

@@ -29,7 +29,6 @@ module Cannon.WS
     unregisterLocal,
     isRemoteRegistered,
     registerRemote,
-    sendMsg,
     sendMsgIO,
     Clock,
     mkClock,
@@ -42,6 +41,7 @@ module Cannon.WS
     mkKey,
     key2bytes,
     client,
+    sendMsg,
   )
 where
 
@@ -50,6 +50,7 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import qualified Cannon.Dict as D
+import Conduit
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Control.Retry
@@ -224,15 +225,22 @@ isRemoteRegistered u c = do
   cs <- map connId <$> parseResponse (mkError status502 "server-error") rs
   return $ c `elem` cs
 
-sendMsg :: L.ByteString -> Key -> Websocket -> WS ()
-sendMsg m k c = do
-  let kb = key2bytes k
-  trace $ client kb . msg (val "sendMsg: \"" +++ L.take 128 m +++ val "...\"")
-  liftIO $ sendMsgIO m c
-
-sendMsgIO :: L.ByteString -> Websocket -> IO ()
-sendMsgIO m c = do
+sendMsgIO :: (WebSocketsData a) => a -> Websocket -> IO ()
+sendMsgIO m c =
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
+
+sendMsg :: (WebSocketsData a) => a -> Key -> Websocket -> WS ()
+sendMsg message k c = do
+  traceLog message
+  liftIO $ sendMsgIO message c
+  where
+    traceLog :: (WebSocketsData a) => a -> WS ()
+    traceLog m = trace $ client kb . msg (logMsg m)
+
+    logMsg :: (WebSocketsData a) => a -> Builder
+    logMsg m = val "sendMsgConduit: \"" +++ L.take 128 (toLazyByteString m) +++ val "...\""
+
+    kb = key2bytes k
 
 close :: Key -> Websocket -> WS ()
 close k c = do

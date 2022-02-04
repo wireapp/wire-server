@@ -36,7 +36,7 @@ import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API
-import Servant.Client
+import Servant.Client hiding ((//))
 import Servant.Client.Core
 import Servant.Types.SourceT
 import Test.QuickCheck (arbitrary, generate)
