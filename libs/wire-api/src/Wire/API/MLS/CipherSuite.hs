@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,26 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Data.MLS.KeyPackage
-  ( insertKeyPackages,
-  )
-where
+module Wire.API.MLS.CipherSuite where
 
-import Brig.App
-import Cassandra
-import Data.Id
-import Data.Json.Util
-import Imports
-import Wire.API.MLS.KeyPackage
+import Data.Binary
 
-kpBlob :: KeyPackageData -> Blob
-kpBlob = Blob . fromBase64ByteString . kpData
-
-insertKeyPackages :: UserId -> ClientId -> [KeyPackageData] -> AppIO r ()
-insertKeyPackages uid cid kps = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  for_ kps $ \kp -> addPrepQuery q (uid, client cid, kpBlob kp)
-  where
-    q :: PrepQuery W (UserId, Text, Blob) ()
-    q = "INSERT INTO mls_key_packages (uid, text, data) VALUES (?, ?, ?)"
+newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
+  deriving newtype (Binary)

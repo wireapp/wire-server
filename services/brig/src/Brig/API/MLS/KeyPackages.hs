@@ -29,5 +29,5 @@ uploadKeyPackages (tUnqualified -> uid) cid (kpuKeyPackages -> kps) = do
   traverse_ validateKeyPackage kps
   lift $ Data.insertKeyPackages uid cid kps
 
-validateKeyPackage :: KeyPackage -> Handler r ()
+validateKeyPackage :: KeyPackageData -> Handler r ()
 validateKeyPackage _ = pure ()

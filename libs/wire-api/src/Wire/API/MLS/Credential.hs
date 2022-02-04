@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,26 +17,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Data.MLS.KeyPackage
-  ( insertKeyPackages,
-  )
-where
+module Wire.API.MLS.Credential where
 
-import Brig.App
-import Cassandra
-import Data.Id
-import Data.Json.Util
+import Data.Binary
 import Imports
-import Wire.API.MLS.KeyPackage
 
-kpBlob :: KeyPackageData -> Blob
-kpBlob = Blob . fromBase64ByteString . kpData
+-- | An MLS credential.
+--
+-- Only the @BasicCredential@ type is supported.
+data Credential = BasicCredential
+  { bcIdentity :: ByteString,
+    bcSignatureScheme :: SignatureScheme,
+    bcSignatureKey :: ByteString
+  }
+  deriving (Generic)
 
-insertKeyPackages :: UserId -> ClientId -> [KeyPackageData] -> AppIO r ()
-insertKeyPackages uid cid kps = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  for_ kps $ \kp -> addPrepQuery q (uid, client cid, kpBlob kp)
-  where
-    q :: PrepQuery W (UserId, Text, Blob) ()
-    q = "INSERT INTO mls_key_packages (uid, text, data) VALUES (?, ?, ?)"
+instance Binary Credential
+
+data CredentialType = BasicCredentialType
+
+credentialType :: Credential -> CredentialType
+credentialType (BasicCredential _ _ _) = BasicCredentialType
+
+-- | A TLS signature scheme.
+--
+-- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
+newtype SignatureScheme = SignatureScheme {signatureSchemeNumber :: Word16}
+  deriving newtype (Binary)

@@ -15,26 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Data.MLS.KeyPackage
-  ( insertKeyPackages,
-  )
-where
+module Wire.API.MLS.Serialisation where
 
-import Brig.App
-import Cassandra
-import Data.Id
-import Data.Json.Util
+import Data.Binary
 import Imports
-import Wire.API.MLS.KeyPackage
 
-kpBlob :: KeyPackageData -> Blob
-kpBlob = Blob . fromBase64ByteString . kpData
+-- | Parse a value encoded using the "TLS presentation" format.
+class ParseMLS a where
+  parseMLS :: Get a
 
-insertKeyPackages :: UserId -> ClientId -> [KeyPackageData] -> AppIO r ()
-insertKeyPackages uid cid kps = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  for_ kps $ \kp -> addPrepQuery q (uid, client cid, kpBlob kp)
-  where
-    q :: PrepQuery W (UserId, Text, Blob) ()
-    q = "INSERT INTO mls_key_packages (uid, text, data) VALUES (?, ?, ?)"
+instance ParseMLS ByteString where
+  parseMLS = get
+
+-- | A wrapper to generate a 'ParseMLS' instance given a 'Binary' instance.
+newtype BinaryMLS a = BinaryMLS a
+
+instance Binary a => ParseMLS (BinaryMLS a) where
+  parseMLS = BinaryMLS <$> get
+
+-- | A wrapper to generate a 'Binary' instance for an enumerated type.
+newtype EnumBinary w a = EnumBinary {unEnumBinary :: a}
+
+instance (Binary w, Integral w, Enum a) => Binary (EnumBinary w a) where
+  get = EnumBinary . toEnum . fromIntegral <$> get @w
+  put = put @w . fromIntegral . fromEnum . unEnumBinary

@@ -18,13 +18,17 @@
 module Wire.API.MLS.KeyPackage where
 
 import Data.Aeson (FromJSON)
+import Data.Binary
 import Data.Json.Util
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Serialisation
 
 data KeyPackageUpload = KeyPackageUpload
-  {kpuKeyPackages :: [KeyPackage]}
+  {kpuKeyPackages :: [KeyPackageData]}
   deriving (FromJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
@@ -33,9 +37,43 @@ instance ToSchema KeyPackageUpload where
       KeyPackageUpload
         <$> kpuKeyPackages .= field "key_packages" (array schema)
 
-newtype KeyPackage = KeyPackage {kpData :: Base64ByteString}
+newtype KeyPackageData = KeyPackageData {kpData :: Base64ByteString}
 
-instance ToSchema KeyPackage where
+instance ToSchema KeyPackageData where
   schema =
-    KeyPackage <$> kpData
+    KeyPackageData <$> kpData
       .= named "KeyPackage" base64Schema
+
+--------------------------------------------------------------------------------
+
+data ProtocolVersion = ProtocolReserved | ProtocolMLS
+  deriving stock (Enum)
+  deriving (Binary) via EnumBinary Word8 ProtocolVersion
+
+data Extension = Extension
+  { extType :: Word16,
+    extData :: ByteString
+  }
+  deriving (Generic)
+
+instance Binary Extension
+
+data KeyPackageTBS = KeyPackageTBS
+  { kpProtocolVersion :: ProtocolVersion,
+    kpCipherSuite :: CipherSuite,
+    kpInitKey :: ByteString,
+    kpCredential :: Credential,
+    kpExtensions :: [Extension]
+  }
+  deriving (Generic)
+
+instance Binary KeyPackageTBS
+
+data KeyPackage = KeyPackage
+  { kpTBS :: KeyPackageTBS,
+    kpSignature :: ByteString
+  }
+  deriving (Generic)
+  deriving (ParseMLS) via BinaryMLS KeyPackage
+
+instance Binary KeyPackage
