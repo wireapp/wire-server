@@ -15,22 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API
-  ( sitemap,
-    servantSitemap,
-  )
-where
+module Wire.API.Routes.Internal.LegalHold where
 
-import qualified Data.Swagger.Build.Api as Doc
-import Galley.API.Internal
-import qualified Galley.API.Public as Public
-import Galley.API.Public.Servant
-import Galley.App (GalleyEffects)
-import Network.Wai.Routing (Routes)
-import Polysemy
+import Data.Id
+import Servant.API hiding (Header)
+import Wire.API.Team.Feature
 
-sitemap :: Routes Doc.ApiBuilder (Sem GalleyEffects) ()
-sitemap = do
-  Public.sitemap
-  Public.apiDocs
-  internalSitemap
+type InternalLegalHoldAPI =
+  "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+    :> Get '[JSON] (TeamFeatureStatus 'WithLockStatus 'TeamFeatureLegalHold)
+    :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+      :> ReqBody '[JSON] (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+      :> Put '[] NoContent

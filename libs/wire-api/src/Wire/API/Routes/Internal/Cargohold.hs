@@ -15,22 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API
-  ( sitemap,
-    servantSitemap,
-  )
-where
+module Wire.API.Routes.Internal.Cargohold where
 
-import qualified Data.Swagger.Build.Api as Doc
-import Galley.API.Internal
-import qualified Galley.API.Public as Public
-import Galley.API.Public.Servant
-import Galley.App (GalleyEffects)
-import Network.Wai.Routing (Routes)
-import Polysemy
+import Servant
+import Wire.API.Routes.MultiVerb
 
-sitemap :: Routes Doc.ApiBuilder (Sem GalleyEffects) ()
-sitemap = do
-  Public.sitemap
-  Public.apiDocs
-  internalSitemap
+type InternalAPI =
+  "i" :> "status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
