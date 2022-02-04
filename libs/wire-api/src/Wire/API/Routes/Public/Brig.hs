@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
@@ -33,12 +32,12 @@ import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
@@ -89,303 +88,293 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
-data Api routes = Api
-  { -- See Note [ephemeral user sideeffect]
-    getUserUnqualified ::
-      routes
-        :- Summary "Get a user by UserId (deprecated)"
+type UserAPI =
+  -- See Note [ephemeral user sideeffect]
+  Named
+    "get-user-unqualified"
+    ( Summary "Get a user by UserId (deprecated)"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> GetUserVerb,
+        :> GetUserVerb
+    )
+    :<|>
     -- See Note [ephemeral user sideeffect]
-    getUserQualified ::
-      routes
-        :- Summary "Get a user by Domain and UserId"
-        :> ZUser
-        :> "users"
-        :> QualifiedCaptureUserId "uid"
-        :> GetUserVerb,
-    getSelf ::
-      routes
-        :- Summary "Get your own profile"
+    Named
+      "get-user-qualified"
+      ( Summary "Get a user by Domain and UserId"
+          :> ZUser
+          :> "users"
+          :> QualifiedCaptureUserId "uid"
+          :> GetUserVerb
+      )
+    :<|> Named
+           "update-user-email"
+           ( Summary "Resend email address validation email."
+               :> Description "If the user has a pending email validation, the validation email will be resent."
+               :> ZUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "email"
+               :> ReqBody '[JSON] EmailUpdate
+               :> Put '[JSON] ()
+           )
+    :<|> Named
+           "get-handle-info-unqualified"
+           ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
+               :> ZUser
+               :> "users"
+               :> "handles"
+               :> Capture' '[Description "The user handle"] "handle" Handle
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ HandleNotFound,
+                       Respond 200 "User found" UserHandleInfo
+                     ]
+                    (Maybe UserHandleInfo)
+           )
+    :<|> Named
+           "get-user-by-handle-qualified"
+           ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
+               :> ZUser
+               :> "users"
+               :> "by-handle"
+               :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ HandleNotFound,
+                       Respond 200 "User found" UserProfile
+                     ]
+                    (Maybe UserProfile)
+           )
+    :<|>
+    -- See Note [ephemeral user sideeffect]
+    Named
+      "list-users-by-unqualified-ids-or-handles"
+      ( Summary "List users (deprecated)"
+          :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+          :> ZUser
+          :> "users"
+          :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+          :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
+          :> Get '[JSON] [UserProfile]
+      )
+    :<|>
+    -- See Note [ephemeral user sideeffect]
+    Named
+      "list-users-by-ids-or-handles"
+      ( Summary "List users"
+          :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+          :> ZUser
+          :> "list-users"
+          :> ReqBody '[JSON] ListUsersQuery
+          :> Post '[JSON] [UserProfile]
+      )
+
+type SelfAPI =
+  Named
+    "get-self"
+    ( Summary "Get your own profile"
         :> ZUser
         :> "self"
-        :> Get '[JSON] SelfProfile,
+        :> Get '[JSON] SelfProfile
+    )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserDeleted event to contacts of self
     -- - MemberLeave event to members for all conversations the user was in (via galley)
-    deleteSelf ::
-      routes
-        :- Summary "Initiate account deletion."
-        :> Description
-             "if the account has a verified identity, a verification \
-             \code is sent and needs to be confirmed to authorise the \
-             \deletion. if the account has no verified identity but a \
-             \password, it must be provided. if password is correct, or if neither \
-             \a verified identity nor a password exists, account deletion \
-             \is scheduled immediately."
-        :> CanThrow InvalidUser
-        :> CanThrow InvalidCode
-        :> CanThrow BadCredentials
-        :> CanThrow MissingAuth
-        :> CanThrow DeleteCodePending
-        :> CanThrow OwnerDeletingSelf
-        :> ZUser
-        :> "self"
-        :> ReqBody '[JSON] DeleteUser
-        :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
+    Named
+      "delete-self"
+      ( Summary "Initiate account deletion."
+          :> Description
+               "if the account has a verified identity, a verification \
+               \code is sent and needs to be confirmed to authorise the \
+               \deletion. if the account has no verified identity but a \
+               \password, it must be provided. if password is correct, or if neither \
+               \a verified identity nor a password exists, account deletion \
+               \is scheduled immediately."
+          :> CanThrow InvalidUser
+          :> CanThrow InvalidCode
+          :> CanThrow BadCredentials
+          :> CanThrow MissingAuth
+          :> CanThrow DeleteCodePending
+          :> CanThrow OwnerDeletingSelf
+          :> ZUser
+          :> "self"
+          :> ReqBody '[JSON] DeleteUser
+          :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout)
+      )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserUpdated event to contacts of self
-    putSelf ::
-      routes
-        :- Summary "Update your profile."
-        :> ZUser
-        :> ZConn
-        :> "self"
-        :> ReqBody '[JSON] UserUpdate
-        :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError),
-    changePhone ::
-      routes
-        :- Summary "Change your phone number."
-        :> ZUser
-        :> ZConn
-        :> "self"
-        :> "phone"
-        :> ReqBody '[JSON] PhoneUpdate
-        :> MultiVerb 'PUT '[JSON] ChangePhoneResponses (Maybe ChangePhoneError),
+    Named
+      "put-self"
+      ( Summary "Update your profile."
+          :> ZUser
+          :> ZConn
+          :> "self"
+          :> ReqBody '[JSON] UserUpdate
+          :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError)
+      )
+    :<|> Named
+           "change-phone"
+           ( Summary "Change your phone number."
+               :> ZUser
+               :> ZConn
+               :> "self"
+               :> "phone"
+               :> ReqBody '[JSON] PhoneUpdate
+               :> MultiVerb 'PUT '[JSON] ChangePhoneResponses (Maybe ChangePhoneError)
+           )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserIdentityRemoved event to self
-    removePhone ::
-      routes
-        :- Summary "Remove your phone number."
-        :> Description
-             "Your phone number can only be removed if you also have an \
-             \email address and a password."
-        :> ZUser
-        :> ZConn
-        :> "self"
-        :> "phone"
-        :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError),
+    Named
+      "remove-phone"
+      ( Summary "Remove your phone number."
+          :> Description
+               "Your phone number can only be removed if you also have an \
+               \email address and a password."
+          :> ZUser
+          :> ZConn
+          :> "self"
+          :> "phone"
+          :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
+      )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserIdentityRemoved event to self
-    removeEmail ::
-      routes
-        :- Summary "Remove your email address."
-        :> Description
-             "Your email address can only be removed if you also have a \
-             \phone number."
-        :> ZUser
-        :> ZConn
-        :> "self"
-        :> "email"
-        :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError),
-    checkPasswordExists ::
-      routes
-        :- Summary "Check that your password is set."
-        :> ZUser
-        :> "self"
-        :> "password"
-        :> MultiVerb
-             'HEAD
-             '()
-             '[ RespondEmpty 404 "Password is not set",
-                RespondEmpty 200 "Password is set"
-              ]
-             Bool,
-    changePassword ::
-      routes
-        :- Summary "Change your password."
-        :> ZUser
-        :> "self"
-        :> "password"
-        :> ReqBody '[JSON] PasswordChange
-        :> MultiVerb 'PUT '[JSON] ChangePasswordResponses (Maybe ChangePasswordError),
-    changeLocale ::
-      routes
-        :- Summary "Change your locale."
-        :> ZUser
-        :> ZConn
-        :> "self"
-        :> "locale"
-        :> ReqBody '[JSON] LocaleUpdate
-        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] (),
-    changeHandle ::
-      routes
-        :- Summary "Change your handle."
-        :> ZUser
-        :> ZConn
-        :> "self"
-        :> "handle"
-        :> ReqBody '[JSON] HandleUpdate
-        :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError),
-    updateUserEmail ::
-      routes
-        :- Summary "Resend email address validation email."
-        :> Description "If the user has a pending email validation, the validation email will be resent."
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> "email"
-        :> ReqBody '[JSON] EmailUpdate
-        :> Put '[JSON] (),
-    getHandleInfoUnqualified ::
-      routes
-        :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
-        :> ZUser
-        :> "users"
-        :> "handles"
-        :> Capture' '[Description "The user handle"] "handle" Handle
-        :> MultiVerb
-             'GET
-             '[JSON]
-             '[ HandleNotFound,
-                Respond 200 "User found" UserHandleInfo
-              ]
-             (Maybe UserHandleInfo),
-    getUserByHandleQualified ::
-      routes
-        :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
-        :> ZUser
-        :> "users"
-        :> "by-handle"
-        :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
-        :> MultiVerb
-             'GET
-             '[JSON]
-             '[ HandleNotFound,
-                Respond 200 "User found" UserProfile
-              ]
-             (Maybe UserProfile),
-    -- See Note [ephemeral user sideeffect]
-    listUsersByUnqualifiedIdsOrHandles ::
-      routes
-        :- Summary "List users (deprecated)"
-        :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-        :> ZUser
-        :> "users"
-        :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
-        :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-        :> Get '[JSON] [UserProfile],
-    -- See Note [ephemeral user sideeffect]
-    listUsersByIdsOrHandles ::
-      routes
-        :- Summary "List users"
-        :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-        :> ZUser
-        :> "list-users"
-        :> ReqBody '[JSON] ListUsersQuery
-        :> Post '[JSON] [UserProfile],
-    getUserClientsUnqualified ::
-      routes
-        :- Summary "Get all of a user's clients (deprecated)."
-        :> "users"
-        :> CaptureUserId "uid"
-        :> "clients"
-        :> Get '[JSON] [PubClient],
-    getUserClientsQualified ::
-      routes
-        :- Summary "Get all of a user's clients."
-        :> "users"
-        :> QualifiedCaptureUserId "uid"
-        :> "clients"
-        :> Get '[JSON] [PubClient],
-    getUserClientUnqualified ::
-      routes
-        :- Summary "Get a specific client of a user (deprecated)."
-        :> "users"
-        :> CaptureUserId "uid"
-        :> "clients"
-        :> CaptureClientId "client"
-        :> Get '[JSON] PubClient,
-    getUserClientQualified ::
-      routes
-        :- Summary "Get a specific client of a user."
-        :> "users"
-        :> QualifiedCaptureUserId "uid"
-        :> "clients"
-        :> CaptureClientId "client"
-        :> Get '[JSON] PubClient,
-    listClientsBulk ::
-      routes
-        :- Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
-        :> ZUser
-        :> "users"
-        :> "list-clients"
-        :> ReqBody '[JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
-        :> Post '[JSON] (QualifiedUserMap (Set PubClient)),
-    listClientsBulkV2 ::
-      routes
-        :- Summary "List all clients for a set of user ids"
-        :> ZUser
-        :> "users"
-        :> "list-clients"
-        :> "v2"
-        :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
-        :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient)),
-    getUsersPrekeysClientUnqualified ::
-      routes
-        :- Summary "(deprecated) Get a prekey for a specific client of a user."
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> "prekeys"
-        :> CaptureClientId "client"
-        :> Get '[JSON] ClientPrekey,
-    getUsersPrekeysClientQualified ::
-      routes
-        :- Summary "Get a prekey for a specific client of a user."
-        :> ZUser
-        :> "users"
-        :> QualifiedCaptureUserId "uid"
-        :> "prekeys"
-        :> CaptureClientId "client"
-        :> Get '[JSON] ClientPrekey,
-    getUsersPrekeyBundleUnqualified ::
-      routes
-        :- Summary "(deprecated) Get a prekey for each client of a user."
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> "prekeys"
-        :> Get '[JSON] PrekeyBundle,
-    getUsersPrekeyBundleQualified ::
-      routes
-        :- Summary "Get a prekey for each client of a user."
-        :> ZUser
-        :> "users"
-        :> QualifiedCaptureUserId "uid"
-        :> "prekeys"
-        :> Get '[JSON] PrekeyBundle,
-    getMultiUserPrekeyBundleUnqualified ::
-      routes
-        :- Summary
-             "(deprecated)  Given a map of user IDs to client IDs return a \
-             \prekey for each one. You can't request information for more users than \
-             \maximum conversation size."
-        :> ZUser
-        :> "users"
-        :> "prekeys"
-        :> ReqBody '[JSON] UserClients
-        :> Post '[JSON] UserClientPrekeyMap,
-    getMultiUserPrekeyBundleQualified ::
-      routes
-        :- Summary
-             "Given a map of domain to (map of user IDs to client IDs) return a \
-             \prekey for each one. You can't request information for more users than \
-             \maximum conversation size."
-        :> ZUser
-        :> "users"
-        :> "list-prekeys"
-        :> ReqBody '[JSON] QualifiedUserClients
-        :> Post '[JSON] QualifiedUserClientPrekeyMap,
-    -- User Client API ----------------------------------------------------
+    Named
+      "remove-email"
+      ( Summary "Remove your email address."
+          :> Description
+               "Your email address can only be removed if you also have a \
+               \phone number."
+          :> ZUser
+          :> ZConn
+          :> "self"
+          :> "email"
+          :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
+      )
+    :<|> Named
+           "check-password-exists"
+           ( Summary "Check that your password is set."
+               :> ZUser
+               :> "self"
+               :> "password"
+               :> MultiVerb
+                    'HEAD
+                    '()
+                    '[ RespondEmpty 404 "Password is not set",
+                       RespondEmpty 200 "Password is set"
+                     ]
+                    Bool
+           )
+    :<|> Named
+           "change-password"
+           ( Summary "Change your password."
+               :> ZUser
+               :> "self"
+               :> "password"
+               :> ReqBody '[JSON] PasswordChange
+               :> MultiVerb 'PUT '[JSON] ChangePasswordResponses (Maybe ChangePasswordError)
+           )
+    :<|> Named
+           "change-locale"
+           ( Summary "Change your locale."
+               :> ZUser
+               :> ZConn
+               :> "self"
+               :> "locale"
+               :> ReqBody '[JSON] LocaleUpdate
+               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] ()
+           )
+    :<|> Named
+           "change-handle"
+           ( Summary "Change your handle."
+               :> ZUser
+               :> ZConn
+               :> "self"
+               :> "handle"
+               :> ReqBody '[JSON] HandleUpdate
+               :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+           )
 
-    -- This endpoint can lead to the following events being sent:
-    -- - ClientAdded event to self
-    -- - ClientRemoved event to self, if removing old clients due to max number
-    addClient ::
-      routes :- Summary "Register a new client"
+type PrekeyAPI =
+  Named
+    "get-users-prekeys-client-unqualified"
+    ( Summary "(deprecated) Get a prekey for a specific client of a user."
+        :> ZUser
+        :> "users"
+        :> CaptureUserId "uid"
+        :> "prekeys"
+        :> CaptureClientId "client"
+        :> Get '[JSON] ClientPrekey
+    )
+    :<|> Named
+           "get-users-prekeys-client-qualified"
+           ( Summary "Get a prekey for a specific client of a user."
+               :> ZUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "prekeys"
+               :> CaptureClientId "client"
+               :> Get '[JSON] ClientPrekey
+           )
+    :<|> Named
+           "get-users-prekey-bundle-unqualified"
+           ( Summary "(deprecated) Get a prekey for each client of a user."
+               :> ZUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "prekeys"
+               :> Get '[JSON] PrekeyBundle
+           )
+    :<|> Named
+           "get-users-prekey-bundle-qualified"
+           ( Summary "Get a prekey for each client of a user."
+               :> ZUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "prekeys"
+               :> Get '[JSON] PrekeyBundle
+           )
+    :<|> Named
+           "get-multi-user-prekey-bundle-unqualified"
+           ( Summary
+               "(deprecated)  Given a map of user IDs to client IDs return a \
+               \prekey for each one. You can't request information for more users than \
+               \maximum conversation size."
+               :> ZUser
+               :> "users"
+               :> "prekeys"
+               :> ReqBody '[JSON] UserClients
+               :> Post '[JSON] UserClientPrekeyMap
+           )
+    :<|> Named
+           "get-multi-user-prekey-bundle-qualified"
+           ( Summary
+               "Given a map of domain to (map of user IDs to client IDs) return a \
+               \prekey for each one. You can't request information for more users than \
+               \maximum conversation size."
+               :> ZUser
+               :> "users"
+               :> "list-prekeys"
+               :> ReqBody '[JSON] QualifiedUserClients
+               :> Post '[JSON] QualifiedUserClientPrekeyMap
+           )
+
+type UserClientAPI =
+  -- User Client API ----------------------------------------------------
+
+  -- This endpoint can lead to the following events being sent:
+  -- - ClientAdded event to self
+  -- - ClientRemoved event to self, if removing old clients due to max number
+  Named
+    "add-client"
+    ( Summary "Register a new client"
         :> CanThrow TooManyClients
         :> CanThrow MissingAuth
         :> CanThrow MalformedPrekeys
@@ -394,66 +383,138 @@ data Api routes = Api
         :> "clients"
         :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
-        :> Verb 'POST 201 '[JSON] NewClientResponse,
-    updateClient ::
-      routes :- Summary "Update a registered client"
-        :> CanThrow MalformedPrekeys
-        :> ZUser
-        :> "clients"
-        :> CaptureClientId "client"
-        :> ReqBody '[JSON] UpdateClient
-        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Client updated"] (),
+        :> Verb 'POST 201 '[JSON] NewClientResponse
+    )
+    :<|> Named
+           "update-client"
+           ( Summary "Update a registered client"
+               :> CanThrow MalformedPrekeys
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> ReqBody '[JSON] UpdateClient
+               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Client updated"] ()
+           )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - ClientRemoved event to self
-    deleteClient ::
-      routes :- Summary "Delete an existing client"
-        :> ZUser
-        :> ZConn
+    Named
+      "delete-client"
+      ( Summary "Delete an existing client"
+          :> ZUser
+          :> ZConn
+          :> "clients"
+          :> CaptureClientId "client"
+          :> ReqBody '[JSON] RmClient
+          :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
+      )
+    :<|> Named
+           "list-clients"
+           ( Summary "List the registered clients"
+               :> ZUser
+               :> "clients"
+               :> Get '[JSON] [Client]
+           )
+    :<|> Named
+           "get-client"
+           ( Summary "Get a registered client by ID"
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                       Respond 200 "Client found" Client
+                     ]
+                    (Maybe Client)
+           )
+    :<|> Named
+           "get-client-capabilities"
+           ( Summary "Read back what the client has been posting about itself"
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "capabilities"
+               :> Get '[JSON] ClientCapabilityList
+           )
+    :<|> Named
+           "get-client-prekeys"
+           ( Summary "List the remaining prekey IDs of a client"
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "prekeys"
+               :> Get '[JSON] [PrekeyId]
+           )
+
+type ClientAPI =
+  Named
+    "get-user-clients-unqualified"
+    ( Summary "Get all of a user's clients (deprecated)."
+        :> "users"
+        :> CaptureUserId "uid"
         :> "clients"
-        :> CaptureClientId "client"
-        :> ReqBody '[JSON] RmClient
-        :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] (),
-    listClients ::
-      routes :- Summary "List the registered clients"
-        :> ZUser
-        :> "clients"
-        :> Get '[JSON] [Client],
-    getClient ::
-      routes :- Summary "Get a registered client by ID"
-        :> ZUser
-        :> "clients"
-        :> CaptureClientId "client"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                Respond 200 "Client found" Client
-              ]
-             (Maybe Client),
-    getClientCapabilities ::
-      routes :- Summary "Read back what the client has been posting about itself"
-        :> ZUser
-        :> "clients"
-        :> CaptureClientId "client"
-        :> "capabilities"
-        :> Get '[JSON] ClientCapabilityList,
-    getClientPrekeys ::
-      routes :- Summary "List the remaining prekey IDs of a client"
-        :> ZUser
-        :> "clients"
-        :> CaptureClientId "client"
-        :> "prekeys"
-        :> Get '[JSON] [PrekeyId],
-    -- Connection API -----------------------------------------------------
-    --
-    -- This endpoint can lead to the following events being sent:
-    -- - ConnectionUpdated event to self and other, if any side's connection state changes
-    -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
-    -- - ConvCreate event to self, if creating a connect conversation (via galley)
-    -- - ConvConnect event to self, in some cases (via galley),
-    --   for details see 'Galley.API.Create.createConnectConversation'
-    createConnectionUnqualified ::
-      routes :- Summary "Create a connection to another user. (deprecated)"
+        :> Get '[JSON] [PubClient]
+    )
+    :<|> Named
+           "get-user-clients-qualified"
+           ( Summary "Get all of a user's clients."
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "clients"
+               :> Get '[JSON] [PubClient]
+           )
+    :<|> Named
+           "get-user-client-unqualified"
+           ( Summary "Get a specific client of a user (deprecated)."
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "clients"
+               :> CaptureClientId "client"
+               :> Get '[JSON] PubClient
+           )
+    :<|> Named
+           "get-user-client-qualified"
+           ( Summary "Get a specific client of a user."
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "clients"
+               :> CaptureClientId "client"
+               :> Get '[JSON] PubClient
+           )
+    :<|> Named
+           "list-clients-bulk"
+           ( Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
+               :> ZUser
+               :> "users"
+               :> "list-clients"
+               :> ReqBody '[JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
+               :> Post '[JSON] (QualifiedUserMap (Set PubClient))
+           )
+    :<|> Named
+           "list-clients-bulk-v2"
+           ( Summary "List all clients for a set of user ids"
+               :> ZUser
+               :> "users"
+               :> "list-clients"
+               :> "v2"
+               :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
+               :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient))
+           )
+
+-- Connection API -----------------------------------------------------
+--
+-- This endpoint can lead to the following events being sent:
+-- - ConnectionUpdated event to self and other, if any side's connection state changes
+-- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
+-- - ConvCreate event to self, if creating a connect conversation (via galley)
+-- - ConvConnect event to self, in some cases (via galley),
+--   for details see 'Galley.API.Create.createConnectConversation'
+type ConnectionAPI =
+  Named
+    "create-connection-unqualified"
+    ( Summary "Create a connection to another user (deprecated)"
         :> CanThrow MissingLegalholdConsent
         :> CanThrow InvalidUser
         :> CanThrow ConnectionLimitReached
@@ -471,125 +532,142 @@ data Api routes = Api
              'POST
              '[JSON]
              (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
-             (ResponseForExistedCreated UserConnection),
-    createConnection ::
-      routes :- Summary "Create a connection to another user"
-        :> CanThrow MissingLegalholdConsent
-        :> CanThrow InvalidUser
-        :> CanThrow ConnectionLimitReached
-        :> CanThrow NoIdentity
-        -- Config value 'setUserMaxConnections' value in production/by default
-        -- is currently 1000 and has not changed in the last few years.
-        -- While it would be more correct to use the config value here, that
-        -- might not be time well spent.
-        :> Description "You can have no more than 1000 connections in accepted or sent state"
-        :> ZUser
-        :> ZConn
-        :> "connections"
-        :> QualifiedCaptureUserId "uid"
-        :> MultiVerb
-             'POST
-             '[JSON]
-             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
-             (ResponseForExistedCreated UserConnection),
-    listLocalConnections ::
-      routes :- Summary "List the local connections to other users. (deprecated)"
-        :> ZUser
-        :> "connections"
-        :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
-        :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
-        :> Get '[JSON] UserConnectionList,
-    listConnections ::
-      routes :- Summary "List the connections to other users, including remote users."
-        :> ZUser
-        :> "list-connections"
-        :> ReqBody '[JSON] ListConnectionsRequestPaginated
-        :> Post '[JSON] ConnectionsPage,
-    getConnectionUnqualified ::
-      routes :- Summary "Get an existing connection to another user. (deprecated)"
-        :> ZUser
-        :> "connections"
-        :> CaptureUserId "uid"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             '[ EmptyErrorForLegacyReasons 404 "Connection not found",
-                Respond 200 "Connection found" UserConnection
-              ]
-             (Maybe UserConnection),
-    getConnection ::
-      routes :- Summary "Get an existing connection to another user (local or remote)."
-        :> ZUser
-        :> "connections"
-        :> QualifiedCaptureUserId "uid"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             '[ EmptyErrorForLegacyReasons 404 "Connection not found",
-                Respond 200 "Connection found" UserConnection
-              ]
-             (Maybe UserConnection),
+             (ResponseForExistedCreated UserConnection)
+    )
+    :<|> Named
+           "create-connection"
+           ( Summary "Create a connection to another user"
+               :> CanThrow MissingLegalholdConsent
+               :> CanThrow InvalidUser
+               :> CanThrow ConnectionLimitReached
+               :> CanThrow NoIdentity
+               -- Config value 'setUserMaxConnections' value in production/by default
+               -- is currently 1000 and has not changed in the last few years.
+               -- While it would be more correct to use the config value here, that
+               -- might not be time well spent.
+               :> Description "You can have no more than 1000 connections in accepted or sent state"
+               :> ZUser
+               :> ZConn
+               :> "connections"
+               :> QualifiedCaptureUserId "uid"
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
+                    (ResponseForExistedCreated UserConnection)
+           )
+    :<|> Named
+           "list-local-connections"
+           ( Summary "List the local connections to other users (deprecated)"
+               :> ZUser
+               :> "connections"
+               :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
+               :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
+               :> Get '[JSON] UserConnectionList
+           )
+    :<|> Named
+           "list-connections"
+           ( Summary "List the connections to other users, including remote users"
+               :> ZUser
+               :> "list-connections"
+               :> ReqBody '[JSON] ListConnectionsRequestPaginated
+               :> Post '[JSON] ConnectionsPage
+           )
+    :<|> Named
+           "get-connection-unqualified"
+           ( Summary "Get an existing connection to another user (deprecated)"
+               :> ZUser
+               :> "connections"
+               :> CaptureUserId "uid"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Connection not found",
+                       Respond 200 "Connection found" UserConnection
+                     ]
+                    (Maybe UserConnection)
+           )
+    :<|> Named
+           "get-connection"
+           ( Summary "Get an existing connection to another user (local or remote)"
+               :> ZUser
+               :> "connections"
+               :> QualifiedCaptureUserId "uid"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Connection not found",
+                       Respond 200 "Connection found" UserConnection
+                     ]
+                    (Maybe UserConnection)
+           )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - ConnectionUpdated event to self and other, if their connection states change
     --
     -- When changing the connection state to Sent or Accepted, this can cause events to be sent
     -- when joining the connect conversation:
     -- - MemberJoin event to self and other (via galley)
-    updateConnectionUnqualified ::
-      routes :- Summary "Update a connection to another user. (deprecated)"
-        :> CanThrow MissingLegalholdConsent
-        :> CanThrow InvalidUser
-        :> CanThrow ConnectionLimitReached
-        :> CanThrow NotConnected
-        :> CanThrow InvalidTransition
-        :> CanThrow NoIdentity
-        :> ZUser
-        :> ZConn
-        :> "connections"
-        :> CaptureUserId "uid"
-        :> ReqBody '[JSON] ConnectionUpdate
-        :> MultiVerb
-             'PUT
-             '[JSON]
-             ConnectionUpdateResponses
-             (UpdateResult UserConnection),
+    Named
+      "update-connection-unqualified"
+      ( Summary "Update a connection to another user (deprecated)"
+          :> CanThrow MissingLegalholdConsent
+          :> CanThrow InvalidUser
+          :> CanThrow ConnectionLimitReached
+          :> CanThrow NotConnected
+          :> CanThrow InvalidTransition
+          :> CanThrow NoIdentity
+          :> ZUser
+          :> ZConn
+          :> "connections"
+          :> CaptureUserId "uid"
+          :> ReqBody '[JSON] ConnectionUpdate
+          :> MultiVerb
+               'PUT
+               '[JSON]
+               ConnectionUpdateResponses
+               (UpdateResult UserConnection)
+      )
+    :<|>
     -- This endpoint can lead to the following events being sent:
     -- - ConnectionUpdated event to self and other, if their connection states change
     --
     -- When changing the connection state to Sent or Accepted, this can cause events to be sent
     -- when joining the connect conversation:
     -- - MemberJoin event to self and other (via galley)
-    updateConnection ::
-      routes :- Summary "Update a connection to another user. (deprecated)"
-        :> CanThrow MissingLegalholdConsent
-        :> CanThrow InvalidUser
-        :> CanThrow ConnectionLimitReached
-        :> CanThrow NotConnected
-        :> CanThrow InvalidTransition
-        :> CanThrow NoIdentity
-        :> ZUser
-        :> ZConn
-        :> "connections"
-        :> QualifiedCaptureUserId "uid"
-        :> ReqBody '[JSON] ConnectionUpdate
-        :> MultiVerb
-             'PUT
-             '[JSON]
-             ConnectionUpdateResponses
-             (UpdateResult UserConnection),
-    searchContacts ::
-      routes :- Summary "Search for users"
-        :> ZUser
-        :> "search"
-        :> "contacts"
-        :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
-        :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
-        :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
-        :> Get '[Servant.JSON] (SearchResult Contact)
-  }
-  deriving (Generic)
+    Named
+      "update-connection"
+      ( Summary "Update a connection to another user (deprecatd)"
+          :> CanThrow MissingLegalholdConsent
+          :> CanThrow InvalidUser
+          :> CanThrow ConnectionLimitReached
+          :> CanThrow NotConnected
+          :> CanThrow InvalidTransition
+          :> CanThrow NoIdentity
+          :> ZUser
+          :> ZConn
+          :> "connections"
+          :> QualifiedCaptureUserId "uid"
+          :> ReqBody '[JSON] ConnectionUpdate
+          :> MultiVerb
+               'PUT
+               '[JSON]
+               ConnectionUpdateResponses
+               (UpdateResult UserConnection)
+      )
+    :<|> Named
+           "search-contacts"
+           ( Summary "Search for users"
+               :> ZUser
+               :> "search"
+               :> "contacts"
+               :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
+               :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
+               :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
+               :> Get '[Servant.JSON] (SearchResult Contact)
+           )
 
-type ServantAPI = ToServantApi Api
+type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI
 
-swagger :: Swagger
-swagger = toSwagger (Proxy @ServantAPI)
+brigSwagger :: Swagger
+brigSwagger = toSwagger (Proxy @BrigAPI)
