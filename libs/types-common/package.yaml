@@ -21,6 +21,7 @@ library:
   - base16-bytestring >=0.1
   - base ==4.*
   - base64-bytestring >=1.0
+  - binary
   - bytestring >=0.10
   - bytestring-conversion >=0.2
   - cassandra-util

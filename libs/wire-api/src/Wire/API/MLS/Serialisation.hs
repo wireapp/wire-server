@@ -15,9 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Serialisation where
+module Wire.API.MLS.Serialisation
+  ( ParseMLS (..),
+    BinaryMLS (..),
+    EnumBinary (..),
+    decodeMLS,
+    decodeMLS',
+  )
+where
 
 import Data.Binary
+import Data.Binary.Get
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as T
 import Imports
 
 -- | Parse a value encoded using the "TLS presentation" format.
@@ -39,3 +49,19 @@ newtype EnumBinary w a = EnumBinary {unEnumBinary :: a}
 instance (Binary w, Integral w, Enum a) => Binary (EnumBinary w a) where
   get = EnumBinary . toEnum . fromIntegral <$> get @w
   put = put @w . fromIntegral . fromEnum . unEnumBinary
+
+-- | Decode an MLS value from a lazy bytestring. Return an error message in case of failure.
+decodeMLS :: ParseMLS a => LByteString -> Either Text a
+decodeMLS = decodeMLSWith parseMLS
+
+decodeMLS' :: ParseMLS a => ByteString -> Either Text a
+decodeMLS' = decodeMLS . LBS.fromStrict
+
+-- | Decode an MLS value from a lazy bytestring given a custom parser.
+-- Return an error message in case of failure.
+decodeMLSWith :: Get a -> LByteString -> Either Text a
+decodeMLSWith p b = case runGetOrFail p b of
+  Left (_, _, msg) -> Left (T.pack msg)
+  Right (remainder, pos, x)
+    | LBS.null remainder -> Right x
+    | otherwise -> Left $ "Trailing data at position " <> T.pack (show pos)

@@ -20,7 +20,11 @@
 module Wire.API.MLS.Credential where
 
 import Data.Binary
+import Data.Domain
+import Data.Id
+import Data.Qualified
 import Imports
+import Wire.API.MLS.Serialisation
 
 -- | An MLS credential.
 --
@@ -44,3 +48,16 @@ credentialType (BasicCredential _ _ _) = BasicCredentialType
 -- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
 newtype SignatureScheme = SignatureScheme {signatureSchemeNumber :: Word16}
   deriving newtype (Binary)
+
+data ClientIdentity = ClientIdentity
+  { ciDomain :: Domain,
+    ciUser :: UserId,
+    ciClient :: ClientId
+  }
+  deriving (Eq, Generic)
+  deriving (ParseMLS) via (BinaryMLS ClientIdentity)
+
+mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
+mkClientIdentity (Qualified uid domain) cid = ClientIdentity domain uid cid
+
+instance Binary ClientIdentity

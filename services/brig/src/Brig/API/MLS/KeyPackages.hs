@@ -17,17 +17,40 @@
 
 module Brig.API.MLS.KeyPackages where
 
+import Brig.API.Error
 import Brig.API.Handler
 import qualified Brig.Data.MLS.KeyPackage as Data
+import Control.Monad.Trans.Except
 import Data.Id
+import Data.Json.Util
 import Data.Qualified
 import Imports
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
-uploadKeyPackages (tUnqualified -> uid) cid (kpuKeyPackages -> kps) = do
-  traverse_ validateKeyPackage kps
-  lift $ Data.insertKeyPackages uid cid kps
+uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
+  let identity = mkClientIdentity (qUntagged lusr) cid
+  traverse_ (validateKeyPackageData identity) kps
+  lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps
 
-validateKeyPackage :: KeyPackageData -> Handler r ()
-validateKeyPackage _ = pure ()
+validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r ()
+validateKeyPackageData identity = parseKeyPackage >=> validateKeyPackage identity
+
+parseKeyPackage :: KeyPackageData -> Handler r KeyPackage
+parseKeyPackage (fromBase64ByteString . kpData -> kpd) =
+  either (throwE . mlsProtocolError) pure (decodeMLS kpd)
+
+validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
+validateKeyPackage identity (kpTBS -> kp) = do
+  validateCredential identity (kpCredential kp)
+
+validateCredential :: ClientIdentity -> Credential -> Handler r ()
+validateCredential identity cred = do
+  -- TODO: validate signature
+  identity' <-
+    either (throwE . mlsProtocolError) pure $
+      decodeMLS' (bcIdentity cred)
+  when (identity /= identity') $
+    throwE mlsIdentityMismatch
