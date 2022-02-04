@@ -341,7 +341,7 @@ type HandleManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating hand
 
 type InvalidPhone = ErrorDescription 400 "invalid-phone" "Invalid mobile phone number"
 
-type UserKeyExists = ErrorDescription 409 "key-exists" "The give e-mail address or phone number is in use."
+type UserKeyExists = ErrorDescription 409 "key-exists" "The given e-mail address or phone number is in use."
 
 type BlacklistedPhone = ErrorDescription 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint."
 
