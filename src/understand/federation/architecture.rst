@@ -156,7 +156,7 @@ authorized. More specifically, both backends need to ensure the following:
 Authentication
 ^^^^^^^^^^^^^^
 
-.. warning:: As of October 2021, the implementation of mutual backend-to-backend
+.. warning:: As of January 2022, the implementation of mutual backend-to-backend
              authentication is still subject to change. The behaviour described
              in this section should be considered a draft specification only.
 

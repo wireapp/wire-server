@@ -109,7 +109,7 @@ Each component of the backend provides an API towards the `Federator` for access
 by other backends. For example on how these APIs are used, see the section on
 :ref:`end-to-end flows<end-to-end-flows>`.
 
-.. note:: This reflects status of API endpoints as of 2021-06-25. For latest
+.. note:: This reflects status of API endpoints as of 2022-01-28. For latest
           APIs please refer to the corresponding source code linked in the
           individual section.
 
