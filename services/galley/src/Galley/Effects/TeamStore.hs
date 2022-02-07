@@ -37,6 +37,7 @@ module Galley.Effects.TeamStore
     getUserTeams,
     getUsersTeams,
     getOneUserTeam,
+    lookupBindingTeam,
 
     -- ** Update teams
     deleteTeamConversation,
@@ -75,12 +76,14 @@ where
 
 import Data.Id
 import Data.Range
+import Galley.API.Error
 import Galley.Effects.ListItems
 import Galley.Effects.Paging
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
 import Polysemy
+import Polysemy.Error
 import qualified Proto.TeamEvents as E
 
 data TeamStore m a where
@@ -128,3 +131,18 @@ listTeams ::
   PagingBounds p TeamId ->
   Sem r (Page p TeamId)
 listTeams = listItems
+
+lookupBindingTeam ::
+  Members
+    '[ Error TeamError,
+       TeamStore
+     ]
+    r =>
+  UserId ->
+  Sem r TeamId
+lookupBindingTeam zusr = do
+  tid <- getOneUserTeam zusr >>= note TeamNotFound
+  binding <- getTeamBinding tid >>= note TeamNotFound
+  case binding of
+    Binding -> return tid
+    NonBinding -> throw NotABindingTeamMember

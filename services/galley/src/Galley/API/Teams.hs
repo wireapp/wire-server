@@ -82,7 +82,6 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
-import Galley.API.Teams.Common
 import qualified Galley.API.Teams.Notifications as APITeamQueue
 import qualified Galley.API.Update as API
 import Galley.API.Util
@@ -1412,7 +1411,7 @@ finishCreateTeam team owner others zcon = do
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 getBindingTeamIdH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
-getBindingTeamIdH = fmap json . getBindingTeam
+getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
 getBindingTeamMembersH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
@@ -1426,7 +1425,7 @@ getBindingTeamMembers ::
   UserId ->
   Sem r TeamMemberList
 getBindingTeamMembers zusr = do
-  tid <- getBindingTeam zusr
+  tid <- E.lookupBindingTeam zusr
   getTeamMembersForFanout tid
 
 canUserJoinTeamH ::

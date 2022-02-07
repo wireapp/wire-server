@@ -54,7 +54,6 @@ import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.Error
 import Galley.API.LegalHold.Conflicts
-import Galley.API.Teams.Common
 import Galley.API.Util
 import Galley.Data.Conversation
 import Galley.Data.Services as Data
@@ -276,7 +275,7 @@ postBroadcast lusr con msg = runError $ do
           $ msg
   now <- input
 
-  tid <- getBindingTeam senderUser
+  tid <- lookupBindingTeam senderUser
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $

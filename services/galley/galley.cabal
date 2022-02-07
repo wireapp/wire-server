@@ -39,7 +39,6 @@ library
       Galley.API.Public.Servant
       Galley.API.Query
       Galley.API.Teams
-      Galley.API.Teams.Common
       Galley.API.Teams.Features
       Galley.API.Teams.Notifications
       Galley.API.Update
