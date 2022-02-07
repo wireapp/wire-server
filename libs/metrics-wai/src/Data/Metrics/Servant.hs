@@ -44,13 +44,16 @@ import Servant.Multipart
 
 -- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 servantPrometheusMiddleware :: forall proxy api. (RoutesToPaths api) => proxy api -> Wai.Middleware
-servantPrometheusMiddleware _ = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
+servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormalize
   where
     promthNormalize :: Wai.Request -> Text
     promthNormalize req = pathInfo
       where
         mPathInfo = Metrics.treeLookup (routesToPaths @api) $ cs <$> Wai.pathInfo req
         pathInfo = cs $ fromMaybe "N/A" mPathInfo
+
+    -- See Note [Raw Response]
+    instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
 
 servantPlusWAIPrometheusMiddleware :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Routes a m b -> proxy api -> Wai.Middleware
 servantPlusWAIPrometheusMiddleware routes _ = do
