@@ -81,6 +81,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Asset (AssetKey)
 import Wire.API.Team.Member (TeamMember, modelTeamMember)
 
 --------------------------------------------------------------------------------
@@ -256,7 +257,7 @@ newTeamSchema name sch =
 
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
-    _iconUpdate :: Maybe (Range 1 256 Text),
+    _iconUpdate :: Maybe AssetKey,
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
