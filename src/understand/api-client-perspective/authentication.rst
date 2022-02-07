@@ -345,7 +345,7 @@ request to ``/cookies/remove``, alongside with the user's credentials:
 
 ::
 
-   POST /login?persist=true HTTP/1.1
+   POST /cookies/remove HTTP/1.1
    [headers omitted]
 
    {
