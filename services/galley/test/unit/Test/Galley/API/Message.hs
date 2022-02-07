@@ -17,10 +17,12 @@
 
 module Test.Galley.API.Message where
 
+import Control.Lens
 import Data.Domain (Domain)
 import Data.Id (ClientId, UserId)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Set.Lens
 import Galley.API.Message
 import Imports
 import Test.Tasty
@@ -40,6 +42,13 @@ tests =
           checkMessageClientMissingSubsetOfStrategy
         ]
     ]
+
+flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
+flatten =
+  setOf $
+    (itraversed <.> itraversed <. folded)
+      . withIndex
+      . to (\((d, u), c) -> (d, u, c))
 
 type QualifiedUserClient = (Domain, UserId, ClientId)
 

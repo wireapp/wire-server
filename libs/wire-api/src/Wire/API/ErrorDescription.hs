@@ -211,11 +211,15 @@ type ConvNotFound = ErrorDescription 404 "no-conversation" "Conversation not fou
 
 type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Conversation member not found"
 
+type TooManyMembers = ErrorDescription 403 "too-many-members" "Maximum number of members per conversation reached."
+
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
-type TeamNotFound = ErrorDescription 404 "no-team" "team not found"
+type TeamNotFound = ErrorDescription 404 "no-team" "Team not found"
+
+type NonBindingTeam = ErrorDescription 404 "non-binding-team" "Not member of a binding team"
 
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
@@ -329,6 +333,8 @@ type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversatio
 
 type InvalidTargetAccess = InvalidOp "invalid target access"
 
+type InvalidAccessOp = InvalidOp "invalid operation for conversation without 'code' access"
+
 type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
 
 type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
@@ -358,3 +364,9 @@ type InvalidHandle = ErrorDescription 400 "invalid-handle" "The given handle is 
 type PresenceNotRegistered = ErrorDescription 404 "not-found" "presence not registered"
 
 type ClientGone = ErrorDescription 410 "general" "client gone"
+
+type BroadcastLimitExceeded =
+  ErrorDescription
+    400
+    "too-many-users-to-broadcast"
+    "Too many users to fan out the broadcast event to."

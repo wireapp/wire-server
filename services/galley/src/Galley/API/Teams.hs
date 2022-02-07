@@ -1410,24 +1410,8 @@ finishCreateTeam team owner others zcon = do
   let r = membersToRecipients Nothing others
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
--- FUTUREWORK: Get rid of CPS
-withBindingTeam ::
-  Members '[Error TeamError, TeamStore] r =>
-  UserId ->
-  (TeamId -> Sem r b) ->
-  Sem r b
-withBindingTeam zusr callback = do
-  tid <- E.getOneUserTeam zusr >>= note TeamNotFound
-  binding <- E.getTeamBinding tid >>= note TeamNotFound
-  case binding of
-    Binding -> callback tid
-    NonBinding -> throw NotABindingTeamMember
-
 getBindingTeamIdH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
-getBindingTeamIdH = fmap json . getBindingTeamId
-
-getBindingTeamId :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r TeamId
-getBindingTeamId zusr = withBindingTeam zusr pure
+getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
 getBindingTeamMembersH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
@@ -1440,7 +1424,8 @@ getBindingTeamMembers ::
     r =>
   UserId ->
   Sem r TeamMemberList
-getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
+getBindingTeamMembers zusr = do
+  tid <- E.lookupBindingTeam zusr
   getTeamMembersForFanout tid
 
 canUserJoinTeamH ::

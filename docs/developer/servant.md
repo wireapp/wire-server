@@ -17,6 +17,7 @@ This is a family of combinators to handle the headers that nginx adds to request
   - `ZUser`: extracts the `UserId` in the `Z-User` header.
   - `ZLocalUser`: same as `ZUser`, but as a `Local` object (i.e. qualified by the local domain); this is useful when writing federation-aware handlers.
   - `ZConn`: extracts the `ConnId` in the `Z-Connection` header.
+  - `ZConversation`: extracts the `ConvId` in the `Z-Conversation` header.
 
 ## `MultiVerb`
 

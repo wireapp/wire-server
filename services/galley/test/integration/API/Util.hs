@@ -35,7 +35,6 @@ import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -61,7 +60,6 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
-import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
 import Data.Time (getCurrentTime)
@@ -1394,10 +1392,27 @@ assertConvQualifiedWithRole r t c s us n mt role = do
       _ -> return ()
   return cId
 
-wsAssertOtr :: Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  ClientId ->
+  ClientId ->
+  Text ->
+  Notification ->
+  IO ()
 wsAssertOtr = wsAssertOtr' "data"
 
-wsAssertOtr' :: Text -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr' ::
+  HasCallStack =>
+  Text ->
+  Qualified ConvId ->
+  Qualified UserId ->
+  ClientId ->
+  ClientId ->
+  Text ->
+  Notification ->
+  IO ()
 wsAssertOtr' evData conv usr from to txt n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1955,9 +1970,6 @@ otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
   where
     buildMap = fmap Map.fromList . Map.fromList
-
-encodeCiphertext :: ByteString -> Text
-encodeCiphertext = decodeUtf8 . B64.encode
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary

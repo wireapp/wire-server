@@ -71,7 +71,29 @@ type ConversationVerb =
      ]
     ConversationResponse
 
+type CreateConversationCodeVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    '[ Respond 200 "Conversation code already exists." ConversationCode,
+       Respond 201 "Conversation code created." Event
+     ]
+    AddCodeResult
+
+instance
+  (ResponseType r1 ~ ConversationCode, ResponseType r2 ~ Event) =>
+  AsUnion '[r1, r2] AddCodeResult
+  where
+  toUnion (CodeAlreadyExisted c) = Z (I c)
+  toUnion (CodeAdded e) = S (Z (I e))
+
+  fromUnion (Z (I c)) = CodeAlreadyExisted c
+  fromUnion (S (Z (I e))) = CodeAdded e
+  fromUnion (S (S x)) = case x of
+
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
+
+type ConvJoinResponses = UpdateResponses "Conversation unchanged" "Conversation joined" Event
 
 type RemoveFromConversationVerb =
   MultiVerb
@@ -86,6 +108,7 @@ type ServantAPI =
   ConversationAPI
     :<|> TeamConversationAPI
     :<|> MessagingAPI
+    :<|> BotAPI
     :<|> TeamAPI
     :<|> FeatureAPI
 
@@ -279,6 +302,108 @@ type ConversationAPI =
                :> "v2"
                :> ReqBody '[Servant.JSON] InviteQualified
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    :<|> Named
+           "join-conversation-by-id-unqualified"
+           ( Summary "Join a conversation by its ID (if link access enabled)"
+               :> CanThrow ConvNotFound
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "join"
+               :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    :<|> Named
+           "join-conversation-by-code-unqualified"
+           ( Summary "Join a conversation using a reusable code"
+               :> CanThrow CodeNotFound
+               :> CanThrow ConvNotFound
+               :> CanThrow TooManyMembers
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> "join"
+               :> ReqBody '[Servant.JSON] ConversationCode
+               :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
+           )
+    :<|> Named
+           "code-check"
+           ( Summary "Check validity of a conversation code"
+               :> CanThrow CodeNotFound
+               :> "conversations"
+               :> "code-check"
+               :> ReqBody '[Servant.JSON] ConversationCode
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 "Valid"]
+                    ()
+           )
+    -- this endpoint can lead to the following events being sent:
+    -- - ConvCodeUpdate event to members, if code didn't exist before
+    :<|> Named
+           "create-conversation-code-unqualified"
+           ( Summary "Create or recreate a conversation code"
+               :> CanThrow ConvNotFound
+               :> CanThrow InvalidAccessOp
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> CreateConversationCodeVerb
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCodeDelete event to members
+    :<|> Named
+           "remove-code-unqualified"
+           ( Summary "Delete conversation code"
+               :> CanThrow ConvNotFound
+               :> CanThrow InvalidAccessOp
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[Respond 200 "Conversation code deleted." Event]
+                    Event
+           )
+    :<|> Named
+           "get-code"
+           ( Summary "Get existing conversation code"
+               :> CanThrow ConvNotFound
+               :> CanThrow InvalidAccessOp
+               :> ZLocalUser
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[Respond 200 "Conversation Code" ConversationCode]
+                    ConversationCode
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - Typing event to members
+    :<|> Named
+           "member-typing-unqualified"
+           ( Summary "Sending typing notifications"
+               :> CanThrow ConvNotFound
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "typing"
+               :> ReqBody '[JSON] TypingData
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Notification sent"] ()
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
@@ -689,17 +814,38 @@ type MessagingAPI =
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> QueryParam "ignore_missing" IgnoreMissing
-        :> QueryParam "report_missing" ReportMissing
         :> "otr"
         :> "messages"
-        :> ReqBody '[Servant.JSON, Proto] NewOtrMessage
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> ReqBody '[JSON, Proto] NewOtrMessage
         :> MultiVerb
              'POST
              '[Servant.JSON]
              (PostOtrResponses ClientMismatch)
-             (Either (MessageNotSent ClientMismatch) ClientMismatch)
+             (PostOtrResponse ClientMismatch)
     )
+    :<|> Named
+           "post-otr-broadcast-unqualified"
+           ( Summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON or Protobuf)"
+               :> Description PostOtrDescriptionUnqualified
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow TeamNotFound
+               :> CanThrow BroadcastLimitExceeded
+               :> CanThrow NonBindingTeam
+               :> "broadcast"
+               :> "otr"
+               :> "messages"
+               :> QueryParam "ignore_missing" IgnoreMissing
+               :> QueryParam "report_missing" ReportMissing
+               :> ReqBody '[JSON, Proto] NewOtrMessage
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    (PostOtrResponses ClientMismatch)
+                    (PostOtrResponse ClientMismatch)
+           )
     :<|> Named
            "post-proteus-message"
            ( Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
@@ -717,6 +863,23 @@ type MessagingAPI =
                     (PostOtrResponses MessageSendingStatus)
                     (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
            )
+
+type BotAPI =
+  Named
+    "post-bot-message-unqualified"
+    ( ZBot
+        :> ZConversation
+        :> "bot"
+        :> "messages"
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> ReqBody '[JSON] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (PostOtrResponse ClientMismatch)
+    )
 
 type FeatureAPI =
   FeatureStatusGet 'TeamFeatureSSO
@@ -831,6 +994,9 @@ type AllFeatureConfigsGet =
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
 
+-- This is a work-around for the fact that we sometimes want to send larger lists of user ids
+-- in the filter query than fits the url length limit.  For details, see
+-- https://github.com/zinfra/backend-issues/issues/1248
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
   \To override this, the endpoint accepts two query params:\n\
