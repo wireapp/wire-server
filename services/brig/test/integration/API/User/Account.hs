@@ -850,14 +850,6 @@ testUserUpdate brig cannon aws = do
               )
           )
         . responseJsonMaybe
-  -- get only the new name
-  get (brig . path "/self/name" . zUser alice) !!! do
-    const 200 === statusCode
-    const (String . fromName <$> mNewName)
-      === ( \r -> do
-              b <- responseBody r
-              b ^? key "name"
-          )
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig

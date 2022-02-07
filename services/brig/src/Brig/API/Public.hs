@@ -272,18 +272,6 @@ sitemap = do
     Doc.response 200 "RichInfo" Doc.end
     Doc.errorResponse insufficientTeamPermissions
 
-  -- User Self API ------------------------------------------------------
-
-  get "/self/name" (continue getUserDisplayNameH) $
-    accept "application" "json"
-      .&. zauthUserId
-  document "GET" "selfName" $ do
-    Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Public.modelUserDisplayName)
-    Doc.response 200 "Profile name found." Doc.end
-
-  -- TODO put  where?
-
   -- This endpoint can lead to the following events being sent:
   -- UserDeleted event to contacts of deleted user
   -- MemberLeave event to members for all conversations the user was in (via galley)
@@ -766,13 +754,6 @@ getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
   API.lookupProfile lself qualifiedUserId !>> fedError
-
-getUserDisplayNameH :: JSON ::: UserId -> Handler Response
-getUserDisplayNameH (_ ::: self) = do
-  name :: Maybe Public.Name <- lift $ API.lookupName self
-  return $ case name of
-    Just n -> json $ object ["name" .= n]
-    Nothing -> setStatus status404 empty
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> Handler [Public.UserProfile]

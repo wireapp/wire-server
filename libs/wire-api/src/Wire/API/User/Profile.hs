@@ -48,7 +48,6 @@ module Wire.API.User.Profile
     noPict,
 
     -- * Swagger
-    modelUserDisplayName,
     modelAsset,
     typeManagedBy,
   )
@@ -88,12 +87,6 @@ newtype Name = Name
 
 mkName :: Text -> Either String Name
 mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
-
-modelUserDisplayName :: Doc.Model
-modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
-  Doc.description "User name"
-  Doc.property "name" Doc.string' $
-    Doc.description "User name"
 
 instance ToSchema Name where
   schema = Name <$> fromName .= untypedRangedSchema 1 128 schema
