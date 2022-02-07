@@ -833,6 +833,7 @@ type MessagingAPI =
                :> ZConn
                :> CanThrow TeamNotFound
                :> CanThrow BroadcastLimitExceeded
+               :> CanThrow NonBindingTeam
                :> "broadcast"
                :> "otr"
                :> "messages"

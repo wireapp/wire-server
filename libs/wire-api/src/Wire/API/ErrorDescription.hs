@@ -219,6 +219,8 @@ type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
 type TeamNotFound = ErrorDescription 404 "no-team" "Team not found"
 
+type NonBindingTeam = ErrorDescription 404 "non-binding-team" "Not member of a binding team"
+
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
 type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."

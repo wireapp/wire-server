@@ -148,7 +148,7 @@ data TeamError
 instance APIError TeamError where
   toWai NoBindingTeam = noBindingTeam
   toWai NoAddToBinding = noAddToBinding
-  toWai NotABindingTeamMember = nonBindingTeam
+  toWai NotABindingTeamMember = errorDescriptionTypeToWai @NonBindingTeam
   toWai NotAOneMemberTeam = notAOneMemberTeam
   toWai TeamNotFound = errorDescriptionTypeToWai @TeamNotFound
   toWai TeamMemberNotFound = teamMemberNotFound
