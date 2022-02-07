@@ -168,7 +168,6 @@ models =
     User.Handle.modelCheckHandles,
     User.Password.modelNewPasswordReset,
     User.Password.modelCompletePasswordReset,
-    User.Profile.modelUserDisplayName,
     User.Profile.modelAsset,
     User.RichInfo.modelRichInfo,
     User.RichInfo.modelRichField,
