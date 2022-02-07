@@ -179,12 +179,12 @@ The first step is to configure the Identity Provider: you'll need to register Wi
 
 We've put together guides for registering with different providers:
 
-* `Instructions for Okta <../../how-to/single-sign-on/okta/main.rst>`_
-* `Instructions for Centrify <../../how-to/single-sign-on/centrify/main.rst>`_
-* `Instructions for Azure <../../how-to/single-sign-on/azure/main.rst>`_
-* `Some screenshots for ADFS <../../how-to/single-sign-on/adfs/main.rst>`_
-* `Generic instructions (try this if none of the above are applicable) <../../how-to/single-sign-on/generic-setup.rst>`_
-* `Trouble shooting & FAQ <../../how-to/single-sign-on/trouble-shooting.rst>`_
+* `Instructions for Okta <../../how-to/single-sign-on/okta/main.html>`_
+* `Instructions for Centrify <../../how-to/single-sign-on/centrify/main.html>`_
+* `Instructions for Azure <../../how-to/single-sign-on/azure/main.html>`_
+* `Some screenshots for ADFS <../../how-to/single-sign-on/adfs/main.html>`_
+* `Generic instructions (try this if none of the above are applicable) <../../how-to/single-sign-on/generic-setup.html>`_
+* `Trouble shooting & FAQ <../../how-to/single-sign-on/trouble-shooting.html>`_
 
 As you do this, make sure you take note of your :term:`IdP` metadata, which you will need for the next step.
 
