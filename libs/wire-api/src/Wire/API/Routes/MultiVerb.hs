@@ -196,7 +196,7 @@ simpleResponseSwagger = do
       & S.schema ?~ ref
 
 instance
-  (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
+  (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
   responseSwagger = simpleResponseSwagger @a @desc
@@ -244,10 +244,19 @@ instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
     guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
-  (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
-  IsSwaggerResponse (RespondAs ct s desc a)
+  (KnownSymbol desc, S.ToSchema a) =>
+  IsSwaggerResponse (RespondAs (ct :: *) s desc a)
   where
   responseSwagger = simpleResponseSwagger @a @desc
+
+instance
+  (KnownSymbol desc) =>
+  IsSwaggerResponse (RespondEmpty s desc)
+  where
+  responseSwagger =
+    pure $
+      mempty
+        & S.description .~ Text.pack (symbolVal (Proxy @desc))
 
 type instance ResponseType (RespondStreaming s desc framing ct) = SourceIO ByteString
 
