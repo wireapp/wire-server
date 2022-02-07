@@ -400,9 +400,6 @@ noAddToBinding = mkError status403 "binding-team" "Cannot add users to binding t
 deleteQueueFull :: Error
 deleteQueueFull = mkError status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
 
-nonBindingTeam :: Error
-nonBindingTeam = mkError status404 "non-binding-team" "not member of a binding team"
-
 noBindingTeamMembers :: Error
 noBindingTeamMembers = mkError status403 "non-binding-team-members" "Both users must be members of the same binding team."
 
