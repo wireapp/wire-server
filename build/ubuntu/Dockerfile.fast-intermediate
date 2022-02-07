@@ -1,5 +1,5 @@
 ARG builder=quay.io/wire/ubuntu20-builder
-ARG deps=quay.io/wire/ubuntu-deps
+ARG deps=quay.io/wire/ubuntu20-deps:develop
 
 #--- Builder stage ---
 FROM ${builder} as builder
@@ -8,7 +8,10 @@ WORKDIR /wire-server/
 
 COPY . /wire-server/
 
-RUN make clean fast
+RUN echo "optimization: False" > ./cabal.project.local && \
+   ./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local && \
+    WIRE_BUILD_WITH_CABAL=1 make clean && \
+    WIRE_BUILD_WITH_CABAL=1 make install
 
 #--- Minified stage ---
 FROM ${deps}
