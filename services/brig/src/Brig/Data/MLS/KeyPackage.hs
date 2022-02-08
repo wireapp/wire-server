@@ -21,19 +21,17 @@ module Brig.Data.MLS.KeyPackage
 where
 
 import Brig.App
+import Brig.Data.MLS.KeyPackage.Instances ()
 import Cassandra
 import Data.Id
 import Imports
 import Wire.API.MLS.KeyPackage
 
-kpBlob :: KeyPackageData -> Blob
-kpBlob = Blob . kpData
-
-insertKeyPackages :: UserId -> ClientId -> [KeyPackageData] -> AppIO r ()
+insertKeyPackages :: UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> AppIO r ()
 insertKeyPackages uid cid kps = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  for_ kps $ \kp -> addPrepQuery q (uid, client cid, kpBlob kp)
+  for_ kps $ \(ref, kp) -> addPrepQuery q (uid, cid, ref, kp)
   where
-    q :: PrepQuery W (UserId, Text, Blob) ()
-    q = "INSERT INTO mls_key_packages (uid, text, data) VALUES (?, ?, ?)"
+    q :: PrepQuery W (UserId, ClientId, KeyPackageRef, KeyPackageData) ()
+    q = "INSERT INTO mls_key_packages (uid, text, ref, data) VALUES (?, ?, ?, ?)"

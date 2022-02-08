@@ -36,6 +36,7 @@ library:
   - cereal
   - comonad
   - conduit
+  - constraints
   - cookie
   - cryptonite
   - currency-codes >=2.0

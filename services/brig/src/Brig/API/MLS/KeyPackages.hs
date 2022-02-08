@@ -20,76 +20,17 @@ module Brig.API.MLS.KeyPackages
   )
 where
 
-import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages.Validation
 import qualified Brig.Data.MLS.KeyPackage as Data
-import Control.Applicative
 import Data.Id
 import Data.Qualified
 import Imports
-import Wire.API.ErrorDescription
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Serialisation
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   let identity = mkClientIdentity (qUntagged lusr) cid
-  traverse_ (validateKeyPackageData identity) kps
-  lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps
-
-validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r ()
-validateKeyPackageData identity = parseKeyPackage >=> validateKeyPackage identity
-
-parseKeyPackage :: KeyPackageData -> Handler r KeyPackage
-parseKeyPackage (kpData -> kpd) =
-  either (throwErrorDescription . mlsProtocolError) pure (decodeMLS kpd)
-
-validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
-validateKeyPackage identity (kpTBS -> kp) = do
-  validateCredential identity (kpCredential kp)
-  validateExtensions (kpExtensions kp)
-
-validateCredential :: ClientIdentity -> Credential -> Handler r ()
-validateCredential identity cred = do
-  -- TODO: validate signature
-  identity' <-
-    either (throwErrorDescription . mlsProtocolError) pure $
-      decodeMLS' (bcIdentity cred)
-  when (identity /= identity') $
-    throwErrorDescriptionType @MLSIdentityMismatch
-
-data RequiredExtensions f = RequiredExtensions
-  { reLifetime :: f Lifetime,
-    reCapabilities :: f ()
-  }
-
-instance Alternative f => Semigroup (RequiredExtensions f) where
-  RequiredExtensions lt1 cap1 <> RequiredExtensions lt2 cap2 =
-    RequiredExtensions (lt1 <|> lt2) (cap1 <|> cap2)
-
-instance Alternative f => Monoid (RequiredExtensions f) where
-  mempty = RequiredExtensions empty empty
-
-checkRequiredExtensions :: Applicative f => RequiredExtensions f -> f (RequiredExtensions Identity)
-checkRequiredExtensions re =
-  RequiredExtensions
-    <$> (Identity <$> reLifetime re)
-    <*> (Identity <$> reCapabilities re)
-
-findExtensions :: [Extension] -> Maybe (RequiredExtensions Identity)
-findExtensions = checkRequiredExtensions . foldMap findExtension
-
-findExtension :: Extension -> RequiredExtensions Maybe
-findExtension e = case decodeExtension e of
-  Just (SomeExtension SLifetimeExtensionTag lt) -> RequiredExtensions (pure lt) Nothing
-  Just (SomeExtension SCapabilitiesExtensionTag _) -> RequiredExtensions Nothing (pure ())
-  _ -> mempty
-
-validateExtensions :: [Extension] -> Handler r ()
-validateExtensions exts = do
-  _re <-
-    maybe (throwErrorDescription (mlsProtocolError "Missing required extensions")) pure $
-      findExtensions exts
-  -- TODO: validate lifetime
-  pure ()
+  kps' <- traverse (validateKeyPackageData identity) kps
+  lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps'

@@ -38,6 +38,7 @@ library
       Brig.API.Handler
       Brig.API.Internal
       Brig.API.MLS.KeyPackages
+      Brig.API.MLS.KeyPackages.Validation
       Brig.API.Properties
       Brig.API.Public
       Brig.API.Types
@@ -59,6 +60,7 @@ library
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.MLS.KeyPackage
+      Brig.Data.MLS.KeyPackage.Instances
       Brig.Data.PasswordReset
       Brig.Data.Properties
       Brig.Data.Types

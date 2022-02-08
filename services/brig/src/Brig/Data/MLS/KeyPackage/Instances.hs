@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,27 +14,32 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
-module V67_MLSKeyPackages
-  ( migration,
-  )
-where
+module Brig.Data.MLS.KeyPackage.Instances where
 
-import Cassandra.Schema
+import Cassandra
+import qualified Data.ByteString.Lazy as LBS
 import Imports
-import Text.RawString.QQ
+import Wire.API.MLS.KeyPackage
 
-migration :: Migration
-migration =
-  Migration 67 "Add table for MLS key packages" $
-    schema'
-      [r|
-        CREATE TABLE mls_key_packages
-            ( user uuid
-            , client text
-            , ref blob
-            , data blob
-            , PRIMARY KEY (user, client)
-        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-          AND gc_grace_seconds = 864000;
-     |]
+-- kpBlob :: KeyPackageData -> Blob
+-- kpBlob = Blob . kpData
+
+-- kpFromBlob :: Blob -> KeyPackageData
+-- kpFromBlob = KeyPackageData . fromBlob
+
+-- kprBlob :: KeyPackageRef -> Blob
+-- kprBlob = Blob . LBS.fromStrict . unKeyPackageRef
+
+instance Cql KeyPackageRef where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
+  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
+
+instance Cql KeyPackageData where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . kpData
+  fromCql (CqlBlob b) = pure . KeyPackageData $ b
+  fromCql _ = Left "Expected CqlBlob"

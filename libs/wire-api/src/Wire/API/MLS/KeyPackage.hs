@@ -22,9 +22,10 @@ module Wire.API.MLS.KeyPackage where
 
 import Control.Applicative
 import Control.Error.Util
-import Control.Lens hiding ((.=))
+import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON)
 import Data.Binary
+import qualified Data.ByteString.Lazy as LBS
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons
@@ -47,6 +48,7 @@ instance ToSchema KeyPackageUpload where
         <$> kpuKeyPackages .= field "key_packages" (array schema)
 
 newtype KeyPackageData = KeyPackageData {kpData :: LByteString}
+  deriving stock (Eq, Ord, Show)
 
 instance ToSchema KeyPackageData where
   schema =
@@ -97,12 +99,6 @@ decodeExtension e = do
     withSomeSing t $ \st ->
       decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)
 
--- t <- parse
--- parseMLS = do
---   t <- parseMLS
---   case toSing t of
---     SomeSing st -> SomeExtension st <$> parseExtension st
-
 data Capabilities = Capabilities
   { capVersions :: [ProtocolVersion],
     capCiphersuites :: [CipherSuite],
@@ -151,6 +147,16 @@ data KeyPackage = KeyPackage
   { kpTBS :: KeyPackageTBS,
     kpSignature :: ByteString
   }
+
+newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
+  deriving stock (Show)
+
+kpRef :: KDFTag -> KeyPackageData -> KeyPackageRef
+kpRef kdf =
+  KeyPackageRef
+    . kdfHash kdf "MLS 1.0 KeyPackage Reference"
+    . LBS.toStrict
+    . kpData
 
 instance ParseMLS KeyPackage where
   parseMLS = KeyPackage <$> parseMLS <*> parseMLSBytes @Word16

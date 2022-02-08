@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,8 +20,44 @@
 
 module Wire.API.MLS.CipherSuite where
 
+import Crypto.Hash.Algorithms
+import qualified Crypto.KDF.HKDF as HKDF
+import Data.Constraint
+import Data.Singletons
+import Data.Singletons.TH
 import Data.Word
+import Imports
 import Wire.API.MLS.Serialisation
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving newtype (ParseMLS)
+
+-- Key derivation function.
+data KDFTag = HKDF256 | HKDF384 | HKDF512
+
+$(genSingletons [''KDFTag])
+
+-- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
+-- and https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hpke-12#section-7.2
+cipherSuiteKDF :: CipherSuite -> Maybe KDFTag
+cipherSuiteKDF (CipherSuite n)
+  | n >= 0 && n <= 3 = pure HKDF256
+  | n >= 4 && n <= 6 = pure HKDF512
+  | n == 7 = pure HKDF384
+  | otherwise = Nothing
+
+type family KDFHashAlgo (kdf :: KDFTag) where
+  KDFHashAlgo 'HKDF256 = SHA256
+  KDFHashAlgo 'HKDF384 = SHA384
+  KDFHashAlgo 'HKDF512 = SHA512
+
+kdfHashAlgo :: forall (kdf :: KDFTag). Sing kdf -> Dict (HashAlgorithm (KDFHashAlgo kdf))
+kdfHashAlgo skdf = $(sCases ''KDFTag [|skdf|] [|Dict|])
+
+kdfHash :: KDFTag -> ByteString -> ByteString -> ByteString
+kdfHash t ctx value = case toSing t of
+  SomeSing st -> go st
+  where
+    go :: forall (t :: KDFTag). Sing t -> ByteString
+    go st = case kdfHashAlgo st of
+      Dict -> HKDF.expand (HKDF.extract @(KDFHashAlgo t) (mempty :: ByteString) value) ctx 16
