@@ -1255,7 +1255,8 @@ registerRemoteConv convId originUser name othMembers = do
         rcCnvName = name,
         rcNonCreatorMembers = othMembers,
         rcMessageTimer = Nothing,
-        rcReceiptMode = Nothing
+        rcReceiptMode = Nothing,
+        rcProtocol = ProtocolProteus
       }
 
 -------------------------------------------------------------------------------
@@ -2062,6 +2063,7 @@ mkConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         Nothing
+        ProtocolProteus
     )
     (RemoteConvMembers selfRole otherMembers)
 

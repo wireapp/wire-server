@@ -118,7 +118,8 @@ createGroupConversation lusr conn body = do
           ncMessageTimer = newConvMessageTimer body,
           ncReceiptMode = newConvReceiptMode body,
           ncUsers = checkedUsers,
-          ncRole = newConvUsersRole body
+          ncRole = newConvUsersRole body,
+          ncProtocol = ProtocolProteus
         }
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation

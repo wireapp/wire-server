@@ -46,7 +46,8 @@ testObject_Conversation_user_1 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmProtocol = ProtocolProteus
           },
       cnvMembers =
         ConvMembers
@@ -92,7 +93,8 @@ testObject_Conversation_user_2 =
             cnvmName = Just "",
             cnvmTeam = Nothing,
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Nothing
+            cnvmReceiptMode = Nothing,
+            cnvmProtocol = ProtocolMLS
           },
       cnvMembers =
         ConvMembers

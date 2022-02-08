@@ -78,6 +78,7 @@ convMetadata c =
     (convTeam c)
     (convMessageTimer c)
     (convReceiptMode c)
+    (convProtocol c)
 
 convAccessData :: Conversation -> ConversationAccessData
 convAccessData conv =

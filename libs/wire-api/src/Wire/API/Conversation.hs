@@ -42,6 +42,7 @@ module Wire.API.Conversation
     ConversationPagingState,
     pattern ConversationPagingState,
     ConversationsResponse (..),
+    Protocol (..),
 
     -- * Conversation properties
     Access (..),
@@ -127,7 +128,9 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
+    cnvmProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -180,6 +183,22 @@ conversationMetadataObjectSchema =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" (schema @Protocol))
+
+data Protocol
+  = ProtocolProteus
+  | ProtocolMLS
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Protocol)
+  deriving (FromJSON, ToJSON) via Schema Protocol
+
+instance ToSchema Protocol where
+  schema =
+    enum @Integer "Protocol" $
+      mconcat
+        [ element 0 ProtocolProteus,
+          element 1 ProtocolMLS
+        ]
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema

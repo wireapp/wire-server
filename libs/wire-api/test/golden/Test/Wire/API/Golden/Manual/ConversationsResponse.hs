@@ -60,7 +60,8 @@ conv1 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmProtocol = ProtocolProteus
           },
       cnvMembers =
         ConvMembers
@@ -106,7 +107,8 @@ conv2 =
             cnvmName = Just "",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
+            cnvmProtocol = ProtocolMLS
           },
       cnvMembers =
         ConvMembers

@@ -41,6 +41,7 @@
             },
             "message_timer": null,
             "name": " 0",
+            "protocol": 0,
             "qualified_id": {
                 "domain": "golden.example.com",
                 "id": "00000001-0000-0000-0000-000000000000"
@@ -97,6 +98,7 @@
             },
             "message_timer": 1319272593797015,
             "name": "",
+            "protocol": 1,
             "qualified_id": {
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0000-0000-000000000002"

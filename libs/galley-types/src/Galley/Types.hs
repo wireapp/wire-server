@@ -70,6 +70,7 @@ module Galley.Types
     OtherMemberUpdate (..),
     MutedStatus (..),
     ReceiptMode (..),
+    Protocol (..),
     TypingStatus (..),
     UserClientMap (..),
     UserClients (..),

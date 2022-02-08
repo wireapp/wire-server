@@ -53,7 +53,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 
 createConversation :: NewConversation -> Client Conversation
-createConversation (NewConversation ty usr acc arole name mtid mtimer recpt users role) = do
+createConversation (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol) = do
   conv <- Id <$> liftIO nextRandom
   retry x5 $ case mtid of
     Nothing ->
@@ -78,7 +78,8 @@ createConversation (NewConversation ty usr acc arole name mtid mtimer recpt user
         convTeam = mtid,
         convDeleted = Nothing,
         convMessageTimer = mtimer,
-        convReceiptMode = recpt
+        convReceiptMode = recpt,
+        convProtocol = protocol
       }
 
 createConnectConversation ::
@@ -107,7 +108,8 @@ createConnectConversation a b name = do
         convTeam = Nothing,
         convDeleted = Nothing,
         convMessageTimer = Nothing,
-        convReceiptMode = Nothing
+        convReceiptMode = Nothing,
+        convProtocol = ProtocolProteus
       }
 
 createConnectConversationWithRemote ::
@@ -134,7 +136,8 @@ createConnectConversationWithRemote cid creator m = do
         convTeam = Nothing,
         convDeleted = Nothing,
         convMessageTimer = Nothing,
-        convReceiptMode = Nothing
+        convReceiptMode = Nothing,
+        convProtocol = ProtocolProteus
       }
 
 createLegacyOne2OneConversation ::
@@ -184,7 +187,8 @@ createOne2OneConversation conv self other name mtid = do
         convTeam = Nothing,
         convDeleted = Nothing,
         convMessageTimer = Nothing,
-        convReceiptMode = Nothing
+        convReceiptMode = Nothing,
+        convProtocol = ProtocolProteus
       }
 
 createSelfConversation :: Local UserId -> Maybe (Range 1 256 Text) -> Client Conversation
@@ -208,7 +212,8 @@ createSelfConversation lusr name = do
         convTeam = Nothing,
         convDeleted = Nothing,
         convMessageTimer = Nothing,
-        convReceiptMode = Nothing
+        convReceiptMode = Nothing,
+        convProtocol = ProtocolProteus
       }
 
 deleteConversation :: ConvId -> Client ()
@@ -228,10 +233,10 @@ conversationMeta conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm) =
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, p) =
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-       in ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
+       in ConversationMetadata t c (defAccess t a) accessRoles n i mt rm (fromMaybe ProtocolProteus p)
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
@@ -304,8 +309,8 @@ localConversations ids = do
       let m =
             Map.fromList $
               map
-                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm) ->
-                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm))
+                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p) ->
+                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p))
                 )
                 cs
       return $ map (`Map.lookup` m) ids
@@ -346,15 +351,28 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe Protocol) ->
   Maybe Conversation
 toConv cid mms remoteMems conv =
   f mms <$> conv
   where
-    f ms (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm) =
+    f ms (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, prot) =
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
           accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-       in Conversation cid cty uid nme (defAccess cty acc) accessRoles ms remoteMems ti del timer rm
+       in Conversation
+            cid
+            cty
+            uid
+            nme
+            (defAccess cty acc)
+            accessRoles
+            ms
+            remoteMems
+            ti
+            del
+            timer
+            rm
+            (fromMaybe ProtocolProteus prot)
 
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>
