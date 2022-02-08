@@ -55,6 +55,7 @@ module Brig.App
     internalEvents,
     emailSender,
     randomPrekeyLocalLock,
+    keyPackageLocalLock,
 
     -- * App Monad
     AppT,
@@ -173,7 +174,8 @@ data Env = Env
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
-    _randomPrekeyLocalLock :: Maybe (MVar ())
+    _randomPrekeyLocalLock :: Maybe (MVar ()),
+    _keyPackageLocalLock :: MVar ()
   }
 
 makeLenses ''Env
@@ -218,6 +220,7 @@ newEnv o = do
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> Just <$> newMVar ()
     _ -> pure Nothing
+  kpLock <- newMVar ()
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -252,7 +255,8 @@ newEnv o = do
         _digestMD5 = md5,
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr,
-        _randomPrekeyLocalLock = prekeyLocalLock
+        _randomPrekeyLocalLock = prekeyLocalLock,
+        _keyPackageLocalLock = kpLock
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)

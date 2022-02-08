@@ -17,20 +17,52 @@
 
 module Brig.API.MLS.KeyPackages
   ( uploadKeyPackages,
+    claimKeyPackages,
   )
 where
 
+import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
+import Brig.App
+import qualified Brig.Data.Client as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
+import Brig.IO.Intra
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Qualified
+import qualified Data.Set as Set
 import Imports
+import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Team.LegalHold
+import Wire.API.User.Client
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   let identity = mkClientIdentity (qUntagged lusr) cid
   kps' <- traverse (validateKeyPackageData identity) kps
   lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
+
+claimKeyPackages :: Local UserId -> Qualified UserId -> Handler KeyPackageBundle
+claimKeyPackages lusr =
+  foldQualified
+    lusr
+    (claimLocalKeyPackages lusr)
+    (\_ -> throwStd federationNotImplemented)
+
+claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler KeyPackageBundle
+claimLocalKeyPackages lusr target = do
+  clients <- map clientId <$> Data.lookupClients (tUnqualified target)
+  withExceptT clientError $
+    guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
+  lift $
+    KeyPackageBundle . Set.fromList . catMaybes <$> traverse mkEntry clients
+  where
+    mkEntry :: ClientId -> AppIO (Maybe KeyPackageBundleEntry)
+    mkEntry c =
+      runMaybeT $
+        KeyPackageBundleEntry (qUntagged target) c
+          <$> Data.claimKeyPackage (tUnqualified target) c

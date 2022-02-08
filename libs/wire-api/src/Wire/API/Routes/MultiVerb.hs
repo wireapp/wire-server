@@ -21,6 +21,7 @@
 module Wire.API.Routes.MultiVerb
   ( -- * MultiVerb types
     MultiVerb,
+    MultiVerb1,
     Respond,
     RespondAs,
     RespondEmpty,
@@ -475,6 +476,9 @@ combineSwaggerSchema s1 s2
 --  * Headers can be attached to individual responses, also without affecting
 --    the handler return type.
 data MultiVerb (method :: StdMethod) cs (as :: [*]) (r :: *)
+
+-- | A 'MultiVerb' endpoint with a single response.
+type MultiVerb1 m cs a = MultiVerb m cs '[a] (ResponseType a)
 
 -- | This class is used to convert a handler return type to a union type
 -- including all possible responses of a 'MultiVerb' endpoint.

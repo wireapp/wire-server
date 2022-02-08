@@ -690,6 +690,14 @@ type MLSKeyPackageAPI =
                :> ReqBody '[JSON] KeyPackageUpload
                :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 200 "Key packages uploaded"] ()
            )
+           :<|> ( Named
+                    "mls-key-packages-claim"
+                    ( "claim"
+                        :> Summary "Claim one key package for each client of the given user"
+                        :> QualifiedCaptureUserId "user"
+                        :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
+                    )
+                )
        )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)

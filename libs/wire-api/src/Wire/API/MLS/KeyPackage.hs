@@ -23,10 +23,12 @@ module Wire.API.MLS.KeyPackage where
 import Control.Applicative
 import Control.Error.Util
 import Control.Lens hiding (set, (.=))
-import Data.Aeson (FromJSON)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
 import qualified Data.ByteString.Lazy as LBS
+import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Data.Schema
 import Data.Singletons
 import Data.Singletons.TH
@@ -56,6 +58,30 @@ instance ToSchema KeyPackageData where
       ( KeyPackageData <$> kpData
           .= named "KeyPackage" (Base64ByteString .= fmap fromBase64ByteString base64Schema)
       )
+
+data KeyPackageBundleEntry = KeyPackageBundleEntry
+  { kpbeUser :: Qualified UserId,
+    kpbeClient :: ClientId,
+    kpbeKeyPackage :: KeyPackageData
+  }
+  deriving stock (Eq, Ord)
+
+instance ToSchema KeyPackageBundleEntry where
+  schema =
+    object "KeyPackageBundleEntry" $
+      KeyPackageBundleEntry
+        <$> kpbeUser .= qualifiedObjectSchema "user" schema
+        <*> kpbeClient .= field "client" schema
+        <*> kpbeKeyPackage .= field "key_package" schema
+
+newtype KeyPackageBundle = KeyPackageBundle {kpbEntries :: Set KeyPackageBundleEntry}
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageBundle
+
+instance ToSchema KeyPackageBundle where
+  schema =
+    object "KeyPackageBundle" $
+      KeyPackageBundle
+        <$> kpbEntries .= field "key_packages" (set schema)
 
 --------------------------------------------------------------------------------
 

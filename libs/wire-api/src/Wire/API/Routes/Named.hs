@@ -51,6 +51,18 @@ type family AddPrefix x napi where
 type family LiftNamed' napi where
   LiftNamed' '(name, api) = Named name api
 
-type LiftNamedOfKind n api = LiftNamed' (FindName n api)
+type family Flatten api where
+  Flatten (x :> api) = Flatten1 x (Flatten api)
+  Flatten api = api
+
+type family Flatten1 x api where
+  Flatten1 x (api1 :<|> api2) = Flatten1 x api1 :<|> Flatten1 x api2
+  Flatten1 x api = x :> api
+
+type family LiftFlatNamed n api where
+  LiftFlatNamed n (api1 :<|> api2) = LiftFlatNamed n api1 :<|> LiftFlatNamed n api2
+  LiftFlatNamed n api = LiftNamed' (FindName n api)
+
+type LiftNamedOfKind n api = LiftFlatNamed n (Flatten api)
 
 type LiftNamed api = LiftNamedOfKind Symbol api
