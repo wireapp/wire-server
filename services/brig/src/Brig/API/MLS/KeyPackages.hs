@@ -47,14 +47,14 @@ uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   kps' <- traverse (validateKeyPackageData identity) kps
   lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
-claimKeyPackages :: Local UserId -> Qualified UserId -> Handler KeyPackageBundle
+claimKeyPackages :: Local UserId -> Qualified UserId -> Handler r KeyPackageBundle
 claimKeyPackages lusr =
   foldQualified
     lusr
     (claimLocalKeyPackages lusr)
     (\_ -> throwStd federationNotImplemented)
 
-claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler KeyPackageBundle
+claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler r KeyPackageBundle
 claimLocalKeyPackages lusr target = do
   clients <- map clientId <$> Data.lookupClients (tUnqualified target)
   withExceptT clientError $
@@ -62,13 +62,13 @@ claimLocalKeyPackages lusr target = do
   lift $
     KeyPackageBundle . Set.fromList . catMaybes <$> traverse mkEntry clients
   where
-    mkEntry :: ClientId -> AppIO (Maybe KeyPackageBundleEntry)
+    mkEntry :: ClientId -> AppIO r (Maybe KeyPackageBundleEntry)
     mkEntry c =
       runMaybeT $
         KeyPackageBundleEntry (qUntagged target) c
           <$> Data.claimKeyPackage (tUnqualified target) c
 
-countKeyPackages :: Local UserId -> ClientId -> Handler KeyPackageCount
+countKeyPackages :: Local UserId -> ClientId -> Handler r KeyPackageCount
 countKeyPackages lusr c =
   lift $
     KeyPackageCount . fromIntegral

@@ -33,6 +33,7 @@ import Data.Schema
 import Data.Singletons
 import Data.Singletons.TH
 import qualified Data.Swagger as S
+import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
@@ -151,6 +152,9 @@ instance ParseMLS Capabilities where
 -- | Seconds since the UNIX epoch.
 newtype Timestamp = Timestamp {timestampSeconds :: Word64}
   deriving newtype (ParseMLS)
+
+tsPOSIX :: Timestamp -> POSIXTime
+tsPOSIX = fromIntegral . timestampSeconds
 
 data Lifetime = Lifetime
   { ltNotBefore :: Timestamp,

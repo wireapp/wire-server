@@ -42,7 +42,7 @@ insertKeyPackages uid cid kps = retry x5 . batch $ do
     q :: PrepQuery W (UserId, ClientId, KeyPackageRef, KeyPackageData) ()
     q = "INSERT INTO mls_key_packages (uid, text, ref, data) VALUES (?, ?, ?, ?)"
 
-claimKeyPackage :: UserId -> ClientId -> MaybeT AppIO KeyPackageData
+claimKeyPackage :: UserId -> ClientId -> MaybeT (AppIO r) KeyPackageData
 claimKeyPackage u c = MaybeT $ do
   -- FUTUREWORK: investigate better locking strategies
   lock <- view keyPackageLocalLock
@@ -59,7 +59,7 @@ claimKeyPackage u c = MaybeT $ do
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE uid = ? AND client = ? AND ref = ?"
 
-countKeyPackages :: UserId -> ClientId -> AppIO Int32
+countKeyPackages :: UserId -> ClientId -> AppIO r Int32
 countKeyPackages u c =
   retry x1 $ sum . fmap runIdentity <$> query q (params LocalQuorum (u, c))
   where

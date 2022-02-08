@@ -19,7 +19,11 @@ module Brig.API.MLS.KeyPackages.Validation (validateKeyPackageData) where
 
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.App
+import Brig.Options
 import Control.Applicative
+import Control.Lens (view)
+import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.ErrorDescription
 import Wire.API.MLS.CipherSuite
@@ -85,8 +89,19 @@ findExtension e = case decodeExtension e of
 
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
-  _re <-
+  re <-
     maybe (throwErrorDescription (mlsProtocolError "Missing required extensions")) pure $
       findExtensions exts
-  -- TODO: validate lifetime
-  pure ()
+  validateLifetime . runIdentity . reLifetime $ re
+
+validateLifetime :: Lifetime -> Handler r ()
+validateLifetime lt = do
+  tm <- liftIO getPOSIXTime
+  when (tsPOSIX (ltNotBefore lt) > tm) $
+    throwErrorDescription (mlsProtocolError "Key package not_before date is in the future")
+  when (tsPOSIX (ltNotAfter lt) <= tm) $
+    throwErrorDescription (mlsProtocolError "Key package is expired")
+  mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
+  for_ mMaxLifetime $ \maxLifetime ->
+    when (tsPOSIX (ltNotAfter lt) > tm + maxLifetime) $
+      throwErrorDescription (mlsProtocolError "Key package expiration time is too far in the future")
