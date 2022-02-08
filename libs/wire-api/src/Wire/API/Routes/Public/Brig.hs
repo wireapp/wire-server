@@ -682,6 +682,8 @@ type MLSKeyPackageAPI =
     :> ( Named
            "mls-key-packages-upload"
            ( "self"
+               :> Summary "Upload a fresh batch of key packages"
+               :> Description "The request body should be a json object containing a list of base64-encoded key packages."
                :> CanThrow MLSProtocolError
                :> CanThrow MLSIdentityMismatch
                :> CaptureClientId "client"

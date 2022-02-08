@@ -23,12 +23,11 @@ where
 import Brig.App
 import Cassandra
 import Data.Id
-import Data.Json.Util
 import Imports
 import Wire.API.MLS.KeyPackage
 
 kpBlob :: KeyPackageData -> Blob
-kpBlob = Blob . fromBase64ByteString . kpData
+kpBlob = Blob . kpData
 
 insertKeyPackages :: UserId -> ClientId -> [KeyPackageData] -> AppIO r ()
 insertKeyPackages uid cid kps = retry x5 . batch $ do

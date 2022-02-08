@@ -22,6 +22,7 @@ module Wire.API.MLS.KeyPackage where
 
 import Control.Applicative
 import Control.Error.Util
+import Control.Lens hiding ((.=))
 import Data.Aeson (FromJSON)
 import Data.Binary
 import Data.Json.Util
@@ -45,12 +46,14 @@ instance ToSchema KeyPackageUpload where
       KeyPackageUpload
         <$> kpuKeyPackages .= field "key_packages" (array schema)
 
-newtype KeyPackageData = KeyPackageData {kpData :: Base64ByteString}
+newtype KeyPackageData = KeyPackageData {kpData :: LByteString}
 
 instance ToSchema KeyPackageData where
   schema =
-    KeyPackageData <$> kpData
-      .= named "KeyPackage" base64Schema
+    (S.schema . S.example ?~ "a2V5IHBhY2thZ2UgZGF0YQo=")
+      ( KeyPackageData <$> kpData
+          .= named "KeyPackage" (Base64ByteString .= fmap fromBase64ByteString base64Schema)
+      )
 
 --------------------------------------------------------------------------------
 

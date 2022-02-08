@@ -25,7 +25,6 @@ import Brig.API.Handler
 import qualified Brig.Data.MLS.KeyPackage as Data
 import Control.Applicative
 import Data.Id
-import Data.Json.Util
 import Data.Qualified
 import Imports
 import Wire.API.ErrorDescription
@@ -43,7 +42,7 @@ validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r ()
 validateKeyPackageData identity = parseKeyPackage >=> validateKeyPackage identity
 
 parseKeyPackage :: KeyPackageData -> Handler r KeyPackage
-parseKeyPackage (fromBase64ByteString . kpData -> kpd) =
+parseKeyPackage (kpData -> kpd) =
   either (throwErrorDescription . mlsProtocolError) pure (decodeMLS kpd)
 
 validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
