@@ -48,6 +48,7 @@ module Galley.API.Query
     getConversationMetaH,
     getConversationByReusableCode,
     ensureGuestLinksEnabled,
+    ensureGuestLinksEnabledWithError,
   )
 where
 
@@ -543,6 +544,27 @@ getConversationByReusableCode lusr key value = do
         }
 
 -- FUTUREWORK(leif): refactor and make it consistent for all team features
+ensureGuestLinksEnabledWithError ::
+  forall r.
+  ( Member (Error ConversationError) r,
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
+  ConversationError ->
+  Maybe TeamId ->
+  Sem r ()
+ensureGuestLinksEnabledWithError ex mbTid = do
+  defaultStatus <- getDefaultFeatureStatus
+  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
+  case maybe defaultStatus tfwoStatus maybeFeatureStatus of
+    TeamFeatureEnabled -> pure ()
+    TeamFeatureDisabled -> throw ex
+  where
+    getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
+    getDefaultFeatureStatus = do
+      status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+      pure $ tfwoapsStatus status
+
 ensureGuestLinksEnabled ::
   forall r.
   ( Member (Error ConversationError) r,
@@ -551,14 +573,4 @@ ensureGuestLinksEnabled ::
   ) =>
   Maybe TeamId ->
   Sem r ()
-ensureGuestLinksEnabled mbTid = do
-  defaultStatus <- getDefaultFeatureStatus
-  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
-  case maybe defaultStatus tfwoStatus maybeFeatureStatus of
-    TeamFeatureEnabled -> pure ()
-    TeamFeatureDisabled -> throw GuestLinksDisabled
-  where
-    getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
-    getDefaultFeatureStatus = do
-      status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
-      pure $ tfwoapsStatus status
+ensureGuestLinksEnabled = ensureGuestLinksEnabledWithError GuestLinksDisabled

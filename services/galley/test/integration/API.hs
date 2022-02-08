@@ -1218,7 +1218,7 @@ testGetCodeRejectedIfGuestLinksDisabled = do
         void $ decodeConvCodeEvent <$> postConvCode owner convId
         pure convId
   convId <- createConvWithGuestLink
-  let checkGetCode expectedStatus = getConvCode owner convId !!! statusCode === const expectedStatus
+  let checkGetCode expectedStatus = getConvCode owner convId !!! const expectedStatus === statusCode
   let setStatus tfStatus =
         TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
           const 200 === statusCode
@@ -1267,6 +1267,7 @@ testJoinTeamConvGuestLinksDisabled = do
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve cCode !!! const 200 === statusCode
   -- non-team-members can join as well
   postJoinConv bob convId !!! const 200 === statusCode
@@ -1281,6 +1282,7 @@ testJoinTeamConvGuestLinksDisabled = do
   bob' <- randomUser
   getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
+  postConvCodeCheck cCode !!! const 404 === statusCode
   postJoinCodeConv eve' cCode !!! const 409 === statusCode
   -- non-team-members can't join either
   postJoinConv bob' convId !!! const 409 === statusCode
@@ -1294,6 +1296,7 @@ testJoinTeamConvGuestLinksDisabled = do
   getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve' cCode !!! const 200 === statusCode
   postJoinConv bob' convId !!! const 200 === statusCode
   checkFeatureStatus Public.TeamFeatureEnabled

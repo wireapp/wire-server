@@ -665,7 +665,7 @@ checkReusableCode ::
 checkReusableCode convCode = do
   code <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation code) >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled (convTeam conv)
+  Query.ensureGuestLinksEnabledWithError ConvNotFound (convTeam conv)
 
 joinConversationByReusableCode ::
   Members
