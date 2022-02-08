@@ -105,17 +105,6 @@ instance ToJSON Error where
 
 -- Error Mapping ----------------------------------------------------------
 
-mlsProtocolError :: Text -> Error
-mlsProtocolError = StdError . Wai.mkError status400 "mls-protocol-error" . LT.fromStrict
-
-mlsIdentityMismatch :: Error
-mlsIdentityMismatch =
-  StdError $
-    Wai.mkError
-      status403
-      "mls-identity-mismatch"
-      "Prekey credential does not match qualified client ID"
-
 connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError (errorDescriptionTypeToWai @ConnectionLimitReached)
 connError InvalidTransition {} = StdError (errorDescriptionTypeToWai @InvalidTransition)

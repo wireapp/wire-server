@@ -24,11 +24,11 @@ import Brig.API.Error
 import Brig.API.Handler
 import qualified Brig.Data.MLS.KeyPackage as Data
 import Control.Applicative
-import Control.Monad.Trans.Except
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Imports
+import Wire.API.ErrorDescription
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -44,7 +44,7 @@ validateKeyPackageData identity = parseKeyPackage >=> validateKeyPackage identit
 
 parseKeyPackage :: KeyPackageData -> Handler r KeyPackage
 parseKeyPackage (fromBase64ByteString . kpData -> kpd) =
-  either (throwE . mlsProtocolError) pure (decodeMLS kpd)
+  either (throwErrorDescription . mlsProtocolError) pure (decodeMLS kpd)
 
 validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
 validateKeyPackage identity (kpTBS -> kp) = do
@@ -55,10 +55,10 @@ validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do
   -- TODO: validate signature
   identity' <-
-    either (throwE . mlsProtocolError) pure $
+    either (throwErrorDescription . mlsProtocolError) pure $
       decodeMLS' (bcIdentity cred)
   when (identity /= identity') $
-    throwE mlsIdentityMismatch
+    throwErrorDescriptionType @MLSIdentityMismatch
 
 data RequiredExtensions f = RequiredExtensions
   { reLifetime :: f Lifetime,
@@ -87,10 +87,10 @@ findExtension e = case decodeExtension e of
   Just (SomeExtension SCapabilitiesExtensionTag _) -> RequiredExtensions Nothing (pure ())
   _ -> mempty
 
-validateExtensions :: [Extension] -> Handler ()
+validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
   _re <-
-    maybe (throwE (mlsProtocolError "Missing required extensions")) pure $
+    maybe (throwErrorDescription (mlsProtocolError "Missing required extensions")) pure $
       findExtensions exts
   -- TODO: validate lifetime
   pure ()
