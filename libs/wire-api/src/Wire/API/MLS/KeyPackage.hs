@@ -83,6 +83,14 @@ instance ToSchema KeyPackageBundle where
       KeyPackageBundle
         <$> kpbEntries .= field "key_packages" (set schema)
 
+newtype KeyPackageCount = KeyPackageCount {unKeyPackageCount :: Int}
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageCount
+
+instance ToSchema KeyPackageCount where
+  schema =
+    object "OwnKeyPackages" $
+      KeyPackageCount <$> unKeyPackageCount .= field "count" schema
+
 --------------------------------------------------------------------------------
 
 data ProtocolVersion = ProtocolReserved | ProtocolMLS

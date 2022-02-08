@@ -698,6 +698,14 @@ type MLSKeyPackageAPI =
                         :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
                     )
                 )
+           :<|> ( Named
+                    "mls-key-packages-count"
+                    ( "count"
+                        :> Summary "Return the number of unused key packages for the given client"
+                        :> CaptureClientId "client"
+                        :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
+                    )
+                )
        )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)

@@ -232,6 +232,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
         :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count" countKeyPackages
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

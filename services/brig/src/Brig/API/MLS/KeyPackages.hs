@@ -18,6 +18,7 @@
 module Brig.API.MLS.KeyPackages
   ( uploadKeyPackages,
     claimKeyPackages,
+    countKeyPackages,
   )
 where
 
@@ -66,3 +67,9 @@ claimLocalKeyPackages lusr target = do
       runMaybeT $
         KeyPackageBundleEntry (qUntagged target) c
           <$> Data.claimKeyPackage (tUnqualified target) c
+
+countKeyPackages :: Local UserId -> ClientId -> Handler KeyPackageCount
+countKeyPackages lusr c =
+  lift $
+    KeyPackageCount . fromIntegral
+      <$> Data.countKeyPackages (tUnqualified lusr) c

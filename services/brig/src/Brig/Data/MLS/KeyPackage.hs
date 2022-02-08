@@ -18,6 +18,7 @@
 module Brig.Data.MLS.KeyPackage
   ( insertKeyPackages,
     claimKeyPackage,
+    countKeyPackages,
   )
 where
 
@@ -27,6 +28,7 @@ import Cassandra
 import Control.Error
 import Control.Lens
 import Control.Monad.Random (randomRIO)
+import Data.Functor
 import Data.Id
 import Imports
 import Wire.API.MLS.KeyPackage
@@ -56,6 +58,16 @@ claimKeyPackage u c = MaybeT $ do
 
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE uid = ? AND client = ? AND ref = ?"
+
+countKeyPackages :: UserId -> ClientId -> AppIO Int32
+countKeyPackages u c =
+  retry x1 $ sum . fmap runIdentity <$> query q (params LocalQuorum (u, c))
+  where
+    q :: PrepQuery R (UserId, ClientId) (Identity Int32)
+    q = "SELECT COUNT(*) FROM mls_key_packages WHERE uid = ? AND client = ?"
+
+--------------------------------------------------------------------------------
+-- Utilities
 
 pick :: [a] -> IO (Maybe a)
 pick [] = pure Nothing
