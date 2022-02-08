@@ -37,6 +37,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Servant
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -683,7 +684,7 @@ type MLSKeyPackageAPI =
            ( "self"
                :> CaptureClientId "client"
                :> ReqBody '[JSON] KeyPackageUpload
-               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Key packages uploaded"] ()
+               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 200 "Key packages uploaded"] ()
            )
        )
 
