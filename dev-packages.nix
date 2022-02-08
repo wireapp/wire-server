@@ -162,6 +162,14 @@ let
     export CONFIG_SHELL="${compile-deps}/bin/sh"
     exec "${pkgs.cabal-install}/bin/cabal" "$@"
   '';
+
+  # stack-deps.nix sets LD_LIBRARY_PATH, which could be incompatible with the
+  # system bash. To ensure that nix-shell invoked by stack uses the correct
+  # shell to build we set NIX_BUILD_SHELL here.
+  stack-wrapper = pkgs.writeShellScriptBin "stack" ''
+    export NIX_BUILD_SHELL="${pkgs.bash}/bin/bash"
+    exec "${pinned.stack}/bin/stack" "$@"
+  '';
 in
 [
   pkgs.cfssl
@@ -179,7 +187,7 @@ in
   # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
   pkgs.buildah
 
-  pinned.stack
+  stack-wrapper
   pinned.helm
   pinned.helmfile
   pinned.kubectl
