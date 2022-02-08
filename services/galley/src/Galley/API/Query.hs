@@ -67,6 +67,7 @@ import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.Cassandra.Paging
+import Galley.Data.Types (Code (codeConversation))
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
@@ -529,8 +530,9 @@ getConversationByReusableCode ::
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
-  conv <- ensureConversationAccess (tUnqualified lusr) (Data.codeConversation c) CodeAccess
-  ensureGuestLinksEnabled conv
+  conv <- E.getConversation (codeConversation c) >>= note ConvNotFound
+  ensureConversationAccess (tUnqualified lusr) conv CodeAccess
+  ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView conv
   where
     coverView :: Data.Conversation -> ConversationCoverView
@@ -547,11 +549,11 @@ ensureGuestLinksEnabled ::
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
-  Data.Conversation ->
+  Maybe TeamId ->
   Sem r ()
-ensureGuestLinksEnabled conv = do
+ensureGuestLinksEnabled mbTid = do
   defaultStatus <- getDefaultFeatureStatus
-  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
+  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
   case maybe defaultStatus tfwoStatus maybeFeatureStatus of
     TeamFeatureEnabled -> pure ()
     TeamFeatureDisabled -> throw GuestLinksDisabled
