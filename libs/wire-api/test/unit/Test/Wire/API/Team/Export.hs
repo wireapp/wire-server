@@ -32,7 +32,7 @@ import Wire.API.Team.Export
 tests :: TestTree
 tests =
   testGroup
-    "Export"
+    "Export - quoted and unquoted"
     [ testTrivialExamples,
       testRoundTrip,
       testUnquotedProp,
@@ -62,7 +62,7 @@ testUnquotedProp = testProperty "unquoted arbitrary" prop
       _ -> False
 
 testQuotedProp :: TestTree
-testQuotedProp = testProperty "quoted" prop
+testQuotedProp = testProperty "quoted arbitrary" prop
   where
     prop (ABS bs) = counterexample (show $ quoted bs) $ conjoin (checkQuoted bs <$> disallowedChars)
     checkQuoted bs char = quoted (char `C.cons` bs) === '\'' `C.cons` char `C.cons` bs
