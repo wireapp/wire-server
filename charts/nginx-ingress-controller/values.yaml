@@ -3,8 +3,8 @@
 nginx-ingress:
   controller:
     config:
-      # NOTE: These are some sane defaults, you may want to overrride them on your own installation
-      ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+      # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
+      ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
       http2-max-field-size: 16k
       http2-max-header-size: 32k
       proxy-buffer-size: 16k
