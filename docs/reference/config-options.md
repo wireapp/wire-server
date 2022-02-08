@@ -427,8 +427,7 @@ The lookup and search of users on a wire instance can be restricted. This can be
 # [brig.yaml]
 optSettings:
   setFederationDomainConfigs:
-    -
-      domain: example.com
+    - domain: example.com
       search: no_search
 ```
 
