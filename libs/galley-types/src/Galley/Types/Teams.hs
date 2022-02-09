@@ -33,6 +33,7 @@ module Galley.Types.Teams
     flagConferenceCalling,
     flagSelfDeletingMessages,
     flagConversationGuestLinks,
+    flagsTeamFeatureValidateSAMLEmailsStatus,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -217,7 +218,8 @@ data FeatureFlags = FeatureFlags
     _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing)),
     _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
     _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
-    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks))
+    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)),
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails))
   }
   deriving (Eq, Show, Generic)
 
@@ -265,20 +267,34 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))
+      <*> (fromMaybe (Defaults defaultTeamFeatureValidateSAMLEmailsStatus) <$> (obj .:? "validateSAMLEmails"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling selfDeletingMessages guestLinks) =
-    object $
-      [ "sso" .= sso,
-        "legalhold" .= legalhold,
-        "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock,
-        "classifiedDomains" .= classifiedDomains,
-        "fileSharing" .= fileSharing,
-        "conferenceCalling" .= conferenceCalling,
-        "selfDeletingMessages" .= selfDeletingMessages,
-        "conversationGuestLinks" .= guestLinks
-      ]
+  toJSON
+    ( FeatureFlags
+        sso
+        legalhold
+        searchVisibility
+        appLock
+        classifiedDomains
+        fileSharing
+        conferenceCalling
+        selfDeletingMessages
+        guestLinks
+        validateSAMLEmails
+      ) =
+      object
+        [ "sso" .= sso,
+          "legalhold" .= legalhold,
+          "teamSearchVisibility" .= searchVisibility,
+          "appLock" .= appLock,
+          "classifiedDomains" .= classifiedDomains,
+          "fileSharing" .= fileSharing,
+          "conferenceCalling" .= conferenceCalling,
+          "selfDeletingMessages" .= selfDeletingMessages,
+          "conversationGuestLinks" .= guestLinks,
+          "validateSAMLEmails" .= validateSAMLEmails
+        ]
 
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
