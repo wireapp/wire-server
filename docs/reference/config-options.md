@@ -167,6 +167,17 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Validate SAML Emails
+
+Validate SAML emails is enabled by default. If you want a different configuration, use the following syntax:
+
+```yaml
+# galley.yaml
+validateSAMLEmails:
+  defaults:
+    status: disabled
+```
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator
