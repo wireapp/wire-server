@@ -21,6 +21,7 @@ import qualified Data.Text.Lazy as LText
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai
+import Network.Wai.Middleware.Rewrite
 import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Response
 import Wire.API.Routes.Version
@@ -43,4 +44,4 @@ parseVersion req = do
     [] -> Nothing
     (x : xs) -> pure (x, xs)
   n <- readVersionNumber version
-  pure $ (req {pathInfo = pinfo}, n)
+  pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
