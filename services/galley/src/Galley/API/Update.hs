@@ -518,6 +518,7 @@ addCodeUnqualified ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
@@ -539,6 +540,7 @@ addCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -551,7 +553,7 @@ addCode ::
   Sem r AddCodeResult
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled conv
+  Query.ensureGuestLinksEnabled (convTeam conv)
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
@@ -639,7 +641,7 @@ getCode ::
 getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled conv
+  Query.ensureGuestLinksEnabled (convTeam conv)
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
@@ -651,11 +653,21 @@ returnCode c = do
   mkConversationCode (codeKey c) (codeValue c) <$> E.getConversationCodeURI
 
 checkReusableCode ::
-  Members '[CodeStore, Error CodeError] r =>
+  Members
+    '[ CodeStore,
+       ConversationStore,
+       TeamFeatureStore,
+       Error ConversationError,
+       Error CodeError,
+       Input Opts
+     ]
+    r =>
   ConversationCode ->
   Sem r ()
-checkReusableCode convCode =
-  void $ verifyReusableCode convCode
+checkReusableCode convCode = do
+  code <- verifyReusableCode convCode
+  conv <- E.getConversation (codeConversation code) >>= note ConvNotFound
+  Query.ensureGuestLinksEnabledWithError (Right CodeNotFound) (convTeam conv)
 
 joinConversationByReusableCode ::
   Members
@@ -672,7 +684,8 @@ joinConversationByReusableCode ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamFeatureStore
      ]
     r =>
   Local UserId ->
@@ -681,7 +694,9 @@ joinConversationByReusableCode ::
   Sem r (UpdateResult Event)
 joinConversationByReusableCode lusr zcon convCode = do
   c <- verifyReusableCode convCode
-  joinConversation lusr zcon (codeConversation c) CodeAccess
+  conv <- E.getConversation (codeConversation c) >>= note ConvNotFound
+  Query.ensureGuestLinksEnabled (convTeam conv)
+  joinConversation lusr zcon conv CodeAccess
 
 joinConversationById ::
   Members
@@ -696,15 +711,17 @@ joinConversationById ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamFeatureStore
      ]
     r =>
   Local UserId ->
   ConnId ->
   ConvId ->
   Sem r (UpdateResult Event)
-joinConversationById lusr zcon cnv =
-  joinConversation lusr zcon cnv LinkAccess
+joinConversationById lusr zcon cnv = do
+  conv <- E.getConversation cnv >>= note ConvNotFound
+  joinConversation lusr zcon conv LinkAccess
 
 joinConversation ::
   Members
@@ -719,18 +736,19 @@ joinConversation ::
        Input Opts,
        Input UTCTime,
        MemberStore,
-       TeamStore
+       TeamStore,
+       TeamFeatureStore
      ]
     r =>
   Local UserId ->
   ConnId ->
-  ConvId ->
+  Data.Conversation ->
   Access ->
   Sem r (UpdateResult Event)
-joinConversation lusr zcon cnv access = do
-  let lcnv = qualifyAs lusr cnv
-  conv <- ensureConversationAccess (tUnqualified lusr) cnv access
-  ensureGroupConversation $ conv
+joinConversation lusr zcon conv access = do
+  let lcnv = qualifyAs lusr (convId conv)
+  ensureConversationAccess (tUnqualified lusr) conv access
+  ensureGroupConversation conv
   -- FUTUREWORK: remote users?
   ensureMemberLimit (toList $ Data.convLocalMembers conv) [tUnqualified lusr]
   getUpdateResult $ do
