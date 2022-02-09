@@ -39,6 +39,7 @@ import Network.Wai.Utilities.Server hiding (serverPort)
 import qualified System.Logger as Log
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
@@ -64,6 +65,7 @@ run o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
+        . versionMiddleware
     app :: Env -> Wai.Application
     app e r k = runGundeck e r (route routes r k)
     routes = compile sitemap
