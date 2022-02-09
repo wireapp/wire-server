@@ -76,6 +76,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
+import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
@@ -1691,7 +1692,9 @@ specEmailValidation = do
         setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
-          when enabled $ enableSamlEmailValidation teamid
+          if enabled
+            then setSamlEmailValidation teamid Feature.TeamFeatureEnabled
+            else setSamlEmailValidation teamid Feature.TeamFeatureDisabled
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
           uref :: SAML.UserRef <-
@@ -1754,7 +1757,7 @@ specSCIMManaged = do
       let brig = env ^. teBrig
 
       (tok, (_ownerid, teamid, idp, (_, privCreds))) <- registerIdPAndScimTokenWithMeta
-      enableSamlEmailValidation teamid
+      setSamlEmailValidation teamid Feature.TeamFeatureEnabled
       (user, oldEmail) <- randomScimUserWithEmail
       storedUser <- createUser tok user
       let uid :: UserId = Scim.id . Scim.thing $ storedUser

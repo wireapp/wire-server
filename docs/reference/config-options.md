@@ -167,6 +167,19 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Validate SAML Emails
+
+If this is enabled, if a new user account is created with an email address as SAML NameID or SCIM externalId, users will receive a validation email.  If they follow the validation procedure, they will be able to receive emails about their account, eg., if a new device is associated with the account.  If the user does not validate their email address, they can still use it to login.
+
+Validate SAML emails is enabled by default; this is almost always what you want. If you want a different configuration, use the following syntax:
+
+```yaml
+# galley.yaml
+validateSAMLEmails:
+  defaults:
+    status: disabled
+```
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator

@@ -1,0 +1,2 @@
+Optional team feature config `validateSAMLEmails` added to galley.yaml.
+The feature was disabled by default before this release and is now enabled by default. The server wide default can be changed in galley.yaml. Please refer to [/docs/reference/config-options.md#validate-saml-emails](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#validate-saml-emails)

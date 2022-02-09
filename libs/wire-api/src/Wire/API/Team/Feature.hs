@@ -42,6 +42,7 @@ module Wire.API.Team.Feature
     defaultSelfDeletingMessagesStatus,
     defaultGuestLinksStatus,
     defaultTeamFeatureFileSharing,
+    defaultTeamFeatureValidateSAMLEmailsStatus,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -614,6 +615,12 @@ instance Cass.Cql LockStatusValue where
 
 defaultGuestLinksStatus :: TeamFeatureStatusNoConfigAndLockStatus
 defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
+
+----------------------------------------------------------------------
+-- TeamFeatureValidateSAMLEmails
+
+defaultTeamFeatureValidateSAMLEmailsStatus :: TeamFeatureStatusNoConfig
+defaultTeamFeatureValidateSAMLEmailsStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
 ----------------------------------------------------------------------
 -- internal

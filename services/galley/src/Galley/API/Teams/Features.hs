@@ -52,6 +52,7 @@ where
 import Control.Lens
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
+import Data.Either.Extra (eitherToMaybe)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Qualified
@@ -382,18 +383,16 @@ setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.Tea
   Public.TeamFeatureEnabled -> const (pure ())
 
 getValidateSAMLEmailsInternal ::
-  Member TeamFeatureStore r =>
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
   GetFeatureInternalParam ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureValidateSAMLEmails)
 getValidateSAMLEmailsInternal =
-  either
-    (const $ Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails getDef)
-  where
-    -- FUTUREWORK: we may also want to get a default from the server config file here, like for
-    -- sso, and team search visibility.
-    -- Use getFeatureStatusWithDefault
-    getDef = pure Public.TeamFeatureDisabled
+  getFeatureStatusWithDefaultConfig @'Public.TeamFeatureValidateSAMLEmails
+    flagsTeamFeatureValidateSAMLEmailsStatus
+    . eitherToMaybe
 
 setValidateSAMLEmailsInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, P.TinyLog] r =>
