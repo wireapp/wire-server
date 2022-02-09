@@ -70,6 +70,7 @@ import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
+import Wire.API.Routes.Version.Wai
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -115,6 +116,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
+        . versionMiddleware
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
 

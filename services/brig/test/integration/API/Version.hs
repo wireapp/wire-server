@@ -20,6 +20,7 @@ module API.Version (tests) where
 import Bilge
 import Bilge.Assert
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -29,7 +30,10 @@ tests :: Manager -> Brig -> TestTree
 tests p brig =
   testGroup
     "version"
-    [test p "GET /api-version" $ testVersion brig]
+    [ test p "GET /api-version" $ testVersion brig,
+      test p "GET /v1/api-version" $ testVersionV1 brig,
+      test p "GET /v500/api-version" $ testUnsupportedVersion brig
+    ]
 
 testVersion :: Brig -> Http ()
 testVersion brig = do
@@ -38,3 +42,18 @@ testVersion brig = do
       <!! const 200 === statusCode
   liftIO $
     vinfoSupported vinfo @?= [V0, V1]
+
+testVersionV1 :: Brig -> Http ()
+testVersionV1 brig = do
+  vinfo <-
+    responseJsonError =<< get (brig . path "/v1/api-version")
+      <!! const 200 === statusCode
+  liftIO $
+    vinfoSupported vinfo @?= [V0, V1]
+
+testUnsupportedVersion :: Brig -> Http ()
+testUnsupportedVersion brig = do
+  e <-
+    responseJsonError =<< get (brig . path "/v500/api-version")
+      <!! const 404 === statusCode
+  liftIO $ Wai.label e @?= "unsupported-version"

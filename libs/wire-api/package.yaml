@@ -90,6 +90,7 @@ library:
   - wire-message-proto-lens
   - x509
   - wai
+  - wai-utilities
   - wai-websockets
   - websockets
 

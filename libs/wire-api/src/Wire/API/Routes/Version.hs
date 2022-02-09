@@ -19,8 +19,11 @@ module Wire.API.Routes.Version where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
+import qualified Data.Aeson as Aeson
 import Data.Schema
 import qualified Data.Swagger as S
+import qualified Data.Text as Text
+import qualified Data.Text.Read as Text
 import Imports
 import Servant
 import Servant.Swagger
@@ -29,6 +32,7 @@ import Wire.API.VersionInfo
 
 data Version = V0 | V1
   deriving stock (Eq, Ord, Bounded, Enum, Show)
+  deriving (FromJSON, ToJSON) via (Schema Version)
 
 instance ToSchema Version where
   schema =
@@ -36,6 +40,18 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1
       ]
+
+readVersionNumber :: Text -> Maybe Integer
+readVersionNumber v = do
+  ('v', rest) <- Text.uncons v
+  case Text.decimal rest of
+    Right (n, "") -> pure n
+    _ -> Nothing
+
+mkVersion :: Integer -> Maybe Version
+mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
+  Aeson.Error _ -> Nothing
+  Aeson.Success v -> pure v
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
