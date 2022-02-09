@@ -1270,7 +1270,7 @@ testJoinTeamConvGuestLinksDisabled = do
   postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve cCode !!! const 200 === statusCode
   -- non-team-members can join as well
-  postJoinConv bob convId !!! const 200 === statusCode
+  postJoinCodeConv bob cCode !!! const 200 === statusCode
 
   -- disabled guest links feature
   let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
@@ -1285,7 +1285,7 @@ testJoinTeamConvGuestLinksDisabled = do
   postConvCodeCheck cCode !!! const 404 === statusCode
   postJoinCodeConv eve' cCode !!! const 409 === statusCode
   -- non-team-members can't join either
-  postJoinConv bob' convId !!! const 409 === statusCode
+  postJoinCodeConv bob' cCode !!! const 409 === statusCode
   -- check feature status is still disabled
   checkFeatureStatus Public.TeamFeatureDisabled
 
@@ -1298,7 +1298,7 @@ testJoinTeamConvGuestLinksDisabled = do
     const 200 === statusCode
   postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve' cCode !!! const 200 === statusCode
-  postJoinConv bob' convId !!! const 200 === statusCode
+  postJoinCodeConv bob' cCode !!! const 200 === statusCode
   checkFeatureStatus Public.TeamFeatureEnabled
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()

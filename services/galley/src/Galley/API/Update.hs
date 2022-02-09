@@ -518,6 +518,7 @@ addCodeUnqualified ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
@@ -539,6 +540,7 @@ addCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -665,7 +667,7 @@ checkReusableCode ::
 checkReusableCode convCode = do
   code <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation code) >>= note ConvNotFound
-  Query.ensureGuestLinksEnabledWithError ConvNotFound (convTeam conv)
+  Query.ensureGuestLinksEnabledWithError (Right CodeNotFound) (convTeam conv)
 
 joinConversationByReusableCode ::
   Members
@@ -719,7 +721,6 @@ joinConversationById ::
   Sem r (UpdateResult Event)
 joinConversationById lusr zcon cnv = do
   conv <- E.getConversation cnv >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled (convTeam conv) -- TODO(leif): do we want this check here, too?
   joinConversation lusr zcon conv LinkAccess
 
 joinConversation ::

@@ -547,10 +547,11 @@ getConversationByReusableCode lusr key value = do
 ensureGuestLinksEnabledWithError ::
   forall r.
   ( Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
-  ConversationError ->
+  Either ConversationError CodeError ->
   Maybe TeamId ->
   Sem r ()
 ensureGuestLinksEnabledWithError ex mbTid = do
@@ -558,7 +559,9 @@ ensureGuestLinksEnabledWithError ex mbTid = do
   maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
   case maybe defaultStatus tfwoStatus maybeFeatureStatus of
     TeamFeatureEnabled -> pure ()
-    TeamFeatureDisabled -> throw ex
+    TeamFeatureDisabled -> case ex of
+      Left e -> throw e
+      Right e -> throw e
   where
     getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
     getDefaultFeatureStatus = do
@@ -568,9 +571,10 @@ ensureGuestLinksEnabledWithError ex mbTid = do
 ensureGuestLinksEnabled ::
   forall r.
   ( Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
   Maybe TeamId ->
   Sem r ()
-ensureGuestLinksEnabled = ensureGuestLinksEnabledWithError GuestLinksDisabled
+ensureGuestLinksEnabled = ensureGuestLinksEnabledWithError (Left GuestLinksDisabled)
