@@ -65,6 +65,7 @@ library
       Wire.API.Routes.Public.Spar
       Wire.API.Routes.Public.Util
       Wire.API.Routes.QualifiedCapture
+      Wire.API.Routes.Version
       Wire.API.Routes.WebSocket
       Wire.API.ServantProto
       Wire.API.Swagger
@@ -97,6 +98,7 @@ library
       Wire.API.User.Search
       Wire.API.UserMap
       Wire.API.Util.Aeson
+      Wire.API.VersionInfo
       Wire.API.Wrapped
   other-modules:
       Paths_wire_api
