@@ -5,6 +5,13 @@
 
 packages:
 - completed:
+    hackage: bytestring-arbitrary-0.1.3@sha256:14db64d4fe126fbad2eb8d3601bfd80a693f3131e2db0e76891feffe44f10df8,1773
+    pantry-tree:
+      size: 347
+      sha256: ea68c43da070afaddd1758f3180140f4cb844f559d4663246757b27a72200092
+  original:
+    hackage: bytestring-arbitrary-0.1.3@sha256:14db64d4fe126fbad2eb8d3601bfd80a693f3131e2db0e76891feffe44f10df8,1773
+- completed:
     subdir: wai-middleware-prometheus
     name: wai-middleware-prometheus
     version: 1.0.0
