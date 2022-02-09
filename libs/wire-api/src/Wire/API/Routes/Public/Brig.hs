@@ -312,6 +312,19 @@ type SelfAPI =
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
            )
 
+type AccountAPI =
+  Named
+    "register"
+    ( Summary "Register a new user."
+        :> Description
+             "If the environment where the registration takes \
+             \place is private and a registered email address or phone \
+             \number is not whitelisted, a 403 error is returned."
+        :> "register"
+        :> ReqBody '[JSON] NewUserPublic
+        :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError SelfProfile)
+    )
+
 type PrekeyAPI =
   Named
     "get-users-prekeys-client-unqualified"
@@ -714,6 +727,7 @@ type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 type BrigAPI =
   UserAPI
     :<|> SelfAPI
+    :<|> AccountAPI
     :<|> ClientAPI
     :<|> PrekeyAPI
     :<|> UserClientAPI

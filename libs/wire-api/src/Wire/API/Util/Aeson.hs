@@ -18,10 +18,12 @@
 module Wire.API.Util.Aeson
   ( customEncodingOptions,
     CustomEncoded (..),
+    eitherToParser,
   )
 where
 
 import Data.Aeson
+import Data.Aeson.Types (Parser)
 import qualified Data.Char as Char
 import GHC.Generics (Rep)
 import Imports hiding (All)
@@ -43,3 +45,7 @@ instance (Generic a, GToJSON Zero (Rep a)) => ToJSON (CustomEncoded a) where
 
 instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (CustomEncoded a) where
   parseJSON = fmap CustomEncoded . genericParseJSON @a customEncodingOptions
+
+eitherToParser :: Either String a -> Parser a
+eitherToParser (Left e) = fail e
+eitherToParser (Right a) = pure a

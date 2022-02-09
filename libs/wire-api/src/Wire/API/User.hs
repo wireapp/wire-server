@@ -37,6 +37,8 @@ module Wire.API.User
 
     -- * NewUser
     NewUserPublic (..),
+    RegisterError (..),
+    RegisterResponses,
     NewUser (..),
     emptyNewUser,
     ExpiresIn,
@@ -107,7 +109,7 @@ where
 
 import Control.Applicative
 import Control.Error.Safe (rightMay)
-import Control.Lens (over, view, (.~), (?~))
+import Control.Lens (dimap, over, view, (.~), (?~), _1, _2, _3, _4)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
@@ -143,11 +145,12 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.ErrorDescription
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Routes.MultiVerb
-import Wire.API.Team (BindingNewTeam (BindingNewTeam), NewTeam (..), modelNewBindingTeam)
+import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema, modelNewBindingTeam)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
+import Wire.API.Util.Aeson (eitherToParser)
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -502,7 +505,7 @@ publicProfile u legalHoldStatus =
 --     SCIM-managed user)
 newtype NewUserPublic = NewUserPublic NewUser
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserPublic)
 
 modelNewUser :: Doc.Model
 modelNewUser = Doc.defineModel "NewUser" $ do
@@ -548,10 +551,11 @@ modelNewUser = Doc.defineModel "NewUser" $ do
     Doc.description "New team information. Mutually exclusive with team_code|invitation_code"
     Doc.optional
 
-instance FromJSON NewUserPublic where
-  parseJSON val = do
-    nu <- parseJSON val
-    either fail pure $ validateNewUserPublic nu
+instance ToSchema NewUserPublic where
+  schema =
+    unwrap .= withParser schema (eitherToParser . validateNewUserPublic)
+    where
+      unwrap (NewUserPublic nu) = nu
 
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
@@ -586,6 +590,10 @@ isNewUserTeamMember u = case newUserTeam u of
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
+data RegisterError = RegisterError
+
+type RegisterResponses = '[]
+
 data NewUser = NewUser
   { newUserDisplayName :: Name,
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
@@ -605,6 +613,7 @@ data NewUser = NewUser
     newUserManagedBy :: Maybe ManagedBy
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUser)
 
 emptyNewUser :: Name -> NewUser
 emptyNewUser name =
@@ -628,47 +637,49 @@ emptyNewUser name =
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
 
-instance ToJSON NewUser where
-  toJSON u =
-    A.object $
-      "name" A..= newUserDisplayName u
-        # "uuid" A..= newUserUUID u
-        # "email" A..= newUserEmail u
-        # "email_code" A..= newUserEmailCode u
-        # "picture" A..= newUserPict u
-        # "assets" A..= newUserAssets u
-        # "phone" A..= newUserPhone u
-        # "phone_code" A..= newUserPhoneCode u
-        # "accent_id" A..= newUserAccentId u
-        # "label" A..= newUserLabel u
-        # "locale" A..= newUserLocale u
-        # "password" A..= newUserPassword u
-        # "expires_in" A..= newUserExpiresIn u
-        # "sso_id" A..= newUserSSOId u
-        # "managed_by" A..= newUserManagedBy u
-        # maybe [] jsonNewUserOrigin (newUserOrigin u)
+newtype BoolPair = BoolPair {boolUnpair :: (Bool, Bool)}
+  deriving (Bounded)
 
-instance FromJSON NewUser where
-  parseJSON = A.withObject "new-user" $ \o -> do
-    ssoid <- o A..:? "sso_id"
-    newUserDisplayName <- o A..: "name"
-    newUserUUID <- o A..:? "uuid"
-    newUserIdentity <- parseIdentity ssoid o
-    newUserPict <- o A..:? "picture"
-    newUserAssets <- o A..:? "assets" A..!= []
-    newUserAccentId <- o A..:? "accent_id"
-    newUserEmailCode <- o A..:? "email_code"
-    newUserPhoneCode <- o A..:? "phone_code"
-    newUserLabel <- o A..:? "label"
-    newUserLocale <- o A..:? "locale"
-    newUserPassword <- o A..:? "password"
-    newUserOrigin <- parseNewUserOrigin newUserPassword newUserIdentity ssoid o
-    newUserExpires <- o A..:? "expires_in"
-    newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
-      (Just _, Just _) -> fail "Only users without an identity can expire"
-      _ -> return newUserExpires
-    newUserManagedBy <- o A..:? "managed_by"
-    return NewUser {..}
+instance Enum BoolPair where
+  toEnum n
+    | n < 2 = BoolPair (toEnum n, False)
+    | otherwise = BoolPair (toEnum (n - 2), True)
+  fromEnum (BoolPair (b1, b2)) = fromEnum b1 + fromEnum b2
+
+boolPairSchema :: (Monoid doc, Monoid w) => SchemaP doc v w Bool Bool -> SchemaP doc v w Bool Bool -> SchemaP doc v w BoolPair BoolPair
+boolPairSchema sch1 sch2 =
+  dimap boolUnpair BoolPair $
+    (,)
+      <$> fst .= sch1
+      <*> snd .= sch2
+
+mkBoolPair :: Bool -> Bool -> BoolPair
+mkBoolPair b1 b2 = BoolPair (b1, b2)
+
+instance ToSchema NewUser where
+  schema =
+    object "NewUser"
+      . dimap (\nu -> (mkBoolPair (isJust (newUserPassword nu)) (isJust (newUserSSOId nu)), nu)) snd
+      $ bind
+        (fst .= boolPairSchema (isJust <$> optField "password" schema) (isJust <$> optField "sso_id" schema))
+        (snd .= dispatch newUserObjectSchema)
+    where
+      newUserObjectSchema (BoolPair (hasPassword, hasSSO)) =
+        NewUser
+          <$> newUserDisplayName .= field "name" schema
+          <*> newUserUUID .= maybe_ (optField "uuid" genericToSchema)
+          <*> newUserIdentity .= maybeUserIdentityObjectSchema
+          <*> newUserPict .= maybe_ (optField "picture" schema)
+          <*> newUserAssets .= (fromMaybe [] <$> optField "assets" (array schema))
+          <*> newUserAccentId .= maybe_ (optField "accent_id" schema)
+          <*> newUserEmailCode .= maybe_ (optField "email_code" schema)
+          <*> newUserPhoneCode .= maybe_ (optField "phone_code" schema)
+          <*> newUserOrigin .= maybeNewUserOriginObjectSchema hasPassword hasSSO
+          <*> newUserLabel .= maybe_ (optField "label" schema)
+          <*> newUserLocale .= maybe_ (optField "locale" schema)
+          <*> newUserPassword .= maybe_ (optField "password" schema)
+          <*> newUserExpiresIn .= maybe_ (optField "expires_in" schema)
+          <*> newUserManagedBy .= pure Nothing
 
 -- FUTUREWORK: align more with FromJSON instance?
 instance Arbitrary NewUser where
@@ -739,43 +750,67 @@ data NewUserOrigin
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewUserOrigin)
 
-jsonNewUserOrigin :: NewUserOrigin -> [A.Pair]
-jsonNewUserOrigin = \case
-  NewUserOriginInvitationCode inv -> ["invitation_code" A..= inv]
-  NewUserOriginTeamUser (NewTeamMember tc) -> ["team_code" A..= tc]
-  NewUserOriginTeamUser (NewTeamCreator team) -> ["team" A..= team]
-  NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" A..= ti]
+type NewUserOriginComponents = (Maybe InvitationCode, Maybe InvitationCode, Maybe BindingNewTeamUser, Maybe TeamId)
 
-parseNewUserOrigin ::
-  Maybe PlainTextPassword ->
-  Maybe UserIdentity ->
-  Maybe UserSSOId ->
-  A.Object ->
-  A.Parser (Maybe NewUserOrigin)
-parseNewUserOrigin pass uid ssoid o = do
-  invcode <- o A..:? "invitation_code"
-  teamcode <- o A..:? "team_code"
-  team <- o A..:? "team"
-  teamid <- o A..:? "team_id"
-  result <- case (invcode, teamcode, team, ssoid, teamid) of
-    (Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
-    (Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
-    (Nothing, Nothing, Just a, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
-    (Nothing, Nothing, Nothing, Just _, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
-    (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
-    (_, _, _, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
-    (_, _, _, Nothing, Just _) -> fail "sso_id, team_id must be either both present or both absent."
-    _ -> fail "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
-  case (result, pass, uid) of
-    (_, _, Just SSOIdentity {}) -> pure result
-    (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
+maybeNewUserOriginObjectSchema ::
+  -- | Has password
+  Bool ->
+  -- | Has SSOId
+  Bool ->
+  ObjectSchema SwaggerDoc (Maybe NewUserOrigin)
+maybeNewUserOriginObjectSchema hasPassword hasSSO =
+  flip withParser eitherToParser $
+    dimap
+      maybeNewUserOriginToComponents
+      (maybeNewUserOriginFromComponents hasPassword hasSSO)
+      newUserOriginComponentsObjectSchema
+
+newUserOriginComponentsObjectSchema :: ObjectSchema SwaggerDoc NewUserOriginComponents
+newUserOriginComponentsObjectSchema =
+  (,,,)
+    <$> view _1 .= maybe_ (optField "invitation_code" schema)
+    <*> view _2 .= maybe_ (optField "team_code" schema)
+    <*> view _3 .= maybe_ (optField "team" schema)
+    <*> view _4 .= maybe_ (optField "team_id" schema)
+
+maybeNewUserOriginToComponents :: Maybe NewUserOrigin -> NewUserOriginComponents
+maybeNewUserOriginToComponents =
+  \case
+    Nothing -> (Nothing, Nothing, Nothing, Nothing)
+    Just (NewUserOriginInvitationCode ic) -> (Just ic, Nothing, Nothing, Nothing)
+    Just (NewUserOriginTeamUser ntu) -> case ntu of
+      NewTeamMember tc -> (Nothing, Just tc, Nothing, Nothing)
+      NewTeamCreator bntu -> (Nothing, Nothing, Just bntu, Nothing)
+      NewTeamMemberSSO tid -> (Nothing, Nothing, Nothing, Just tid)
+
+maybeNewUserOriginFromComponents ::
+  -- | Does the user have a password
+  Bool ->
+  -- | Does the user have an SSO Identity
+  Bool ->
+  NewUserOriginComponents ->
+  Either String (Maybe NewUserOrigin)
+maybeNewUserOriginFromComponents hasPassword hasSSO (invcode, teamcode, team, teamid) = do
+  result <- case (invcode, teamcode, team, hasSSO, teamid) of
+    (Just a, Nothing, Nothing, False, Nothing) -> Right . Just . NewUserOriginInvitationCode $ a
+    (Nothing, Just a, Nothing, False, Nothing) -> Right . Just . NewUserOriginTeamUser $ NewTeamMember a
+    (Nothing, Nothing, Just a, False, Nothing) -> Right . Just . NewUserOriginTeamUser $ NewTeamCreator a
+    (Nothing, Nothing, Nothing, True, Just t) -> Right . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
+    (Nothing, Nothing, Nothing, False, Nothing) -> Right Nothing
+    (_, _, _, True, Nothing) -> Left "sso_id, team_id must be either both present or both absent."
+    (_, _, _, False, Just _) -> Left "sso_id, team_id must be either both present or both absent."
+    _ -> Left "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
+  case (result, hasPassword, hasSSO) of
+    (_, _, True) -> Right result
+    (Just (NewUserOriginTeamUser _), False, _) -> Left "all team users must set a password on creation"
     _ -> pure result
 
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
   {fromInvitationCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, ToByteString, FromByteString, Arbitrary)
+  deriving newtype (ToSchema, ToByteString, FromByteString, Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema InvitationCode
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -810,28 +845,14 @@ data BindingNewTeamUser = BindingNewTeamUser
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BindingNewTeamUser)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BindingNewTeamUser)
 
-instance ToJSON BindingNewTeamUser where
-  toJSON (BindingNewTeamUser (BindingNewTeam t) c) =
-    A.object $
-      "currency" A..= c
-        # newTeamJson t
-    where
-      -- FUTUREWORK(leif): this was originally defined in libs/wire-api/src/Wire/API/Team.hs and I moved it here
-      -- during the process of servantifying, it should go away when servantification is complete
-      newTeamJson :: NewTeam a -> [A.Pair]
-      newTeamJson (NewTeam n i ik _) =
-        "name" A..= fromRange n
-          # "icon" A..= fromRange i
-          # "icon_key" A..= (fromRange <$> ik)
-          # []
-
-instance FromJSON BindingNewTeamUser where
-  parseJSON j@(A.Object o) = do
-    c <- o A..:? "currency"
-    t <- parseJSON j
-    return $ BindingNewTeamUser t c
-  parseJSON _ = fail "parseJSON BindingNewTeamUser: must be an object"
+instance ToSchema BindingNewTeamUser where
+  schema =
+    object "BindingNewTeamUser" $
+      BindingNewTeamUser
+        <$> bnuTeam .= bindingNewTeamObjectSchema
+        <*> bnuCurrency .= maybe_ (optField "currenncy" genericToSchema)
 
 --------------------------------------------------------------------------------
 -- Profile Updates

@@ -39,6 +39,7 @@ module Wire.API.Team
 
     -- * NewTeam
     BindingNewTeam (..),
+    bindingNewTeamObjectSchema,
     NonBindingNewTeam (..),
     NewTeam (..),
     newNewTeam,
@@ -193,12 +194,13 @@ modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
     Doc.optional
 
 instance ToSchema BindingNewTeam where
-  schema = BindingNewTeam <$> unwrap .= newTeamSchema "BindingNewTeam" sch
-    where
-      unwrap (BindingNewTeam nt) = nt
+  schema = object "BindingNewTeam" bindingNewTeamObjectSchema
 
-      sch :: ValueSchema SwaggerDoc ()
-      sch = null_
+bindingNewTeamObjectSchema :: ObjectSchema SwaggerDoc BindingNewTeam
+bindingNewTeamObjectSchema =
+  BindingNewTeam <$> unwrap .= newTeamObjectSchema null_
+  where
+    unwrap (BindingNewTeam nt) = nt
 
 -- FUTUREWORK: since new team members do not get serialized, we zero them here.
 -- it may be worth looking into how this can be solved in the types.
@@ -214,7 +216,10 @@ newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NonBindingNewTeam)
 
 instance ToSchema NonBindingNewTeam where
-  schema = NonBindingNewTeam <$> unwrap .= newTeamSchema "NonBindingNewTeam" sch
+  schema =
+    object "NonBindingNewTeam" $
+      NonBindingNewTeam
+        <$> unwrap .= newTeamObjectSchema sch
     where
       unwrap (NonBindingNewTeam nt) = nt
 
@@ -247,14 +252,13 @@ data NewTeam a = NewTeam
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
-newTeamSchema :: HasSchemaRef d => Text -> ValueSchema d a -> ValueSchema NamedSwaggerDoc (NewTeam a)
-newTeamSchema name sch =
-  object name $
-    NewTeam
-      <$> _newTeamName .= field "name" schema
-      <*> _newTeamIcon .= field "icon" schema
-      <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
-      <*> _newTeamMembers .= maybe_ (optField "members" sch)
+newTeamObjectSchema :: ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (NewTeam a)
+newTeamObjectSchema sch =
+  NewTeam
+    <$> _newTeamName .= field "name" schema
+    <*> _newTeamIcon .= field "icon" schema
+    <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
+    <*> _newTeamMembers .= maybe_ (optField "members" sch)
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData
