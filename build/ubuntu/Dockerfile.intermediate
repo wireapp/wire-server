@@ -15,7 +15,7 @@ WORKDIR /wire-server/
 
 COPY . /wire-server/
 
-RUN make clean install
+RUN WIRE_BUILD_WITH_CABAL=1 make clean install
 
 #--- Minified stage ---
 FROM ${deps}
