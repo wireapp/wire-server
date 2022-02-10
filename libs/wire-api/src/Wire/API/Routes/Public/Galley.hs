@@ -294,6 +294,15 @@ type ConversationAPI =
     :<|> Named
            "add-members-to-conversation"
            ( Summary "Add qualified members to an existing conversation."
+               :> CanThrow ConvNotFound
+               :> CanThrow ActionDenied
+               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow InvalidAction
+               :> CanThrow TooManyMembers
+               :> CanThrow ConvAccessDenied
+               :> CanThrow NotATeamMember
+               :> CanThrow NotConnected
+               :> CanThrow MissingLegalholdConsent
                :> ZLocalUser
                :> ZConn
                :> "conversations"
