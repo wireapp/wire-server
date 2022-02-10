@@ -26,6 +26,8 @@ import qualified Brig.API.Public as Public
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 
+-- dummy change for CI: TODO: remove me before merging
+
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   Public.sitemap
