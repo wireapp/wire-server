@@ -30,6 +30,7 @@ import Imports
 import Wire.API.MLS.Serialisation
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
+  deriving stock (Eq, Show)
   deriving newtype (ParseMLS)
 
 -- Key derivation function.

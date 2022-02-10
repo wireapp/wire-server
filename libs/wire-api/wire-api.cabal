@@ -573,6 +573,7 @@ test-suite wire-api-tests
   other-modules:
       Test.Wire.API.Call.Config
       Test.Wire.API.Conversation
+      Test.Wire.API.MLS
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
@@ -642,6 +643,7 @@ test-suite wire-api-tests
     , currency-codes
     , directory
     , filepath
+    , hex
     , hscim
     , imports
     , iso3166-country-codes

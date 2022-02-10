@@ -95,13 +95,14 @@ instance ToSchema KeyPackageCount where
 --------------------------------------------------------------------------------
 
 data ProtocolVersion = ProtocolReserved | ProtocolMLS
-  deriving stock (Bounded, Enum)
+  deriving stock (Bounded, Enum, Eq, Show)
   deriving (ParseMLS) via EnumMLS Word8 ProtocolVersion
 
 data Extension = Extension
   { extType :: Word16,
     extData :: ByteString
   }
+  deriving stock (Show)
 
 instance ParseMLS Extension where
   parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
@@ -171,6 +172,7 @@ data KeyPackageTBS = KeyPackageTBS
     kpCredential :: Credential,
     kpExtensions :: [Extension]
   }
+  deriving (Show)
 
 instance ParseMLS KeyPackageTBS where
   parseMLS =
@@ -185,6 +187,7 @@ data KeyPackage = KeyPackage
   { kpTBS :: KeyPackageTBS,
     kpSignature :: ByteString
   }
+  deriving (Show)
 
 newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Show)
@@ -197,4 +200,7 @@ kpRef kdf =
     . kpData
 
 instance ParseMLS KeyPackage where
-  parseMLS = KeyPackage <$> parseMLS <*> parseMLSBytes @Word16
+  parseMLS =
+    KeyPackage
+      <$> parseMLS
+        <*> parseMLSBytes @Word16

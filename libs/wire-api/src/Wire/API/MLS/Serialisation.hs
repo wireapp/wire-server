@@ -43,8 +43,7 @@ class ParseMLS a where
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do
   len <- get @w
-  pos <- bytesRead
-  isolate (fromIntegral len) $ go (pos + fromIntegral len)
+  isolate (fromIntegral len) $ go (fromIntegral len)
   where
     go :: Int64 -> Get [a]
     go endPos = do
@@ -74,8 +73,12 @@ instance Binary a => ParseMLS (BinaryMLS a) where
 -- | A wrapper to generate a 'Binary' instance for an enumerated type.
 newtype EnumMLS w a = EnumMLS {unEnumMLS :: a}
 
-safeToEnum :: forall a f. (Bounded a, Enum a, Alternative f) => Int -> f a
-safeToEnum n = guard (n >= fromEnum @a minBound && n <= fromEnum @a maxBound) $> toEnum n
+safeToEnum :: forall a f. (Bounded a, Enum a, MonadFail f) => Int -> f a
+safeToEnum n
+  | n >= fromEnum @a minBound && n <= fromEnum @a maxBound =
+    pure (toEnum n)
+  | otherwise =
+    fail "Out of bound enumeration"
 
 instance (Binary w, Integral w, Bounded a, Enum a) => ParseMLS (EnumMLS w a) where
   parseMLS = do

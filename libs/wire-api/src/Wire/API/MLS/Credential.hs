@@ -34,23 +34,32 @@ data Credential = BasicCredential
     bcSignatureScheme :: SignatureScheme,
     bcSignatureKey :: ByteString
   }
+  deriving stock (Show)
+
+data CredentialTag = ReservedCredentialTag | BasicCredentialTag
+  deriving stock (Enum, Bounded, Show)
+  deriving (ParseMLS) via (EnumMLS Word16 CredentialTag)
 
 instance ParseMLS Credential where
-  parseMLS =
-    BasicCredential
-      <$> parseMLSBytes @Word16
-      <*> parseMLS
-      <*> parseMLSBytes @Word16
+  parseMLS = do
+    tag <- parseMLS
+    case tag of
+      BasicCredentialTag ->
+        BasicCredential
+          <$> parseMLSBytes @Word16
+          <*> parseMLS
+          <*> parseMLSBytes @Word16
+      ReservedCredentialTag ->
+        fail "Unexpected credential type"
 
-data CredentialType = BasicCredentialType
-
-credentialType :: Credential -> CredentialType
-credentialType (BasicCredential _ _ _) = BasicCredentialType
+credentialTag :: Credential -> CredentialTag
+credentialTag (BasicCredential _ _ _) = BasicCredentialTag
 
 -- | A TLS signature scheme.
 --
 -- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
 newtype SignatureScheme = SignatureScheme {signatureSchemeNumber :: Word16}
+  deriving stock (Show)
   deriving newtype (ParseMLS)
 
 data ClientIdentity = ClientIdentity
@@ -58,7 +67,7 @@ data ClientIdentity = ClientIdentity
     ciUser :: UserId,
     ciClient :: ClientId
   }
-  deriving (Eq, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (ParseMLS) via (BinaryMLS ClientIdentity)
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
