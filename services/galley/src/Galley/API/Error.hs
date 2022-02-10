@@ -121,7 +121,6 @@ data ConversationError
   | TooManyMembers
   | ConvMemberNotFound
   | NoBindingTeamMembers
-  | NoManagedTeamConv
   | GuestLinksDisabled
 
 instance APIError ConversationError where
@@ -130,7 +129,6 @@ instance APIError ConversationError where
   toWai TooManyMembers = errorDescriptionTypeToWai @TooManyMembers
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
-  toWai NoManagedTeamConv = noManagedTeamConv
   toWai GuestLinksDisabled = guestLinksDisabled
 
 data TeamError
@@ -384,9 +382,6 @@ tooManyTeamMembersOnTeamWithLegalhold = mkError status403 "too-many-members-for-
 
 teamMemberNotFound :: Error
 teamMemberNotFound = mkError status404 "no-team-member" "team member not found"
-
-noManagedTeamConv :: Error
-noManagedTeamConv = mkError status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
 
 guestLinksDisabled :: Error
 guestLinksDisabled = mkError status409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."

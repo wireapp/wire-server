@@ -1490,7 +1490,7 @@ testAccessUpdateGuestRemoved = do
         (qUnqualified alice)
         defNewConv
           { newConvQualifiedUsers = [bob, charlie, dee],
-            newConvTeam = Just (ConvTeamInfo tid False)
+            newConvTeam = Just (ConvTeamInfo tid)
           }
       <!! const 201 === statusCode
 
@@ -1887,14 +1887,14 @@ postTeamConvQualifiedNoConnection = do
     (qUnqualified alice)
     defNewConv
       { newConvQualifiedUsers = [bob],
-        newConvTeam = Just (ConvTeamInfo tid False)
+        newConvTeam = Just (ConvTeamInfo tid)
       }
     !!! const 403 === statusCode
   postConvQualified
     (qUnqualified alice)
     defNewConv
       { newConvQualifiedUsers = [charlie],
-        newConvTeam = Just (ConvTeamInfo tid False)
+        newConvTeam = Just (ConvTeamInfo tid)
       }
     !!! const 403 === statusCode
 
@@ -1926,7 +1926,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConvUnmanaged $ NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1955,7 +1955,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConvUnmanaged (NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe

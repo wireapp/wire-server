@@ -94,8 +94,6 @@ tests =
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
       testRoundTrip @Conversation.Conversation,
-      testRoundTrip @Conversation.NewConvUnmanaged,
-      testRoundTrip @Conversation.NewConvManaged,
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,

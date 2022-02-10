@@ -149,8 +149,6 @@ generateTestModule = do
   generateBindingModule @Connection.UserConnectionList "user" ref
   generateBindingModule @Connection.ConnectionUpdate "user" ref
   generateBindingModule @Conversation.Conversation "user" ref
-  generateBindingModule @Conversation.NewConvUnmanaged "user" ref
-  generateBindingModule @Conversation.NewConvManaged "user" ref
   generateBindingModule @(Conversation.ConversationList ConvId) "user" ref
   generateBindingModule @(Conversation.ConversationList Conversation.Conversation) "user" ref
   generateBindingModule @Conversation.Access "user" ref

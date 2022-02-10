@@ -250,7 +250,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               :> ReqBody '[Servant.JSON] NewConvUnmanaged
+               :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     :<|> Named
@@ -271,7 +271,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[Servant.JSON] NewConvUnmanaged
+               :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:

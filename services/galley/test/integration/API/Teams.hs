@@ -119,7 +119,6 @@ tests s =
       test s "add team conversation (no role as argument)" testAddTeamConvLegacy,
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
-      test s "add managed conversation through public endpoint (fail)" testAddManagedConv,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty),
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
@@ -882,25 +881,6 @@ testAddTeamConvAsExternalPartner = do
     !!! do
       const 403 === statusCode
       const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
-
-testAddManagedConv :: TestM ()
-testAddManagedConv = do
-  g <- view tsGalley
-  owner <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  let tinfo = ConvTeamInfo tid True
-  let conv =
-        NewConvManaged $
-          NewConv [owner] [] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
-  post
-    ( g
-        . path "/conversations"
-        . zUser owner
-        . zConn "conn"
-        . zType "access"
-        . json conv
-    )
-    !!! const 400 === statusCode
 
 testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do

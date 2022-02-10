@@ -24,7 +24,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
   ( createGroupConversation,
-    internalCreateManagedConversationH,
     createSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
@@ -51,7 +50,6 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
-import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -59,10 +57,6 @@ import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notT
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -103,70 +97,13 @@ createGroupConversation ::
     r =>
   Local UserId ->
   ConnId ->
-  Public.NewConvUnmanaged ->
+  NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr conn (Public.NewConvUnmanaged body) =
+createGroupConversation lusr conn body =
   let create = case newConvTeam body of
         Nothing -> createGroupConversation' ()
         Just tinfo -> createGroupConversation' tinfo
    in create lusr conn body
-
--- | An internal endpoint for creating managed group conversations. Will
--- throw an error for everything else.
-internalCreateManagedConversationH ::
-  Members
-    '[ ConversationStore,
-       BrigAccess,
-       Error ActionError,
-       Error ConversationError,
-       Error InternalError,
-       Error InvalidInput,
-       Error LegalHoldError,
-       Error NotATeamMember,
-       FederatorAccess,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       TeamStore,
-       P.TinyLog,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: JsonRequest NewConvManaged ->
-  Sem r Response
-internalCreateManagedConversationH (zusr ::: zcon ::: req) = do
-  lusr <- qualifyLocal zusr
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> internalCreateManagedConversation lusr zcon newConv
-
-internalCreateManagedConversation ::
-  Members
-    '[ ConversationStore,
-       BrigAccess,
-       Error ActionError,
-       Error ConversationError,
-       Error InternalError,
-       Error InvalidInput,
-       Error LegalHoldError,
-       Error NotATeamMember,
-       FederatorAccess,
-       GundeckAccess,
-       Input Opts,
-       LegalHoldStore,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
-  Local UserId ->
-  ConnId ->
-  NewConvManaged ->
-  Sem r ConversationResponse
-internalCreateManagedConversation lusr zcon (NewConvManaged body) = do
-  tinfo <- note CannotCreateManagedConv (newConvTeam body)
-  createGroupConversation' tinfo lusr zcon body
 
 ensureNoLegalholdConflicts ::
   Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
@@ -320,22 +257,20 @@ createOne2OneConversation ::
     r =>
   Local UserId ->
   ConnId ->
-  NewConvUnmanaged ->
+  NewConv ->
   Sem r ConversationResponse
-createOne2OneConversation lusr zcon (NewConvUnmanaged j) = do
+createOne2OneConversation lusr zcon j = do
   let allUsers = newConvMembers lusr j
   other <- ensureOne (ulAll lusr allUsers)
   when (qUntagged lusr == other) $
     throw . InvalidOp $ One2OneConv
   mtid <- case newConvTeam j of
-    Just ti
-      | cnvManaged ti -> throw NoManagedTeamConv
-      | otherwise -> do
-        foldQualified
-          lusr
-          (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
-          (const (pure Nothing))
-          other
+    Just ti -> do
+      foldQualified
+        lusr
+        (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
+        (const (pure Nothing))
+        other
     Nothing -> ensureConnected lusr allUsers $> Nothing
   n <- rangeCheckedMaybe (newConvName j)
   foldQualified
@@ -585,11 +520,6 @@ conversationExisted ::
   Data.Conversation ->
   Sem r ConversationResponse
 conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
-
-handleConversationResponse :: ConversationResponse -> Response
-handleConversationResponse = \case
-  Created cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
-  Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation ::
   Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r =>
