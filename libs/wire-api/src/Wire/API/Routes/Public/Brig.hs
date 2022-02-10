@@ -667,7 +667,19 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
-type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI
+type SecondFactorAuthAPI =
+  Named
+    "send-verification-code"
+    ( Summary "Send a verification code to a user's email address"
+        :> CanThrow SecondFactorAuthDisabled
+        :> ZUser
+        :> "verification-code"
+        :> "send"
+        :> ReqBody '[JSON] SendVerificationCode
+        :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code send."] ()
+    )
+
+type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI :<|> SecondFactorAuthAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)

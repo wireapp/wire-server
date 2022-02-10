@@ -97,6 +97,10 @@ module Wire.API.User
     modelUser,
     modelUserIdList,
     modelVerifyDelete,
+
+    -- * 2nd factor auth
+    SecondFactorAuthAction (..),
+    SendVerificationCode (..),
   )
 where
 
@@ -1151,3 +1155,31 @@ instance S.ToSchema ListUsersQuery where
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+
+-----------------------------------------------------------------------------
+-- 2nd Factor Auth
+-- todo(leif): roundtrip tests
+-- todo(leif): golden tests
+
+data SecondFactorAuthAction = GenerateScimToken
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SecondFactorAuthAction)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SecondFactorAuthAction)
+
+instance ToSchema SecondFactorAuthAction where
+  schema =
+    enum @Text "SecondFactorAuthAction" $
+      mconcat
+        [ element "generate-scim-token" GenerateScimToken
+        ]
+
+newtype SendVerificationCode = SendVerificationCode {svcAction :: SecondFactorAuthAction}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SendVerificationCode
+
+instance ToSchema SendVerificationCode where
+  schema =
+    object "SendVerificationCode" $
+      SendVerificationCode
+        <$> svcAction .= field "action" schema
