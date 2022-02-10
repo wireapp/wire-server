@@ -337,9 +337,9 @@ specFinalizeLogin = do
                 either (error . show) (^. userRefL) $
                   parseFromDocument (fromSignedAuthnResponse newUserAuthnResp)
           -- remove user from team settings
+          newUserId <- getUserIdViaRef newUserRef
           do
             env <- ask
-            newUserId <- getUserIdViaRef newUserRef
             _ <-
               call . get $
                 ( (env ^. teGalley)
@@ -359,12 +359,14 @@ specFinalizeLogin = do
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take
             -- the time, we should find another way to robustly
             -- confirm that deletion has completed in the background.
-
-          -- second login
           do
+            -- second login
             authnreq <- negotiateAuthnRequest idp
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
             loginSuccess =<< submitAuthnResponse teamid authnresp
+
+          do
+            checkChangeRoleOfTeamMember teamid ownerid newUserId
 
       context "unknown user" $ do
         it "creates the user" $ do
@@ -768,7 +770,7 @@ mkSsoOwner firstOwner tid idp privcreds = do
   authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
   loginresp <- submitAuthnResponse tid authnresp
   liftIO $ responseStatus loginresp `shouldBe` status200
-  [ssoOwner] <- filter (/= firstOwner) <$> getTeamMembers firstOwner tid
+  [ssoOwner] <- filter (/= firstOwner) <$> getTeamMemberIds firstOwner tid
   promoteTeamMember firstOwner tid ssoOwner
   pure ssoOwner
 
