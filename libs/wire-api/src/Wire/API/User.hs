@@ -637,34 +637,37 @@ emptyNewUser name =
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
 
-newtype BoolPair = BoolPair {boolUnpair :: (Bool, Bool)}
+-- | 'bind'/'dispatch' needs an Enum.
+newtype EnumBoolPair = EnumBoolPair {boolUnpair :: (Bool, Bool)}
   deriving (Bounded)
 
-instance Enum BoolPair where
+-- TODO: Test for lawfulness
+instance Enum EnumBoolPair where
   toEnum n
-    | n < 2 = BoolPair (toEnum n, False)
-    | otherwise = BoolPair (toEnum (n - 2), True)
-  fromEnum (BoolPair (b1, b2)) = fromEnum b1 + fromEnum b2
+    | n < 2 = EnumBoolPair (toEnum n, False)
+    | otherwise = EnumBoolPair (toEnum (n - 2), True)
+  fromEnum (EnumBoolPair (b1, b2)) = fromEnum b1 + fromEnum b2
 
-boolPairSchema :: (Monoid doc, Monoid w) => SchemaP doc v w Bool Bool -> SchemaP doc v w Bool Bool -> SchemaP doc v w BoolPair BoolPair
-boolPairSchema sch1 sch2 =
-  dimap boolUnpair BoolPair $
+enumBoolPairSchema :: (Monoid doc, Monoid w) => SchemaP doc v w Bool Bool -> SchemaP doc v w Bool Bool -> SchemaP doc v w EnumBoolPair EnumBoolPair
+enumBoolPairSchema sch1 sch2 =
+  dimap boolUnpair EnumBoolPair $
     (,)
       <$> fst .= sch1
       <*> snd .= sch2
 
-mkBoolPair :: Bool -> Bool -> BoolPair
-mkBoolPair b1 b2 = BoolPair (b1, b2)
+mkEnumBoolPair :: Bool -> Bool -> EnumBoolPair
+mkEnumBoolPair b1 b2 = EnumBoolPair (b1, b2)
 
+-- TODO: Maybe bind/dispatch is not needed?
 instance ToSchema NewUser where
   schema =
     object "NewUser"
-      . dimap (\nu -> (mkBoolPair (isJust (newUserPassword nu)) (isJust (newUserSSOId nu)), nu)) snd
+      . dimap (\nu -> (mkEnumBoolPair (isJust (newUserPassword nu)) (isJust (newUserSSOId nu)), nu)) snd
       $ bind
-        (fst .= boolPairSchema (isJust <$> optField "password" schema) (isJust <$> optField "sso_id" schema))
+        (fst .= enumBoolPairSchema (isJust <$> optField "password" schema) (isJust <$> optField "sso_id" schema))
         (snd .= dispatch newUserObjectSchema)
     where
-      newUserObjectSchema (BoolPair (hasPassword, hasSSO)) =
+      newUserObjectSchema (EnumBoolPair (hasPassword, hasSSO)) =
         NewUser
           <$> newUserDisplayName .= field "name" schema
           <*> newUserUUID .= maybe_ (optField "uuid" genericToSchema)
