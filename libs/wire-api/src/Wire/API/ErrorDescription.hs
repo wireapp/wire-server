@@ -370,3 +370,5 @@ type BroadcastLimitExceeded =
     400
     "too-many-users-to-broadcast"
     "Too many users to fan out the broadcast event to."
+
+type InvalidAction = ErrorDescription 403 "invalid-actions" "The specified actions are invalid."
