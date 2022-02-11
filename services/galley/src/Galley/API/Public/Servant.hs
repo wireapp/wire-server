@@ -46,7 +46,6 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<
         :<|> Named @"get-conversation-by-reusable-code" getConversationByReusableCode
         :<|> Named @"create-group-conversation" createGroupConversation
         :<|> Named @"create-self-conversation" createSelfConversation
-        :<|> Named @"create-one-to-one-conversation" createOne2OneConversation
         :<|> Named @"add-members-to-conversation-unqualified" addMembersUnqualified
         :<|> Named @"add-members-to-conversation" addMembers
         :<|> Named @"join-conversation-by-id-unqualified" joinConversationById
