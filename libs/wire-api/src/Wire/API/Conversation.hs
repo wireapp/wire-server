@@ -586,7 +586,7 @@ instance ToSchema ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
--- | Used to describe a 'NewConvUnmanaged'.
+-- | Used to describe a 'NewConv'.
 modelNewConversation :: Doc.Model
 modelNewConversation = Doc.defineModel "NewConversation" $ do
   Doc.description "JSON object to create a new conversation"

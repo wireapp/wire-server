@@ -814,14 +814,10 @@ addBot zuid zcon cid add = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   unless (length (cmOthers mems) < maxSize - 1) $
     throwStd tooManyMembers
-  -- For team conversations: bots are not allowed in managed and in
+  -- For team conversations: bots are not allowed in
   -- team-only conversations
   unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
     throwStd invalidConv
-  for_ (cnvTeam cnv) $ \tid -> do
-    tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
-    when (view Teams.managedConversation tc) $
-      throwStd invalidConv
   -- Lookup the relevant service data
   scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
   unless (sconEnabled scon) $

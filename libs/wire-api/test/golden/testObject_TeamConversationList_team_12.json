@@ -14,15 +14,15 @@
         },
         {
             "conversation": "0000000e-0000-006f-0000-000c00000038",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "00000038-0000-0021-0000-005500000008",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "0000005b-0000-007a-0000-00230000002d",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "00000078-0000-000e-0000-004300000065",
@@ -30,7 +30,7 @@
         },
         {
             "conversation": "00000036-0000-0003-0000-000500000011",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "00000043-0000-0032-0000-005200000069",
@@ -50,7 +50,7 @@
         },
         {
             "conversation": "0000001a-0000-005b-0000-00250000000c",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "0000004b-0000-005b-0000-004200000001",
@@ -58,7 +58,7 @@
         },
         {
             "conversation": "00000057-0000-0073-0000-003d00000006",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "00000053-0000-0038-0000-006600000048",
@@ -82,7 +82,7 @@
         },
         {
             "conversation": "00000054-0000-0056-0000-007000000058",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "00000046-0000-0011-0000-001500000007",

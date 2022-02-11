@@ -113,8 +113,7 @@ import qualified Test.Wire.API.Golden.Generated.NewAssetToken_user
 import qualified Test.Wire.API.Golden.Generated.NewBotRequest_provider
 import qualified Test.Wire.API.Golden.Generated.NewBotResponse_provider
 import qualified Test.Wire.API.Golden.Generated.NewClient_user
-import qualified Test.Wire.API.Golden.Generated.NewConvManaged_user
-import qualified Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
+import qualified Test.Wire.API.Golden.Generated.NewConv_user
 import qualified Test.Wire.API.Golden.Generated.NewLegalHoldClient_team
 import qualified Test.Wire.API.Golden.Generated.NewLegalHoldService_team
 import qualified Test.Wire.API.Golden.Generated.NewOtrMessage_user
@@ -389,14 +388,10 @@ tests =
           [ (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_user_1.json"),
             (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_user_2.json")
           ],
-      testGroup "Golden: NewConvUnmanaged_user" $
+      testGroup "Golden: NewConv_user" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.NewConvUnmanaged_user.testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json"),
-            (Test.Wire.API.Golden.Generated.NewConvUnmanaged_user.testObject_NewConvUnmanaged_user_3, "testObject_NewConvUnmanaged_user_3.json")
-          ],
-      testGroup "Golden: NewConvManaged_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.NewConvManaged_user.testObject_NewConvManaged_user_1, "testObject_NewConvManaged_user_1.json")
+          [ (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1, "testObject_NewConv_user_1.json"),
+            (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_3, "testObject_NewConv_user_3.json")
           ],
       testGroup "Golden: ConversationList_20_28Id_20_2a_20C_29_user" $
         testObjects

@@ -1291,7 +1291,7 @@ createConvWithAccessRoles ars g u us =
       . header "Z-Type" "access"
       . header "Z-Connection" "conn"
       . contentJson
-      . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
+      . body (RequestBodyLBS (encode conv))
   where
     conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin
 
