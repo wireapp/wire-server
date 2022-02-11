@@ -1465,8 +1465,7 @@ addBot lusr zcon b = do
     teamConvChecks :: ConvId -> TeamId -> Sem r ()
     teamConvChecks cid tid = do
       tcv <- E.getTeamConversation tid cid
-      when (maybe True (view managedConversation) tcv) $
-        throw NoAddToManaged
+      when (isNothing tcv) $ throw NoAddToManaged
 
 rmBotH ::
   Members

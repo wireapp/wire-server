@@ -436,8 +436,7 @@ uncheckedDeleteTeam lusr zcon tid = do
   when (isJust team) $ do
     Spar.deleteTeam tid
     now <- input
-    convs <-
-      filter (not . view managedConversation) <$> E.getTeamConversations tid
+    convs <- E.getTeamConversations tid
     -- Even for LARGE TEAMS, we _DO_ want to fetch all team members here because we
     -- want to generate conversation deletion events for non-team users. This should
     -- be fine as it is done once during the life team of a team and we still do not
@@ -1093,7 +1092,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
           for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
             E.deleteMembers (c ^. conversationId) (UserList [remove] [])
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
-            unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
+            unless (mems ^. teamMemberListType == ListTruncated) $
               pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Sem r ()
     pushEvent exceptTo edata now dc = do
@@ -1339,12 +1338,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
   E.createTeamMember tid new
-  cc <- filter (view managedConversation) <$> E.getTeamConversations tid
   now <- input
-  for_ cc $ \c -> do
-    lcid <- qualifyLocal (c ^. conversationId)
-    luid <- qualifyLocal (new ^. userId)
-    E.createMember lcid luid
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
