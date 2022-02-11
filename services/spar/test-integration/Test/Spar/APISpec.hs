@@ -336,8 +336,12 @@ specFinalizeLogin = do
           let newUserRef@(UserRef _ subj) =
                 either (error . show) (^. userRefL) $
                   parseFromDocument (fromSignedAuthnResponse newUserAuthnResp)
-          -- remove user from team settings
           newUserId <- getUserIdViaRef newUserRef
+
+          do
+            checkChangeRoleOfTeamMember teamid ownerid newUserId
+
+          -- remove user from team settings
           do
             env <- ask
             _ <-
@@ -364,9 +368,6 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
             loginSuccess =<< submitAuthnResponse teamid authnresp
-
-          do
-            checkChangeRoleOfTeamMember teamid ownerid newUserId
 
       context "unknown user" $ do
         it "creates the user" $ do
