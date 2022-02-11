@@ -254,41 +254,7 @@ createConnectConversation ::
   Connect ->
   Sem r ConversationResponse
 createConnectConversation lusr conn j = do
-  foldQualified
-    lusr
-    (\lrcpt -> createLegacyConnectConversation lusr conn lrcpt j)
-    (createConnectConversationWithRemote lusr conn)
-    (cRecipient j)
-
-createConnectConversationWithRemote ::
-  Member (Error FederationError) r =>
-  Local UserId ->
-  Maybe ConnId ->
-  Remote UserId ->
-  Sem r ConversationResponse
-createConnectConversationWithRemote _ _ _ =
-  throw FederationNotImplemented
-
-createLegacyConnectConversation ::
-  Members
-    '[ ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
-       Error InternalError,
-       FederatorAccess,
-       GundeckAccess,
-       Input UTCTime,
-       MemberStore,
-       P.TinyLog
-     ]
-    r =>
-  Local UserId ->
-  Maybe ConnId ->
-  Local UserId ->
-  Connect ->
-  Sem r ConversationResponse
-createLegacyConnectConversation lusr conn lrecipient j = do
+  lrecipient <- ensureLocal lusr (cRecipient j)
   (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
   conv <- E.getConversation (Data.localOne2OneConvId x y)
