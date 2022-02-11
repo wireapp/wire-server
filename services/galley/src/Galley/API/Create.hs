@@ -25,6 +25,7 @@
 module Galley.API.Create
   ( createGroupConversation,
     createSelfConversation,
+    createOne2OneConversation,
     createConnectConversation,
   )
 where
@@ -40,6 +41,7 @@ import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
 import Galley.API.Mapping
+import Galley.API.One2One
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
@@ -51,7 +53,7 @@ import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams (ListType (..), Perm (..), notTeamMember)
+import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
@@ -234,6 +236,160 @@ createSelfConversation lusr = do
       c <- E.createSelfConversation lusr Nothing
       conversationCreated lusr c
 
+createOne2OneConversation ::
+  forall r.
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error ActionError,
+       Error ConversationError,
+       Error FederationError,
+       Error InternalError,
+       Error InvalidInput,
+       Error NotATeamMember,
+       Error TeamError,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  NewConv ->
+  Sem r ConversationResponse
+createOne2OneConversation lusr zcon j = do
+  let allUsers = newConvMembers lusr j
+  other <- ensureOne (ulAll lusr allUsers)
+  when (qUntagged lusr == other) $
+    throw . InvalidOp $ One2OneConv
+  mtid <- case newConvTeam j of
+    Just ti -> do
+      foldQualified
+        lusr
+        (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
+        (const (pure Nothing))
+        other
+    Nothing -> ensureConnected lusr allUsers $> Nothing
+  n <- rangeCheckedMaybe (newConvName j)
+  foldQualified
+    lusr
+    (createLegacyOne2OneConversationUnchecked lusr zcon n mtid)
+    (createOne2OneConversationUnchecked lusr zcon n mtid . qUntagged)
+    other
+  where
+    verifyMembership :: TeamId -> UserId -> Sem r ()
+    verifyMembership tid u = do
+      membership <- E.getTeamMember tid u
+      when (isNothing membership) $
+        throw NoBindingTeamMembers
+    checkBindingTeamPermissions ::
+      Local UserId ->
+      TeamId ->
+      Sem r (Maybe TeamId)
+    checkBindingTeamPermissions lother tid = do
+      zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
+      void $ permissionCheck CreateConversation zusrMembership
+      E.getTeamBinding tid >>= \case
+        Just Binding -> do
+          verifyMembership tid (tUnqualified lusr)
+          verifyMembership tid (tUnqualified lother)
+          pure (Just tid)
+        Just _ -> throw NotABindingTeamMember
+        Nothing -> throw TeamNotFound
+
+createLegacyOne2OneConversationUnchecked ::
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       Error InvalidInput,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  Maybe (Range 1 256 Text) ->
+  Maybe TeamId ->
+  Local UserId ->
+  Sem r ConversationResponse
+createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
+  lcnv <- localOne2OneConvId self other
+  mc <- E.getConversation (tUnqualified lcnv)
+  case mc of
+    Just c -> conversationExisted self c
+    Nothing -> do
+      (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
+      c <- E.createLegacyOne2OneConversation self x y name mtid
+      notifyCreatedConversation Nothing self (Just zcon) c
+      conversationCreated self c
+
+createOne2OneConversationUnchecked ::
+  Members
+    '[ ConversationStore,
+       Error FederationError,
+       Error InternalError,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  Maybe (Range 1 256 Text) ->
+  Maybe TeamId ->
+  Qualified UserId ->
+  Sem r ConversationResponse
+createOne2OneConversationUnchecked self zcon name mtid other = do
+  let create =
+        foldQualified
+          self
+          createOne2OneConversationLocally
+          createOne2OneConversationRemotely
+  create (one2OneConvId (qUntagged self) other) self zcon name mtid other
+
+createOne2OneConversationLocally ::
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       FederatorAccess,
+       GundeckAccess,
+       Input UTCTime,
+       P.TinyLog
+     ]
+    r =>
+  Local ConvId ->
+  Local UserId ->
+  ConnId ->
+  Maybe (Range 1 256 Text) ->
+  Maybe TeamId ->
+  Qualified UserId ->
+  Sem r ConversationResponse
+createOne2OneConversationLocally lcnv self zcon name mtid other = do
+  mc <- E.getConversation (tUnqualified lcnv)
+  case mc of
+    Just c -> conversationExisted self c
+    Nothing -> do
+      c <- E.createOne2OneConversation (tUnqualified lcnv) self other name mtid
+      notifyCreatedConversation Nothing self (Just zcon) c
+      conversationCreated self c
+
+createOne2OneConversationRemotely ::
+  Member (Error FederationError) r =>
+  Remote ConvId ->
+  Local UserId ->
+  ConnId ->
+  Maybe (Range 1 256 Text) ->
+  Maybe TeamId ->
+  Qualified UserId ->
+  Sem r ConversationResponse
+createOne2OneConversationRemotely _ _ _ _ _ _ =
+  throw FederationNotImplemented
+
 createConnectConversation ::
   Members
     '[ ConversationStore,
@@ -361,6 +517,15 @@ notifyCreatedConversation dtime lusr conn c = do
           & pushConn .~ conn
           & pushRoute .~ route
 
+localOne2OneConvId ::
+  Member (Error InvalidInput) r =>
+  Local UserId ->
+  Local UserId ->
+  Sem r (Local ConvId)
+localOne2OneConvId self other = do
+  (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
+  pure . qualifyAs self $ Data.localOne2OneConvId x y
+
 toUUIDs ::
   Member (Error InvalidInput) r =>
   UserId ->
@@ -383,3 +548,7 @@ newConvMembers :: Local x -> NewConv -> UserList UserId
 newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
+
+ensureOne :: Member (Error InvalidInput) r => [a] -> Sem r a
+ensureOne [x] = pure x
+ensureOne _ = throw (InvalidRange "One-to-one conversations can only have a single invited member")

@@ -262,6 +262,19 @@ type ConversationAPI =
                :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to members
+    -- TODO: add note: "On 201, the conversation ID is the `Location` header"
+    :<|> Named
+           "create-one-to-one-conversation"
+           ( Summary "Create a 1:1 conversation"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> "one2one"
+               :> ReqBody '[Servant.JSON] NewConv
+               :> ConversationVerb
+           )
+    -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
     :<|> Named
            "add-members-to-conversation-unqualified"
