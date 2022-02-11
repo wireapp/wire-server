@@ -1162,7 +1162,7 @@ instance S.ToSchema ListUsersQuery where
 -- todo(leif): golden tests
 
 data SecondFactorAuthAction = GenerateScimToken
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform SecondFactorAuthAction)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SecondFactorAuthAction)
 
