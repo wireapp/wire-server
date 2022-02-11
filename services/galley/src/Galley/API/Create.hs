@@ -62,7 +62,6 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation hiding (Conversation, Member)
-import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.Error
@@ -99,106 +98,13 @@ createGroupConversation ::
   ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr conn body =
-  let create = case newConvTeam body of
-        Nothing -> createGroupConversation' ()
-        Just tinfo -> createGroupConversation' tinfo
-   in create lusr conn body
-
-ensureNoLegalholdConflicts ::
-  Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
-  [Remote UserId] ->
-  [UserId] ->
-  Sem r ()
-ensureNoLegalholdConflicts remotes locals = do
-  let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
-  whenM (anyLegalholdActivated locals) $
-    unlessM (allLegalholdConsentGiven locals) $
-      throw MissingLegalholdConsent
-
-class CreateTeamGroupConv a where
-  type CreateTeamGroupConvEffects a :: [Effect]
-  checkCreateConvPermissions ::
-    Members (CreateTeamGroupConvEffects a) r =>
-    Local UserId ->
-    NewConv ->
-    a ->
-    Sem r ()
-
-instance CreateTeamGroupConv () where
-  type
-    CreateTeamGroupConvEffects () =
-      '[ BrigAccess,
-         Error ActionError
-       ]
-  checkCreateConvPermissions lusr newConv () =
-    ensureConnected lusr (newConvMembers lusr newConv)
-
-instance CreateTeamGroupConv ConvTeamInfo where
-  type
-    CreateTeamGroupConvEffects ConvTeamInfo =
-      '[ BrigAccess,
-         Error ActionError,
-         Error ConversationError,
-         Error NotATeamMember,
-         TeamStore
-       ]
-  checkCreateConvPermissions lusr body tinfo = do
-    let allUsers = newConvMembers lusr body
-        convTeam = cnvTeamId tinfo
-    zusrMembership <- E.getTeamMember convTeam (tUnqualified lusr)
-    void $ permissionCheck CreateConversation zusrMembership
-    convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
-    ensureAccessRole (accessRoles body) (zip (ulLocals allUsers) convLocalMemberships)
-    -- In teams we don't have 1:1 conversations, only regular conversations. We want
-    -- users without the 'AddRemoveConvMember' permission to still be able to create
-    -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
-    -- there are going to be more than two users in the conversation.
-    -- FUTUREWORK: We keep this permission around because not doing so will break backwards
-    -- compatibility in the sense that the team role 'partners' would be able to create group
-    -- conversations (which they should not be able to).
-    -- Not sure at the moment how to best solve this but it is unlikely
-    -- we can ever get rid of the team permission model anyway - the only thing I can
-    -- think of is that 'partners' can create convs but not be admins...
-    when (length allUsers > 1) $ do
-      void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
-      -- Team members are always considered to be connected, so we only check
-      -- 'ensureConnected' for non-team-members.
-
-      ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
-      ensureConnectedToRemotes lusr (ulRemotes allUsers)
-
--- | A helper for creating a group conversation, used by the endpoint handlers
--- above. It works both for team and non-team convrsation. Only supports
--- unmanaged conversations.
-createGroupConversation' ::
-  CreateTeamGroupConv a =>
-  Members (CreateTeamGroupConvEffects a) r =>
-  Members
-    '[ ConversationStore,
-       Error InternalError,
-       Error InvalidInput,
-       Error LegalHoldError,
-       FederatorAccess,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       P.TinyLog,
-       TeamStore
-     ]
-    r =>
-  a ->
-  Local UserId ->
-  ConnId ->
-  Public.NewConv ->
-  Sem r ConversationResponse
-createGroupConversation' tinfo lusr zcon body = do
+createGroupConversation lusr conn body = do
+  let tinfo = newConvTeam body
+      allUsers = newConvMembers lusr body
   name <- rangeCheckedMaybe (newConvName body)
-  checkCreateConvPermissions lusr body tinfo
-  let allUsers = newConvMembers lusr body
   o <- input
   checkedUsers <- checkedConvSize o allUsers
+  checkCreateConvPermissions lusr body tinfo allUsers
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
     E.createConversation
@@ -216,8 +122,59 @@ createGroupConversation' tinfo lusr zcon body = do
         }
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
-  notifyCreatedConversation (Just now) lusr (Just zcon) conv
+  notifyCreatedConversation (Just now) lusr (Just conn) conv
   conversationCreated lusr conv
+
+ensureNoLegalholdConflicts ::
+  Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
+  [Remote UserId] ->
+  [UserId] ->
+  Sem r ()
+ensureNoLegalholdConflicts remotes locals = do
+  let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
+  whenM (anyLegalholdActivated locals) $
+    unlessM (allLegalholdConsentGiven locals) $
+      throw MissingLegalholdConsent
+
+checkCreateConvPermissions ::
+  Members
+    '[ BrigAccess,
+       Error ActionError,
+       Error ConversationError,
+       Error NotATeamMember,
+       TeamStore
+     ]
+    r =>
+  Local UserId ->
+  NewConv ->
+  Maybe ConvTeamInfo ->
+  UserList UserId ->
+  Sem r ()
+checkCreateConvPermissions lusr _newConv Nothing allUsers =
+  ensureConnected lusr allUsers
+checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
+  let convTeam = cnvTeamId tinfo
+  zusrMembership <- E.getTeamMember convTeam (tUnqualified lusr)
+  void $ permissionCheck CreateConversation zusrMembership
+  convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
+  ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
+  -- In teams we don't have 1:1 conversations, only regular conversations. We want
+  -- users without the 'AddRemoveConvMember' permission to still be able to create
+  -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
+  -- there are going to be more than two users in the conversation.
+  -- FUTUREWORK: We keep this permission around because not doing so will break backwards
+  -- compatibility in the sense that the team role 'partners' would be able to create group
+  -- conversations (which they should not be able to).
+  -- Not sure at the moment how to best solve this but it is unlikely
+  -- we can ever get rid of the team permission model anyway - the only thing I can
+  -- think of is that 'partners' can create convs but not be admins...
+  when (length allUsers > 1) $ do
+    void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
+
+  -- Team members are always considered to be connected, so we only check
+  -- 'ensureConnected' for non-team-members.
+  ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
+  ensureConnectedToRemotes lusr (ulRemotes allUsers)
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
