@@ -676,7 +676,7 @@ type SecondFactorAuthAPI =
         :> "verification-code"
         :> "send"
         :> ReqBody '[JSON] SendVerificationCode
-        :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code send."] ()
+        :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
     )
 
 type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI :<|> SecondFactorAuthAPI
