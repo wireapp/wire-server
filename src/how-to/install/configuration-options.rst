@@ -55,16 +55,20 @@ Enable push notifications using the public appstore / playstore mobile Wire clie
 1. You need to get in touch with us. Please talk to sales or customer support - see https://wire.com
 2. If a contract agreement has been reached, we can set up a separate AWS account for you containing the necessary AWS SQS/SNS setup to route push notifications through to the mobile apps. We will then forward some configuration / access credentials that looks like:
 
-.. code::
+.. code:: yaml
 
-    push_notification_settings = {
-      "aws_account_id" = "REDACTED"
-      "gundeck_access_key" = "REDACTED"
-      "gundeck_access_secret" = "REDACTED"
-      "notification_queue_name" = "<environment>-gundeck-events"
-      "sns_endpoint" = "https://sns.<region>.amazonaws.com"
-      "sqs_endpoint" = "https://sqs.<region>.amazonaws.com"
-    }
+    "gundeck":
+      "config":
+        "aws":
+          "account": "<REDACTED>"
+          "arnEnv": "<REDACTED>"
+          "queueName": "<REDACTED>-gundeck-events"
+          "region": "<REDACTED>"
+          "snsEndpoint": "https://sns.<REDACTED>.amazonaws.com"
+          "sqsEndpoint": "https://sqs.<REDACTED>.amazonaws.com"
+      "secrets":
+        "awsKeyId": "<REDACTED>"
+        "awsSecretKey": "<REDACTED>"
 
 To make use of those, first test the credentials are correct, e.g. using the ``aws`` command-line tool (for more information on how to configure credentials, please refer to the `official docs <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html#cli-configure-quickstart-precedence>`__):
 
@@ -85,11 +89,11 @@ You should get a result like this:
         "QueueUrl": "https://<region>.queue.amazonaws.com/<aws-account-id>/<environment>-gundeck-events"
     }
 
-Then add them to your gundeck configuration overrides:
+Then add them to your gundeck configuration overrides.
+
+Keys below ``gundeck.config`` belong into ``values/wire-server/values.yaml``:
 
 .. code:: yaml
-
-   # in values/wire-server/values.yaml
 
     gundeck:
       # ...
@@ -102,9 +106,9 @@ Then add them to your gundeck configuration overrides:
           sqsEndpoint: # e.g. https://sqs.eu-central-1.amazonaws.com
           arnEnv: # e.g. staging - this must match the environment name (first part of queueName)
 
-.. code:: yaml
+Keys below ``gundeck.secrets`` belong into ``values/wire-server/secrets.yaml``:
 
-   # in values/wire-server/secrets.yaml
+.. code:: yaml
 
     gundeck:
       # ...
