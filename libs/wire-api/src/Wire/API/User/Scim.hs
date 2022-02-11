@@ -83,6 +83,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User.Activation
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI
@@ -367,7 +368,7 @@ data CreateScimToken = CreateScimToken
     -- | User password, which we ask for because creating a token is a "powerful" operation
     createScimTokenPassword :: !(Maybe PlainTextPassword),
     -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
-    createScimTokenCode :: !(Maybe Text) -- TODO: i think there is a data type for this.
+    createScimTokenCode :: !(Maybe ActivationCode) -- TODO: i think there is a data type for this.
   }
   deriving (Eq, Show)
 
