@@ -386,6 +386,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.Scheme_user
       Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
       Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
+      Test.Wire.API.Golden.Generated.SecondFactorAuthAction_user
       Test.Wire.API.Golden.Generated.SelfProfile_user
       Test.Wire.API.Golden.Generated.SendActivationCode_user
       Test.Wire.API.Golden.Generated.SendLoginCode_user
