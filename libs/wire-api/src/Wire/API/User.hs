@@ -1158,10 +1158,10 @@ instance S.ToSchema ListUsersQuery where
 
 -----------------------------------------------------------------------------
 -- 2nd Factor Auth
--- todo(leif): roundtrip tests
--- todo(leif): golden tests
+-- todo(leif): add/update roundtrip tests
+-- todo(leif): add/update golden tests
 
-data SecondFactorAuthAction = GenerateScimToken
+data SecondFactorAuthAction = GenerateScimToken | Login
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform SecondFactorAuthAction)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SecondFactorAuthAction)
@@ -1170,7 +1170,8 @@ instance ToSchema SecondFactorAuthAction where
   schema =
     enum @Text "SecondFactorAuthAction" $
       mconcat
-        [ element "generate-scim-token" GenerateScimToken
+        [ element "generate-scim-token" GenerateScimToken,
+          element "login" Login
         ]
 
 newtype SendVerificationCode = SendVerificationCode {svcAction :: SecondFactorAuthAction}
