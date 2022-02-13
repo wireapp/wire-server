@@ -364,8 +364,10 @@ testCreateUserNoIdP = do
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
-  members <- getTeamMembers userid tid
+  members <- getTeamMemberIds userid tid
   liftIO $ members `shouldContain` [userid]
+
+  checkChangeRoleOfTeamMember tid owner userid
   where
     -- cloned from brig's integration tests
 
@@ -440,8 +442,10 @@ testCreateUserWithSamlIdP = do
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
-  members <- getTeamMembers userid tid
+  members <- getTeamMemberIds userid tid
   liftIO $ members `shouldContain` [userid]
+
+  checkChangeRoleOfTeamMember tid owner userid
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.

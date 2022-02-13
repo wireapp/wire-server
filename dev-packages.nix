@@ -141,6 +141,7 @@ let
       pkgs.libsodium.dev
       pkgs.libxml2.dev
       pkgs.ncurses.dev
+      pkgs.niv.out
       pkgs.openssl.dev
       pkgs.pcre.dev
       pkgs.snappy.dev
@@ -175,7 +176,7 @@ in
   pkgs.cfssl
   pkgs.docker-compose
   pkgs.gnumake
-  (pkgs.haskell-language-server.override {supportedGhcVersions = ["8107"];})
+  (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
   pkgs.jq
   pkgs.ormolu
   pkgs.telepresence
