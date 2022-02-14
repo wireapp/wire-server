@@ -1158,8 +1158,6 @@ instance S.ToSchema ListUsersQuery where
 
 -----------------------------------------------------------------------------
 -- 2nd Factor Auth
--- todo(leif): add/update roundtrip tests
--- todo(leif): add/update golden tests
 
 data SecondFactorAuthAction = GenerateScimToken | Login
   deriving stock (Eq, Show, Enum, Bounded, Generic)

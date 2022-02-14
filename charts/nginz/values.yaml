@@ -281,6 +281,10 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/search$
       envs:
       - all
+    - path: /verification-code/send
+      envs:
+      - all
+      disable_zauth: true
     galley:
     - path: /conversations/code-check
       disable_zauth: true
