@@ -45,9 +45,11 @@ import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest), UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Brig as S
 import Wire.API.Federation.Component
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
+import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 import Wire.API.UserMap (UserMap (UserMap))
 
 -- Note: POST /federation/send-connection-action is implicitly tested in API.User.Connection
@@ -78,7 +80,7 @@ tests m opts brig cannon fedBrigClient =
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
 allowFullSearch domain opts =
-  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [Opt.FederationDomainConfig domain Opt.FullSearch]
+  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [Opt.FederationDomainConfig domain FullSearch]
 
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
@@ -88,13 +90,13 @@ testSearchSuccess opts brig = do
   let quid = userQualifiedId user
   let domain = Domain "example.com"
 
-  searchResult <- withSettingsOverrides (allowFullSearch domain opts) $ do
+  searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest (fromHandle handle)
 
   liftIO $ do
-    let contacts = contactQualifiedId <$> searchResult
+    let contacts = contactQualifiedId <$> S.contacts searchResponse
     assertEqual "should return the user id" [quid] contacts
 
 testFulltextSearchSuccess :: Opt.Opts -> Brig -> Http ()
@@ -105,13 +107,13 @@ testFulltextSearchSuccess opts brig = do
   let quid = userQualifiedId user
   let domain = Domain "example.com"
 
-  searchResult <- withSettingsOverrides (allowFullSearch domain opts) $ do
+  searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest ((fromName . userDisplayName) user)
 
   liftIO $ do
-    let contacts = contactQualifiedId <$> searchResult
+    let contacts = contactQualifiedId <$> S.contacts searchResponse
     assertEqual "should return the user id" [quid] contacts
 
 testFulltextSearchMultipleUsers :: Opt.Opts -> Brig -> Http ()
@@ -132,36 +134,36 @@ testFulltextSearchMultipleUsers opts brig = do
 
   let domain = Domain "example.com"
 
-  searchResult <- withSettingsOverrides (allowFullSearch domain opts) $ do
+  searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest (fromHandle handle)
 
   liftIO $ do
-    let contacts = contactQualifiedId <$> searchResult
+    let contacts = contactQualifiedId <$> S.contacts searchResponse
     assertEqual "should find both users" (sort [quid, userQualifiedId identityThief]) (sort contacts)
 
 testSearchNotFound :: Opt.Opts -> Http ()
 testSearchNotFound opts = do
   let domain = Domain "example.com"
 
-  searchResult <- withSettingsOverrides (allowFullSearch domain opts) $ do
+  searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest "this-handle-should-not-exist"
 
-  liftIO $ assertEqual "should return empty array of users" [] searchResult
+  liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
 testSearchNotFoundEmpty :: Opt.Opts -> Http ()
 testSearchNotFoundEmpty opts = do
   let domain = Domain "example.com"
 
-  searchResult <- withSettingsOverrides (allowFullSearch domain opts) $ do
+  searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest "this-handle-should-not-exist"
 
-  liftIO $ assertEqual "should return empty array of users" [] searchResult
+  liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
 testSearchRestrictions :: Opt.Opts -> Brig -> Http ()
 testSearchRestrictions opts brig = do
@@ -176,25 +178,26 @@ testSearchRestrictions opts brig = do
 
   let opts' =
         opts & Opt.optionSettings . Opt.federationDomainConfigs
-          ?~ [ Opt.FederationDomainConfig domainNoSearch Opt.NoSearch,
-               Opt.FederationDomainConfig domainExactHandle Opt.ExactHandleSearch,
-               Opt.FederationDomainConfig domainFullSearch Opt.FullSearch
+          ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
+               Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
+               Opt.FederationDomainConfig domainFullSearch FullSearch
              ]
 
-  let expectSearch domain squery expectedUsers = do
-        contacts <-
+  let expectSearch domain squery expectedUsers expectedSearchPolicy = do
+        searchResponse <-
           runWaiTestFedClient domain $
             createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
-        liftIO $ assertEqual "Unexpected search result" expectedUsers (contactQualifiedId <$> contacts)
+        liftIO $ assertEqual "Unexpected search result" expectedUsers (contactQualifiedId <$> S.contacts searchResponse)
+        liftIO $ assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
 
   withSettingsOverrides opts' $ do
-    expectSearch domainNoSearch (fromHandle handle) []
-    expectSearch domainExactHandle (fromHandle handle) [quid]
-    expectSearch domainExactHandle (fromName (userDisplayName user)) []
-    expectSearch domainFullSearch (fromHandle handle) [quid]
-    expectSearch domainFullSearch (fromName (userDisplayName user)) [quid]
-    expectSearch domainUnconfigured (fromHandle handle) []
-    expectSearch domainUnconfigured (fromName (userDisplayName user)) []
+    expectSearch domainNoSearch (fromHandle handle) [] NoSearch
+    expectSearch domainExactHandle (fromHandle handle) [quid] ExactHandleSearch
+    expectSearch domainExactHandle (fromName (userDisplayName user)) [] ExactHandleSearch
+    expectSearch domainFullSearch (fromHandle handle) [quid] FullSearch
+    expectSearch domainFullSearch (fromName (userDisplayName user)) [quid] FullSearch
+    expectSearch domainUnconfigured (fromHandle handle) [] NoSearch
+    expectSearch domainUnconfigured (fromName (userDisplayName user)) [] NoSearch
 
 testGetUserByHandleRestrictions :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleRestrictions opts brig = do
@@ -209,9 +212,9 @@ testGetUserByHandleRestrictions opts brig = do
 
   let opts' =
         opts & Opt.optionSettings . Opt.federationDomainConfigs
-          ?~ [ Opt.FederationDomainConfig domainNoSearch Opt.NoSearch,
-               Opt.FederationDomainConfig domainExactHandle Opt.ExactHandleSearch,
-               Opt.FederationDomainConfig domainFullSearch Opt.FullSearch
+          ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
+               Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
+               Opt.FederationDomainConfig domainFullSearch FullSearch
              ]
 
   let expectSearch domain expectedUser = do

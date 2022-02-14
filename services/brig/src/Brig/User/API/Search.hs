@@ -56,6 +56,7 @@ import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import qualified Wire.API.User.Search as Public
@@ -135,7 +136,8 @@ searchRemotely domain searchTerm = do
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
-  contacts <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  searchResponse <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  let contacts = S.contacts searchResponse
   let count = length contacts
   pure
     SearchResult

@@ -43,6 +43,16 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
+data SearchResponse = SearchResponse
+  { contacts :: [Contact],
+    searchPolicy :: FederatedUserSearchPolicy
+  }
+  deriving (Show, Generic, Typeable)
+
+instance ToJSON SearchResponse
+
+instance FromJSON SearchResponse
+
 -- | For conventions see /docs/developer/federation-api-conventions.md
 --
 -- Maybe this module should be called Brig
@@ -54,7 +64,7 @@ type BrigApi =
     :<|> FedEndpoint "claim-multi-prekey-bundle" UserClients UserClientPrekeyMap
     -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
     -- (handles can be up to 256 chars currently)
-    :<|> FedEndpoint "search-users" SearchRequest [Contact]
+    :<|> FedEndpoint "search-users" SearchRequest SearchResponse
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse

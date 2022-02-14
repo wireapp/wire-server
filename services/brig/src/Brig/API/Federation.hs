@@ -24,12 +24,11 @@ import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import Brig.API.Util (lookupAllowedUserSearch)
+import Brig.API.Util (lookupSearchPolicy)
 import Brig.App (qualifyLocal)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
-import Brig.Options (AllowedUserSearch (..))
 import Brig.Types (PrekeyBundle, Relation (Accepted))
 import Brig.Types.User.Event
 import Brig.User.API.Handle
@@ -87,10 +86,10 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
 
 getUserByHandle :: Domain -> Handle -> (Handler r) (Maybe UserProfile)
 getUserByHandle domain handle = do
-  allowedUserSearch <- lookupAllowedUserSearch domain
+  searchPolicy <- lookupSearchPolicy domain
 
   let performHandleLookup =
-        case allowedUserSearch of
+        case searchPolicy of
           NoSearch -> False
           ExactHandleSearch -> True
           FullSearch -> True
@@ -122,18 +121,19 @@ claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFede
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: Domain -> SearchRequest -> Handler [Contact]
+searchUsers :: Domain -> SearchRequest -> Handler SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
-  allowedUserSearch <- lookupAllowedUserSearch domain
+  searchPolicy <- lookupSearchPolicy domain
 
-  let searches = case allowedUserSearch of
+  let searches = case searchPolicy of
         NoSearch -> []
         ExactHandleSearch -> [exactHandleSearch]
         FullSearch -> [exactHandleSearch, fullSearch]
 
   let maxResults = 15
 
-  go [] maxResults searches
+  contacts <- go [] maxResults searches
+  pure $ SearchResponse contacts searchPolicy
   where
     go :: [Contact] -> Int -> [Int -> (Handler r) [Contact]] -> (Handler r) [Contact]
     go contacts _ [] = pure contacts

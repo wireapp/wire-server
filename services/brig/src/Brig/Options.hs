@@ -50,6 +50,7 @@ import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 import qualified Wire.API.Team.Feature as ApiFT
+import Wire.API.User.Search (FederatedUserSearchPolicy)
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -380,7 +381,7 @@ instance FromJSON AllowedUserSearch where
 
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
-    search :: AllowedUserSearch
+    searchPolicy :: FederatedUserSearchPolicy
   }
   deriving (Show, Generic)
 

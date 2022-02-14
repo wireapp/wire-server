@@ -24,7 +24,7 @@ module Brig.API.Util
     logEmail,
     traverseConcurrentlyWithErrors,
     exceptTToMaybe,
-    lookupAllowedUserSearch,
+    lookupSearchPolicy,
   )
 where
 
@@ -34,7 +34,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.App (AppIO, settings)
 import qualified Brig.Data.User as Data
-import Brig.Options (AllowedUserSearch (NoSearch), FederationDomainConfig, federationDomainConfigs)
+import Brig.Options (FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
 import Brig.Types
 import Brig.Types.Intra (accountUser)
@@ -54,6 +54,7 @@ import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 import Wire.API.ErrorDescription
+import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -104,5 +105,5 @@ lookupDomainConfig domain = do
   pure $ find ((== domain) . Opts.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
-lookupAllowedUserSearch :: Domain -> Handler Opts.AllowedUserSearch
-lookupAllowedUserSearch domain = fromMaybe NoSearch <$> (Opts.search <$$> lookupDomainConfig domain)
+lookupSearchPolicy :: Domain -> Handler FederatedUserSearchPolicy
+lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.searchPolicy <$$> lookupDomainConfig domain)

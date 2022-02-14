@@ -25,6 +25,7 @@ module Wire.API.User.Search
     RoleFilter (..),
     TeamUserSearchSortOrder (..),
     TeamUserSearchSortBy (..),
+    FederatedUserSearchPolicy (..),
 
     -- * Swagger
     modelSearchResult,
@@ -33,7 +34,7 @@ module Wire.API.User.Search
   )
 where
 
-import Control.Lens (over, (.~), (?~))
+import Control.Lens (makePrisms, over, (.~), (?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
@@ -43,7 +44,8 @@ import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy (Proxy (..))
 import Data.Qualified
-import Data.Swagger hiding (Contact)
+import Data.Schema (Schema (Schema), ToSchema (schema), element, enum)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Swagger
 import Imports
@@ -72,22 +74,22 @@ instance Traversable SearchResult where
     newResults <- traverse f (searchResults r)
     pure $ r {searchResults = newResults}
 
-instance ToSchema (SearchResult Contact) where
+instance S.ToSchema (SearchResult Contact) where
   declareNamedSchema _ = do
-    intSchema <- declareSchema (Proxy @Int)
-    contacts <- declareSchema (Proxy @[Contact])
+    intSchema <- S.declareSchema (Proxy @Int)
+    contacts <- S.declareSchema (Proxy @[Contact])
     pure $
-      NamedSchema (Just "SearchResult") $
+      S.NamedSchema (Just "SearchResult") $
         mempty
-          & type_ ?~ SwaggerObject
-          & properties
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
             .~ InsOrdHasMap.fromList
-              [ ("found", Inline (intSchema & description ?~ "Total number of hits")),
-                ("returned", Inline (intSchema & description ?~ "Total number of hits returned")),
-                ("took", Inline (intSchema & description ?~ "Search time in ms")),
-                ("documents", Inline (contacts & description ?~ "List of contacts found"))
+              [ ("found", S.Inline (intSchema & S.description ?~ "Total number of hits")),
+                ("returned", S.Inline (intSchema & S.description ?~ "Total number of hits returned")),
+                ("took", S.Inline (intSchema & S.description ?~ "Search time in ms")),
+                ("documents", S.Inline (contacts & S.description ?~ "List of contacts found"))
               ]
-          & required .~ ["found", "returned", "took", "documents"]
+          & S.required .~ ["found", "returned", "took", "documents"]
 
 modelSearchResult :: Doc.Model -> Doc.Model
 modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
@@ -135,18 +137,18 @@ data Contact = Contact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
 
-instance ToSchema Contact where
+instance S.ToSchema Contact where
   declareNamedSchema _ = do
     genericSchema <-
-      genericDeclareNamedSchema
+      S.genericDeclareNamedSchema
         ( swaggerOptions
             @'[FieldLabelModifier (StripPrefix "contact", CamelToSnake, LabelMappings ContactLabelMappings)]
         )
         (Proxy @Contact)
-    idSchema <- declareSchemaRef (Proxy @UserId)
+    idSchema <- S.declareSchemaRef (Proxy @UserId)
     pure $
       genericSchema
-        & over (schema . properties) (InsOrdHasMap.insert "id" idSchema)
+        & over (S.schema . S.properties) (InsOrdHasMap.insert "id" idSchema)
 
 modelSearchContact :: Doc.Model
 modelSearchContact = Doc.defineModel "Contact" $ do
@@ -307,3 +309,20 @@ instance ToByteString RoleFilter where
 
 instance FromByteString RoleFilter where
   parser = RoleFilter <$> parser `sepBy` char ','
+
+data FederatedUserSearchPolicy
+  = NoSearch
+  | ExactHandleSearch
+  | FullSearch
+  deriving (Show, Eq, Generic, Enum, Bounded)
+  deriving (Arbitrary) via (GenericUniform FederatedUserSearchPolicy)
+  deriving (ToJSON, FromJSON) via (Schema FederatedUserSearchPolicy)
+
+instance ToSchema FederatedUserSearchPolicy where
+  schema =
+    enum @Text "FederatedUserSearchPolicy" $
+      element "no_search" NoSearch
+        <> element "exact_handle_search" ExactHandleSearch
+        <> element "full_search" FullSearch
+
+makePrisms ''FederatedUserSearchPolicy
