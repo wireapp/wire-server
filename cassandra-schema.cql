@@ -38,7 +38,6 @@ CREATE TABLE galley_test.meta (
 CREATE TABLE galley_test.team_conv (
     team uuid,
     conv uuid,
-    managed boolean,
     PRIMARY KEY (team, conv)
 ) WITH CLUSTERING ORDER BY (conv ASC)
     AND bloom_filter_fp_chance = 0.1
