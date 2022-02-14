@@ -185,6 +185,7 @@ testSearchRestrictions opts brig = do
   let domainNoSearch = Domain "no-search.example.com"
       domainExactHandle = Domain "exact-handle-only.example.com"
       domainFullSearch = Domain "full-search.example.com"
+      domainUnconfigured = Domain "unconfigured.example.com"
 
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
@@ -209,12 +210,15 @@ testSearchRestrictions opts brig = do
     expectSearch domainExactHandle (fromName (userDisplayName user)) []
     expectSearch domainFullSearch (fromHandle handle) [quid]
     expectSearch domainFullSearch (fromName (userDisplayName user)) [quid]
+    expectSearch domainUnconfigured (fromHandle handle) []
+    expectSearch domainUnconfigured (fromName (userDisplayName user)) []
 
 testGetUserByHandleRestrictions :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleRestrictions opts brig = do
   let domainNoSearch = Domain "no-search.example.com"
       domainExactHandle = Domain "exact-handle-only.example.com"
       domainFullSearch = Domain "full-search.example.com"
+      domainUnconfigured = Domain "unconfigured.example.com"
 
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
@@ -237,6 +241,7 @@ testGetUserByHandleRestrictions opts brig = do
     expectSearch domainNoSearch Nothing
     expectSearch domainExactHandle (Just quid)
     expectSearch domainFullSearch (Just quid)
+    expectSearch domainUnconfigured Nothing
 
 testGetUserByHandleSuccess :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleSuccess opts brig = do
