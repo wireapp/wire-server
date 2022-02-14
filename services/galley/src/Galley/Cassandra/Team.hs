@@ -156,12 +156,12 @@ getTeamName tid =
   fmap runIdentity
     <$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
 
-teamConversation :: TeamId -> ConvId -> Client (Maybe TeamConversation)
+teamConversation :: TeamId -> ConvId -> Client (Maybe (TeamConversation v))
 teamConversation t c =
   fmap (newTeamConversation . runIdentity)
     <$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
 
-getTeamConversations :: TeamId -> Client [TeamConversation]
+getTeamConversations :: TeamId -> Client [TeamConversation v]
 getTeamConversations t =
   map (newTeamConversation . runIdentity)
     <$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
@@ -335,7 +335,7 @@ deleteTeam tid = do
   removeConvs cnvs
   retry x5 $ write Cql.deleteTeam (params LocalQuorum (Deleted, tid))
   where
-    removeConvs :: Page TeamConversation -> Client ()
+    removeConvs :: Page (TeamConversation v) -> Client ()
     removeConvs cnvs = do
       for_ (result cnvs) $ removeTeamConv tid . view conversationId
       unless (null $ result cnvs) $
@@ -415,7 +415,11 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
-teamConversationsForPagination :: TeamId -> Maybe ConvId -> Range 1 HardTruncationLimit Int32 -> Client (Page TeamConversation)
+teamConversationsForPagination ::
+  TeamId ->
+  Maybe ConvId ->
+  Range 1 HardTruncationLimit Int32 ->
+  Client (Page (TeamConversation v))
 teamConversationsForPagination tid start (fromRange -> max) =
   fmap (newTeamConversation . runIdentity) <$> case start of
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP LocalQuorum (tid, c) max)

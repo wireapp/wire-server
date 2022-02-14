@@ -55,8 +55,10 @@ servantSitemap =
         <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversations" listConversations
         <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
+        <@> mkNamedAPI @"create-group-conversation-v1" createGroupConversation
         <@> mkNamedAPI @"create-group-conversation" createGroupConversation
         <@> mkNamedAPI @"create-self-conversation" createSelfConversation
+        <@> mkNamedAPI @"create-one-to-one-conversation-v1" createOne2OneConversation
         <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
         <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
         <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
@@ -89,7 +91,9 @@ servantSitemap =
     teamConversations :: API TeamConversationAPI GalleyEffects
     teamConversations =
       mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
+        <@> mkNamedAPI @"get-team-conversations-v1" getTeamConversations
         <@> mkNamedAPI @"get-team-conversations" getTeamConversations
+        <@> mkNamedAPI @"get-team-conversation-v1" getTeamConversation
         <@> mkNamedAPI @"get-team-conversation" getTeamConversation
         <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation
 

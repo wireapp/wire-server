@@ -22,8 +22,8 @@ import qualified Data.UUID as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation (ConvTeamInfo (..))
 
-testObject_ConvTeamInfo_user_1 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_1 =
+testObject_ConvTeamInfo_user_1_2 :: ConvTeamInfo v
+testObject_ConvTeamInfo_user_1_2 =
   ConvTeamInfo
     { cnvTeamId = Id (fromJust (UUID.fromString "0000003f-0000-0059-0000-002200000028"))
     }

@@ -101,6 +101,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -757,7 +758,7 @@ deleteLoop = do
 
     doDelete usr con tid = do
       lusr <- qualifyLocal usr
-      Teams.uncheckedDeleteTeam lusr con tid
+      Teams.uncheckedDeleteTeam @(From 'V2) lusr con tid
 
 safeForever :: String -> App () -> App ()
 safeForever funName action =

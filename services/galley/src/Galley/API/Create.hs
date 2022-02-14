@@ -103,7 +103,7 @@ createGroupConversation ::
     r =>
   Local UserId ->
   ConnId ->
-  NewConv ->
+  NewConv v ->
   Sem r ConversationResponse
 createGroupConversation lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
@@ -147,8 +147,8 @@ checkCreateConvPermissions ::
      ]
     r =>
   Local UserId ->
-  NewConv ->
-  Maybe ConvTeamInfo ->
+  NewConv v ->
+  Maybe (ConvTeamInfo v) ->
   UserList UserId ->
   Sem r ()
 checkCreateConvPermissions lusr _newConv Nothing allUsers =
@@ -202,7 +202,7 @@ createSelfConversation lusr = do
       conversationCreated lusr c
 
 createOne2OneConversation ::
-  forall r.
+  forall r v.
   Members
     '[ BrigAccess,
        ConversationStore,
@@ -228,7 +228,7 @@ createOne2OneConversation ::
     r =>
   Local UserId ->
   ConnId ->
-  NewConv ->
+  NewConv v ->
   Sem r ConversationResponse
 createOne2OneConversation lusr zcon j = do
   let allUsers = newConvMembers lusr j
@@ -484,7 +484,7 @@ createConnectConversation lusr conn j = do
 newRegularConversation ::
   Members '[ErrorS 'MLSNonEmptyMemberList, Error InvalidInput, Input Opts] r =>
   Local UserId ->
-  NewConv ->
+  NewConv v ->
   Sem r (NewConversation, ConvSizeChecked UserList UserId)
 newRegularConversation lusr newConv = do
   o <- input
@@ -578,15 +578,15 @@ toUUIDs a b = do
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4
   pure (a', b')
 
-accessRoles :: NewConv -> Set AccessRoleV2
+accessRoles :: NewConv v -> Set AccessRoleV2
 accessRoles b = fromMaybe Data.defRole (newConvAccessRoles b)
 
-access :: NewConv -> [Access]
+access :: NewConv v -> [Access]
 access a = case Set.toList (newConvAccess a) of
   [] -> Data.defRegularConvAccess
   (x : xs) -> x : xs
 
-newConvMembers :: Local x -> NewConv -> UserList UserId
+newConvMembers :: Local x -> NewConv v -> UserList UserId
 newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)

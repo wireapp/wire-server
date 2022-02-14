@@ -32,8 +32,8 @@ import Wire.API.Conversation.Role
 testDomain :: Domain
 testDomain = Domain "testdomain.example.com"
 
-testObject_NewConv_user_1 :: NewConv
-testObject_NewConv_user_1 =
+testObject_NewConv_user_1_2 :: NewConv v
+testObject_NewConv_user_1_2 =
   NewConv
     { newConvUsers =
         [ Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
@@ -56,7 +56,7 @@ testObject_NewConv_user_1 =
       newConvCreatorClient = Nothing
     }
 
-testObject_NewConv_user_3 :: NewConv
+testObject_NewConv_user_3 :: NewConv v
 testObject_NewConv_user_3 =
   NewConv
     { newConvUsers = [],

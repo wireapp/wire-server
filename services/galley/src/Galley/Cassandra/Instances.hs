@@ -113,14 +113,13 @@ instance Cql AccessRoleV2 where
     n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
   fromCql _ = Left "AccessRoleV2 value: int expected"
 
-instance Cql ConvTeamInfo where
+instance Cql (ConvTeamInfo v) where
   ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]
 
   toCql t = CqlUdt [("teamid", toCql (cnvTeamId t)), ("managed", toCql False)]
 
-  fromCql (CqlUdt u) = do
-    t <- note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fromCql
-    pure (ConvTeamInfo t)
+  fromCql (CqlUdt u) =
+    note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fmap ConvTeamInfo . fromCql
   fromCql _ = Left "teaminfo: udt expected"
 
 instance Cql TeamBinding where

@@ -117,6 +117,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -633,7 +634,10 @@ modelNewConversation = Doc.defineModel "NewConversation" $ do
     Doc.description "Conversation receipt mode"
     Doc.optional
 
-data NewConv = NewConv
+-- FUTUREWORK: The version tag type argument can be dropped as soon as versions
+-- below V2 are not supported any more, at least as far as the 'newConvTeam' is
+-- considered.
+data NewConv (v :: *) = NewConv
   { newConvUsers :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
     -- too.
@@ -641,7 +645,7 @@ data NewConv = NewConv
     newConvName :: Maybe (Range 1 256 Text),
     newConvAccess :: Set Access,
     newConvAccessRoles :: Maybe (Set AccessRoleV2),
-    newConvTeam :: Maybe ConvTeamInfo,
+    newConvTeam :: Maybe (ConvTeamInfo v),
     newConvMessageTimer :: Maybe Milliseconds,
     newConvReceiptMode :: Maybe ReceiptMode,
     -- | Every member except for the creator will have this role
@@ -653,78 +657,147 @@ data NewConv = NewConv
     newConvCreatorClient :: Maybe ClientId
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform NewConv)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewConv)
+  deriving (Arbitrary) via (GenericUniform (NewConv v))
 
-instance ToSchema NewConv where
-  schema =
-    objectWithDocModifier
-      "NewConv"
-      (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
-      $ NewConv
-        <$> newConvUsers
-          .= ( fieldWithDocModifier
-                 "users"
-                 (description ?~ usersDesc)
-                 (array schema)
-                 <|> pure []
-             )
-        <*> newConvQualifiedUsers
-          .= ( fieldWithDocModifier
-                 "qualified_users"
-                 (description ?~ qualifiedUsersDesc)
-                 (array schema)
-                 <|> pure []
-             )
-        <*> newConvName .= maybe_ (optField "name" schema)
-        <*> (Set.toList . newConvAccess)
-          .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
-        <*> newConvAccessRoles .= accessRolesSchemaOpt
-        <*> newConvTeam
-          .= maybe_
-            ( optFieldWithDocModifier
-                "team"
-                (description ?~ "Team information of this conversation")
-                schema
-            )
-        <*> newConvMessageTimer
-          .= maybe_
-            ( optFieldWithDocModifier
-                "message_timer"
-                (description ?~ "Per-conversation message timer")
-                schema
-            )
-        <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
-        <*> newConvUsersRole
-          .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
-                 <|> pure roleNameWireAdmin
-             )
-        <*> newConvProtocol .= protocolTagSchema
-        <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
-    where
-      usersDesc =
-        "List of user IDs (excluding the requestor) to be \
-        \part of this conversation (deprecated)"
-      qualifiedUsersDesc =
-        "List of qualified user IDs (excluding the requestor) \
-        \to be part of this conversation"
-      usersRoleDesc :: Text
-      usersRoleDesc =
-        cs $
-          "The conversation permissions the users \
-          \added in this request should have. \
-          \Optional, defaults to '"
-            <> show roleNameWireAdmin
-            <> "' if unset."
+instance ToSchema (NewConv (Until 'V2)) where
+  schema = newConvSchema @(Until 'V2)
 
-newtype ConvTeamInfo = ConvTeamInfo
+instance ToSchema (NewConv (From 'V2)) where
+  schema = newConvSchema @(From 'V2)
+
+deriving via
+  Schema (NewConv (Until 'V2))
+  instance
+    FromJSON (NewConv (Until 'V2))
+
+deriving via
+  Schema (NewConv (Until 'V2))
+  instance
+    ToJSON (NewConv (Until 'V2))
+
+deriving via
+  Schema (NewConv (From 'V2))
+  instance
+    FromJSON (NewConv (From 'V2))
+
+deriving via
+  Schema (NewConv (From 'V2))
+  instance
+    ToJSON (NewConv (From 'V2))
+
+deriving via
+  Schema (NewConv (Until 'V2))
+  instance
+    S.ToSchema (NewConv (Until 'V2))
+
+deriving via
+  Schema (NewConv (From 'V2))
+  instance
+    S.ToSchema (NewConv (From 'V2))
+
+newConvSchema ::
+  forall v.
+  ToSchema (ConvTeamInfo v) =>
+  ValueSchema NamedSwaggerDoc (NewConv v)
+newConvSchema =
+  objectWithDocModifier
+    "NewConv"
+    (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+    $ NewConv
+      <$> newConvUsers
+        .= ( fieldWithDocModifier
+               "users"
+               (description ?~ usersDesc)
+               (array schema)
+               <|> pure []
+           )
+      <*> newConvQualifiedUsers
+        .= ( fieldWithDocModifier
+               "qualified_users"
+               (description ?~ qualifiedUsersDesc)
+               (array schema)
+               <|> pure []
+           )
+      <*> newConvName .= maybe_ (optField "name" schema)
+      <*> (Set.toList . newConvAccess)
+        .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
+      <*> newConvAccessRoles .= accessRolesSchemaOpt
+      <*> newConvTeam
+        .= maybe_
+          ( optFieldWithDocModifier
+              "team"
+              (description ?~ "Team information of this conversation")
+              (schema @(ConvTeamInfo v))
+          )
+      <*> newConvMessageTimer
+        .= maybe_
+          ( optFieldWithDocModifier
+              "message_timer"
+              (description ?~ "Per-conversation message timer")
+              schema
+          )
+      <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
+      <*> newConvUsersRole
+        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
+               <|> pure roleNameWireAdmin
+           )
+      <*> newConvProtocol .= protocolTagSchema
+      <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
+  where
+    usersDesc =
+      "List of user IDs (excluding the requestor) to be \
+      \part of this conversation (deprecated)"
+    qualifiedUsersDesc =
+      "List of qualified user IDs (excluding the requestor) \
+      \to be part of this conversation"
+    usersRoleDesc :: Text
+    usersRoleDesc =
+      cs $
+        "The conversation permissions the users \
+        \added in this request should have. \
+        \Optional, defaults to '"
+          <> show roleNameWireAdmin
+          <> "' if unset."
+
+-- FUTUREWORK: The version tag type argument can be dropped as soon as versions
+-- below V2 are not supported any more.
+newtype ConvTeamInfo (v :: *) = ConvTeamInfo
   { cnvTeamId :: TeamId
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvTeamInfo
+  deriving (Arbitrary) via (GenericUniform (ConvTeamInfo v))
 
-instance ToSchema ConvTeamInfo where
+deriving via
+  Schema (ConvTeamInfo (Until 'V2))
+  instance
+    FromJSON (ConvTeamInfo (Until 'V2))
+
+deriving via
+  Schema (ConvTeamInfo (Until 'V2))
+  instance
+    ToJSON (ConvTeamInfo (Until 'V2))
+
+deriving via
+  Schema (ConvTeamInfo (From 'V2))
+  instance
+    FromJSON (ConvTeamInfo (From 'V2))
+
+deriving via
+  Schema (ConvTeamInfo (From 'V2))
+  instance
+    ToJSON (ConvTeamInfo (From 'V2))
+
+deriving via
+  Schema (ConvTeamInfo (Until 'V2))
+  instance
+    S.ToSchema (ConvTeamInfo (Until 'V2))
+
+deriving via
+  Schema (ConvTeamInfo (From 'V2))
+  instance
+    S.ToSchema (ConvTeamInfo (From 'V2))
+
+instance ToSchema (ConvTeamInfo (Until 'V2)) where
   schema =
     objectWithDocModifier
       "ConvTeamInfo"
@@ -740,13 +813,19 @@ instance ToSchema ConvTeamInfo where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
+instance ToSchema (ConvTeamInfo (From 'V2)) where
+  schema =
+    objectWithDocModifier
+      "ConvTeamInfo"
+      (description ?~ "Team information")
+      $ ConvTeamInfo
+        <$> cnvTeamId .= field "teamid" schema
+
 modelTeamInfo :: Doc.Model
 modelTeamInfo = Doc.defineModel "TeamInfo" $ do
   Doc.description "Team information"
   Doc.property "teamid" Doc.bytes' $
     Doc.description "Team ID"
-  Doc.property "managed" Doc.bool' $
-    Doc.description "Is this a managed team conversation?"
 
 --------------------------------------------------------------------------------
 -- invite
