@@ -20,9 +20,14 @@
 module Wire.API.MLS.Credential where
 
 import Data.Binary
+import Data.Binary.Get
+import Data.Binary.Parser
+import Data.Binary.Parser.Char8
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import qualified Data.Text as T
+import Data.UUID
 import Imports
 import Wire.API.MLS.Serialisation
 
@@ -68,7 +73,19 @@ data ClientIdentity = ClientIdentity
     ciClient :: ClientId
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ParseMLS) via (BinaryMLS ClientIdentity)
+
+instance ParseMLS ClientIdentity where
+  parseMLS = do
+    uid <-
+      maybe (fail "Invalid UUID") (pure . Id)
+        =<< fmap fromASCIIBytes (getByteString 36)
+    char ':'
+    cid <- newClientId <$> hexadecimal
+    char '@'
+    dom <-
+      either fail pure
+        =<< fmap (mkDomain . T.pack) (many' anyChar)
+    pure $ ClientIdentity dom uid cid
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
 mkClientIdentity (Qualified uid domain) cid = ClientIdentity domain uid cid

@@ -159,6 +159,7 @@ library
     , base ==4.*
     , base64-bytestring >=1.0
     , binary
+    , binary-parsers
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive

@@ -29,6 +29,7 @@ library:
   - attoparsec >=0.10
   - base64-bytestring >=1.0
   - binary
+  - binary-parsers
   - bytestring >=0.9
   - bytestring-conversion >=0.2
   - cassandra-util

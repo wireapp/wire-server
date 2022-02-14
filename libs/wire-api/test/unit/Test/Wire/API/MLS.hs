@@ -17,9 +17,12 @@
 
 module Test.Wire.API.MLS where
 
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import Data.Hex
+import Data.Domain
+import Data.Id
 import qualified Data.Text as T
+import qualified Data.UUID as UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -42,7 +45,13 @@ testParseKeyPackage = do
     Right (kpTBS -> kp) -> do
       kpProtocolVersion kp @?= ProtocolMLS
       kpCipherSuite kp @?= CipherSuite 1
-      Right (kpInitKey kp) @?= unhex "f64f318b7dabe574d2dd63a7eea92536411fa62fdec935c5be9e5afe3e1e800e"
+      BS.length (kpInitKey kp) @?= 32
       case decodeMLS' @ClientIdentity (bcIdentity (kpCredential kp)) of
         Left err -> assertFailure $ "Failed to parse identity: " <> T.unpack err
-        Right identity -> print identity
+        Right identity ->
+          identity
+            @?= ClientIdentity
+              { ciDomain = Domain "mls.example.com",
+                ciUser = Id (fromJust (UUID.fromString "b455a431-9db6-4404-86e7-6a3ebe73fcaf")),
+                ciClient = newClientId 0x3ae58155
+              }
