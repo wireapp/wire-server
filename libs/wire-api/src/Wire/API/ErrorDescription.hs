@@ -372,9 +372,3 @@ type BroadcastLimitExceeded =
     "Too many users to fan out the broadcast event to."
 
 type InvalidAction = ErrorDescription 403 "invalid-actions" "The specified actions are invalid."
-
-type SecondFactorAuthDisabled =
-  ErrorDescription
-    403
-    "second-factor-auth-disabled"
-    "Second factor authentication is disabled for this account."
