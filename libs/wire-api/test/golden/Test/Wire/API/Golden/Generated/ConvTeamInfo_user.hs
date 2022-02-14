@@ -19,12 +19,11 @@ module Test.Wire.API.Golden.Generated.ConvTeamInfo_user where
 
 import Data.Id (Id (Id))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False), fromJust)
+import Imports (fromJust)
 import Wire.API.Conversation (ConvTeamInfo (..))
 
 testObject_ConvTeamInfo_user_1 :: ConvTeamInfo
 testObject_ConvTeamInfo_user_1 =
   ConvTeamInfo
-    { cnvTeamId = Id (fromJust (UUID.fromString "0000003f-0000-0059-0000-002200000028")),
-      cnvManaged = False
+    { cnvTeamId = Id (fromJust (UUID.fromString "0000003f-0000-0059-0000-002200000028"))
     }

@@ -321,13 +321,6 @@ internalSitemap = do
       .&. capture "usr"
 
   -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/i/conversations/managed" (continue Create.internalCreateManagedConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @NewConvManaged
-
-  -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before
   -- - MemberJoin event to other, if the conversation existed and only the other was member
   --   before

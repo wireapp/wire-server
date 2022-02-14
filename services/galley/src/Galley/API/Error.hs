@@ -68,7 +68,6 @@ data ActionError
   | InvalidOp ConvType
   | OperationDenied String
   | NotConnected
-  | NoAddToManaged
   | BroadcastLimitExceeded
   | InvalidTeamStatusUpdate
   | InvalidPermissions
@@ -85,7 +84,6 @@ instance APIError ActionError where
   toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
   toWai InvalidTargetUserOp = invalidTargetUserOp
-  toWai NoAddToManaged = noAddToManaged
   toWai BroadcastLimitExceeded = errorDescriptionTypeToWai @BroadcastLimitExceeded
   toWai InvalidTeamStatusUpdate = invalidTeamStatusUpdate
   toWai InvalidPermissions = invalidPermissions
@@ -121,7 +119,6 @@ data ConversationError
   | TooManyMembers
   | ConvMemberNotFound
   | NoBindingTeamMembers
-  | NoManagedTeamConv
   | GuestLinksDisabled
 
 instance APIError ConversationError where
@@ -130,7 +127,6 @@ instance APIError ConversationError where
   toWai TooManyMembers = errorDescriptionTypeToWai @TooManyMembers
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
-  toWai NoManagedTeamConv = noManagedTeamConv
   toWai GuestLinksDisabled = guestLinksDisabled
 
 data TeamError
@@ -367,9 +363,6 @@ bulkGetMemberLimitExceeded =
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
-noAddToManaged :: Error
-noAddToManaged = mkError status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
-
 invalidPermissions :: Error
 invalidPermissions = mkError status403 "invalid-permissions" "The specified permissions are invalid."
 
@@ -384,9 +377,6 @@ tooManyTeamMembersOnTeamWithLegalhold = mkError status403 "too-many-members-for-
 
 teamMemberNotFound :: Error
 teamMemberNotFound = mkError status404 "no-team-member" "team member not found"
-
-noManagedTeamConv :: Error
-noManagedTeamConv = mkError status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
 
 guestLinksDisabled :: Error
 guestLinksDisabled = mkError status409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."

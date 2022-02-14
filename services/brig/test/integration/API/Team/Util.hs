@@ -36,7 +36,7 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
-import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvManaged (..), NewConvUnmanaged (..))
+import Galley.Types (ConvTeamInfo (..), NewConv (..))
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -209,36 +209,13 @@ updatePermissions from tid (to, perm) galley =
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do
-  let tinfo = Just $ ConvTeamInfo tid False
+  let tinfo = Just $ ConvTeamInfo tid
   let conv =
-        NewConvUnmanaged $
-          NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g
           . path "/conversations"
-          . zUser u
-          . zConn "conn"
-          . contentJson
-          . lbytes (encode conv)
-      )
-      <!! const 201
-      === statusCode
-  maybe (error "invalid conv id") return $
-    fromByteString $
-      getHeader' "Location" r
-
--- See Note [managed conversations]
-createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
-createManagedConv g tid u us mtimer = do
-  let tinfo = Just $ ConvTeamInfo tid True
-  let conv =
-        NewConvManaged $
-          NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
-  r <-
-    post
-      ( g
-          . path "/i/conversations/managed"
           . zUser u
           . zConn "conn"
           . contentJson

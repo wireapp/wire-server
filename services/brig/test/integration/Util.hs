@@ -674,7 +674,7 @@ getConversationQualified galley usr cnv =
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
-  let conv = NewConvUnmanaged $ NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   post $
     galley
       . path "/conversations"

@@ -80,7 +80,6 @@ module Galley.Types.Teams
     TeamConversation,
     newTeamConversation,
     conversationId,
-    managedConversation,
     TeamConversationList,
     newTeamConversationList,
     teamConversations,

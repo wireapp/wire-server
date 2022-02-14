@@ -51,14 +51,14 @@ selectTeamBinding = "select binding from team where team = ?"
 selectTeamBindingWritetime :: PrepQuery R (Identity TeamId) (Identity (Maybe Int64))
 selectTeamBindingWritetime = "select writetime(binding) from team where team = ?"
 
-selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity Bool)
-selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
+selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity ConvId)
+selectTeamConv = "select conv from team_conv where team = ? and conv = ?"
 
-selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
-selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
+selectTeamConvs :: PrepQuery R (Identity TeamId) (Identity ConvId)
+selectTeamConvs = "select conv from team_conv where team = ? order by conv"
 
-selectTeamConvsFrom :: PrepQuery R (TeamId, ConvId) (ConvId, Bool)
-selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
+selectTeamConvsFrom :: PrepQuery R (TeamId, ConvId) (Identity ConvId)
+selectTeamConvsFrom = "select conv from team_conv where team = ? and conv > ? order by conv"
 
 selectTeamMember ::
   PrepQuery
@@ -138,8 +138,8 @@ selectUserTeamsFrom = "select team from user_team where user = ? and team > ? or
 insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 
-insertTeamConv :: PrepQuery W (TeamId, ConvId, Bool) ()
-insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"
+insertTeamConv :: PrepQuery W (TeamId, ConvId) ()
+insertTeamConv = "insert into team_conv (team, conv) values (?, ?)"
 
 deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
 deleteTeamConv = "delete from team_conv where team = ? and conv = ?"

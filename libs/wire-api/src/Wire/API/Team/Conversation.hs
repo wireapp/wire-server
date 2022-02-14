@@ -24,7 +24,6 @@ module Wire.API.Team.Conversation
     TeamConversation,
     newTeamConversation,
     conversationId,
-    managedConversation,
 
     -- * TeamConversationList
     TeamConversationList,
@@ -49,9 +48,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --------------------------------------------------------------------------------
 -- TeamConversation
 
-data TeamConversation = TeamConversation
-  { _conversationId :: ConvId,
-    _managedConversation :: Bool
+newtype TeamConversation = TeamConversation
+  { _conversationId :: ConvId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamConversation)
@@ -59,20 +57,15 @@ data TeamConversation = TeamConversation
 instance ToSchema TeamConversation where
   declareNamedSchema _ = do
     idSchema <- declareSchemaRef (Proxy @ConvId)
-    let managed =
-          toSchema (Proxy @Bool)
-            & description ?~ "Indicates if this is a managed team conversation."
     pure $
       NamedSchema (Just "TeamConversation") $
         mempty
           & description ?~ "team conversation data"
           & over
             properties
-            ( (at "managed" ?~ Inline managed)
-                . (at "conversation" ?~ idSchema)
-            )
+            (at "conversation" ?~ idSchema)
 
-newTeamConversation :: ConvId -> Bool -> TeamConversation
+newTeamConversation :: ConvId -> TeamConversation
 newTeamConversation = TeamConversation
 
 modelTeamConversation :: Doc.Model
@@ -80,19 +73,18 @@ modelTeamConversation = Doc.defineModel "TeamConversation" $ do
   Doc.description "team conversation data"
   Doc.property "conversation" Doc.bytes' $
     Doc.description "conversation ID"
-  Doc.property "managed" Doc.bool' $
-    Doc.description "Indicates if this is a managed team conversation."
 
 instance ToJSON TeamConversation where
   toJSON t =
     object
       [ "conversation" .= _conversationId t,
-        "managed" .= _managedConversation t
+        -- FUTUREWORK: get rid of the "managed" field in the next version of the API
+        "managed" .= False
       ]
 
 instance FromJSON TeamConversation where
   parseJSON = withObject "team conversation" $ \o ->
-    TeamConversation <$> o .: "conversation" <*> o .: "managed"
+    TeamConversation <$> o .: "conversation"
 
 --------------------------------------------------------------------------------
 -- TeamConversationList
