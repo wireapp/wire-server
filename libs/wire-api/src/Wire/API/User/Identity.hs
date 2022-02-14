@@ -26,6 +26,7 @@ module Wire.API.User.Identity
     emailIdentity,
     phoneIdentity,
     ssoIdentity,
+    maybeUserIdentityFromComponents,
 
     -- * Email
     Email (..),
@@ -46,7 +47,6 @@ module Wire.API.User.Identity
     emailFromSAMLNameID,
     mkSampleUref,
     mkSimpleSampleUref,
-    maybeUserIdentityObjectSchema,
   )
 where
 

@@ -85,9 +85,6 @@ module Wire.API.User
     -- * List Users
     ListUsersQuery (..),
 
-    -- * helpers
-    parseIdentity,
-
     -- * re-exports
     module Wire.API.User.Identity,
     module Wire.API.User.Profile,
@@ -109,7 +106,7 @@ where
 
 import Control.Applicative
 import Control.Error.Safe (rightMay)
-import Control.Lens (dimap, over, view, (.~), (?~), _1, _2, _3, _4)
+import Control.Lens (over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
@@ -637,52 +634,104 @@ emptyNewUser name =
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
 
--- | 'bind'/'dispatch' needs an Enum.
-newtype EnumBoolPair = EnumBoolPair {boolUnpair :: (Bool, Bool)}
-  deriving (Bounded)
+-- | Raw representation of 'NewUser' to help with writing Schema instances.
+data NewUserRaw = NewUserRaw
+  { newUserRawDisplayName :: Name,
+    newUserRawUUID :: Maybe UUID,
+    newUserRawEmail :: Maybe Email,
+    newUserRawPhone :: Maybe Phone,
+    newUserRawSSOId :: Maybe UserSSOId,
+    -- | DEPRECATED
+    newUserRawPict :: Maybe Pict,
+    newUserRawAssets :: [Asset],
+    newUserRawAccentId :: Maybe ColourId,
+    newUserRawEmailCode :: Maybe ActivationCode,
+    newUserRawPhoneCode :: Maybe ActivationCode,
+    newUserRawInvitationCode :: Maybe InvitationCode,
+    newUserRawTeamCode :: Maybe InvitationCode,
+    newUserRawTeam :: Maybe BindingNewTeamUser,
+    newUserRawTeamId :: Maybe TeamId,
+    newUserRawLabel :: Maybe CookieLabel,
+    newUserRawLocale :: Maybe Locale,
+    newUserRawPassword :: Maybe PlainTextPassword,
+    newUserRawExpiresIn :: Maybe ExpiresIn
+  }
 
--- TODO: Test for lawfulness
-instance Enum EnumBoolPair where
-  toEnum n
-    | n < 2 = EnumBoolPair (toEnum n, False)
-    | otherwise = EnumBoolPair (toEnum (n - 2), True)
-  fromEnum (EnumBoolPair (b1, b2)) = fromEnum b1 + fromEnum b2
+newUserRawObjectSchema :: ObjectSchema SwaggerDoc NewUserRaw
+newUserRawObjectSchema =
+  NewUserRaw
+    <$> newUserRawDisplayName .= field "name" schema
+    <*> newUserRawUUID .= maybe_ (optField "uuid" genericToSchema)
+    <*> newUserRawEmail .= maybe_ (optField "email" schema)
+    <*> newUserRawPhone .= maybe_ (optField "phone" schema)
+    <*> newUserRawSSOId .= maybe_ (optField "sso_id" genericToSchema)
+    <*> newUserRawPict .= maybe_ (optField "picture" schema)
+    <*> newUserRawAssets .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> newUserRawAccentId .= maybe_ (optField "accent_id" schema)
+    <*> newUserRawEmailCode .= maybe_ (optField "email_code" schema)
+    <*> newUserRawPhoneCode .= maybe_ (optField "phone_code" schema)
+    <*> newUserRawInvitationCode .= maybe_ (optField "invitation_code" schema)
+    <*> newUserRawTeamCode .= maybe_ (optField "team_code" schema)
+    <*> newUserRawTeam .= maybe_ (optField "team" schema)
+    <*> newUserRawTeamId .= maybe_ (optField "team_id" schema)
+    <*> newUserRawLabel .= maybe_ (optField "label" schema)
+    <*> newUserRawLocale .= maybe_ (optField "locale" schema)
+    <*> newUserRawPassword .= maybe_ (optField "password" schema)
+    <*> newUserRawExpiresIn .= maybe_ (optField "expires_in" schema)
 
-enumBoolPairSchema :: (Monoid doc, Monoid w) => SchemaP doc v w Bool Bool -> SchemaP doc v w Bool Bool -> SchemaP doc v w EnumBoolPair EnumBoolPair
-enumBoolPairSchema sch1 sch2 =
-  dimap boolUnpair EnumBoolPair $
-    (,)
-      <$> fst .= sch1
-      <*> snd .= sch2
-
-mkEnumBoolPair :: Bool -> Bool -> EnumBoolPair
-mkEnumBoolPair b1 b2 = EnumBoolPair (b1, b2)
-
--- TODO: Maybe bind/dispatch is not needed?
 instance ToSchema NewUser where
   schema =
-    object "NewUser"
-      . dimap (\nu -> (mkEnumBoolPair (isJust (newUserPassword nu)) (isJust (newUserSSOId nu)), nu)) snd
-      $ bind
-        (fst .= enumBoolPairSchema (isJust <$> optField "password" schema) (isJust <$> optField "sso_id" schema))
-        (snd .= dispatch newUserObjectSchema)
-    where
-      newUserObjectSchema (EnumBoolPair (hasPassword, hasSSO)) =
-        NewUser
-          <$> newUserDisplayName .= field "name" schema
-          <*> newUserUUID .= maybe_ (optField "uuid" genericToSchema)
-          <*> newUserIdentity .= maybeUserIdentityObjectSchema
-          <*> newUserPict .= maybe_ (optField "picture" schema)
-          <*> newUserAssets .= (fromMaybe [] <$> optField "assets" (array schema))
-          <*> newUserAccentId .= maybe_ (optField "accent_id" schema)
-          <*> newUserEmailCode .= maybe_ (optField "email_code" schema)
-          <*> newUserPhoneCode .= maybe_ (optField "phone_code" schema)
-          <*> newUserOrigin .= maybeNewUserOriginObjectSchema hasPassword hasSSO
-          <*> newUserLabel .= maybe_ (optField "label" schema)
-          <*> newUserLocale .= maybe_ (optField "locale" schema)
-          <*> newUserPassword .= maybe_ (optField "password" schema)
-          <*> newUserExpiresIn .= maybe_ (optField "expires_in" schema)
-          <*> newUserManagedBy .= pure Nothing
+    object "NewUser" $ newUserToRaw .= withParser newUserRawObjectSchema newUserFromRaw
+
+newUserToRaw :: NewUser -> NewUserRaw
+newUserToRaw NewUser {..} =
+  let maybeOriginNTU = newUserOriginNewTeamUser =<< newUserOrigin
+   in NewUserRaw
+        { newUserRawDisplayName = newUserDisplayName,
+          newUserRawUUID = newUserUUID,
+          newUserRawEmail = emailIdentity =<< newUserIdentity,
+          newUserRawPhone = phoneIdentity =<< newUserIdentity,
+          newUserRawSSOId = ssoIdentity =<< newUserIdentity,
+          newUserRawPict = newUserPict,
+          newUserRawAssets = newUserAssets,
+          newUserRawAccentId = newUserAccentId,
+          newUserRawEmailCode = newUserEmailCode,
+          newUserRawPhoneCode = newUserPhoneCode,
+          newUserRawInvitationCode = newUserOriginInvitationCode =<< newUserOrigin,
+          newUserRawTeamCode = newTeamUserCode =<< maybeOriginNTU,
+          newUserRawTeam = newTeamUserCreator =<< maybeOriginNTU,
+          newUserRawTeamId = newTeamUserTeamId =<< maybeOriginNTU,
+          newUserRawLabel = newUserLabel,
+          newUserRawLocale = newUserLocale,
+          newUserRawPassword = newUserPassword,
+          newUserRawExpiresIn = newUserExpiresIn
+        }
+
+newUserFromRaw :: NewUserRaw -> A.Parser NewUser
+newUserFromRaw NewUserRaw {..} = do
+  origin <-
+    eitherToParser $
+      maybeNewUserOriginFromComponents
+        (isJust newUserRawPassword)
+        (isJust newUserRawSSOId)
+        (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
+  pure $
+    NewUser
+      { newUserDisplayName = newUserRawDisplayName,
+        newUserUUID = newUserRawUUID,
+        newUserIdentity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId),
+        newUserPict = newUserRawPict,
+        newUserAssets = newUserRawAssets,
+        newUserAccentId = newUserRawAccentId,
+        newUserEmailCode = newUserRawEmailCode,
+        newUserPhoneCode = newUserRawPhoneCode,
+        newUserOrigin = origin,
+        newUserLabel = newUserRawLabel,
+        newUserLocale = newUserRawLocale,
+        newUserPassword = newUserRawPassword,
+        newUserExpiresIn = newUserRawExpiresIn,
+        newUserManagedBy = Nothing
+      }
 
 -- FUTUREWORK: align more with FromJSON instance?
 instance Arbitrary NewUser where
@@ -755,36 +804,15 @@ data NewUserOrigin
 
 type NewUserOriginComponents = (Maybe InvitationCode, Maybe InvitationCode, Maybe BindingNewTeamUser, Maybe TeamId)
 
-maybeNewUserOriginObjectSchema ::
-  -- | Has password
-  Bool ->
-  -- | Has SSOId
-  Bool ->
-  ObjectSchema SwaggerDoc (Maybe NewUserOrigin)
-maybeNewUserOriginObjectSchema hasPassword hasSSO =
-  flip withParser eitherToParser $
-    dimap
-      maybeNewUserOriginToComponents
-      (maybeNewUserOriginFromComponents hasPassword hasSSO)
-      newUserOriginComponentsObjectSchema
+newUserOriginInvitationCode :: NewUserOrigin -> Maybe InvitationCode
+newUserOriginInvitationCode = \case
+  NewUserOriginInvitationCode ic -> Just ic
+  NewUserOriginTeamUser _ -> Nothing
 
-newUserOriginComponentsObjectSchema :: ObjectSchema SwaggerDoc NewUserOriginComponents
-newUserOriginComponentsObjectSchema =
-  (,,,)
-    <$> view _1 .= maybe_ (optField "invitation_code" schema)
-    <*> view _2 .= maybe_ (optField "team_code" schema)
-    <*> view _3 .= maybe_ (optField "team" schema)
-    <*> view _4 .= maybe_ (optField "team_id" schema)
-
-maybeNewUserOriginToComponents :: Maybe NewUserOrigin -> NewUserOriginComponents
-maybeNewUserOriginToComponents =
-  \case
-    Nothing -> (Nothing, Nothing, Nothing, Nothing)
-    Just (NewUserOriginInvitationCode ic) -> (Just ic, Nothing, Nothing, Nothing)
-    Just (NewUserOriginTeamUser ntu) -> case ntu of
-      NewTeamMember tc -> (Nothing, Just tc, Nothing, Nothing)
-      NewTeamCreator bntu -> (Nothing, Nothing, Just bntu, Nothing)
-      NewTeamMemberSSO tid -> (Nothing, Nothing, Nothing, Just tid)
+newUserOriginNewTeamUser :: NewUserOrigin -> Maybe NewTeamUser
+newUserOriginNewTeamUser = \case
+  NewUserOriginInvitationCode _ -> Nothing
+  NewUserOriginTeamUser ntu -> Just ntu
 
 maybeNewUserOriginFromComponents ::
   -- | Does the user have a password
@@ -839,6 +867,24 @@ data NewTeamUser
     NewTeamMemberSSO TeamId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewTeamUser)
+
+newTeamUserCode :: NewTeamUser -> Maybe InvitationCode
+newTeamUserCode = \case
+  NewTeamMember ic -> Just ic
+  NewTeamCreator _ -> Nothing
+  NewTeamMemberSSO _ -> Nothing
+
+newTeamUserCreator :: NewTeamUser -> Maybe BindingNewTeamUser
+newTeamUserCreator = \case
+  NewTeamMember _ -> Nothing
+  NewTeamCreator bntu -> Just bntu
+  NewTeamMemberSSO _ -> Nothing
+
+newTeamUserTeamId :: NewTeamUser -> Maybe TeamId
+newTeamUserTeamId = \case
+  NewTeamMember _ -> Nothing
+  NewTeamCreator _ -> Nothing
+  NewTeamMemberSSO tid -> Just tid
 
 data BindingNewTeamUser = BindingNewTeamUser
   { bnuTeam :: BindingNewTeam,
