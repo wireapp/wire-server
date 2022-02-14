@@ -4,25 +4,20 @@
 # hack/helm_vars as overrrides, if available.  This allows debugging helm
 # templating issues without actually installing anything, and without needing
 # access to a kubernetes cluster
-USAGE="Usage: $0"
 
 set -e
-
-chart=${1:?$USAGE}
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
+: "${FEDERATION_DOMAIN:=example.com}"
+: "${NAMESPACE:=namespace1}"
 
-valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
-certificatesfile="${DIR}/../helm_vars/${chart}/certificates.yaml"
-declare -a options=()
-if [ -f "$valuesfile" ]; then
-    options+=(-f "$valuesfile")
-fi
-if [ -f "$certificatesfile" ]; then
-    options+=(-f "$certificatesfile")
+export FEDERATION_DOMAIN
+export NAMESPACE
+
+if [ ! -f "$DIR/../helm_vars/wire-server/certificates-namespace1.yaml" ]; then
+  "$DIR/selfsigned-kubernetes.sh" namespace1
 fi
 
-"$DIR/update.sh" "$CHARTS_DIR/$chart"
-helm template $"chart" "$CHARTS_DIR/$chart" ${options[*]}
+helmfile -f "$DIR/../helmfile-single.yaml" template "$@"
