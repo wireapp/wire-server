@@ -23,3 +23,6 @@ import Wire.API.User (SecondFactorAuthAction (..))
 
 testObject_SecondFactorAuthAction_user_1 :: SecondFactorAuthAction
 testObject_SecondFactorAuthAction_user_1 = GenerateScimToken
+
+testObject_SecondFactorAuthAction_user_2 :: SecondFactorAuthAction
+testObject_SecondFactorAuthAction_user_2 = Login
