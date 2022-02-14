@@ -82,7 +82,7 @@ claimMultiPrekeyBundle domain uc = do
 
 searchUsers :: Domain -> SearchRequest -> FederationAppIO [Public.Contact]
 searchUsers domain searchTerm = do
-  Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
+  Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated @"search-users" domain searchTerm
 
 getUserClients :: Domain -> GetUserClients -> FederationAppIO (UserMap (Set PubClient))

@@ -157,7 +157,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
   esResult <-
     if esMaxResults > 0
-      then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
+      then Q.searchIndex (Just searcherId) (Just teamSearchInfo) searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 []
 
   -- Prepend results matching exact handle and results from ES.

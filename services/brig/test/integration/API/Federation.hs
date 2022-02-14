@@ -42,7 +42,7 @@ import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
-import Data.Aeson (encode)
+import Data.Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
@@ -54,8 +54,7 @@ import Data.Timeout
 import qualified Data.UUID.V4 as UUIDv4
 import Federation.Util (generateClientPrekeys)
 import Imports
-import Test.QuickCheck (arbitrary)
-import Test.QuickCheck.Gen (generate)
+import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertEqual, assertFailure)
@@ -74,6 +73,8 @@ tests m opts brig cannon fedBrigClient =
     testGroup
       "federation"
       [ test m "POST /federation/search-users : Found" (testSearchSuccess brig fedBrigClient),
+        test m "POST /federation/search-users : Found (fulltext)" (testFulltextSearchSuccess brig fedBrigClient),
+        test m "POST /federation/search-users : Found (multiple users)" (testFulltextSearchMultipleUsers brig fedBrigClient),
         test m "POST /federation/search-users : NotFound" (testSearchNotFound fedBrigClient),
         test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
         test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
@@ -92,17 +93,45 @@ tests m opts brig cannon fedBrigClient =
 testSearchSuccess :: Brig -> FedClient 'Brig -> Http ()
 testSearchSuccess brig fedBrigClient = do
   (handle, user) <- createUserWithHandle brig
+  refreshIndex brig
+
   let quid = userQualifiedId user
 
-  -- create another user with a similar handle and the same display name
-  -- That user should not be returned in search results.
-  -- (as federated search should only search for exact handle matches)
+  searchResult <-
+    runFedClient @"search-users" fedBrigClient (Domain "example.com") $
+      SearchRequest (fromHandle handle)
+  liftIO $ do
+    let contacts = contactQualifiedId <$> searchResult
+    assertEqual "should return the user id" [quid] contacts
+
+testFulltextSearchSuccess :: Brig -> FedClient 'Brig -> Http ()
+testFulltextSearchSuccess brig fedBrigClient = do
+  (_, user) <- createUserWithHandle brig
+  refreshIndex brig
+
+  let quid = userQualifiedId user
+
+  searchResult <-
+    runFedClient @"search-users" fedBrigClient (Domain "example.com") $
+      SearchRequest ((fromName . userDisplayName) user)
+  liftIO $ do
+    let contacts = contactQualifiedId <$> searchResult
+    assertEqual "should return the user id" [quid] contacts
+
+testFulltextSearchMultipleUsers :: Brig -> FedClient 'Brig -> Http ()
+testFulltextSearchMultipleUsers brig fedBrigClient = do
+  (handle, user) <- createUserWithHandle brig
+
+  let quid = userQualifiedId user
+
+  -- Create another user with a display name matching the first user's handle.
+  -- Both users should be returned in search results when freetext search is enabled.
   identityThief <- randomUser brig
-  void $ putHandle brig (userId identityThief) (fromHandle handle <> "a")
   update'' :: UserUpdate <- liftIO $ generate arbitrary
   let update' = update'' {uupName = Just (Name (fromHandle handle))}
       update = RequestBodyLBS . encode $ update'
   put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
+
   refreshIndex brig
 
   searchResult <-
@@ -110,7 +139,7 @@ testSearchSuccess brig fedBrigClient = do
       SearchRequest (fromHandle handle)
   liftIO $ do
     let contacts = contactQualifiedId <$> searchResult
-    assertEqual "should return only the first user id but not the identityThief" [quid] contacts
+    assertEqual "should find both users" (sort [quid, userQualifiedId identityThief]) (sort contacts)
 
 testSearchNotFound :: FedClient 'Brig -> Http ()
 testSearchNotFound fedBrigClient = do
