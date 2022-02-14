@@ -1168,7 +1168,7 @@ instance ToSchema SecondFactorAuthAction where
   schema =
     enum @Text "SecondFactorAuthAction" $
       mconcat
-        [ element "generate-scim-token" GenerateScimToken,
+        [ element "generate_scim_token" GenerateScimToken,
           element "login" Login
         ]
 
