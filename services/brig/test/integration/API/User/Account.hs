@@ -1072,7 +1072,7 @@ testPasswordChange brig = do
   put (brig . path "/self/password" . contentJson . zUser uid . body pwChange)
     !!! const 200 === statusCode
   -- login with new password
-  login brig (PasswordLogin (LoginByEmail email) newPass Nothing) PersistentCookie
+  login brig (PasswordLogin (LoginByEmail email) newPass Nothing Nothing) PersistentCookie
     !!! const 200 === statusCode
   -- try to change the password to itself should fail
   put (brig . path "/self/password" . contentJson . zUser uid . body pwChange')

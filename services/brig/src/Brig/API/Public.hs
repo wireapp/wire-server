@@ -226,7 +226,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
 
     secondFactorAuthAPI :: ServerT SecondFactorAuthAPI Handler
     secondFactorAuthAPI =
-      Named @"send-verification-code" undefined
+      Named @"send-verification-code" (const sendVerificationCode)
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1063,6 +1063,11 @@ activate (Public.Activate tgt code dryrun)
   where
     respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
+
+-- Verification
+
+sendVerificationCode :: Handler ()
+sendVerificationCode = pure ()
 
 -- Deprecated
 

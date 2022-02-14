@@ -368,7 +368,7 @@ data CreateScimToken = CreateScimToken
     -- | User password, which we ask for because creating a token is a "powerful" operation
     createScimTokenPassword :: !(Maybe PlainTextPassword),
     -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
-    createScimTokenCode :: !(Maybe ActivationCode) -- TODO: i think there is a data type for this.
+    createScimTokenCode :: !(Maybe ActivationCode)
   }
   deriving (Eq, Show)
 

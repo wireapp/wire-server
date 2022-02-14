@@ -110,7 +110,7 @@ lookupLoginCode phone =
       Data.lookupLoginCode u
 
 login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
-login (PasswordLogin li pw label) typ = do
+login (PasswordLogin li pw label _) typ = do
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   checkRetryLimit uid

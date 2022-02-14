@@ -54,7 +54,7 @@ changeEmailBrig brig usr newEmail = do
   changeEmailBrigCreds brig cky tok newEmail
   where
     emailLogin :: Email -> Misc.PlainTextPassword -> Maybe Auth.CookieLabel -> Auth.Login
-    emailLogin e = Auth.PasswordLogin (Auth.LoginByEmail e)
+    emailLogin e pw cl = Auth.PasswordLogin (Auth.LoginByEmail e) pw cl Nothing
 
     login :: Auth.Login -> Auth.CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
     login l t =

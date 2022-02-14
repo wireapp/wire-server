@@ -670,9 +670,7 @@ type ConnectionAPI =
 type SecondFactorAuthAPI =
   Named
     "send-verification-code"
-    ( Summary "Send a verification code to a user's email address"
-        :> CanThrow SecondFactorAuthDisabled
-        :> ZUser
+    ( Summary "Send a verification code to a given email address."
         :> "verification-code"
         :> "send"
         :> ReqBody '[JSON] SendVerificationCode

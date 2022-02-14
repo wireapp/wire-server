@@ -1174,9 +1174,12 @@ instance ToSchema SecondFactorAuthAction where
           element "login" Login
         ]
 
-newtype SendVerificationCode = SendVerificationCode {svcAction :: SecondFactorAuthAction}
+data SendVerificationCode = SendVerificationCode
+  { svcAction :: SecondFactorAuthAction,
+    svcEmail :: Email
+  }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving (Arbitrary) via (GenericUniform SendVerificationCode)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema SendVerificationCode
 
 instance ToSchema SendVerificationCode where
@@ -1184,3 +1187,4 @@ instance ToSchema SendVerificationCode where
     object "SendVerificationCode" $
       SendVerificationCode
         <$> svcAction .= field "action" schema
+        <*> svcEmail .= field "email" schema

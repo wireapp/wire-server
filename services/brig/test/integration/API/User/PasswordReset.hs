@@ -55,7 +55,7 @@ testPasswordReset brig = do
   -- try login
   login brig (defEmailLogin email) PersistentCookie
     !!! const 403 === statusCode
-  login brig (PasswordLogin (LoginByEmail email) newpw Nothing) PersistentCookie
+  login brig (PasswordLogin (LoginByEmail email) newpw Nothing Nothing) PersistentCookie
     !!! const 200 === statusCode
   -- reset password again to the same new password, get 400 "must be different"
   do
