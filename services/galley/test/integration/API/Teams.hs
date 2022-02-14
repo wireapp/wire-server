@@ -1203,6 +1203,8 @@ testUpdateTeamIconValidation = do
             "icon" .= String "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
           ]
   update payloadWithValidIcon 200
+  let payloadSetIconToDefault = object ["icon" .= String "default"]
+  update payloadSetIconToDefault 200
 
 testUpdateTeam :: TestM ()
 testUpdateTeam = do
