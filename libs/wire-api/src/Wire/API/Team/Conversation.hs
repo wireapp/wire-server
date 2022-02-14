@@ -48,7 +48,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --------------------------------------------------------------------------------
 -- TeamConversation
 
-data TeamConversation = TeamConversation
+newtype TeamConversation = TeamConversation
   { _conversationId :: ConvId
   }
   deriving stock (Eq, Show, Generic)
