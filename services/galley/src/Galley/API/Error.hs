@@ -68,7 +68,6 @@ data ActionError
   | InvalidOp ConvType
   | OperationDenied String
   | NotConnected
-  | NoAddToManaged
   | BroadcastLimitExceeded
   | InvalidTeamStatusUpdate
   | InvalidPermissions
@@ -85,7 +84,6 @@ instance APIError ActionError where
   toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
   toWai InvalidTargetUserOp = invalidTargetUserOp
-  toWai NoAddToManaged = noAddToManaged
   toWai BroadcastLimitExceeded = errorDescriptionTypeToWai @BroadcastLimitExceeded
   toWai InvalidTeamStatusUpdate = invalidTeamStatusUpdate
   toWai InvalidPermissions = invalidPermissions
@@ -364,9 +362,6 @@ bulkGetMemberLimitExceeded =
     status400
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
-
-noAddToManaged :: Error
-noAddToManaged = mkError status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
 
 invalidPermissions :: Error
 invalidPermissions = mkError status403 "invalid-permissions" "The specified permissions are invalid."

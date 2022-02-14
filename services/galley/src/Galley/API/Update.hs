@@ -93,7 +93,6 @@ import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.ServiceStore as E
-import qualified Galley.Effects.TeamStore as E
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
@@ -1428,7 +1427,6 @@ addBot lusr zcon b = do
   c <-
     E.getConversation (b ^. addBotConv) >>= note ConvNotFound
   -- Check some preconditions on adding bots to a conversation
-  for_ (Data.convTeam c) $ teamConvChecks (b ^. addBotConv)
   (bots, users) <- regularConvChecks c
   t <- input
   E.createClient (botUserId (b ^. addBotId)) (b ^. addBotClient)
@@ -1462,10 +1460,6 @@ addBot lusr zcon b = do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
       return (bots, users)
-    teamConvChecks :: ConvId -> TeamId -> Sem r ()
-    teamConvChecks cid tid = do
-      tcv <- E.getTeamConversation tid cid
-      when (isNothing tcv) $ throw NoAddToManaged
 
 rmBotH ::
   Members
