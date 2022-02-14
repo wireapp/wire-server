@@ -1,0 +1,1 @@
+Conversation endpoints no longer support the `managed` flag in their JSON form
