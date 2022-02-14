@@ -72,9 +72,8 @@ where
 import Control.Lens (makeLenses)
 import Data.Aeson (FromJSON, ToJSON, Value (..))
 import Data.Aeson.Types (Parser)
-import qualified Data.Attoparsec.ByteString as Atto (string)
+import qualified Data.Attoparsec.ByteString as Atto (Parser, string)
 import Data.Attoparsec.Combinator (choice)
-import qualified Data.Attoparsec.Internal.Types as Atto
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
@@ -268,7 +267,7 @@ data IconUpdate = IconUpdate AssetKey | DefaultIcon
 instance FromByteString IconUpdate where
   parser =
     choice
-      [ IconUpdate <$> (parser :: Atto.Parser ByteString AssetKey),
+      [ IconUpdate <$> (parser :: Atto.Parser AssetKey),
         DefaultIcon <$ Atto.string "default"
       ]
 
@@ -279,7 +278,7 @@ instance ToByteString IconUpdate where
 instance ToSchema IconUpdate where
   schema =
     (T.decodeUtf8 . toByteString')
-      .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
+      .= parsedText "IconUpdate" (runParser parser . T.encodeUtf8)
 
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
