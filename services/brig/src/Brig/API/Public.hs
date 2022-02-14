@@ -162,7 +162,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -188,7 +188,11 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"change-locale" changeLocale
         :<|> Named @"change-handle" changeHandle
 
+    accountAPI :: ServerT AccountAPI (Handler r)
+    accountAPI = undefined
+
     clientAPI :: ServerT ClientAPI (Handler r)
+    clientAPI :: ServerT ClientAPI Handler
     clientAPI =
       Named @"get-user-clients-unqualified" getUserClientsUnqualified
         :<|> Named @"get-user-clients-qualified" getUserClientsQualified

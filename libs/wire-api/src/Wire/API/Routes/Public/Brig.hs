@@ -313,6 +313,11 @@ type SelfAPI =
            )
 
 type AccountAPI =
+  -- docs/reference/user/registration.md {#RefRegistration}
+  --
+  -- This endpoint can lead to the following events being sent:
+  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+  -- - UserIdentityUpdated event to created user, if email code or phone code is provided
   Named
     "register"
     ( Summary "Register a new user."
