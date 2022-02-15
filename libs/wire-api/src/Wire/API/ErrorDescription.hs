@@ -372,3 +372,7 @@ type BroadcastLimitExceeded =
     "Too many users to fan out the broadcast event to."
 
 type InvalidAction = ErrorDescription 403 "invalid-actions" "The specified actions are invalid."
+
+type PasswordAuthenticationFailed = ErrorDescription 403 "password-authentication-failed" "Password authentication failed."
+
+type CodeAuthenticationFailed = ErrorDescription 403 "code-authentication-failed" "Code authentication failed."
