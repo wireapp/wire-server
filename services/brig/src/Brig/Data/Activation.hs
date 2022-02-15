@@ -60,7 +60,8 @@ data Activation = Activation
 
 data ActivationError
   = UserKeyExists !LT.Text
-  | InvalidActivationCode !LT.Text
+  | InvalidActivationCodeWrongUser
+  | InvalidActivationCodeWrongCode
   | InvalidActivationEmail !Email !String
   | InvalidActivationPhone !Phone
 
@@ -189,10 +190,10 @@ deleteActivationPair :: ActivationKey -> (AppIO r) ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError
-invalidUser = InvalidActivationCode "User does not exist."
+invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."
 
 invalidCode :: ActivationError
-invalidCode = InvalidActivationCode "Invalid activation code"
+invalidCode = InvalidActivationCodeWrongCode -- "Invalid activation code"
 
 keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
 keyInsert =

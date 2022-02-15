@@ -387,3 +387,28 @@ type MLSIdentityMismatch =
     403
     "mls-identity-mismatch"
     "Prekey credential does not match qualified client ID"
+
+type WhitelistError = ErrorDescription 403 "unauthorized" "Unauthorized e-mail address or phone number."
+
+type InvalidInvitationCode = ErrorDescription 400 "invalid-invitation-code" "Invalid invitation code."
+
+type MissingIdentity = ErrorDescription 403 "missing-identity" "Using an invitation code requires registering the given email and/or phone."
+
+type BlacklistedEmail =
+  ErrorDescription
+    403
+    "blacklisted-email"
+    "The given e-mail address has been blacklisted due to a permanent bounce \
+    \or a complaint."
+
+type InvalidEmail = ErrorDescription 400 "invalid-email" "Invalid e-mail address."
+
+type InvalidActivationCode msg = ErrorDescription 404 "invalid-code" msg
+
+type InvalidActivationCodeWrongUser = InvalidActivationCode "User does not exist."
+
+type InvalidActivationCodeWrongCode = InvalidActivationCode "Invalid activation code"
+
+type TooManyTeamMembers = ErrorDescription 403 "too-many-team-members" "Too many members in this team."
+
+type UserCreationRestricted = ErrorDescription 403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."

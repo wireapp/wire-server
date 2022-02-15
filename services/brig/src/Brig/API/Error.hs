@@ -120,7 +120,8 @@ connError (ConnectFederationError e) = fedError e
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
-actError (InvalidActivationCode e) = StdError (invalidActivationCode e)
+actError InvalidActivationCodeWrongUser = StdError (errorDescriptionTypeToWai @InvalidActivationCodeWrongUser)
+actError InvalidActivationCodeWrongCode = StdError (errorDescriptionTypeToWai @InvalidActivationCodeWrongCode)
 actError (InvalidActivationEmail _ _) = StdError invalidEmail
 actError (InvalidActivationPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
 

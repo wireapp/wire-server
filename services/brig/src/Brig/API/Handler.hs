@@ -25,10 +25,12 @@ module Brig.API.Handler
     JSON,
     parseJsonBody,
     checkWhitelist,
+    checkWhitelistWithError,
+    isWhiteListed,
   )
 where
 
-import Bilge (RequestId (..))
+import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
 import Brig.App (AppIO, Env, applog, requestId, runAppT, settings)
@@ -40,6 +42,7 @@ import Control.Error
 import Control.Lens (set, view)
 import Control.Monad.Catch (catches, throwM)
 import qualified Control.Monad.Catch as Catch
+import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Default (def)
@@ -140,10 +143,16 @@ parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> (Handler r) ()
-checkWhitelist key = do
+checkWhitelist = checkWhitelistWithError (StdError whitelistError)
+
+checkWhitelistWithError :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
+checkWhitelistWithError e key = do
+  ok <- isWhiteListed key
+  unless ok (throwError e)
+
+isWhiteListed :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m) => Either Email Phone -> m Bool
+isWhiteListed key = do
   eb <- setWhitelist <$> view settings
   case eb of
-    Nothing -> return ()
-    Just b -> do
-      ok <- lift $ Whitelist.verify b key
-      unless ok (throwStd whitelistError)
+    Nothing -> pure True
+    Just b -> Whitelist.verify b key

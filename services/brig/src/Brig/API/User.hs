@@ -163,21 +163,20 @@ data AllowSCIMUpdates
 -------------------------------------------------------------------------------
 -- Create User
 
-verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT CreateUserError (AppIO r) ()
+verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT RegisterError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   checkKey Nothing uk
   blacklisted <- lift $ Blacklist.exists uk
   when blacklisted $
-    throwE (BlacklistedUserKey uk)
+    throwE (foldKey (const RegisterErrorBlacklistedEmail) (const RegisterErrorBlacklistedPhone) uk)
   where
     checkKey u k = do
       av <- lift $ Data.keyAvailable k u
       unless av $
-        throwE $
-          DuplicateUserKey k
+        throwE RegisterErrorUserKeyExists
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: NewUser -> ExceptT CreateUserError (AppIO r) CreateUserResult
+createUser :: NewUser -> ExceptT RegisterError (AppIO r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -276,19 +275,19 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT CreateUserError (AppT r IO) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r IO) (Maybe Email, Maybe Phone)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
         either
-          (throwE . InvalidEmail e)
+          (const $ throwE RegisterErrorInvalidEmail)
           return
           (validateEmail e)
 
       -- Validate phone
       phone <- for (newUserPhone newUser) $ \p ->
         maybe
-          (throwE (InvalidPhone p))
+          (throwE RegisterErrorInvalidPhone)
           return
           =<< lift (validatePhone p)
 
@@ -297,8 +296,8 @@ createUser new = do
 
       pure (email, phone)
 
-    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError (AppIO r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
-    findTeamInvitation Nothing _ = throwE MissingIdentity
+    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppIO r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+    findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
       lift (Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
@@ -308,20 +307,20 @@ createUser new = do
               | e == userEmailKey em -> do
                 _ <- ensureMemberCanJoin (Team.iiTeam ii)
                 return $ Just (invite, ii, Team.iiTeam ii)
-            _ -> throwE InvalidInvitationCode
-        Nothing -> throwE InvalidInvitationCode
+            _ -> throwE RegisterErrorInvalidInvitationCode
+        Nothing -> throwE RegisterErrorInvalidInvitationCode
 
-    ensureMemberCanJoin :: TeamId -> ExceptT CreateUserError (AppIO r) ()
+    ensureMemberCanJoin :: TeamId -> ExceptT RegisterError (AppIO r) ()
     ensureMemberCanJoin tid = do
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
       (TeamSize teamSize) <- TeamSize.teamSize tid
       when (teamSize >= maxSize) $
-        throwE TooManyTeamMembers
+        throwE RegisterErrorTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
       --             Remove after the next release.
       canAdd <- lift $ Intra.checkUserCanJoinTeam tid
       case canAdd of
-        Just e -> throwE (ExternalPreconditionFailed e)
+        Just e -> undefined -- TODO: How do we do this: throwE (ExternalPreconditionFailed e)
         Nothing -> pure ()
 
     acceptTeamInvitation ::
@@ -330,18 +329,17 @@ createUser new = do
       Team.InvitationInfo ->
       UserKey ->
       UserIdentity ->
-      ExceptT CreateUserError (AppT r IO) ()
+      ExceptT RegisterError (AppT r IO) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
       unless ok $
-        throwE $
-          DuplicateUserKey uk
+        throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
       added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
-        throwE TooManyTeamMembers
+        throwE RegisterErrorTooManyTeamMembers
       lift $ do
         activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
@@ -352,12 +350,12 @@ createUser new = do
         Data.usersPendingActivationRemove uid
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
-    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError (AppIO r) CreateUserTeam
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppIO r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
       added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
       unless added $
-        throwE TooManyTeamMembers
+        throwE RegisterErrorTooManyTeamMembers
       lift $ do
         activateUser uid ident
         void $ onActivated (AccountActivated account)
@@ -369,7 +367,7 @@ createUser new = do
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT CreateUserError (AppT r IO) (Maybe Activation)
+    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
       fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
@@ -382,7 +380,14 @@ createUser new = do
           return $ Just edata
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey ek
-          void $ activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam) !>> EmailActivationError
+          void $
+            activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
+              !>> ( \case
+                      UserKeyExists _ -> RegisterErrorUserKeyExists
+                      InvalidActivationCode txt -> _
+                      InvalidActivationEmail em s -> _
+                      InvalidActivationPhone ph -> _
+                  )
           return Nothing
 
     -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
@@ -428,7 +433,6 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
 
   let activated =
-        -- It would be nice to set this to 'False' to make sure we're not accidentally
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
         -- would not produce an identity, and so we won't have the email address to construct
         -- the SCIM user.
@@ -438,7 +442,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
-checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError (AppIO r) ()
+checkRestrictedUserCreation :: NewUser -> ExceptT RegisterError (AppIO r) ()
 checkRestrictedUserCreation new = do
   restrictPlease <- lift . asks $ fromMaybe False . setRestrictUserCreation . view settings
   when
@@ -446,7 +450,7 @@ checkRestrictedUserCreation new = do
         && not (isNewUserTeamMember new)
         && not (isNewUserEphemeral new)
     )
-    $ throwE UserCreationRestricted
+    $ throwE RegisterErrorUserCreationRestricted
 
 -------------------------------------------------------------------------------
 -- Update Profile

@@ -32,6 +32,7 @@ module Brig.User.Auth.Cookie
 
     -- * HTTP
     setResponseCookie,
+    toWebCookie,
 
     -- * Re-exports
     Cookie (..),
@@ -226,22 +227,24 @@ setResponseCookie ::
   Response ->
   m Response
 setResponseCookie c r = do
-  s <- view settings
-  let hdr = toByteString' (WebCookie.renderSetCookie (cookie s))
+  hdr <- toByteString' . WebCookie.renderSetCookie <$> toWebCookie c
   return (addHeader "Set-Cookie" hdr r)
-  where
-    cookie s =
-      WebCookie.def
-        { WebCookie.setCookieName = "zuid",
-          WebCookie.setCookieValue = toByteString' (cookieValue c),
-          WebCookie.setCookiePath = Just "/access",
-          WebCookie.setCookieExpires =
-            if cookieType c == PersistentCookie
-              then Just (cookieExpires c)
-              else Nothing,
-          WebCookie.setCookieSecure = not (setCookieInsecure s),
-          WebCookie.setCookieHttpOnly = True
-        }
+
+toWebCookie :: (Monad m, MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
+toWebCookie c = do
+  s <- view settings
+  pure $
+    WebCookie.def
+      { WebCookie.setCookieName = "zuid",
+        WebCookie.setCookieValue = toByteString' (cookieValue c),
+        WebCookie.setCookiePath = Just "/access",
+        WebCookie.setCookieExpires =
+          if cookieType c == PersistentCookie
+            then Just (cookieExpires c)
+            else Nothing,
+        WebCookie.setCookieSecure = not (setCookieInsecure s),
+        WebCookie.setCookieHttpOnly = True
+      }
 
 --------------------------------------------------------------------------------
 -- Tracking

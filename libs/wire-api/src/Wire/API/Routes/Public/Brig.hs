@@ -327,7 +327,7 @@ type AccountAPI =
              \number is not whitelisted, a 403 error is returned."
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
-        :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError SelfProfile)
+        :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
     )
 
 type PrekeyAPI =

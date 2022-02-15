@@ -61,7 +61,6 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
-import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Code as Code
@@ -113,6 +112,7 @@ import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
@@ -189,7 +189,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"change-handle" changeHandle
 
     accountAPI :: ServerT AccountAPI (Handler r)
-    accountAPI = undefined
+    accountAPI = Named @"register" createUser
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI :: ServerT ClientAPI Handler
@@ -376,27 +376,27 @@ sitemap = do
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email code or phone code is provided
-  post "/register" (continue createUserH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.NewUserPublic
-  document "POST" "register" $ do
-    Doc.summary "Register a new user."
-    Doc.notes
-      "If the environment where the registration takes \
-      \place is private and a registered email address or phone \
-      \number is not whitelisted, a 403 error is returned."
-    Doc.body (Doc.ref Public.modelNewUser) $
-      Doc.description "JSON body"
-    -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
-    Doc.returns (Doc.ref Public.modelUser)
-    Doc.response 201 "User created and pending activation." Doc.end
-    Doc.errorResponse whitelistError
-    Doc.errorResponse invalidInvitationCode
-    Doc.errorResponse missingIdentity
-    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
-    Doc.errorResponse activationCodeNotFound
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
+  -- post "/register" (continue createUserH) $
+  --   accept "application" "json"
+  --     .&. jsonRequest @Public.NewUserPublic
+  -- document "POST" "register" $ do
+  --   Doc.summary "Register a new user."
+  --   Doc.notes
+  --     "If the environment where the registration takes \
+  --     \place is private and a registered email address or phone \
+  --     \number is not whitelisted, a 403 error is returned."
+  --   Doc.body (Doc.ref Public.modelNewUser) $
+  --     Doc.description "JSON body"
+  --   -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
+  --   Doc.returns (Doc.ref Public.modelUser)
+  --   Doc.response 201 "User created and pending activation." Doc.end
+  --   Doc.errorResponse whitelistError
+  --   Doc.errorResponse invalidInvitationCode
+  --   Doc.errorResponse missingIdentity
+  --   Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
+  --   Doc.errorResponse activationCodeNotFound
+  --   Doc.errorResponse blacklistedEmail
+  --   Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
@@ -679,23 +679,12 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
--- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> (Handler r) Response
-createUserH (_ ::: req) = do
-  CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
-  lift . Auth.setResponseCookie cok
-    . setStatus status201
-    . addHeader "Location" (toByteString' loc)
-    $ json prof
-
-data CreateUserResponse
-  = CreateUserResponse (Public.Cookie (ZAuth.Token ZAuth.User)) UserId Public.SelfProfile
-
-createUser :: Public.NewUserPublic -> (Handler r) CreateUserResponse
-createUser (Public.NewUserPublic new) = do
-  API.checkRestrictedUserCreation new !>> newUserError
-  for_ (Public.newUserEmail new) $ checkWhitelist . Left
-  for_ (Public.newUserPhone new) $ checkWhitelist . Right
+-- | docs/reference/user/registration.md {#RefRegistration}
+createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+createUser (Public.NewUserPublic new) = runExceptT $ do
+  API.checkRestrictedUserCreation new -- !>> newUserError
+  for_ (Public.newUserEmail new) $ checkWhitelistWithError RegisterErrorWhitelistError . Left
+  for_ (Public.newUserPhone new) $ checkWhitelistWithError RegisterErrorWhitelistError . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
 
@@ -730,10 +719,12 @@ createUser (Public.NewUserPublic new) = do
       sendActivationSms p c (Just userLocale)
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
-  cok <- case acc of
-    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
-    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
-  pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
+  cok <-
+    Auth.toWebCookie =<< case acc of
+      UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+      UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+  -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
+  pure $ Right (Public.RegisterSuccess cok (Public.SelfProfile usr))
   where
     sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppIO r) ()
     sendActivationEmail e u p l mTeamUser

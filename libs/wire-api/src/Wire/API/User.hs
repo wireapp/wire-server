@@ -38,6 +38,7 @@ module Wire.API.User
     -- * NewUser
     NewUserPublic (..),
     RegisterError (..),
+    RegisterSuccess (..),
     RegisterResponses,
     NewUser (..),
     emptyNewUser,
@@ -137,6 +138,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant (type (.++))
 import qualified Test.QuickCheck as QC
+import qualified Web.Cookie as Web
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.ErrorDescription
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
@@ -537,9 +539,58 @@ isNewUserTeamMember u = case newUserTeam u of
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
-data RegisterError = RegisterError
+data RegisterError
+  = RegisterErrorWhitelistError
+  | RegisterErrorInvalidInvitationCode
+  | RegisterErrorMissingIdentity
+  | RegisterErrorUserKeyExists
+  | RegisterErrorInvalidActivationCodeWrongUser
+  | RegisterErrorInvalidActivationCodeWrongCode
+  | RegisterErrorInvalidEmail
+  | RegisterErrorInvalidPhone
+  | RegisterErrorBlacklistedPhone
+  | RegisterErrorBlacklistedEmail
+  | RegisterErrorTooManyTeamMembers
+  | RegisterErrorUserCreationRestricted
+  deriving (Generic)
+  deriving (AsUnion RegisterErrorResponses) via GenericAsUnion RegisterErrorResponses RegisterError
 
-type RegisterResponses = '[]
+instance GSOP.Generic RegisterError
+
+type RegisterErrorResponses =
+  '[ WhitelistError,
+     InvalidInvitationCode,
+     MissingIdentity,
+     UserKeyExists,
+     InvalidActivationCodeWrongUser,
+     InvalidActivationCodeWrongCode,
+     InvalidEmail,
+     InvalidPhone,
+     BlacklistedPhone,
+     BlacklistedEmail,
+     TooManyTeamMembers,
+     UserCreationRestricted
+   ]
+
+type RegisterResponses =
+  RegisterErrorResponses
+    .++ '[ WithHeaders
+             '[ DescHeader "Set-Cookie" "Cookie" Web.SetCookie,
+                DescHeader "Location" "UserId" UserId
+              ]
+             RegisterSuccess
+             (Respond 201 "User created and pending activation" SelfProfile)
+         ]
+
+instance AsHeaders '[Web.SetCookie, UserId] SelfProfile RegisterSuccess where
+  fromHeaders (I cookie :* (_ :* Nil), sp) = RegisterSuccess cookie sp
+  toHeaders (RegisterSuccess cookie sp) = (I cookie :* (I (userId (selfUser sp)) :* Nil), sp)
+
+data RegisterSuccess = RegisterSuccess Web.SetCookie SelfProfile
+
+instance (res ~ RegisterResponses) => AsUnion res (Either RegisterError RegisterSuccess) where
+  toUnion = eitherToUnion (toUnion @RegisterErrorResponses) (Z . I)
+  fromUnion = eitherFromUnion (fromUnion @RegisterErrorResponses) (unI . unZ)
 
 data NewUser = NewUser
   { newUserDisplayName :: Name,
