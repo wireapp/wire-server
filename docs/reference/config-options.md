@@ -421,7 +421,7 @@ optSettings:
 ### Federated domain specific configuration settings 
 #### Restrict user search
 
-The lookup and search of users on a wire instance can be restricted. This can be done per federated domain.
+The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
 
 ```yaml
 # [brig.yaml]
