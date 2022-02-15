@@ -109,6 +109,7 @@ import Servant.Client (ClientError (FailureResponse))
 import qualified Servant.Client as Servant
 import Servant.Client.Core (RunClient (throwClientError))
 import qualified Servant.Client.Core as Servant
+import qualified Servant.Client.Core.Request as ServantRequest
 import System.Random (randomIO, randomRIO)
 import qualified System.Timeout as System
 import Test.Tasty (TestName, TestTree)
@@ -1156,15 +1157,33 @@ fromServantRequest domain r =
           Servant.RequestBodyLBS lbs -> Data.String.Conversions.cs lbs
           Servant.RequestBodyBS bs -> bs
           Servant.RequestBodySource _ -> error "fromServantRequest: not implemented for RequestBodySource"
+
+      -- Content-Type and Accept are specified by requestBody and requestAccept
+      headers =
+        filter (\(h, _) -> h /= "Accept" && h /= "Content-Type") $
+          toList $ Servant.requestHeaders r
+      acceptHdr
+        | null hs = Nothing
+        | otherwise = Just ("Accept", renderHeader hs)
+        where
+          hs = toList $ ServantRequest.requestAccept r
+      contentTypeHdr = case ServantRequest.requestBody r of
+        Nothing -> Nothing
+        Just (_', typ) -> Just (HTTP.hContentType, renderHeader typ)
       req =
         Wai.defaultRequest
           { Wai.requestMethod = Servant.requestMethod r,
             Wai.rawPathInfo = pathBS,
             Wai.rawQueryString = renderQuery True (toList (Servant.requestQueryString r)),
             Wai.requestHeaders =
-              (("Content-Type",) . renderHeader . snd <$> maybeToList (Servant.requestBody r))
-                <> ((\x -> ("Accept", renderHeader x)) <$> toList (Servant.requestAccept r))
-                <> toList (Servant.requestHeaders r)
+              -- Inspired by 'Servant.Client.Internal.HttpClient.defaultMakeClientRequest',
+              -- the Servant function that maps @Request@ to @Client.Request@.
+              -- This solution is a bit sophisticated due to two constraints:
+              --   - Accept header may contain a list of accepted media types.
+              --   - Accept and Content-Type headers should only appear once in the result.
+              maybeToList acceptHdr
+                <> maybeToList contentTypeHdr
+                <> headers
                 <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
             Wai.isSecure = True,
             Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (C8.split '/' pathBS)),
