@@ -71,6 +71,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
+import Wire.API.User (TeamFeatureSndFPasswordChallengeNotImplemented (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
