@@ -159,7 +159,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI Handler
-servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> secondFactorAuthAPI
+servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI
   where
     userAPI :: ServerT UserAPI Handler
     userAPI =
@@ -170,6 +170,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+        :<|> Named @"send-verification-code" (const sendVerificationCode)
 
     selfAPI :: ServerT SelfAPI Handler
     selfAPI =
@@ -223,10 +224,6 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"update-connection-unqualified" updateLocalConnection
         :<|> Named @"update-connection" updateConnection
         :<|> Named @"search-contacts" Search.search
-
-    secondFactorAuthAPI :: ServerT SecondFactorAuthAPI Handler
-    secondFactorAuthAPI =
-      Named @"send-verification-code" (const sendVerificationCode)
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

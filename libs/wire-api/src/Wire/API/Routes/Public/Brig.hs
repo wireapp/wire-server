@@ -172,6 +172,14 @@ type UserAPI =
           :> ReqBody '[JSON] ListUsersQuery
           :> Post '[JSON] [UserProfile]
       )
+    :<|> Named
+           "send-verification-code"
+           ( Summary "Send a verification code to a given email address."
+               :> "verification-code"
+               :> "send"
+               :> ReqBody '[JSON] SendVerificationCode
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
+           )
 
 type SelfAPI =
   Named
@@ -667,17 +675,7 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
-type SecondFactorAuthAPI =
-  Named
-    "send-verification-code"
-    ( Summary "Send a verification code to a given email address."
-        :> "verification-code"
-        :> "send"
-        :> ReqBody '[JSON] SendVerificationCode
-        :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
-    )
-
-type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI :<|> SecondFactorAuthAPI
+type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
