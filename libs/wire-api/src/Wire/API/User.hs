@@ -106,7 +106,7 @@ where
 
 import Control.Applicative
 import Control.Error.Safe (rightMay)
-import Control.Lens (over, view, (.~), (?~))
+import Control.Lens (over, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
@@ -120,7 +120,6 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
-import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import Data.Range
@@ -338,77 +337,28 @@ data User = User
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
--- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
--- mark 'deleted' as optional, but it is not a 'Maybe'
--- and we need to manually add the identity schema fields at the top level
--- instead of nesting them under the 'identity' field.
-instance S.ToSchema User where
-  declareNamedSchema _ = do
-    identityProperties <- view (S.schema . S.properties) <$> S.declareNamedSchema (Proxy @UserIdentity)
-    genericSchema <-
-      S.genericDeclareNamedSchema
-        ( swaggerOptions
-            @'[ FieldLabelModifier
-                  ( StripPrefix "user",
-                    CamelToSnake,
-                    LabelMappings
-                      '[ "pict" ':-> "picture",
-                         "expire" ':-> "expires_at",
-                         "display_name" ':-> "name"
-                       ]
-                  )
-              ]
-        )
-        (Proxy @User)
-    pure $
-      genericSchema
-        & over (S.schema . S.required) (List.delete "deleted")
-        -- The UserIdentity fields need to be flat-included, not be in a sub-object
-        & over (S.schema . S.properties) (InsOrdHashMap.delete "identity")
-        & over (S.schema . S.properties) (InsOrdHashMap.union identityProperties)
-
--- FUTUREWORK:
--- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
-instance ToJSON User where
-  toJSON u =
-    A.object $
-      "id" A..= userId u
-        # "qualified_id" A..= userQualifiedId u
-        # "name" A..= userDisplayName u
-        # "picture" A..= userPict u
-        # "assets" A..= userAssets u
-        # "email" A..= userEmail u
-        # "phone" A..= userPhone u
-        # "accent_id" A..= userAccentId u
-        # "deleted" A..= (if userDeleted u then Just True else Nothing)
-        # "locale" A..= userLocale u
-        # "service" A..= userService u
-        # "handle" A..= userHandle u
-        # "expires_at" A..= userExpire u
-        # "team" A..= userTeam u
-        # "sso_id" A..= userSSOId u
-        # "managed_by" A..= userManagedBy u
-        # []
-
-instance FromJSON User where
-  parseJSON = A.withObject "user" $ \o -> do
-    ssoid <- o A..:? "sso_id"
-    User
-      <$> o A..: "id"
-      <*> o A..: "qualified_id"
-      <*> parseIdentity ssoid o
-      <*> o A..: "name"
-      <*> o A..:? "picture" A..!= noPict
-      <*> o A..:? "assets" A..!= []
-      <*> o A..: "accent_id"
-      <*> o A..:? "deleted" A..!= False
-      <*> o A..: "locale"
-      <*> o A..:? "service"
-      <*> o A..:? "handle"
-      <*> o A..:? "expires_at"
-      <*> o A..:? "team"
-      <*> o A..:? "managed_by" A..!= ManagedByWire
+-- -- FUTUREWORK:
+-- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
+instance ToSchema User where
+  schema =
+    object "User" $
+      User
+        <$> userId .= field "id" schema
+        <*> userQualifiedId .= field "qualified_id" schema
+        <*> userIdentity .= maybeUserIdentityObjectSchema
+        <*> userDisplayName .= field "name" schema
+        <*> userPict .= (fromMaybe noPict <$> optField "picture" schema)
+        <*> userAssets .= (fromMaybe [] <$> optField "assets" (array schema))
+        <*> userAccentId .= field "accent_id" schema
+        <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
+        <*> userLocale .= field "locale" schema
+        <*> userService .= maybe_ (optField "service" schema)
+        <*> userHandle .= maybe_ (optField "handle" schema)
+        <*> userExpire .= maybe_ (optField "expires_at" schema)
+        <*> userTeam .= maybe_ (optField "team" schema)
+        <*> userManagedBy .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -654,7 +604,8 @@ data NewUserRaw = NewUserRaw
     newUserRawLabel :: Maybe CookieLabel,
     newUserRawLocale :: Maybe Locale,
     newUserRawPassword :: Maybe PlainTextPassword,
-    newUserRawExpiresIn :: Maybe ExpiresIn
+    newUserRawExpiresIn :: Maybe ExpiresIn,
+    newUserRawManagedBy :: Maybe ManagedBy
   }
 
 newUserRawObjectSchema :: ObjectSchema SwaggerDoc NewUserRaw
@@ -678,6 +629,7 @@ newUserRawObjectSchema =
     <*> newUserRawLocale .= maybe_ (optField "locale" schema)
     <*> newUserRawPassword .= maybe_ (optField "password" schema)
     <*> newUserRawExpiresIn .= maybe_ (optField "expires_in" schema)
+    <*> newUserRawManagedBy .= maybe_ (optField "managed_by" schema)
 
 instance ToSchema NewUser where
   schema =
@@ -704,7 +656,8 @@ newUserToRaw NewUser {..} =
           newUserRawLabel = newUserLabel,
           newUserRawLocale = newUserLocale,
           newUserRawPassword = newUserPassword,
-          newUserRawExpiresIn = newUserExpiresIn
+          newUserRawExpiresIn = newUserExpiresIn,
+          newUserRawManagedBy = newUserManagedBy
         }
 
 newUserFromRaw :: NewUserRaw -> A.Parser NewUser
@@ -715,11 +668,16 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
+  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+  expiresIn <-
+    case (newUserRawExpiresIn, identity) of
+      (Just _, Just _) -> fail "Only users without an identity can expire"
+      _ -> pure newUserRawExpiresIn
   pure $
     NewUser
       { newUserDisplayName = newUserRawDisplayName,
         newUserUUID = newUserRawUUID,
-        newUserIdentity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId),
+        newUserIdentity = identity,
         newUserPict = newUserRawPict,
         newUserAssets = newUserRawAssets,
         newUserAccentId = newUserRawAccentId,
@@ -729,8 +687,8 @@ newUserFromRaw NewUserRaw {..} = do
         newUserLabel = newUserRawLabel,
         newUserLocale = newUserRawLocale,
         newUserPassword = newUserRawPassword,
-        newUserExpiresIn = newUserRawExpiresIn,
-        newUserManagedBy = Nothing
+        newUserExpiresIn = expiresIn,
+        newUserManagedBy = newUserRawManagedBy
       }
 
 -- FUTUREWORK: align more with FromJSON instance?
@@ -844,19 +802,6 @@ newtype InvitationCode = InvitationCode
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema InvitationCode
 
 --------------------------------------------------------------------------------
--- helpers
-
--- | Fails if email or phone or ssoid are present but invalid.
--- If neither are present, it will not fail, but return Nothing.
---
--- FUTUREWORK: Why is the SSO ID passed separately?
-parseIdentity :: Maybe UserSSOId -> A.Object -> A.Parser (Maybe UserIdentity)
-parseIdentity ssoid o =
-  if isJust (KeyMap.lookup "email" o <|> KeyMap.lookup "phone" o) || isJust ssoid
-    then Just <$> parseJSON (A.Object o)
-    else pure Nothing
-
---------------------------------------------------------------------------------
 -- NewTeamUser
 
 data NewTeamUser
@@ -901,7 +846,7 @@ instance ToSchema BindingNewTeamUser where
     object "BindingNewTeamUser" $
       BindingNewTeamUser
         <$> bnuTeam .= bindingNewTeamObjectSchema
-        <*> bnuCurrency .= maybe_ (optField "currenncy" genericToSchema)
+        <*> bnuCurrency .= maybe_ (optField "currency" genericToSchema)
 
 --------------------------------------------------------------------------------
 -- Profile Updates

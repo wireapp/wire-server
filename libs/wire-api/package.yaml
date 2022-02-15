@@ -123,6 +123,7 @@ tests:
     - pretty
     - proto-lens
     - QuickCheck
+    - schema-profunctor
     - string-conversions
     - swagger2
     - tasty

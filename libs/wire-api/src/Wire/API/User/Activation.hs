@@ -43,7 +43,7 @@ where
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Json.Util ((#))
-import Data.Schema (Schema (..), ToSchema)
+import Data.Schema (Schema (..), ToSchema, schemaIn)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
@@ -184,7 +184,7 @@ instance ToJSON ActivationResponse where
 instance FromJSON ActivationResponse where
   parseJSON = withObject "ActivationResponse" $ \o ->
     ActivationResponse
-      <$> parseJSON (Object o)
+      <$> schemaIn userIdentityObjectSchema o
       <*> o .:? "first" .!= False
 
 --------------------------------------------------------------------------------

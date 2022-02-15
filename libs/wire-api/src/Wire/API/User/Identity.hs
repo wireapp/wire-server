@@ -26,6 +26,8 @@ module Wire.API.User.Identity
     emailIdentity,
     phoneIdentity,
     ssoIdentity,
+    userIdentityObjectSchema,
+    maybeUserIdentityObjectSchema,
     maybeUserIdentityFromComponents,
 
     -- * Email
@@ -92,12 +94,10 @@ data UserIdentity
   | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserIdentity)
 
-instance ToSchema UserIdentity where
-  schema =
-    object "UserIdentity" $
-      Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'phone' or 'sso_id'.") pure)
+userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
+userIdentityObjectSchema =
+  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'phone' or 'sso_id'.") pure)
 
 maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =

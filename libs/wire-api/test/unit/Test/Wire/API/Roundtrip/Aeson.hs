@@ -297,7 +297,6 @@ tests =
       testRoundTrip @User.Identity.Email,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.Identity.UserSSOId,
-      testRoundTrip @User.Identity.UserIdentity,
       testRoundTrip @User.Password.NewPasswordReset,
       testRoundTrip @User.Password.PasswordResetKey,
       -- FUTUREWORK: this should probably be tested individually,

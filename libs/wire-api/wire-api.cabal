@@ -452,7 +452,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.UserConnection_user
       Test.Wire.API.Golden.Generated.UserConnectionList_user
       Test.Wire.API.Golden.Generated.UserHandleInfo_user
-      Test.Wire.API.Golden.Generated.UserIdentity_user
       Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team
       Test.Wire.API.Golden.Generated.UserProfile_user
       Test.Wire.API.Golden.Generated.UserSSOId_user
@@ -656,6 +655,7 @@ test-suite wire-api-tests
     , pretty
     , proto-lens
     , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-swagger-ui
     , string-conversions
