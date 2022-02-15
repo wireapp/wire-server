@@ -490,13 +490,6 @@ packages:
   original:
     hackage: servant-mock-0.8.7
 - completed:
-    hackage: servant-swagger-ui-0.3.5.3.52.5@sha256:4734c536b8b0c48993c337e880a5bd65ed521271937ce9da5feac360dea661ba,1746
-    pantry-tree:
-      size: 878
-      sha256: 822d19afe0e75bbc8bd2b685dc2cb4fd7d5972ed1e7b61546ce3e61cf77b8808
-  original:
-    hackage: servant-swagger-ui-0.3.5.3.52.5
-- completed:
     hackage: tls-1.5.5@sha256:f6681d6624071211edd509a8f56e0c96b4f003bb349b7dc706d4333775a373c5,6996
     pantry-tree:
       size: 4897
@@ -573,6 +566,71 @@ packages:
     subdir: servant-client-core
     git: https://github.com/haskell-servant/servant.git
     commit: 75db4a5327d6d04ae2460bd5ffd008fe16197ba8
+- completed:
+    subdir: servant-swagger-ui
+    name: servant-swagger-ui
+    version: 0.3.5.4.5.0
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    pantry-tree:
+      size: 1228
+      sha256: 82011027e0eba760f5cb38fd30f2f58a098ac93146219ab1db6ac82a8442645f
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+  original:
+    subdir: servant-swagger-ui
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+- completed:
+    subdir: servant-swagger-ui-core
+    name: servant-swagger-ui-core
+    version: 0.3.5
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    pantry-tree:
+      size: 244
+      sha256: 2595b5a42c8883ef5296df28b140487680e6aa475671a88337b1a019f395ac63
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+  original:
+    subdir: servant-swagger-ui-core
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+- completed:
+    subdir: servant-swagger-ui-example
+    name: servant-swagger-ui-example
+    version: '0'
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    pantry-tree:
+      size: 222
+      sha256: 8d97664f8bfc5b4b61292b547353cbcc7f28176f57cdbf8545d755affe04cf1a
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+  original:
+    subdir: servant-swagger-ui-example
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+- completed:
+    subdir: servant-swagger-ui-jensoleg
+    name: servant-swagger-ui-jensoleg
+    version: 0.3.4
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    pantry-tree:
+      size: 4027
+      sha256: b07be9acc4e76ef65801062d0adcee6a324570c34ddfc92c00df2072113456ae
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+  original:
+    subdir: servant-swagger-ui-jensoleg
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+- completed:
+    subdir: servant-swagger-ui-redoc
+    name: servant-swagger-ui-redoc
+    version: 0.3.4.1.22.3
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    pantry-tree:
+      size: 381
+      sha256: 6aa08c6a5ee5ff59cae3718ba1b5310652adf3e292e539fb3674dd7738a61364
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
+  original:
+    subdir: servant-swagger-ui-redoc
+    git: https://github.com/haskell-servant/servant-swagger-ui.git
+    commit: 787600593679ae631c791a6b8b6942e82cd2d861
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.4@sha256:86be72558de4cee8f4e32f9cb8b63610d7624219910cfc205a23326078658676,1777
     pantry-tree:

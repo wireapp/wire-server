@@ -186,7 +186,6 @@ extra-deps:
 - QuickCheck-2.14.2
 - splitmix-0.1.0.4 # needed for QuickCheck
 - servant-mock-0.8.7
-- servant-swagger-ui-0.3.5.3.52.5
 - tls-1.5.5
 - cryptonite-0.29
 
@@ -203,6 +202,16 @@ extra-deps:
   - servant-server
   - servant-client
   - servant-client-core
+# https://github.com/haskell-servant/servant-swagger-ui/pull/98
+# *DO NOT USE THIS IN PROD YET, WAIT UNTIL THIS IS ON MASTER*
+- git: https://github.com/haskell-servant/servant-swagger-ui.git
+  commit: 787600593679ae631c791a6b8b6942e82cd2d861
+  subdirs:
+  - servant-swagger-ui
+  - servant-swagger-ui-core
+  - servant-swagger-ui-example
+  - servant-swagger-ui-jensoleg
+  - servant-swagger-ui-redoc
 
 - HsOpenSSL-x509-system-0.1.0.4
 - cql-4.0.3
