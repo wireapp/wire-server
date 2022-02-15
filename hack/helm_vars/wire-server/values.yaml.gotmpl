@@ -75,6 +75,9 @@ brig:
       setMaxTeamSize: 32
       setMaxConvSize: 16
       setFederationDomain: integration.example.com
+      setFederationDomainConfigs:
+        - domain: integration.example.com
+          search: full_search
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
