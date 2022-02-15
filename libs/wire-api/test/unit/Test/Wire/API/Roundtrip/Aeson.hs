@@ -254,7 +254,7 @@ tests =
       testRoundTrip @User.DeleteUser,
       testRoundTrip @User.VerifyDeleteUser,
       testRoundTrip @User.DeletionCodeTimeout,
-      testRoundTrip @User.SecondFactorAuthAction,
+      testRoundTrip @User.SndFactorPasswordChallengeAction,
       testRoundTrip @User.SendVerificationCode,
       testRoundTrip @User.Activation.ActivationKey,
       -- FUTUREWORK: this should probably be tested individually,

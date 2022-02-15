@@ -105,7 +105,7 @@ modelLogin = Doc.defineModel "Login" $ do
       \specific client."
     Doc.optional
   Doc.property "verification_code" Doc.string' $ do
-    Doc.description "The login verification code for 2nd factor authentication. Required only if 2FPasswordChallenge is enabled for the team/server."
+    Doc.description "The login verification code for 2nd factor authentication. Required only if SndFactorPasswordChallenge is enabled for the team/server."
     Doc.optional
 
 instance ToJSON Login where
