@@ -435,3 +435,5 @@ Valid values for `search` are:
 - `no_search`: No users are returned by federated searches.
 - `exact_handle_search`: Only users where the handle exactly matches are returned.
 - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+If there is no configuration for a domain, it's defaulted to `no_search`.
