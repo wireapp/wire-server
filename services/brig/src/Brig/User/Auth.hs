@@ -71,6 +71,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
+import Wire.API.User (TeamFeatureSndFPasswordChallengeNotImplemented (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -110,7 +111,11 @@ lookupLoginCode phone =
       Data.lookupLoginCode u
 
 login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
-login (PasswordLogin li pw label) typ = do
+login (PasswordLogin li pw label _) typ = do
+  case TeamFeatureSndFPasswordChallengeNotImplemented of
+    -- mark this place to implement handling verification codes later
+    -- (for now just ignore them unconditionally.)
+    _ -> pure ()
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   checkRetryLimit uid

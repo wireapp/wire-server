@@ -172,6 +172,14 @@ type UserAPI =
           :> ReqBody '[JSON] ListUsersQuery
           :> Post '[JSON] [UserProfile]
       )
+    :<|> Named
+           "send-verification-code"
+           ( Summary "Send a verification code to a given email address."
+               :> "verification-code"
+               :> "send"
+               :> ReqBody '[JSON] SendVerificationCode
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
+           )
 
 type SelfAPI =
   Named

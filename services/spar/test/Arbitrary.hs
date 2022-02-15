@@ -61,7 +61,7 @@ instance Arbitrary ScimTokenInfo where
       <*> arbitrary
 
 instance Arbitrary CreateScimToken where
-  arbitrary = CreateScimToken <$> arbitrary <*> arbitrary
+  arbitrary = CreateScimToken <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary CreateScimTokenResponse where
   arbitrary = CreateScimTokenResponse <$> arbitrary <*> arbitrary

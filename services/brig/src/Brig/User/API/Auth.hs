@@ -88,9 +88,10 @@ routesPublic = do
   document "POST" "sendLoginCode" $ do
     Doc.summary "Send a login code to a verified phone number."
     Doc.notes
-      "This operation generates and sends a login code. \
+      "This operation generates and sends a login code via sms for phone login. \
       \A login code can be used only once and times out after \
-      \10 minutes. Only one login code may be pending at a time."
+      \10 minutes. Only one login code may be pending at a time.\
+      \For 2nd factor authentication login with email and password, use the `/verification-code/send` endpoint."
     Doc.body (Doc.ref Public.modelSendLoginCode) $
       Doc.description "JSON body"
     Doc.returns (Doc.ref Public.modelLoginCodeResponse)

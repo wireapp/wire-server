@@ -170,6 +170,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+        :<|> Named @"send-verification-code" (const sendVerificationCode)
 
     selfAPI :: ServerT SelfAPI Handler
     selfAPI =
@@ -1059,6 +1060,13 @@ activate (Public.Activate tgt code dryrun)
   where
     respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
+
+-- Verification
+
+sendVerificationCode :: Handler ()
+sendVerificationCode =
+  case Public.TeamFeatureSndFPasswordChallengeNotImplemented of
+    _ -> pure ()
 
 -- Deprecated
 

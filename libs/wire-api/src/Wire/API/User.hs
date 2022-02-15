@@ -97,6 +97,11 @@ module Wire.API.User
     modelUser,
     modelUserIdList,
     modelVerifyDelete,
+
+    -- * 2nd factor auth
+    SndFactorPasswordChallengeAction (..),
+    SendVerificationCode (..),
+    TeamFeatureSndFPasswordChallengeNotImplemented (..),
   )
 where
 
@@ -1151,3 +1156,38 @@ instance S.ToSchema ListUsersQuery where
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+
+-----------------------------------------------------------------------------
+-- SndFactorPasswordChallenge
+
+-- | remove this type once we have an implementation in order to find all the places where we need to touch code.
+data TeamFeatureSndFPasswordChallengeNotImplemented
+  = TeamFeatureSndFPasswordChallengeNotImplemented
+
+data SndFactorPasswordChallengeAction = GenerateScimToken | Login
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeAction)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SndFactorPasswordChallengeAction)
+
+instance ToSchema SndFactorPasswordChallengeAction where
+  schema =
+    enum @Text "SndFactorPasswordChallengeAction" $
+      mconcat
+        [ element "generate_scim_token" GenerateScimToken,
+          element "login" Login
+        ]
+
+data SendVerificationCode = SendVerificationCode
+  { svcAction :: SndFactorPasswordChallengeAction,
+    svcEmail :: Email
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SendVerificationCode)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SendVerificationCode
+
+instance ToSchema SendVerificationCode where
+  schema =
+    object "SendVerificationCode" $
+      SendVerificationCode
+        <$> svcAction .= field "action" schema
+        <*> svcEmail .= field "email" schema

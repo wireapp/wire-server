@@ -252,6 +252,8 @@ tests =
       testRoundTrip @User.DeleteUser,
       testRoundTrip @User.VerifyDeleteUser,
       testRoundTrip @User.DeletionCodeTimeout,
+      testRoundTrip @User.SndFactorPasswordChallengeAction,
+      testRoundTrip @User.SendVerificationCode,
       testRoundTrip @User.Activation.ActivationKey,
       -- FUTUREWORK: this should probably be tested individually,
       -- but ActivationTarget currently doesn't have JSON instances itself.

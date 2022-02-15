@@ -83,6 +83,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User.Activation
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI
@@ -365,7 +366,9 @@ data CreateScimToken = CreateScimToken
   { -- | Token description (as memory aid for whoever is creating the token)
     createScimTokenDescr :: !Text,
     -- | User password, which we ask for because creating a token is a "powerful" operation
-    createScimTokenPassword :: !(Maybe PlainTextPassword)
+    createScimTokenPassword :: !(Maybe PlainTextPassword),
+    -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
+    createScimTokenCode :: !(Maybe ActivationCode)
   }
   deriving (Eq, Show)
 
@@ -373,6 +376,7 @@ instance A.FromJSON CreateScimToken where
   parseJSON = A.withObject "CreateScimToken" $ \o -> do
     createScimTokenDescr <- o A..: "description"
     createScimTokenPassword <- o A..:? "password"
+    createScimTokenCode <- o A..:? "code"
     pure CreateScimToken {..}
 
 -- Used for integration tests
@@ -380,7 +384,8 @@ instance A.ToJSON CreateScimToken where
   toJSON CreateScimToken {..} =
     A.object
       [ "description" A..= createScimTokenDescr,
-        "password" A..= createScimTokenPassword
+        "password" A..= createScimTokenPassword,
+        "code" A..= createScimTokenCode
       ]
 
 -- | Type used for the response of 'APIScimTokenCreate'.
@@ -463,7 +468,8 @@ instance ToSchema CreateScimToken where
           & type_ .~ Just SwaggerObject
           & properties
             .~ [ ("description", textSchema),
-                 ("password", textSchema)
+                 ("password", textSchema),
+                 ("code", textSchema)
                ]
           & required .~ ["description"]
 
