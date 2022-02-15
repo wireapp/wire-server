@@ -1067,7 +1067,9 @@ activate (Public.Activate tgt code dryrun)
 -- Verification
 
 sendVerificationCode :: Handler ()
-sendVerificationCode = pure ()
+sendVerificationCode =
+  case Public.TeamFeatureSndFPasswordChallengeNotImplemented of
+    _ -> pure ()
 
 -- Deprecated
 
