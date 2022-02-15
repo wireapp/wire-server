@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
-# This script can be used to template a helm chart with values filled in from
+# This script can be used to render all helm charts with values filled in from
 # hack/helm_vars as overrrides, if available.  This allows debugging helm
 # templating issues without actually installing anything, and without needing
 # access to a kubernetes cluster
+
+# Call the script directly (optionally with `--skip-deps`), or via the
+# `helm-template` make target.
 
 set -e
 
