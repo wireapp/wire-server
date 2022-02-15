@@ -6,7 +6,7 @@
 #   docker build -f build/alpine/Dockerfile.intermediate
 
 ARG builder=quay.io/wire/ubuntu20-builder
-ARG deps=quay.io/wire/ubuntu20-deps
+ARG deps=quay.io/wire/ubuntu20-deps:develop
 
 #--- Builder stage ---
 FROM ${builder} as builder
