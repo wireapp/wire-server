@@ -111,6 +111,10 @@ lookupLoginCode phone =
 
 login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label _) typ = do
+  case TeamFeatureSndFPasswordChallengeNotImplemented of
+    -- mark this place to implement handling verification codes later
+    -- (for now just ignore them unconditionally.)
+    _ -> pure ()
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   checkRetryLimit uid
