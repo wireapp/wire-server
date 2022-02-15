@@ -27,5 +27,6 @@
     ],
     "found": -4,
     "returned": 2,
+    "search_policy": "full_search",
     "took": 0
 }

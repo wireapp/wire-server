@@ -59,7 +59,8 @@ data SearchResult a = SearchResult
   { searchFound :: Int,
     searchReturned :: Int,
     searchTook :: Int,
-    searchResults :: [a]
+    searchResults :: [a],
+    searchPolicy :: FederatedUserSearchPolicy
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
@@ -80,6 +81,7 @@ instance ToSchema a => ToSchema (SearchResult a) where
         <*> searchReturned .= fieldWithDocModifier "returned" (S.description ?~ "Total number of hits returned") schema
         <*> searchTook .= fieldWithDocModifier "took" (S.description ?~ "Search time in ms") schema
         <*> searchResults .= fieldWithDocModifier "documents" (S.description ?~ "List of contacts found") (array schema)
+        <*> searchPolicy .= fieldWithDocModifier "search_policy" (S.description ?~ "Search policy that was applied when searching for users") schema
 
 deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
 
@@ -105,7 +107,8 @@ instance ToJSON (SearchResult TeamContact) where
       [ "found" Aeson..= searchFound r,
         "returned" Aeson..= searchReturned r,
         "took" Aeson..= searchTook r,
-        "documents" Aeson..= searchResults r
+        "documents" Aeson..= searchResults r,
+        "search_policy" Aeson..= searchPolicy r
       ]
 
 instance FromJSON (SearchResult TeamContact) where
@@ -115,6 +118,7 @@ instance FromJSON (SearchResult TeamContact) where
       <*> o .: "returned"
       <*> o .: "took"
       <*> o .: "documents"
+      <*> o .: "search_policy"
 
 --------------------------------------------------------------------------------
 -- Contact

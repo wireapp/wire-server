@@ -65,7 +65,8 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) 
             { searchFound = ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
-              searchResults = results
+              searchResults = results,
+              searchPolicy = FullSearch
             }
 
 -- FUTURWORK: Implement role filter (needs galley data)

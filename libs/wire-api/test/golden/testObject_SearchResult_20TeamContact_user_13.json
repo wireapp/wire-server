@@ -39,5 +39,6 @@
     ],
     "found": -6,
     "returned": 3,
+    "search_policy": "full_search",
     "took": 1
 }

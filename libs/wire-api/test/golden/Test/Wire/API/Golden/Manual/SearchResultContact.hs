@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Manual.SearchResultContact where
 
 import Test.Wire.API.Golden.Manual.Contact (testObject_Contact_1, testObject_Contact_2)
-import Wire.API.User.Search (Contact (..), SearchResult (..))
+import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (FullSearch), SearchResult (..))
 
 testObject_SearchResultContact_1 :: SearchResult Contact
 testObject_SearchResultContact_1 =
@@ -26,5 +26,6 @@ testObject_SearchResultContact_1 =
     { searchFound = 2,
       searchReturned = 2,
       searchTook = 100,
-      searchResults = [testObject_Contact_1, testObject_Contact_2]
+      searchResults = [testObject_Contact_1, testObject_Contact_2],
+      searchPolicy = FullSearch
     }
