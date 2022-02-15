@@ -1160,6 +1160,7 @@ instance S.ToSchema ListUsersQuery where
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge
 
+-- | remove this type once we have an implementation in order to find all the places where we need to touch code.
 data TeamFeatureSndFPasswordChallengeNotImplemented
   = TeamFeatureSndFPasswordChallengeNotImplemented
 
