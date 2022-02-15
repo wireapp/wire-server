@@ -421,9 +421,9 @@ techniques of the previous two examples:
 ```haskell
 userSchema' :: ValueSchema NamedSwaggerDoc User
 userSchema' = object "User" $ User
-  <$> field "name" schema
-  <*> optField "handle" (maybeWithDefault Aeson.Null schema)
-  <*> opt (field "expire" schema)
+  <$> userName .= field "name" schema
+  <*> userHandle .= optField "handle" (maybeWithDefault Aeson.Null schema)
+  <*> userExpire .= opt (field "expire" schema)
 ```
 
 Two things to note here:
