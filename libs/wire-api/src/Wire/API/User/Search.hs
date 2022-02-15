@@ -34,16 +34,14 @@ module Wire.API.User.Search
   )
 where
 
-import Control.Lens (makePrisms, (.~), (?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson hiding (object, (.=))
 import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHasMap
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
-import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
@@ -74,22 +72,20 @@ instance Traversable SearchResult where
     newResults <- traverse f (searchResults r)
     pure $ r {searchResults = newResults}
 
-instance S.ToSchema (SearchResult Contact) where
-  declareNamedSchema _ = do
-    intSchema <- S.declareSchema (Proxy @Int)
-    contacts <- S.declareSchema (Proxy @[Contact])
-    pure $
-      S.NamedSchema (Just "SearchResult") $
-        mempty
-          & S.type_ ?~ S.SwaggerObject
-          & S.properties
-            .~ InsOrdHasMap.fromList
-              [ ("found", S.Inline (intSchema & S.description ?~ "Total number of hits")),
-                ("returned", S.Inline (intSchema & S.description ?~ "Total number of hits returned")),
-                ("took", S.Inline (intSchema & S.description ?~ "Search time in ms")),
-                ("documents", S.Inline (contacts & S.description ?~ "List of contacts found"))
-              ]
-          & S.required .~ ["found", "returned", "took", "documents"]
+instance ToSchema a => ToSchema (SearchResult a) where
+  schema =
+    object "SearchResult" $
+      SearchResult
+        <$> searchFound .= fieldWithDocModifier "found" (S.description ?~ "Total number of hits") schema
+        <*> searchReturned .= fieldWithDocModifier "returned" (S.description ?~ "Total number of hits returned") schema
+        <*> searchTook .= fieldWithDocModifier "took" (S.description ?~ "Search time in ms") schema
+        <*> searchResults .= fieldWithDocModifier "documents" (S.description ?~ "List of contacts found") (array schema)
+
+deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
+
+deriving via (Schema (SearchResult Contact)) instance FromJSON (SearchResult Contact)
+
+deriving via (Schema (SearchResult Contact)) instance S.ToSchema (SearchResult Contact)
 
 modelSearchResult :: Doc.Model -> Doc.Model
 modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
@@ -103,7 +99,7 @@ modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
   Doc.property "documents" (Doc.array (Doc.ref modelContact)) $
     Doc.description "List of contacts found"
 
-instance ToJSON a => ToJSON (SearchResult a) where
+instance ToJSON (SearchResult TeamContact) where
   toJSON r =
     Aeson.object
       [ "found" Aeson..= searchFound r,
@@ -112,7 +108,7 @@ instance ToJSON a => ToJSON (SearchResult a) where
         "documents" Aeson..= searchResults r
       ]
 
-instance FromJSON a => FromJSON (SearchResult a) where
+instance FromJSON (SearchResult TeamContact) where
   parseJSON = withObject "SearchResult" $ \o ->
     SearchResult
       <$> o .: "found"
@@ -151,6 +147,7 @@ modelSearchContact = Doc.defineModel "Contact" $ do
   Doc.property "team" Doc.string' $ do
     Doc.description "Team ID"
     Doc.optional
+
 instance ToSchema Contact where
   schema =
     objectWithDocModifier "Contact" (description ?~ "Contact discovered through search") $
