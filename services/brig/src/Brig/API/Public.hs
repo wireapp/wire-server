@@ -73,7 +73,6 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified
 import Data.Range
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -83,7 +82,6 @@ import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import qualified Network.HTTP.Media as Media
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
 import Network.Wai.Predicate hiding (result, setStatus)
@@ -96,7 +94,6 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
-import System.IO.Unsafe
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
@@ -127,27 +124,10 @@ import qualified Wire.API.Wrapped as Public
 
 -- User API -----------------------------------------------------------
 
-type SwaggerDocsAPI' = "api" :> SwaggerSchemaUI "swagger-ui" "swagger-bad.json"
-
-type SwaggerDocsAPI =
-  SwaggerDocsAPI'
-    :<|> "api" :> "swagger.json" :> Get '[PrettyJSON] Value
-
-data PrettyJSON
-
-instance MimeRender PrettyJSON Value where
-  mimeRender _ _ =
-    -- (this file has been created with `curl http://localhost:8080/api/swagger.json` on develop.)
-    unsafePerformIO $ cs <$> readFile "/home/mf/src/wire-server/swagger.json"
-
-instance Accept PrettyJSON where
-  contentType _ = "application" Media.// "json"
+type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerDocsAPI' :<|> pure undefined
-
-swaggerDocsAPI' :: Servant.Server SwaggerDocsAPI'
-swaggerDocsAPI' =
+swaggerDocsAPI =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> GalleyAPI.swaggerDoc
