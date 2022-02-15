@@ -101,6 +101,7 @@ module Wire.API.User
     -- * 2nd factor auth
     SndFactorPasswordChallengeAction (..),
     SendVerificationCode (..),
+    TeamFeatureSndFPasswordChallengeNotImplemented (..),
   )
 where
 
@@ -1157,7 +1158,10 @@ instance S.ToSchema ListUsersQuery where
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
 
 -----------------------------------------------------------------------------
--- 2nd Factor Auth
+-- SndFactorPasswordChallenge
+
+data TeamFeatureSndFPasswordChallengeNotImplemented
+  = TeamFeatureSndFPasswordChallengeNotImplemented
 
 data SndFactorPasswordChallengeAction = GenerateScimToken | Login
   deriving stock (Eq, Show, Enum, Bounded, Generic)
