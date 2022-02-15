@@ -817,6 +817,8 @@ testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool ->
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
   -- FUTUREWORK: maybe regular user for legalholder?
   (legalholder :: UserId, tid) <- createBindingTeam
+  regularClient <- randomClient legalholder (head someLastPrekeys)
+
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
 
@@ -895,7 +897,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             peer
             peerClient
             (qUnqualified convId)
-            [ (legalholder, legalholderLHDevice, "cipher")
+            [ (legalholder, legalholderLHDevice, "cipher"),
+              (legalholder, regularClient, "cipher")
             ]
             !!! do
               const 404 === statusCode
@@ -928,10 +931,16 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             peer
             peerClient
             (qUnqualified convId)
-            [ (legalholder, legalholderLHDevice, "cipher")
+            [ (legalholder, legalholderLHDevice, "cipher"),
+              (legalholder, regularClient, "cipher")
             ]
             !!! do
               const 201 === statusCode
+              assertMismatchWithMessage
+                (Just "legalholderLHDevice is deleted")
+                []
+                []
+                [(legalholder, Set.singleton legalholderLHDevice)]
 
 data GroupConvAdmin
   = LegalholderIsAdmin
