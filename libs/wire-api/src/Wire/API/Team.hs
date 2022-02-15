@@ -72,12 +72,16 @@ where
 import Control.Lens (makeLenses)
 import Data.Aeson (FromJSON, ToJSON, Value (..))
 import Data.Aeson.Types (Parser)
+import qualified Data.Attoparsec.ByteString as Atto (Parser, string)
+import Data.Attoparsec.Combinator (choice)
+import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text.Encoding as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -255,9 +259,30 @@ newTeamSchema name sch =
 --------------------------------------------------------------------------------
 -- TeamUpdateData
 
+data IconUpdate = IconUpdate AssetKey | DefaultIcon
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform IconUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema IconUpdate
+
+instance FromByteString IconUpdate where
+  parser =
+    choice
+      [ IconUpdate <$> (parser :: Atto.Parser AssetKey),
+        DefaultIcon <$ Atto.string "default"
+      ]
+
+instance ToByteString IconUpdate where
+  builder (IconUpdate key) = builder key
+  builder DefaultIcon = "default"
+
+instance ToSchema IconUpdate where
+  schema =
+    (T.decodeUtf8 . toByteString')
+      .= parsedText "IconUpdate" (runParser parser . T.encodeUtf8)
+
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
-    _iconUpdate :: Maybe AssetKey,
+    _iconUpdate :: Maybe IconUpdate,
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
