@@ -68,7 +68,7 @@ newCookie ::
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  (AppIO r) (Cookie (ZAuth.Token u))
+  AppIO (Cookie (ZAuth.Token u))
 newCookie uid typ label = do
   now <- liftIO =<< view currentTime
   tok <-
@@ -90,7 +90,7 @@ newCookie uid typ label = do
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
-nextCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> (AppIO r) (Maybe (Cookie (ZAuth.Token u)))
+nextCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> AppIO (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c = do
   s <- view settings
   now <- liftIO =<< view currentTime
@@ -116,7 +116,7 @@ nextCookie c = do
             return c' {cookieValue = t}
 
 -- | Renew the given cookie with a fresh token.
-renewCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> (AppIO r) (Cookie (ZAuth.Token u))
+renewCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> AppIO (Cookie (ZAuth.Token u))
 renewCookie old = do
   let t = cookieValue old
   let uid = ZAuth.userTokenOf t
@@ -134,7 +134,7 @@ renewCookie old = do
 -- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
 -- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
 -- implicitly because of cyclical dependencies).
-mustSuspendInactiveUser :: UserId -> (AppIO r) Bool
+mustSuspendInactiveUser :: UserId -> AppIO Bool
 mustSuspendInactiveUser uid =
   view (settings . to setSuspendInactiveUsers) >>= \case
     Nothing -> pure False
@@ -151,7 +151,7 @@ mustSuspendInactiveUser uid =
             | otherwise = True
       pure mustSuspend
 
-newAccessToken :: forall u a r. ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> (AppIO r) AccessToken
+newAccessToken :: forall u a. ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
 newAccessToken c mt = do
   t' <- case mt of
     Nothing -> ZAuth.newAccessToken (cookieValue c)
@@ -166,7 +166,7 @@ newAccessToken c mt = do
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: ZAuth.UserTokenLike u => ZAuth.Token u -> (AppIO r) (Maybe (Cookie (ZAuth.Token u)))
+lookupCookie :: ZAuth.UserTokenLike u => ZAuth.Token u -> AppIO (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
   let user = ZAuth.userTokenOf t
   let rand = ZAuth.userTokenRand t
@@ -175,16 +175,16 @@ lookupCookie t = do
   where
     setToken c = c {cookieValue = t}
 
-listCookies :: UserId -> [CookieLabel] -> (AppIO r) [Cookie ()]
+listCookies :: UserId -> [CookieLabel] -> AppIO [Cookie ()]
 listCookies u [] = DB.listCookies u
 listCookies u ll = filter byLabel <$> DB.listCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: UserId -> (AppIO r) ()
+revokeAllCookies :: UserId -> AppIO ()
 revokeAllCookies u = revokeCookies u [] []
 
-revokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> (AppIO r) ()
+revokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AppIO ()
 revokeCookies u [] [] = DB.deleteAllCookies u
 revokeCookies u ids labels = do
   cc <- filter matching <$> DB.listCookies u
@@ -202,7 +202,7 @@ newCookieLimited ::
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  (AppIO r) (Either RetryAfter (Cookie (ZAuth.Token t)))
+  AppIO (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
   cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
   now <- liftIO =<< view currentTime
@@ -246,7 +246,7 @@ setResponseCookie c r = do
 --------------------------------------------------------------------------------
 -- Tracking
 
-trackSuperseded :: UserId -> CookieId -> (AppIO r) ()
+trackSuperseded :: UserId -> CookieId -> AppIO ()
 trackSuperseded u c = do
   m <- view metrics
   Metrics.counterIncr (Metrics.path "user.auth.cookie.superseded") m

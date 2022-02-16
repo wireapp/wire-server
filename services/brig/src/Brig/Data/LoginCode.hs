@@ -48,7 +48,7 @@ maxAttempts = 3
 ttl :: NominalDiffTime
 ttl = 600
 
-createLoginCode :: UserId -> (AppIO r) PendingLoginCode
+createLoginCode :: UserId -> AppIO PendingLoginCode
 createLoginCode u = do
   now <- liftIO =<< view currentTime
   code <- liftIO genCode
@@ -57,7 +57,7 @@ createLoginCode u = do
   where
     genCode = LoginCode . T.pack . printf "%06d" <$> randIntegerZeroToNMinusOne 1000000
 
-verifyLoginCode :: UserId -> LoginCode -> (AppIO r) Bool
+verifyLoginCode :: UserId -> LoginCode -> AppIO Bool
 verifyLoginCode u c = do
   code <- retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
   now <- liftIO =<< view currentTime
@@ -67,7 +67,7 @@ verifyLoginCode u c = do
     Just (_, _, _) -> deleteLoginCode u >> return False
     Nothing -> return False
 
-lookupLoginCode :: UserId -> (AppIO r) (Maybe PendingLoginCode)
+lookupLoginCode :: UserId -> AppIO (Maybe PendingLoginCode)
 lookupLoginCode u = do
   now <- liftIO =<< view currentTime
   validate now =<< retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
@@ -77,10 +77,10 @@ lookupLoginCode u = do
     pending c now t = PendingLoginCode c (timeout now t)
     timeout now t = Timeout (t `diffUTCTime` now)
 
-deleteLoginCode :: UserId -> (AppIO r) ()
+deleteLoginCode :: UserId -> AppIO ()
 deleteLoginCode u = retry x5 . write codeDelete $ params LocalQuorum (Identity u)
 
-insertLoginCode :: UserId -> LoginCode -> Int32 -> UTCTime -> (AppIO r) ()
+insertLoginCode :: UserId -> LoginCode -> Int32 -> UTCTime -> AppIO ()
 insertLoginCode u c n t = retry x5 . write codeInsert $ params LocalQuorum (u, c, n, t, round ttl)
 
 -- Queries

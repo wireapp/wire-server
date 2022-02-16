@@ -57,7 +57,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppIO r) (Maybe UserIdentity)
+fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
@@ -65,7 +65,7 @@ fetchUserIdentity uid =
       (return . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppIO r) (Maybe SelfProfile)
+lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)
 lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)
@@ -83,9 +83,9 @@ logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCod
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::
   (Traversable t, Exception e) =>
-  (a -> ExceptT e (AppIO r) b) ->
+  (a -> ExceptT e AppIO b) ->
   t a ->
-  ExceptT e (AppIO r) (t b)
+  ExceptT e AppIO (t b)
 traverseConcurrentlyWithErrors f =
   ExceptT . try . (traverse (either throwIO pure) =<<)
     . pooledMapConcurrentlyN 8 (runExceptT . f)

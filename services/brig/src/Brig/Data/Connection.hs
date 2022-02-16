@@ -73,7 +73,7 @@ insertConnection ::
   Qualified UserId ->
   RelationWithHistory ->
   Qualified ConvId ->
-  (AppIO r) UserConnection
+  AppIO UserConnection
 insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
@@ -92,7 +92,7 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
         ucConvId = Just qcnv
       }
 
-updateConnection :: UserConnection -> RelationWithHistory -> (AppIO r) UserConnection
+updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
 updateConnection c status = do
   self <- qualifyLocal (ucFrom c)
   now <- updateConnectionStatus self (ucTo c) status
@@ -102,7 +102,7 @@ updateConnection c status = do
         ucLastUpdate = now
       }
 
-updateConnectionStatus :: Local UserId -> Qualified UserId -> RelationWithHistory -> (AppIO r) UTCTimeMillis
+updateConnectionStatus :: Local UserId -> Qualified UserId -> RelationWithHistory -> AppIO UTCTimeMillis
 updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
@@ -115,7 +115,7 @@ updateConnectionStatus self target status = do
   pure now
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
-lookupConnection :: Local UserId -> Qualified UserId -> (AppIO r) (Maybe UserConnection)
+lookupConnection :: Local UserId -> Qualified UserId -> AppIO (Maybe UserConnection)
 lookupConnection self target = runMaybeT $ do
   let local (tUnqualified -> ltarget) = do
         (_, _, rel, time, mcnv) <-
@@ -143,7 +143,7 @@ lookupRelationWithHistory ::
   Local UserId ->
   -- | User 'B'
   Qualified UserId ->
-  (AppIO r) (Maybe RelationWithHistory)
+  AppIO (Maybe RelationWithHistory)
 lookupRelationWithHistory self target = do
   let local (tUnqualified -> ltarget) =
         query1 relationSelect (params LocalQuorum (tUnqualified self, ltarget))
@@ -151,14 +151,14 @@ lookupRelationWithHistory self target = do
         query1 remoteRelationSelect (params LocalQuorum (tUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
 
-lookupRelation :: Local UserId -> Qualified UserId -> (AppIO r) Relation
+lookupRelation :: Local UserId -> Qualified UserId -> AppIO Relation
 lookupRelation self target =
   lookupRelationWithHistory self target <&> \case
     Nothing -> Cancelled
     Just relh -> (relationDropHistory relh)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
-lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> (AppIO r) (ResultPage UserConnection)
+lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
 lookupLocalConnections lfrom start (fromRange -> size) =
   toResult <$> case start of
     Just u ->
@@ -196,48 +196,48 @@ lookupRemoteConnectionsPage self pagingState size =
       (paramsPagingState LocalQuorum (Identity (tUnqualified self)) size pagingState)
 
 -- | Lookup all relations between two sets of users (cartesian product).
-lookupConnectionStatus :: [UserId] -> [UserId] -> (AppIO r) [ConnectionStatus]
+lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]
 lookupConnectionStatus from to =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect (params LocalQuorum (from, to)))
 
 -- | Lookup all relations between two sets of users (cartesian product).
-lookupConnectionStatus' :: [UserId] -> (AppIO r) [ConnectionStatus]
+lookupConnectionStatus' :: [UserId] -> AppIO [ConnectionStatus]
 lookupConnectionStatus' from =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect' (params LocalQuorum (Identity from)))
 
-lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> (AppIO r) [ConnectionStatusV2]
+lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> AppIO [ConnectionStatusV2]
 lookupLocalConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupStatuses :: UserId -> AppIO [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
         <$> retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos)))
 
-lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> (AppIO r) [ConnectionStatusV2]
+lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> AppIO [ConnectionStatusV2]
 lookupRemoteConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupStatuses :: UserId -> AppIO [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
         <$> retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos)))
 
-lookupAllStatuses :: Local [UserId] -> (AppIO r) [ConnectionStatusV2]
+lookupAllStatuses :: Local [UserId] -> AppIO [ConnectionStatusV2]
 lookupAllStatuses lfroms = do
   let froms = tUnqualified lfroms
   concat <$> pooledMapConcurrentlyN 16 lookupAndCombine froms
   where
-    lookupAndCombine :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupAndCombine :: UserId -> AppIO [ConnectionStatusV2]
     lookupAndCombine u = (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
 
-    lookupLocalStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupLocalStatuses :: UserId -> AppIO [ConnectionStatusV2]
     lookupLocalStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain lfroms))
         <$> retry x1 (query relationsSelectAll (params LocalQuorum (Identity from)))
-    lookupRemoteStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupRemoteStatuses :: UserId -> AppIO [ConnectionStatusV2]
     lookupRemoteStatuses from =
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params LocalQuorum (Identity from)))
@@ -248,20 +248,20 @@ lookupRemoteConnectedUsersC u maxResults =
     .| C.map (map (uncurry toRemoteUnsafe))
 
 -- | See 'lookupContactListWithRelation'.
-lookupContactList :: UserId -> (AppIO r) [UserId]
+lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
   fst <$$> (filter ((== AcceptedWithHistory) . snd) <$> lookupContactListWithRelation u)
 
 -- | For a given user 'A', lookup the list of users that form his contact list,
 -- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
-lookupContactListWithRelation :: UserId -> (AppIO r) [(UserId, RelationWithHistory)]
+lookupContactListWithRelation :: UserId -> AppIO [(UserId, RelationWithHistory)]
 lookupContactListWithRelation u =
   retry x1 (query contactsSelect (params LocalQuorum (Identity u)))
 
 -- | Count the number of connections a user has in a specific relation status.
 -- (If you want to distinguish 'RelationWithHistory', write a new function.)
 -- Note: The count is eventually consistent.
-countConnections :: Local UserId -> [Relation] -> (AppIO r) Int64
+countConnections :: Local UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
   rels <- retry x1 . query selectStatus $ params One (Identity (tUnqualified u))
   relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (tUnqualified u))
@@ -277,7 +277,7 @@ countConnections u r = do
     count n (Identity s) | (relationDropHistory s) `elem` r = n + 1
     count n _ = n
 
-deleteConnections :: UserId -> (AppIO r) ()
+deleteConnections :: UserId -> AppIO ()
 deleteConnections u = do
   runConduit $
     paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
@@ -287,7 +287,7 @@ deleteConnections u = do
   where
     delete (other, _status) = write connectionDelete $ params LocalQuorum (other, u)
 
-deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> (AppIO r) ()
+deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO ()
 deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)

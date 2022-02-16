@@ -419,13 +419,13 @@ initCredentials secretFile = do
   dat <- loadSecret secretFile
   return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
-userTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, UserTemplates)
+userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 
-providerTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, ProviderTemplates)
+providerTemplates :: Monad m => Maybe Locale -> AppT m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates
 
-teamTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, TeamTemplates)
+teamTemplates :: Monad m => Maybe Locale -> AppT m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
 closeEnv :: Env -> IO ()
@@ -437,7 +437,7 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
-newtype AppT r m a = AppT
+newtype AppT m a = AppT
   { unAppT :: ReaderT Env m a
   }
   deriving newtype
@@ -454,58 +454,58 @@ newtype AppT r m a = AppT
     ( Semigroup,
       Monoid
     )
-    via (Ap (AppT r m) a)
+    via (Ap (AppT m) a)
 
-type AppIO r = AppT r IO
+type AppIO = AppT IO
 
-instance MonadIO m => MonadLogger (AppT r m) where
+instance MonadIO m => MonadLogger (AppT m) where
   log l m = do
     g <- view applog
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
+instance MonadIO m => MonadLogger (ExceptT err (AppT m)) where
   log l m = lift (LC.log l m)
 
-instance (Monad m, MonadIO m) => MonadHttp (AppT r m) where
+instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r m) where
+instance MonadIO m => MonadZAuth (AppT m) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
-instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
+instance MonadIO m => MonadZAuth (ExceptT err (AppT m)) where
   liftZAuth = lift . liftZAuth
 
-instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
+instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT m) where
   liftClient m = view casClient >>= \c -> runClient c m
   localState f = local (over casClient f)
 
-instance MonadIndexIO (AppIO r) where
+instance MonadIndexIO AppIO where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
+instance (MonadIndexIO (AppT m), Monad m) => MonadIndexIO (ExceptT err (AppT m)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance Monad m => HasRequestId (AppT r m) where
+instance Monad m => HasRequestId (AppT m) where
   getRequestId = view requestId
 
-instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
   withRunInIO inner =
     AppT . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unAppT)
 
-runAppT :: Env -> AppT r m a -> m a
+runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
-runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
+runAppResourceT :: ResourceT AppIO a -> AppIO a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppIO :: Maybe UserId -> (AppIO r) a -> (AppIO r) ()
+forkAppIO :: Maybe UserId -> AppIO a -> AppIO ()
 forkAppIO u ma = do
   a <- ask
   g <- view applog

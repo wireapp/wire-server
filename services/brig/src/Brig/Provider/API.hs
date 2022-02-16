@@ -643,7 +643,7 @@ deleteService pid sid del = do
   queue <- view internalEvents
   lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
 
-finishDeleteService :: ProviderId -> ServiceId -> (AppIO r) ()
+finishDeleteService :: ProviderId -> ServiceId -> AppIO ()
 finishDeleteService pid sid = do
   mbSvc <- DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
@@ -909,7 +909,7 @@ botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do
   maybe (throwErrorDescriptionType @ClientNotFound) (pure . json) =<< lift (botGetClient bot)
 
-botGetClient :: BotId -> (AppIO r) (Maybe Public.Client)
+botGetClient :: BotId -> AppIO (Maybe Public.Client)
 botGetClient bot = do
   listToMaybe <$> User.lookupClients (botUserId bot)
 
@@ -961,7 +961,7 @@ botGetUserClientsH :: UserId -> Handler Response
 botGetUserClientsH uid = do
   json <$> lift (botGetUserClients uid)
 
-botGetUserClients :: UserId -> (AppIO r) [Public.PubClient]
+botGetUserClients :: UserId -> AppIO [Public.PubClient]
 botGetUserClients uid = do
   pubClient <$$> User.lookupClients uid
   where
@@ -992,7 +992,7 @@ activate pid old new = do
     throwStd emailExists
   DB.insertKey pid (mkEmailKey <$> old) emailKey
 
-deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> (AppIO r) (Maybe Public.Event)
+deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> AppIO (Maybe Public.Event)
 deleteBot zusr zcon bid cid = do
   -- Remove the bot from the conversation
   ev <- RPC.removeBotMember zusr zcon cid bid

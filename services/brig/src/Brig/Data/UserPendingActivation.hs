@@ -38,14 +38,14 @@ data UserPendingActivation = UserPendingActivation
   }
   deriving stock (Eq, Show, Ord)
 
-usersPendingActivationAdd :: UserPendingActivation -> (AppIO r) ()
+usersPendingActivationAdd :: UserPendingActivation -> AppIO ()
 usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
   retry x5 . write insertExpiration . params LocalQuorum $ (uid, expiresAt)
   where
     insertExpiration :: PrepQuery W (UserId, UTCTime) ()
     insertExpiration = "INSERT INTO users_pending_activation (user, expires_at) VALUES (?, ?)"
 
-usersPendingActivationList :: (AppIO r) (Page UserPendingActivation)
+usersPendingActivationList :: AppIO (Page UserPendingActivation)
 usersPendingActivationList = do
   uncurry UserPendingActivation <$$> retry x1 (paginate selectExpired (params LocalQuorum ()))
   where
@@ -53,10 +53,10 @@ usersPendingActivationList = do
     selectExpired =
       "SELECT user, expires_at FROM users_pending_activation"
 
-usersPendingActivationRemove :: UserId -> (AppIO r) ()
+usersPendingActivationRemove :: UserId -> AppIO ()
 usersPendingActivationRemove uid = usersPendingActivationRemoveMultiple [uid]
 
-usersPendingActivationRemoveMultiple :: [UserId] -> (AppIO r) ()
+usersPendingActivationRemoveMultiple :: [UserId] -> AppIO ()
 usersPendingActivationRemoveMultiple uids =
   retry x5 . write deleteExpired . params LocalQuorum $ (Identity uids)
   where
