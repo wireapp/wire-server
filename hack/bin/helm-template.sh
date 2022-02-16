@@ -13,9 +13,11 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
-: "${FEDERATION_DOMAIN:=example.com}"
+: "${FEDERATION_DOMAIN_BASE:=example.com}"
+: "${FEDERATION_DOMAIN:=namespace1.example.com}"
 : "${NAMESPACE:=namespace1}"
 
+export FEDERATION_DOMAIN_BASE
 export FEDERATION_DOMAIN
 export NAMESPACE
 
