@@ -399,8 +399,7 @@ withOptLock u c ma = go (10 :: Int)
         execDyn' e m conv cmd = recovering policy handlers (const run)
           where
             run = execCatch e cmd >>= either handleErr (return . conv)
-            handlers = httpHandlers --TODO: Figure out why it needs a constraint Typeable effs
-            -- handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
+            handlers = httpHandlers ++ [const $ Handler $ pure . const True . preview (AWS._ConditionalCheckFailedException @SomeException)]
             policy = limitRetries 3 <> exponentialBackoff 100000
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
