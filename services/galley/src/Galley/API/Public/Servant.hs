@@ -200,6 +200,16 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<
               setGuestLinkInternal
               . DoAuth
           )
+        :<|> Named @'("get", 'TeamFeatureSndFactorPasswordChallenge)
+          ( getFeatureStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
+              getSndFactorPasswordChallengeInternal
+              . DoAuth
+          )
+        :<|> Named @'("put", 'TeamFeatureSndFactorPasswordChallenge)
+          ( setFeatureStatus @'TeamFeatureSndFactorPasswordChallenge
+              setSndFactorPasswordChallengeInternal
+              . DoAuth
+          )
         :<|> Named @"get-all-feature-configs" getAllFeatureConfigs
         :<|> Named @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
@@ -244,4 +254,8 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<
         :<|> Named @'("get-config", 'TeamFeatureGuestLinks)
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureGuestLinks
               getGuestLinkInternal
+          )
+        :<|> Named @'("get-config", 'TeamFeatureSndFactorPasswordChallenge)
+          ( getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
+              getSndFactorPasswordChallengeInternal
           )

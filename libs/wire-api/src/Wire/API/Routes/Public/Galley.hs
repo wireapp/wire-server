@@ -920,6 +920,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut 'TeamFeatureSelfDeletingMessages
     :<|> FeatureStatusGet 'TeamFeatureGuestLinks
     :<|> FeatureStatusPut 'TeamFeatureGuestLinks
+    :<|> FeatureStatusGet 'TeamFeatureSndFactorPasswordChallenge
+    :<|> FeatureStatusPut 'TeamFeatureSndFactorPasswordChallenge
     :<|> AllFeatureConfigsGet
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
@@ -932,6 +934,7 @@ type FeatureAPI =
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
+    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
 
 type FeatureStatusGet f =
   Named
