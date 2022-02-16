@@ -20,6 +20,7 @@ Installing wire-server
    sft
    restund
    configure-federation
+   tls
    Managing authentication with ansible <ansible-authentication.rst>
    Using tinc <ansible-tinc.rst>
    Troubleshooting during installation <troubleshooting.rst>
