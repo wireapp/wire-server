@@ -90,7 +90,7 @@ where
 
 import Brig.API.Error (errorDescriptionTypeToWai)
 import qualified Brig.API.Error as Error
-import qualified Brig.API.Handler as API (Handler)
+import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -339,7 +339,7 @@ createUser new = do
       --             Remove after the next release.
       canAdd <- lift $ Intra.checkUserCanJoinTeam tid
       case canAdd of
-        Just _ -> undefined -- TODO: How do we do this: throwE (ExternalPreconditionFailed e)
+        Just e -> throwM $ API.UserNotAllowedToJoinTeam e
         Nothing -> pure ()
 
     acceptTeamInvitation ::

@@ -27,6 +27,7 @@ module Brig.API.Handler
     checkWhitelist,
     checkWhitelistWithError,
     isWhiteListed,
+    UserNotAllowedToJoinTeam (..),
   )
 where
 
@@ -99,6 +100,11 @@ toServantHandler env action = do
           Servant.throwError $
             Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode body) headers
 
+newtype UserNotAllowedToJoinTeam = UserNotAllowedToJoinTeam WaiError.Error
+  deriving (Show)
+
+instance Exception UserNotAllowedToJoinTeam
+
 brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
 brigErrorHandlers =
   [ Catch.Handler $ \(ex :: PhoneException) ->
@@ -108,7 +114,9 @@ brigErrorHandlers =
     Catch.Handler $ \(ex :: AWS.Error) ->
       case ex of
         AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
-        _ -> throwM ex
+        _ -> throwM ex,
+    Catch.Handler $ \(UserNotAllowedToJoinTeam e) ->
+      pure (Left $ StdError e)
   ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
