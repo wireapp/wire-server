@@ -22,6 +22,7 @@ module Brig.Data.Activation
     ActivationCode (..),
     ActivationEvent (..),
     ActivationError (..),
+    activationErrorToRegisterError,
     newActivation,
     mkActivationKey,
     lookupActivationCode,
@@ -48,6 +49,7 @@ import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Text.Printf (printf)
+import Wire.API.User
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation
@@ -64,6 +66,14 @@ data ActivationError
   | InvalidActivationCodeWrongCode
   | InvalidActivationEmail !Email !String
   | InvalidActivationPhone !Phone
+
+activationErrorToRegisterError :: ActivationError -> RegisterError
+activationErrorToRegisterError = \case
+  UserKeyExists _ -> RegisterErrorUserKeyExists
+  InvalidActivationCodeWrongUser -> RegisterErrorInvalidActivationCodeWrongUser
+  InvalidActivationCodeWrongCode -> RegisterErrorInvalidActivationCodeWrongCode
+  InvalidActivationEmail _ _ -> RegisterErrorInvalidEmail
+  InvalidActivationPhone _ -> RegisterErrorInvalidPhone
 
 data ActivationEvent
   = AccountActivated !UserAccount

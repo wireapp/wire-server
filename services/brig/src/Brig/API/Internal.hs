@@ -32,6 +32,7 @@ import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
 import Brig.App
+import Brig.Data.Activation
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
@@ -73,6 +74,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
@@ -82,13 +84,19 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: ServerT BrigIRoutes.API (Handler r)
-servantSitemap =
+servantSitemap = ejpdAPI :<|> accountAPI
+
+ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
+ejpdAPI =
   Brig.User.EJPD.ejpdRequest
     :<|> getAccountFeatureConfig
     :<|> putAccountFeatureConfig
     :<|> deleteAccountFeatureConfig
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
+
+accountAPI :: ServerT BrigIRoutes.AccountAPI Handler
+accountAPI = Named @"createUserNoVerify" createUserNoVerify
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
@@ -114,13 +122,6 @@ sitemap :: Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email or phone get activated
-  post "/i/users" (continue createUserNoVerifyH) $
-    accept "application" "json"
-      .&. jsonRequest @NewUser
 
   -- internal email activation (used in tests and in spar for validating emails obtained as
   -- SAML user identifiers).  if the validate query parameter is false or missing, only set
@@ -316,18 +317,9 @@ internalListFullClients :: UserSet -> (AppIO r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
-createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> (Handler r) Response
-createUserNoVerifyH (_ ::: req) = do
-  CreateUserNoVerifyResponse uid prof <- createUserNoVerify =<< parseJsonBody req
-  return . setStatus status201
-    . addHeader "Location" (toByteString' uid)
-    $ json prof
-
-data CreateUserNoVerifyResponse = CreateUserNoVerifyResponse UserId SelfProfile
-
-createUserNoVerify :: NewUser -> (Handler r) CreateUserNoVerifyResponse
-createUserNoVerify uData = do
-  result <- API.createUser uData !>> newUserError
+createUserNoVerify :: NewUser -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerify uData = lift . runExceptT $ do
+  result <- API.createUser uData
   let acc = createdAccount result
   let usr = accountUser acc
   let uid = userId usr
@@ -336,8 +328,8 @@ createUserNoVerify uData = do
   for_ (catMaybes [eac, pac]) $ \adata ->
     let key = ActivateKey $ activationKey adata
         code = activationCode adata
-     in API.activate key code (Just uid) !>> actError
-  return $ CreateUserNoVerifyResponse uid (SelfProfile usr)
+     in API.activate key code (Just uid) !>> activationErrorToRegisterError
+  pure (SelfProfile usr)
 
 deleteUserNoVerifyH :: UserId -> (Handler r) Response
 deleteUserNoVerifyH uid = do

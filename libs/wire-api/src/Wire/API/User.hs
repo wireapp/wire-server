@@ -40,6 +40,7 @@ module Wire.API.User
     RegisterError (..),
     RegisterSuccess (..),
     RegisterResponses,
+    RegisterInternalResponses,
     NewUser (..),
     emptyNewUser,
     ExpiresIn,
@@ -589,6 +590,22 @@ instance AsHeaders '[Web.SetCookie, UserId] SelfProfile RegisterSuccess where
 data RegisterSuccess = RegisterSuccess Web.SetCookie SelfProfile
 
 instance (res ~ RegisterResponses) => AsUnion res (Either RegisterError RegisterSuccess) where
+  toUnion = eitherToUnion (toUnion @RegisterErrorResponses) (Z . I)
+  fromUnion = eitherFromUnion (fromUnion @RegisterErrorResponses) (unI . unZ)
+
+type RegisterInternalResponses =
+  RegisterErrorResponses
+    .++ '[ WithHeaders
+             '[DescHeader "Location" "UserId" UserId]
+             SelfProfile
+             (Respond 201 "User created and pending activation" SelfProfile)
+         ]
+
+instance AsHeaders '[UserId] SelfProfile SelfProfile where
+  fromHeaders (_ :* Nil, sp) = sp
+  toHeaders sp = (I (userId (selfUser sp)) :* Nil, sp)
+
+instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError SelfProfile) where
   toUnion = eitherToUnion (toUnion @RegisterErrorResponses) (Z . I)
   fromUnion = eitherFromUnion (fromUnion @RegisterErrorResponses) (unI . unZ)
 

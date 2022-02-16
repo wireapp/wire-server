@@ -88,13 +88,14 @@ module Brig.API.User
   )
 where
 
+import Brig.API.Error (errorDescriptionTypeToWai)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
-import Brig.Data.Activation (ActivationEvent (..))
+import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
@@ -150,6 +151,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
+import Wire.API.ErrorDescription
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
@@ -163,17 +165,34 @@ data AllowSCIMUpdates
 -------------------------------------------------------------------------------
 -- Create User
 
-verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT RegisterError (AppIO r) ()
+data IdentityError
+  = IdentityErrorBlacklistedEmail
+  | IdentityErrorBlacklistedPhone
+  | IdentityErrorUserKeyExists
+
+identityErrorToRegisterError :: IdentityError -> RegisterError
+identityErrorToRegisterError = \case
+  IdentityErrorBlacklistedEmail -> RegisterErrorBlacklistedEmail
+  IdentityErrorBlacklistedPhone -> RegisterErrorBlacklistedPhone
+  IdentityErrorUserKeyExists -> RegisterErrorUserKeyExists
+
+identityErrorToBrigError :: IdentityError -> Error.Error
+identityErrorToBrigError = \case
+  IdentityErrorBlacklistedEmail -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedEmail
+  IdentityErrorBlacklistedPhone -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedPhone
+  IdentityErrorUserKeyExists -> Error.StdError $ errorDescriptionTypeToWai @UserKeyExists
+
+verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   checkKey Nothing uk
   blacklisted <- lift $ Blacklist.exists uk
   when blacklisted $
-    throwE (foldKey (const RegisterErrorBlacklistedEmail) (const RegisterErrorBlacklistedPhone) uk)
+    throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
   where
     checkKey u k = do
       av <- lift $ Data.keyAvailable k u
       unless av $
-        throwE RegisterErrorUserKeyExists
+        throwE IdentityErrorUserKeyExists
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT RegisterError (AppIO r) CreateUserResult
@@ -291,8 +310,8 @@ createUser new = do
           return
           =<< lift (validatePhone p)
 
-      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ do
-        verifyUniquenessAndCheckBlacklist
+      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
+        verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
       pure (email, phone)
 
@@ -320,7 +339,7 @@ createUser new = do
       --             Remove after the next release.
       canAdd <- lift $ Intra.checkUserCanJoinTeam tid
       case canAdd of
-        Just e -> undefined -- TODO: How do we do this: throwE (ExternalPreconditionFailed e)
+        Just _ -> undefined -- TODO: How do we do this: throwE (ExternalPreconditionFailed e)
         Nothing -> pure ()
 
     acceptTeamInvitation ::
@@ -382,18 +401,13 @@ createUser new = do
           ak <- liftIO $ Data.mkActivationKey ek
           void $
             activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
-              !>> ( \case
-                      UserKeyExists _ -> RegisterErrorUserKeyExists
-                      InvalidActivationCode txt -> _
-                      InvalidActivationEmail em s -> _
-                      InvalidActivationPhone ph -> _
-                  )
+              !>> activationErrorToRegisterError
           return Nothing
 
     -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT CreateUserError (AppT r IO) (Maybe Activation)
+    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
     handlePhoneActivation phone uid = do
-      pdata <- fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
+      fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           pdata <- lift $ Data.newActivation pk timeout (Just uid)
@@ -404,9 +418,8 @@ createUser new = do
           return $ Just pdata
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey pk
-          void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
+          void $ activate (ActivateKey ak) c (Just uid) !>> activationErrorToRegisterError
           return Nothing
-      pure pdata
 
 initAccountFeatureConfig :: UserId -> (AppIO r) ()
 initAccountFeatureConfig uid = do
@@ -417,10 +430,10 @@ initAccountFeatureConfig uid = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppIO r) UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
-  email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
+  email <- either (const . throwE . Error.StdError $ errorDescriptionTypeToWai @InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
-  verifyUniquenessAndCheckBlacklist emKey
+  verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 

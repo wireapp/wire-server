@@ -234,9 +234,10 @@ getAccountFeatureConfigClient uid =
 
 getAccountFeatureConfigClientM ::
   UserId -> Client.ClientM TeamFeatureStatusNoConfig
-( _
-    :<|> getAccountFeatureConfigClientM
-    :<|> _
+( ( _
+      :<|> getAccountFeatureConfigClientM
+      :<|> _
+    )
     :<|> _
   ) = Client.client (Proxy @IAPI.API)
 

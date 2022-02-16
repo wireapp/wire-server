@@ -681,11 +681,11 @@ getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
-createUser (Public.NewUserPublic new) = runExceptT $ do
-  API.checkRestrictedUserCreation new -- !>> newUserError
+createUser (Public.NewUserPublic new) = lift . runExceptT $ do
+  API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $ checkWhitelistWithError RegisterErrorWhitelistError . Left
   for_ (Public.newUserPhone new) $ checkWhitelistWithError RegisterErrorWhitelistError . Right
-  result <- API.createUser new !>> newUserError
+  result <- API.createUser new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
@@ -724,7 +724,7 @@ createUser (Public.NewUserPublic new) = runExceptT $ do
       UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
       UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
-  pure $ Right (Public.RegisterSuccess cok (Public.SelfProfile usr))
+  pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
     sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppIO r) ()
     sendActivationEmail e u p l mTeamUser
