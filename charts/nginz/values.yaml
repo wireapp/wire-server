@@ -87,6 +87,10 @@ nginx_conf:
       max_body_size: "0"
       disable_request_buffering: true
     brig:
+    - path: /api-version
+      envs:
+      - all
+      disable_zauth: true
     - path: /users
       envs:
       - all
