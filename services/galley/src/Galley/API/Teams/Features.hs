@@ -238,7 +238,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
-        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
       ]
 
 getAllFeaturesH ::
@@ -287,7 +288,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
-        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
       ]
   where
     getStatus ::
