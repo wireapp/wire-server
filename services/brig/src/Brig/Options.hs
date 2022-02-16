@@ -381,11 +381,17 @@ instance FromJSON AllowedUserSearch where
 
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
-    searchPolicy :: FederatedUserSearchPolicy
+    cfgSearchPolicy :: FederatedUserSearchPolicy
   }
   deriving (Show, Generic)
+  deriving (ToJSON, FromJSON) via Schema FederationDomainConfig
 
-instance FromJSON FederationDomainConfig
+instance ToSchema FederationDomainConfig where
+  schema =
+    object "FederationDomainConfig" $
+      FederationDomainConfig
+        <$> domain .= field "domain" schema
+        <*> cfgSearchPolicy .= field "search_policy" schema
 
 -- | Options that are consumed on startup
 data Opts = Opts

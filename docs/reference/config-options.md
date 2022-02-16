@@ -428,10 +428,10 @@ The lookup and search of users on a wire instance can be configured. This can be
 optSettings:
   setFederationDomainConfigs:
     - domain: example.com
-      search: no_search
+      search_policy: no_search
 ```
 
-Valid values for `search` are:
+Valid values for `search_policy` are:
 - `no_search`: No users are returned by federated searches.
 - `exact_handle_search`: Only users where the handle exactly matches are returned.
 - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
