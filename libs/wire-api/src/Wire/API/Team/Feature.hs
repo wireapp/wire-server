@@ -43,6 +43,7 @@ module Wire.API.Team.Feature
     defaultGuestLinksStatus,
     defaultTeamFeatureFileSharing,
     defaultTeamFeatureValidateSAMLEmailsStatus,
+    defaultTeamFeatureSndFactorPasswordChallengeStatus,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -140,6 +141,7 @@ data TeamFeatureName
   | TeamFeatureConferenceCalling
   | TeamFeatureSelfDeletingMessages
   | TeamFeatureGuestLinks
+  | TeamFeatureSndFactorPasswordChallenge
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -191,6 +193,10 @@ instance KnownTeamFeatureName 'TeamFeatureGuestLinks where
   type KnownTeamFeatureNameSymbol 'TeamFeatureGuestLinks = "conversationGuestLinks"
   knownTeamFeatureName = TeamFeatureGuestLinks
 
+instance KnownTeamFeatureName 'TeamFeatureSndFactorPasswordChallenge where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge = "sndFactorPasswordChallenge"
+  knownTeamFeatureName = TeamFeatureSndFactorPasswordChallenge
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -210,6 +216,7 @@ instance FromByteString TeamFeatureName where
         Right "conferenceCalling" -> pure TeamFeatureConferenceCalling
         Right "selfDeletingMessages" -> pure TeamFeatureSelfDeletingMessages
         Right "conversationGuestLinks" -> pure TeamFeatureGuestLinks
+        Right "sndFactorPasswordChallenge" -> pure TeamFeatureSndFactorPasswordChallenge
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 -- TODO: how do we make this consistent with 'KnownTeamFeatureNameSymbol'?  add a test for
@@ -226,6 +233,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureConferenceCalling = "conferenceCalling"
   builder TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
   builder TeamFeatureGuestLinks = "conversationGuestLinks"
+  builder TeamFeatureSndFactorPasswordChallenge = "sndFactorPasswordChallenge"
 
 instance ToSchema TeamFeatureName where
   schema =
@@ -320,6 +328,8 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages = TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureGuestLinks = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks = TeamFeatureStatusNoConfigAndLockStatus
+  TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSndFactorPasswordChallenge = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge = TeamFeatureStatusNoConfigAndLockStatus
 
 type family FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) :: Constraint where
   FeatureHasNoConfig 'WithLockStatus a = (TeamFeatureStatus 'WithLockStatus a ~ TeamFeatureStatusNoConfigAndLockStatus)
@@ -338,6 +348,7 @@ modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWi
 modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
 modelForTeamFeature TeamFeatureGuestLinks = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSndFactorPasswordChallenge = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -621,6 +632,12 @@ defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnab
 
 defaultTeamFeatureValidateSAMLEmailsStatus :: TeamFeatureStatusNoConfig
 defaultTeamFeatureValidateSAMLEmailsStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
+
+----------------------------------------------------------------------
+-- TeamFeatureSndFactorPasswordChallenge
+
+defaultTeamFeatureSndFactorPasswordChallengeStatus :: TeamFeatureStatusNoConfigAndLockStatus
+defaultTeamFeatureSndFactorPasswordChallengeStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Unlocked
 
 ----------------------------------------------------------------------
 -- internal
