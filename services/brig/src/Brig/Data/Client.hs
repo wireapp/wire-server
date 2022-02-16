@@ -53,7 +53,6 @@ import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Control.Error
-import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
@@ -94,7 +93,7 @@ addClient ::
   Int ->
   Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError AppIO (Client, [Client], Word)
+  ExceptT ClientDataError (AppIO r) (Client, [Client], Word)
 addClient u newId c maxPermClients loc cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
@@ -120,7 +119,7 @@ addClient u newId c maxPermClients loc cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: ExceptT ClientDataError AppIO Client
+    insert :: ExceptT ClientDataError (AppIO r) Client
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
@@ -184,7 +183,7 @@ lookupPrekeyIds u c =
 hasClient :: MonadClient m => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
 
-rmClient :: UserId -> ClientId -> AppIO ()
+rmClient :: UserId -> ClientId -> (AppIO r) ()
 rmClient u c = do
   retry x5 $ write removeClient (params LocalQuorum (u, c))
   retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
@@ -212,7 +211,7 @@ updatePrekeys u c pks = do
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
 
-claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+claimPrekey :: UserId -> ClientId -> (AppIO r) (Maybe ClientPrekey)
 claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
@@ -225,7 +224,7 @@ claimPrekey u c =
       prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
       removeAndReturnPreKey prekey
   where
-    removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
+    removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> (AppIO r) (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
       if i /= lastPrekeyId
         then retry x1 $ write removePrekey (params LocalQuorum (u, c, i))
@@ -237,7 +236,7 @@ claimPrekey u c =
       return $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = return Nothing
 
-    pickRandomPrekey :: [(PrekeyId, Text)] -> AppIO (Maybe (PrekeyId, Text))
+    pickRandomPrekey :: [(PrekeyId, Text)] -> (AppIO r) (Maybe (PrekeyId, Text))
     pickRandomPrekey [] = return Nothing
     -- unless we only have one key left
     pickRandomPrekey [pk] = return $ Just pk
@@ -330,13 +329,13 @@ ddbKey u c = AWS.attributeValue & AWS.avS ?~ UUID.toText (toUUID u) <> "." <> cl
 key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
 key u c = HashMap.singleton ddbClient (ddbKey u c)
 
-deleteOptLock :: UserId -> ClientId -> AppIO ()
+deleteOptLock :: UserId -> ClientId -> (AppIO r) ()
 deleteOptLock u c = do
   t <- view (awsEnv . prekeyTable)
   e <- view (awsEnv . amazonkaEnv)
   void $ exec e (AWS.deleteItem t & AWS.diKey .~ (key u c))
 
-withOptLock :: UserId -> ClientId -> AppIO a -> AppIO a
+withOptLock :: forall effs a. UserId -> ClientId -> (AppIO effs) a -> (AppIO effs) a
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
@@ -372,17 +371,17 @@ withOptLock u c ma = go (10 :: Int)
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
-    reportAttemptFailure :: AppIO ()
+    reportAttemptFailure :: (AppIO effs) ()
     reportAttemptFailure =
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
-    reportFailureAndLogError :: AppIO ()
+    reportFailureAndLogError :: (AppIO effs) ()
     reportFailureAndLogError = do
       Log.err $
         Log.field "user" (toByteString' u)
           . Log.field "client" (toByteString' c)
           . msg (val "PreKeys: Optimistic lock failed")
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
-    execDyn :: (AWS.AWSRequest r) => (AWS.Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
+    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.Rs r -> Maybe x) -> (Text -> r) -> (AppIO effs) (Maybe x)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
@@ -390,22 +389,24 @@ withOptLock u c ma = go (10 :: Int)
       execDyn' e m cnv cmd
       where
         execDyn' ::
-          (AWS.AWSRequest r, MonadUnliftIO m, MonadMask m, MonadIO m, Typeable m) =>
+          forall y p m.
+          (AWS.AWSRequest p, MonadUnliftIO m, MonadMask m, MonadIO m) =>
           AWS.Env ->
           Metrics.Metrics ->
-          (AWS.Rs r -> Maybe a) ->
-          r ->
-          m (Maybe a)
+          (AWS.Rs p -> Maybe y) ->
+          p ->
+          m (Maybe y)
         execDyn' e m conv cmd = recovering policy handlers (const run)
           where
             run = execCatch e cmd >>= either handleErr (return . conv)
-            handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
+            handlers = httpHandlers --TODO: Figure out why it needs a constraint Typeable effs
+            -- handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
               return Nothing
             handleErr _ = return Nothing
 
-withLocalLock :: MVar () -> AppIO a -> AppIO a
+withLocalLock :: MVar () -> (AppIO r) a -> (AppIO r) a
 withLocalLock l ma = do
   (takeMVar l *> ma) `finally` putMVar l ()

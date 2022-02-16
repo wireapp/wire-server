@@ -47,19 +47,19 @@ import qualified Proto.UserEvents_Fields as U
 -- User journal operations to SQS are a no-op when the service is started
 -- without journaling arguments for user updates
 
-userActivate :: User -> AppIO ()
+userActivate :: User -> (AppIO r) ()
 userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE userId (userEmail u) (Just userLocale) userTeam (Just userDisplayName)
 
-userUpdate :: UserId -> Maybe Email -> Maybe Locale -> Maybe Name -> AppIO ()
+userUpdate :: UserId -> Maybe Email -> Maybe Locale -> Maybe Name -> (AppIO r) ()
 userUpdate uid em loc nm = journalEvent UserEvent'USER_UPDATE uid em loc Nothing nm
 
-userEmailRemove :: UserId -> Email -> AppIO ()
+userEmailRemove :: UserId -> Email -> (AppIO r) ()
 userEmailRemove uid em = journalEvent UserEvent'USER_EMAIL_REMOVE uid (Just em) Nothing Nothing Nothing
 
-userDelete :: UserId -> AppIO ()
+userDelete :: UserId -> (AppIO r) ()
 userDelete uid = journalEvent UserEvent'USER_DELETE uid Nothing Nothing Nothing Nothing
 
-journalEvent :: UserEvent'EventType -> UserId -> Maybe Email -> Maybe Locale -> Maybe TeamId -> Maybe Name -> AppIO ()
+journalEvent :: UserEvent'EventType -> UserId -> Maybe Email -> Maybe Locale -> Maybe TeamId -> Maybe Name -> (AppIO r) ()
 journalEvent typ uid em loc tid nm =
   view awsEnv >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
     ts <- now

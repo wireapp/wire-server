@@ -26,7 +26,7 @@ import qualified Brig.API.Public as Public
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 
-sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap :: Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap
   Public.apiDocs

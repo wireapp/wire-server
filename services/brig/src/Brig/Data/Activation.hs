@@ -78,7 +78,7 @@ activateKey ::
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
-  ExceptT ActivationError AppIO (Maybe ActivationEvent)
+  ExceptT ActivationError (AppIO r) (Maybe ActivationEvent)
 activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (return . (uk,)) (u <|> u')
@@ -129,7 +129,7 @@ newActivation ::
   Timeout ->
   -- | The user with whom to associate the activation code.
   Maybe UserId ->
-  AppIO Activation
+  (AppIO r) Activation
 newActivation uk timeout u = do
   (typ, key, code) <-
     liftIO $
@@ -148,7 +148,7 @@ newActivation uk timeout u = do
         <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: UserKey -> AppIO (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode :: UserKey -> (AppIO r) (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
     >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
@@ -157,7 +157,7 @@ lookupActivationCode k =
 verifyCode ::
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError AppIO (UserKey, Maybe UserId)
+  ExceptT ActivationError (AppIO r) (UserKey, Maybe UserId)
 verifyCode key code = do
   s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   case s of
@@ -185,7 +185,7 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
   return . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: ActivationKey -> AppIO ()
+deleteActivationPair :: ActivationKey -> (AppIO r) ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError
