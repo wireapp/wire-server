@@ -429,6 +429,8 @@ CREATE TABLE galley_test.team_features (
     self_deleting_messages_lock_status int,
     self_deleting_messages_status int,
     self_deleting_messages_ttl int,
+    snd_factor_password_challenge_lock_status int,
+    snd_factor_password_challenge_status int,
     sso_status int,
     validate_saml_emails int
 ) WITH bloom_filter_fp_chance = 0.1
