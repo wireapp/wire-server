@@ -83,6 +83,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Activation
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
@@ -370,13 +371,14 @@ data CreateScimToken = CreateScimToken
     -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
     createScimTokenCode :: !(Maybe ActivationCode)
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateScimToken)
 
 instance A.FromJSON CreateScimToken where
   parseJSON = A.withObject "CreateScimToken" $ \o -> do
     createScimTokenDescr <- o A..: "description"
     createScimTokenPassword <- o A..:? "password"
-    createScimTokenCode <- o A..:? "code"
+    createScimTokenCode <- o A..:? "verification_code"
     pure CreateScimToken {..}
 
 -- Used for integration tests
@@ -385,7 +387,7 @@ instance A.ToJSON CreateScimToken where
     A.object
       [ "description" A..= createScimTokenDescr,
         "password" A..= createScimTokenPassword,
-        "code" A..= createScimTokenCode
+        "verification_code" A..= createScimTokenCode
       ]
 
 -- | Type used for the response of 'APIScimTokenCreate'.
@@ -469,7 +471,7 @@ instance ToSchema CreateScimToken where
           & properties
             .~ [ ("description", textSchema),
                  ("password", textSchema),
-                 ("code", textSchema)
+                 ("verification_code", textSchema)
                ]
           & required .~ ["description"]
 

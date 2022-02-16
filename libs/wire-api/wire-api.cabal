@@ -467,6 +467,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserIdList
+      Test.Wire.API.Golden.Manual.CreateScimToken
       Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
       Paths_wire_api
