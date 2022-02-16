@@ -390,7 +390,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.Scheme_user
       Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
       Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
-      Test.Wire.API.Golden.Generated.SndFactorPasswordChallengeAction_user
       Test.Wire.API.Golden.Generated.SelfProfile_user
       Test.Wire.API.Golden.Generated.SendActivationCode_user
       Test.Wire.API.Golden.Generated.SendLoginCode_user
@@ -407,6 +406,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.SFTServer_user
       Test.Wire.API.Golden.Generated.SimpleMember_user
       Test.Wire.API.Golden.Generated.SimpleMembers_user
+      Test.Wire.API.Golden.Generated.SndFactorPasswordChallengeAction_user
       Test.Wire.API.Golden.Generated.Team_team
       Test.Wire.API.Golden.Generated.TeamBinding_team
       Test.Wire.API.Golden.Generated.TeamContact_user
@@ -461,13 +461,13 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual.ConversationPagingState
       Test.Wire.API.Golden.Manual.ConversationsResponse
       Test.Wire.API.Golden.Manual.ConvIdsPage
+      Test.Wire.API.Golden.Manual.CreateScimToken
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserIdList
-      Test.Wire.API.Golden.Manual.CreateScimToken
       Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
       Paths_wire_api
