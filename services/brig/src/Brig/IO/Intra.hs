@@ -127,7 +127,7 @@ import qualified Wire.API.Team.Member as Member
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
+onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> (AppIO r) ()
 onUserEvent orig conn e =
   updateSearchIndex orig e
     *> dispatchNotifications orig conn e
@@ -140,7 +140,7 @@ onConnectionEvent ::
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  AppIO ()
+  (AppIO r) ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   notify
@@ -156,7 +156,7 @@ onPropertyEvent ::
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
-  AppIO ()
+  (AppIO r) ()
 onPropertyEvent orig conn e =
   notify
     (singleton $ PropertyEvent e)
@@ -172,7 +172,7 @@ onClientEvent ::
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  AppIO ()
+  (AppIO r) ()
 onClientEvent orig conn e = do
   let events = singleton (ClientEvent e)
   let rcps = list1 orig []
@@ -181,7 +181,7 @@ onClientEvent orig conn e = do
   -- in the stream.
   push events rcps orig Push.RouteAny conn
 
-updateSearchIndex :: UserId -> UserEvent -> AppIO ()
+updateSearchIndex :: UserId -> UserEvent -> (AppIO r) ()
 updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
@@ -206,7 +206,7 @@ updateSearchIndex orig e = case e of
             ]
     when interesting $ Search.reindex orig
 
-journalEvent :: UserId -> UserEvent -> AppIO ()
+journalEvent :: UserId -> UserEvent -> (AppIO r) ()
 journalEvent orig e = case e of
   UserActivated acc ->
     Journal.userActivate acc
@@ -229,7 +229,7 @@ journalEvent orig e = case e of
 -- | Notify the origin user's contact list (first-level contacts),
 -- as well as his other clients about a change to his user account
 -- or profile.
-dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
+dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> (AppIO r) ()
 dispatchNotifications orig conn e = case e of
   UserCreated {} -> return ()
   UserSuspended {} -> return ()
@@ -252,21 +252,21 @@ dispatchNotifications orig conn e = case e of
   where
     event = singleton $ UserEvent e
 
-notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> AppIO ()
+notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> (AppIO r) ()
 notifyUserDeletionLocals deleted conn event = do
   recipients <- list1 deleted <$> lookupContactList deleted
   notify event deleted Push.RouteDirect conn (pure recipients)
 
-notifyUserDeletionRemotes :: UserId -> AppIO ()
+notifyUserDeletionRemotes :: UserId -> (AppIO r) ()
 notifyUserDeletionRemotes deleted = do
   runConduit $
     Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
       .| C.mapM_ fanoutNotifications
   where
-    fanoutNotifications :: [Remote UserId] -> AppIO ()
+    fanoutNotifications :: [Remote UserId] -> (AppIO r) ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
-    notifyBackend :: Remote [UserId] -> AppIO ()
+    notifyBackend :: Remote [UserId] -> (AppIO r) ()
     notifyBackend uids = do
       case tUnqualified (checked <$> uids) of
         Nothing ->
@@ -279,7 +279,7 @@ notifyUserDeletionRemotes deleted = do
           whenLeft eitherFErr $
             logFederationError (tDomain uids)
 
-    logFederationError :: Domain -> FederationError -> AppT IO ()
+    logFederationError :: Domain -> FederationError -> AppT r IO ()
     logFederationError domain fErr =
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -299,7 +299,7 @@ push ::
   Push.Route ->
   -- | The originating device connection.
   Maybe ConnId ->
-  AppIO ()
+  (AppIO r) ()
 push (toList -> events) usrs orig route conn =
   case mapMaybe toPushData events of
     [] -> pure ()
@@ -323,7 +323,7 @@ rawPush ::
   Push.Route ->
   -- | The originating device connection.
   Maybe ConnId ->
-  AppIO ()
+  (AppIO r) ()
 -- TODO: if we decide to have service whitelist events in Brig instead of
 -- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
 rawPush (toList -> events) usrs orig route conn = do
@@ -368,7 +368,7 @@ notify ::
   Maybe ConnId ->
   -- | Users to notify.
   IO (List1 UserId) ->
-  AppIO ()
+  (AppIO r) ()
 notify events orig route conn recipients = forkAppIO (Just orig) $ do
   rs <- liftIO recipients
   push events rs orig route conn
@@ -381,7 +381,7 @@ notifySelf ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  AppIO ()
+  (AppIO r) ()
 notifySelf events orig route conn =
   notify events orig route conn (pure (singleton orig))
 
@@ -393,19 +393,19 @@ notifyContacts ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  AppIO ()
+  (AppIO r) ()
 notifyContacts events orig route conn = do
   env <- ask
   notify events orig route conn $
     runAppT env $
       list1 orig <$> liftA2 (++) contacts teamContacts
   where
-    contacts :: AppIO [UserId]
+    contacts :: (AppIO r) [UserId]
     contacts = lookupContactList orig
-    teamContacts :: AppIO [UserId]
+    teamContacts :: (AppIO r) [UserId]
     teamContacts = screenMemberList =<< getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
-    screenMemberList :: Maybe Team.TeamMemberList -> AppIO [UserId]
+    screenMemberList :: Maybe Team.TeamMemberList -> (AppIO r) [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
         return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
@@ -572,7 +572,7 @@ toApsData _ = Nothing
 -- Conversation Management
 
 -- | Calls 'Galley.API.createSelfConversationH'.
-createSelfConv :: UserId -> AppIO ()
+createSelfConv :: UserId -> (AppIO r) ()
 createSelfConv u = do
   debug $
     remote "galley"
@@ -590,7 +590,7 @@ createLocalConnectConv ::
   Local UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  AppIO ConvId
+  (AppIO r) ConvId
 createLocalConnectConv from to cname conn = do
   debug $
     logConnection (tUnqualified from) (qUntagged to)
@@ -613,20 +613,20 @@ createConnectConv ::
   Qualified UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  AppIO (Qualified ConvId)
+  (AppIO r) (Qualified ConvId)
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
   qUntagged . qualifyAs lfrom
     <$> createLocalConnectConv lfrom lto cname conn
   where
-    ensureLocal :: Qualified a -> AppIO (Local a)
+    ensureLocal :: Qualified a -> (AppIO r) (Local a)
     ensureLocal x = do
       loc <- qualifyLocal ()
       foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) Conversation
 acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
@@ -640,7 +640,7 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) Conversation
 acceptConnectConv from conn =
   foldQualified
     from
@@ -648,7 +648,7 @@ acceptConnectConv from conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.
-blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO ()
+blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) ()
 blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -662,7 +662,7 @@ blockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO ()
+blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) ()
 blockConv lusr conn =
   foldQualified
     lusr
@@ -670,7 +670,7 @@ blockConv lusr conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) Conversation
 unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -684,7 +684,7 @@ unblockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO Conversation
+unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) Conversation
 unblockConv luid conn =
   foldQualified
     luid
@@ -692,7 +692,7 @@ unblockConv luid conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
-getConv :: UserId -> ConvId -> AppIO (Maybe Conversation)
+getConv :: UserId -> ConvId -> (AppIO r) (Maybe Conversation)
 getConv usr cnv = do
   debug $
     remote "galley"
@@ -708,7 +708,7 @@ getConv usr cnv = do
         . zUser usr
         . expect [status200, status404]
 
-upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> AppIO UpsertOne2OneConversationResponse
+upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> (AppIO r) UpsertOne2OneConversationResponse
 upsertOne2OneConversation urequest = do
   response <- galleyRequest POST req
   case Bilge.statusCode response of
@@ -721,7 +721,7 @@ upsertOne2OneConversation urequest = do
         . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
-getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
+getTeamConv :: UserId -> TeamId -> ConvId -> (AppIO r) (Maybe Team.TeamConversation)
 getTeamConv usr tid cnv = do
   debug $
     remote "galley"
@@ -741,7 +741,7 @@ getTeamConv usr tid cnv = do
 -- User management
 
 -- | Calls 'Galley.API.rmUserH', as well as gundeck and cargohold.
-rmUser :: UserId -> [Asset] -> AppIO ()
+rmUser :: UserId -> [Asset] -> (AppIO r) ()
 rmUser usr asts = do
   debug $
     remote "gundeck"
@@ -767,7 +767,7 @@ rmUser usr asts = do
 -- Client management
 
 -- | Calls 'Galley.API.addClientH'.
-newClient :: UserId -> ClientId -> AppIO ()
+newClient :: UserId -> ClientId -> (AppIO r) ()
 newClient u c = do
   debug $
     remote "galley"
@@ -778,7 +778,7 @@ newClient u c = do
   void $ galleyRequest POST (p . zUser u . expect2xx)
 
 -- | Calls 'Galley.API.rmClientH', as well as gundeck.
-rmClient :: UserId -> ClientId -> AppIO ()
+rmClient :: UserId -> ClientId -> (AppIO r) ()
 rmClient u c = do
   let cid = toByteString' c
   debug $
@@ -808,7 +808,7 @@ rmClient u c = do
   where
     expected = [status200, status204, status404]
 
-lookupPushToken :: UserId -> AppIO [Push.PushToken]
+lookupPushToken :: UserId -> (AppIO r) [Push.PushToken]
 lookupPushToken uid = do
   g <- view gundeck
   rsp <-
@@ -826,7 +826,7 @@ lookupPushToken uid = do
 -- Team Management
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
-checkUserCanJoinTeam :: TeamId -> AppIO (Maybe Wai.Error)
+checkUserCanJoinTeam :: TeamId -> (AppIO r) (Maybe Wai.Error)
 checkUserCanJoinTeam tid = do
   debug $
     remote "galley"
@@ -843,7 +843,7 @@ checkUserCanJoinTeam tid = do
         . header "Content-Type" "application/json"
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
-addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool
+addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> (AppIO r) Bool
 addTeamMember u tid (minvmeta, role) = do
   debug $
     remote "galley"
@@ -863,7 +863,7 @@ addTeamMember u tid (minvmeta, role) = do
         . lbytes (encode bdy)
 
 -- | Calls 'Galley.API.createBindingTeamH'.
-createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> AppIO CreateUserTeam
+createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> (AppIO r) CreateUserTeam
 createTeam u t@(Team.BindingNewTeam bt) teamid = do
   debug $
     remote "galley"
@@ -883,7 +883,7 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
         . lbytes (encode t)
 
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
-getTeamMember :: UserId -> TeamId -> AppIO (Maybe Team.TeamMember)
+getTeamMember :: UserId -> TeamId -> (AppIO r) (Maybe Team.TeamMember)
 getTeamMember u tid = do
   debug $
     remote "galley"
@@ -903,7 +903,7 @@ getTeamMember u tid = do
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
-getTeamMembers :: TeamId -> AppIO Team.TeamMemberList
+getTeamMembers :: TeamId -> (AppIO r) Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest GET req >>= decodeBody "galley"
@@ -912,7 +912,7 @@ getTeamMembers tid = do
       paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
-memberIsTeamOwner :: TeamId -> UserId -> AppIO Bool
+memberIsTeamOwner :: TeamId -> UserId -> (AppIO r) Bool
 memberIsTeamOwner tid uid = do
   r <-
     galleyRequest GET $
@@ -922,7 +922,7 @@ memberIsTeamOwner tid uid = do
 -- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
-getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
+getTeamContacts :: UserId -> (AppIO r) (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")
   rs <- galleyRequest GET req
@@ -935,7 +935,7 @@ getTeamContacts u = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
-getTeamId :: UserId -> AppIO (Maybe TeamId)
+getTeamId :: UserId -> (AppIO r) (Maybe TeamId)
 getTeamId u = do
   debug $ remote "galley" . msg (val "Get team from user")
   rs <- galleyRequest GET req
@@ -948,7 +948,7 @@ getTeamId u = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamInternalH'.
-getTeam :: TeamId -> AppIO Team.TeamData
+getTeam :: TeamId -> (AppIO r) Team.TeamData
 getTeam tid = do
   debug $ remote "galley" . msg (val "Get team info")
   galleyRequest GET req >>= decodeBody "galley"
@@ -958,7 +958,7 @@ getTeam tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamInternalH'.
-getTeamName :: TeamId -> AppIO Team.TeamName
+getTeamName :: TeamId -> (AppIO r) Team.TeamName
 getTeamName tid = do
   debug $ remote "galley" . msg (val "Get team info")
   galleyRequest GET req >>= decodeBody "galley"
@@ -968,7 +968,7 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+getTeamLegalHoldStatus :: TeamId -> (AppIO r) (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
@@ -978,7 +978,7 @@ getTeamLegalHoldStatus tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
-getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibility
+getTeamSearchVisibility :: TeamId -> (AppIO r) Team.TeamSearchVisibility
 getTeamSearchVisibility tid =
   coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
     debug $ remote "galley" . msg (val "Get search visibility settings")
@@ -989,7 +989,7 @@ getTeamSearchVisibility tid =
         . expect2xx
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
-changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()
+changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()
 changeTeamStatus tid s cur = do
   debug $ remote "galley" . msg (val "Change Team status")
   void $ galleyRequest PUT req
@@ -1000,7 +1000,7 @@ changeTeamStatus tid s cur = do
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
 
-guardLegalhold :: LegalholdProtectee -> UserClients -> ExceptT ClientError AppIO ()
+guardLegalhold :: LegalholdProtectee -> UserClients -> ExceptT ClientError (AppIO r) ()
 guardLegalhold protectee userClients = do
   res <- lift $ galleyRequest PUT req
   case Bilge.statusCode res of

@@ -64,7 +64,7 @@ import System.Logger.Class (Logger)
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
 
-type Handler = ExceptT Error AppIO
+type Handler = ExceptT Error (AppIO r)
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do

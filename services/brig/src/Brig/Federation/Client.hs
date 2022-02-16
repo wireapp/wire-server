@@ -50,7 +50,7 @@ import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.UserMap (UserMap)
 
-type FederationAppIO = ExceptT FederationError AppIO
+type FederationAppIO = ExceptT FederationError (AppIO r)
 
 getUserHandleInfo :: Remote Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (qUntagged -> Qualified handle domain) = do

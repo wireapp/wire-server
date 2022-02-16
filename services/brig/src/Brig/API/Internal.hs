@@ -303,7 +303,7 @@ internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
 internalListClientsH (_ ::: req) = do
   json <$> (lift . internalListClients =<< parseJsonBody req)
 
-internalListClients :: UserSet -> AppIO UserClients
+internalListClients :: UserSet -> (AppIO r) UserClients
 internalListClients (UserSet usrs) = do
   UserClients . Map.fromList
     <$> API.lookupUsersClientIds (Set.toList usrs)
@@ -312,7 +312,7 @@ internalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
 internalListFullClientsH (_ ::: req) =
   json <$> (lift . internalListFullClients =<< parseJsonBody req)
 
-internalListFullClients :: UserSet -> AppIO UserClientsFull
+internalListFullClients :: UserSet -> (AppIO r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
@@ -371,7 +371,7 @@ listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -
 listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
   json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> AppIO [UserAccount]
+listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> (AppIO r) [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
@@ -380,10 +380,10 @@ listActivatedAccounts elh includePendingInvitations = do
       us <- mapM (API.lookupHandle) (fromList hs)
       byIds (catMaybes us)
   where
-    byIds :: [UserId] -> AppIO [UserAccount]
+    byIds :: [UserId] -> (AppIO r) [UserAccount]
     byIds uids = API.lookupAccounts uids >>= filterM accountValid
 
-    accountValid :: UserAccount -> AppIO Bool
+    accountValid :: UserAccount -> (AppIO r) Bool
     accountValid account = case userIdentity . accountUser $ account of
       Nothing -> pure False
       Just ident ->
@@ -426,7 +426,7 @@ getPasswordResetCodeH :: JSON ::: Either Email Phone -> Handler Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
-getPasswordResetCode :: Either Email Phone -> AppIO (Maybe GetPasswordResetCodeResp)
+getPasswordResetCode :: Either Email Phone -> (AppIO r) (Maybe GetPasswordResetCodeResp)
 getPasswordResetCode emailOrPhone = do
   GetPasswordResetCodeResp <$$> API.lookupPasswordResetCode emailOrPhone
 

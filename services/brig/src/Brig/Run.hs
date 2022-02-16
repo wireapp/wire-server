@@ -169,7 +169,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: AppIO ()
+pendingActivationCleanup :: (AppIO r) ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
@@ -206,17 +206,17 @@ pendingActivationCleanup = do
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 
-    forExpirationsPaged :: ([UserPendingActivation] -> AppIO ()) -> AppIO ()
+    forExpirationsPaged :: ([UserPendingActivation] -> (AppIO r) ()) -> (AppIO r) ()
     forExpirationsPaged f = do
       go =<< usersPendingActivationList
       where
-        go :: (Page UserPendingActivation) -> AppIO ()
+        go :: (Page UserPendingActivation) -> (AppIO r) ()
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
             go =<< liftClient nextPage
 
-    threadDelayRandom :: AppIO ()
+    threadDelayRandom :: (AppIO r) ()
     threadDelayRandom = do
       cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
       let d = realToFrac cleanupTimeout
