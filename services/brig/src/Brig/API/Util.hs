@@ -106,4 +106,4 @@ lookupDomainConfig domain = do
 
 -- | If domain is not configured fall back to `FullSearch`
 lookupSearchPolicy :: Domain -> Handler FederatedUserSearchPolicy
-lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.searchPolicy <$$> lookupDomainConfig domain)
+lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
