@@ -343,7 +343,7 @@ testSFTStaticV2StaticUrlList = do
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
-    "when SFT static URL is enabled, sft_servers_all should be from /sft_servers_all.json"
+    "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
     (Just servers)
     (cfg ^. rtcConfSftServersAll)
 
