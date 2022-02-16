@@ -326,7 +326,7 @@ testSFTStaticV2StaticUrlError = do
       -- an error
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
-    "when SFT static URL is enabled, but returns error, sft_servers_all should be omitted"
+    "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
     Nothing
     (cfg ^. rtcConfSftServersAll)
 
