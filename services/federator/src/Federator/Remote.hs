@@ -161,20 +161,22 @@ mkTLSConfig settings hostname port =
       TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
     }
 
--- FUTUREWORK: get review on blessed ciphers
--- (https://wearezeta.atlassian.net/browse/SQCORE-910)
+-- Context and possible future work see
+-- https://wearezeta.atlassian.net/browse/FS-33
+-- https://wearezeta.atlassian.net/browse/FS-444
+-- https://wearezeta.atlassian.net/browse/FS-443
+--
+-- The current list is compliant to TR-02102-2
+-- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
 blessedCiphers :: [Cipher]
 blessedCiphers =
   [ TLS.cipher_TLS13_AES128CCM8_SHA256,
     TLS.cipher_TLS13_AES128CCM_SHA256,
     TLS.cipher_TLS13_AES128GCM_SHA256,
     TLS.cipher_TLS13_AES256GCM_SHA384,
-    TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
     -- For TLS 1.2 (copied from default nginx ingress config):
     TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
     TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-    TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
     TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
-    TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
-    TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
+    TLS.cipher_ECDHE_RSA_AES128GCM_SHA256
   ]
