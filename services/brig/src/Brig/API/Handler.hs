@@ -64,6 +64,7 @@ import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
 import System.Logger.Class (Logger)
+import Wire.API.ErrorDescription (InvalidEmail)
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
@@ -113,7 +114,7 @@ brigErrorHandlers =
       pure (Left (zauthError ex)),
     Catch.Handler $ \(ex :: AWS.Error) ->
       case ex of
-        AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
+        AWS.SESInvalidDomain -> pure (Left (StdError (errorDescriptionTypeToWai @InvalidEmail)))
         _ -> throwM ex,
     Catch.Handler $ \(UserNotAllowedToJoinTeam e) ->
       pure (Left $ StdError e)

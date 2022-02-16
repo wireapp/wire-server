@@ -444,7 +444,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelSendActivationCode) $
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
-    Doc.errorResponse invalidEmail
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
     Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
     Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail

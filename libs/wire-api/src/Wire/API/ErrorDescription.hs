@@ -411,4 +411,5 @@ type InvalidActivationCodeWrongCode = InvalidActivationCode "Invalid activation 
 
 type TooManyTeamMembers = ErrorDescription 403 "too-many-team-members" "Too many members in this team."
 
+-- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 type UserCreationRestricted = ErrorDescription 403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
