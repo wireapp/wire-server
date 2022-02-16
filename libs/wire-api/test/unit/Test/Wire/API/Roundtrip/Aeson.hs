@@ -66,6 +66,7 @@ import qualified Wire.API.User.Identity as User.Identity
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
+import qualified Wire.API.User.Scim as Scim
 import qualified Wire.API.User.Search as User.Search
 import qualified Wire.API.Wrapped as Wrapped
 
@@ -181,6 +182,7 @@ tests =
       testRoundTrip @Push.Token.AppName,
       testRoundTrip @Push.Token.PushToken,
       testRoundTrip @Push.Token.PushTokenList,
+      testRoundTrip @Scim.CreateScimToken,
       testRoundTrip @Team.BindingNewTeam,
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,

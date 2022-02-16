@@ -83,6 +83,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Activation
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
@@ -370,7 +371,8 @@ data CreateScimToken = CreateScimToken
     -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
     createScimTokenCode :: !(Maybe ActivationCode)
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateScimToken)
 
 instance A.FromJSON CreateScimToken where
   parseJSON = A.withObject "CreateScimToken" $ \o -> do
