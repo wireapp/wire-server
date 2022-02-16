@@ -109,8 +109,25 @@ extra-deps:
   commit: 92de9aa632d590f288a353d03591c38ba72b3cb3 # (2020-10-27) branch: wire-fork-ghc-8.8
 
 # For bloodhound
-- deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
-- aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
+- aeson-2.0.3.0
+- deriving-aeson-0.2.8
+- semialign-1.2.0.1
+- OneTuple-0.3.1
+- hashable-1.4.0.2
+- attoparsec-0.14.4
+- text-short-0.1.5
+- time-compat-1.9.6.1
+- lens-5.0.1
+- quickcheck-instances-0.3.27
+- swagger2-2.8.2
+- optics-extra-0.4
+- optics-core-0.4
+- optics-th-0.4
+- http-api-data-0.4.3
+- shakespeare-2.0.25.1
+- servant-swagger-1.1.10
+- foldl-1.4.12
+- stache-2.3.1
 
 # amazonka-1.6.1 is buggy:
 # https://github.com/brendanhay/amazonka/pull/493
@@ -189,10 +206,6 @@ extra-deps:
 - servant-swagger-ui-0.3.5.3.52.5
 - tls-1.5.5
 - cryptonite-0.29
-
-# For changes from #128 and #135, not released to hackage yet
-- git: https://github.com/haskell-servant/servant-swagger
-  commit: bb0a84faa073fa9530f60337610d7da3d5b9393c
 
 # For changes from https://github.com/haskell-servant/servant/pull/1502
 # Not released to hackage yet
