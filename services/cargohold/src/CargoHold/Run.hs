@@ -46,6 +46,7 @@ import Servant.Server hiding (Handler, runHandler)
 import Util.Options
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Version.Wai
 
 type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
 
@@ -72,6 +73,7 @@ mkApp o = Codensity $ \k ->
       servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
+        . versionMiddleware
     servantApp e0 r =
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext

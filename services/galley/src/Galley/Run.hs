@@ -56,6 +56,7 @@ import Servant hiding (route)
 import qualified System.Logger as Log
 import Util.Options
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
@@ -92,6 +93,7 @@ mkApp o = do
           . GZip.gunzip
           . GZip.gzip GZip.def
           . catchErrors l [Right m]
+          . versionMiddleware
   return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap

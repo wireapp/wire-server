@@ -31,6 +31,7 @@ import Proxy.API (sitemap)
 import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
+import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
@@ -42,4 +43,5 @@ run o = do
   let middleware =
         waiPrometheusMiddleware (sitemap e)
           . catchErrors (e ^. applog) [Right m]
+          . versionMiddleware
   runSettings s (middleware app) `finally` destroyEnv e

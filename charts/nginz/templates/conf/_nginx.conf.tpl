@@ -207,7 +207,7 @@ http {
     }
 
     {{ range $path := .Values.nginx_conf.disabled_paths }}
-      location {{ $path }} {
+      location ~* ^(/v[0-9]+)?{{ $path }} {
 
         return 404;
       }
@@ -227,7 +227,10 @@ http {
     rewrite ^/api-docs{{ $location.path }}  {{ $location.path }}/api-docs?base_url=https://{{ $.Values.nginx_conf.env }}-nginz-https.{{ $.Values.nginx_conf.external_env_domain }}/ break;
             {{- end }}
 
-    location {{ $location.path }} {
+    {{- $versioned := ternary $location.versioned true (hasKey $location "versioned") -}}
+    {{- $path := printf "%s%s" (ternary "(/v[0-9]+)?" "" $versioned) $location.path }}
+
+    location ~* ^{{ $path }} {
 
         # remove access_token from logs, see 'Note sanitized_request' above.
         set $sanitized_request $request;

@@ -108,6 +108,7 @@ import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
+import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -130,6 +131,7 @@ swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
     ( brigSwagger
+        <> versionSwagger
         <> GalleyAPI.swaggerDoc
         <> LegalHoldAPI.swaggerDoc
         <> SparAPI.swaggerDoc

@@ -43,13 +43,13 @@ nginx_conf:
   #   title: "Production"
   disabled_paths:
   - /conversations/last-events
-  - ~* ^/conversations/([^/]*)/knock
-  - ~* ^/conversations/([^/]*)/hot-knock
-  - ~* ^/conversations/([^/]*)/messages
-  - ~* ^/conversations/([^/]*)/client-messages
-  - ~* ^/conversations/([^/]*)/events
-  - ~* ^/conversations/([^/]*)/call
-  - ~* ^/conversations/([^/]*)/call/state
+  - /conversations/([^/]*)/knock
+  - /conversations/([^/]*)/hot-knock
+  - /conversations/([^/]*)/messages
+  - /conversations/([^/]*)/client-messages
+  - /conversations/([^/]*)/events
+  - /conversations/([^/]*)/call
+  - /conversations/([^/]*)/call/state
   - /search/top
   - /search/common
   # -- The origins from which we allow CORS requests. These are combined with 'external_env_domain' to form a full url
@@ -59,12 +59,12 @@ nginx_conf:
     - account
   upstreams:
     cargohold:
-    - path: ~* ^/conversations/([^/]*)/assets
+    - path: /conversations/([^/]*)/assets
       envs:
       - all
       max_body_size: "0"
       disable_request_buffering: true
-    - path: ~* ^/conversations/([^/]*)/otr/assets
+    - path: /conversations/([^/]*)/otr/assets
       envs:
       - all
       max_body_size: "0"
@@ -96,7 +96,7 @@ nginx_conf:
     - path: /list-users
       envs:
       - all
-    - path: ~* ^/api/swagger.json$
+    - path: /api/swagger.json$
       disable_zauth: true
       envs:
       - all
@@ -110,7 +110,7 @@ nginx_conf:
     - path: /connections
       envs:
       - all
-    - path: ~* ^/list-connections$
+    - path: /list-connections$
       envs:
       - all
     - path: /invitations
@@ -162,7 +162,7 @@ nginx_conf:
     - path: /bot/users
       envs:
       - all
-    - path: ~* ^/conversations/([^/]*)/bots
+    - path: /conversations/([^/]*)/bots
       envs:
       - all
     - path: /invitations/info
@@ -196,41 +196,49 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+      versioned: false
     - path: /i/users/login-code
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
+      versioned: false
     - path: /i/users/invitation-code
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/i/users/([^/]*)/rich-info
+      versioned: false
+    - path: /i/users/([^/]*)/rich-info
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/i/teams/([^/]*)/suspend
+      versioned: false
+    - path: /i/teams/([^/]*)/suspend
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/i/teams/([^/]*)/unsuspend
+      versioned: false
+    - path: /i/teams/([^/]*)/unsuspend
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
+      versioned: false
     - path: /i/provider/activation-code
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/i/legalhold/whitelisted-teams(.*)
+      versioned: false
+    - path: /i/legalhold/whitelisted-teams(.*)
       envs:
         - staging
       disable_zauth: true
       basic_auth: true
+      versioned: false
     - path: /cookies
       envs:
       - all
@@ -253,17 +261,17 @@ nginx_conf:
     - path: /search
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/invitations(.*)
+    - path: /teams/([^/]*)/invitations(.*)
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/services(.*)
+    - path: /teams/([^/]*)/services(.*)
       envs:
       - all
-    - path: ~* ^/teams/invitations/info$
+    - path: /teams/invitations/info$
       envs:
       - all
       disable_zauth: true
-    - path: ~* ^/teams/invitations/by-email$
+    - path: /teams/invitations/by-email$
       envs:
       - all
       disable_zauth: true
@@ -272,13 +280,14 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+      versioned: false
     - path: /calls
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/size$
+    - path: /teams/([^/]*)/size$
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/search$
+    - path: /teams/([^/]*)/search$
       envs:
       - all
     - path: /verification-code/send
@@ -290,12 +299,12 @@ nginx_conf:
       disable_zauth: true
       envs:
       - all
-    - path: ~* ^/conversations/([^/]*)/otr/messages
+    - path: /conversations/([^/]*)/otr/messages
       envs:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
-    - path: ~* ^/conversations/([^/]*)/([^/]*)/proteus/messages
+    - path: /conversations/([^/]*)/([^/]*)/proteus/messages
       envs:
       - all
       max_body_size: 40m
@@ -317,57 +326,60 @@ nginx_conf:
       envs:
       - all
       doc: true
-    - path: ~* ^/teams$
+    - path: /teams$
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)$
+    - path: /teams/([^/]*)$
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/members(.*)
+    - path: /teams/([^/]*)/members(.*)
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/get-members-by-ids-using-post(.*)
+    - path: /teams/([^/]*)/get-members-by-ids-using-post(.*)
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/conversations(.*)
+    - path: /teams/([^/]*)/conversations(.*)
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/members/csv$
+    - path: /teams/([^/]*)/members/csv$
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/legalhold(.*)
+    - path: /teams/([^/]*)/legalhold(.*)
       envs:
       - all
-    - path: ~* ^/i/teams/([^/]*)/legalhold(.*)
+    - path: /i/teams/([^/]*)/legalhold(.*)
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/custom-backend/by-domain/([^/]*)$
+      versioned: false
+    - path: /custom-backend/by-domain/([^/]*)$
       disable_zauth: true
       envs:
       - all
-    - path: ~* ^/i/custom-backend/by-domain/([^/]*)$
+    - path: /i/custom-backend/by-domain/([^/]*)$
       disable_zauth: true
       basic_auth: true
       envs:
       - staging
-    - path: ~* ^/teams/api-docs
+      versioned: false
+    - path: /teams/api-docs
       envs:
       - all
       disable_zauth: true
-    - path: ~* ^/teams/([^/]*)/features
+    - path: /teams/([^/]*)/features
       envs:
       - all
-    - path: ~* ^/teams/([^/]*)/features/([^/])*
+    - path: /teams/([^/]*)/features/([^/])*
       envs:
       - all
-    - path: ~* /i/teams/([^/]*)/features/([^/]*)
+    - path: /i/teams/([^/]*)/features/([^/]*)
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/feature-configs(.*)
+      versioned: false
+    - path: /feature-configs(.*)
       envs:
       - all
     - path: /galley-api/swagger-ui
@@ -395,6 +407,7 @@ nginx_conf:
       basic_auth: true
       envs:
       - staging
+      versioned: false
     - path: /sso-initiate-bind
       envs:
       - all
@@ -436,7 +449,7 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
-    - path: ~* ^/teams/([^/]*)/billing(.*)
+    - path: /teams/([^/]*)/billing(.*)
       envs:
       - all
     calling-test:

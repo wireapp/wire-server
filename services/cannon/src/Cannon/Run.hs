@@ -50,6 +50,7 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
 import System.Random.MWC (createSystemRandom)
 import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Version.Wai
 
 type CombinedAPI = PublicAPI :<|> InternalAPI
 
@@ -74,6 +75,7 @@ run o = do
         servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]
+          . versionMiddleware
       app :: Application
       app = middleware (serve (Proxy @CombinedAPI) server)
       server :: Servant.Server CombinedAPI

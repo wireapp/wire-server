@@ -31,6 +31,7 @@ import qualified API.Team as Team
 import qualified API.TeamUserSearch as TeamUserSearch
 import qualified API.User as User
 import qualified API.UserPendingActivation as UserPendingActivation
+import qualified API.Version
 import Bilge hiding (header)
 import Brig.API (sitemap)
 import qualified Brig.AWS as AWS
@@ -138,6 +139,7 @@ runTests iConf brigOpts otherArgs = do
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
+  let versionApi = API.Version.tests mg b
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -157,7 +159,8 @@ runTests iConf brigOpts otherArgs = do
           userPendingActivation,
           browseTeam,
           federationEndpoints,
-          internalApi
+          internalApi,
+          versionApi
         ]
         <> [federationEnd2End | includeFederationTests]
   where
