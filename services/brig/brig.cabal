@@ -410,6 +410,7 @@ executable brig-integration
       API.Internal
       API.Internal.Util
       API.Metrics
+      API.MLS
       API.Provider
       API.RichInfo.Util
       API.Search
@@ -522,6 +523,7 @@ executable brig-integration
     , network
     , optparse-applicative
     , pem
+    , process
     , proto-lens
     , random >=1.0
     , random-shuffle

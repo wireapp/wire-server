@@ -241,6 +241,7 @@ executables:
     - network
     - optparse-applicative
     - pem
+    - process
     - proto-lens
     - QuickCheck
     - random >=1.0

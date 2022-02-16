@@ -34,6 +34,7 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
+import Debug.Trace
 import Imports
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
@@ -44,7 +45,9 @@ import Wire.API.User.Client
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   let identity = mkClientIdentity (qUntagged lusr) cid
+  traceM $ "identity: " <> show identity
   kps' <- traverse (validateKeyPackageData identity) kps
+  traceM $ "kps': " <> show kps'
   lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages :: Local UserId -> Qualified UserId -> Handler r KeyPackageBundle

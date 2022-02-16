@@ -42,7 +42,7 @@ import Wire.API.MLS.Serialisation
 
 data KeyPackageUpload = KeyPackageUpload
   {kpuKeyPackages :: [KeyPackageData]}
-  deriving (FromJSON, S.ToSchema) via Schema KeyPackageUpload
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
   schema =
