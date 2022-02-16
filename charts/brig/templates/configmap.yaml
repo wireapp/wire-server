@@ -228,5 +228,8 @@ data:
       {{- if .setSftStaticUrl }}
       setSftStaticUrl: {{ .setSftStaticUrl }}
       {{- end }}
+      {{- if .setSftListAllServers }}
+      setSftListAllServers: {{ .setSftListAllServers }}
+      {{- end }}
     {{- end }}
   {{- end }}
