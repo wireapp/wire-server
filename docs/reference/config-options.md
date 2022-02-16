@@ -374,7 +374,7 @@ settings:
 
 This setting assumes that the sft loadbalancer has been deployed witht hte `sftd` helm chart.
 
-Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then brigs `/calls/config/v2` endpoint will include a list of all servers that are loadbalanced by `setSftStaticUrl`. This is required for establishing calls between federated instances of Wire.
+Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are loadbalanced by `setSftStaticUrl` at field `sft_servers_all`. This is required for establishing calls between federated instances of Wire.
 
 ### Locale
 
