@@ -369,34 +369,7 @@ sitemap = do
     Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
-  -- /register, /activate, /password-reset ----------------------------------
-
-  -- docs/reference/user/registration.md {#RefRegistration}
-  --
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email code or phone code is provided
-  -- post "/register" (continue createUserH) $
-  --   accept "application" "json"
-  --     .&. jsonRequest @Public.NewUserPublic
-  -- document "POST" "register" $ do
-  --   Doc.summary "Register a new user."
-  --   Doc.notes
-  --     "If the environment where the registration takes \
-  --     \place is private and a registered email address or phone \
-  --     \number is not whitelisted, a 403 error is returned."
-  --   Doc.body (Doc.ref Public.modelNewUser) $
-  --     Doc.description "JSON body"
-  --   -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
-  --   Doc.returns (Doc.ref Public.modelUser)
-  --   Doc.response 201 "User created and pending activation." Doc.end
-  --   Doc.errorResponse whitelistError
-  --   Doc.errorResponse invalidInvitationCode
-  --   Doc.errorResponse missingIdentity
-  --   Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
-  --   Doc.errorResponse activationCodeNotFound
-  --   Doc.errorResponse blacklistedEmail
-  --   Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
+  -- /activate, /password-reset ----------------------------------
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated

@@ -94,7 +94,6 @@ module Wire.API.User
     -- * Swagger
     modelDelete,
     modelEmailUpdate,
-    modelNewUser,
     modelUser,
     modelUserIdList,
     modelVerifyDelete,
@@ -144,7 +143,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.ErrorDescription
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Routes.MultiVerb
-import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema, modelNewBindingTeam)
+import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
@@ -456,50 +455,6 @@ publicProfile u legalHoldStatus =
 newtype NewUserPublic = NewUserPublic NewUser
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserPublic)
-
-modelNewUser :: Doc.Model
-modelNewUser = Doc.defineModel "NewUser" $ do
-  Doc.description "New User Data"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name (1 - 128 characters)"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address"
-    Doc.optional
-  Doc.property "password" Doc.string' $ do
-    Doc.description "Password (6 - 1024 characters)"
-    Doc.optional
-  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $ do
-    Doc.description "Profile assets"
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "E.164 phone number"
-    Doc.optional
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent colour ID"
-    Doc.optional
-  Doc.property "email_code" Doc.bytes' $ do
-    Doc.description "Email activation code"
-    Doc.optional
-  Doc.property "phone_code" Doc.bytes' $ do
-    Doc.description "Phone activation code"
-    Doc.optional
-  Doc.property "invitation_code" Doc.bytes' $ do
-    Doc.description "Invitation code. Mutually exclusive with team|team_code"
-    Doc.optional
-  Doc.property "locale" Doc.string' $ do
-    Doc.description "Locale in <ln-cc> format."
-    Doc.optional
-  Doc.property "label" Doc.string' $ do
-    Doc.description
-      "An optional label to associate with the access cookie, \
-      \if one is granted during account creation."
-    Doc.optional
-  Doc.property "team_code" Doc.string' $ do
-    Doc.description "Team invitation code. Mutually exclusive with team|invitation_code"
-    Doc.optional
-  Doc.property "team" (Doc.ref modelNewBindingTeam) $ do
-    Doc.description "New team information. Mutually exclusive with team_code|invitation_code"
-    Doc.optional
 
 instance ToSchema NewUserPublic where
   schema =

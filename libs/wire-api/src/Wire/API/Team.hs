@@ -63,7 +63,6 @@ module Wire.API.Team
     -- * Swagger
     modelTeam,
     modelTeamList,
-    modelNewBindingTeam,
     modelNewNonBindingTeam,
     modelUpdateData,
     modelTeamDelete,
@@ -181,17 +180,6 @@ instance ToSchema TeamList where
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BindingNewTeam)
-
-modelNewBindingTeam :: Doc.Model
-modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
-  Doc.description "Required data when creating new teams"
-  Doc.property "name" Doc.string' $
-    Doc.description "team name"
-  Doc.property "icon" Doc.string' $
-    Doc.description "team icon (asset ID)"
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "team icon asset key"
-    Doc.optional
 
 instance ToSchema BindingNewTeam where
   schema = object "BindingNewTeam" bindingNewTeamObjectSchema
