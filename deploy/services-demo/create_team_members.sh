@@ -18,7 +18,10 @@ USAGE: $0
     -a <admin uuid>: User ID of the inviting admin.  default: ${ADMIN_UUID}
     -t <team uuid>: ID of the inviting team.  default: ${TEAM_UUID}
     -h <host>: Base URI of brig. default: ${BRIG_HOST}
-    -c <input file>: file containing info on the invitees in format 'Email,UserName'.  default: ${CSV_FILE}
+    -c <input file>: file containing info on the invitees in format 'Email,UserName,Role'.  default: ${CSV_FILE}
+
+If role is specified, it must be one of owner, admin, member, partner.
+If it is missing, default is member.
 
 If you tee(1) stdout, stderr of this script into a log file, you can
 grep that log file for errors like this:
@@ -66,16 +69,20 @@ if [ ! -e "$CSV_FILE" ]; then
 fi
 
 # Generate users
-while IFS=, read -r EMAIL USER_NAME
+while IFS=, read -r EMAIL USER_NAME ROLE
 do
-    echo "inviting $USER_NAME <$EMAIL>..." 1>&2
+    if ( echo "$ROLE" | grep -vq "\(owner\|admin\|member\|partner\)" ); then
+        export ROLE=member
+    fi
+
+    echo "inviting $USER_NAME <$EMAIL> with role $ROLE..." 1>&2
 
     # Generate the invitation
     CURL_OUT_INVITATION=$(curl -i -s --show-error \
         -XPOST "$BRIG_HOST/teams/$TEAM_UUID/invitations" \
         -H'Content-type: application/json' \
         -H'Z-User: '"$ADMIN_UUID"'' \
-        -d'{"email":"'"$EMAIL"'","name":"'"$USER_NAME"'","inviter_name":"Team admin"}')
+        -d'{"email":"'"$EMAIL"'","name":"'"$USER_NAME"'","role":"'"$ROLE"'"}')
 
     INVITATION_ID=$(echo "$CURL_OUT_INVITATION" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
