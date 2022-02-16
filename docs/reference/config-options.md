@@ -347,6 +347,35 @@ When a `null` value is encountered, it is assumed to be
 
 (Introduced in https://github.com/wireapp/wire-server/pull/1811.)
 
+### SFT configuration
+
+Configuring SFT loadblancing can be done in two (mutually exclusive) settings:
+
+1) Configuring a SRV DNS record based load balancing
+
+```
+# [brig.yaml]
+sft:
+  sftBaseDomain: sft.wire.example.yourcloud.comk
+  sftSRVServiceName: sft
+  sftDiscoveryIntervalSeconds: 10
+  sftListLength: 20
+```
+
+or
+
+2) Configuring HTTP-based load-balanced setting
+
+```
+# [brig.yaml]
+settings:
+  setSftStaticUrl: https://sftd.wire.yourcloud.com
+```
+
+This setting assumes that the sft loadbalancer has been deployed witht hte `sftd` helm chart.
+
+Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then brigs `/calls/config/v2` endpoint will include a list of all servers that are loadbalanced by `setSftStaticUrl`. This is required for establishing calls between federated instances of Wire.
+
 ### Locale
 
 
