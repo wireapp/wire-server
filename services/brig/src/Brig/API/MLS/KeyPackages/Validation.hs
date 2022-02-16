@@ -23,6 +23,7 @@ import Brig.App
 import Brig.Options
 import Control.Applicative
 import Control.Lens (view)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.ErrorDescription
@@ -33,14 +34,21 @@ import Wire.API.MLS.Serialisation
 
 validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r (KeyPackageRef, KeyPackageData)
 validateKeyPackageData identity kpd = do
+  -- parse key package data
   kp <- parseKeyPackage kpd
-  validateKeyPackage identity kp
-  kdf <-
+  -- get ciphersuite
+  cs <-
     maybe
       (throwErrorDescription (mlsProtocolError "Unsupported ciphersuite"))
       pure
-      $ cipherSuiteKDF (kpCipherSuite (kpTBS kp))
-  pure (kpRef kdf kpd, kpd)
+      $ cipherSuiteTag (kpCipherSuite (kpTBS kp))
+  -- validate signature
+  let key = bcSignatureKey (kpCredential (kpTBS kp))
+  unless (csVerifySignature cs key (LBS.toStrict (kpData kpd)) (kpSignature kp)) $
+    throwErrorDescription (mlsProtocolError "Invalid signature")
+  -- validate credential and extensions
+  validateKeyPackage identity kp
+  pure (kpRef cs kpd, kpd)
 
 parseKeyPackage :: KeyPackageData -> Handler r KeyPackage
 parseKeyPackage (kpData -> kpd) =
@@ -53,7 +61,6 @@ validateKeyPackage identity (kpTBS -> kp) = do
 
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do
-  -- TODO: validate signature
   identity' <-
     either (throwErrorDescription . mlsProtocolError) pure $
       decodeMLS' (bcIdentity cred)

@@ -192,10 +192,10 @@ data KeyPackage = KeyPackage
 newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Show)
 
-kpRef :: KDFTag -> KeyPackageData -> KeyPackageRef
-kpRef kdf =
+kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
+kpRef cs =
   KeyPackageRef
-    . kdfHash kdf "MLS 1.0 KeyPackage Reference"
+    . csHash cs "MLS 1.0 KeyPackage Reference"
     . LBS.toStrict
     . kpData
 

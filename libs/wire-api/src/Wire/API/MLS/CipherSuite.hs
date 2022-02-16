@@ -20,11 +20,10 @@
 
 module Wire.API.MLS.CipherSuite where
 
+import Crypto.Error
 import Crypto.Hash.Algorithms
 import qualified Crypto.KDF.HKDF as HKDF
-import Data.Constraint
-import Data.Singletons
-import Data.Singletons.TH
+import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Data.Word
 import Imports
 import Wire.API.MLS.Serialisation
@@ -33,32 +32,21 @@ newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS)
 
--- Key derivation function.
-data KDFTag = HKDF256 | HKDF384 | HKDF512
+data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  deriving stock (Bounded, Enum, Eq, Show)
 
-$(genSingletons [''KDFTag])
+-- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.
+cipherSuiteTag :: CipherSuite -> Maybe CipherSuiteTag
+cipherSuiteTag (CipherSuite n) = case n of
+  1 -> pure MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  _ -> Nothing
 
--- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
--- and https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hpke-12#section-7.2
-cipherSuiteKDF :: CipherSuite -> Maybe KDFTag
-cipherSuiteKDF (CipherSuite n)
-  | n >= 0 && n <= 3 = pure HKDF256
-  | n >= 4 && n <= 6 = pure HKDF512
-  | n == 7 = pure HKDF384
-  | otherwise = Nothing
+csHash :: CipherSuiteTag -> ByteString -> ByteString -> ByteString
+csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 ctx value =
+  HKDF.expand (HKDF.extract @SHA256 (mempty :: ByteString) value) ctx 16
 
-type family KDFHashAlgo (kdf :: KDFTag) where
-  KDFHashAlgo 'HKDF256 = SHA256
-  KDFHashAlgo 'HKDF384 = SHA384
-  KDFHashAlgo 'HKDF512 = SHA512
-
-kdfHashAlgo :: forall (kdf :: KDFTag). Sing kdf -> Dict (HashAlgorithm (KDFHashAlgo kdf))
-kdfHashAlgo skdf = $(sCases ''KDFTag [|skdf|] [|Dict|])
-
-kdfHash :: KDFTag -> ByteString -> ByteString -> ByteString
-kdfHash t ctx value = case toSing t of
-  SomeSing st -> go st
-  where
-    go :: forall (t :: KDFTag). Sing t -> ByteString
-    go st = case kdfHashAlgo st of
-      Dict -> HKDF.expand (HKDF.extract @(KDFHashAlgo t) (mempty :: ByteString) value) ctx 16
+csVerifySignature :: CipherSuiteTag -> ByteString -> ByteString -> ByteString -> Bool
+csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig = fromMaybe False . maybeCryptoError $ do
+  pub' <- Ed25519.publicKey pub
+  sig' <- Ed25519.signature sig
+  pure $ Ed25519.verify pub' x sig'
