@@ -180,6 +180,21 @@ validateSAMLEmails:
     status: disabled
 ```
 
+### 2nd Factor Password Challenge
+
+By default Wire enforces a 2nd factor authentication for certain user operations like e.g. activating an account, changing email or password, or deleting an account.
+If this feature is enabled, a 2nd factor password challenge will be performed for a set of additional user operations like e.g. for generating SCIM tokens, login, or adding a client.
+
+Usually the default is what you want. If you explicitly want to enable the feature, use the following syntax:
+
+```yaml
+# galley.yaml
+sndFactorPasswordChallenge:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator

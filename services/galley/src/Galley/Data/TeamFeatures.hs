@@ -51,6 +51,8 @@ instance HasStatusCol 'TeamFeatureSelfDeletingMessages where statusCol = "self_d
 
 instance HasStatusCol 'TeamFeatureGuestLinks where statusCol = "guest_links_status"
 
+instance HasStatusCol 'TeamFeatureSndFactorPasswordChallenge where statusCol = "snd_factor_password_challenge_status"
+
 ----------------------------------------------------------------------
 class HasLockStatusCol (a :: TeamFeatureName) where
   lockStatusCol :: String
@@ -70,6 +72,9 @@ instance HasLockStatusCol 'TeamFeatureGuestLinks where
 
 instance HasLockStatusCol 'TeamFeatureFileSharing where
   lockStatusCol = "file_sharing_lock_status"
+
+instance HasLockStatusCol 'TeamFeatureSndFactorPasswordChallenge where
+  lockStatusCol = "snd_factor_password_challenge_lock_status"
 
 instance MaybeHasLockStatusCol 'TeamFeatureLegalHold where maybeLockStatusCol = Nothing
 

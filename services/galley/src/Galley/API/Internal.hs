@@ -117,6 +117,7 @@ type IFeatureAPI =
     :<|> IFeatureStatus 'TeamFeatureConferenceCalling
     :<|> IFeatureStatusWithLock 'TeamFeatureSelfDeletingMessages
     :<|> IFeatureStatusWithLock 'TeamFeatureGuestLinks
+    :<|> IFeatureStatusWithLock 'TeamFeatureSndFactorPasswordChallenge
 
 type InternalAPI =
   "i"
@@ -211,6 +212,7 @@ featureAPI =
     :<|> featureStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal setConferenceCallingInternal
     :<|> featureStatusWithLock getSelfDeletingMessagesInternal setSelfDeletingMessagesInternal
     :<|> featureStatusWithLock getGuestLinkInternal setGuestLinkInternal
+    :<|> featureStatusWithLock getSndFactorPasswordChallengeInternal setSndFactorPasswordChallengeInternal
 
 featureStatusGet ::
   forall (l :: IncludeLockStatus) f r.

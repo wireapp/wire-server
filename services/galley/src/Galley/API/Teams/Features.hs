@@ -41,6 +41,8 @@ module Galley.API.Teams.Features
     setConferenceCallingInternal,
     getSelfDeletingMessagesInternal,
     setSelfDeletingMessagesInternal,
+    getSndFactorPasswordChallengeInternal,
+    setSndFactorPasswordChallengeInternal,
     getGuestLinkInternal,
     setGuestLinkInternal,
     setLockStatus,
@@ -236,7 +238,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
-        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
       ]
 
 getAllFeaturesH ::
@@ -285,7 +288,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal,
         getStatus @'Public.WithLockStatus @'Public.TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
-        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureGuestLinks getGuestLinkInternal,
+        getStatus @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
       ]
   where
     getStatus ::
@@ -709,6 +713,48 @@ setGuestLinkInternal tid status = do
   where
     getDftLockStatus :: Sem r Public.LockStatusValue
     getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to Public.tfwoapsLockStatus)
+
+getSndFactorPasswordChallengeInternal ::
+  forall r.
+  (Member (Input Opts) r, Member TeamFeatureStore r) =>
+  GetFeatureInternalParam ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge)
+getSndFactorPasswordChallengeInternal = \case
+  Left _ -> getCfgDefault
+  Right tid -> do
+    cfgDefault <- getCfgDefault
+    (mbFeatureStatus, fromMaybe (Public.tfwoapsLockStatus cfgDefault) -> lockStatus) <- TeamFeatures.getFeatureStatusNoConfigAndLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid
+    pure $ determineFeatureStatus cfgDefault lockStatus mbFeatureStatus
+  where
+    getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
+
+setSndFactorPasswordChallengeInternal ::
+  forall r.
+  ( Member GundeckAccess r,
+    Member TeamStore r,
+    Member TeamFeatureStore r,
+    Member P.TinyLog r,
+    Member (Error TeamFeatureError) r,
+    Member (Input Opts) r
+  ) =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge)
+setSndFactorPasswordChallengeInternal tid status = do
+  getDftLockStatus >>= guardLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid
+  let pushEvent =
+        pushFeatureConfigEvent tid $
+          Event.Event
+            Event.Update
+            Public.TeamFeatureSndFactorPasswordChallenge
+            ( EdFeatureWithoutConfigAndLockStatusChanged
+                (Public.TeamFeatureStatusNoConfigAndLockStatus (Public.tfwoStatus status) Public.Unlocked)
+            )
+  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureSndFactorPasswordChallenge tid status <* pushEvent
+  where
+    getDftLockStatus :: Sem r Public.LockStatusValue
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults . to Public.tfwoapsLockStatus)
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::

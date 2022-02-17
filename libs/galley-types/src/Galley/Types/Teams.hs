@@ -34,6 +34,7 @@ module Galley.Types.Teams
     flagSelfDeletingMessages,
     flagConversationGuestLinks,
     flagsTeamFeatureValidateSAMLEmailsStatus,
+    flagTeamFeatureSndFactorPasswordChallengeStatus,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -218,7 +219,8 @@ data FeatureFlags = FeatureFlags
     _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
     _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
     _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)),
-    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails))
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails)),
+    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge))
   }
   deriving (Eq, Show, Generic)
 
@@ -267,6 +269,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))
       <*> (fromMaybe (Defaults defaultTeamFeatureValidateSAMLEmailsStatus) <$> (obj .:? "validateSAMLEmails"))
+      <*> (fromMaybe (Defaults defaultTeamFeatureSndFactorPasswordChallengeStatus) <$> (obj .:? "sndFactorPasswordChallenge"))
 
 instance ToJSON FeatureFlags where
   toJSON
@@ -281,6 +284,7 @@ instance ToJSON FeatureFlags where
         selfDeletingMessages
         guestLinks
         validateSAMLEmails
+        sndFactorPasswordChallenge
       ) =
       object
         [ "sso" .= sso,
@@ -292,7 +296,8 @@ instance ToJSON FeatureFlags where
           "conferenceCalling" .= conferenceCalling,
           "selfDeletingMessages" .= selfDeletingMessages,
           "conversationGuestLinks" .= guestLinks,
-          "validateSAMLEmails" .= validateSAMLEmails
+          "validateSAMLEmails" .= validateSAMLEmails,
+          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge
         ]
 
 instance FromJSON FeatureSSO where
@@ -387,6 +392,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
             ChangeTeamFeature TeamFeatureSelfDeletingMessages,
             ChangeTeamFeature TeamFeatureGuestLinks,
+            ChangeTeamFeature TeamFeatureSndFactorPasswordChallenge,
             ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,
@@ -409,6 +415,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureConferenceCalling,
           ViewTeamFeature TeamFeatureSelfDeletingMessages,
           ViewTeamFeature TeamFeatureGuestLinks,
+          ViewTeamFeature TeamFeatureSndFactorPasswordChallenge,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

@@ -15,9 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V60_TeamFeatureSndFactorPasswordChallenge
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 60
+migration :: Migration
+migration = Migration 60 "Add feature config for team feature snd factor password challenge" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          snd_factor_password_challenge_status int,
+          snd_factor_password_challenge_lock_status int
+        )
+     |]
