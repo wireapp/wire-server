@@ -60,7 +60,7 @@ import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import qualified Wire.API.User.Search as Public
 
-routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   get "/teams/:tid/search" (continue teamUserSearchH) $
     accept "application" "json"
@@ -94,7 +94,7 @@ routesPublic = do
     Doc.returns (Doc.ref $ Public.modelSearchResult Public.modelTeamContact)
     Doc.response 200 "The list of hits." Doc.end
 
-routesInternal :: Routes a Handler ()
+routesInternal :: Routes a (Handler r) ()
 routesInternal = do
   -- make index updates visible (e.g. for integration testing)
   post
@@ -121,7 +121,7 @@ routesInternal = do
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
-search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   federationDomain <- viewFederationDomain
   let queryDomain = fromMaybe federationDomain maybeDomain
@@ -129,7 +129,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
     then searchLocally searcherId searchTerm maybeMaxResults
     else searchRemotely queryDomain searchTerm
 
-searchRemotely :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
+searchRemotely :: Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
   Log.info $
     msg (val "searchRemotely")
@@ -145,7 +145,7 @@ searchRemotely domain searchTerm = do
         searchTook = 0
       }
 
-searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   teamSearchInfo <- mkTeamSearchInfo
@@ -172,7 +172,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
-    mkTeamSearchInfo :: Handler TeamSearchInfo
+    mkTeamSearchInfo :: (Handler r) TeamSearchInfo
     mkTeamSearchInfo = lift $ do
       searcherTeamId <- DB.lookupUserTeam searcherId
       sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
@@ -186,7 +186,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
 
-    exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
+    exactHandleSearch :: TeamSearchInfo -> (Handler r) (Maybe Contact)
     exactHandleSearch teamSearchInfo = do
       lsearcherId <- qualifyLocal searcherId
       let searchedHandleMaybe = parseHandle searchTerm
@@ -213,7 +213,7 @@ teamUserSearchH ::
       ::: Maybe TeamUserSearchSortOrder
       ::: Range 1 500 Int32
   ) ->
-  Handler Response
+  (Handler r) Response
 teamUserSearchH (_ ::: uid ::: tid ::: mQuery ::: mRoleFilter ::: mSortBy ::: mSortOrder ::: size) = do
   json <$> teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size
 
@@ -225,7 +225,7 @@ teamUserSearch ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   Range 1 500 Int32 ->
-  Handler (Public.SearchResult Public.TeamContact)
+  (Handler r) (Public.SearchResult Public.TeamContact)
 teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
   ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks.  (also, this way we don't need to worry about revealing confidential user data to other team members.)
   Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder size

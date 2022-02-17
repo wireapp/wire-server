@@ -116,7 +116,7 @@ data ReAuthError
 -- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> (AppIO r) (UserAccount, Maybe Password)
 newAccount u inv tid mbHandle = do
   defLoc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
@@ -152,7 +152,7 @@ newAccount u inv tid mbHandle = do
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
-newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
+newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> (AppIO r) UserAccount
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
@@ -176,7 +176,7 @@ newAccountInviteViaScim uid tid locale name email = do
         ManagedByScim
 
 -- | Mandatory password authentication.
-authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
+authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError (AppIO r) ()
 authenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
@@ -217,7 +217,7 @@ insertAccount ::
   Maybe Password ->
   -- | Whether the user is activated
   Bool ->
-  AppIO ()
+  (AppIO r) ()
 insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
@@ -260,10 +260,10 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       "INSERT INTO service_team (provider, service, user, conv, team) \
       \VALUES (?, ?, ?, ?, ?)"
 
-updateLocale :: UserId -> Locale -> AppIO ()
+updateLocale :: UserId -> Locale -> (AppIO r) ()
 updateLocale u (Locale l c) = write userLocaleUpdate (params LocalQuorum (l, c, u))
 
-updateUser :: UserId -> UserUpdate -> AppIO ()
+updateUser :: UserId -> UserUpdate -> (AppIO r) ()
 updateUser u UserUpdate {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
@@ -272,13 +272,13 @@ updateUser u UserUpdate {..} = retry x5 . batch $ do
   for_ uupAssets $ \a -> addPrepQuery userAssetsUpdate (a, u)
   for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
 
-updateEmail :: UserId -> Email -> AppIO ()
+updateEmail :: UserId -> Email -> (AppIO r) ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
-updatePhone :: UserId -> Phone -> AppIO ()
+updatePhone :: UserId -> Phone -> (AppIO r) ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
-updateSSOId :: UserId -> Maybe UserSSOId -> AppIO Bool
+updateSSOId :: UserId -> Maybe UserSSOId -> (AppIO r) Bool
 updateSSOId u ssoid = do
   mteamid <- lookupUserTeam u
   case mteamid of
@@ -287,21 +287,21 @@ updateSSOId u ssoid = do
       pure True
     Nothing -> pure False
 
-updateManagedBy :: UserId -> ManagedBy -> AppIO ()
+updateManagedBy :: UserId -> ManagedBy -> (AppIO r) ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
 
-updateHandle :: UserId -> Handle -> AppIO ()
+updateHandle :: UserId -> Handle -> (AppIO r) ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
-updatePassword :: UserId -> PlainTextPassword -> AppIO ()
+updatePassword :: UserId -> PlainTextPassword -> (AppIO r) ()
 updatePassword u t = do
   p <- liftIO $ mkSafePassword t
   retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
-updateRichInfo :: UserId -> RichInfoAssocList -> AppIO ()
+updateRichInfo :: UserId -> RichInfoAssocList -> (AppIO r) ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: UserId -> Maybe ApiFt.TeamFeatureStatusNoConfig -> AppIO (Maybe ApiFt.TeamFeatureStatusNoConfig)
+updateFeatureConferenceCalling :: UserId -> Maybe ApiFt.TeamFeatureStatusNoConfig -> (AppIO r) (Maybe ApiFt.TeamFeatureStatusNoConfig)
 updateFeatureConferenceCalling uid mbStatus = do
   let flag = ApiFt.tfwoStatus <$> mbStatus
   retry x5 $ write update (params LocalQuorum (flag, uid))
@@ -310,13 +310,13 @@ updateFeatureConferenceCalling uid mbStatus = do
     update :: PrepQuery W (Maybe ApiFt.TeamFeatureStatusValue, UserId) ()
     update = fromString $ "update user set feature_conference_calling = ? where id = ?"
 
-deleteEmail :: UserId -> AppIO ()
+deleteEmail :: UserId -> (AppIO r) ()
 deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
-deletePhone :: UserId -> AppIO ()
+deletePhone :: UserId -> (AppIO r) ()
 deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
 
-deleteServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO ()
+deleteServiceUser :: ProviderId -> ServiceId -> BotId -> (AppIO r) ()
 deleteServiceUser pid sid bid = do
   lookupServiceUser pid sid bid >>= \case
     Nothing -> pure ()
@@ -336,17 +336,17 @@ deleteServiceUser pid sid bid = do
       "DELETE FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
 
-updateStatus :: UserId -> AccountStatus -> AppIO ()
+updateStatus :: UserId -> AccountStatus -> (AppIO r) ()
 updateStatus u s = retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
 
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
-isActivated :: UserId -> AppIO Bool
+isActivated :: UserId -> (AppIO r) Bool
 isActivated u =
   (== Just (Identity True))
     <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity u)))
 
-filterActive :: [UserId] -> AppIO [UserId]
+filterActive :: [UserId] -> (AppIO r) [UserId]
 filterActive us =
   map (view _1) . filter isActiveUser
     <$> retry x1 (query accountStateSelectAll (params LocalQuorum (Identity us)))
@@ -355,46 +355,46 @@ filterActive us =
     isActiveUser (_, True, Just Active) = True
     isActiveUser _ = False
 
-lookupUser :: HavePendingInvitations -> UserId -> AppIO (Maybe User)
+lookupUser :: HavePendingInvitations -> UserId -> (AppIO r) (Maybe User)
 lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
-activateUser :: UserId -> UserIdentity -> AppIO ()
+activateUser :: UserId -> UserIdentity -> (AppIO r) ()
 activateUser u ident = do
   let email = emailIdentity ident
   let phone = phoneIdentity ident
   retry x5 $ write userActivatedUpdate (params LocalQuorum (email, phone, u))
 
-deactivateUser :: UserId -> AppIO ()
+deactivateUser :: UserId -> (AppIO r) ()
 deactivateUser u =
   retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
 
-lookupLocale :: UserId -> AppIO (Maybe Locale)
+lookupLocale :: UserId -> (AppIO r) (Maybe Locale)
 lookupLocale u = do
   defLoc <- setDefaultUserLocale <$> view settings
   fmap (toLocale defLoc) <$> retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
 
-lookupName :: UserId -> AppIO (Maybe Name)
+lookupName :: UserId -> (AppIO r) (Maybe Name)
 lookupName u =
   fmap runIdentity
     <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
 
-lookupPassword :: UserId -> AppIO (Maybe Password)
+lookupPassword :: UserId -> (AppIO r) (Maybe Password)
 lookupPassword u =
   join . fmap runIdentity
     <$> retry x1 (query1 passwordSelect (params LocalQuorum (Identity u)))
 
-lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
+lookupStatus :: UserId -> (AppIO r) (Maybe AccountStatus)
 lookupStatus u =
   join . fmap runIdentity
     <$> retry x1 (query1 statusSelect (params LocalQuorum (Identity u)))
 
-lookupRichInfo :: UserId -> AppIO (Maybe RichInfoAssocList)
+lookupRichInfo :: UserId -> (AppIO r) (Maybe RichInfoAssocList)
 lookupRichInfo u =
   fmap runIdentity
     <$> retry x1 (query1 richInfoSelect (params LocalQuorum (Identity u)))
 
 -- | Returned rich infos are in the same order as users
-lookupRichInfoMultiUsers :: [UserId] -> AppIO [(UserId, RichInfo)]
+lookupRichInfoMultiUsers :: [UserId] -> (AppIO r) [(UserId, RichInfo)]
 lookupRichInfoMultiUsers users = do
   mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
     <$> retry x1 (query richInfoSelectMulti (params LocalQuorum (Identity users)))
@@ -402,7 +402,7 @@ lookupRichInfoMultiUsers users = do
 -- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
 -- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
 -- successful login.
-lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
+lookupUserTeam :: UserId -> (AppIO r) (Maybe TeamId)
 lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
@@ -415,22 +415,22 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Ident
 -- | Return users with given IDs.
 --
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
-lookupUsers :: HavePendingInvitations -> [UserId] -> AppIO [User]
+lookupUsers :: HavePendingInvitations -> [UserId] -> (AppIO r) [User]
 lookupUsers hpi usrs = do
   loc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 
-lookupAccount :: UserId -> AppIO (Maybe UserAccount)
+lookupAccount :: UserId -> (AppIO r) (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
 
-lookupAccounts :: [UserId] -> AppIO [UserAccount]
+lookupAccounts :: [UserId] -> (AppIO r) [UserAccount]
 lookupAccounts usrs = do
   loc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
   fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
-lookupServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO (Maybe (ConvId, Maybe TeamId))
+lookupServiceUser :: ProviderId -> ServiceId -> BotId -> (AppIO r) (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
   where
     cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
@@ -442,7 +442,7 @@ lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, s
 lookupServiceUsers ::
   ProviderId ->
   ServiceId ->
-  ConduitM () [(BotId, ConvId, Maybe TeamId)] AppIO ()
+  ConduitM () [(BotId, ConvId, Maybe TeamId)] (AppIO r) ()
 lookupServiceUsers pid sid =
   paginateC cql (paramsP LocalQuorum (pid, sid) 100) x1
   where
@@ -455,7 +455,7 @@ lookupServiceUsersForTeam ::
   ProviderId ->
   ServiceId ->
   TeamId ->
-  ConduitM () [(BotId, ConvId)] AppIO ()
+  ConduitM () [(BotId, ConvId)] (AppIO r) ()
 lookupServiceUsersForTeam pid sid tid =
   paginateC cql (paramsP LocalQuorum (pid, sid, tid) 100) x1
   where

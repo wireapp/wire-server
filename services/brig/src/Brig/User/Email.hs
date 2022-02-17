@@ -45,14 +45,14 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
 
-sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
+sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> (AppIO r) ()
 sendVerificationMail to pair loc = do
   tpl <- verificationEmail . snd <$> userTemplates loc
   branding <- view templateBranding
   let mail = VerificationEmail to pair
   Email.sendMail $ renderVerificationMail mail tpl branding
 
-sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
+sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> (AppIO r) ()
 sendActivationMail to name pair loc ident = do
   tpl <- selectTemplate . snd <$> userTemplates loc
   branding <- view templateBranding
@@ -64,26 +64,26 @@ sendActivationMail to name pair loc ident = do
         then activationEmail
         else activationEmailUpdate
 
-sendPasswordResetMail :: Email -> PasswordResetPair -> Maybe Locale -> AppIO ()
+sendPasswordResetMail :: Email -> PasswordResetPair -> Maybe Locale -> (AppIO r) ()
 sendPasswordResetMail to pair loc = do
   tpl <- passwordResetEmail . snd <$> userTemplates loc
   branding <- view templateBranding
   let mail = PasswordResetEmail to pair
   Email.sendMail $ renderPwResetMail mail tpl branding
 
-sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> AppIO ()
+sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> (AppIO r) ()
 sendDeletionEmail name email key code locale = do
   tpl <- deletionEmail . snd <$> userTemplates (Just locale)
   branding <- view templateBranding
   Email.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code) branding
 
-sendNewClientEmail :: Name -> Email -> Client -> Locale -> AppIO ()
+sendNewClientEmail :: Name -> Email -> Client -> Locale -> (AppIO r) ()
 sendNewClientEmail name email client locale = do
   tpl <- newClientEmail . snd <$> userTemplates (Just locale)
   branding <- view templateBranding
   Email.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client) branding
 
-sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> AppIO ()
+sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> (AppIO r) ()
 sendTeamActivationMail to name pair loc team = do
   tpl <- teamActivationEmail . snd <$> userTemplates loc
   let mail = TeamActivationEmail to name team pair

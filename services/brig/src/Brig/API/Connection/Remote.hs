@@ -108,7 +108,7 @@ updateOne2OneConv ::
   Maybe (Qualified ConvId) ->
   Relation ->
   Actor ->
-  AppIO (Qualified ConvId)
+  (AppIO r) (Qualified ConvId)
 updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
   let request =
         UpsertOne2OneConversationRequest
@@ -148,7 +148,7 @@ transitionTo ::
   Maybe UserConnection ->
   Maybe Relation ->
   Actor ->
-  ConnectionM (ResponseForExistedCreated UserConnection, Bool)
+  (ConnectionM r) (ResponseForExistedCreated UserConnection, Bool)
 transitionTo self _ _ Nothing Nothing _ =
   -- This can only happen if someone tries to ignore as a first action on a
   -- connection. This shouldn't be possible.
@@ -181,7 +181,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
-pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> AppIO ()
+pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppIO r) ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
   Intra.onConnectionEvent (tUnqualified self) mzcon event
@@ -192,7 +192,7 @@ performLocalAction ::
   Remote UserId ->
   Maybe UserConnection ->
   LocalConnectionAction ->
-  ConnectionM (ResponseForExistedCreated UserConnection, Bool)
+  (ConnectionM r) (ResponseForExistedCreated UserConnection, Bool)
 performLocalAction self mzcon other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
   checkLimitForLocalAction self rel0 action
@@ -238,7 +238,7 @@ performRemoteAction ::
   Remote UserId ->
   Maybe UserConnection ->
   RemoteConnectionAction ->
-  AppIO (Maybe RemoteConnectionAction)
+  (AppIO r) (Maybe RemoteConnectionAction)
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
   let rel1 = transition (RCA action) rel0
@@ -254,7 +254,7 @@ createConnectionToRemoteUser ::
   Local UserId ->
   ConnId ->
   Remote UserId ->
-  ConnectionM (ResponseForExistedCreated UserConnection)
+  (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
   mconnection <- lift $ Data.lookupConnection self (qUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
@@ -264,7 +264,7 @@ updateConnectionToRemoteUser ::
   Remote UserId ->
   Relation ->
   Maybe ConnId ->
-  ConnectionM (Maybe UserConnection)
+  (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
   mconnection <- lift $ Data.lookupConnection self (qUntagged other)
   action <-
@@ -281,7 +281,7 @@ updateConnectionToRemoteUser self other rel1 zcon = do
     actionForTransition Pending = Nothing
     actionForTransition MissingLegalholdConsent = Nothing
 
-checkLimitForLocalAction :: Local UserId -> Relation -> LocalConnectionAction -> ConnectionM ()
+checkLimitForLocalAction :: Local UserId -> Relation -> LocalConnectionAction -> (ConnectionM r) ()
 checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u

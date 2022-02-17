@@ -40,19 +40,19 @@ import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJ
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
 
-ejpdRequest :: Maybe Bool -> EJPDRequestBody -> Handler EJPDResponseBody
+ejpdRequest :: Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
 ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
     -- find uid given handle
-    go1 :: Bool -> Handle -> AppIO (Maybe EJPDResponseItem)
+    go1 :: Bool -> Handle -> (AppIO r) (Maybe EJPDResponseItem)
     go1 includeContacts' handle = do
       mbUid <- lookupHandle handle
       mbUsr <- maybe (pure Nothing) (lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
 
     -- construct response item given uid
-    go2 :: Bool -> User -> AppIO EJPDResponseItem
+    go2 :: Bool -> User -> (AppIO r) EJPDResponseItem
     go2 includeContacts' target = do
       let uid = userId target
 
