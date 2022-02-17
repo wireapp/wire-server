@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Generated.Event_user where
 
 import Data.Domain
-import Data.Either (fromRight)
 import Data.Id (ClientId (ClientId, client), Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
@@ -28,7 +27,7 @@ import Data.Range (unsafeRange)
 import qualified Data.Set as Set
 import Data.Text.Ascii (validate)
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust, read, undefined)
+import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (Key (..), Value (..))
 import Wire.API.Conversation.Role (parseRoleName)
@@ -156,7 +155,8 @@ testObject_Event_user_8 =
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 283898987885780}),
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1}),
-                    cnvmProtocol = ProtocolProteus
+                    cnvmProtocol = ProtocolProteus,
+                    cnvmGroupId = Nothing
                   },
               cnvMembers =
                 ConvMembers

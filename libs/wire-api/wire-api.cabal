@@ -38,6 +38,7 @@ library
       Wire.API.Message.Proto
       Wire.API.MLS.CipherSuite
       Wire.API.MLS.Credential
+      Wire.API.MLS.GroupId
       Wire.API.MLS.KeyPackage
       Wire.API.MLS.Proposal
       Wire.API.MLS.Serialisation
@@ -473,6 +474,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual.CreateScimToken
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
+      Test.Wire.API.Golden.Manual.GroupId
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.SearchResultContact
@@ -537,6 +539,7 @@ test-suite wire-api-golden-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , either
     , filepath
     , hscim
     , imports

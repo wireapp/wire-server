@@ -153,6 +153,7 @@ tests:
     - cassava
     - currency-codes
     - directory
+    - either
     - iso3166-country-codes
     - iso639
     - lens

@@ -43,6 +43,8 @@ module Wire.API.Conversation
     pattern ConversationPagingState,
     ConversationsResponse (..),
     Protocol (..),
+    GroupId,
+    mkGroupId,
 
     -- * Conversation properties
     Access (..),
@@ -112,6 +114,7 @@ import System.Random (randomRIO)
 import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.MLS.GroupId
 import Wire.API.Routes.MultiTablePaging
 
 --------------------------------------------------------------------------------
@@ -130,7 +133,9 @@ data ConversationMetadata = ConversationMetadata
     cnvmMessageTimer :: Maybe Milliseconds,
     cnvmReceiptMode :: Maybe ReceiptMode,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    cnvmProtocol :: Protocol
+    cnvmProtocol :: Protocol,
+    -- | An MLS group ID
+    cnvmGroupId :: Maybe GroupId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -184,6 +189,7 @@ conversationMetadataObjectSchema =
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
     <*> cnvmProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" (schema @Protocol))
+    <*> cnvmGroupId .= maybe_ (optField "group_id" schema)
 
 data Protocol
   = ProtocolProteus

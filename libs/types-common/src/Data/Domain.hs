@@ -76,10 +76,17 @@ domainText :: Domain -> Text
 domainText = _domainText
 
 mkDomain :: Text -> Either String Domain
-mkDomain = Atto.parseOnly (domainParser <* Atto.endOfInput) . Text.E.encodeUtf8
+mkDomain = Atto.parseOnly (domainParser Nothing <* Atto.endOfInput) . Text.E.encodeUtf8
+
+-- | In MLS, a 'GroupId' can be up to 256 bytes. In the chosen encoding, the
+-- first 16 bytes correspond to the conversation UUID, where the rest
+-- corresponds to the domain. This means that the domain can be at most 240
+-- bytes.
+mkMLSDomain :: Text -> Either String Domain
+mkMLSDomain = Atto.parseOnly (domainParser (Just 240) <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance FromByteString Domain where
-  parser = domainParser
+  parser = domainParser Nothing
 
 instance ToByteString Domain where
   builder = Builder.lazyByteString . cs @Text @LByteString . _domainText
@@ -90,15 +97,15 @@ instance FromHttpApiData Domain where
 instance ToHttpApiData Domain where
   toUrlPiece = toUrlPiece . _domainText
 
-domainParser :: Atto.Parser Domain
-domainParser = do
+domainParser :: Maybe Int -> Atto.Parser Domain
+domainParser domainLimit = do
   parts <- domainLabel `Atto.sepBy1` Atto.char '.'
   when (length parts < 2) $
     fail "Invalid domain name: cannot be dotless domain"
   when (isDigit (BS.Char8.head (last parts))) $
     fail "Invalid domain name: last label cannot start with digit"
   let bs = BS.intercalate "." parts
-  when (BS.length bs > 253) $
+  when (BS.length bs > fromMaybe 253 domainLimit) $
     fail "Invalid domain name: too long"
   case Text.E.decodeUtf8' bs of
     Left err -> fail $ "Invalid UTF-8 in Domain: " <> show err
