@@ -225,6 +225,7 @@ library
     , servant-server
     , servant-swagger
     , servant-swagger-ui
+    , singletons
     , sop-core
     , split >=0.2
     , ssl-util >=0.1
@@ -445,6 +446,7 @@ executable galley-integration
     , servant-client-core
     , servant-server
     , servant-swagger
+    , singletons
     , sop-core
     , ssl-util
     , string-conversions

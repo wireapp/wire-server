@@ -59,6 +59,7 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Singletons
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
@@ -1518,7 +1519,7 @@ testAccessUpdateGuestRemoved = do
         [ frComponent freq == Galley,
           frRPC freq == "on-conversation-updated",
           fmap F.cuAction (eitherDecode (frBody freq))
-            == Right (ConversationActionRemoveMembers (charlie :| [dee]))
+            == Right (SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (charlie :| [dee])))
         ]
 
   -- only alice and bob remain
@@ -1671,7 +1672,7 @@ paginateConvListIds = do
               F.cuOrigUserId = qChad,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1687,7 +1688,7 @@ paginateConvListIds = do
               F.cuOrigUserId = qDee,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -1732,7 +1733,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuOrigUserId = qChad,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1750,7 +1751,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuOrigUserId = qDee,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -2244,7 +2245,7 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   liftIO $ do
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
-    convUpdate <- case filter ((== ConversationActionDelete) . cuAction) convUpdates of
+    convUpdate <- case filter ((== (SomeConversationAction (sing @'ConversationDeleteTag) ConversationDelete)) . cuAction) convUpdates of
       [] -> assertFailure "No ConversationUpdate requests received"
       [convDelete] -> pure convDelete
       _ -> assertFailure "Multiple ConversationUpdate requests received"
@@ -2960,7 +2961,7 @@ putQualifiedConvRenameWithRemotesOk = do
       frRPC req @?= "on-conversation-updated"
       Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu @?= ConversationActionRename (ConversationRename "gossip++")
+      F.cuAction cu @?= SomeConversationAction (sing @'ConversationRenameTag) (ConversationRename "gossip++")
 
     void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
       let e = List1.head (WS.unpackPayload n)
@@ -3219,7 +3220,7 @@ putRemoteConvMemberOk update = do
             cuConvId = qUnqualified qconv,
             cuAlreadyPresentUsers = [],
             cuAction =
-              ConversationActionAddMembers (pure qalice) roleNameWireMember
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
@@ -3358,8 +3359,7 @@ putReceiptModeWithRemotesOk = do
       Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
-        @?= ConversationActionReceiptModeUpdate
-          (ConversationReceiptModeUpdate (ReceiptMode 43))
+        @?= SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate (ReceiptMode 43))
 
     void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
       let e = List1.head (WS.unpackPayload n)
@@ -3542,25 +3542,25 @@ removeUser = do
       bConvUpdates <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
 
       bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
-      cuAction bConvUpdatesA2 @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
       cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
 
       bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
-      cuAction bConvUpdatesA4 @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
       cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
 
     liftIO $ do
       cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ cConvUpdateRPC
       cuConvId convUpdate @?= convA4
-      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
 
     liftIO $ do
       dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ dConvUpdateRPC
       cuConvId convUpdate @?= convA2
-      cuAction convUpdate @?= ConversationActionRemoveMembers (pure alexDel)
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
 
   -- Check memberships

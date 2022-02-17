@@ -69,6 +69,11 @@ module Wire.API.Conversation
     ConversationAccessData (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+    ConversationJoin (..),
+    ConversationLeave (..),
+    ConversationRemoveMembers (..),
+    ConversationMemberUpdate (..),
+    ConversationDelete (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -864,3 +869,78 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.description "Contains conversation properties to update"
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
+
+data ConversationJoin = ConversationJoin
+  { cjUsers :: NonEmpty (Qualified UserId),
+    cjRole :: RoleName
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationJoin)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationJoin
+
+instance ToSchema ConversationJoin where
+  schema =
+    objectWithDocModifier
+      "ConversationJoin"
+      (description ?~ "The action of some users joining a conversation")
+      $ ConversationJoin
+        <$> cjUsers .= field "users" (nonEmptyArray schema)
+        <*> cjRole .= field "role" schema
+
+newtype ConversationLeave = ConversationLeave
+  {clUsers :: NonEmpty (Qualified UserId)}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationLeave)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationLeave
+
+instance ToSchema ConversationLeave where
+  schema =
+    objectWithDocModifier
+      "ConversationLeave"
+      (description ?~ "The action of some users leaving a conversation on their own")
+      $ ConversationLeave
+        <$> clUsers .= field "users" (nonEmptyArray schema)
+
+data ConversationRemoveMembers = ConversationRemoveMembers
+  { crmTargets :: NonEmpty (Qualified UserId)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationRemoveMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationRemoveMembers
+
+instance ToSchema ConversationRemoveMembers where
+  schema =
+    objectWithDocModifier
+      "ConversationRemoveMembers"
+      (description ?~ "The action of some users being removed from a conversation")
+      $ ConversationRemoveMembers
+        <$> crmTargets .= field "targets" (nonEmptyArray schema)
+
+data ConversationMemberUpdate = ConversationMemberUpdate
+  { cmuTarget :: Qualified UserId,
+    cmuUpdate :: OtherMemberUpdate
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationMemberUpdate
+
+instance ToSchema ConversationMemberUpdate where
+  schema =
+    objectWithDocModifier
+      "ConversationMemberUpdate"
+      (description ?~ "The action of promoting/demoting a member of a conversation")
+      $ ConversationMemberUpdate
+        <$> cmuTarget .= field "target" schema
+        <*> cmuUpdate .= field "update" schema
+
+data ConversationDelete = ConversationDelete
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationDelete)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationDelete
+
+instance ToSchema ConversationDelete where
+  schema =
+    objectWithDocModifier
+      "ConversationDelete"
+      (description ?~ "The action of deleting a conversation")
+      (pure ConversationDelete)

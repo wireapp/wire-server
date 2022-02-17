@@ -30,6 +30,8 @@ import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
+import Data.Singletons (sing)
+import Data.Singletons.TH (sCases)
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
@@ -55,14 +57,17 @@ import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
+import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
+import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -79,6 +84,7 @@ federationSitemap =
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"send-message" sendMessage
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
+    :<|> Named @"update-conversation" updateConversation
 
 onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>
@@ -166,26 +172,36 @@ onConversationUpdated requestingDomain cu = do
   -- are not in the conversations are being removed or have their membership state
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
-  (mActualAction, extraTargets) <- case F.cuAction cu of
-    ConversationActionAddMembers toAdd role -> do
-      let (localUsers, remoteUsers) = partitionQualified loc toAdd
-      addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
-      let allAddedUsers = map (qUntagged . qualifyAs loc) addedLocalUsers <> map qUntagged remoteUsers
-      case allAddedUsers of
-        [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
-        (u : us) -> pure (Just $ ConversationActionAddMembers (u :| us) role, addedLocalUsers)
-    ConversationActionRemoveMembers toRemove -> do
-      let localUsers = getLocalUsers (tDomain loc) toRemove
-      E.deleteMembersInRemoteConversation rconvId localUsers
-      pure (Just $ F.cuAction cu, [])
-    ConversationActionRename _ -> pure (Just $ F.cuAction cu, [])
-    ConversationActionMessageTimerUpdate _ -> pure (Just $ F.cuAction cu, [])
-    ConversationActionMemberUpdate _ _ -> pure (Just $ F.cuAction cu, [])
-    ConversationActionReceiptModeUpdate _ -> pure (Just $ F.cuAction cu, [])
-    ConversationActionAccessUpdate _ -> pure (Just $ F.cuAction cu, [])
-    ConversationActionDelete -> do
-      E.deleteMembersInRemoteConversation rconvId presentUsers
-      pure (Just $ F.cuAction cu, [])
+
+  (mActualAction :: Maybe SomeConversationAction, extraTargets :: [UserId]) <- case F.cuAction cu of
+    SomeConversationAction signTag action -> case signTag of
+      SConversationJoinTag -> do
+        let ConversationJoin toAdd role = action
+        let (localUsers, remoteUsers) = partitionQualified loc toAdd
+        addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
+        let allAddedUsers = map (qUntagged . qualifyAs loc) addedLocalUsers <> map qUntagged remoteUsers
+        case allAddedUsers of
+          [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
+          (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
+      SConversationLeaveTag -> do
+        let ConversationLeave toLeave = action
+            localUsers = getLocalUsers (tDomain loc) toLeave
+        E.deleteMembersInRemoteConversation rconvId localUsers
+        pure (Just $ SomeConversationAction (sing @'ConversationLeaveTag) action, [])
+      SConversationRemoveMembersTag -> do
+        let ConversationRemoveMembers toRemove = action
+            localUsers = getLocalUsers (tDomain loc) toRemove
+        E.deleteMembersInRemoteConversation rconvId localUsers
+        pure (Just $ SomeConversationAction (sing @'ConversationRemoveMembersTag) action, [])
+      SConversationMemberUpdateTag ->
+        pure (Just (SomeConversationAction (sing @'ConversationMemberUpdateTag) action), [])
+      SConversationDeleteTag -> do
+        E.deleteMembersInRemoteConversation rconvId presentUsers
+        pure (Just (SomeConversationAction (sing @'ConversationDeleteTag) action), [])
+      SConversationRenameTag -> pure (Just (SomeConversationAction (sing @'ConversationRenameTag) action), [])
+      SConversationMessageTimerUpdateTag -> pure (Just (SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) action), [])
+      SConversationReceiptModeUpdateTag -> pure (Just (SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action), [])
+      SConversationAccessDataTag -> pure (Just (SomeConversationAction (sing @'ConversationAccessDataTag) action), [])
 
   unless allUsersArePresent $
     P.warn $
@@ -198,12 +214,12 @@ onConversationUpdated requestingDomain cu = do
           )
 
   -- Send notifications
-  for_ mActualAction $ \action -> do
-    let event = conversationActionToEvent (F.cuTime cu) (F.cuOrigUserId cu) qconvId action
+  for_ mActualAction $ \(SomeConversationAction tag action) -> do
+    let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId action
         targets = nubOrd $ presentUsers <> extraTargets
-
+    loc' <- qualifyLocal ()
     -- FUTUREWORK: support bots?
-    pushConversationEvent Nothing event (qualifyAs loc targets) []
+    pushConversationEvent Nothing event (qualifyAs loc' targets) []
 
 addLocalUsersToRemoteConv ::
   Members '[BrigAccess, MemberStore, P.TinyLog] r =>
@@ -231,6 +247,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
+-- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
   Members
     '[ ConversationStore,
@@ -247,18 +264,29 @@ leaveConversation ::
   F.LeaveConversationRequest ->
   Sem r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
-  let leaver = Qualified (F.lcLeaver lc) requestingDomain
+  let leaver :: Remote UserId = qTagUnsafe $ Qualified (F.lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (F.lcConvId lc)
-  fmap F.LeaveConversationResponse
-    . runError
-    . mapError handleNoChanges
-    . mapError handleConvError
-    . mapError handleActionError
-    . void
-    . updateLocalConversation lcnv leaver Nothing
-    . ConversationLeave
-    . pure
-    $ leaver
+
+  res <-
+    runError
+      . mapError handleNoChanges
+      . mapError handleConvError
+      . mapError handleActionError
+      $ do
+        (conv, _self) <- getConversationAndMemberWithError ConvNotFound (qUntagged leaver) lcnv
+        update <- updateLocalConversationWithRemoteUser (sing @'ConversationLeaveTag) lcnv leaver (ConversationLeave (pure (qUntagged leaver)))
+        pure (update, conv)
+
+  case res of
+    Left err -> pure $ F.LeaveConversationResponse (Left err)
+    Right (_update, conv) -> do
+      let action = ConversationLeave (pure (qUntagged leaver))
+
+      let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
+      let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
+      _event <- notifyConversationAction (sing @'ConversationLeaveTag) (qUntagged leaver) Nothing lcnv botsAndMembers action
+
+      pure $ F.LeaveConversationResponse (Right ())
   where
     handleConvError :: ConversationError -> F.RemoveFromConversationError
     handleConvError _ = F.RemoveFromConversationErrorNotFound
@@ -389,8 +417,58 @@ onUserDeleted origDomain udcn = do
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
-              let action = ConversationActionRemoveMembers (pure untaggedDeletedUser)
-
+              let action = ConversationLeave (pure untaggedDeletedUser)
                   botsAndMembers = convBotsAndMembers conv
-              void $ notifyConversationAction untaggedDeletedUser Nothing lc botsAndMembers action
+              void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse
+
+updateConversation ::
+  forall r.
+  ( Members
+      '[ BrigAccess,
+         CodeStore,
+         BotAccess,
+         FireAndForget,
+         Error ActionError,
+         Error ConversationError,
+         Error FederationError,
+         Error InvalidInput,
+         Error LegalHoldError,
+         Error NotATeamMember,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Opts,
+         Input UTCTime,
+         LegalHoldStore,
+         MemberStore,
+         TeamStore,
+         ConversationStore,
+         Input (Local ())
+       ]
+      r
+  ) =>
+  -- |
+  Domain ->
+  -- |
+  F.ConversationUpdateRequest ->
+  Sem r ConversationUpdateResponse
+updateConversation origDomain updateRequest = do
+  loc <- qualifyLocal ()
+  let rusr = toRemoteUnsafe origDomain (F.curUser updateRequest)
+      lcnv = qualifyAs loc (F.curConvId updateRequest)
+
+  let runUpdate =
+        case F.curAction updateRequest of
+          SomeConversationAction tag action ->
+            $(sCases ''ConversationActionTag [|tag|] [|updateLocalConversationWithRemoteUser tag lcnv rusr action|])
+
+  (F.ConversationUpdateResponse . Right <$> runUpdate)
+    `catchError` (\NoChanges -> pure $ F.ConversationUpdateResponse (Left F.TODO))
+  where
+    catchError :: Sem (Error e ': r) a -> (e -> Sem r a) -> Sem r a
+    catchError action handler = do
+      eith <- runError action
+      case eith of
+        Left err -> handler err
+        Right x -> pure x

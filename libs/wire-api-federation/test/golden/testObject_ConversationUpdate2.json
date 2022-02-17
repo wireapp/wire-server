@@ -1,21 +1,23 @@
 {
-    "orig_user_id": {
-        "domain": "golden.example.com",
-        "id": "00000000-0000-0000-0000-000100000007"
+    "cuAction": {
+        "action": {
+            "users": [
+                {
+                    "domain": "golden.example.com",
+                    "id": "00000000-0000-0000-0000-000100004007"
+                }
+            ]
+        },
+        "tag": "ConversationLeaveTag"
     },
-    "already_present_users": [
+    "cuAlreadyPresentUsers": [
         "00000fff-0000-0000-0000-000100005007",
         "00000fff-0000-aaaa-0000-000100005007"
     ],
-    "time": "1864-04-12T12:22:43.673Z",
-    "action": {
-        "tag": "ConversationActionRemoveMembers",
-        "contents": [
-            {
-                "domain": "golden.example.com",
-                "id": "00000000-0000-0000-0000-000100004007"
-            }
-        ]
+    "cuConvId": "00000000-0000-0000-0000-000100000006",
+    "cuOrigUserId": {
+        "domain": "golden.example.com",
+        "id": "00000000-0000-0000-0000-000100000007"
     },
-    "conv_id": "00000000-0000-0000-0000-000100000006"
+    "cuTime": "1864-04-12T12:22:43.673Z"
 }

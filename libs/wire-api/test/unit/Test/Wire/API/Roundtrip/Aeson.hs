@@ -29,6 +29,7 @@ import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
+import qualified Wire.API.Conversation.Action as Conversation.Action
 import qualified Wire.API.Conversation.Bot as Conversation.Bot
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Member as Conversation.Member
@@ -317,7 +318,8 @@ tests =
       testRoundTrip @User.RichInfo.RichInfo,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.TeamContact,
-      testRoundTrip @(Wrapped.Wrapped "some_int" Int)
+      testRoundTrip @(Wrapped.Wrapped "some_int" Int),
+      testRoundTrip @Conversation.Action.SomeConversationAction
     ]
 
 testRoundTrip ::

@@ -25,8 +25,10 @@ import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id), UserId)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Qualified (Qualified (Qualified))
+import Data.Singletons (sing)
 import qualified Data.UUID as UUID
 import Imports
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API.Galley (ConversationUpdate (..))
@@ -56,7 +58,7 @@ testObject_ConversationUpdate1 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [],
-      cuAction = ConversationActionAddMembers (qAlice :| [qBob]) roleNameWireAdmin
+      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
     }
 
 testObject_ConversationUpdate2 :: ConversationUpdate
@@ -70,5 +72,5 @@ testObject_ConversationUpdate2 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],
-      cuAction = ConversationActionRemoveMembers (pure qAlice)
+      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure qAlice))
     }

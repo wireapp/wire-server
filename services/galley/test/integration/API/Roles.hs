@@ -29,6 +29,7 @@ import Data.List1
 import qualified Data.List1 as List1
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
 import Galley.Types
 import Galley.Types.Conversations.Roles
@@ -41,6 +42,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
@@ -203,7 +205,7 @@ roleUpdateRemoteMember = do
       Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
-        @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember))
+        @?= SomeConversationAction (sing @'ConversationMemberUpdateTag) (ConversationMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember)))
       sort (F.cuAlreadyPresentUsers cu) @?= sort [qUnqualified qalice, qUnqualified qcharlie]
 
     liftIO . WS.assertMatch_ (5 # Second) wsB $ \n -> do
@@ -272,7 +274,7 @@ roleUpdateWithRemotes = do
       Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
-        @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin))
+        @?= SomeConversationAction (sing @'ConversationMemberUpdateTag) (ConversationMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin)))
       F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
 
     liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
@@ -315,7 +317,7 @@ accessUpdateWithRemotes = do
       frRPC req @?= "on-conversation-updated"
       Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu @?= ConversationActionAccessUpdate access
+      F.cuAction cu @?= SomeConversationAction (sing @'ConversationAccessDataTag) access
       F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
 
     liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
