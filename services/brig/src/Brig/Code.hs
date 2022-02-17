@@ -47,6 +47,7 @@ module Brig.Code
     Gen (genKey),
     mkGen,
     generate,
+    mk6DigitGen,
 
     -- * Storage
     insert,
@@ -70,7 +71,7 @@ import qualified Data.Text.Encoding as Text
 import Data.UUID (UUID)
 import Imports hiding (lookup)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
+import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 
@@ -160,13 +161,25 @@ mkGen cfor = liftIO $ do
       let key = mkKey d (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
           val = Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
        in Gen cfor key val
-    initGen d (ForPhone p) =
-      let key = mkKey d (Text.encodeUtf8 (phoneKeyUniq (mkPhoneKey p)))
-          val =
-            Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d"
-              <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
-       in Gen cfor key val
-    mkKey d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
+    initGen d (ForPhone p) = mk6DigitGen' cfor d (Text.encodeUtf8 (phoneKeyUniq (mkPhoneKey p)))
+
+mk6DigitGen :: MonadIO m => CodeFor -> m Gen
+mk6DigitGen cfor = liftIO $ do
+  Just sha256 <- getDigestByName "SHA256"
+  case cfor of
+    ForEmail e -> return $ mk6DigitGen' cfor sha256 (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
+    ForPhone p -> return $ mk6DigitGen' cfor sha256 (Text.encodeUtf8 (phoneKeyUniq (mkPhoneKey p)))
+
+mkKey :: Digest -> ByteString -> Key
+mkKey d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
+
+mk6DigitGen' :: CodeFor -> Digest -> ByteString -> Gen
+mk6DigitGen' cfor d key =
+  let k = mkKey d key
+      v =
+        Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d"
+          <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
+   in Gen cfor k v
 
 -- | Generate a new 'Code'.
 generate ::

@@ -57,6 +57,7 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+    getTeamSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -986,6 +987,15 @@ getTeamSearchVisibility tid =
   where
     req =
       paths ["i", "teams", toByteString' tid, "search-visibility"]
+        . expect2xx
+
+getTeamSndFactorPasswordChallenge :: TeamId -> (AppIO r) (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSndFactorPasswordChallenge)
+getTeamSndFactorPasswordChallenge tid = do
+  debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
+  galleyRequest GET req >>= decodeBody "galley"
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
 
 -- | Calls 'Galley.API.updateTeamStatusH'.

@@ -37,8 +37,10 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
+import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
+import qualified Brig.Data.UserKey as UserKey
 import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -63,7 +65,6 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
@@ -111,6 +112,7 @@ import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
@@ -172,7 +174,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
-        :<|> Named @"send-verification-code" (const sendVerificationCode)
+        :<|> Named @"send-verification-code" sendVerificationCode
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1065,10 +1067,43 @@ activate (Public.Activate tgt code dryrun)
 
 -- Verification
 
-sendVerificationCode :: (Handler r) ()
-sendVerificationCode =
-  case Public.TeamFeatureSndFPasswordChallengeNotImplemented of
-    _ -> pure ()
+sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
+sendVerificationCode req = do
+  let action = Public.svcAction req
+  -- TODO(leif): guard as long as not all of the actions are implement.
+  -- remove when all done.
+  case action of
+    Public.GenerateScimToken -> pure ()
+    Public.Login -> do
+      let email = Public.svcEmail req
+      mbUserId <- lift $ UserKey.lookupKey $ UserKey.userEmailKey email
+      mbTeamId <- lift $ join <$> Intra.getTeamId `traverse` mbUserId
+      mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
+      let featureStatus = maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
+      case (mbUserId, featureStatus) of
+        (Just userId, Public.TeamFeatureEnabled) -> do
+          gen <- Code.mk6DigitGen $ Code.ForEmail email
+          mbPendingCode <- lift $ Code.lookup (Code.genKey gen) (scope action)
+          case mbPendingCode of
+            Nothing -> do
+              code <-
+                Code.generate
+                  gen
+                  (scope action)
+                  (Code.Retries 3)
+                  (Code.Timeout (10 * 60)) -- 10 minutes
+                  (Just (toUUID userId))
+              Code.insert code
+              lift $ sendMail email (Code.codeValue code) action
+            Just _ -> pure ()
+        _ -> pure ()
+  where
+    scope = \case
+      Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
+      Public.Login -> Code.AccountLogin
+    sendMail email code = \case
+      Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
+      Public.Login -> sendLoginVerificationMail email code Nothing
 
 -- Deprecated
 
