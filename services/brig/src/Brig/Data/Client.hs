@@ -53,6 +53,7 @@ import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Control.Error
+import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
@@ -386,20 +387,20 @@ withOptLock u c ma = go (10 :: Int)
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
       m <- view metrics
-      execDyn' e m cnv cmd
+      liftIO $ execDyn' e m cnv cmd
       where
         execDyn' ::
-          forall y p m.
-          (AWS.AWSRequest p, MonadUnliftIO m, MonadMask m, MonadIO m) =>
+          forall y p.
+          AWS.AWSRequest p =>
           AWS.Env ->
           Metrics.Metrics ->
           (AWS.Rs p -> Maybe y) ->
           p ->
-          m (Maybe y)
+          IO (Maybe y)
         execDyn' e m conv cmd = recovering policy handlers (const run)
           where
             run = execCatch e cmd >>= either handleErr (return . conv)
-            handlers = httpHandlers ++ [const $ Handler $ pure . const True . preview (AWS._ConditionalCheckFailedException @SomeException)]
+            handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
