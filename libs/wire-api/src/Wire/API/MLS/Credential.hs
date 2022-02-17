@@ -29,6 +29,7 @@ import Data.Qualified
 import qualified Data.Text as T
 import Data.UUID
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
 
 -- | An MLS credential.
@@ -39,7 +40,8 @@ data Credential = BasicCredential
     bcSignatureScheme :: SignatureScheme,
     bcSignatureKey :: ByteString
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Credential
 
 data CredentialTag = ReservedCredentialTag | BasicCredentialTag
   deriving stock (Enum, Bounded, Show)
@@ -64,8 +66,8 @@ credentialTag (BasicCredential _ _ _) = BasicCredentialTag
 --
 -- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
 newtype SignatureScheme = SignatureScheme {signatureSchemeNumber :: Word16}
-  deriving stock (Show)
-  deriving newtype (ParseMLS)
+  deriving stock (Eq, Show)
+  deriving newtype (ParseMLS, Arbitrary)
 
 data ClientIdentity = ClientIdentity
   { ciDomain :: Domain,

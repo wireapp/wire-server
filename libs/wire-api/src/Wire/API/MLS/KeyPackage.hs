@@ -18,13 +18,45 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.KeyPackage where
+module Wire.API.MLS.KeyPackage
+  ( -- * API types
+    KeyPackageUpload (..),
+    KeyPackageBundle (..),
+    KeyPackageBundleEntry (..),
+    KeyPackageCount (..),
+    KeyPackageData (..),
+    KeyPackage (..),
+    KeyPackageTBS (..),
+    KeyPackageRef (..),
+    Timestamp (..),
+    ProtocolVersion (..),
+
+    -- * Extensions
+    decodeExtension,
+    parseExtension,
+    ExtensionTag (..),
+    ReservedExtensionTagSym0,
+    CapabilitiesExtensionTagSym0,
+    LifetimeExtensionTagSym0,
+    SExtensionTag (..),
+    Extension (..),
+    SomeExtension (..),
+    Capabilities (..),
+    Lifetime (..),
+
+    -- * Utilities
+    tsPOSIX,
+    kpRef,
+    kpSigOffset,
+  )
+where
 
 import Control.Applicative
 import Control.Error.Util
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
+import Data.Binary.Get
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util
@@ -35,6 +67,7 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock.POSIX
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Proposal
@@ -95,14 +128,16 @@ instance ToSchema KeyPackageCount where
 --------------------------------------------------------------------------------
 
 data ProtocolVersion = ProtocolReserved | ProtocolMLS
-  deriving stock (Bounded, Enum, Eq, Show)
+  deriving stock (Bounded, Enum, Eq, Show, Generic)
   deriving (ParseMLS) via EnumMLS Word8 ProtocolVersion
+  deriving (Arbitrary) via GenericUniform ProtocolVersion
 
 data Extension = Extension
   { extType :: Word16,
     extData :: ByteString
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Extension
 
 instance ParseMLS Extension where
   parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
@@ -141,6 +176,8 @@ data Capabilities = Capabilities
     capExtensions :: [Word16],
     capProposals :: [ProposalType]
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Capabilities)
 
 instance ParseMLS Capabilities where
   parseMLS =
@@ -152,7 +189,7 @@ instance ParseMLS Capabilities where
 
 -- | Seconds since the UNIX epoch.
 newtype Timestamp = Timestamp {timestampSeconds :: Word64}
-  deriving newtype (ParseMLS)
+  deriving newtype (Eq, Show, Arbitrary, ParseMLS)
 
 tsPOSIX :: Timestamp -> POSIXTime
 tsPOSIX = fromIntegral . timestampSeconds
@@ -161,6 +198,8 @@ data Lifetime = Lifetime
   { ltNotBefore :: Timestamp,
     ltNotAfter :: Timestamp
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Lifetime
 
 instance ParseMLS Lifetime where
   parseMLS = Lifetime <$> parseMLS <*> parseMLS
@@ -172,7 +211,8 @@ data KeyPackageTBS = KeyPackageTBS
     kpCredential :: Credential,
     kpExtensions :: [Extension]
   }
-  deriving (Show)
+  deriving stock (Show, Generic)
+  deriving (Arbitrary) via GenericUniform KeyPackageTBS
 
 instance ParseMLS KeyPackageTBS where
   parseMLS =
@@ -200,7 +240,13 @@ kpRef cs =
     . kpData
 
 instance ParseMLS KeyPackage where
-  parseMLS =
-    KeyPackage
-      <$> parseMLS
-        <*> parseMLSBytes @Word16
+  parseMLS = fst <$> kpSigOffset
+
+-- | Parse a key package, and also return the offset of the signature. This can
+-- be used to reconstruct the signed data.
+kpSigOffset :: Get (KeyPackage, Int64)
+kpSigOffset = do
+  kp <- parseMLS
+  off <- bytesRead
+  sig <- parseMLSBytes @Word16
+  pure (KeyPackage kp sig, off)

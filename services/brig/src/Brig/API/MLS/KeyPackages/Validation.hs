@@ -15,7 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.MLS.KeyPackages.Validation (validateKeyPackageData) where
+module Brig.API.MLS.KeyPackages.Validation
+  ( -- * Main key package validation function
+    validateKeyPackageData,
+
+    -- * Exported for unit tests
+    findExtensions,
+    validateLifetime',
+  )
+where
 
 import Brig.API.Error
 import Brig.API.Handler
@@ -24,6 +32,7 @@ import Brig.Options
 import Control.Applicative
 import Control.Lens (view)
 import qualified Data.ByteString.Lazy as LBS
+import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.ErrorDescription
@@ -35,7 +44,7 @@ import Wire.API.MLS.Serialisation
 validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r (KeyPackageRef, KeyPackageData)
 validateKeyPackageData identity kpd = do
   -- parse key package data
-  kp <- parseKeyPackage kpd
+  (kp, tbs) <- parseKeyPackage kpd
   -- get ciphersuite
   cs <-
     maybe
@@ -43,19 +52,24 @@ validateKeyPackageData identity kpd = do
       pure
       $ cipherSuiteTag (kpCipherSuite (kpTBS kp))
   -- validate signature
+  -- TODO: authenticate signature key
   let key = bcSignatureKey (kpCredential (kpTBS kp))
-  unless (csVerifySignature cs key (LBS.toStrict (kpData kpd)) (kpSignature kp)) $
+  unless (csVerifySignature cs key (LBS.toStrict tbs) (kpSignature kp)) $
     throwErrorDescription (mlsProtocolError "Invalid signature")
   -- validate credential and extensions
   validateKeyPackage identity kp
   pure (kpRef cs kpd, kpd)
 
-parseKeyPackage :: KeyPackageData -> Handler r KeyPackage
-parseKeyPackage (kpData -> kpd) =
-  either (throwErrorDescription . mlsProtocolError) pure (decodeMLS kpd)
+-- | Parse a key package, and return parsed structure and signed data.
+parseKeyPackage :: KeyPackageData -> Handler r (KeyPackage, LByteString)
+parseKeyPackage (kpData -> kpd) = do
+  (kp, off) <- either (throwErrorDescription . mlsProtocolError) pure (decodeMLSWith kpSigOffset kpd)
+  pure (kp, LBS.take off kpd)
 
 validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
 validateKeyPackage identity (kpTBS -> kp) = do
+  -- TODO: validate ciphersuite
+  -- TODO: validate protocol version
   validateCredential identity (kpCredential kp)
   validateExtensions (kpExtensions kp)
 
@@ -85,30 +99,34 @@ checkRequiredExtensions re =
     <$> (Identity <$> reLifetime re)
     <*> (Identity <$> reCapabilities re)
 
-findExtensions :: [Extension] -> Maybe (RequiredExtensions Identity)
+findExtensions :: [SomeExtension] -> Maybe (RequiredExtensions Identity)
 findExtensions = checkRequiredExtensions . foldMap findExtension
 
-findExtension :: Extension -> RequiredExtensions Maybe
-findExtension e = case decodeExtension e of
-  Just (SomeExtension SLifetimeExtensionTag lt) -> RequiredExtensions (pure lt) Nothing
-  Just (SomeExtension SCapabilitiesExtensionTag _) -> RequiredExtensions Nothing (pure ())
-  _ -> mempty
+findExtension :: SomeExtension -> RequiredExtensions Maybe
+findExtension (SomeExtension SLifetimeExtensionTag lt) = RequiredExtensions (pure lt) Nothing
+findExtension (SomeExtension SCapabilitiesExtensionTag _) = RequiredExtensions Nothing (pure ())
+findExtension _ = mempty
 
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
   re <-
     maybe (throwErrorDescription (mlsProtocolError "Missing required extensions")) pure $
-      findExtensions exts
+      findExtensions (foldMap (maybeToList . decodeExtension) exts)
   validateLifetime . runIdentity . reLifetime $ re
 
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
-  tm <- liftIO getPOSIXTime
-  when (tsPOSIX (ltNotBefore lt) > tm) $
-    throwErrorDescription (mlsProtocolError "Key package not_before date is in the future")
-  when (tsPOSIX (ltNotAfter lt) <= tm) $
-    throwErrorDescription (mlsProtocolError "Key package is expired")
+  now <- liftIO getPOSIXTime
   mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
+  either (throwErrorDescription . mlsProtocolError) pure $
+    validateLifetime' now mMaxLifetime lt
+
+validateLifetime' :: POSIXTime -> Maybe NominalDiffTime -> Lifetime -> Either Text ()
+validateLifetime' now mMaxLifetime lt = do
+  when (tsPOSIX (ltNotBefore lt) > now) $
+    Left "Key package not_before date is in the future"
+  when (tsPOSIX (ltNotAfter lt) <= now) $
+    Left "Key package is expired"
   for_ mMaxLifetime $ \maxLifetime ->
-    when (tsPOSIX (ltNotAfter lt) > tm + maxLifetime) $
-      throwErrorDescription (mlsProtocolError "Key package expiration time is too far in the future")
+    when (tsPOSIX (ltNotAfter lt) > now + maxLifetime) $
+      Left "Key package expiration time is too far in the future"

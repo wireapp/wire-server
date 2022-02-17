@@ -686,6 +686,7 @@ test-suite brig-tests
   other-modules:
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.MLS
       Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
       Paths_brig

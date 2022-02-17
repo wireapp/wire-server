@@ -26,11 +26,12 @@ import qualified Crypto.KDF.HKDF as HKDF
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Data.Word
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)
-  deriving newtype (ParseMLS)
+  deriving newtype (ParseMLS, Arbitrary)
 
 data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show)

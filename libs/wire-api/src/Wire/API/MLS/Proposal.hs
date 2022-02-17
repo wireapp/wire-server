@@ -19,6 +19,7 @@ module Wire.API.MLS.Proposal where
 
 import Data.Binary
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
 
 data ProposalType
@@ -31,5 +32,6 @@ data ProposalType
   | AppAckProposal
   | GroupContextExtensionsProposal
   | ExternalProposal
-  deriving stock (Bounded, Enum)
+  deriving stock (Bounded, Enum, Eq, Generic, Show)
   deriving (ParseMLS) via (EnumMLS Word16 ProposalType)
+  deriving (Arbitrary) via GenericUniform ProposalType
