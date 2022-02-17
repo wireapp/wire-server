@@ -121,7 +121,7 @@ claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFede
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: Domain -> SearchRequest -> Handler SearchResponse
+searchUsers :: Domain -> SearchRequest -> (Handler r) SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
   searchPolicy <- lookupSearchPolicy domain
 

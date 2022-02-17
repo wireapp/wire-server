@@ -99,11 +99,11 @@ traverseConcurrentlyWithErrors f =
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 
-lookupDomainConfig :: Domain -> Handler (Maybe FederationDomainConfig)
+lookupDomainConfig :: Domain -> (Handler r) (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
   pure $ find ((== domain) . Opts.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
-lookupSearchPolicy :: Domain -> Handler FederatedUserSearchPolicy
+lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
