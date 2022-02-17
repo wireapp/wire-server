@@ -144,6 +144,9 @@ extra-deps:
   - lib/services/amazonka-sso
   - lib/services/amazonka-sts
 
+# Use forked swagger to support aeson >= 2
+- git: https://gitlab.com/axeman/swagger
+  commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
 
 ############################################################
 # Wire packages

@@ -365,6 +365,17 @@ packages:
     git: https://github.com/brendanhay/amazonka
     commit: f73a957d05f64863e867cf39d0db260718f0fadd
 - completed:
+    name: swagger
+    version: 0.3.0
+    git: https://gitlab.com/axeman/swagger
+    pantry-tree:
+      size: 1010
+      sha256: 88af56b825407fd96939d5e66198e5fda14de7323b15756ad66285affdd3a372
+    commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
+  original:
+    git: https://gitlab.com/axeman/swagger
+    commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
+- completed:
     name: cryptobox-haskell
     version: 0.1.1
     git: https://github.com/wireapp/cryptobox-haskell
