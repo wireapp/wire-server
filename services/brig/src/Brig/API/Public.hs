@@ -1103,7 +1103,7 @@ sendVerificationCode req = do
       Public.Login -> Code.AccountLogin
     sendMail email code = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
-      Public.Login -> sendLoginVerificationMail email code Nothing
+      Public.Login -> sendLoginVerificationMail email code Nothing -- TODO(leif): use correct locale
 
 -- Deprecated
 

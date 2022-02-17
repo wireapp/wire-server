@@ -39,6 +39,7 @@ import Brig.API.Types
 import Brig.API.User (suspendAccount)
 import Brig.App
 import Brig.Budget
+import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
@@ -71,7 +72,6 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
-import Wire.API.User (TeamFeatureSndFPasswordChallengeNotImplemented (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -111,11 +111,7 @@ lookupLoginCode phone =
       Data.lookupLoginCode u
 
 login :: Login -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth.User)
-login (PasswordLogin li pw label _) typ = do
-  case TeamFeatureSndFPasswordChallengeNotImplemented of
-    -- mark this place to implement handling verification codes later
-    -- (for now just ignore them unconditionally.)
-    _ -> pure ()
+login (PasswordLogin li pw label code) typ = do
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   checkRetryLimit uid
@@ -125,7 +121,21 @@ login (PasswordLogin li pw label _) typ = do
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
+  verifyCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
+  where
+    verifyCode c u = do
+      -- TODO(leif): check team feature status
+      mbAccount <- lift $ Data.lookupAccount u
+      let mbEmail = join $ userEmail <$> accountUser <$> mbAccount
+      case mbEmail of
+        Just email -> do
+          key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
+          mbCode <- Code.verify key Code.AccountLogin `traverse` c
+          case mbCode of
+            Just _ -> pure ()
+            Nothing -> throwE LoginFailed -- TODO(leif): better error
+        Nothing -> throwE LoginFailed -- TODO(leif): better error
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
