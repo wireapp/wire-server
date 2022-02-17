@@ -85,7 +85,7 @@ import Control.Arrow ((&&&))
 import Control.Lens (makePrisms, (?~), _1)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
 import Data.Qualified
@@ -551,7 +551,7 @@ eventObjectSchema =
 
 instance ToJSONObject Event where
   toJSONObject =
-    HashMap.fromList
+    KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
 
