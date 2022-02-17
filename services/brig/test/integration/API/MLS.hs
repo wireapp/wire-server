@@ -44,4 +44,4 @@ testKeyPackageUpload brig = do
         . zUser (qUnqualified u)
         . json upload
     )
-    !!! const 200 === statusCode
+    !!! const 201 === statusCode

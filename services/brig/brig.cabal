@@ -736,9 +736,11 @@ test-suite brig-tests
   build-depends:
       aeson
     , base
+    , binary
     , bloodhound
     , brig
     , brig-types
+    , bytestring
     , containers
     , dns
     , dns-util

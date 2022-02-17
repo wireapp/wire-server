@@ -43,7 +43,9 @@ class ParseMLS a where
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do
   len <- get @w
-  isolate (fromIntegral len) $ go (fromIntegral len)
+  if len == 0
+    then pure []
+    else isolate (fromIntegral len) $ go (fromIntegral len)
   where
     go :: Int64 -> Get [a]
     go endPos = do

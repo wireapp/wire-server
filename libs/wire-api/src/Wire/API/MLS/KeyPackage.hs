@@ -28,8 +28,13 @@ module Wire.API.MLS.KeyPackage
     KeyPackage (..),
     KeyPackageTBS (..),
     KeyPackageRef (..),
+
+    -- * Key package types
     Timestamp (..),
     ProtocolVersion (..),
+    ProtocolVersionTag (..),
+    pvTag,
+    Extension (..),
 
     -- * Extensions
     decodeExtension,
@@ -39,7 +44,6 @@ module Wire.API.MLS.KeyPackage
     CapabilitiesExtensionTagSym0,
     LifetimeExtensionTagSym0,
     SExtensionTag (..),
-    Extension (..),
     SomeExtension (..),
     Capabilities (..),
     Lifetime (..),
@@ -70,7 +74,6 @@ import Imports
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
 data KeyPackageUpload = KeyPackageUpload
@@ -127,10 +130,19 @@ instance ToSchema KeyPackageCount where
 
 --------------------------------------------------------------------------------
 
-data ProtocolVersion = ProtocolReserved | ProtocolMLS
+newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
+  deriving newtype (Eq, Ord, Show, Binary, Arbitrary)
+  deriving (ParseMLS) via (BinaryMLS ProtocolVersion)
+
+data ProtocolVersionTag = ProtocolMLS10 | ProtocolMLSDraft11
   deriving stock (Bounded, Enum, Eq, Show, Generic)
-  deriving (ParseMLS) via EnumMLS Word8 ProtocolVersion
-  deriving (Arbitrary) via GenericUniform ProtocolVersion
+  deriving (Arbitrary) via GenericUniform ProtocolVersionTag
+
+pvTag :: ProtocolVersion -> Maybe ProtocolVersionTag
+pvTag (ProtocolVersion v) = case v of
+  1 -> pure ProtocolMLS10
+  200 -> pure ProtocolMLSDraft11
+  _ -> Nothing
 
 data Extension = Extension
   { extType :: Word16,
@@ -163,6 +175,16 @@ parseExtension SLifetimeExtensionTag = parseMLS
 data SomeExtension where
   SomeExtension :: Sing t -> ExtensionType t -> SomeExtension
 
+instance Eq SomeExtension where
+  SomeExtension SCapabilitiesExtensionTag caps1 == SomeExtension SCapabilitiesExtensionTag caps2 = caps1 == caps2
+  SomeExtension SLifetimeExtensionTag lt1 == SomeExtension SLifetimeExtensionTag lt2 = lt1 == lt2
+  _ == _ = True
+
+instance Show SomeExtension where
+  show (SomeExtension SReservedExtensionTag _) = show ()
+  show (SomeExtension SCapabilitiesExtensionTag caps) = show caps
+  show (SomeExtension SLifetimeExtensionTag lt) = show lt
+
 decodeExtension :: Extension -> Maybe SomeExtension
 decodeExtension e = do
   t <- safeToEnum (fromIntegral (extType e))
@@ -174,7 +196,7 @@ data Capabilities = Capabilities
   { capVersions :: [ProtocolVersion],
     capCiphersuites :: [CipherSuite],
     capExtensions :: [Word16],
-    capProposals :: [ProposalType]
+    capProposals :: [Word16]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Capabilities)

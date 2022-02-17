@@ -86,6 +86,8 @@ data RequiredExtensions f = RequiredExtensions
     reCapabilities :: f ()
   }
 
+deriving instance (Show (f Lifetime), Show (f ())) => Show (RequiredExtensions f)
+
 instance Alternative f => Semigroup (RequiredExtensions f) where
   RequiredExtensions lt1 cap1 <> RequiredExtensions lt2 cap2 =
     RequiredExtensions (lt1 <|> lt2) (cap1 <|> cap2)

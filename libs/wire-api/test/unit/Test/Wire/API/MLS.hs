@@ -43,7 +43,7 @@ testParseKeyPackage = do
   case decodeMLS @KeyPackage kpData of
     Left err -> assertFailure (T.unpack err)
     Right (kpTBS -> kp) -> do
-      kpProtocolVersion kp @?= ProtocolMLS
+      pvTag (kpProtocolVersion kp) @?= Just ProtocolMLS10
       kpCipherSuite kp @?= CipherSuite 1
       BS.length (kpInitKey kp) @?= 32
       case decodeMLS' @ClientIdentity (bcIdentity (kpCredential kp)) of

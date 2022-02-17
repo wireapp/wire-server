@@ -18,11 +18,15 @@
 module Test.Brig.MLS where
 
 import Brig.API.MLS.KeyPackages.Validation
+import Data.Binary
+import Data.Binary.Put
+import qualified Data.ByteString.Lazy as LBS
 import Data.Either
 import Data.Time.Clock
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 
 -- | A lifetime with a length of at least 1 day.
@@ -81,6 +85,37 @@ instance Arbitrary InvalidExtensions where
       isRequired (SomeExtension SCapabilitiesExtensionTag _) = True
       isRequired _ = False
 
+data LifetimeAndExtension = LifetimeAndExtension Extension Lifetime
+  deriving (Show)
+
+instance Arbitrary LifetimeAndExtension where
+  arbitrary = do
+    lt <- arbitrary
+    let ext = Extension (fromIntegral (fromEnum LifetimeExtensionTag)) . LBS.toStrict . runPut $ do
+          put (timestampSeconds (ltNotBefore lt))
+          put (timestampSeconds (ltNotAfter lt))
+    pure $ LifetimeAndExtension ext lt
+
+data CapabilitiesAndExtension = CapabilitiesAndExtension Extension Capabilities
+  deriving (Show)
+
+instance Arbitrary CapabilitiesAndExtension where
+  arbitrary = do
+    caps <- arbitrary
+    let ext = Extension (fromIntegral (fromEnum CapabilitiesExtensionTag)) . LBS.toStrict . runPut $ do
+          putWord8 (fromIntegral (length (capVersions caps)))
+          traverse_ (putWord8 . pvNumber) (capVersions caps)
+
+          putWord8 (fromIntegral (length (capCiphersuites caps) * 2))
+          traverse_ (put . cipherSuiteNumber) (capCiphersuites caps)
+
+          putWord8 (fromIntegral (length (capExtensions caps) * 2))
+          traverse_ put (capExtensions caps)
+
+          putWord8 (fromIntegral (length (capProposals caps) * 2))
+          traverse_ put (capProposals caps)
+    pure $ CapabilitiesAndExtension ext caps
+
 tests :: TestTree
 tests =
   testGroup
@@ -109,6 +144,10 @@ tests =
         [ testProperty "required extensions are found" $ \(ValidExtensions exts) ->
             isJust (findExtensions exts),
           testProperty "missing required extensions" $ \(InvalidExtensions exts) ->
-            isNothing (findExtensions exts)
+            isNothing (findExtensions exts),
+          testProperty "lifetime extension" $ \(LifetimeAndExtension ext lt) ->
+            decodeExtension ext == Just (SomeExtension SLifetimeExtensionTag lt),
+          testProperty "capabilities extension" $ \(CapabilitiesAndExtension ext caps) ->
+            decodeExtension ext == Just (SomeExtension SCapabilitiesExtensionTag caps)
         ]
     ]

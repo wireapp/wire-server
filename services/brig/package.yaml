@@ -155,9 +155,11 @@ tests:
     dependencies:
     - aeson
     - base
+    - binary
     - bloodhound
     - brig
     - brig-types
+    - bytestring
     - containers
     - dns
     - dns-util
