@@ -235,6 +235,13 @@ packages:
   original:
     hackage: stache-2.3.1
 - completed:
+    hackage: microlens-aeson-2.4.1@sha256:96c8b66150edee033b16ccdc471d7938593f462e4f6695e91982a6d5e26741c8,1583
+    pantry-tree:
+      size: 575
+      sha256: 8b31405f4bd5a6d9aa7a544dbed965467baffc957a493460c3c7a3f7ea154eea
+  original:
+    hackage: microlens-aeson-2.4.1
+- completed:
     subdir: lib/amazonka
     name: amazonka
     version: '2.0'
