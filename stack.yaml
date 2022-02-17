@@ -129,25 +129,20 @@ extra-deps:
 - foldl-1.4.12
 - stache-2.3.1
 
-# amazonka-1.6.1 is buggy:
-# https://github.com/brendanhay/amazonka/pull/493
-# Also, we needed a fix to make V4 signatures work with custom ports:
-# https://github.com/brendanhay/amazonka/pull/588
-#
-# Therefore we pin an unreleased commit directly.
-#
-# Once the fix has been merged (and released on hackage), we can pin that instead.
-- git: https://github.com/wireapp/amazonka
-  commit: 412172d8c28906591f01576a78792de7c34cc3eb
+# Use latest amazonka from upstream to support aeson >= 2
+- git: https://github.com/brendanhay/amazonka
+  commit: f73a957d05f64863e867cf39d0db260718f0fadd
   subdirs:
-  - amazonka
-  - amazonka-cloudfront
-  - amazonka-dynamodb
-  - amazonka-s3
-  - amazonka-ses
-  - amazonka-sns
-  - amazonka-sqs
-  - core
+  - lib/amazonka
+  - lib/amazonka-core
+  - lib/services/amazonka-cloudfront
+  - lib/services/amazonka-dynamodb
+  - lib/services/amazonka-s3
+  - lib/services/amazonka-ses
+  - lib/services/amazonka-sns
+  - lib/services/amazonka-sqs
+  - lib/services/amazonka-sso
+  - lib/services/amazonka-sts
 
 
 ############################################################
