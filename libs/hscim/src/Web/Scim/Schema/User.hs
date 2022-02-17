@@ -74,8 +74,8 @@ where
 
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.CaseInsensitive as CI
-import qualified Data.HashMap.Strict as HM
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.List ((\\))
 import Data.Text (Text, pack)
 import qualified Data.Text as Text
@@ -181,7 +181,7 @@ empty schemas userName extra =
 instance FromJSON (UserExtra tag) => FromJSON (User tag) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
-    let o = HM.fromList . map (over _1 CI.foldCase) . HM.toList $ obj
+    let o = KeyMap.fromList . map (over _1 lowerKey) . KeyMap.toList $ obj
     schemas <-
       o .:? "schemas" <&> \case
         Nothing -> [User20]
@@ -212,7 +212,7 @@ instance FromJSON (UserExtra tag) => FromJSON (User tag) where
 instance ToJSON (UserExtra tag) => ToJSON (User tag) where
   toJSON User {..} =
     let mainObject =
-          HM.fromList $
+          KeyMap.fromList $
             concat
               [ ["schemas" .= schemas],
                 ["userName" .= userName],
@@ -239,8 +239,8 @@ instance ToJSON (UserExtra tag) => ToJSON (User tag) where
         extraObject = case toJSON extra of
           Null -> mempty
           Object x -> x
-          other -> HM.fromList ["extra" .= other]
-     in Object (HM.union mainObject extraObject)
+          other -> KeyMap.fromList ["extra" .= other]
+     in Object (KeyMap.union mainObject extraObject)
     where
       -- Omit a field if it's Nothing
       optionalField fname = \case
@@ -321,7 +321,7 @@ applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
 applyUserOperation user (Operation Replace Nothing (Just value)) = do
   case value of
-    Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid", "active"]) -> do
+    Object hm | null ((AttrName . Key.toText <$> KeyMap.keys hm) \\ ["username", "displayname", "externalid", "active"]) -> do
       (u :: User tag) <- resultToScimError $ fromJSON value
       pure $
         user

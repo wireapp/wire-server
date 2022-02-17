@@ -27,7 +27,7 @@ module Web.Scim.Capabilities.MetaSchema
 where
 
 import Data.Aeson
-import qualified Data.HashMap.Lazy as HML
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Text (Text)
 import Data.Typeable (Typeable, cast)
 import Servant hiding (URI)
@@ -56,8 +56,8 @@ data Supported a = Supported
 
 instance ToJSON a => ToJSON (Supported a) where
   toJSON (Supported (ScimBool b) v) = case toJSON v of
-    (Object o) -> Object $ HML.insert "supported" (Bool b) o
-    _ -> Object $ HML.fromList [("supported", Bool b)]
+    (Object o) -> Object $ KeyMap.insert "supported" (Bool b) o
+    _ -> Object $ KeyMap.fromList [("supported", Bool b)]
 
 -- | See module "Test.Schema.MetaSchemaSpec" for golden tests that explain this instance
 -- better.
