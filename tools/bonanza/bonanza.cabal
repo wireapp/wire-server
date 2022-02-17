@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e99811a9a954d2a94b4ac9e909d56d22ede51a464f80aefefd5b4e1b8b93b231
+-- hash: abf17560896e408ea7fad83a80d142486c753c8316e3246a78fde62b18c35925
 
 name:           bonanza
 version:        3.6.0
@@ -86,7 +86,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-small-strict-fields -fno-warn-unused-do-bind
   build-depends:
-      aeson >=1.0
+      aeson >=2.0
     , attoparsec >=0.10
     , base ==4.*
     , binary
