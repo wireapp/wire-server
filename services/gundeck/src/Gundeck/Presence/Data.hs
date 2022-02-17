@@ -24,7 +24,7 @@ module Gundeck.Presence.Data
 where
 
 import Control.Monad.Catch
-import Data.Aeson
+import Data.Aeson hiding (Key)
 import qualified Data.ByteString as Strict
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion hiding (fromList)

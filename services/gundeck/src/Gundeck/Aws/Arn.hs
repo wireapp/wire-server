@@ -50,14 +50,13 @@ module Gundeck.Aws.Arn
   )
 where
 
+import Amazonka (Region (..))
+import Amazonka.Data
 import Control.Lens
 import Data.Attoparsec.Text
 import qualified Data.Text as Text
-import Data.Yaml (FromJSON)
 import Gundeck.Types (AppName (..), Transport (..))
 import Imports
-import Network.AWS (Region (..))
-import Network.AWS.Data
 
 newtype ArnEnv = ArnEnv {arnEnvText :: Text} deriving (Show, ToText, FromJSON)
 
@@ -102,7 +101,7 @@ instance ToText (SnsArn a) where
   toText = view snsAsText
 
 instance (FromText a, ToText a) => FromText (SnsArn a) where
-  parser = snsArnParser
+  fromText = parseOnly snsArnParser
 
 instance ToText AppTopic where
   toText = view appAsText
@@ -111,7 +110,7 @@ instance ToText EndpointTopic where
   toText = view endpointAsText
 
 instance FromText EndpointTopic where
-  parser = endpointTopicParser
+  fromText = parseOnly endpointTopicParser
 
 mkSnsArn :: ToText topic => Region -> Account -> topic -> SnsArn topic
 mkSnsArn r a t =
@@ -142,9 +141,9 @@ arnTransportText APNSVoIPSandbox = "APNS_VOIP_SANDBOX"
 snsArnParser :: (FromText t, ToText t) => Parser (SnsArn t)
 snsArnParser = do
   _ <- string "arn" *> char ':' *> string "aws" *> char ':' *> string "sns"
-  r <- char ':' *> takeTill (== ':') >>= either fail return . parseOnly parser
+  r <- char ':' *> takeTill (== ':') >>= either fail return . fromText
   a <- char ':' *> takeTill (== ':')
-  t <- char ':' *> parser
+  t <- char ':' *> takeText >>= either fail return . fromText
   return $ mkSnsArn r (Account a) t
 
 endpointTopicParser :: Parser EndpointTopic

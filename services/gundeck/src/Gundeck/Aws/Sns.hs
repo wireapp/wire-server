@@ -24,13 +24,13 @@ module Gundeck.Aws.Sns
   )
 where
 
+import Amazonka.Data (ToText (..), fromText)
 import Control.Error
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
 import Gundeck.Aws.Arn (EndpointArn)
 import Imports
-import Network.AWS.Data (ToText (..), fromText)
 
 data EventType
   = EndpointCreated
