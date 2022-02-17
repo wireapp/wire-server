@@ -37,7 +37,7 @@ import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
 import Data.Range
-import Data.Schema 
+import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
