@@ -100,3 +100,4 @@ tests:
       - hspec-discover:hspec-discover
     dependencies:
       - hscim
+      - indexed-traversable
