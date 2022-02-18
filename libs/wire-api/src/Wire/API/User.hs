@@ -56,11 +56,21 @@ module Wire.API.User
 
     -- * Profile Updates
     UserUpdate (..),
+    UpdateProfileError (..),
+    PutSelfResponses,
     PasswordChange (..),
+    ChangePasswordError (..),
+    ChangePasswordResponses,
     LocaleUpdate (..),
     EmailUpdate (..),
     PhoneUpdate (..),
+    ChangePhoneError (..),
+    ChangePhoneResponses,
+    RemoveIdentityError (..),
+    RemoveIdentityResponses,
     HandleUpdate (..),
+    ChangeHandleError (..),
+    ChangeHandleResponses,
     NameUpdate (..),
 
     -- * Account Deletion
@@ -81,17 +91,17 @@ module Wire.API.User
     module Wire.API.User.Profile,
 
     -- * Swagger
-    modelChangeHandle,
-    modelChangeLocale,
-    modelChangePassword,
     modelDelete,
     modelEmailUpdate,
     modelNewUser,
-    modelPhoneUpdate,
     modelUser,
     modelUserIdList,
-    modelUserUpdate,
     modelVerifyDelete,
+
+    -- * 2nd factor auth
+    SndFactorPasswordChallengeAction (..),
+    SendVerificationCode (..),
+    TeamFeatureSndFPasswordChallengeNotImplemented (..),
   )
 where
 
@@ -113,9 +123,9 @@ import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
 import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
-import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
+import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -124,11 +134,15 @@ import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
 import GHC.TypeLits (KnownNat, Nat)
+import qualified Generics.SOP as GSOP
 import Imports
 import qualified SAML2.WebSSO as SAML
+import Servant (type (.++))
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.ErrorDescription
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
+import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam (BindingNewTeam), NewTeam (..), modelNewBindingTeam)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
@@ -830,37 +844,33 @@ data UserUpdate = UserUpdate
     uupAccentId :: Maybe ColourId
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
   deriving (Arbitrary) via (GenericUniform UserUpdate)
 
-modelUserUpdate :: Doc.Model
-modelUserUpdate = Doc.defineModel "UserUpdate" $ do
-  Doc.description "User Update Data"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "Name (1 - 128 characters)"
-    Doc.optional
-  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $ do
-    Doc.description "Profile assets"
-    Doc.optional
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent colour ID"
-    Doc.optional
+instance ToSchema UserUpdate where
+  schema =
+    object "UserUpdate" $
+      UserUpdate
+        <$> uupName .= maybe_ (optField "name" schema)
+        <*> uupPict .= maybe_ (optField "picture" schema)
+        <*> uupAssets .= maybe_ (optField "assets" (array schema))
+        <*> uupAccentId .= maybe_ (optField "accent_id" schema)
 
-instance ToJSON UserUpdate where
-  toJSON u =
-    A.object $
-      "name" A..= uupName u
-        # "picture" A..= uupPict u
-        # "assets" A..= uupAssets u
-        # "accent_id" A..= uupAccentId u
-        # []
+data UpdateProfileError
+  = DisplayNameManagedByScim
+  | ProfileNotFound
+  deriving (Generic)
+  deriving (AsUnion PutSelfErrorResponses) via GenericAsUnion PutSelfErrorResponses UpdateProfileError
 
-instance FromJSON UserUpdate where
-  parseJSON = A.withObject "UserUpdate" $ \o ->
-    UserUpdate
-      <$> o A..:? "name"
-      <*> o A..:? "picture"
-      <*> o A..:? "assets"
-      <*> o A..:? "accent_id"
+instance GSOP.Generic UpdateProfileError
+
+type PutSelfErrorResponses = '[NameManagedByScim, UserNotFound]
+
+type PutSelfResponses = PutSelfErrorResponses .++ '[RespondEmpty 200 "User updated"]
+
+instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) where
+  toUnion = maybeToUnion (toUnion @PutSelfErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @PutSelfErrorResponses)
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
@@ -869,47 +879,49 @@ data PasswordChange = PasswordChange
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PasswordChange)
 
-modelChangePassword :: Doc.Model
-modelChangePassword = Doc.defineModel "ChangePassword" $ do
-  Doc.description
-    "Data to change a password. The old password is required if \
-    \a password already exists."
-  Doc.property "old_password" Doc.string' $ do
-    Doc.description "Old password"
-    Doc.optional
-  Doc.property "new_password" Doc.string' $
-    Doc.description "New password (6 - 1024 characters)"
+instance ToSchema PasswordChange where
+  schema =
+    over
+      doc
+      ( description
+          ?~ "Data to change a password. The old password is required if \
+             \a password already exists."
+      )
+      . object "PasswordChange"
+      $ PasswordChange
+        <$> cpOldPassword .= maybe_ (optField "old_password" schema)
+        <*> cpNewPassword .= field "new_password" schema
 
-instance ToJSON PasswordChange where
-  toJSON (PasswordChange old new) =
-    A.object
-      [ "old_password" A..= old,
-        "new_password" A..= new
-      ]
+data ChangePasswordError
+  = InvalidCurrentPassword
+  | ChangePasswordNoIdentity
+  | ChangePasswordMustDiffer
+  deriving (Generic)
+  deriving (AsUnion ChangePasswordErrorResponses) via GenericAsUnion ChangePasswordErrorResponses ChangePasswordError
 
-instance FromJSON PasswordChange where
-  parseJSON = A.withObject "PasswordChange" $ \o ->
-    PasswordChange
-      <$> o A..:? "old_password"
-      <*> o A..: "new_password"
+instance GSOP.Generic ChangePasswordError
+
+type ChangePasswordErrorResponses = [BadCredentials, NoIdentity, ChangePasswordMustDiffer]
+
+type ChangePasswordResponses =
+  ChangePasswordErrorResponses .++ '[RespondEmpty 200 "Password Changed"]
+
+instance (res ~ ChangePasswordResponses) => AsUnion res (Maybe ChangePasswordError) where
+  toUnion = maybeToUnion (toUnion @ChangePasswordErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangePasswordErrorResponses)
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LocaleUpdate)
 
-modelChangeLocale :: Doc.Model
-modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
-  Doc.description "Data to change a locale."
-  Doc.property "locale" Doc.string' $
-    Doc.description "Locale to be set"
-
-instance ToJSON LocaleUpdate where
-  toJSON l = A.object ["locale" A..= luLocale l]
-
-instance FromJSON LocaleUpdate where
-  parseJSON = A.withObject "locale-update" $ \o ->
-    LocaleUpdate <$> o A..: "locale"
+instance ToSchema LocaleUpdate where
+  schema =
+    object "LocaleUpdate" $
+      LocaleUpdate
+        <$> luLocale .= field "locale" schema
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
@@ -938,36 +950,78 @@ instance FromJSON EmailUpdate where
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PhoneUpdate
 
-modelPhoneUpdate :: Doc.Model
-modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
-  Doc.description "Phone Update Data"
-  Doc.property "phone" Doc.string' $
-    Doc.description "E.164 phone number"
+instance ToSchema PhoneUpdate where
+  schema =
+    object "PhoneUpdate" $
+      PhoneUpdate
+        <$> puPhone .= field "phone" schema
 
-instance ToJSON PhoneUpdate where
-  toJSON p = A.object ["phone" A..= puPhone p]
+data ChangePhoneError
+  = PhoneExists
+  | InvalidNewPhone
+  | BlacklistedNewPhone
+  deriving (Generic)
+  deriving (AsUnion ChangePhoneErrorResponses) via GenericAsUnion ChangePhoneErrorResponses ChangePhoneError
 
-instance FromJSON PhoneUpdate where
-  parseJSON = A.withObject "phone-update" $ \o ->
-    PhoneUpdate <$> o A..: "phone"
+instance GSOP.Generic ChangePhoneError
+
+type ChangePhoneErrorResponses = [UserKeyExists, InvalidPhone, BlacklistedPhone]
+
+type ChangePhoneResponses =
+  ChangePhoneErrorResponses .++ '[RespondEmpty 202 "Phone updated"]
+
+instance (res ~ ChangePhoneResponses) => AsUnion res (Maybe ChangePhoneError) where
+  toUnion = maybeToUnion (toUnion @ChangePhoneErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangePhoneErrorResponses)
+
+data RemoveIdentityError
+  = LastIdentity
+  | NoPassword
+  | NoIdentity
+  deriving (Generic)
+  deriving (AsUnion RemoveIdentityErrorResponses) via GenericAsUnion RemoveIdentityErrorResponses RemoveIdentityError
+
+instance GSOP.Generic RemoveIdentityError
+
+type RemoveIdentityErrorResponses = [LastIdentity, NoPassword, NoIdentity]
+
+type RemoveIdentityResponses =
+  RemoveIdentityErrorResponses .++ '[RespondEmpty 200 "Identity Removed"]
+
+instance (res ~ RemoveIdentityResponses) => AsUnion res (Maybe RemoveIdentityError) where
+  toUnion = maybeToUnion (toUnion @RemoveIdentityErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @RemoveIdentityErrorResponses)
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema HandleUpdate)
 
-modelChangeHandle :: Doc.Model
-modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
-  Doc.description "Change the handle."
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle to set"
+instance ToSchema HandleUpdate where
+  schema =
+    object "HandleUpdate" $
+      HandleUpdate <$> huHandle .= field "handle" schema
 
-instance ToJSON HandleUpdate where
-  toJSON h = A.object ["handle" A..= huHandle h]
+data ChangeHandleError
+  = ChangeHandleNoIdentity
+  | ChangeHandleExists
+  | ChangeHandleInvalid
+  | ChangeHandleManagedByScim
+  deriving (Generic)
+  deriving (AsUnion ChangeHandleErrorResponses) via GenericAsUnion ChangeHandleErrorResponses ChangeHandleError
 
-instance FromJSON HandleUpdate where
-  parseJSON = A.withObject "handle-update" $ \o ->
-    HandleUpdate <$> o A..: "handle"
+instance GSOP.Generic ChangeHandleError
+
+type ChangeHandleErrorResponses = [NoIdentity, HandleExists, InvalidHandle, HandleManagedByScim]
+
+type ChangeHandleResponses =
+  ChangeHandleErrorResponses .++ '[RespondEmpty 200 "Handle Changed"]
+
+instance (res ~ ChangeHandleResponses) => AsUnion res (Maybe ChangeHandleError) where
+  toUnion = maybeToUnion (toUnion @ChangeHandleErrorResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangeHandleErrorResponses)
 
 newtype NameUpdate = NameUpdate {nuHandle :: Text}
   deriving stock (Eq, Show, Generic)
@@ -1102,3 +1156,38 @@ instance S.ToSchema ListUsersQuery where
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+
+-----------------------------------------------------------------------------
+-- SndFactorPasswordChallenge
+
+-- | remove this type once we have an implementation in order to find all the places where we need to touch code.
+data TeamFeatureSndFPasswordChallengeNotImplemented
+  = TeamFeatureSndFPasswordChallengeNotImplemented
+
+data SndFactorPasswordChallengeAction = GenerateScimToken | Login
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeAction)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SndFactorPasswordChallengeAction)
+
+instance ToSchema SndFactorPasswordChallengeAction where
+  schema =
+    enum @Text "SndFactorPasswordChallengeAction" $
+      mconcat
+        [ element "generate_scim_token" GenerateScimToken,
+          element "login" Login
+        ]
+
+data SendVerificationCode = SendVerificationCode
+  { svcAction :: SndFactorPasswordChallengeAction,
+    svcEmail :: Email
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SendVerificationCode)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SendVerificationCode
+
+instance ToSchema SendVerificationCode where
+  schema =
+    object "SendVerificationCode" $
+      SendVerificationCode
+        <$> svcAction .= field "action" schema
+        <*> svcEmail .= field "email" schema

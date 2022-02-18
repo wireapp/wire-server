@@ -66,8 +66,6 @@ module Galley.Types
     CustomBackend (..),
     Invite (..),
     NewConv (..),
-    NewConvManaged (..),
-    NewConvUnmanaged (..),
     MemberUpdate (..),
     OtherMemberUpdate (..),
     MutedStatus (..),

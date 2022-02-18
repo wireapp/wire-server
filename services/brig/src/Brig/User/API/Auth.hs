@@ -59,7 +59,7 @@ import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
 
-routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/access" (continue renewH) $
     accept "application" "json"
@@ -88,14 +88,15 @@ routesPublic = do
   document "POST" "sendLoginCode" $ do
     Doc.summary "Send a login code to a verified phone number."
     Doc.notes
-      "This operation generates and sends a login code. \
+      "This operation generates and sends a login code via sms for phone login. \
       \A login code can be used only once and times out after \
-      \10 minutes. Only one login code may be pending at a time."
+      \10 minutes. Only one login code may be pending at a time.\
+      \For 2nd factor authentication login with email and password, use the `/verification-code/send` endpoint."
     Doc.body (Doc.ref Public.modelSendLoginCode) $
       Doc.description "JSON body"
     Doc.returns (Doc.ref Public.modelLoginCodeResponse)
     Doc.response 200 "Login code sent." Doc.end
-    Doc.errorResponse invalidPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
     Doc.errorResponse passwordExists
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
 
@@ -155,9 +156,9 @@ routesPublic = do
     Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
     Doc.response 204 "No update, current and new email address are the same." Doc.end
     Doc.errorResponse invalidEmail
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
     Doc.errorResponse missingAccessToken
     Doc.errorResponse invalidAccessToken
     Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
@@ -181,7 +182,7 @@ routesPublic = do
     Doc.body (Doc.ref Public.modelRemoveCookies) Doc.end
     Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
 
-routesInternal :: Routes a Handler ()
+routesInternal :: Routes a (Handler r) ()
 routesInternal = do
   -- galley can query this endpoint at the right moment in the LegalHold flow
   post "/i/legalhold-login" (continue legalHoldLoginH) $
@@ -203,68 +204,68 @@ routesInternal = do
 
 -- Handlers
 
-sendLoginCodeH :: JsonRequest Public.SendLoginCode -> Handler Response
+sendLoginCodeH :: JsonRequest Public.SendLoginCode -> (Handler r) Response
 sendLoginCodeH req = do
   json <$> (sendLoginCode =<< parseJsonBody req)
 
-sendLoginCode :: Public.SendLoginCode -> Handler Public.LoginCodeTimeout
+sendLoginCode :: Public.SendLoginCode -> (Handler r) Public.LoginCodeTimeout
 sendLoginCode (Public.SendLoginCode phone call force) = do
   checkWhitelist (Right phone)
   c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
   return $ Public.LoginCodeTimeout (pendingLoginTimeout c)
 
-getLoginCodeH :: JSON ::: Phone -> Handler Response
+getLoginCodeH :: JSON ::: Phone -> (Handler r) Response
 getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
 
-getLoginCode :: Phone -> Handler Public.PendingLoginCode
+getLoginCode :: Phone -> (Handler r) Public.PendingLoginCode
 getLoginCode phone = do
   code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) return code
 
-reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> Handler Response
+reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
 reAuthUserH (uid ::: req) = do
   reAuthUser uid =<< parseJsonBody req
   return empty
 
-reAuthUser :: UserId -> ReAuthUser -> Handler ()
+reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
   User.reauthenticate uid (reAuthPassword body) !>> reauthError
 
-loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> Handler Response
+loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
 loginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip login persist =<< parseJsonBody req
 
-login :: Public.Login -> Bool -> Handler (Auth.Access ZAuth.User)
+login :: Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   Auth.login l typ !>> loginError
 
-ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> Handler Response
+ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
 ssoLoginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip ssoLogin persist =<< parseJsonBody req
 
-ssoLogin :: SsoLogin -> Bool -> Handler (Auth.Access ZAuth.User)
+ssoLogin :: SsoLogin -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 ssoLogin l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   Auth.ssoLogin l typ !>> loginError
 
-legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
+legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
 legalHoldLoginH (req ::: _) = do
   lift . tokenResponse =<< legalHoldLogin =<< parseJsonBody req
 
-legalHoldLogin :: LegalHoldLogin -> Handler (Auth.Access ZAuth.LegalHoldUser)
+legalHoldLogin :: LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
-logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logout ::
   Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-  Handler ()
+  (Handler r) ()
 logout Nothing Nothing = throwStd authMissingCookieAndToken
 logout Nothing (Just _) = throwStd authMissingCookie
 logout (Just _) Nothing = throwStd authMissingToken
@@ -278,7 +279,7 @@ changeSelfEmailH ::
     ::: JsonRequest Public.EmailUpdate
     ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
     ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-  Handler Response
+  (Handler r) Response
 changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
   usr <- validateCredentials ckies toks
   email <- Public.euEmail <$> parseJsonBody req
@@ -289,7 +290,7 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
     validateCredentials ::
       Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
       Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-      Handler UserId
+      (Handler r) UserId
     validateCredentials = \case
       Nothing ->
         const $ throwStd authMissingCookie
@@ -304,22 +305,22 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
           Just (Left userTokens) ->
             fst <$> (Auth.validateTokens userCookies (Just userTokens) !>> zauthError)
 
-listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> Handler Response
+listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> (Handler r) Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
 
-listCookies :: UserId -> Maybe (List Public.CookieLabel) -> AppIO Public.CookieList
+listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppIO r) Public.CookieList
 listCookies u ll = do
   Public.CookieList <$> Auth.listCookies u (maybe [] fromList ll)
 
-rmCookiesH :: UserId ::: JsonRequest Public.RemoveCookies -> Handler Response
+rmCookiesH :: UserId ::: JsonRequest Public.RemoveCookies -> (Handler r) Response
 rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
-rmCookies :: UserId -> Public.RemoveCookies -> Handler ()
+rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
 rmCookies uid (Public.RemoveCookies pw lls ids) = do
   Auth.revokeAccess uid pw ids lls !>> authError
 
-renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
@@ -330,7 +331,7 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 renew ::
   Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-  Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
+  (Handler r) (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
 renew = \case
   Nothing ->
     const $ throwStd authMissingCookie
@@ -343,7 +344,7 @@ renew = \case
   where
     renewAccess uts mat =
       Auth.renewAccess uts mat !>> zauthError
-    matchingOrNone :: (a -> Maybe b) -> Maybe a -> Handler (Maybe b)
+    matchingOrNone :: (a -> Maybe b) -> Maybe a -> (Handler r) (Maybe b)
     matchingOrNone matching = traverse $ \accessToken ->
       case matching accessToken of
         Just m -> pure m
@@ -405,7 +406,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
           )
       Just t -> return t
 
-tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> AppIO Response
+tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppIO r) Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 

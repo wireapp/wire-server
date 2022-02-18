@@ -33,7 +33,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
-servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :<|> features
+servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<|> team :<|> features
   where
     conversations =
       Named @"get-unqualified-conversation" getUnqualifiedConversation
@@ -49,6 +49,13 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
         :<|> Named @"create-one-to-one-conversation" createOne2OneConversation
         :<|> Named @"add-members-to-conversation-unqualified" addMembersUnqualified
         :<|> Named @"add-members-to-conversation" addMembers
+        :<|> Named @"join-conversation-by-id-unqualified" joinConversationById
+        :<|> Named @"join-conversation-by-code-unqualified" joinConversationByReusableCode
+        :<|> Named @"code-check" checkReusableCode
+        :<|> Named @"create-conversation-code-unqualified" addCodeUnqualified
+        :<|> Named @"remove-code-unqualified" rmCodeUnqualified
+        :<|> Named @"get-code" getCode
+        :<|> Named @"member-typing-unqualified" isTypingUnqualified
         :<|> Named @"remove-member-unqualified" removeMemberUnqualified
         :<|> Named @"remove-member" removeMemberQualified
         :<|> Named @"update-other-member-unqualified" updateOtherMemberUnqualified
@@ -74,7 +81,11 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
 
     messaging =
       Named @"post-otr-message-unqualified" postOtrMessageUnqualified
+        :<|> Named @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
         :<|> Named @"post-proteus-message" postProteusMessage
+
+    bot =
+      Named @"post-bot-message-unqualified" postBotMessageUnqualified
 
     team =
       Named @"create-non-binding-team" createNonBindingTeamH
@@ -189,6 +200,16 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
               setGuestLinkInternal
               . DoAuth
           )
+        :<|> Named @'("get", 'TeamFeatureSndFactorPasswordChallenge)
+          ( getFeatureStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
+              getSndFactorPasswordChallengeInternal
+              . DoAuth
+          )
+        :<|> Named @'("put", 'TeamFeatureSndFactorPasswordChallenge)
+          ( setFeatureStatus @'TeamFeatureSndFactorPasswordChallenge
+              setSndFactorPasswordChallengeInternal
+              . DoAuth
+          )
         :<|> Named @"get-all-feature-configs" getAllFeatureConfigs
         :<|> Named @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
@@ -233,4 +254,8 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> team :
         :<|> Named @'("get-config", 'TeamFeatureGuestLinks)
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureGuestLinks
               getGuestLinkInternal
+          )
+        :<|> Named @'("get-config", 'TeamFeatureSndFactorPasswordChallenge)
+          ( getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
+              getSndFactorPasswordChallengeInternal
           )

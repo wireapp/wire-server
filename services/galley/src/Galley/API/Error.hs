@@ -68,7 +68,6 @@ data ActionError
   | InvalidOp ConvType
   | OperationDenied String
   | NotConnected
-  | NoAddToManaged
   | BroadcastLimitExceeded
   | InvalidTeamStatusUpdate
   | InvalidPermissions
@@ -85,8 +84,7 @@ instance APIError ActionError where
   toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
   toWai InvalidTargetUserOp = invalidTargetUserOp
-  toWai NoAddToManaged = noAddToManaged
-  toWai BroadcastLimitExceeded = broadcastLimitExceeded
+  toWai BroadcastLimitExceeded = errorDescriptionTypeToWai @BroadcastLimitExceeded
   toWai InvalidTeamStatusUpdate = invalidTeamStatusUpdate
   toWai InvalidPermissions = invalidPermissions
 
@@ -121,16 +119,14 @@ data ConversationError
   | TooManyMembers
   | ConvMemberNotFound
   | NoBindingTeamMembers
-  | NoManagedTeamConv
   | GuestLinksDisabled
 
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
   toWai ConvNotFound = errorDescriptionTypeToWai @ConvNotFound
-  toWai TooManyMembers = tooManyMembers
+  toWai TooManyMembers = errorDescriptionTypeToWai @TooManyMembers
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
-  toWai NoManagedTeamConv = noManagedTeamConv
   toWai GuestLinksDisabled = guestLinksDisabled
 
 data TeamError
@@ -148,9 +144,9 @@ data TeamError
 instance APIError TeamError where
   toWai NoBindingTeam = noBindingTeam
   toWai NoAddToBinding = noAddToBinding
-  toWai NotABindingTeamMember = nonBindingTeam
+  toWai NotABindingTeamMember = errorDescriptionTypeToWai @NonBindingTeam
   toWai NotAOneMemberTeam = notAOneMemberTeam
-  toWai TeamNotFound = teamNotFound
+  toWai TeamNotFound = errorDescriptionTypeToWai @TeamNotFound
   toWai TeamMemberNotFound = teamMemberNotFound
   toWai TeamSearchVisibilityNotEnabled = teamSearchVisibilityNotEnabled
   toWai UserBindingExists = userBindingExists
@@ -367,19 +363,6 @@ bulkGetMemberLimitExceeded =
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
-broadcastLimitExceeded :: Error
-broadcastLimitExceeded =
-  mkError
-    status400
-    "too-many-users-to-broadcast"
-    ("Too many users to fan out the broadcast event to.")
-
-noAddToManaged :: Error
-noAddToManaged = mkError status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
-
-teamNotFound :: Error
-teamNotFound = mkError status404 "no-team" "team not found"
-
 invalidPermissions :: Error
 invalidPermissions = mkError status403 "invalid-permissions" "The specified permissions are invalid."
 
@@ -395,9 +378,6 @@ tooManyTeamMembersOnTeamWithLegalhold = mkError status403 "too-many-members-for-
 teamMemberNotFound :: Error
 teamMemberNotFound = mkError status404 "no-team-member" "team member not found"
 
-noManagedTeamConv :: Error
-noManagedTeamConv = mkError status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
-
 guestLinksDisabled :: Error
 guestLinksDisabled = mkError status409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."
 
@@ -409,9 +389,6 @@ noAddToBinding = mkError status403 "binding-team" "Cannot add users to binding t
 
 deleteQueueFull :: Error
 deleteQueueFull = mkError status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
-
-nonBindingTeam :: Error
-nonBindingTeam = mkError status404 "non-binding-team" "not member of a binding team"
 
 noBindingTeamMembers :: Error
 noBindingTeamMembers = mkError status403 "non-binding-team-members" "Both users must be members of the same binding team."

@@ -42,7 +42,7 @@ import qualified Wire.API.User as Public
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
 
-getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
+getHandleInfo :: UserId -> Qualified Handle -> (Handler r) (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   lself <- qualifyLocal self
   foldQualified
@@ -51,14 +51,14 @@ getHandleInfo self handle = do
     getRemoteHandleInfo
     handle
 
-getRemoteHandleInfo :: Remote Handle -> Handler (Maybe Public.UserProfile)
+getRemoteHandleInfo :: Remote Handle -> (Handler r) (Maybe Public.UserProfile)
 getRemoteHandleInfo handle = do
   Log.info $
     Log.msg (Log.val "getHandleInfo - remote lookup")
       . Log.field "domain" (show (tDomain handle))
   Federation.getUserHandleInfo handle !>> fedError
 
-getLocalHandleInfo :: Local UserId -> Handle -> Handler (Maybe Public.UserProfile)
+getLocalHandleInfo :: Local UserId -> Handle -> (Handler r) (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
   Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
   maybeOwnerId <- lift $ API.lookupHandle handle
@@ -71,7 +71,7 @@ getLocalHandleInfo self handle = do
       return $ listToMaybe owner
 
 -- | Checks search permissions and filters accordingly
-filterHandleResults :: Local UserId -> [Public.UserProfile] -> Handler [Public.UserProfile]
+filterHandleResults :: Local UserId -> [Public.UserProfile] -> (Handler r) [Public.UserProfile]
 filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly

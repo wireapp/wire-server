@@ -13,6 +13,7 @@ environments:
     values:
       - namespace: {{ requiredEnv "NAMESPACE" }}
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN" }}
+      - imagePullPolicy: Always
 
 repositories:
   - name: stable

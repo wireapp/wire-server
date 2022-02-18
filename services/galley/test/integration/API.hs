@@ -36,6 +36,7 @@ import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
 import qualified API.Util as Util
 import API.Util.TeamFeature as TeamFeatures
+import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
@@ -155,6 +156,8 @@ tests s =
           test s "add members" postMembersOk,
           test s "add existing members" postMembersOk2,
           test s "add past members" postMembersOk3,
+          test s "add guest forbidden when no guest access role" postMembersFailNoGuestAccess,
+          test s "generate guest link forbidden when no guest or non-team-member access role" generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
@@ -1209,13 +1212,13 @@ testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
   galley <- view tsGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole]
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
   let createConvWithGuestLink = do
         convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just accessRoles) Nothing
         void $ decodeConvCodeEvent <$> postConvCode owner convId
         pure convId
   convId <- createConvWithGuestLink
-  let checkGetCode expectedStatus = getConvCode owner convId !!! statusCode === const expectedStatus
+  let checkGetCode expectedStatus = getConvCode owner convId !!! const expectedStatus === statusCode
   let setStatus tfStatus =
         TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
           const 200 === statusCode
@@ -1248,32 +1251,55 @@ testJoinTeamConvGuestLinksDisabled = do
   galley <- view tsGalley
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
-  userNotInTeam <- randomUser
-  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
-  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
+  eve <- ephemeralUser
+  bob <- randomUser
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
+  convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess, LinkAccess] (Just accessRoles) Nothing
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
-  -- works by default
-  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+  let checkFeatureStatus fstatus =
+        Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner teamId !!! do
+          const 200 === statusCode
+          const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus fstatus Public.Unlocked)) === responseJsonEither
+
+  -- guest can join if guest link feature is enabled
+  checkFeatureStatus Public.TeamFeatureEnabled
+  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  postConvCodeCheck cCode !!! const 200 === statusCode
+  postJoinCodeConv eve cCode !!! const 200 === statusCode
+  -- non-team-members can join as well
+  postJoinCodeConv bob cCode !!! const 200 === statusCode
 
-  -- fails if disabled
-  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+  -- disabled guest links feature
+  let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId disabled !!! do
     const 200 === statusCode
 
-  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+  -- guest can't join if guest link feature is disabled
+  eve' <- ephemeralUser
+  bob' <- randomUser
+  getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const 409 === statusCode
+  postConvCodeCheck cCode !!! const 404 === statusCode
+  postJoinCodeConv eve' cCode !!! const 409 === statusCode
+  -- non-team-members can't join either
+  postJoinCodeConv bob' cCode !!! const 409 === statusCode
+  -- check feature status is still disabled
+  checkFeatureStatus Public.TeamFeatureDisabled
 
   -- after re-enabling, the old link is still valid
-  let tfStatus' = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus' !!! do
+  let enabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId enabled !!! do
     const 200 === statusCode
-
-  getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
+  getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
+  postConvCodeCheck cCode !!! const 200 === statusCode
+  postJoinCodeConv eve' cCode !!! const 200 === statusCode
+  postJoinCodeConv bob' cCode !!! const 200 === statusCode
+  checkFeatureStatus Public.TeamFeatureEnabled
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
 testJoinNonTeamConvGuestLinksDisabled = do
@@ -1464,7 +1490,7 @@ testAccessUpdateGuestRemoved = do
         (qUnqualified alice)
         defNewConv
           { newConvQualifiedUsers = [bob, charlie, dee],
-            newConvTeam = Just (ConvTeamInfo tid False)
+            newConvTeam = Just (ConvTeamInfo tid)
           }
       <!! const 201 === statusCode
 
@@ -1522,14 +1548,16 @@ getConvsOk2 = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   -- create & get one2one conv
-  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
+  cnv1 <- responseJsonError =<< postO2OConv alice bob (Just "gossip1") <!! const 200 === statusCode
   getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
     const 200 === statusCode
     const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
-  cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+  cnv2 <-
+    responseJsonError =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+      <!! const 201 === statusCode
   getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
     const 200 === statusCode
     const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
@@ -1861,14 +1889,14 @@ postTeamConvQualifiedNoConnection = do
     (qUnqualified alice)
     defNewConv
       { newConvQualifiedUsers = [bob],
-        newConvTeam = Just (ConvTeamInfo tid False)
+        newConvTeam = Just (ConvTeamInfo tid)
       }
     !!! const 403 === statusCode
   postConvQualified
     (qUnqualified alice)
     defNewConv
       { newConvQualifiedUsers = [charlie],
-        newConvTeam = Just (ConvTeamInfo tid False)
+        newConvTeam = Just (ConvTeamInfo tid)
       }
     !!! const 403 === statusCode
 
@@ -1900,7 +1928,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConvUnmanaged $ NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1929,7 +1957,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConvUnmanaged (NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -2536,6 +2564,26 @@ postMembersOk3 = do
   postMembers alice (singleton bob) conv !!! const 200 === statusCode
   -- Fetch bob again
   getSelfMember bob conv !!! const 200 === statusCode
+
+postMembersFailNoGuestAccess :: TestM ()
+postMembersFailNoGuestAccess = do
+  alice <- randomUser
+  bob <- randomUser
+  peter <- randomUser
+  eve <- ephemeralUser
+  connectUsers alice (list1 bob [peter])
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  conv <- decodeConvId <$> postConv alice [bob, peter] (Just "gossip") [] (Just noGuestsAccess) Nothing
+  postMembers alice (singleton eve) conv !!! const 403 === statusCode
+
+generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess :: TestM ()
+generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
+  alice <- randomUser
+  bob <- randomUser
+  connectUsers alice (singleton bob)
+  Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole, NonTeamMemberAccessRole]
+  convId <- decodeConvId <$> postConv alice [bob] (Just "gossip") [CodeAccess] (Just noGuestsAccess) Nothing
+  postConvCode alice convId !!! const 403 === statusCode
 
 postMembersFail :: TestM ()
 postMembersFail = do

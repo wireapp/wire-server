@@ -113,7 +113,7 @@ testSFT b opts = do
 testSFTUnavailble :: Brig -> Opts.Opts -> String -> Http ()
 testSFTUnavailble b opts domain = do
   uid <- userId <$> randomUser b
-  withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setSftStaticUrl = fromByteString (cs domain)}}) $ do
+  withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setSftStaticUrl = fromByteString (cs domain), Opts.setSftListAllServers = Just Opts.ListAllSFTServers}}) $ do
     cfg <- getTurnConfigurationV2 uid b
     liftIO $ do
       assertEqual

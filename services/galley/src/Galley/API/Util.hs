@@ -587,17 +587,13 @@ ensureConversationAccess ::
      ]
     r =>
   UserId ->
-  ConvId ->
+  Data.Conversation ->
   Access ->
-  Sem r Data.Conversation
-ensureConversationAccess zusr cnv access = do
-  conv <-
-    getConversation cnv >>= note ConvNotFound
+  Sem r ()
+ensureConversationAccess zusr conv access = do
   ensureAccess conv access
-  zusrMembership <-
-    maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
+  zusrMembership <- maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
-  pure conv
 
 ensureAccess ::
   Member (Error ConversationError) r =>

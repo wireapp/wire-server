@@ -39,6 +39,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.14.3
   - warp >=3.0
+  - wire-api
   - unliftio-core
 executables:
   proxy:

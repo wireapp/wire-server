@@ -318,7 +318,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (LoginByHandle (Handle hdl)) defPassword Nothing
+  let l = PasswordLogin (LoginByHandle (Handle hdl)) defPassword Nothing Nothing
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -370,11 +370,11 @@ testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
   -- login with wrong password
   let badpw = PlainTextPassword "wrongpassword"
-  login brig (PasswordLogin (LoginByEmail email) badpw Nothing) PersistentCookie
+  login brig (PasswordLogin (LoginByEmail email) badpw Nothing Nothing) PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
   let badmail = Email "wrong" "wire.com"
-  login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing) PersistentCookie
+  login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing Nothing) PersistentCookie
     !!! const 403 === statusCode
 
 -- @END
@@ -402,7 +402,7 @@ testThrottleLogins conf b = do
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 -- The testLimitRetries test conforms to the following testing standards:
--- @SF.Channel @TSFI.RESTfulAPI @S2
+-- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- The following test tests the login retries. It checks that a user can make
 -- only a prespecified number of attempts to log in with an invalid password,
@@ -585,7 +585,7 @@ testNoUserSsoLogin brig = do
 -- Token Refresh
 
 -- The testInvalidCookie test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
+-- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()

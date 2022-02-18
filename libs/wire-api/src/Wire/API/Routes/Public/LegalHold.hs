@@ -22,13 +22,10 @@ import Data.Proxy
 import Data.Swagger hiding (Header (..))
 import Servant.API hiding (Header)
 import Servant.Swagger
-import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 
-type ServantAPI = PublicAPI :<|> InternalAPI
-
 -- FUTUREWORK: restructure this for readability and add missing bodies
-type PublicAPI =
+type ServantAPI =
   "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
     :> ReqBody '[JSON] NewLegalHoldService
     :> Post '[JSON] ViewLegalHoldService
@@ -49,13 +46,6 @@ type PublicAPI =
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
       -- :> ReqBody '[JSON] DisableLegalHoldForUserRequest
       :> Verb 'DELETE 204 '[] NoContent
-
-type InternalAPI =
-  "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] (TeamFeatureStatus 'WithLockStatus 'TeamFeatureLegalHold)
-    :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      :> ReqBody '[JSON] (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
-      :> Put '[] NoContent
 
 swaggerDoc :: Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

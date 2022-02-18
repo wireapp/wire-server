@@ -114,7 +114,8 @@ tests =
         [ testCase "deprecated endpoint" testSFTStaticDeprecatedEndpoint,
           testCase "v2 endpoint, no SFT static URL" testSFTStaticV2NoStaticUrl,
           testCase "v2 endpoint, SFT static URL without /sft_servers_all.json" testSFTStaticV2StaticUrlError,
-          testCase "v2 endpoint, SFT static URL with    /sft_servers_all.json" testSFTStaticV2StaticUrlList
+          testCase "v2 endpoint, SFT static URL with    /sft_servers_all.json" testSFTStaticV2StaticUrlList,
+          testCase "v2 endpoint, SFT static URL with with setSftListAllServers \"disabeld\"" testSFTStaticV2ListAllServersDisabled
         ]
     ]
 
@@ -284,7 +285,7 @@ testSFTStaticDeprecatedEndpoint = do
     runM @IO
       . discardLogs
       . interpretSFTInMemory mempty
-      $ newConfig env Nothing Nothing Nothing CallsConfigDeprecated
+      $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
     Set.empty
@@ -308,7 +309,7 @@ testSFTStaticV2NoStaticUrl = do
     runM @IO
       . discardLogs
       . interpretSFTInMemory mempty
-      $ newConfig env Nothing (Just sftEnv) (Just . unsafeRange $ 2) CallsConfigV2
+      $ newConfig env Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
     (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
@@ -323,9 +324,9 @@ testSFTStaticV2StaticUrlError = do
       . discardLogs
       . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
       -- an error
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) CallsConfigV2
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
-    "when SFT static URL is enabled, but returns error, sft_servers_all should be omitted"
+    "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
     Nothing
     (cfg ^. rtcConfSftServersAll)
 
@@ -340,8 +341,24 @@ testSFTStaticV2StaticUrlList = do
     runM @IO
       . discardLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) CallsConfigV2
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
-    "when SFT static URL is enabled, sft_servers_all should be from /sft_servers_all.json"
+    "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
     (Just servers)
+    (cfg ^. rtcConfSftServersAll)
+
+testSFTStaticV2ListAllServersDisabled :: IO ()
+testSFTStaticV2ListAllServersDisabled = do
+  (env, staticUrl) <- sftStaticEnv
+  -- 10 servers compared to the limit of 3 below that should be disregarded
+  -- for sft_servers_all
+  servers <- generate $ replicateM 10 arbitrary
+  cfg <-
+    runM @IO
+      . discardLogs
+      . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
+      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
+  assertEqual
+    "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"
+    Nothing
     (cfg ^. rtcConfSftServersAll)

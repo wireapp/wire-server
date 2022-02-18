@@ -66,6 +66,7 @@ import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.User.Activation
 import Wire.API.User.Identity (Email, Phone)
 
 --------------------------------------------------------------------------------
@@ -73,7 +74,7 @@ import Wire.API.User.Identity (Email, Phone)
 
 -- | Different kinds of logins.
 data Login
-  = PasswordLogin LoginId PlainTextPassword (Maybe CookieLabel)
+  = PasswordLogin LoginId PlainTextPassword (Maybe CookieLabel) (Maybe ActivationCode)
   | SmsLogin Phone LoginCode (Maybe CookieLabel)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Login)
@@ -103,11 +104,19 @@ modelLogin = Doc.defineModel "Login" $ do
       \to allow targeted revocation of all cookies granted to that \
       \specific client."
     Doc.optional
+  Doc.property "verification_code" Doc.string' $ do
+    Doc.description "The login verification code for 2nd factor authentication. Required only if SndFactorPasswordChallenge is enabled for the team/server."
+    Doc.optional
 
 instance ToJSON Login where
   toJSON (SmsLogin p c l) = object ["phone" .= p, "code" .= c, "label" .= l]
-  toJSON (PasswordLogin login password label) =
-    object ["password" .= password, "label" .= label, loginIdPair login]
+  toJSON (PasswordLogin login password label mbCode) =
+    object
+      [ "password" .= password,
+        "label" .= label,
+        loginIdPair login,
+        "verification_code" .= mbCode
+      ]
 
 instance FromJSON Login where
   parseJSON = withObject "Login" $ \o -> do
@@ -117,10 +126,10 @@ instance FromJSON Login where
         SmsLogin <$> o .: "phone" <*> o .: "code" <*> o .:? "label"
       Just pw -> do
         loginId <- parseJSON (Object o)
-        PasswordLogin loginId pw <$> o .:? "label"
+        PasswordLogin loginId pw <$> (o .:? "label") <*> (o .:? "verification_code")
 
 loginLabel :: Login -> Maybe CookieLabel
-loginLabel (PasswordLogin _ _ l) = l
+loginLabel (PasswordLogin _ _ l _) = l
 loginLabel (SmsLogin _ _ l) = l
 
 --------------------------------------------------------------------------------

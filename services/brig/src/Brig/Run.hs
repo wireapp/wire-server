@@ -27,7 +27,7 @@ import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
-import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
+import Brig.API.Public (SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
 import qualified Brig.API.User as API
 import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
@@ -68,6 +68,9 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Version
+import Wire.API.Routes.Version.Wai
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -104,7 +107,7 @@ mkApp o = do
   e <- newEnv o
   return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
-    rtree :: Tree (App Handler)
+    rtree :: Tree (App (Handler r))
     rtree = compile sitemap
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
@@ -113,6 +116,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
+        . versionMiddleware
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
 
@@ -123,17 +127,19 @@ mkApp o = do
         (Proxy @ServantCombinedAPI)
         (customFormatters :. Servant.EmptyContext)
         ( swaggerDocsAPI
-            :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
+            :<|> Servant.hoistServer (Proxy @BrigAPI) (toServantHandler e) servantSitemap
             :<|> Servant.hoistServer (Proxy @IAPI.API) (toServantHandler e) IAPI.servantSitemap
             :<|> Servant.hoistServer (Proxy @FederationAPI) (toServantHandler e) federationSitemap
+            :<|> versionAPI
             :<|> Servant.Tagged (app e)
         )
 
 type ServantCombinedAPI =
   ( SwaggerDocsAPI
-      :<|> ServantAPI
+      :<|> BrigAPI
       :<|> IAPI.API
       :<|> FederationAPI
+      :<|> VersionAPI
       :<|> Servant.Raw
   )
 
@@ -163,7 +169,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: AppIO ()
+pendingActivationCleanup :: forall r. (AppIO r) ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
@@ -200,17 +206,17 @@ pendingActivationCleanup = do
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 
-    forExpirationsPaged :: ([UserPendingActivation] -> AppIO ()) -> AppIO ()
+    forExpirationsPaged :: ([UserPendingActivation] -> (AppIO r) ()) -> (AppIO r) ()
     forExpirationsPaged f = do
       go =<< usersPendingActivationList
       where
-        go :: (Page UserPendingActivation) -> AppIO ()
+        go :: (Page UserPendingActivation) -> (AppIO r) ()
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
             go =<< liftClient nextPage
 
-    threadDelayRandom :: AppIO ()
+    threadDelayRandom :: (AppIO r) ()
     threadDelayRandom = do
       cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
       let d = realToFrac cleanupTimeout

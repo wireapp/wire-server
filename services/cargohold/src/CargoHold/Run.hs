@@ -44,9 +44,11 @@ import qualified Servant
 import Servant.API
 import Servant.Server hiding (Handler, runHandler)
 import Util.Options
-import qualified Wire.API.Routes.Public.Cargohold as Public
+import Wire.API.Routes.Internal.Cargohold
+import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = FederationAPI :<|> Public.ServantAPI
+type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
@@ -71,13 +73,15 @@ mkApp o = Codensity $ \k ->
       servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
+        . versionMiddleware
     servantApp e0 r =
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
             ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
             ( hoistServer' @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServer' @Public.ServantAPI (toServantHandler e) servantSitemap
+                :<|> hoistServer' @ServantAPI (toServantHandler e) servantSitemap
+                :<|> hoistServer' @InternalAPI (toServantHandler e) internalSitemap
             )
             r
 

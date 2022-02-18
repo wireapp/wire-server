@@ -33,6 +33,8 @@ module Galley.Types.Teams
     flagConferenceCalling,
     flagSelfDeletingMessages,
     flagConversationGuestLinks,
+    flagsTeamFeatureValidateSAMLEmailsStatus,
+    flagTeamFeatureSndFactorPasswordChallengeStatus,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -79,7 +81,6 @@ module Galley.Types.Teams
     TeamConversation,
     newTeamConversation,
     conversationId,
-    managedConversation,
     TeamConversationList,
     newTeamConversationList,
     teamConversations,
@@ -217,7 +218,9 @@ data FeatureFlags = FeatureFlags
     _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing)),
     _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
     _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
-    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks))
+    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)),
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails)),
+    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge))
   }
   deriving (Eq, Show, Generic)
 
@@ -265,20 +268,37 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))
+      <*> (fromMaybe (Defaults defaultTeamFeatureValidateSAMLEmailsStatus) <$> (obj .:? "validateSAMLEmails"))
+      <*> (fromMaybe (Defaults defaultTeamFeatureSndFactorPasswordChallengeStatus) <$> (obj .:? "sndFactorPasswordChallenge"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling selfDeletingMessages guestLinks) =
-    object $
-      [ "sso" .= sso,
-        "legalhold" .= legalhold,
-        "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock,
-        "classifiedDomains" .= classifiedDomains,
-        "fileSharing" .= fileSharing,
-        "conferenceCalling" .= conferenceCalling,
-        "selfDeletingMessages" .= selfDeletingMessages,
-        "conversationGuestLinks" .= guestLinks
-      ]
+  toJSON
+    ( FeatureFlags
+        sso
+        legalhold
+        searchVisibility
+        appLock
+        classifiedDomains
+        fileSharing
+        conferenceCalling
+        selfDeletingMessages
+        guestLinks
+        validateSAMLEmails
+        sndFactorPasswordChallenge
+      ) =
+      object
+        [ "sso" .= sso,
+          "legalhold" .= legalhold,
+          "teamSearchVisibility" .= searchVisibility,
+          "appLock" .= appLock,
+          "classifiedDomains" .= classifiedDomains,
+          "fileSharing" .= fileSharing,
+          "conferenceCalling" .= conferenceCalling,
+          "selfDeletingMessages" .= selfDeletingMessages,
+          "conversationGuestLinks" .= guestLinks,
+          "validateSAMLEmails" .= validateSAMLEmails,
+          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge
+        ]
 
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
@@ -372,6 +392,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
             ChangeTeamFeature TeamFeatureSelfDeletingMessages,
             ChangeTeamFeature TeamFeatureGuestLinks,
+            ChangeTeamFeature TeamFeatureSndFactorPasswordChallenge,
             ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,
@@ -394,6 +415,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureConferenceCalling,
           ViewTeamFeature TeamFeatureSelfDeletingMessages,
           ViewTeamFeature TeamFeatureGuestLinks,
+          ViewTeamFeature TeamFeatureSndFactorPasswordChallenge,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

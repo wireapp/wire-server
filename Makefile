@@ -130,7 +130,11 @@ add-license:
 # Clean
 .PHONY: clean
 clean:
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	cabal clean
+else
 	stack clean
+endif
 	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 	-rm -f .metadata
@@ -245,9 +249,9 @@ run-docker-builder:
 .PHONY: git-add-cassandra-schema
 git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 
-CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
+	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
 	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
 	git add ./docs/reference/cassandra-schema.cql
 
@@ -256,6 +260,7 @@ git-add-cassandra-schema-cabal: db-reset-cabal git-add-cassandra-schema-impl
 
 .PHONY: cqlsh
 cqlsh:
+	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
 

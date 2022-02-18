@@ -49,7 +49,7 @@ import Imports
 import Network.Mail.Mime
 
 -------------------------------------------------------------------------------
-sendMail :: Mail -> AppIO ()
+sendMail :: Mail -> (AppIO r) ()
 sendMail m =
   view smtpEnv >>= \case
     Just smtp -> SMTP.sendMail smtp m

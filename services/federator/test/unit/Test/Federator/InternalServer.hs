@@ -100,7 +100,7 @@ federatedRequestSuccess =
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
 
--- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+-- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
 -- Refuse to send outgoing request to non-included domain when allowlist is configured.
 federatedRequestFailureAllowList :: TestTree

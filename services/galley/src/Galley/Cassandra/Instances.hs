@@ -106,12 +106,11 @@ instance Cql AccessRoleV2 where
 instance Cql ConvTeamInfo where
   ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]
 
-  toCql t = CqlUdt [("teamid", toCql (cnvTeamId t)), ("managed", toCql (cnvManaged t))]
+  toCql t = CqlUdt [("teamid", toCql (cnvTeamId t)), ("managed", toCql False)]
 
   fromCql (CqlUdt u) = do
     t <- note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fromCql
-    m <- note "missing 'managed' in teaminfo" ("managed" `lookup` u) >>= fromCql
-    pure (ConvTeamInfo t m)
+    pure (ConvTeamInfo t)
   fromCql _ = Left "teaminfo: udt expected"
 
 instance Cql TeamBinding where

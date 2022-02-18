@@ -598,6 +598,7 @@ executable galley-schema
       V57_GuestLinksLockStatus
       V58_ConversationAccessRoleV2
       V59_FileSharingLockStatus
+      V60_TeamFeatureSndFactorPasswordChallenge
       Paths_galley
   hs-source-dirs:
       schema/src

@@ -70,7 +70,7 @@ import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
 import qualified Wire.API.User as Public
 
-routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationPublicH) $
     accept "application" "json"
@@ -180,7 +180,7 @@ routesPublic = do
     Doc.response 200 "Invitation successful." Doc.end
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
 
-routesInternal :: Routes a Handler ()
+routesInternal :: Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
@@ -207,25 +207,25 @@ routesInternal = do
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
 
-teamSizePublicH :: JSON ::: UserId ::: TeamId -> Handler Response
+teamSizePublicH :: JSON ::: UserId ::: TeamId -> (Handler r) Response
 teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
 
-teamSizePublic :: UserId -> TeamId -> Handler TeamSize
+teamSizePublic :: UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
   ensurePermissions uid tid [Team.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
   teamSize tid
 
-teamSizeH :: JSON ::: TeamId -> Handler Response
+teamSizeH :: JSON ::: TeamId -> (Handler r) Response
 teamSizeH (_ ::: t) = json <$> teamSize t
 
-teamSize :: TeamId -> Handler TeamSize
+teamSize :: TeamId -> (Handler r) TeamSize
 teamSize t = lift $ TeamSize.teamSize t
 
-getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> Handler Response
+getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> (Handler r) Response
 getInvitationCodeH (_ ::: t ::: r) = do
   json <$> getInvitationCode t r
 
-getInvitationCode :: TeamId -> InvitationId -> Handler FoundInvitationCode
+getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
 getInvitationCode t r = do
   code <- lift $ DB.lookupInvitationCode t r
   maybe (throwStd invalidInvitationCode) (return . FoundInvitationCode) code
@@ -236,7 +236,7 @@ data FoundInvitationCode = FoundInvitationCode InvitationCode
 instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
-createInvitationPublicH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
+createInvitationPublicH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> (Handler r) Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
   newInv <- createInvitationPublic uid tid body
@@ -252,7 +252,7 @@ data CreateInvitationInviter = CreateInvitationInviter
   }
   deriving (Eq, Show)
 
-createInvitationPublic :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitationPublic :: UserId -> TeamId -> Public.InvitationRequest -> (Handler r) Public.Invitation
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
@@ -272,12 +272,12 @@ createInvitationPublic uid tid body = do
       context
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
-createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
+createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
 createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
   setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationViaScim :: NewUserScimInvitation -> Handler UserAccount
+createInvitationViaScim :: NewUserScimInvitation -> (Handler r) UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = Team.defaultRole
@@ -303,7 +303,7 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
 
   createUserInviteViaScim uid newUser
 
-logInvitationRequest :: (Msg -> Msg) -> Handler (Invitation, InvitationCode) -> Handler (Invitation, InvitationCode)
+logInvitationRequest :: (Msg -> Msg) -> (Handler r) (Invitation, InvitationCode) -> (Handler r) (Invitation, InvitationCode)
 logInvitationRequest context action =
   flip mapExceptT action $ \action' -> do
     eith <- action'
@@ -315,7 +315,7 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler (Public.Invitation, Public.InvitationCode)
+createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> (Handler r) (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -332,11 +332,11 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
+    validatedPhone <- maybe (throwStd (errorDescriptionTypeToWai @InvalidPhone)) return =<< lift (Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ Blacklist.exists ukp
     when blacklistedPh $
-      throwStd blacklistedPhone
+      throwStd (errorDescriptionTypeToWai @BlacklistedPhone)
     phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
     when phoneTaken $
       throwStd phoneExists
@@ -366,47 +366,47 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
         timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
-deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
+deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
   empty <$ deleteInvitation uid tid iid
 
-deleteInvitation :: UserId -> TeamId -> InvitationId -> Handler ()
+deleteInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
   DB.deleteInvitation tid iid
 
-listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
+listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
 listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
   json <$> listInvitations uid tid start size
 
-listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> Handler Public.InvitationList
+listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [Team.AddTeamMember]
   rs <- lift $ DB.lookupInvitations tid start size
   return $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
+getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
 getInvitationH (_ ::: uid ::: tid ::: iid) = do
   inv <- getInvitation uid tid iid
   return $ case inv of
     Just i -> json i
     Nothing -> setStatus status404 empty
 
-getInvitation :: UserId -> TeamId -> InvitationId -> Handler (Maybe Public.Invitation)
+getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
   lift $ DB.lookupInvitation tid iid
 
-getInvitationByCodeH :: JSON ::: Public.InvitationCode -> Handler Response
+getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
 getInvitationByCodeH (_ ::: c) = do
   json <$> getInvitationByCode c
 
-getInvitationByCode :: Public.InvitationCode -> Handler Public.Invitation
+getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
   inv <- lift $ DB.lookupInvitationByCode c
   maybe (throwStd invalidInvitationCode) return inv
 
-headInvitationByEmailH :: JSON ::: Email -> Handler Response
+headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
 headInvitationByEmailH (_ ::: e) = do
   inv <- lift $ DB.lookupInvitationInfoByEmail e
   return $ case inv of
@@ -417,30 +417,30 @@ headInvitationByEmailH (_ ::: e) = do
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
 -- 'getInvitationByEmailH' are almost the same thing.
-getInvitationByEmailH :: JSON ::: Email -> Handler Response
+getInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
 getInvitationByEmailH (_ ::: email) =
   json <$> getInvitationByEmail email
 
-getInvitationByEmail :: Email -> Handler Public.Invitation
+getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
   inv <- lift $ DB.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) return inv
 
-suspendTeamH :: JSON ::: TeamId -> Handler Response
+suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
-suspendTeam :: TeamId -> Handler ()
+suspendTeam :: TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ DB.deleteInvitations tid
   lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
-unsuspendTeamH :: JSON ::: TeamId -> Handler Response
+unsuspendTeamH :: JSON ::: TeamId -> (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
-unsuspendTeam :: TeamId -> Handler ()
+unsuspendTeam :: TeamId -> (Handler r) ()
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
   lift $ Intra.changeTeamStatus tid Team.Active Nothing
@@ -448,7 +448,7 @@ unsuspendTeam tid = do
 -------------------------------------------------------------------------------
 -- Internal
 
-changeTeamAccountStatuses :: TeamId -> AccountStatus -> Handler ()
+changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
 changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> (lift $ Intra.getTeam tid)
   unless (team ^. Team.teamBinding == Team.Binding) $

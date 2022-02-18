@@ -39,7 +39,12 @@ config:
       # fileSharing:
       #   defaults:
       #     status: enabled
-      #     lockStatus: unlocked          
+      #     lockStatus: unlocked
+      # sndFactorPasswordChallenge setting is optional
+      # sndFactorPasswordChallenge:
+      #   defaults:
+      #     status: disabled
+      #     lockStatus: unlocked
   aws:
     region: "eu-west-1"
   proxy: {}

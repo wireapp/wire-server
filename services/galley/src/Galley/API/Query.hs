@@ -48,6 +48,7 @@ module Galley.API.Query
     getConversationMetaH,
     getConversationByReusableCode,
     ensureGuestLinksEnabled,
+    ensureGuestLinksEnabledWithError,
   )
 where
 
@@ -67,6 +68,7 @@ import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.Cassandra.Paging
+import Galley.Data.Types (Code (codeConversation))
 import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
@@ -529,8 +531,9 @@ getConversationByReusableCode ::
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
-  conv <- ensureConversationAccess (tUnqualified lusr) (Data.codeConversation c) CodeAccess
-  ensureGuestLinksEnabled conv
+  conv <- E.getConversation (codeConversation c) >>= note ConvNotFound
+  ensureConversationAccess (tUnqualified lusr) conv CodeAccess
+  ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView conv
   where
     coverView :: Data.Conversation -> ConversationCoverView
@@ -541,22 +544,37 @@ getConversationByReusableCode lusr key value = do
         }
 
 -- FUTUREWORK(leif): refactor and make it consistent for all team features
-ensureGuestLinksEnabled ::
+ensureGuestLinksEnabledWithError ::
   forall r.
   ( Member (Error ConversationError) r,
+    Member (Error CodeError) r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
-  Data.Conversation ->
+  Either ConversationError CodeError ->
+  Maybe TeamId ->
   Sem r ()
-ensureGuestLinksEnabled conv = do
+ensureGuestLinksEnabledWithError ex mbTid = do
   defaultStatus <- getDefaultFeatureStatus
-  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` Data.convTeam conv
+  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
   case maybe defaultStatus tfwoStatus maybeFeatureStatus of
     TeamFeatureEnabled -> pure ()
-    TeamFeatureDisabled -> throw GuestLinksDisabled
+    TeamFeatureDisabled -> case ex of
+      Left e -> throw e
+      Right e -> throw e
   where
     getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
     getDefaultFeatureStatus = do
       status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
       pure $ tfwoapsStatus status
+
+ensureGuestLinksEnabled ::
+  forall r.
+  ( Member (Error ConversationError) r,
+    Member (Error CodeError) r,
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
+  Maybe TeamId ->
+  Sem r ()
+ensureGuestLinksEnabled = ensureGuestLinksEnabledWithError (Left GuestLinksDisabled)

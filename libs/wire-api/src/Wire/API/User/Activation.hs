@@ -80,6 +80,7 @@ newtype ActivationKey = ActivationKey
 
 -- | A random code for use with an 'ActivationKey' that is usually transmitted
 -- out-of-band, e.g. via email or sms.
+-- FUTUREWORK(leif): rename to VerificationCode
 newtype ActivationCode = ActivationCode
   {fromActivationCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)

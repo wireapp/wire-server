@@ -66,6 +66,7 @@ import qualified Wire.API.User.Identity as User.Identity
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
+import qualified Wire.API.User.Scim as Scim
 import qualified Wire.API.User.Search as User.Search
 import qualified Wire.API.Wrapped as Wrapped
 
@@ -94,8 +95,6 @@ tests =
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
       testRoundTrip @Conversation.Conversation,
-      testRoundTrip @Conversation.NewConvUnmanaged,
-      testRoundTrip @Conversation.NewConvManaged,
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
@@ -183,6 +182,7 @@ tests =
       testRoundTrip @Push.Token.AppName,
       testRoundTrip @Push.Token.PushToken,
       testRoundTrip @Push.Token.PushTokenList,
+      testRoundTrip @Scim.CreateScimToken,
       testRoundTrip @Team.BindingNewTeam,
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
@@ -254,6 +254,8 @@ tests =
       testRoundTrip @User.DeleteUser,
       testRoundTrip @User.VerifyDeleteUser,
       testRoundTrip @User.DeletionCodeTimeout,
+      testRoundTrip @User.SndFactorPasswordChallengeAction,
+      testRoundTrip @User.SendVerificationCode,
       testRoundTrip @User.Activation.ActivationKey,
       -- FUTUREWORK: this should probably be tested individually,
       -- but ActivationTarget currently doesn't have JSON instances itself.

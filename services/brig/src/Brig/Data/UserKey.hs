@@ -124,7 +124,7 @@ claimKey ::
   UserKey ->
   -- | The user claiming the key.
   UserId ->
-  AppIO Bool
+  (AppIO r) Bool
 claimKey k u = do
   free <- keyAvailable k (Just u)
   when free (insertKey u k)
@@ -138,7 +138,7 @@ keyAvailable ::
   UserKey ->
   -- | The user looking to claim the key, if any.
   Maybe UserId ->
-  AppIO Bool
+  (AppIO r) Bool
 keyAvailable k u = do
   o <- lookupKey k
   case (o, u) of
@@ -146,32 +146,32 @@ keyAvailable k u = do
     (Just x, Just y) | x == y -> return True
     (Just x, _) -> not <$> User.isActivated x
 
-lookupKey :: UserKey -> AppIO (Maybe UserId)
+lookupKey :: UserKey -> (AppIO r) (Maybe UserId)
 lookupKey k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
-insertKey :: UserId -> UserKey -> AppIO ()
+insertKey :: UserId -> UserKey -> (AppIO r) ()
 insertKey u k = do
   hk <- hashKey k
   let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
   retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
-deleteKey :: UserKey -> AppIO ()
+deleteKey :: UserKey -> (AppIO r) ()
 deleteKey k = do
   hk <- hashKey k
   retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
-hashKey :: UserKey -> AppIO UserKeyHash
+hashKey :: UserKey -> (AppIO r) UserKeyHash
 hashKey uk = do
   d <- view digestSHA256
   let d' = digestBS d $ T.encodeUtf8 (keyText uk)
   return . UserKeyHash $
     MH.MultihashDigest MH.SHA256 (B.length d') d'
 
-lookupPhoneHashes :: [ByteString] -> AppIO [(ByteString, UserId)]
+lookupPhoneHashes :: [ByteString] -> (AppIO r) [(ByteString, UserId)]
 lookupPhoneHashes hp =
   mapMaybe mk <$> retry x1 (query selectHashed (params One (Identity hashed)))
   where

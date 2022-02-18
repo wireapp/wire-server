@@ -674,7 +674,7 @@ getConversationQualified galley usr cnv =
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
-  let conv = NewConvUnmanaged $ NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   post $
     galley
       . path "/conversations"
@@ -820,7 +820,7 @@ defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
-emailLogin e = PasswordLogin (LoginByEmail e)
+emailLogin e pw cl = PasswordLogin (LoginByEmail e) pw cl Nothing
 
 somePrekeys :: [Prekey]
 somePrekeys =

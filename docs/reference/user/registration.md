@@ -34,7 +34,7 @@ POST /register
     "password": "secret",
 
     // 6-digit 'email_code' or 'phone_code'
-    "email_code": 123456
+    "email_code": "123456"
 }
 ```
 

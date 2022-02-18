@@ -35,7 +35,6 @@ import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -61,7 +60,6 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
-import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
 import Data.Time (getCurrentTime)
@@ -483,7 +481,7 @@ getInvitationCode t ref = do
 createTeamConvLegacy :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> TestM ConvId
 createTeamConvLegacy u tid us name = do
   g <- view tsGalley
-  let tinfo = ConvTeamInfo tid False
+  let tinfo = ConvTeamInfo tid
   let convPayload =
         object
           [ "users" .= us,
@@ -514,10 +512,9 @@ createTeamConvAccess u tid us name acc role mtimer convRole = do
 createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
 createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- view tsGalley
-  let tinfo = ConvTeamInfo tid False
+  let tinfo = ConvTeamInfo tid
   let conv =
-        NewConvUnmanaged $
-          NewConv us [] name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
+        NewConv us [] name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
   post
     ( g
         . path "/conversations"
@@ -543,8 +540,7 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
   let conv =
-        NewConvUnmanaged $
-          NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing roleNameWireAdmin
+        NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
@@ -566,7 +562,7 @@ postConvQualified u n = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (NewConvUnmanaged n)
+      . json n
 
 postConvWithRemoteUsers ::
   HasCallStack =>
@@ -586,7 +582,7 @@ postConvWithRemoteUsers u n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid False)) mtimer Nothing roleNameWireAdmin
+  let conv = NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -615,7 +611,7 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
+  let conv = NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -626,7 +622,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv [u2] [] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [u2] [] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -1394,10 +1390,27 @@ assertConvQualifiedWithRole r t c s us n mt role = do
       _ -> return ()
   return cId
 
-wsAssertOtr :: Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  ClientId ->
+  ClientId ->
+  Text ->
+  Notification ->
+  IO ()
 wsAssertOtr = wsAssertOtr' "data"
 
-wsAssertOtr' :: Text -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr' ::
+  HasCallStack =>
+  Text ->
+  Qualified ConvId ->
+  Qualified UserId ->
+  ClientId ->
+  ClientId ->
+  Text ->
+  Notification ->
+  IO ()
 wsAssertOtr' evData conv usr from to txt n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1955,9 +1968,6 @@ otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
   where
     buildMap = fmap Map.fromList . Map.fromList
-
-encodeCiphertext :: ByteString -> Text
-encodeCiphertext = decodeUtf8 . B64.encode
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary

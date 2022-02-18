@@ -713,6 +713,9 @@ testInWhitelist = do
           UserLegalHoldPending
           userStatus
     do
+      -- owner cannot approve legalhold device
+      withLHWhitelist tid (approveLegalHoldDevice' g (Just defPassword) owner member tid) !!! testResponse 403 (Just "access-denied")
+    do
       -- approve works
       withLHWhitelist tid (approveLegalHoldDevice' g (Just defPassword) member member tid) !!! testResponse 200 Nothing
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- withLHWhitelist tid (getUserStatusTyped' g member tid)
@@ -761,8 +764,6 @@ testOldClientsBlockDeviceHandshake = do
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    putLHWhitelistTeam tid !!! const 200 === statusCode
-
     legalholderLHDevice <- doEnableLH legalholder legalholder
     _legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
@@ -816,6 +817,8 @@ testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool ->
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
   -- FUTUREWORK: maybe regular user for legalholder?
   (legalholder :: UserId, tid) <- createBindingTeam
+  regularClient <- randomClient legalholder (head someLastPrekeys)
+
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
 
@@ -850,8 +853,12 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
   cannon <- view tsCannon
 
   WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    if connectFirst
+    if not connectFirst
       then do
+        void doEnableLH
+        postConnection legalholder peer !!! do testResponse 403 (Just "missing-legalhold-consent")
+        postConnection peer legalholder !!! do testResponse 403 (Just "missing-legalhold-consent")
+      else do
         postConnection legalholder peer !!! const 201 === statusCode
 
         mbConn :: Maybe UserConnection <-
@@ -890,7 +897,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             peer
             peerClient
             (qUnqualified convId)
-            [ (legalholder, legalholderLHDevice, "cipher")
+            [ (legalholder, legalholderLHDevice, "cipher"),
+              (legalholder, regularClient, "cipher")
             ]
             !!! do
               const 404 === statusCode
@@ -923,14 +931,16 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             peer
             peerClient
             (qUnqualified convId)
-            [ (legalholder, legalholderLHDevice, "cipher")
+            [ (legalholder, legalholderLHDevice, "cipher"),
+              (legalholder, regularClient, "cipher")
             ]
             !!! do
               const 201 === statusCode
-      else do
-        void doEnableLH
-        postConnection legalholder peer !!! do testResponse 403 (Just "missing-legalhold-consent")
-        postConnection peer legalholder !!! do testResponse 403 (Just "missing-legalhold-consent")
+              assertMismatchWithMessage
+                (Just "legalholderLHDevice is deleted")
+                []
+                []
+                [(legalholder, Set.singleton legalholderLHDevice)]
 
 data GroupConvAdmin
   = LegalholderIsAdmin

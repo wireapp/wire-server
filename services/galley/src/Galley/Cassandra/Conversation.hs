@@ -62,7 +62,7 @@ createConversation (NewConversation ty usr acc arole name mtid mtimer recpt user
       setType BatchLogged
       setConsistency LocalQuorum
       addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Just tid, mtimer, recpt)
-      addPrepQuery Cql.insertTeamConv (tid, conv, False)
+      addPrepQuery Cql.insertTeamConv (tid, conv)
   let newUsers = fmap (,role) (fromConvSize users)
   (lmems, rmems) <- addMembers conv (ulAddLocal (usr, roleNameWireAdmin) newUsers)
   pure $
@@ -169,7 +169,7 @@ createOne2OneConversation conv self other name mtid = do
       setType BatchLogged
       setConsistency LocalQuorum
       addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Just tid, Nothing, Nothing)
-      addPrepQuery Cql.insertTeamConv (tid, conv, False)
+      addPrepQuery Cql.insertTeamConv (tid, conv)
   (lmems, rmems) <- addMembers conv (toUserList self [qUntagged self, other])
   pure
     Conversation

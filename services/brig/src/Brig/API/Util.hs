@@ -23,9 +23,11 @@ module Brig.API.Util
     validateHandle,
     logEmail,
     traverseConcurrentlyWithErrors,
+    exceptTToMaybe,
   )
 where
 
+import Brig.API.Error
 import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
@@ -46,15 +48,16 @@ import qualified System.Logger as Log
 import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
+import Wire.API.ErrorDescription
 
-lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> Handler [UserProfile]
+lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
   selfTeam <- lift $ Data.lookupUserTeam self
   return $ case selfTeam of
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
+fetchUserIdentity :: UserId -> (AppIO r) (Maybe UserIdentity)
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
@@ -62,13 +65,13 @@ fetchUserIdentity uid =
       (return . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)
+lookupSelfProfile :: UserId -> (AppIO r) (Maybe SelfProfile)
 lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)
 
-validateHandle :: Text -> Handler Handle
-validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . parseHandle
+validateHandle :: Text -> (Handler r) Handle
+validateHandle = maybe (throwE (Error.StdError (errorDescriptionTypeToWai @InvalidHandle))) return . parseHandle
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =
@@ -80,9 +83,12 @@ logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCod
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::
   (Traversable t, Exception e) =>
-  (a -> ExceptT e AppIO b) ->
+  (a -> ExceptT e (AppIO r) b) ->
   t a ->
-  ExceptT e AppIO (t b)
+  ExceptT e (AppIO r) (t b)
 traverseConcurrentlyWithErrors f =
   ExceptT . try . (traverse (either throwIO pure) =<<)
     . pooledMapConcurrentlyN 8 (runExceptT . f)
+
+exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
+exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT

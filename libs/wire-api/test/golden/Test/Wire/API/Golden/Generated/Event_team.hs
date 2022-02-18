@@ -20,6 +20,7 @@
 module Test.Wire.API.Golden.Generated.Event_team where
 
 import Control.Lens ((.~))
+import Data.ByteString.Conversion (fromByteString')
 import Data.Id (Id (Id))
 import Data.Range (unsafeRange)
 import qualified Data.UUID as UUID (fromString)
@@ -115,11 +116,7 @@ testObject_Event_team_2 =
                            ( unsafeRange
                                ("i5\EOT\1002575\1097973\1066101\&1u\1105430\&1\41840U*/*\999102\1001662\DC3\994167d\1096830\&4uG\173887\fUh09\\\1028574\vPy\t\171003\SI\GS0bV\CAN]\17049\96404\15202\RS\SYNX\ESC3[\CANf\NAK")
                            ),
-                       _iconUpdate =
-                         Just
-                           ( unsafeRange
-                               ("G*~\1098568\62228\EOT\FS\36117%s\DC3\57890|\1092250ZS\989493jf\119998-w\1113299{]R\aNwI\a\1007357?Z\1019937x\65703*\t\SI33\1091562\&3-j\DC2\170440\STXp,n.)*\1073149e=\100962n\1063403\159370aK\ffeF\ETBx\149218\GSX_\1023100R\1102760K\70812gK\1050395\&2J\SYNM\99409-+\1055216uW^Xwjlt\fGy;&\984905\ESC\1033170\DC2^\ETB8\9010\62641wtq\1083210\12238\983428n1~k\bk61R!\1018162\1084522\1075186\1074814w\183828x\DC4\1097642\34650\1078763M05\ENQZY#\92897\RS(\1816\1070299{'W\DC4\SUB\1064958?n\EOTAhT-\CANa;\1013791CV\"")
-                           ),
+                       _iconUpdate = fromByteString' "3-1-f595b8ed-6dcf-41f2-8a2f-f662a9c0fce4",
                        _iconKeyUpdate =
                          Just (unsafeRange ("\131355Pp\1067299\987603\ENQS\22773S\ACK\NAKmM\19084\&0\19257\31361$rL,XvJ"))
                      }
@@ -152,11 +149,7 @@ testObject_Event_team_4 =
                            ( unsafeRange
                                ("d\SI\172132@o\988798s&na\136232\1090952\149487|\83503\1016948/\989099v\NAKu\DC2f\1093640\1011936KC\47338\1066997\1059386\&9_\v_^\1045398K\155463\SO Y*T\CAN\1086598<\1056774>\171907\4929\rt\1038163\1072126w2E\127366hS>\ACK_PQN,Vk\SYN\1083970=90\EM2e\984550\USVA!\EM\FS\EOTe;\189780\&1<H\STX\188937-\ETB8{0\1004484\r\ETB\v~\1060588\EOT!Jg8\US,L\1110751\1075966\1093284\SI\SIkU\143468\1052059\DC3\71711TM{Hzq\r\983328^\ACK'\rUD1etTd4qcW]\154666J|s#(\1003055.\1083560f\10371\DC2\STX)Th\CAN\aI)QvQ\1101685\1017867\160406t'\995737\&5\NAK\145601\1057120e@nS:vB/\135299\173384/\94788\r\1102961*n\RS\917893\1059056\182978lvv53S\990514j\DC4\96540/.!6\1044119.\USg&\NULO,upd$Zz'Y!\"e0\GS\33604\a")
                            ),
-                       _iconUpdate =
-                         Just
-                           ( unsafeRange
-                               ("S&\aV2b\145174L\ETB\150397z=w\1079431\6783\97320\EOT\DC4<^\1029357A\SOH\1044848}\t\1043747\119897F\1050790h\EOTxZZ\GSg\NAK5W6\998961hn\rx4+<Nz\187727\&5Q\FS\b)|*3\f\52927_d:v\43304:9\47530p\142693\CANz\1074634oG\1029321<\1019181\FSW4\1008882+\1103822\"\STX\\\EM\1047274\t?;`\DC1'>\EM\1004319=\DC3\1095917@o\1016975\NAKkR\1022510l^W)W=\1026382\40628\SYNrrN\144727\1026366S\SI^,\ETB5Q&z8D[\15759\ETBbas\SUBY\RSR2\140794\1012833G+'Q+\996998")
-                           ),
+                       _iconUpdate = fromByteString' "3-1-f595b8ed-6dcf-41f2-8a2f-f662a9c0fce4",
                        _iconKeyUpdate =
                          Just
                            ( unsafeRange

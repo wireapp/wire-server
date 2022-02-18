@@ -63,6 +63,7 @@ module Util.Core
     createTeamMember,
     deleteUserOnBrig,
     getTeams,
+    getTeamMemberIds,
     getTeamMembers,
     promoteTeamMember,
     getSelfProfile,
@@ -127,6 +128,8 @@ module Util.Core
     callDeleteDefaultSsoCode,
     checkErr,
     checkErrHspec,
+    updateTeamMemberRole,
+    checkChangeRoleOfTeamMember,
   )
 where
 
@@ -163,13 +166,14 @@ import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
 import qualified Galley.Types.Teams as Galley
+import qualified Galley.Types.Teams as Teams
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import Polysemy (Sem)
-import SAML2.WebSSO as SAML
+import SAML2.WebSSO as SAML hiding ((<$$>))
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
@@ -200,6 +204,7 @@ import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import qualified Wire.API.Team.Member as Member
+import qualified Wire.API.Team.Role as Role
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
 import Wire.API.User.Identity (mkSampleUref)
@@ -585,7 +590,10 @@ getTeams u gly = do
       )
   return $ responseJsonUnsafe r
 
-getTeamMembers :: HasCallStack => UserId -> TeamId -> TestSpar [UserId]
+getTeamMemberIds :: HasCallStack => UserId -> TeamId -> TestSpar [UserId]
+getTeamMemberIds usr tid = (^. Galley.userId) <$$> getTeamMembers usr tid
+
+getTeamMembers :: HasCallStack => UserId -> TeamId -> TestSpar [Member.TeamMember]
 getTeamMembers usr tid = do
   gly <- view teGalley
   resp <-
@@ -594,7 +602,7 @@ getTeamMembers usr tid = do
         <!! const 200 === statusCode
   let mems :: Galley.TeamMemberList
       Right mems = responseJsonEither resp
-  pure $ (^. Galley.userId) <$> (mems ^. Galley.teamMembers)
+  pure $ mems ^. Galley.teamMembers
 
 promoteTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestSpar ()
 promoteTeamMember usr tid memid = do
@@ -1302,3 +1310,21 @@ updateProfileBrig brig uid uupd =
         . contentJson
         . json uupd
     )
+
+updateTeamMemberRole :: (MonadReader TestEnv m, MonadIO m) => TeamId -> UserId -> UserId -> Role.Role -> m ()
+updateTeamMemberRole tid adminUid targetUid role = do
+  spar <- asks (^. teGalley)
+  void . call . put $
+    spar
+      . zUser adminUid
+      . zConn "user"
+      . paths ["teams", toByteString' tid, "members"]
+      . json (Member.mkNewTeamMember targetUid (Galley.rolePermissions role) Nothing)
+      . expect2xx
+
+-- https://wearezeta.atlassian.net/browse/SQSERVICES-1279: change role after successful creation/activation.
+checkChangeRoleOfTeamMember :: TeamId -> UserId -> UserId -> TestSpar ()
+checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -> do
+  updateTeamMemberRole tid adminId targetId role
+  [member'] <- filter ((== targetId) . (^. Member.userId)) <$> getTeamMembers adminId tid
+  liftIO $ (member' ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role

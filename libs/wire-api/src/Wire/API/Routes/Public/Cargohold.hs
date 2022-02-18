@@ -113,7 +113,6 @@ type ServantAPI =
     :<|> BaseAPIv3 'ProviderPrincipalTag
     :<|> QualifiedAPI
     :<|> LegacyAPI
-    :<|> InternalAPI
 
 type BaseAPIv3 (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
@@ -207,9 +206,6 @@ type LegacyAPI =
              :> Capture "id" AssetId
              :> GetAsset
          )
-
-type InternalAPI =
-  "i" :> "status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

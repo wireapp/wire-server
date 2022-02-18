@@ -57,8 +57,6 @@ module Wire.API.Conversation
 
     -- * create
     NewConv (..),
-    NewConvManaged (..),
-    NewConvUnmanaged (..),
     ConvTeamInfo (..),
 
     -- * invite
@@ -110,8 +108,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import System.Random (randomRIO)
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Routes.MultiTablePaging
@@ -589,60 +586,7 @@ instance ToSchema ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
-{- Note [managed conversations]
-~~~~~~~~~~~~~~~~~~~~~~
-
-Managed conversations are conversations where every team member is present
-automatically. They have been implemented on the backend but never used in
-production, and as of July 2, 2018 no managed conversations exist "in the
-wild". They also prevent us from decoupling team size and conversation size
--- by essentially demanding that they be equal, while in reality allowing
-huge teams is much easier than allowing huge conversations and we want to
-use that fact.
-
-For the reason above, it's been decided to remove support for creating
-managed conversations from the backend. However, we are not 100% sure that
-we won't introduce them again in the future, and so we'd like to retain all
-the logic and tests that we have now.
-
-To that end we have the following types:
-
-  * data NewConv -- allows both managed and unmanaged conversations;
-  * newtype NewConvUnmanaged -- only unmanaged;
-  * newtype NewConvManaged -- only managed.
-
-Those are invariants enforced on the 'FromJSON' level. For convenience, the
-newtype constructors have not been hidden.
-
-The public POST /conversations endpoint only allows unmanaged conversations.
-For creating managed conversations we provide an internal endpoint called
-POST /i/conversations/managed. When an endpoint receives payload
-corresponding to a forbidden conversation type, it throws a JSON parsing
-error, which is not optimal but it doesn't matter since nobody is trying to
-create managed conversations anyway.
--}
-
-newtype NewConvManaged = NewConvManaged NewConv
-  deriving stock (Eq, Show)
-  deriving (FromJSON, ToJSON) via Schema NewConvManaged
-
-instance ToSchema NewConvManaged where
-  schema = NewConvManaged <$> unwrap .= newConvSchema `withParser` check
-    where
-      unwrap (NewConvManaged c) = c
-      check c
-        | newConvIsManaged c = pure c
-        | otherwise = fail "only managed conversations are allowed here"
-
-instance Arbitrary NewConvManaged where
-  arbitrary =
-    NewConvManaged <$> (arbitrary `QC.suchThat` newConvIsManaged)
-
-newtype NewConvUnmanaged = NewConvUnmanaged NewConv
-  deriving stock (Eq, Show)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema NewConvUnmanaged
-
--- | Used to describe a 'NewConvUnmanaged'.
+-- | Used to describe a 'NewConv'.
 modelNewConversation :: Doc.Model
 modelNewConversation = Doc.defineModel "NewConversation" $ do
   Doc.description "JSON object to create a new conversation"
@@ -665,19 +609,6 @@ modelNewConversation = Doc.defineModel "NewConversation" $ do
     Doc.description "Conversation receipt mode"
     Doc.optional
 
-instance ToSchema NewConvUnmanaged where
-  schema = NewConvUnmanaged <$> unwrap .= newConvSchema `withParser` check
-    where
-      unwrap (NewConvUnmanaged c) = c
-      check c
-        | newConvIsManaged c =
-          fail "managed conversations have been deprecated"
-        | otherwise = pure c
-
-instance Arbitrary NewConvUnmanaged where
-  arbitrary =
-    NewConvUnmanaged <$> (arbitrary `QC.suchThat` (not . newConvIsManaged))
-
 data NewConv = NewConv
   { newConvUsers :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
@@ -694,72 +625,69 @@ data NewConv = NewConv
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewConv)
 
-newConvSchema :: ValueSchema NamedSwaggerDoc NewConv
-newConvSchema =
-  objectWithDocModifier
-    "NewConv"
-    (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
-    $ NewConv
-      <$> newConvUsers
-        .= ( fieldWithDocModifier
-               "users"
-               (description ?~ usersDesc)
-               (array schema)
-               <|> pure []
-           )
-      <*> newConvQualifiedUsers
-        .= ( fieldWithDocModifier
-               "qualified_users"
-               (description ?~ qualifiedUsersDesc)
-               (array schema)
-               <|> pure []
-           )
-      <*> newConvName .= maybe_ (optField "name" schema)
-      <*> (Set.toList . newConvAccess)
-        .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
-      <*> newConvAccessRoles .= accessRolesSchemaOpt
-      <*> newConvTeam
-        .= maybe_
-          ( optFieldWithDocModifier
-              "team"
-              (description ?~ "Team information of this conversation")
-              schema
-          )
-      <*> newConvMessageTimer
-        .= maybe_
-          ( optFieldWithDocModifier
-              "message_timer"
-              (description ?~ "Per-conversation message timer")
-              schema
-          )
-      <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
-      <*> newConvUsersRole
-        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
-               <|> pure roleNameWireAdmin
-           )
-  where
-    usersDesc =
-      "List of user IDs (excluding the requestor) to be \
-      \part of this conversation (deprecated)"
-    qualifiedUsersDesc =
-      "List of qualified user IDs (excluding the requestor) \
-      \to be part of this conversation"
-    usersRoleDesc :: Text
-    usersRoleDesc =
-      cs $
-        "The conversation permissions the users \
-        \added in this request should have. \
-        \Optional, defaults to '"
-          <> show roleNameWireAdmin
-          <> "' if unset."
+instance ToSchema NewConv where
+  schema =
+    objectWithDocModifier
+      "NewConv"
+      (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+      $ NewConv
+        <$> newConvUsers
+          .= ( fieldWithDocModifier
+                 "users"
+                 (description ?~ usersDesc)
+                 (array schema)
+                 <|> pure []
+             )
+        <*> newConvQualifiedUsers
+          .= ( fieldWithDocModifier
+                 "qualified_users"
+                 (description ?~ qualifiedUsersDesc)
+                 (array schema)
+                 <|> pure []
+             )
+        <*> newConvName .= maybe_ (optField "name" schema)
+        <*> (Set.toList . newConvAccess)
+          .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
+        <*> newConvAccessRoles .= accessRolesSchemaOpt
+        <*> newConvTeam
+          .= maybe_
+            ( optFieldWithDocModifier
+                "team"
+                (description ?~ "Team information of this conversation")
+                schema
+            )
+        <*> newConvMessageTimer
+          .= maybe_
+            ( optFieldWithDocModifier
+                "message_timer"
+                (description ?~ "Per-conversation message timer")
+                schema
+            )
+        <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
+        <*> newConvUsersRole
+          .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
+                 <|> pure roleNameWireAdmin
+             )
+    where
+      usersDesc =
+        "List of user IDs (excluding the requestor) to be \
+        \part of this conversation (deprecated)"
+      qualifiedUsersDesc =
+        "List of qualified user IDs (excluding the requestor) \
+        \to be part of this conversation"
+      usersRoleDesc :: Text
+      usersRoleDesc =
+        cs $
+          "The conversation permissions the users \
+          \added in this request should have. \
+          \Optional, defaults to '"
+            <> show roleNameWireAdmin
+            <> "' if unset."
 
-newConvIsManaged :: NewConv -> Bool
-newConvIsManaged = maybe False cnvManaged . newConvTeam
-
-data ConvTeamInfo = ConvTeamInfo
-  { cnvTeamId :: TeamId,
-    cnvManaged :: Bool
+newtype ConvTeamInfo = ConvTeamInfo
+  { cnvTeamId :: TeamId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
@@ -772,13 +700,15 @@ instance ToSchema ConvTeamInfo where
       (description ?~ "Team information")
       $ ConvTeamInfo
         <$> cnvTeamId .= field "teamid" schema
-        <*> cnvManaged
+        <* const ()
           .= ( fieldWithDocModifier
                  "managed"
-                 (description ?~ "Whether this is a managed team conversation")
-                 schema
-                 <|> pure False
+                 (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
+                 (c (False :: Bool))
              )
+    where
+      c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
+      c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
 modelTeamInfo :: Doc.Model
 modelTeamInfo = Doc.defineModel "TeamInfo" $ do

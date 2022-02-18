@@ -31,6 +31,8 @@ module Wire.API.Routes.MultiVerb
     AsUnion (..),
     eitherToUnion,
     eitherFromUnion,
+    maybeToUnion,
+    maybeFromUnion,
     AsConstructor (..),
     GenericAsConstructor (..),
     GenericAsUnion (..),
@@ -50,6 +52,7 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Containers.ListUtils
+import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Metrics.Servant
@@ -193,7 +196,7 @@ simpleResponseSwagger = do
       & S.schema ?~ ref
 
 instance
-  (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
+  (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
   responseSwagger = simpleResponseSwagger @a @desc
@@ -241,10 +244,19 @@ instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
     guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
-  (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
-  IsSwaggerResponse (RespondAs ct s desc a)
+  (KnownSymbol desc, S.ToSchema a) =>
+  IsSwaggerResponse (RespondAs (ct :: *) s desc a)
   where
   responseSwagger = simpleResponseSwagger @a @desc
+
+instance
+  (KnownSymbol desc) =>
+  IsSwaggerResponse (RespondEmpty s desc)
+  where
+  responseSwagger =
+    pure $
+      mempty
+        & S.description .~ Text.pack (symbolVal (Proxy @desc))
 
 type instance ResponseType (RespondStreaming s desc framing ct) = SourceIO ByteString
 
@@ -529,6 +541,21 @@ instance EitherFromUnion as bs => EitherFromUnion (a ': as) bs where
   eitherFromUnion f _ (Z x) = Left (f (Z x))
   eitherFromUnion f g (S x) = eitherFromUnion @as @bs (f . S) g x
 
+maybeToUnion ::
+  forall as a.
+  (InjectAfter as '[()], InjectBefore as '[()]) =>
+  (a -> Union as) ->
+  (Maybe a -> Union (as .++ '[()]))
+maybeToUnion f (Just a) = injectBefore @as @'[()] (f a)
+maybeToUnion _ Nothing = injectAfter @as @'[()] (Z (I ()))
+
+maybeFromUnion ::
+  forall as a.
+  EitherFromUnion as '[()] =>
+  (Union as -> a) ->
+  (Union (as .++ '[()]) -> Maybe a)
+maybeFromUnion f = leftToMaybe . eitherFromUnion @as @'[()] f (const (Z (I ())))
+
 -- | This class can be instantiated to get automatic derivation of 'AsUnion'
 -- instances via 'GenericAsUnion'. The idea is that one has to make sure that for
 -- each response @r@ in a 'MultiVerb' endpoint, there is an instance of
@@ -606,6 +633,23 @@ instance
   where
   toUnion (GenericAsUnion x) = fromSOP @xss @rs (GSOP.from x)
   fromUnion = GenericAsUnion . GSOP.to . toSOP @xss @rs
+
+-- | A handler for a pair of empty responses can be implemented simply by
+-- returning a boolean value. The convention is that the "failure" case, normally
+-- represented by 'False', corresponds to the /first/ response.
+instance
+  AsUnion
+    '[ RespondEmpty s1 desc1,
+       RespondEmpty s2 desc2
+     ]
+    Bool
+  where
+  toUnion False = Z (I ())
+  toUnion True = S (Z (I ()))
+
+  fromUnion (Z (I ())) = False
+  fromUnion (S (Z (I ()))) = True
+  fromUnion (S (S x)) = case x of
 
 -- | A handler for a pair of responses where the first is empty can be
 -- implemented simply by returning a 'Maybe' value. The convention is that the

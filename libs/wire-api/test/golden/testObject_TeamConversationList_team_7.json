@@ -18,15 +18,15 @@
         },
         {
             "conversation": "00000040-0000-0001-0000-00670000002e",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "00000002-0000-0016-0000-004300000052",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "0000007b-0000-0073-0000-002700000048",
-            "managed": true
+            "managed": false
         },
         {
             "conversation": "0000003b-0000-0048-0000-002500000015",
@@ -34,7 +34,7 @@
         },
         {
             "conversation": "00000055-0000-007c-0000-001500000051",
-            "managed": true
+            "managed": false
         }
     ]
 }

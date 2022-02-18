@@ -4,7 +4,7 @@ We currently use Servant for the public (i.e. client-facing) API in brig, galley
 
 Client-facing APIs are defined in `Wire.API.Routes.Public.{Brig,Galley}`. Internal APIs are all over the place at the moment. Federation APIs are in `Wire.API.Federation.API.{Brig,Galley}`.
 
-Our APIs are able to generate Swagger documentation semi-automatically using `servant-swagger2`. The `schema-profunctor` library (see README in libs/schema-profunctor) is used to create "schemas" for the input and output types used in the Servant APIs. A schema contains all the information needed to serialise/deserialise JSON values, as well as the documentation and metadata needed to generate Swagger.
+Our APIs are able to generate Swagger documentation semi-automatically using `servant-swagger2`. The `schema-profunctor` library (see [`README.md`](/libs/schema-profunctor/README.md) in `libs/schema-profunctor`) is used to create "schemas" for the input and output types used in the Servant APIs. A schema contains all the information needed to serialise/deserialise JSON values, as well as the documentation and metadata needed to generate Swagger.
 
 # Combinators
 
@@ -17,6 +17,7 @@ This is a family of combinators to handle the headers that nginx adds to request
   - `ZUser`: extracts the `UserId` in the `Z-User` header.
   - `ZLocalUser`: same as `ZUser`, but as a `Local` object (i.e. qualified by the local domain); this is useful when writing federation-aware handlers.
   - `ZConn`: extracts the `ConnId` in the `Z-Connection` header.
+  - `ZConversation`: extracts the `ConvId` in the `Z-Conversation` header.
 
 ## `MultiVerb`
 

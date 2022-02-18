@@ -18,7 +18,7 @@ cassandra-migrations:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   cassandra:
     host: cassandra-ephemeral
-    replicaCount: 1
+    replicationFactor: 1
 elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:

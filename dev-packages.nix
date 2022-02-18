@@ -141,6 +141,7 @@ let
       pkgs.libsodium.dev
       pkgs.libxml2.dev
       pkgs.ncurses.dev
+      pkgs.niv.out
       pkgs.openssl.dev
       pkgs.pcre.dev
       pkgs.snappy.dev
@@ -162,12 +163,20 @@ let
     export CONFIG_SHELL="${compile-deps}/bin/sh"
     exec "${pkgs.cabal-install}/bin/cabal" "$@"
   '';
+
+  # stack-deps.nix sets LD_LIBRARY_PATH, which could be incompatible with the
+  # system bash. To ensure that nix-shell invoked by stack uses the correct
+  # shell to build we set NIX_BUILD_SHELL here.
+  stack-wrapper = pkgs.writeShellScriptBin "stack" ''
+    export NIX_BUILD_SHELL="${pkgs.bash}/bin/bash"
+    exec "${pinned.stack}/bin/stack" "$@"
+  '';
 in
 [
   pkgs.cfssl
   pkgs.docker-compose
   pkgs.gnumake
-  (pkgs.haskell-language-server.override {supportedGhcVersions = ["8107"];})
+  (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
   pkgs.jq
   pkgs.ormolu
   pkgs.telepresence
@@ -179,7 +188,7 @@ in
   # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
   pkgs.buildah
 
-  pinned.stack
+  stack-wrapper
   pinned.helm
   pinned.helmfile
   pinned.kubectl

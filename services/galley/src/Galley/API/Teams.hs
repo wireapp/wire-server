@@ -436,8 +436,7 @@ uncheckedDeleteTeam lusr zcon tid = do
   when (isJust team) $ do
     Spar.deleteTeam tid
     now <- input
-    convs <-
-      filter (not . view managedConversation) <$> E.getTeamConversations tid
+    convs <- E.getTeamConversations tid
     -- Even for LARGE TEAMS, we _DO_ want to fetch all team members here because we
     -- want to generate conversation deletion events for non-team users. This should
     -- be fine as it is done once during the life team of a team and we still do not
@@ -1093,7 +1092,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
           for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
             E.deleteMembers (c ^. conversationId) (UserList [remove] [])
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
-            unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
+            unless (mems ^. teamMemberListType == ListTruncated) $
               pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Sem r ()
     pushEvent exceptTo edata now dc = do
@@ -1339,12 +1338,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
   E.createTeamMember tid new
-  cc <- filter (view managedConversation) <$> E.getTeamConversations tid
   now <- input
-  for_ cc $ \c -> do
-    lcid <- qualifyLocal (c ^. conversationId)
-    luid <- qualifyLocal (new ^. userId)
-    E.createMember lcid luid
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
@@ -1410,24 +1404,8 @@ finishCreateTeam team owner others zcon = do
   let r = membersToRecipients Nothing others
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
--- FUTUREWORK: Get rid of CPS
-withBindingTeam ::
-  Members '[Error TeamError, TeamStore] r =>
-  UserId ->
-  (TeamId -> Sem r b) ->
-  Sem r b
-withBindingTeam zusr callback = do
-  tid <- E.getOneUserTeam zusr >>= note TeamNotFound
-  binding <- E.getTeamBinding tid >>= note TeamNotFound
-  case binding of
-    Binding -> callback tid
-    NonBinding -> throw NotABindingTeamMember
-
 getBindingTeamIdH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
-getBindingTeamIdH = fmap json . getBindingTeamId
-
-getBindingTeamId :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r TeamId
-getBindingTeamId zusr = withBindingTeam zusr pure
+getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
 getBindingTeamMembersH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
@@ -1440,7 +1418,8 @@ getBindingTeamMembers ::
     r =>
   UserId ->
   Sem r TeamMemberList
-getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
+getBindingTeamMembers zusr = do
+  tid <- E.lookupBindingTeam zusr
   getTeamMembersForFanout tid
 
 canUserJoinTeamH ::

@@ -62,19 +62,19 @@ expect ss rq = rq {checkResponse = check}
 cargoholdRequest ::
   StdMethod ->
   (Request -> Request) ->
-  AppIO (Response (Maybe BL.ByteString))
+  (AppIO r) (Response (Maybe BL.ByteString))
 cargoholdRequest = serviceRequest "cargohold" cargohold
 
 galleyRequest ::
   StdMethod ->
   (Request -> Request) ->
-  AppIO (Response (Maybe BL.ByteString))
+  (AppIO r) (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
 
 gundeckRequest ::
   StdMethod ->
   (Request -> Request) ->
-  AppIO (Response (Maybe BL.ByteString))
+  (AppIO r) (Response (Maybe BL.ByteString))
 gundeckRequest = serviceRequest "gundeck" gundeck
 
 serviceRequest ::
@@ -82,7 +82,7 @@ serviceRequest ::
   Control.Lens.Getting Request Env Request ->
   StdMethod ->
   (Request -> Request) ->
-  AppIO (Response (Maybe BL.ByteString))
+  (AppIO r) (Response (Maybe BL.ByteString))
 serviceRequest nm svc m r = do
   service <- view svc
   recovering x3 rpcHandlers $

@@ -55,6 +55,7 @@ import Spar.Sem.Logger.TinyLog (toLevel)
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
+import Wire.API.Routes.Version.Wai
 import Wire.API.User.Saml as Types
 
 ----------------------------------------------------------------------
@@ -124,6 +125,7 @@ mkApp sparCtxOpts = do
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
+          . versionMiddleware
           . lookupRequestIdMiddleware
           $ \sparCtxRequestId -> app Env {..}
       heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)

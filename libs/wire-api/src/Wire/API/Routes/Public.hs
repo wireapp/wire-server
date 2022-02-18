@@ -26,6 +26,7 @@ module Wire.API.Routes.Public
     ZOptUser,
     ZOptConn,
     ZBot,
+    ZConversation,
     ZProvider,
 
     -- * Swagger combinators
@@ -75,6 +76,7 @@ data ZType
   | -- | Get a 'ConnId' from the Z-Conn header
     ZAuthConn
   | ZAuthBot
+  | ZAuthConv
   | ZAuthProvider
 
 class
@@ -122,6 +124,13 @@ instance IsZType 'ZAuthBot ctx where
 
   qualifyZParam _ = id
 
+instance IsZType 'ZAuthConv ctx where
+  type ZHeader 'ZAuthConv = "Z-Conversation"
+  type ZParam 'ZAuthConv = ConvId
+  type ZQualifiedParam 'ZAuthConv = ConvId
+
+  qualifyZParam _ = id
+
 instance HasTokenType 'ZAuthBot where
   tokenType = Just "bot"
 
@@ -152,6 +161,8 @@ type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
 
 type ZBot = ZAuthServant 'ZAuthBot InternalAuthDefOpts
+
+type ZConversation = ZAuthServant 'ZAuthConv InternalAuthDefOpts
 
 type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts
 

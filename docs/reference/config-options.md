@@ -167,6 +167,34 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Validate SAML Emails
+
+If this is enabled, if a new user account is created with an email address as SAML NameID or SCIM externalId, users will receive a validation email.  If they follow the validation procedure, they will be able to receive emails about their account, eg., if a new device is associated with the account.  If the user does not validate their email address, they can still use it to login.
+
+Validate SAML emails is enabled by default; this is almost always what you want. If you want a different configuration, use the following syntax:
+
+```yaml
+# galley.yaml
+validateSAMLEmails:
+  defaults:
+    status: disabled
+```
+
+### 2nd Factor Password Challenge
+
+By default Wire enforces a 2nd factor authentication for certain user operations like e.g. activating an account, changing email or password, or deleting an account.
+If this feature is enabled, a 2nd factor password challenge will be performed for a set of additional user operations like e.g. for generating SCIM tokens, login, or adding a client.
+
+Usually the default is what you want. If you explicitly want to enable the feature, use the following syntax:
+
+```yaml
+# galley.yaml
+sndFactorPasswordChallenge:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator
@@ -333,6 +361,35 @@ When a `null` value is encountered, it is assumed to be
 `defaultForNull`.
 
 (Introduced in https://github.com/wireapp/wire-server/pull/1811.)
+
+### SFT configuration
+
+Configuring SFT load balancing can be done in two (mutually exclusive) settings:
+
+1) Configuring a SRV DNS record based load balancing setting
+
+```
+# [brig.yaml]
+sft:
+  sftBaseDomain: sft.wire.example.yourcloud.comk
+  sftSRVServiceName: sft
+  sftDiscoveryIntervalSeconds: 10
+  sftListLength: 20
+```
+
+or
+
+2) Configuring a HTTP-based load balancing setting
+
+```
+# [brig.yaml]
+settings:
+  setSftStaticUrl: https://sftd.wire.yourcloud.com
+```
+
+This setting assumes that the sft load balancer has been deployed witht hte `sftd` helm chart.
+
+Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is required to enable calls between federated instances of Wire.
 
 ### Locale
 

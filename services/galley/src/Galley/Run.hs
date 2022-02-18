@@ -38,7 +38,7 @@ import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
 import Galley.API.Federation (FederationAPI, federationSitemap)
-import qualified Galley.API.Internal as Internal
+import Galley.API.Internal
 import Galley.App
 import qualified Galley.App as App
 import Galley.Cassandra
@@ -56,6 +56,7 @@ import Servant hiding (route)
 import qualified System.Logger as Log
 import Util.Options
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
@@ -68,7 +69,7 @@ run o = do
         (portNumber $ fromIntegral $ o ^. optGalley . epPort)
         l
         (e ^. monitor)
-  deleteQueueThread <- Async.async $ runApp e Internal.deleteLoop
+  deleteQueueThread <- Async.async $ runApp e deleteLoop
   refreshMetricsThread <- Async.async $ runApp e refreshMetrics
   runSettingsWithShutdown s app 5 `finally` do
     Async.cancel deleteQueueThread
@@ -92,6 +93,7 @@ mkApp o = do
           . GZip.gunzip
           . GZip.gzip GZip.def
           . catchErrors l [Right m]
+          . versionMiddleware
   return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap
@@ -106,7 +108,7 @@ mkApp o = do
                 :. Servant.EmptyContext
             )
             ( hoistServer' @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
-                :<|> hoistServer' @Internal.ServantAPI (toServantHandler e) Internal.servantSitemap
+                :<|> hoistServer' @InternalAPI (toServantHandler e) internalAPI
                 :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
                 :<|> Servant.Tagged (app e)
             )
@@ -152,7 +154,7 @@ bodyParserErrorFormatter' _ _ errMsg =
 
 type CombinedAPI =
   GalleyAPI.ServantAPI
-    :<|> Internal.ServantAPI
+    :<|> InternalAPI
     :<|> FederationAPI
     :<|> Servant.Raw
 
@@ -160,7 +162,7 @@ refreshMetrics :: App ()
 refreshMetrics = do
   m <- view monitor
   q <- view deleteQueue
-  Internal.safeForever "refreshMetrics" $ do
+  safeForever "refreshMetrics" $ do
     n <- Q.len q
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
     threadDelay 1000000

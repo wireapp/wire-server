@@ -62,7 +62,7 @@ tests s =
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
-      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
+      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureEnabled,
       test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.Unlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
@@ -72,7 +72,8 @@ tests s =
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
-      test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked
+      test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
+      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Unlocked
     ]
 
 testSSO :: TestM ()
@@ -677,7 +678,10 @@ testAllFeatures = do
           toS TeamFeatureGuestLinks
             .= Public.TeamFeatureStatusNoConfigAndLockStatus
               TeamFeatureEnabled
-              Public.Unlocked
+              Public.Unlocked,
+          toS TeamFeatureValidateSAMLEmails .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
+          toS TeamFeatureGuestLinks .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+          toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Unlocked
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'

@@ -204,7 +204,6 @@ data:
         suspendTimeout: {{ .setSuspendInactiveUsers.suspendTimeout }}
       {{- end }}
       setRichInfoLimit: {{ .setRichInfoLimit }}
-      setDefaultTemplateLocale: en
       setDefaultUserLocale: {{ .setDefaultUserLocale }}
       setMaxTeamSize: {{ .setMaxTeamSize }}
       setMaxConvSize: {{ .setMaxConvSize }}
@@ -228,6 +227,9 @@ data:
       {{- end }}
       {{- if .setSftStaticUrl }}
       setSftStaticUrl: {{ .setSftStaticUrl }}
+      {{- end }}
+      {{- if .setSftListAllServers }}
+      setSftListAllServers: {{ .setSftListAllServers }}
       {{- end }}
     {{- end }}
   {{- end }}

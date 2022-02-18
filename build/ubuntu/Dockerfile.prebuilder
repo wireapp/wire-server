@@ -57,15 +57,19 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         libncurses-dev \
         libncurses5 \
         libtinfo5 \
-        protobuf-compiler
+        protobuf-compiler \
+        rsync
 
 ARG GHC_VERSION=8.10.7
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
     | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_GHC_VERSION=${GHC_VERSION} sh
 
-ENV PATH=/root/.ghcup/bin:${PATH} \
+ENV PATH=/root/.ghcup/bin:/root/.cabal/bin:${PATH} \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
 ARG STACK_VERSION=2.7.3
-RUN ghcup install stack ${STACK_VERSION}
+ARG CABAL_VERSION=3.6.2.0
+RUN ghcup install stack ${STACK_VERSION} && \
+    ghcup install cabal ${CABAL_VERSION} && \
+    cabal install cabal-plan

@@ -211,11 +211,15 @@ type ConvNotFound = ErrorDescription 404 "no-conversation" "Conversation not fou
 
 type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Conversation member not found"
 
+type TooManyMembers = ErrorDescription 403 "too-many-members" "Maximum number of members per conversation reached."
+
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
-type TeamNotFound = ErrorDescription 404 "no-team" "team not found"
+type TeamNotFound = ErrorDescription 404 "no-team" "Team not found"
+
+type NonBindingTeam = ErrorDescription 404 "non-binding-team" "Not member of a binding team"
 
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
@@ -329,8 +333,46 @@ type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversatio
 
 type InvalidTargetAccess = InvalidOp "invalid target access"
 
+type InvalidAccessOp = InvalidOp "invalid operation for conversation without 'code' access"
+
 type AssetTooLarge = ErrorDescription 413 "client-error" "Asset too large"
 
 type InvalidLength = ErrorDescription 400 "invalid-length" "Invalid content length"
 
 type AssetNotFound = ErrorDescription 404 "not-found" "Asset not found"
+
+type NameManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM"
+
+type HandleManagedByScim = ErrorDescription 403 "managed-by-scim" "Updating handle is not allowed, because it is managed by SCIM"
+
+type InvalidPhone = ErrorDescription 400 "invalid-phone" "Invalid mobile phone number"
+
+type UserKeyExists = ErrorDescription 409 "key-exists" "The given e-mail address or phone number is in use."
+
+type BlacklistedPhone = ErrorDescription 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint."
+
+type LastIdentity = ErrorDescription 403 "last-identity" "The last user identity (email or phone number) cannot be removed."
+
+type NoPassword = ErrorDescription 403 "no-password" "The user has no password."
+
+type ChangePasswordMustDiffer = ErrorDescription 409 "password-must-differ" "For password change, new and old password must be different."
+
+type HandleExists = ErrorDescription 409 "handle-exists" "The given handle is already taken."
+
+type InvalidHandle = ErrorDescription 400 "invalid-handle" "The given handle is invalid."
+
+type PresenceNotRegistered = ErrorDescription 404 "not-found" "presence not registered"
+
+type ClientGone = ErrorDescription 410 "general" "client gone"
+
+type BroadcastLimitExceeded =
+  ErrorDescription
+    400
+    "too-many-users-to-broadcast"
+    "Too many users to fan out the broadcast event to."
+
+type InvalidAction = ErrorDescription 403 "invalid-actions" "The specified actions are invalid."
+
+type PasswordAuthenticationFailed = ErrorDescription 403 "password-authentication-failed" "Password authentication failed."
+
+type CodeAuthenticationFailed = ErrorDescription 403 "code-authentication-failed" "Code authentication failed."

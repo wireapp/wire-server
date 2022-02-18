@@ -76,6 +76,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
+import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
@@ -363,8 +364,10 @@ testCreateUserNoIdP = do
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
-  members <- getTeamMembers userid tid
+  members <- getTeamMemberIds userid tid
   liftIO $ members `shouldContain` [userid]
+
+  checkChangeRoleOfTeamMember tid owner userid
   where
     -- cloned from brig's integration tests
 
@@ -439,8 +442,10 @@ testCreateUserWithSamlIdP = do
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
-  members <- getTeamMembers userid tid
+  members <- getTeamMemberIds userid tid
   liftIO $ members `shouldContain` [userid]
+
+  checkChangeRoleOfTeamMember tid owner userid
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
@@ -1691,7 +1696,9 @@ specEmailValidation = do
         setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
-          when enabled $ enableSamlEmailValidation teamid
+          if enabled
+            then setSamlEmailValidation teamid Feature.TeamFeatureEnabled
+            else setSamlEmailValidation teamid Feature.TeamFeatureDisabled
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
           uref :: SAML.UserRef <-
@@ -1754,7 +1761,7 @@ specSCIMManaged = do
       let brig = env ^. teBrig
 
       (tok, (_ownerid, teamid, idp, (_, privCreds))) <- registerIdPAndScimTokenWithMeta
-      enableSamlEmailValidation teamid
+      setSamlEmailValidation teamid Feature.TeamFeatureEnabled
       (user, oldEmail) <- randomScimUserWithEmail
       storedUser <- createUser tok user
       let uid :: UserId = Scim.id . Scim.thing $ storedUser

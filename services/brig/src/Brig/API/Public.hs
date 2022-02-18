@@ -22,7 +22,6 @@ module Brig.API.Public
     apiDocs,
     servantSitemap,
     swaggerDocsAPI,
-    ServantAPI,
     SwaggerDocsAPI,
   )
 where
@@ -93,7 +92,6 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
-import Servant.Server.Generic (genericServerT)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
@@ -102,14 +100,15 @@ import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
-import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
+import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -128,12 +127,11 @@ import qualified Wire.API.Wrapped as Public
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI = BrigAPI.ServantAPI
-
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    ( BrigAPI.swagger
+    ( brigSwagger
+        <> versionSwagger
         <> GalleyAPI.swaggerDoc
         <> LegalHoldAPI.swaggerDoc
         <> SparAPI.swaggerDoc
@@ -162,48 +160,72 @@ swaggerDocsAPI =
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
 
-servantSitemap :: ServerT ServantAPI Handler
-servantSitemap =
-  genericServerT $
-    BrigAPI.Api
-      { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
-        BrigAPI.getUserQualified = getUser,
-        BrigAPI.getSelf = getSelf,
-        BrigAPI.deleteSelf = deleteUser,
-        BrigAPI.updateUserEmail = updateUserEmail,
-        BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-        BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
-        BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
-        BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
-        BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
-        BrigAPI.getUserClientsQualified = getUserClientsQualified,
-        BrigAPI.getUserClientUnqualified = getUserClientUnqualified,
-        BrigAPI.getUserClientQualified = getUserClientQualified,
-        BrigAPI.listClientsBulk = listClientsBulk,
-        BrigAPI.listClientsBulkV2 = listClientsBulkV2,
-        BrigAPI.getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
-        BrigAPI.getUsersPrekeysClientQualified = getPrekeyH,
-        BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
-        BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
-        BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
-        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
-        BrigAPI.addClient = addClient,
-        BrigAPI.updateClient = updateClient,
-        BrigAPI.deleteClient = deleteClient,
-        BrigAPI.listClients = listClients,
-        BrigAPI.getClient = getClient,
-        BrigAPI.getClientCapabilities = getClientCapabilities,
-        BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
-        BrigAPI.createConnection = createConnection,
-        BrigAPI.listLocalConnections = listLocalConnections,
-        BrigAPI.listConnections = listConnections,
-        BrigAPI.getConnectionUnqualified = getLocalConnection,
-        BrigAPI.getConnection = getConnection,
-        BrigAPI.updateConnectionUnqualified = updateLocalConnection,
-        BrigAPI.updateConnection = updateConnection,
-        BrigAPI.searchContacts = Search.search
-      }
+servantSitemap :: ServerT BrigAPI (Handler r)
+servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI
+  where
+    userAPI :: ServerT UserAPI (Handler r)
+    userAPI =
+      Named @"get-user-unqualified" getUserUnqualifiedH
+        :<|> Named @"get-user-qualified" getUser
+        :<|> Named @"update-user-email" updateUserEmail
+        :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
+        :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
+        :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+        :<|> Named @"send-verification-code" (const sendVerificationCode)
+
+    selfAPI :: ServerT SelfAPI (Handler r)
+    selfAPI =
+      Named @"get-self" getSelf
+        :<|> Named @"delete-self" deleteUser
+        :<|> Named @"put-self" updateUser
+        :<|> Named @"change-phone" changePhone
+        :<|> Named @"remove-phone" removePhone
+        :<|> Named @"remove-email" removeEmail
+        :<|> Named @"check-password-exists" checkPasswordExists
+        :<|> Named @"change-password" changePassword
+        :<|> Named @"change-locale" changeLocale
+        :<|> Named @"change-handle" changeHandle
+
+    clientAPI :: ServerT ClientAPI (Handler r)
+    clientAPI =
+      Named @"get-user-clients-unqualified" getUserClientsUnqualified
+        :<|> Named @"get-user-clients-qualified" getUserClientsQualified
+        :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
+        :<|> Named @"get-user-client-qualified" getUserClientQualified
+        :<|> Named @"list-clients-bulk" listClientsBulk
+        :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
+
+    prekeyAPI :: ServerT PrekeyAPI (Handler r)
+    prekeyAPI =
+      Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
+        :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
+        :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
+        :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
+        :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
+
+    userClientAPI :: ServerT UserClientAPI (Handler r)
+    userClientAPI =
+      Named @"add-client" addClient
+        :<|> Named @"update-client" updateClient
+        :<|> Named @"delete-client" deleteClient
+        :<|> Named @"list-clients" listClients
+        :<|> Named @"get-client" getClient
+        :<|> Named @"get-client-capabilities" getClientCapabilities
+        :<|> Named @"get-client-prekeys" getClientPrekeys
+
+    connectionAPI :: ServerT ConnectionAPI (Handler r)
+    connectionAPI =
+      Named @"create-connection-unqualified" createConnectionUnqualified
+        :<|> Named @"create-connection" createConnection
+        :<|> Named @"list-local-connections" listLocalConnections
+        :<|> Named @"list-connections" listConnections
+        :<|> Named @"get-connection-unqualified" getLocalConnection
+        :<|> Named @"get-connection" getConnection
+        :<|> Named @"update-connection-unqualified" updateLocalConnection
+        :<|> Named @"update-connection" updateConnection
+        :<|> Named @"search-contacts" Search.search
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -212,7 +234,7 @@ servantSitemap =
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
-sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap :: Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- User Handle API ----------------------------------------------------
 
@@ -235,7 +257,7 @@ sitemap = do
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse invalidHandle
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidHandle)
     Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
 
   -- some APIs moved to servant
@@ -252,112 +274,6 @@ sitemap = do
     Doc.returns (Doc.ref Public.modelRichInfo)
     Doc.response 200 "RichInfo" Doc.end
     Doc.errorResponse insufficientTeamPermissions
-
-  -- User Self API ------------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self" (continue updateUserH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.UserUpdate
-  document "PUT" "updateSelf" $ do
-    Doc.summary "Update your profile"
-    Doc.body (Doc.ref Public.modelUserUpdate) $
-      Doc.description "JSON body"
-    Doc.response 200 "Update successful." Doc.end
-
-  get "/self/name" (continue getUserDisplayNameH) $
-    accept "application" "json"
-      .&. zauthUserId
-  document "GET" "selfName" $ do
-    Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Public.modelUserDisplayName)
-    Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/phone" (continue changePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.PhoneUpdate
-  document "PUT" "changePhone" $ do
-    Doc.summary "Change your phone number"
-    Doc.body (Doc.ref Public.modelPhoneUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
-    Doc.errorResponse userKeyExists
-
-  head
-    "/self/password"
-    (continue checkPasswordExistsH)
-    zauthUserId
-  document "HEAD" "checkPassword" $ do
-    Doc.summary "Check that your password is set"
-    Doc.response 200 "Password is set." Doc.end
-    Doc.response 404 "Password is not set." Doc.end
-
-  put "/self/password" (continue changePasswordH) $
-    zauthUserId
-      .&. jsonRequest @Public.PasswordChange
-  document "PUT" "changePassword" $ do
-    Doc.summary "Change your password"
-    Doc.body (Doc.ref Public.modelChangePassword) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
-    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
-
-  put "/self/locale" (continue changeLocaleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.LocaleUpdate
-  document "PUT" "changeLocale" $ do
-    Doc.summary "Change your locale"
-    Doc.body (Doc.ref Public.modelChangeLocale) $
-      Doc.description "JSON body"
-    Doc.response 200 "Locale changed." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserUpdated event to contacts of self
-  put "/self/handle" (continue changeHandleH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.HandleUpdate
-  document "PUT" "changeHandle" $ do
-    Doc.summary "Change your handle"
-    Doc.body (Doc.ref Public.modelChangeHandle) $
-      Doc.description "JSON body"
-    Doc.errorResponse handleExists
-    Doc.errorResponse invalidHandle
-    Doc.response 200 "Handle changed." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/phone" (continue removePhoneH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removePhone" $ do
-    Doc.summary "Remove your phone number."
-    Doc.notes
-      "Your phone number can only be removed if you also have an \
-      \email address and a password."
-    Doc.response 200 "Phone number removed." Doc.end
-    Doc.errorResponse lastIdentity
-    Doc.errorResponse noPassword
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to self
-  delete "/self/email" (continue removeEmailH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "removeEmail" $ do
-    Doc.summary "Remove your email address."
-    Doc.notes
-      "Your email address can only be removed if you also have a \
-      \phone number."
-    Doc.response 200 "Email address removed." Doc.end
-    Doc.errorResponse lastIdentity
-
-  -- TODO put  where?
 
   -- This endpoint can lead to the following events being sent:
   -- UserDeleted event to contacts of deleted user
@@ -466,10 +382,10 @@ sitemap = do
     Doc.errorResponse whitelistError
     Doc.errorResponse invalidInvitationCode
     Doc.errorResponse missingIdentity
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse activationCodeNotFound
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
@@ -518,10 +434,10 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
     Doc.errorResponse invalidEmail
-    Doc.errorResponse invalidPhone
-    Doc.errorResponse userKeyExists
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
+    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
     Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
@@ -571,7 +487,7 @@ sitemap = do
   Team.routesPublic
   Calling.routesPublic
 
-apiDocs :: Routes Doc.ApiBuilder Handler ()
+apiDocs :: Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
     "/users/api-docs"
@@ -585,17 +501,17 @@ apiDocs =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> Handler Response
+setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> (Handler r) Response
 setPropertyH (u ::: c ::: k ::: req) = do
   propkey <- safeParsePropertyKey k
   propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
   empty <$ setProperty u c propkey propval
 
-setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> Handler ()
+setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> (Handler r) ()
 setProperty u c propkey propval =
   API.setProperty u c propkey propval !>> propDataError
 
-safeParsePropertyKey :: Public.PropertyKey -> Handler Public.PropertyKey
+safeParsePropertyKey :: Public.PropertyKey -> (Handler r) Public.PropertyKey
 safeParsePropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
   let keyText = Ascii.toText (Public.propertyKeyName k)
@@ -606,7 +522,7 @@ safeParsePropertyKey k = do
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
 -- checks the byte size of the input, and fails *without consuming all of it* if that size
 -- exceeds the settings.
-safeParsePropertyValue :: IO Lazy.ByteString -> Handler Public.PropertyValue
+safeParsePropertyValue :: IO Lazy.ByteString -> (Handler r) Public.PropertyValue
 safeParsePropertyValue lreqbody = do
   maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
   lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
@@ -614,56 +530,56 @@ safeParsePropertyValue lreqbody = do
     throwStd propertyValueTooLarge
   hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
 
-deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> Handler Response
+deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> (Handler r) Response
 deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
 
-clearPropertiesH :: UserId ::: ConnId -> Handler Response
+clearPropertiesH :: UserId ::: ConnId -> (Handler r) Response
 clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
 
-getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> Handler Response
+getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
 getPropertyH (u ::: k ::: _) = do
   val <- lift $ API.lookupProperty u k
   return $ case val of
     Nothing -> setStatus status404 empty
     Just v -> json (v :: Public.PropertyValue)
 
-listPropertyKeysH :: UserId ::: JSON -> Handler Response
+listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysH (u ::: _) = do
   keys <- lift (API.lookupPropertyKeys u)
   pure $ json (keys :: [Public.PropertyKey])
 
-listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
+listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysAndValuesH (u ::: _) = do
   keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
-getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
   getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: UserId -> Qualified UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH :: UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: UserId -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH :: UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: UserId -> Qualified UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH :: UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
+getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> (Handler r) Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwErrorDescriptionType @TooManyClients
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> (Handler r) Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleH zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
@@ -674,66 +590,66 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwErrorDescriptionType @TooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
+addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
   where
-    clientResponse :: Public.Client -> BrigAPI.NewClientResponse
+    clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
-deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler ()
+deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> (Handler r) ()
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler ()
+updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
 updateClient usr clt upd = API.updateClient usr clt upd !>> clientError
 
-listClients :: UserId -> Handler [Public.Client]
+listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
+getClient :: UserId -> ClientId -> (Handler r) (Maybe Public.Client)
 getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
-getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
+getUserClientsUnqualified :: UserId -> (Handler r) [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
   API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
-getUserClientsQualified :: Qualified UserId -> Handler [Public.PubClient]
+getUserClientsQualified :: Qualified UserId -> (Handler r) [Public.PubClient]
 getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
 
-getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
+getUserClientUnqualified :: UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
   x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: UserId -> Range 1 BrigAPI.MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
-listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: Qualified UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified :: Qualified UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientQualified quid cid = do
   x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
 
-getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
+getClientCapabilities :: UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
 
-getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
+getRichInfoH :: UserId ::: UserId ::: JSON -> (Handler r) Response
 getRichInfoH (self ::: user ::: _) =
   json <$> getRichInfo self user
 
-getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
+getRichInfo :: UserId -> UserId -> (Handler r) Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
@@ -749,11 +665,11 @@ getRichInfo self user = do
   -- Query rich info
   fromMaybe mempty <$> lift (API.lookupRichInfo user)
 
-getClientPrekeys :: UserId -> ClientId -> Handler [Public.PrekeyId]
+getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response
+createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> (Handler r) Response
 createUserH (_ ::: req) = do
   CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
   lift . Auth.setResponseCookie cok
@@ -764,7 +680,7 @@ createUserH (_ ::: req) = do
 data CreateUserResponse
   = CreateUserResponse (Public.Cookie (ZAuth.Token ZAuth.User)) UserId Public.SelfProfile
 
-createUser :: Public.NewUserPublic -> Handler CreateUserResponse
+createUser :: Public.NewUserPublic -> (Handler r) CreateUserResponse
 createUser (Public.NewUserPublic new) = do
   API.checkRestrictedUserCreation new !>> newUserError
   for_ (Public.newUserEmail new) $ checkWhitelist . Left
@@ -808,7 +724,7 @@ createUser (Public.NewUserPublic new) = do
     UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   where
-    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> AppIO ()
+    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppIO r) ()
     sendActivationEmail e u p l mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -817,7 +733,7 @@ createUser (Public.NewUserPublic new) = do
       | otherwise =
         sendActivationMail e u p l Nothing
 
-    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> AppIO ()
+    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppIO r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
@@ -827,30 +743,23 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: UserId -> Handler Public.SelfProfile
+getSelf :: UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
 
-getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
+getUserUnqualifiedH :: UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUser self (Qualified uid domain)
 
-getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
+getUser :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
   API.lookupProfile lself qualifiedUserId !>> fedError
 
-getUserDisplayNameH :: JSON ::: UserId -> Handler Response
-getUserDisplayNameH (_ ::: self) = do
-  name :: Maybe Public.Name <- lift $ API.lookupName self
-  return $ case name of
-    Just n -> json $ object ["name" .= n]
-    Nothing -> setStatus status404 empty
-
 -- FUTUREWORK: Make servant understand that at least one of these is required
-listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> Handler [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
@@ -866,7 +775,7 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> Handler [Public.UserProfile]
+listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> (Handler r) [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
@@ -880,12 +789,12 @@ listUsersByIdsOrHandles self q = do
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
   where
-    getIds :: [Handle] -> Handler [Qualified UserId]
+    getIds :: [Handle] -> (Handler r) [Qualified UserId]
     getIds localHandles = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
-    byIds :: Local UserId -> [Qualified UserId] -> Handler [Public.UserProfile]
+    byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
 newtype GetActivationCodeResp
@@ -894,60 +803,45 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
-updateUserH (uid ::: conn ::: req) = do
-  uu <- parseJsonBody req
-  API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
-  return empty
+updateUser :: UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
+updateUser uid conn uu = do
+  eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
+  pure $ either Just (const Nothing) eithErr
 
-changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
-changePhoneH (u ::: c ::: req) =
-  setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
-
-changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
-changePhone u _ (Public.puPhone -> phone) = do
-  (adata, pn) <- API.changePhone u phone !>> changePhoneError
+changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
+changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
+  (adata, pn) <- API.changePhone u phone
   loc <- lift $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
   lift $ sendActivationSms pn apair loc
 
-removePhoneH :: UserId ::: ConnId -> Handler Response
-removePhoneH (self ::: conn) = do
-  API.removePhone self conn !>> idtError
-  return empty
+removePhone :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removePhone self conn =
+  lift . exceptTToMaybe $ API.removePhone self conn
 
-removeEmailH :: UserId ::: ConnId -> Handler Response
-removeEmailH (self ::: conn) = do
-  API.removeEmail self conn !>> idtError
-  return empty
+removeEmail :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removeEmail self conn =
+  lift . exceptTToMaybe $ API.removeEmail self conn
 
-checkPasswordExistsH :: UserId -> Handler Response
-checkPasswordExistsH self = do
-  exists <- lift $ isJust <$> API.lookupPassword self
-  return $ if exists then empty else setStatus status404 empty
+checkPasswordExists :: UserId -> (Handler r) Bool
+checkPasswordExists = fmap isJust . lift . API.lookupPassword
 
-changePasswordH :: UserId ::: JsonRequest Public.PasswordChange -> Handler Response
-changePasswordH (u ::: req) = do
-  cp <- parseJsonBody req
-  API.changePassword u cp !>> changePwError
-  return empty
+changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
-changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.LocaleUpdate -> Handler Response
-changeLocaleH (u ::: conn ::: req) = do
-  l <- parseJsonBody req
-  lift $ API.changeLocale u conn l
-  return empty
+changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
+changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandleH :: UserId ::: Text -> Handler Response
+checkHandleH :: UserId ::: Text -> (Handler r) Response
 checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
-checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> Handler Response
+checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> (Handler r) Response
 checkHandlesH (_ ::: _ ::: req) = do
   Public.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
@@ -958,27 +852,22 @@ checkHandlesH (_ ::: _ ::: req) = do
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
-getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
+getHandleInfoUnqualifiedH :: UserId -> Handle -> (Handler r) (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
-changeHandleH (u ::: conn ::: req) =
-  empty <$ (changeHandle u conn =<< parseJsonBody req)
+changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
+changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
+  handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
+  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
-changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
-changeHandle u conn (Public.HandleUpdate h) = do
-  handle <- API.validateHandle h
-  -- TODO check here
-  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
-
-beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
+beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> (Handler r) Response
 beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
-beginPasswordReset :: Public.NewPasswordReset -> Handler ()
+beginPasswordReset :: Public.NewPasswordReset -> (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -987,19 +876,19 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> sendPasswordResetSms phone pair loc
 
-completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> Handler Response
+completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
 completePasswordResetH (_ ::: req) = do
   Public.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   return empty
 
-sendActivationCodeH :: JsonRequest Public.SendActivationCode -> Handler Response
+sendActivationCodeH :: JsonRequest Public.SendActivationCode -> (Handler r) Response
 sendActivationCodeH req =
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
-sendActivationCode :: Public.SendActivationCode -> Handler ()
+sendActivationCode :: Public.SendActivationCode -> (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
   either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
   checkWhitelist saUserKey
@@ -1009,7 +898,7 @@ sendActivationCode Public.SendActivationCode {..} = do
 --
 -- The tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Public.Email -> Handler ()
+customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Public.Email -> (Handler r) ()
 customerExtensionCheckBlockedDomains email = do
   mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
   for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
@@ -1020,30 +909,30 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
   API.createConnection lself conn (qUntagged target) !>> connError
 
-createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection :: UserId -> ConnId -> Qualified UserId -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
 
-updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   lother <- qualifyLocal other
   updateConnection self conn (qUntagged lother) update
 
-updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
 updateConnection self conn other update = do
   let newStatus = Public.cuStatus update
   lself <- qualifyLocal self
   mc <- API.updateConnection lself other newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
 
-listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
+listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.UserConnectionList
 listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
@@ -1056,7 +945,7 @@ listLocalConnections uid start msize = do
 --
 -- - After local connections, remote connections are listed ordered
 -- - lexicographically by their domain and then by their id.
-listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
+listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> (Handler r) Public.ConnectionsPage
 listConnections uid Public.GetMultiTablePageRequest {..} = do
   self <- qualifyLocal uid
   case gmtprState of
@@ -1076,7 +965,7 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
-    localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> Handler Public.ConnectionsPage
+    localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> (Handler r) Public.ConnectionsPage
     localsAndRemotes self pagingState size = do
       localPage <- pageToConnectionsPage Public.PagingLocals <$> Data.lookupLocalConnectionsPage self pagingState (rcast size)
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
@@ -1086,16 +975,16 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
           remotePage <- remotesOnly self Nothing remainingSize
           pure remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
-    remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> Handler Public.ConnectionsPage
+    remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> (Handler r) Public.ConnectionsPage
     remotesOnly self pagingState size =
       pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
 
-getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
+getLocalConnection :: UserId -> UserId -> (Handler r) (Maybe Public.UserConnection)
 getLocalConnection self other = do
   lother <- qualifyLocal other
   getConnection self (qUntagged lother)
 
-getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
+getConnection :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserConnection)
 getConnection self other = do
   lself <- qualifyLocal self
   lift $ Data.lookupConnection lself other
@@ -1103,17 +992,17 @@ getConnection self other = do
 deleteUser ::
   UserId ->
   Public.DeleteUser ->
-  Handler (Maybe Code.Timeout)
+  (Handler r) (Maybe Code.Timeout)
 deleteUser u body =
   API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
 
-verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> Handler Response
+verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> (Handler r) Response
 verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
 
-updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> Handler ()
+updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
@@ -1121,12 +1010,12 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
   where
-    checkSameTeam :: Maybe TeamId -> Maybe TeamId -> Handler ()
+    checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
       when (Just zuserTeamId /= maybeEmailOwnerTeamId) $ throwStd $ notFound "user not found"
     checkSameTeam Nothing _ = throwStd insufficientTeamPermissions
 
-    assertHasPerm :: Maybe TeamId -> Handler Bool
+    assertHasPerm :: Maybe TeamId -> (Handler r) Bool
     assertHasPerm maybeTeamId = fromMaybe False <$> check
       where
         check = runMaybeT $ do
@@ -1150,17 +1039,17 @@ respFromActivationRespWithStatus = \case
   ActivationRespSuccessNoIdent -> empty
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyH :: JSON ::: JsonRequest Public.Activate -> Handler Response
+activateKeyH :: JSON ::: JsonRequest Public.Activate -> (Handler r) Response
 activateKeyH (_ ::: req) = do
   activationRequest <- parseJsonBody req
   respFromActivationRespWithStatus <$> activate activationRequest
 
-activateH :: Public.ActivationKey ::: Public.ActivationCode -> Handler Response
+activateH :: Public.ActivationKey ::: Public.ActivationCode -> (Handler r) Response
 activateH (k ::: c) = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   respFromActivationRespWithStatus <$> activate activationRequest
 
-activate :: Public.Activate -> Handler ActivationRespWithStatus
+activate :: Public.Activate -> (Handler r) ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
     API.preverify tgt code !>> actError
@@ -1174,9 +1063,16 @@ activate (Public.Activate tgt code dryrun)
     respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
 
+-- Verification
+
+sendVerificationCode :: (Handler r) ()
+sendVerificationCode =
+  case Public.TeamFeatureSndFPasswordChallengeNotImplemented of
+    _ -> pure ()
+
 -- Deprecated
 
-deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
+deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> (Handler r) Response
 deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
 
 data DeprecatedMatchingResult = DeprecatedMatchingResult
@@ -1188,7 +1084,7 @@ instance ToJSON DeprecatedMatchingResult where
         "auto-connects" .= ([] :: [()])
       ]
 
-deprecatedCompletePasswordResetH :: JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset -> Handler Response
+deprecatedCompletePasswordResetH :: JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset -> (Handler r) Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   pwr <- parseJsonBody req
   API.completePasswordReset
@@ -1200,5 +1096,5 @@ deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
 
 -- Utilities
 
-ifNothing :: Utilities.Error -> Maybe a -> Handler a
+ifNothing :: Utilities.Error -> Maybe a -> (Handler r) a
 ifNothing e = maybe (throwStd e) return

@@ -81,7 +81,7 @@ import Wire.API.User.RichInfo
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-servantSitemap :: ServerT BrigIRoutes.API Handler
+servantSitemap :: ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
   Brig.User.EJPD.ejpdRequest
     :<|> getAccountFeatureConfig
@@ -91,16 +91,16 @@ servantSitemap =
     :<|> getConnectionsStatus
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
+getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
 getAccountFeatureConfig uid =
   lift (Data.lookupFeatureConferenceCalling uid)
     >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
 
-putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
+putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> (Handler r) NoContent
 putAccountFeatureConfig uid status =
   lift $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 
-deleteAccountFeatureConfig :: UserId -> Handler NoContent
+deleteAccountFeatureConfig :: UserId -> (Handler r) NoContent
 deleteAccountFeatureConfig uid =
   lift $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
@@ -110,7 +110,7 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
 
-sitemap :: Routes a Handler ()
+sitemap :: Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
@@ -279,44 +279,44 @@ sitemap = do
 -- Handlers
 
 -- | Add a client without authentication checks
-addClientInternalH :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
+addClientInternalH :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
 addClientInternalH (usr ::: req ::: connId ::: _) = do
   new <- parseJsonBody req
   setStatus status201 . json <$> addClientInternal usr new connId
 
-addClientInternal :: UserId -> NewClient -> Maybe ConnId -> Handler Client
+addClientInternal :: UserId -> NewClient -> Maybe ConnId -> (Handler r) Client
 addClientInternal usr new connId = do
   API.addClient usr connId Nothing new !>> clientError
 
-legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
+legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
   clientRequest <- parseJsonBody req
   lift $ API.legalHoldClientRequested targetUser clientRequest
   return $ setStatus status200 empty
 
-removeLegalHoldClientH :: UserId ::: JSON -> Handler Response
+removeLegalHoldClientH :: UserId ::: JSON -> (Handler r) Response
 removeLegalHoldClientH (uid ::: _) = do
   lift $ API.removeLegalHoldClient uid
   return $ setStatus status200 empty
 
-internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
 internalListClientsH (_ ::: req) = do
   json <$> (lift . internalListClients =<< parseJsonBody req)
 
-internalListClients :: UserSet -> AppIO UserClients
+internalListClients :: UserSet -> (AppIO r) UserClients
 internalListClients (UserSet usrs) = do
   UserClients . Map.fromList
     <$> API.lookupUsersClientIds (Set.toList usrs)
 
-internalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListFullClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
 internalListFullClientsH (_ ::: req) =
   json <$> (lift . internalListFullClients =<< parseJsonBody req)
 
-internalListFullClients :: UserSet -> AppIO UserClientsFull
+internalListFullClients :: UserSet -> (AppIO r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
-createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
+createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> (Handler r) Response
 createUserNoVerifyH (_ ::: req) = do
   CreateUserNoVerifyResponse uid prof <- createUserNoVerify =<< parseJsonBody req
   return . setStatus status201
@@ -325,7 +325,7 @@ createUserNoVerifyH (_ ::: req) = do
 
 data CreateUserNoVerifyResponse = CreateUserNoVerifyResponse UserId SelfProfile
 
-createUserNoVerify :: NewUser -> Handler CreateUserNoVerifyResponse
+createUserNoVerify :: NewUser -> (Handler r) CreateUserNoVerifyResponse
 createUserNoVerify uData = do
   result <- API.createUser uData !>> newUserError
   let acc = createdAccount result
@@ -339,18 +339,18 @@ createUserNoVerify uData = do
      in API.activate key code (Just uid) !>> actError
   return $ CreateUserNoVerifyResponse uid (SelfProfile usr)
 
-deleteUserNoVerifyH :: UserId -> Handler Response
+deleteUserNoVerifyH :: UserId -> (Handler r) Response
 deleteUserNoVerifyH uid = do
   setStatus status202 empty <$ deleteUserNoVerify uid
 
-deleteUserNoVerify :: UserId -> Handler ()
+deleteUserNoVerify :: UserId -> (Handler r) ()
 deleteUserNoVerify uid = do
   void $
     lift (API.lookupAccount uid)
       >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
-changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
@@ -359,7 +359,7 @@ changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> Handler ChangeEmailResponse
+changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -367,11 +367,11 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> Handler Response
+listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> (Handler r) Response
 listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
   json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> AppIO [UserAccount]
+listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> (AppIO r) [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
@@ -380,10 +380,10 @@ listActivatedAccounts elh includePendingInvitations = do
       us <- mapM (API.lookupHandle) (fromList hs)
       byIds (catMaybes us)
   where
-    byIds :: [UserId] -> AppIO [UserAccount]
+    byIds :: [UserId] -> (AppIO r) [UserAccount]
     byIds uids = API.lookupAccounts uids >>= filterM accountValid
 
-    accountValid :: UserAccount -> AppIO Bool
+    accountValid :: UserAccount -> (AppIO r) Bool
     accountValid account = case userIdentity . accountUser $ account of
       Nothing -> pure False
       Just ident ->
@@ -402,17 +402,17 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
-listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> Handler Response
+listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> (Handler r) Response
 listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
   lift $
     json
       <$> API.lookupAccountsByIdentity emailOrPhone includePendingInvitations
 
-getActivationCodeH :: JSON ::: Either Email Phone -> Handler Response
+getActivationCodeH :: JSON ::: Either Email Phone -> (Handler r) Response
 getActivationCodeH (_ ::: emailOrPhone) = do
   json <$> getActivationCode emailOrPhone
 
-getActivationCode :: Either Email Phone -> Handler GetActivationCodeResp
+getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
   apair <- lift $ API.lookupActivationCode emailOrPhone
   maybe (throwStd activationKeyNotFound) (return . GetActivationCodeResp) apair
@@ -422,11 +422,11 @@ data GetActivationCodeResp = GetActivationCodeResp (ActivationKey, ActivationCod
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-getPasswordResetCodeH :: JSON ::: Either Email Phone -> Handler Response
+getPasswordResetCodeH :: JSON ::: Either Email Phone -> (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
-getPasswordResetCode :: Either Email Phone -> AppIO (Maybe GetPasswordResetCodeResp)
+getPasswordResetCode :: Either Email Phone -> (AppIO r) (Maybe GetPasswordResetCodeResp)
 getPasswordResetCode emailOrPhone = do
   GetPasswordResetCodeResp <$$> API.lookupPasswordResetCode emailOrPhone
 
@@ -435,27 +435,27 @@ data GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, Pass
 instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> Handler Response
+changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
   API.changeAccountStatus (List1.singleton usr) status !>> accountStatusError
   return empty
 
-getAccountStatusH :: JSON ::: UserId -> Handler Response
+getAccountStatusH :: JSON ::: UserId -> (Handler r) Response
 getAccountStatusH (_ ::: usr) = do
   status <- lift $ API.lookupStatus usr
   return $ case status of
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
-getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> Handler [ConnectionStatus]
+getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
   r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
-getConnectionsStatus :: ConnectionsStatusRequestV2 -> Handler [ConnectionStatusV2]
+getConnectionsStatus :: ConnectionsStatusRequestV2 -> (Handler r) [ConnectionStatusV2]
 getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   loc <- qualifyLocal ()
   conns <- lift $ case mtos of
@@ -467,35 +467,35 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   where
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
-revokeIdentityH :: Either Email Phone -> Handler Response
+revokeIdentityH :: Either Email Phone -> (Handler r) Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
   return $ setStatus status200 empty
 
-updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> Handler Response
+updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> (Handler r) Response
 updateConnectionInternalH (_ ::: req) = do
   updateConn <- parseJsonBody req
   API.updateConnectionInternal updateConn !>> connError
   return $ setStatus status200 empty
 
-checkBlacklistH :: Either Email Phone -> Handler Response
+checkBlacklistH :: Either Email Phone -> (Handler r) Response
 checkBlacklistH emailOrPhone = do
   bl <- lift $ API.isBlacklisted emailOrPhone
   return $ setStatus (bool status404 status200 bl) empty
 
-deleteFromBlacklistH :: Either Email Phone -> Handler Response
+deleteFromBlacklistH :: Either Email Phone -> (Handler r) Response
 deleteFromBlacklistH emailOrPhone = do
   void . lift $ API.blacklistDelete emailOrPhone
   return empty
 
-addBlacklistH :: Either Email Phone -> Handler Response
+addBlacklistH :: Either Email Phone -> (Handler r) Response
 addBlacklistH emailOrPhone = do
   void . lift $ API.blacklistInsert emailOrPhone
   return empty
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: PhonePrefix -> Handler Response
+getPhonePrefixesH :: PhonePrefix -> (Handler r) Response
 getPhonePrefixesH prefix = do
   results <- lift $ API.phonePrefixGet prefix
   return $ case results of
@@ -503,18 +503,18 @@ getPhonePrefixesH prefix = do
     _ -> json results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: PhonePrefix -> Handler Response
+deleteFromPhonePrefixH :: PhonePrefix -> (Handler r) Response
 deleteFromPhonePrefixH prefix = do
   void . lift $ API.phonePrefixDelete prefix
   return empty
 
-addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> Handler Response
+addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
 addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix
   return empty
 
-updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
+updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> (Handler r) Response
 updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
   success <- lift $ Data.updateSSOId uid (Just ssoid)
@@ -524,7 +524,7 @@ updateSSOIdH (uid ::: _ ::: req) = do
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
-deleteSSOIdH :: UserId ::: JSON -> Handler Response
+deleteSSOIdH :: UserId ::: JSON -> (Handler r) Response
 deleteSSOIdH (uid ::: _) = do
   success <- lift $ Data.updateSSOId uid Nothing
   if success
@@ -533,17 +533,17 @@ deleteSSOIdH (uid ::: _) = do
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
-updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
+updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> (Handler r) Response
 updateManagedByH (uid ::: _ ::: req) = do
   ManagedByUpdate managedBy <- parseJsonBody req
   lift $ Data.updateManagedBy uid managedBy
   return empty
 
-updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
+updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> (Handler r) Response
 updateRichInfoH (uid ::: _ ::: req) = do
   empty <$ (updateRichInfo uid =<< parseJsonBody req)
 
-updateRichInfo :: UserId -> RichInfoUpdate -> Handler ()
+updateRichInfo :: UserId -> RichInfoUpdate -> (Handler r) ()
 updateRichInfo uid rup = do
   let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
   maxSize <- setRichInfoLimit <$> view settings
@@ -552,31 +552,31 @@ updateRichInfo uid rup = do
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
-getRichInfoH :: UserId -> Handler Response
+getRichInfoH :: UserId -> (Handler r) Response
 getRichInfoH uid = json <$> getRichInfo uid
 
-getRichInfo :: UserId -> Handler RichInfo
+getRichInfo :: UserId -> (Handler r) RichInfo
 getRichInfo uid = RichInfo . fromMaybe mempty <$> lift (API.lookupRichInfo uid)
 
-getRichInfoMultiH :: List UserId -> Handler Response
+getRichInfoMultiH :: List UserId -> (Handler r) Response
 getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)
 
-getRichInfoMulti :: [UserId] -> Handler [(UserId, RichInfo)]
+getRichInfoMulti :: [UserId] -> (Handler r) [(UserId, RichInfo)]
 getRichInfoMulti uids =
   lift (API.lookupRichInfoMultiUsers uids)
 
-updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> Handler Response
+updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> (Handler r) Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
 
-updateHandle :: UserId -> HandleUpdate -> Handler ()
+updateHandle :: UserId -> HandleUpdate -> (Handler r) ()
 updateHandle uid (HandleUpdate handleUpd) = do
   handle <- validateHandle handleUpd
   API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> Handler Response
+updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> (Handler r) Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
 
-updateUserName :: UserId -> NameUpdate -> Handler ()
+updateUserName :: UserId -> NameUpdate -> (Handler r) ()
 updateUserName uid (NameUpdate nameUpd) = do
   name <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidUser)) pure $ mkName nameUpd
   let uu =
@@ -590,19 +590,19 @@ updateUserName uid (NameUpdate nameUpd) = do
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
     Nothing -> throwStd (errorDescriptionTypeToWai @InvalidUser)
 
-checkHandleInternalH :: Text -> Handler Response
+checkHandleInternalH :: Text -> (Handler r) Response
 checkHandleInternalH =
   API.checkHandle >=> \case
-    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
-getContactListH :: JSON ::: UserId -> Handler Response
+getContactListH :: JSON ::: UserId -> (Handler r) Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
   return $ json $ UserIds contacts
 
 -- Utilities
 
-ifNothing :: Utilities.Error -> Maybe a -> Handler a
+ifNothing :: Utilities.Error -> Maybe a -> (Handler r) a
 ifNothing e = maybe (throwStd e) return

@@ -32,6 +32,7 @@ import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
 import Brig.Effects.SFT
+import Brig.Options (ListAllSFTServers (..))
 import qualified Brig.Options as Opt
 import Control.Error (hush)
 import Control.Lens
@@ -61,7 +62,7 @@ import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
 
-routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Deprecated endpoint, but still used by old clients.
   -- See https://github.com/zinfra/backend-issues/issues/1616 for context
@@ -93,15 +94,16 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelRtcConfiguration)
     Doc.response 200 "RTCConfiguration" Doc.end
 
-getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> Handler Response
+getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> (Handler r) Response
 getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
   json <$> getCallsConfigV2 uid connid limit
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
-getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler Public.RTCConfiguration
+getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler r) Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
   env <- liftIO . readIORef =<< view turnEnvV2
   staticUrl <- view $ settings . Opt.sftStaticUrl
+  sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
   sftEnv' <- view sftEnv
   logger <- view applog
   manager <- view httpManager
@@ -109,13 +111,13 @@ getCallsConfigV2 _ _ limit = do
     . runM @IO
     . runTinyLog logger
     . interpretSFT manager
-    $ newConfig env staticUrl sftEnv' limit CallsConfigV2
+    $ newConfig env staticUrl sftEnv' limit sftListAllServers CallsConfigV2
 
-getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
+getCallsConfigH :: JSON ::: UserId ::: ConnId -> (Handler r) Response
 getCallsConfigH (_ ::: uid ::: connid) =
   json <$> getCallsConfig uid connid
 
-getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
+getCallsConfig :: UserId -> ConnId -> (Handler r) Public.RTCConfiguration
 getCallsConfig _ _ = do
   env <- liftIO . readIORef =<< view turnEnv
   logger <- view applog
@@ -125,7 +127,7 @@ getCallsConfig _ _ = do
     . runM @IO
     . runTinyLog logger
     . interpretSFT manager
-    $ newConfig env Nothing Nothing Nothing CallsConfigDeprecated
+    $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -149,9 +151,10 @@ newConfig ::
   Maybe HttpsUrl ->
   Maybe SFTEnv ->
   Maybe (Range 1 10 Int) ->
+  ListAllSFTServers ->
   CallsConfigVersion ->
   Sem r Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit version = do
+newConfig env sftStaticUrl mSftEnv limit listAllServers version = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -177,9 +180,10 @@ newConfig env sftStaticUrl mSftEnv limit version = do
   mSftServersAll :: Maybe [SFTServer] <- case version of
     CallsConfigDeprecated -> pure Nothing
     CallsConfigV2 ->
-      case sftStaticUrl of
-        Nothing -> pure . Just $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-        Just url -> hush . unSFTGetResponse <$> sftGetAllServers url
+      case (listAllServers, sftStaticUrl) of
+        (HideAllSFTServers, _) -> pure Nothing
+        (ListAllSFTServers, Nothing) -> pure . Just $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+        (ListAllSFTServers, Just url) -> hush . unSFTGetResponse <$> sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
   pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll

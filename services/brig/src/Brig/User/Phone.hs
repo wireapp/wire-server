@@ -52,37 +52,37 @@ import Data.Text.Lazy (toStrict)
 import Imports
 import qualified Ropes.Nexmo as Nexmo
 
-sendActivationSms :: Phone -> ActivationPair -> Maybe Locale -> AppIO ()
+sendActivationSms :: Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
 sendActivationSms to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderActivationSms (ActivationSms to c) (activationSms tpl) branding
 
-sendPasswordResetSms :: Phone -> PasswordResetPair -> Maybe Locale -> AppIO ()
+sendPasswordResetSms :: Phone -> PasswordResetPair -> Maybe Locale -> (AppIO r) ()
 sendPasswordResetSms to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderPasswordResetSms (PasswordResetSms to c) (passwordResetSms tpl) branding
 
-sendLoginSms :: Phone -> LoginCode -> Maybe Locale -> AppIO ()
+sendLoginSms :: Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
 sendLoginSms to code loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderLoginSms (LoginSms to code) (loginSms tpl) branding
 
-sendDeletionSms :: Phone -> Code.Key -> Code.Value -> Locale -> AppIO ()
+sendDeletionSms :: Phone -> Code.Key -> Code.Value -> Locale -> (AppIO r) ()
 sendDeletionSms to key code loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates (Just loc)
   sendSms loc' $ renderDeletionSms (DeletionSms to key code) (deletionSms tpl) branding
 
-sendActivationCall :: Phone -> ActivationPair -> Maybe Locale -> AppIO ()
+sendActivationCall :: Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
 sendActivationCall to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendCall $ renderActivationCall (ActivationCall to c) (activationCall tpl) loc' branding
 
-sendLoginCall :: Phone -> LoginCode -> Maybe Locale -> AppIO ()
+sendLoginCall :: Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
 sendLoginCall to c loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
