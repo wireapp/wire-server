@@ -16,21 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Brig.Data.MLS.KeyPackage.Instances where
+module Brig.Data.MLS.KeyPackage.Instances () where
 
 import Cassandra
 import qualified Data.ByteString.Lazy as LBS
 import Imports
 import Wire.API.MLS.KeyPackage
-
--- kpBlob :: KeyPackageData -> Blob
--- kpBlob = Blob . kpData
-
--- kpFromBlob :: Blob -> KeyPackageData
--- kpFromBlob = KeyPackageData . fromBlob
-
--- kprBlob :: KeyPackageRef -> Blob
--- kprBlob = Blob . LBS.fromStrict . unKeyPackageRef
 
 instance Cql KeyPackageRef where
   ctype = Tagged BlobColumn
