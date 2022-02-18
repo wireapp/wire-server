@@ -64,7 +64,7 @@ tests conf fbc fgc p b c ch g n aws db = do
       "user"
       [ API.User.Client.tests cl at conf p b c g,
         API.User.Account.tests cl at conf p b c ch g aws,
-        API.User.Auth.tests conf p z b g n,
+        API.User.Auth.tests conf p z db b g n,
         API.User.Connection.tests cl at conf p b c g fbc fgc db,
         API.User.Handles.tests cl at conf p b c g,
         API.User.PasswordReset.tests cl at conf p b c g,

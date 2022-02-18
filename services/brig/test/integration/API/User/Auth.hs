@@ -25,17 +25,19 @@ module API.User.Auth
 where
 
 import API.Team.Util
+import qualified API.User.Util as Util
 import Bilge hiding (body)
 import qualified Bilge as Http
 import Bilge.Assert hiding (assert)
+import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
-import qualified Brig.Types.Code as Code
+import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.Types.User.Auth as Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
+import qualified Cassandra as DB
 import Control.Lens (set, (^.))
 import Control.Retry
 import Data.Aeson as Aeson
@@ -60,6 +62,8 @@ import Test.Tasty.HUnit
 import qualified Test.Tasty.HUnit as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
+import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.User as Public
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -80,8 +84,8 @@ onlyIfLhWhitelisted action = do
           \(the 'withLHWhitelist' trick does not work because it does not allow \
           \brig to talk to the dynamically spawned galley)."
 
-tests :: Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
-tests conf m z b g n =
+tests :: Opts.Opts -> Manager -> ZAuth.Env -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
+tests conf m z db b g n =
   testGroup
     "auth"
     [ testGroup
@@ -115,7 +119,10 @@ tests conf m z b g n =
             [ test m "nginz-login" (testNginz b n),
               test m "nginz-legalhold-login" (onlyIfLhWhitelisted (testNginzLegalHold b g n)),
               test m "nginz-login-multiple-cookies" (testNginzMultipleCookies conf b n)
-            ]
+            ],
+          testGroup
+            "snd-factor-password-challenge"
+            [test m "test-login-verify6-digit-email-code" $ testLoginVerify6DigitEmailCode b g db]
         ],
       testGroup
         "refresh /access"
@@ -360,6 +367,28 @@ testSendLoginCode brig = do
   -- Timeout is reset
   let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
+
+testLoginVerify6DigitEmailCode :: Brig -> Galley -> DB.ClientState -> Http ()
+testLoginVerify6DigitEmailCode brig galley db = do
+  (u, tid) <- createUserWithTeam' brig
+  let checkLogin body status = login brig body PersistentCookie !!! const status === statusCode
+  let checkLoginFails body = checkLogin body 403
+  let checkLoginSucceeds body = checkLogin body 200
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  let Just email = userEmail u
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  gen <- Code.mk6DigitGen (Code.ForEmail email)
+  Just vcode <- lookupCode db gen Code.AccountLogin
+
+  let loginMissingCode = PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
+  checkLoginFails loginMissingCode
+
+  let loginWithCode = PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+  checkLoginSucceeds loginWithCode
+
+lookupCode :: MonadIO m => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
+lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
