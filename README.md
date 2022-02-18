@@ -11,11 +11,31 @@ Visit https://docs.wire.com/
 The structure of this document has been heavily inspired by [this blog
 post](https://www.divio.com/blog/documentation/).
 
-We use [sphinx](https://sphinx-doc.org/) for rendering.  Here is a [cheat
-sheet](https://docutils.sourceforge.net/docs/user/rst/quickref.html)
-for writing re-structured text (`*.rst`).
-[here is another one](https://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
-And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
+We use [sphinx](https://sphinx-doc.org/) for rendering documentation.
+
+Most documentation is written in RestructuredText (with `.rst` file extension).
+The reason for that is A) the default support from sphinx and B) some of the
+features of RST such as includes, "typesafe" ("well, giving warnings on
+compiling when broken") cross-linking to another section in a different file,
+etc.
+
+For dealing with RST, here are some resources:
+
+* here is a [cheat sheet](https://docutils.sourceforge.net/docs/user/rst/quickref.html)
+* [here is another one](https://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
+* And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
+
+At the popular request, there is now also some support for markdown files (`.md` file
+extension). Note that this is [commonmark](https://spec.commonmark.org/0.30/) which is
+different to e.g.  github-flavoured markdown. See
+[recommonmark](https://recommonmark.readthedocs.io/en/latest/) for the
+currently-supported markdown.
+
+At this point, a documentation contributor creating a new file can choose to use
+commonmark markdown as the file format. Please hold off converting any existing files to
+a different format until better markdown support (`myst_parser` support, see
+[MyST](https://myst-parser.readthedocs.io/en/latest/)) has been added to wire-docs and
+pros and cons of the formats have been internally evaluated.
 
 ### Conventions
 
