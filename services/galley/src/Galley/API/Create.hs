@@ -103,7 +103,10 @@ createGroupConversation lusr conn body = do
       allUsers = newConvMembers lusr body
   name <- rangeCheckedMaybe (newConvName body)
   o <- input
-  checkedUsers <- checkedConvSize o allUsers
+  checkedUsers <- case newConvProtocol body of
+    ProtocolProteus -> undefined
+    ProtocolMLS -> undefined
+    checkedConvSize o allUsers
   checkCreateConvPermissions lusr body tinfo allUsers
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
@@ -119,7 +122,7 @@ createGroupConversation lusr conn body = do
           ncReceiptMode = newConvReceiptMode body,
           ncUsers = checkedUsers,
           ncRole = newConvUsersRole body,
-          ncProtocol = ProtocolProteus
+          ncProtocol = newConvProtocol body
         }
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation

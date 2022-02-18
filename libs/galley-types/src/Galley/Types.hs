@@ -71,6 +71,7 @@ module Galley.Types
     MutedStatus (..),
     ReceiptMode (..),
     Protocol (..),
+    GroupId,
     TypingStatus (..),
     UserClientMap (..),
     UserClients (..),

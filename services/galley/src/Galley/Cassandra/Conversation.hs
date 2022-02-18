@@ -53,15 +53,15 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 
 createConversation :: NewConversation -> Client Conversation
-createConversation (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol) = do
+createConversation (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol groupid) = do
   conv <- Id <$> liftIO nextRandom
   retry x5 $ case mtid of
     Nothing ->
-      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Nothing, mtimer, recpt))
+      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Nothing, mtimer, recpt, protocol, groupid))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Just tid, mtimer, recpt)
+      addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Just tid, mtimer, recpt, protocol, groupid)
       addPrepQuery Cql.insertTeamConv (tid, conv)
   let newUsers = fmap (,role) (fromConvSize users)
   (lmems, rmems) <- addMembers conv (ulAddLocal (usr, roleNameWireAdmin) newUsers)
@@ -79,7 +79,8 @@ createConversation (NewConversation ty usr acc arole name mtid mtimer recpt user
         convDeleted = Nothing,
         convMessageTimer = mtimer,
         convReceiptMode = recpt,
-        convProtocol = protocol
+        convProtocol = Just protocol,
+        convGroupId = groupid
       }
 
 createConnectConversation ::
@@ -91,7 +92,7 @@ createConnectConversation a b name = do
   let conv = localOne2OneConvId a b
       a' = Id . U.unpack $ a
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers conv (UserList [a'] [])
@@ -109,7 +110,8 @@ createConnectConversation a b name = do
         convDeleted = Nothing,
         convMessageTimer = Nothing,
         convReceiptMode = Nothing,
-        convProtocol = ProtocolProteus
+        convProtocol = Just ProtocolProteus,
+        convGroupId = Nothing
       }
 
 createConnectConversationWithRemote ::
@@ -119,7 +121,7 @@ createConnectConversationWithRemote ::
   Client Conversation
 createConnectConversationWithRemote cid creator m = do
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, Cql.Set [], Nothing, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, Cql.Set [], Nothing, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers cid m
@@ -137,7 +139,8 @@ createConnectConversationWithRemote cid creator m = do
         convDeleted = Nothing,
         convMessageTimer = Nothing,
         convReceiptMode = Nothing,
-        convProtocol = ProtocolProteus
+        convProtocol = Just ProtocolProteus,
+        convGroupId = Nothing
       }
 
 createLegacyOne2OneConversation ::
@@ -167,11 +170,11 @@ createOne2OneConversation ::
   Client Conversation
 createOne2OneConversation conv self other name mtid = do
   retry x5 $ case mtid of
-    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing))
+    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Just tid, Nothing, Nothing)
+      addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Just tid, Nothing, Nothing, ProtocolProteus, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv)
   (lmems, rmems) <- addMembers conv (toUserList self [qUntagged self, other])
   pure
@@ -188,7 +191,8 @@ createOne2OneConversation conv self other name mtid = do
         convDeleted = Nothing,
         convMessageTimer = Nothing,
         convReceiptMode = Nothing,
-        convProtocol = ProtocolProteus
+        convProtocol = Just ProtocolProteus,
+        convGroupId = Nothing
       }
 
 createSelfConversation :: Local UserId -> Maybe (Range 1 256 Text) -> Client Conversation
@@ -197,7 +201,7 @@ createSelfConversation lusr name = do
       conv = selfConv usr
       lconv = qualifyAs lusr conv
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
   (lmems, rmems) <- addMembers (tUnqualified lconv) (UserList [tUnqualified lusr] [])
   pure
     Conversation
@@ -213,7 +217,8 @@ createSelfConversation lusr name = do
         convDeleted = Nothing,
         convMessageTimer = Nothing,
         convReceiptMode = Nothing,
-        convProtocol = ProtocolProteus
+        convProtocol = Just ProtocolProteus,
+        convGroupId = Nothing
       }
 
 deleteConversation :: ConvId -> Client ()
@@ -233,10 +238,10 @@ conversationMeta conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, p) =
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, p, gid) =
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-       in ConversationMetadata t c (defAccess t a) accessRoles n i mt rm (fromMaybe ProtocolProteus p)
+       in ConversationMetadata t c (defAccess t a) accessRoles n i mt rm (fromMaybe ProtocolProteus p) gid
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
@@ -309,8 +314,8 @@ localConversations ids = do
       let m =
             Map.fromList $
               map
-                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p) ->
-                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p))
+                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid) ->
+                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid))
                 )
                 cs
       return $ map (`Map.lookup` m) ids
@@ -351,12 +356,12 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe Protocol) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe Protocol, Maybe GroupId) ->
   Maybe Conversation
 toConv cid mms remoteMems conv =
   f mms <$> conv
   where
-    f ms (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, prot) =
+    f ms (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, prot, gid) =
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
           accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
        in Conversation
@@ -372,7 +377,8 @@ toConv cid mms remoteMems conv =
             del
             timer
             rm
-            (fromMaybe ProtocolProteus prot)
+            prot
+            gid
 
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>

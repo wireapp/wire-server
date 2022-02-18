@@ -28,15 +28,7 @@ import Imports
 import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
-  ( Access,
-    AccessRoleV2,
-    ConvType,
-    ConversationMetadata,
-    Protocol,
-    ReceiptMode,
-  )
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
@@ -126,7 +118,8 @@ data NewRemoteConversation conv = NewRemoteConversation
     rcNonCreatorMembers :: Set OtherMember,
     rcMessageTimer :: Maybe Milliseconds,
     rcReceiptMode :: Maybe ReceiptMode,
-    rcProtocol :: Protocol
+    rcProtocol :: Maybe Protocol,
+    rcGroupId :: Maybe GroupId
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))

@@ -78,7 +78,8 @@ convMetadata c =
     (convTeam c)
     (convMessageTimer c)
     (convReceiptMode c)
-    (convProtocol c)
+    (fromMaybe ProtocolProteus . convProtocol $ c)
+    (convGroupId c)
 
 convAccessData :: Conversation -> ConversationAccessData
 convAccessData conv =

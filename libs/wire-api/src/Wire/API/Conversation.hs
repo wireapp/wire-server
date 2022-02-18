@@ -646,7 +646,9 @@ data NewConv = NewConv
     newConvMessageTimer :: Maybe Milliseconds,
     newConvReceiptMode :: Maybe ReceiptMode,
     -- | Every member except for the creator will have this role
-    newConvUsersRole :: RoleName
+    newConvUsersRole :: RoleName,
+    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
+    newConvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -695,6 +697,7 @@ instance ToSchema NewConv where
           .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                  <|> pure roleNameWireAdmin
              )
+        <*> newConvProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" schema)
     where
       usersDesc =
         "List of user IDs (excluding the requestor) to be \
