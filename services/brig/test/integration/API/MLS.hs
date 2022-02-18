@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Imports
 import System.Process
@@ -16,20 +17,22 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.MLS.KeyPackage
 import Wire.API.User
+import Wire.API.User.Client
 
 tests :: Manager -> Brig -> Opts -> TestTree
 tests m b _opts =
   testGroup
     "MLS"
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
-      test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b)
+      test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
+      test m "GET /mls/key-packages/claim/:domain/:user" (testKeyPackageClaim b)
     ]
 
 testKeyPackageUpload :: Brig -> Http ()
 testKeyPackageUpload brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- randomClient
-  uploadKeyPackages u c 5
+  uploadKeyPackages brig u c 5
 
   count :: KeyPackageCount <-
     responseJsonError
@@ -53,10 +56,50 @@ testKeyPackageZeroCount brig = do
       <!! const 200 === statusCode
   liftIO $ count @?= 0
 
+testKeyPackageClaim :: Brig -> Http ()
+testKeyPackageClaim brig = do
+  -- setup a user u with two clients c1 and c2
+  u <- userQualifiedId <$> randomUser brig
+  [c1, c2] <- for [0, 1] $ \i -> do
+    c <-
+      fmap clientId $
+        responseJsonError
+          =<< addClient
+            brig
+            (qUnqualified u)
+            (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
+          <!! const 201 === statusCode
+    -- upload 5 key packages for each client
+    uploadKeyPackages brig u c 5
+    pure c
+
+  -- claim packages for both clients of u
+  u' <- userQualifiedId <$> randomUser brig
+  bundle <-
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+            . zUser (qUnqualified u')
+        )
+        <!! const 200 === statusCode
+  liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+
+  -- check that we have one fewer key package now
+  for_ [c1, c2] $ \c -> do
+    count :: KeyPackageCount <-
+      responseJsonError
+        =<< get
+          ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+              . zUser (qUnqualified u)
+          )
+        <!! const 200 === statusCode
+    liftIO $ count @?= 4
+
 --------------------------------------------------------------------------------
 
-uploadKeyPackages :: Qualified UserId -> ClientId -> Int -> Http ()
-uploadKeyPackages u c n = do
+uploadKeyPackages :: Brig -> Qualified UserId -> ClientId -> Int -> Http ()
+uploadKeyPackages brig u c n = do
   let cmd =
         "crypto-cli key-package "
           <> show (qUnqualified u)

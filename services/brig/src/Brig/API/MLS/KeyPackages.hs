@@ -66,7 +66,9 @@ claimLocalKeyPackages lusr target = do
     mkEntry c =
       runMaybeT $
         KeyPackageBundleEntry (qUntagged target) c
-          <$> Data.claimKeyPackage (tUnqualified target) c
+          <$> do
+            p <- Data.claimKeyPackage (tUnqualified target) c
+            pure p
 
 countKeyPackages :: Local UserId -> ClientId -> Handler r KeyPackageCount
 countKeyPackages lusr c =
