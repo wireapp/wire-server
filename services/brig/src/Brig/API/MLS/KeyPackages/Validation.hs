@@ -52,7 +52,7 @@ validateKeyPackageData identity kpd = do
       pure
       $ cipherSuiteTag (kpCipherSuite (kpTBS kp))
   -- validate signature
-  -- TODO: authenticate signature key
+  -- FUTUREWORK: authenticate signature key
   let key = bcSignatureKey (kpCredential (kpTBS kp))
   unless (csVerifySignature cs key (LBS.toStrict tbs) (kpSignature kp)) $
     throwErrorDescription (mlsProtocolError "Invalid signature")
@@ -68,8 +68,10 @@ parseKeyPackage (kpData -> kpd) = do
 
 validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
 validateKeyPackage identity (kpTBS -> kp) = do
-  -- TODO: validate ciphersuite
-  -- TODO: validate protocol version
+  maybe
+    (throwErrorDescription (mlsProtocolError "Unsupported protocol version"))
+    pure
+    (pvTag (kpProtocolVersion kp) >>= guard . (== ProtocolMLS10))
   validateCredential identity (kpCredential kp)
   validateExtensions (kpExtensions kp)
 
