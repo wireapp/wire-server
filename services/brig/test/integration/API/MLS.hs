@@ -21,29 +21,15 @@ tests :: Manager -> Brig -> Opts -> TestTree
 tests m b _opts =
   testGroup
     "MLS"
-    [ test m "POST /mls/key-packages/self" (testKeyPackageUpload b)
+    [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
+      test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b)
     ]
 
 testKeyPackageUpload :: Brig -> Http ()
 testKeyPackageUpload brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- randomClient
-  let cmd =
-        "crypto-cli key-package "
-          <> show (qUnqualified u)
-          <> ":"
-          <> T.unpack (client c)
-          <> "@"
-          <> T.unpack (domainText (qDomain u))
-  kps <- replicateM 5 . liftIO . fmap (KeyPackageData . LBS.fromStrict) . spawn $ shell cmd
-  let upload = KeyPackageUpload kps
-  post
-    ( brig
-        . paths ["mls", "key-packages", "self", toByteString' c]
-        . zUser (qUnqualified u)
-        . json upload
-    )
-    !!! const 201 === statusCode
+  uploadKeyPackages u c 5
 
   count :: KeyPackageCount <-
     responseJsonError
@@ -53,3 +39,37 @@ testKeyPackageUpload brig = do
         )
       <!! const 200 === statusCode
   liftIO $ count @?= 5
+
+testKeyPackageZeroCount :: Brig -> Http ()
+testKeyPackageZeroCount brig = do
+  u <- userQualifiedId <$> randomUser brig
+  c <- randomClient
+  count :: KeyPackageCount <-
+    responseJsonError
+      =<< get
+        ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+            . zUser (qUnqualified u)
+        )
+      <!! const 200 === statusCode
+  liftIO $ count @?= 0
+
+--------------------------------------------------------------------------------
+
+uploadKeyPackages :: Qualified UserId -> ClientId -> Int -> Http ()
+uploadKeyPackages u c n = do
+  let cmd =
+        "crypto-cli key-package "
+          <> show (qUnqualified u)
+          <> ":"
+          <> T.unpack (client c)
+          <> "@"
+          <> T.unpack (domainText (qDomain u))
+  kps <- replicateM n . liftIO . fmap (KeyPackageData . LBS.fromStrict) . spawn $ shell cmd
+  let upload = KeyPackageUpload kps
+  post
+    ( brig
+        . paths ["mls", "key-packages", "self", toByteString' c]
+        . zUser (qUnqualified u)
+        . json upload
+    )
+    !!! const 201 === statusCode
