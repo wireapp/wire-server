@@ -22,6 +22,8 @@ extra-source-files:
   - docs/*
 library:
   source-dirs: src
+  ghc-options:
+  - -fplugin=Polysemy.Plugin
   generated-other-modules:
     - Brig.Docs.Swagger
   dependencies:
@@ -93,6 +95,7 @@ library:
   - optparse-applicative >=0.11
   - pem >=0.2
   - polysemy
+  - polysemy-plugin
   - polysemy-wire-zoo
   - proto-lens >=0.1
   - random-shuffle >=0.0.3
