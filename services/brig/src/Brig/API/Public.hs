@@ -1070,8 +1070,8 @@ activate (Public.Activate tgt code dryrun)
 sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
 sendVerificationCode req = do
   let action = Public.svcAction req
-  -- TODO(leif): guard as long as not all of the actions are implement.
-  -- remove when all done.
+  -- TODO(leif): guard as long as not all of the actions are implemented
+  -- remove when all done
   case action of
     Public.GenerateScimToken -> pure ()
     Public.Login -> do

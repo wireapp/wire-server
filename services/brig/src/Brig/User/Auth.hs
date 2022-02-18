@@ -72,6 +72,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
+import qualified Wire.API.Team.Feature as Public
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -124,18 +125,23 @@ login (PasswordLogin li pw label code) typ = do
   verifyCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
   where
+    verifyCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
     verifyCode c u = do
-      -- TODO(leif): check team feature status
       mbAccount <- lift $ Data.lookupAccount u
-      let mbEmail = join $ userEmail <$> accountUser <$> mbAccount
-      case mbEmail of
-        Just email -> do
-          key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
-          mbCode <- Code.verify key Code.AccountLogin `traverse` c
-          case mbCode of
-            Just _ -> pure ()
-            Nothing -> throwE LoginFailed -- TODO(leif): better error
-        Nothing -> throwE LoginFailed -- TODO(leif): better error
+      mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` (join $ userTeam <$> accountUser <$> mbAccount)
+      let featureStatus = maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
+      case featureStatus of
+        Public.TeamFeatureEnabled -> do
+          let mbEmail = join $ userEmail <$> accountUser <$> mbAccount
+          case mbEmail of
+            Just email -> do
+              key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
+              mbCode <- Code.verify key Code.AccountLogin `traverse` c
+              case mbCode of
+                Just _ -> pure ()
+                Nothing -> loginFailed u -- TODO(leif): better error
+            Nothing -> loginFailed u -- TODO(leif): better error
+        Public.TeamFeatureDisabled -> pure ()
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
