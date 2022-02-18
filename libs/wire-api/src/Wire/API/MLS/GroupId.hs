@@ -17,7 +17,6 @@
 
 module Wire.API.MLS.GroupId
   ( GroupId,
-    ParseErr,
     mkGroupId,
     serialise,
     testGId,
@@ -60,26 +59,22 @@ instance ToSchema GroupId where
       f :: Text -> A.Parser GroupId
       f = either (fail . show) pure . mkGroupId . T.encodeUtf8
 
-newtype ParseErr = ParseErr String
-  deriving (Eq, Show)
-
 -- | Parse a ''GroupId' from a byte sequence in the network order.
-mkGroupId :: ByteString -> Either ParseErr GroupId
-mkGroupId ((<= 256) . length -> False) = Left . ParseErr $ "GroupId: it has to be up to 256 bytes in size"
+mkGroupId :: ByteString -> Either String GroupId
+mkGroupId ((<= 256) . length -> False) = Left "GroupId: it has to be up to 256 bytes in size"
 mkGroupId bs = do
   convId <-
     fmap Id
-      . note (ParseErr "Not a UUID")
+      . note "Not a UUID"
       . fromByteString
       . fromStrict
       $ take l bs
   domain <-
-    mapLeft ParseErr $
-      mkMLSDomain
-        =<< ( mapLeft show
-                . T.decodeUtf8'
-                $ drop l bs
-            )
+    mkMLSDomain
+      =<< ( mapLeft show
+              . T.decodeUtf8'
+              $ drop l bs
+          )
   pure . GroupId $ Qualified convId domain
   where
     l = 16
