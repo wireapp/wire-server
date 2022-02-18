@@ -2,14 +2,12 @@
 
 ## Release notes
 
-* For wire.com operators: to enable versioned API paths, make sure that nginz is deployed. (#2116)
-* Enforce conversation access roles more tightly on the backend: if a guests or non-team-members are not allowed, block guest link creation (new behavior) as well as ephemeral users joining (old behavior). (#2076)
+* Upgrade team-settings version to 4.6.1-v0.29.3-0-28cbbd7 (#2106)
+* Upgrade webapp version to 2022-02-08-production.0-v0.29.2-0-4d437bb (#2107)
+* Change the default set of TLS ciphers (both for the client and the federation APIs) to be compliant to the recommendations of [TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html). (#2112)
+* For wire.com operators: make sure that nginz is deployed. (#2116, #2124)
 * Optional team feature config `validateSAMLEmails` added to galley.yaml.
   The feature was disabled by default before this release and is now enabled by default. The server wide default can be changed in galley.yaml. Please refer to [/docs/reference/config-options.md#validate-saml-emails](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#validate-saml-emails) (#2117)
-* This change requires an nginz upgrade to expose the newly added endpoint for sending a verification code. (#2124)
-* Upgrade team-settings version to 4.6.1-v0.29.3-0-28cbbd7 (#2106)
-* Change the default set of TLS ciphers (both for the client and the federation APIs) to be compliant to the recommendations of [TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html). (#2112)
-* Upgrade webapp version to 2022-02-08-production.0-v0.29.2-0-4d437bb (#2107)
 
 ## API changes
 
@@ -24,32 +22,26 @@
 ## Bug fixes and other updates
 
 * Ensure empty responses show up without a schema in swagger. They were shown as empty arrays before. (#2104)
-* Ensure the guest links feature is enabled when someone joins by code. (#2084)
+* Require the guest links feature is enabled when someone joins by code. (#2084)
 * Escape disallowed characters at the beginning of CSV cells to prevent CSV injection vulnerability. (#2096)
 * The field `icon` in the body of the `PUT /team/:tid` endpoint is now typed to prevent potential injection attacks. (#2103)
 
 ## Internal changes
 
-* Remove uses of servant-generics from brig (#2100)
+* Enforce conversation access roles more tightly on the backend (was previously only enforce on client): if a guests or non-team-members are not allowed, block guest link creation (new behavior) as well as ephemeral users joining (old behavior). (#2076)
+* Remove uses of servant-generics from brig (#2100, #2086)
+* Migrate more API end-points to servant. (#2016, #2081, #2091)
 * Introduce the row type variable in Brig monads (#2140)
-* Build ubuntu20 docker images with cabal instead of stack (#2119)
-* Add cabal build caches to ubuntu20 prebuilder and builder images (#2060)
+* Build ubuntu20 docker images with cabal instead of stack (#2119, #2060)
 * Drop managed conversations (#2125)
-* To investigate issues related to push notifications, adjust Gundeck `Debug`
-  leveled logs to not print the message itself. So, that it can safely be turned
-  on in production environments. Add a log entry when a bulk notification is
-  pushed to Cannon. (#2053)
+* To investigate issues related to push notifications, adjust Gundeck `Debug` leveled logs to not print the message itself. So, that it can safely be turned on in production environments. Add a log entry when a bulk notification is pushed to Cannon. (#2053)
 * Add integration tests for scim/saml user creation (#2123)
-* Remove servant-generic from internal endpoints and remove them from Swagger (#2086)
 * Wrap stack with NIX_BUILD_SHELL set to LD_LIBRARY_PATH compatible shell (#2105)
 * Removed redundant `setDefaultTemplateLocale` config from the brig helm template. (#2099)
 * [not done yet, please do not enable] Optional team feature config `sndFactorPasswordChallenge` added to galley.yaml.
   The feature is disabled by default. The server wide default can be changed in galley.yaml. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2138)
 * Prometheus: Ignore RawResponses (e.g. cannon's await responses) from metrics (#2108)
 * Refactor internal handlers for Proteus conversation creation (#2125)
-* Servantify /self/* endpoints in brig. (#2091)
-* Migrate the internal API of Cannon to Servant. (#2081)
-* Convert galley conversation endpoints to Servant (#2016)
 * Specify (in a test) how a message to a deleted legalhold device is refused to be sent. (#2131)
 
 ## Federation changes
