@@ -1,1 +1,0 @@
-Ensure empty responses show up without a schema in swagger. They were shown as empty arrays before.

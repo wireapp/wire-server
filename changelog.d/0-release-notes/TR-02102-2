@@ -1,1 +1,0 @@
-Change the default set of TLS ciphers (both for the client and the federation APIs) to be compliant to the recommendations of [TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html).

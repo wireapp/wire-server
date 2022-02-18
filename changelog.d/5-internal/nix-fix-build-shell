@@ -1,1 +1,0 @@
-Wrap stack with NIX_BUILD_SHELL set to LD_LIBRARY_PATH compatible shell

@@ -1,2 +1,0 @@
-[not done yet, please do not enable] Optional team feature config `sndFactorPasswordChallenge` added to galley.yaml.
-The feature is disabled by default. The server wide default can be changed in galley.yaml. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)
