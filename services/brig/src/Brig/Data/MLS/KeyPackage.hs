@@ -37,10 +37,11 @@ insertKeyPackages :: UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> 
 insertKeyPackages uid cid kps = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  for_ kps $ \(ref, kp) -> addPrepQuery q (uid, cid, ref, kp)
+  for_ kps $ \(ref, kp) -> do
+    addPrepQuery q (uid, cid, kp, ref)
   where
-    q :: PrepQuery W (UserId, ClientId, KeyPackageRef, KeyPackageData) ()
-    q = "INSERT INTO mls_key_packages (uid, text, ref, data) VALUES (?, ?, ?, ?)"
+    q :: PrepQuery W (UserId, ClientId, KeyPackageData, KeyPackageRef) ()
+    q = "INSERT INTO mls_key_packages (user, client, data, ref) VALUES (?, ?, ?, ?)"
 
 claimKeyPackage :: UserId -> ClientId -> MaybeT (AppIO r) KeyPackageData
 claimKeyPackage u c = MaybeT $ do
@@ -54,17 +55,17 @@ claimKeyPackage u c = MaybeT $ do
       pure kpd
   where
     lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
-    lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE uid = ? AND client = ?"
+    lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ?"
 
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
-    deleteQuery = "DELETE FROM mls_key_packages WHERE uid = ? AND client = ? AND ref = ?"
+    deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
 
-countKeyPackages :: UserId -> ClientId -> AppIO r Int32
+countKeyPackages :: UserId -> ClientId -> AppIO r Int64
 countKeyPackages u c =
-  retry x1 $ sum . fmap runIdentity <$> query q (params LocalQuorum (u, c))
+  retry x1 $ sum . fmap runIdentity <$> query1 q (params LocalQuorum (u, c))
   where
-    q :: PrepQuery R (UserId, ClientId) (Identity Int32)
-    q = "SELECT COUNT(*) FROM mls_key_packages WHERE uid = ? AND client = ?"
+    q :: PrepQuery R (UserId, ClientId) (Identity Int64)
+    q = "SELECT COUNT(*) FROM mls_key_packages WHERE user = ? AND client = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities

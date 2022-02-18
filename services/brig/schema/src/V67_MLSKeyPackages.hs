@@ -36,7 +36,7 @@ migration =
             , client text
             , ref blob
             , data blob
-            , PRIMARY KEY (user, client)
+            , PRIMARY KEY ((user, client), ref)
         ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
           AND gc_grace_seconds = 864000;
      |]

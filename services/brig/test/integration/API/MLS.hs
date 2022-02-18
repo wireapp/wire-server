@@ -12,11 +12,10 @@ import qualified Data.Text as T
 import Imports
 import System.Process
 import Test.Tasty
+import Test.Tasty.HUnit
 import Util
 import Wire.API.MLS.KeyPackage
 import Wire.API.User
-
--- import Test.Tasty.HUnit
 
 tests :: Manager -> Brig -> Opts -> TestTree
 tests m b _opts =
@@ -45,3 +44,12 @@ testKeyPackageUpload brig = do
         . json upload
     )
     !!! const 201 === statusCode
+
+  count :: KeyPackageCount <-
+    responseJsonError
+      =<< get
+        ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+            . zUser (qUnqualified u)
+        )
+      <!! const 200 === statusCode
+  liftIO $ count @?= 5

@@ -121,6 +121,7 @@ instance ToSchema KeyPackageBundle where
         <$> kpbEntries .= field "key_packages" (set schema)
 
 newtype KeyPackageCount = KeyPackageCount {unKeyPackageCount :: Int}
+  deriving newtype (Eq, Ord, Num, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageCount
 
 instance ToSchema KeyPackageCount where

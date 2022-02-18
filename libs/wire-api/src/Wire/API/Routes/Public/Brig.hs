@@ -688,7 +688,7 @@ type MLSKeyPackageAPI =
                :> CanThrow MLSIdentityMismatch
                :> CaptureClientId "client"
                :> ReqBody '[JSON] KeyPackageUpload
-               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 200 "Key packages uploaded"] ()
+               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
            )
            :<|> ( Named
                     "mls-key-packages-claim"
@@ -700,9 +700,10 @@ type MLSKeyPackageAPI =
                 )
            :<|> ( Named
                     "mls-key-packages-count"
-                    ( "count"
-                        :> Summary "Return the number of unused key packages for the given client"
+                    ( "self"
                         :> CaptureClientId "client"
+                        :> "count"
+                        :> Summary "Return the number of unused key packages for the given client"
                         :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
                     )
                 )
