@@ -1077,9 +1077,7 @@ sendVerificationCode req = do
     Public.Login -> do
       let email = Public.svcEmail req
       mbUserId <- lift $ UserKey.lookupKey $ UserKey.userEmailKey email
-      mbTeamId <- lift $ join <$> Intra.getTeamId `traverse` mbUserId
-      mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
-      let featureStatus = maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
+      featureStatus <- getFeatureStatus mbUserId
       case (mbUserId, featureStatus) of
         (Just userId, Public.TeamFeatureEnabled) -> do
           gen <- Code.mk6DigitGen $ Code.ForEmail email
@@ -1104,6 +1102,12 @@ sendVerificationCode req = do
     sendMail email code = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> sendLoginVerificationMail email code Nothing -- TODO(leif): use correct locale
+    getFeatureStatus mbUserId = do
+      mbStatus <- lift $ do
+        mbTeamId <- join <$> Intra.getTeamId `traverse` mbUserId
+        Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
+      pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus      
+
 
 -- Deprecated
 
