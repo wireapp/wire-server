@@ -26,10 +26,10 @@ import Control.Lens (over, to, view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON, object, (.=))
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 import Data.Id
 import Data.List1 (list1)
 import qualified Data.List1 as List1
@@ -683,8 +683,8 @@ testAllFeatures = do
           toS TeamFeatureGuestLinks .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
           toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Unlocked
         ]
-    toS :: TeamFeatureName -> Text
-    toS = TE.decodeUtf8 . toByteString'
+    toS :: TeamFeatureName -> Aeson.Key
+    toS = AesonKey.fromText . TE.decodeUtf8 . toByteString'
 
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
@@ -708,7 +708,7 @@ testFeatureConfigConsistency = do
         Left err -> liftIO $ assertFailure ("Did not parse as an object" <> err)
         Right (val :: Aeson.Value) ->
           case val of
-            (Aeson.Object hm) -> pure (Set.fromList . HashSet.toList . HashMap.keysSet $ hm)
+            (Aeson.Object hm) -> pure (Set.fromList . map AesonKey.toText . KeyMap.keys $ hm)
             x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
 
     allFeatures :: Set.Set Text

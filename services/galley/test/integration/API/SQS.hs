@@ -19,6 +19,9 @@
 -- instead.
 module API.SQS where
 
+import qualified Amazonka as AWS
+import qualified Amazonka.SQS as SQS
+import qualified Amazonka.SQS.Lens as SQS
 import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
@@ -36,8 +39,6 @@ import Galley.Aws
 import qualified Galley.Aws as Aws
 import Galley.Options (JournalOpts)
 import Imports
-import qualified Network.AWS as AWS
-import qualified Network.AWS.SQS as SQS
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
@@ -122,13 +123,15 @@ tUpdateUncertainCount _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpd
 ensureNoMessages :: HasCallStack => Amazon ()
 ensureNoMessages = do
   QueueUrl url <- view eventQueue
-  msgs <- view SQS.rmrsMessages <$> AWS.send (receive 1 url)
+  amazonkaEnv <- view awsEnv
+  msgs <- view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 1 url)
   liftIO $ assertEqual "ensureNoMessages: length" 0 (length msgs)
 
 fetchMessage :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> Amazon ()
 fetchMessage label callback = do
   QueueUrl url <- view eventQueue
-  msgs <- view SQS.rmrsMessages <$> AWS.send (receive 1 url)
+  amazonkaEnv <- view awsEnv
+  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 1 url)
   events <- mapM (parseDeleteMessage url) msgs
   liftIO $ callback label (headDef Nothing events)
 
@@ -180,44 +183,48 @@ purgeQueue = void $ readAllUntilEmpty
 
 receive :: Int -> Text -> SQS.ReceiveMessage
 receive n url =
-  SQS.receiveMessage url
-    & set SQS.rmWaitTimeSeconds (Just 1)
-      . set SQS.rmMaxNumberOfMessages (Just n)
-      . set SQS.rmVisibilityTimeout (Just 1)
+  SQS.newReceiveMessage url
+    & set SQS.receiveMessage_waitTimeSeconds (Just 1)
+      . set SQS.receiveMessage_maxNumberOfMessages (Just n)
+      . set SQS.receiveMessage_visibilityTimeout (Just 1)
 
 queueEvent :: E.TeamEvent -> Amazon ()
 queueEvent e = do
   QueueUrl url <- view eventQueue
   rnd <- liftIO nextRandom
-  void $ AWS.send (req url rnd)
+  amazonkaEnv <- view awsEnv
+  void $ AWS.send amazonkaEnv (req url rnd)
   where
     event = Text.decodeLatin1 $ B64.encode $ encodeMessage e
     req url dedup =
-      SQS.sendMessage url event
-        & SQS.smMessageGroupId .~ Just "team.events"
-        & SQS.smMessageDeduplicationId .~ Just (UUID.toText dedup)
+      SQS.newSendMessage url event
+        & SQS.sendMessage_messageGroupId ?~ "team.events"
+        & SQS.sendMessage_messageDeduplicationId ?~ UUID.toText dedup
 
 readAllUntilEmpty :: Amazon [SQS.Message]
 readAllUntilEmpty = do
   QueueUrl url <- view eventQueue
-  msgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
+  amazonkaEnv <- view awsEnv
+  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 10 url)
   readUntilEmpty msgs url msgs
   where
     readUntilEmpty acc _ [] = return acc
     readUntilEmpty acc url msgs = do
       forM_ msgs $ deleteMessage url
-      newMsgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
+      amazonkaEnv <- view awsEnv
+      newMsgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 10 url)
       readUntilEmpty (acc ++ newMsgs) url newMsgs
 
 deleteMessage :: Text -> SQS.Message -> Amazon ()
 deleteMessage url m = do
+  amazonkaEnv <- view awsEnv
   for_
-    (m ^. SQS.mReceiptHandle)
-    (void . AWS.send . SQS.deleteMessage url)
+    (m ^. SQS.message_receiptHandle)
+    (void . AWS.send amazonkaEnv . SQS.newDeleteMessage url)
 
 parseDeleteMessage :: Text -> SQS.Message -> Amazon (Maybe E.TeamEvent)
 parseDeleteMessage url m = do
-  evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m ^. SQS.mBody) of
+  evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m ^. SQS.message_body) of
     Just (Right e) -> do
       trace $ msg $ val "SQS event received"
       return (Just e)
