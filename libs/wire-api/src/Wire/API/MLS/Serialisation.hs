@@ -19,9 +19,12 @@ module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
     parseMLSVector,
     parseMLSBytes,
+    parseMLSOptional,
+    parseMLSEnum,
     BinaryMLS (..),
-    EnumMLS (..),
-    safeToEnum,
+    MLSEnumError (..),
+    toMLSEnum',
+    toMLSEnum,
     decodeMLS,
     decodeMLS',
     decodeMLSWith,
@@ -58,6 +61,37 @@ parseMLSBytes = do
   len <- fromIntegral <$> get @w
   getByteString len
 
+parseMLSOptional :: Get a -> Get (Maybe a)
+parseMLSOptional g = do
+  b <- getWord8
+  sequenceA $ guard (b /= 0) $> g
+
+-- | Parse a positive tag for an enumeration. The value 0 is considered
+-- "reserved", and all other values are shifted down by 1 to get the
+-- corresponding enumeration index. This makes it possible to parse enumeration
+-- types that don't contain an explicit constructor for a "reserved" value.
+parseMLSEnum ::
+  forall (w :: *) a.
+  (Bounded a, Enum a, Integral w, Binary w) =>
+  String ->
+  Get a
+parseMLSEnum name = toMLSEnum name =<< get @w
+
+data MLSEnumError = MLSEnumUnkonwn | MLSEnumInvalid
+
+toMLSEnum' :: forall a w. (Bounded a, Enum a, Integral w) => w -> Either MLSEnumError a
+toMLSEnum' w = case fromIntegral w - 1 of
+  n
+    | n < 0 -> Left MLSEnumInvalid
+    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnkonwn
+    | otherwise -> pure (toEnum n)
+
+toMLSEnum :: forall a w f. (Bounded a, Enum a, MonadFail f, Integral w) => String -> w -> f a
+toMLSEnum name = either err pure . toMLSEnum'
+  where
+    err MLSEnumUnkonwn = fail $ "Unknown " <> name
+    err MLSEnumInvalid = fail $ "Invalid " <> name
+
 instance ParseMLS Word8 where parseMLS = get
 
 instance ParseMLS Word16 where parseMLS = get
@@ -71,21 +105,6 @@ newtype BinaryMLS a = BinaryMLS a
 
 instance Binary a => ParseMLS (BinaryMLS a) where
   parseMLS = BinaryMLS <$> get
-
--- | A wrapper to generate a 'Binary' instance for an enumerated type.
-newtype EnumMLS w a = EnumMLS {unEnumMLS :: a}
-
-safeToEnum :: forall a f. (Bounded a, Enum a, MonadFail f) => Int -> f a
-safeToEnum n
-  | n >= fromEnum @a minBound && n <= fromEnum @a maxBound =
-    pure (toEnum n)
-  | otherwise =
-    fail "Out of bound enumeration"
-
-instance (Binary w, Integral w, Bounded a, Enum a) => ParseMLS (EnumMLS w a) where
-  parseMLS = do
-    n <- fromIntegral <$> get @w
-    EnumMLS <$> safeToEnum n
 
 -- | Decode an MLS value from a lazy bytestring. Return an error message in case of failure.
 decodeMLS :: ParseMLS a => LByteString -> Either Text a

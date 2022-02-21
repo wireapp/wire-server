@@ -61,14 +61,20 @@ newtype ValidExtensions = ValidExtensions [Extension]
 instance Show ValidExtensions where
   show (ValidExtensions exts) = "ValidExtensions (length " <> show (length exts) <> ")"
 
+unknownExt :: Gen Extension
+unknownExt = do
+  Positive t0 <- arbitrary
+  let t = t0 + fromEnum (maxBound :: ExtensionTag) + 1
+  Extension (fromIntegral t) <$> arbitrary
+
 -- | Generate a list of extensions containing all the required ones.
 instance Arbitrary ValidExtensions where
   arbitrary = do
-    exts0 <- listOf (arbitrary `suchThat` ((/= 0) . extType))
+    exts0 <- listOf unknownExt
     LifetimeAndExtension ext1 _ <- arbitrary
-    exts2 <- listOf (arbitrary `suchThat` ((/= 0) . extType))
+    exts2 <- listOf unknownExt
     CapabilitiesAndExtension ext3 _ <- arbitrary
-    exts4 <- listOf (arbitrary `suchThat` ((/= 0) . extType))
+    exts4 <- listOf unknownExt
     pure . ValidExtensions $ exts0 <> [ext1] <> exts2 <> [ext3] <> exts4
 
 newtype InvalidExtensions = InvalidExtensions [Extension]
@@ -79,7 +85,7 @@ instance Show InvalidExtensions where
 
 instance Arbitrary InvalidExtensions where
   arbitrary = do
-    req <- fromIntegral . fromEnum <$> elements [LifetimeExtensionTag, CapabilitiesExtensionTag]
+    req <- fromIntegral . succ . fromEnum <$> elements [LifetimeExtensionTag, CapabilitiesExtensionTag]
     InvalidExtensions <$> listOf (arbitrary `suchThat` ((/= req) . extType))
 
 data LifetimeAndExtension = LifetimeAndExtension Extension Lifetime
@@ -88,7 +94,7 @@ data LifetimeAndExtension = LifetimeAndExtension Extension Lifetime
 instance Arbitrary LifetimeAndExtension where
   arbitrary = do
     lt <- arbitrary
-    let ext = Extension (fromIntegral (fromEnum LifetimeExtensionTag)) . LBS.toStrict . runPut $ do
+    let ext = Extension (fromIntegral (fromEnum LifetimeExtensionTag + 1)) . LBS.toStrict . runPut $ do
           put (timestampSeconds (ltNotBefore lt))
           put (timestampSeconds (ltNotAfter lt))
     pure $ LifetimeAndExtension ext lt
@@ -99,7 +105,7 @@ data CapabilitiesAndExtension = CapabilitiesAndExtension Extension Capabilities
 instance Arbitrary CapabilitiesAndExtension where
   arbitrary = do
     caps <- arbitrary
-    let ext = Extension (fromIntegral (fromEnum CapabilitiesExtensionTag)) . LBS.toStrict . runPut $ do
+    let ext = Extension (fromIntegral (fromEnum CapabilitiesExtensionTag + 1)) . LBS.toStrict . runPut $ do
           putWord8 (fromIntegral (length (capVersions caps)))
           traverse_ (putWord8 . pvNumber) (capVersions caps)
 
@@ -143,8 +149,8 @@ tests =
           testProperty "missing required extensions" $ \(InvalidExtensions exts) ->
             isLeft (findExtensions exts),
           testProperty "lifetime extension" $ \(LifetimeAndExtension ext lt) ->
-            decodeExtension ext == Just (SomeExtension SLifetimeExtensionTag lt),
+            decodeExtension ext == Right (Just (SomeExtension SLifetimeExtensionTag lt)),
           testProperty "capabilities extension" $ \(CapabilitiesAndExtension ext caps) ->
-            decodeExtension ext == Just (SomeExtension SCapabilitiesExtensionTag caps)
+            decodeExtension ext == Right (Just (SomeExtension SCapabilitiesExtensionTag caps))
         ]
     ]
