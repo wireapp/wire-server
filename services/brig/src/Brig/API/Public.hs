@@ -1084,12 +1084,13 @@ sendVerificationCode req = do
           mbPendingCode <- lift $ Code.lookup (Code.genKey gen) (scope action)
           case mbPendingCode of
             Nothing -> do
+              Timeout timeout <- setActivationTimeout <$> view settings
               code <-
                 Code.generate
                   gen
                   (scope action)
                   (Code.Retries 3)
-                  (Code.Timeout (10 * 60)) -- 10 minutes
+                  (Code.Timeout timeout)
                   (Just (toUUID userId))
               Code.insert code
               lift $ sendMail email (Code.codeValue code) action
