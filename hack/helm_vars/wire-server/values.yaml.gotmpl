@@ -78,6 +78,8 @@ brig:
       setFederationDomainConfigs:
         - domain: integration.example.com
           search_policy: full_search
+        - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+          search_policy: full_search
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
