@@ -19,6 +19,8 @@
 
 module Wire.API.MLS.Credential where
 
+import Data.Aeson
+import Data.Aeson.Types
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Parser
@@ -64,9 +66,48 @@ credentialTag (BasicCredential _ _ _) = BasicCredentialTag
 -- | A TLS signature scheme.
 --
 -- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
-newtype SignatureScheme = SignatureScheme {signatureSchemeNumber :: Word16}
+newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, Arbitrary)
+
+data SignatureSchemeTag = Ed25519
+  deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform SignatureSchemeTag
+
+signatureSchemeNumber :: SignatureSchemeTag -> Word16
+signatureSchemeNumber Ed25519 = 0x807
+
+signatureSchemeName :: SignatureSchemeTag -> Text
+signatureSchemeName Ed25519 = "ed25519"
+
+signatureSchemeTag :: SignatureScheme -> Maybe SignatureSchemeTag
+signatureSchemeTag (SignatureScheme n) = getAlt $
+  flip foldMap [minBound .. maxBound] $ \s ->
+    guard (signatureSchemeNumber s == n) $> s
+
+signatureSchemeFromName :: Text -> Maybe SignatureSchemeTag
+signatureSchemeFromName name = getAlt $
+  flip foldMap [minBound .. maxBound] $ \s ->
+    guard (signatureSchemeName s == name) $> s
+
+parseSignatureScheme :: MonadFail f => Text -> f SignatureSchemeTag
+parseSignatureScheme name =
+  maybe
+    (fail ("Unsupported signature scheme " <> T.unpack name))
+    pure
+    (signatureSchemeFromName name)
+
+instance FromJSON SignatureSchemeTag where
+  parseJSON = withText "SignatureScheme" parseSignatureScheme
+
+instance FromJSONKey SignatureSchemeTag where
+  fromJSONKey = FromJSONKeyTextParser parseSignatureScheme
+
+instance ToJSON SignatureSchemeTag where
+  toJSON = String . signatureSchemeName
+
+instance ToJSONKey SignatureSchemeTag where
+  toJSONKey = toJSONKeyText signatureSchemeName
 
 data ClientIdentity = ClientIdentity
   { ciDomain :: Domain,

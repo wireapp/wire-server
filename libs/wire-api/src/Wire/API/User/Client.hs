@@ -103,6 +103,7 @@ import Deriving.Swagger
   )
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
+import Wire.API.MLS.Credential
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
 
@@ -595,7 +596,7 @@ data NewClient = NewClient
     newClientPassword :: Maybe PlainTextPassword,
     newClientModel :: Maybe Text,
     newClientCapabilities :: Maybe (Set ClientCapability),
-    newClientMLSPublicKeys :: Map Text LByteString
+    newClientMLSPublicKeys :: Map SignatureSchemeTag LByteString
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)

@@ -23,6 +23,7 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (PlainTextPassword))
 import qualified Data.Set as Set
 import Imports
+import Wire.API.MLS.Credential
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -418,5 +419,5 @@ testObject_NewClient_user_20 =
       newClientPassword = Nothing,
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = Map.fromList [("ed25519", "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=")]
+      newClientMLSPublicKeys = Map.fromList [(Ed25519, "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=")]
     }
