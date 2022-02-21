@@ -1077,7 +1077,8 @@ sendVerificationCode req = do
     Public.Login -> do
       let email = Public.svcEmail req
       mbUserId <- lift $ UserKey.lookupKey $ UserKey.userEmailKey email
-      featureStatus <- getFeatureStatus mbUserId
+      mbAccount <- lift $ join <$> Data.lookupAccount `traverse` mbUserId
+      featureStatus <- getFeatureStatus mbAccount
       case (mbUserId, featureStatus) of
         (Just userId, Public.TeamFeatureEnabled) -> do
           gen <- Code.mk6DigitGen $ Code.ForEmail email
@@ -1093,22 +1094,20 @@ sendVerificationCode req = do
                   (Code.Timeout timeout)
                   (Just (toUUID userId))
               Code.insert code
-              lift $ sendMail email (Code.codeValue code) action
+              let mbLocale = Public.userLocale <$> accountUser <$> mbAccount
+              lift $ sendMail email (Code.codeValue code) mbLocale action
             Just _ -> pure ()
         _ -> pure ()
   where
     scope = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> Code.AccountLogin
-    sendMail email code = \case
+    sendMail email code mbLocale = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
-      Public.Login -> sendLoginVerificationMail email code Nothing -- TODO(leif): use correct locale
-    getFeatureStatus mbUserId = do
-      mbStatus <- lift $ do
-        mbTeamId <- join <$> Intra.getTeamId `traverse` mbUserId
-        Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
-      pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus      
-
+      Public.Login -> sendLoginVerificationMail email code mbLocale
+    getFeatureStatus mbAccount = do
+      mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` (join $ Public.userTeam <$> accountUser <$> mbAccount)
+      pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
 
 -- Deprecated
 
