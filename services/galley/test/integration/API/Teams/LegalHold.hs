@@ -1742,6 +1742,7 @@ instance FromJSON Ev.ClientEvent where
           Nothing
           Nothing
           (Client.ClientCapabilityList mempty)
+          mempty
 
 instance FromJSON Ev.ConnectionEvent where
   parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do

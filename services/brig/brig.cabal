@@ -61,7 +61,6 @@ library
       Brig.Data.LoginCode
       Brig.Data.MLS.KeyPackage
       Brig.Data.MLS.KeyPackage.Instances
-      Brig.Data.MLS.PublicKey
       Brig.Data.PasswordReset
       Brig.Data.Properties
       Brig.Data.Types
@@ -201,7 +200,6 @@ library
     , conduit >=1.2.8
     , containers >=0.5
     , cookie >=0.4
-    , cql-io
     , cryptobox-haskell >=0.1.1
     , currency-codes >=2.0
     , data-default >=0.5

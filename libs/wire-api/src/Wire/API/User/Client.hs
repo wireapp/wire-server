@@ -442,11 +442,14 @@ data Client = Client
     clientCookie :: Maybe CookieLabel,
     clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
-    clientCapabilities :: ClientCapabilityList
+    clientCapabilities :: ClientCapabilityList,
+    clientMLSPublicKeys :: Map SignatureSchemeTag LByteString
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
+
+type MLSPublicKeys = Map SignatureSchemeTag LByteString
 
 instance ToSchema Client where
   schema =
@@ -461,6 +464,16 @@ instance ToSchema Client where
         <*> clientLocation .= maybe_ (optField "location" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
+        <*> clientMLSPublicKeys .= mlsPublicKeysSchema
+
+mlsPublicKeysSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
+mlsPublicKeysSchema =
+  fmap
+    (fromMaybe mempty)
+    ( optField
+        "mls_public_keys"
+        (map_ base64SchemaL)
+    )
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -698,13 +711,7 @@ instance ToSchema NewClient where
             )
         <*> newClientModel .= maybe_ (optField "model" schema)
         <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
-        <*> newClientMLSPublicKeys
-          .= fmap
-            (fromMaybe mempty)
-            ( optField
-                "mls_public_keys"
-                (map_ base64SchemaL)
-            )
+        <*> newClientMLSPublicKeys .= mlsPublicKeysSchema
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =

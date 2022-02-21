@@ -110,11 +110,13 @@ instance Default AddGetClient where
 testAddGetClient :: AddGetClient -> Brig -> Cannon -> Http ()
 testAddGetClient params brig cannon = do
   uid <- userId <$> randomUser' (addWithPassword params) brig
-  let new0 = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-      new =
-        if addWithMLSKeys params
-          then new0 {newClientMLSPublicKeys = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]}
-          else new0
+  let new =
+        (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+          { newClientMLSPublicKeys = keys
+          }
+      keys
+        | addWithMLSKeys params = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]
+        | otherwise = mempty
   let rq =
         addClientReq brig uid new
           . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
@@ -132,7 +134,7 @@ testAddGetClient params brig cannon = do
       etype @?= Just "user.client-add"
       fmap fromJSON eclient @?= Just (Success c)
     return c
-  -- TODO: check that MLS public keys are present
+  liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe

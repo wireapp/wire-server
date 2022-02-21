@@ -43,7 +43,6 @@ library:
   - bytestring >=0.10
   - bytestring-conversion >=0.2
   - cassandra-util >=0.16.2
-  - cql-io
   - comonad
   - conduit >=1.2.8
   - containers >=0.5
