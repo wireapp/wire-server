@@ -15,12 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.VersionInfo
-  ( vinfoObjectSchema,
-  )
-where
+module Brig.Version where
 
-import Data.Schema
+import Brig.API.Handler
+import Brig.App
+import Control.Lens
+import Imports
+import Servant (ServerT)
+import Wire.API.Routes.Named
+import Wire.API.Routes.Version
 
-vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
-vinfoObjectSchema sch = field "supported" (array sch)
+versionAPI :: ServerT VersionAPI (Handler r)
+versionAPI = Named $ do
+  fed <- view federator
+  dom <- viewFederationDomain
+  pure $
+    VersionInfo
+      { vinfoSupported = supportedVersions,
+        vinfoFederation = isJust fed,
+        vinfoDomain = dom
+      }
