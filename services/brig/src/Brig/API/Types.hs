@@ -33,6 +33,7 @@ where
 
 import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
+import Brig.Data.MLS.PublicKey
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.UserKey (UserKey, foldKey)
@@ -176,6 +177,7 @@ data ClientError
   | ClientFederationError FederationError
   | ClientCapabilitiesCannotBeRemoved
   | ClientMissingLegalholdConsent
+  | ClientMLSPublicKeyDataError MLSPublicKeyDataError
 
 data DeleteUserError
   = DeleteUserInvalid

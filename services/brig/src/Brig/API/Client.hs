@@ -48,6 +48,7 @@ import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Data.Client as Data
+import qualified Brig.Data.MLS.PublicKey as Data
 import qualified Brig.Data.User as Data
 import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
@@ -135,6 +136,7 @@ addClient u con ip new = do
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc caps !>> ClientDataError
+  Data.addMLSPublicKeys u clientId' (Map.assocs (newClientMLSPublicKeys new)) !>> ClientMLSPublicKeyDataError
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con

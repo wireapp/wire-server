@@ -32,6 +32,7 @@ import Control.Lens (at, preview, (.~), (^.), (^?))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -49,6 +50,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.MLS.Credential
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client
   ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
@@ -80,8 +82,9 @@ tests _cl _at opts p b c g =
       test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
-      test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
-      test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
+      test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
+      test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
+      test p "post /clients - 201 (with mls keys)" $ testAddGetClient def {addWithMLSKeys = True} b c,
       test p "post /clients - 403" $ testClientReauthentication b,
       test p "get /clients - 200" $ testListClients b,
       test p "get /clients/:client/prekeys - 200" $ testListPrekeyIds b,
@@ -96,11 +99,24 @@ tests _cl _at opts p b c g =
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
 
-testAddGetClient :: Bool -> Brig -> Cannon -> Http ()
-testAddGetClient hasPwd brig cannon = do
-  uid <- userId <$> randomUser' hasPwd brig
+data AddGetClient = AddGetClient
+  { addWithPassword :: Bool,
+    addWithMLSKeys :: Bool
+  }
+
+instance Default AddGetClient where
+  def = AddGetClient True False
+
+testAddGetClient :: AddGetClient -> Brig -> Cannon -> Http ()
+testAddGetClient params brig cannon = do
+  uid <- userId <$> randomUser' (addWithPassword params) brig
+  let new0 = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
+      new =
+        if addWithMLSKeys params
+          then new0 {newClientMLSPublicKeys = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]}
+          else new0
   let rq =
-        addClientReq brig uid (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+        addClientReq brig uid new
           . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
   c <- WS.bracketR cannon uid $ \ws -> do
     c <-
@@ -116,6 +132,7 @@ testAddGetClient hasPwd brig cannon = do
       etype @?= Just "user.client-add"
       fmap fromJSON eclient @?= Just (Success c)
     return c
+  -- TODO: check that MLS public keys are present
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
