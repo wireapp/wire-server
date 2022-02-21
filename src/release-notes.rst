@@ -29,6 +29,104 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart Release 4.2.0
+===================
+
+Upstream release notes:
+https://github.com/wireapp/wire-server/blob/60a85034722eb8e8b1e44b291a956fb09aee6c7a/CHANGELOG.md#2022-02-21
+
+Release notes
+-------------
+
+-  Upgrade team-settings version to 4.6.1-v0.29.3-0-28cbbd7 (#2106)
+-  Upgrade webapp version to 2022-02-08-production.0-v0.29.2-0-4d437bb
+   (#2107)
+-  Change the default set of TLS ciphers (both for the client and the
+   federation APIs) to be compliant to the recommendations of
+   `TR-02102-2 <https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html>`__.
+   (#2112)
+-  For wire.com operators: make sure that nginz is deployed. (#2116,
+   #2124)
+-  Optional team feature config ``validateSAMLEmails`` added to
+   galley.yaml. The feature was disabled by default before this release
+   and is now enabled by default. The server wide default can be changed
+   in galley.yaml. Please refer to
+   `/docs/reference/config-options.md#validate-saml-emails <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#validate-saml-emails>`__
+   (#2117)
+
+API changes
+~~~~~~~~~~~
+
+-  Added minimal API version support: a list of supported API versions
+   can be found at the endpoint ``GET /api-version``. Versions can be
+   selected by adding a prefix of the form ``/vN`` to every route, where
+   ``N`` is the desired version number (so for example
+   ``/v1/conversations`` to access version 1 of the ``/conversations``
+   endpoint). (#2116)
+-  Delete ``GET /self/name`` endpoint (#2101)
+-  New endpoint (``POST /verification-code/send``) for generating and
+   sending a verification code for 2nd factor authentication actions.
+   (#2124)
+
+Features
+~~~~~~~~
+
+-  Add freetext search results to “search-users” federation endpoint
+   (#2085)
+
+Bug fixes and other updates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-  Ensure empty responses show up without a schema in swagger. They were
+   shown as empty arrays before. (#2104)
+-  Require the guest links feature is enabled when someone joins by
+   code. (#2084)
+-  Escape disallowed characters at the beginning of CSV cells to prevent
+   CSV injection vulnerability. (#2096)
+-  The field ``icon`` in the body of the ``PUT /team/:tid`` endpoint is
+   now typed to prevent potential injection attacks. (#2103)
+
+Internal changes
+~~~~~~~~~~~~~~~~
+
+-  Enforce conversation access roles more tightly on the backend (was
+   previously only enforce on client): if a guests or non-team-members
+   are not allowed, block guest link creation (new behavior) as well as
+   ephemeral users joining (old behavior). (#2076)
+-  Remove uses of servant-generics from brig (#2100, #2086)
+-  Migrate more API end-points to servant. (#2016, #2081, #2091)
+-  Introduce the row type variable in Brig monads (#2140)
+-  Build ubuntu20 docker images with cabal instead of stack (#2119,
+   #2060)
+-  Drop managed conversations (#2125)
+-  To investigate issues related to push notifications, adjust Gundeck
+   ``Debug`` leveled logs to not print the message itself. So, that it
+   can safely be turned on in production environments. Add a log entry
+   when a bulk notification is pushed to Cannon. (#2053)
+-  Add integration tests for scim/saml user creation (#2123)
+-  Wrap stack with NIX_BUILD_SHELL set to LD_LIBRARY_PATH compatible
+   shell (#2105)
+-  Removed redundant ``setDefaultTemplateLocale`` config from the brig
+   helm template. (#2099)
+-  [not done yet, please do not enable] Optional team feature config
+   ``sndFactorPasswordChallenge`` added to galley.yaml. The feature is
+   disabled by default. The server wide default can be changed in
+   galley.yaml. Please refer to
+   `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`__
+   (#2138)
+-  Prometheus: Ignore RawResponses (e.g. cannon’s await responses) from
+   metrics (#2108)
+-  Refactor internal handlers for Proteus conversation creation (#2125)
+-  Specify (in a test) how a message to a deleted legalhold device is
+   refused to be sent. (#2131)
+
+Federation changes
+~~~~~~~~~~~~~~~~~~
+
+-  Add ``setSftListAllServers`` config flag to brig (#2139)
+-  Revert restund to 0.4.17. (#2114)
+
+
 Chart Release 2.118.0
 =====================
 
