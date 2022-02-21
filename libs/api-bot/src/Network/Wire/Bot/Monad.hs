@@ -396,7 +396,8 @@ addBotClient self cty label = do
             newClientClass = Nothing,
             newClientCookie = Nothing,
             newClientModel = Nothing,
-            newClientCapabilities = Nothing
+            newClientCapabilities = Nothing,
+            newClientMLSPublicKeys = mempty
           }
   cid <- clientId <$> runBotSession self (registerClient nc)
   clt <- BotClient cid label box <$> liftIO Clients.empty
