@@ -23,6 +23,7 @@ module Brig.Queue
   )
 where
 
+import Amazonka.SQS.Lens (sendMessageResponse_mD5OfMessageBody)
 import qualified Brig.AWS as AWS
 import Brig.App
 import Brig.Options
@@ -36,7 +37,6 @@ import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text.Encoding as T
 import Imports
-import Network.AWS.SQS (smrsMD5OfMessageBody)
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import System.Logger.Class as Log hiding (settings)
 
@@ -77,11 +77,11 @@ enqueue (SqsQueue queue) message =
     let body = encode message
     bodyMD5 <- digest <$> view digestMD5 <*> pure body
     resp <- AWS.execute env (AWS.enqueueStandard queue body)
-    unless (resp ^. smrsMD5OfMessageBody == Just bodyMD5) $ do
+    unless (resp ^. sendMessageResponse_mD5OfMessageBody == Just bodyMD5) $ do
       Log.err $
         msg (val "Returned hash (MD5) doesn't match message hash")
           . field "SqsQueue" (show queue)
-          . field "returned_hash" (show (resp ^. smrsMD5OfMessageBody))
+          . field "returned_hash" (show (resp ^. sendMessageResponse_mD5OfMessageBody))
           . field "message_hash" (show (Just bodyMD5))
       throwM (ErrorCall "The server couldn't access a queue")
   where
