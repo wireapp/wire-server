@@ -126,7 +126,7 @@ login (PasswordLogin li pw label code) typ = do
   newAccess @ZAuth.User @ZAuth.Access uid typ label
   where
     verifyCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
-    verifyCode c u = do
+    verifyCode mbCode u = do
       (mbEmail, mbTeamId) <- getEmailAndTeamId u
       featureStatus <- lift $ do
         mbStatus <- Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
@@ -134,14 +134,17 @@ login (PasswordLogin li pw label code) typ = do
       case featureStatus of
         Public.TeamFeatureDisabled -> pure ()
         Public.TeamFeatureEnabled -> do
-          case mbEmail of
-            Just email -> do
-              key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
-              mbCode <- Code.verify key Code.AccountLogin `traverse` c
-              case mbCode of
-                Just _ -> pure ()
-                Nothing -> loginFailed u -- TODO(leif): better error
-            Nothing -> loginFailedNoEmail u
+          case mbCode of
+            Nothing -> loginFailedWith LoginCodeRequired u
+            Just c ->
+              case mbEmail of
+                Nothing -> loginFailedNoEmail u
+                Just email -> do
+                  key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
+                  codeValid <- isJust <$> Code.verify key Code.AccountLogin c
+                  if codeValid
+                    then pure ()
+                    else loginFailedWith LoginNoPendingCode u
     getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = lift $ do
       mbAccount <- Data.lookupAccount u
@@ -157,8 +160,11 @@ login (SmsLogin phone code label) typ = do
     loginFailed uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
+loginFailedWith :: LoginError -> UserId -> ExceptT LoginError (AppIO r) ()
+loginFailedWith e uid = decrRetryLimit uid >> throwE e
+
 loginFailed :: UserId -> ExceptT LoginError (AppIO r) ()
-loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+loginFailed = loginFailedWith LoginFailed
 
 decrRetryLimit :: UserId -> ExceptT LoginError (AppIO r) ()
 decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
