@@ -1065,8 +1065,6 @@ activate (Public.Activate tgt code dryrun)
     respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
 
--- Verification
-
 sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
 sendVerificationCode req = do
   let action = Public.svcAction req
@@ -1095,16 +1093,16 @@ sendVerificationCode req = do
                   (Just (toUUID userId))
               Code.insert code
               let mbLocale = Public.userLocale <$> accountUser <$> mbAccount
-              lift $ sendMail email (Code.codeValue code) mbLocale action
+              lift $ sendMail email (Code.codeKey code) (Code.codeValue code) mbLocale action
             Just _ -> pure ()
         _ -> pure ()
   where
     scope = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> Code.AccountLogin
-    sendMail email code mbLocale = \case
+    sendMail email key value mbLocale = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
-      Public.Login -> sendLoginVerificationMail email code mbLocale
+      Public.Login -> sendLoginVerificationMail email key value mbLocale
     getFeatureStatus mbAccount = do
       mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` (join $ Public.userTeam <$> accountUser <$> mbAccount)
       pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus

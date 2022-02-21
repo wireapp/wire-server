@@ -53,11 +53,11 @@ sendVerificationMail to pair loc = do
   let mail = VerificationEmail to pair
   Email.sendMail $ renderVerificationMail mail tpl branding
 
-sendLoginVerificationMail :: Email -> Code.Value -> Maybe Locale -> (AppIO r) ()
-sendLoginVerificationMail to code loc = do
+sendLoginVerificationMail :: Email -> Code.Key -> Code.Value -> Maybe Locale -> (AppIO r) ()
+sendLoginVerificationMail to key value loc = do
   tpl <- loginVerificationEmail . snd <$> userTemplates loc
   branding <- view templateBranding
-  Email.sendMail $ renderLoginVerificationMail to code tpl branding
+  Email.sendMail $ renderLoginVerificationMail to key value tpl branding
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> (AppIO r) ()
 sendActivationMail to name pair loc ident = do
@@ -203,16 +203,17 @@ renderVerificationMail VerificationEmail {..} VerificationEmailTemplate {..} bra
     replace "email" = fromEmail vfTo
     replace x = x
 
-renderLoginVerificationMail :: Email -> Code.Value -> VerificationEmailTemplate -> TemplateBranding -> Mail
-renderLoginVerificationMail email code VerificationEmailTemplate {..} branding =
+renderLoginVerificationMail :: Email -> Code.Key -> Code.Value -> VerificationEmailTemplate -> TemplateBranding -> Mail
+renderLoginVerificationMail email key value VerificationEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
       -- To make automated processing possible, the activation code is also added to
       -- headers. {#RefActivationEmailHeaders}
       mailHeaders =
         [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "Verification"),
-          ("X-Zeta-Code", Ascii.toText (fromRange (Code.asciiValue code)))
+          ("X-Zeta-Purpose", "VerificationLogin"),
+          ("X-Zeta-Key", Ascii.toText (fromRange (Code.asciiKey key))),
+          ("X-Zeta-Code", Ascii.toText (fromRange (Code.asciiValue value)))
         ],
       mailParts = [[plainPart txt, htmlPart html]]
     }
@@ -222,7 +223,7 @@ renderLoginVerificationMail email code VerificationEmailTemplate {..} branding =
     txt = renderTextWithBranding verificationEmailBodyText replace branding
     html = renderHtmlWithBranding verificationEmailBodyHtml replace branding
     subj = renderTextWithBranding verificationEmailSubject replace branding
-    replace "code" = Ascii.toText (fromRange (Code.asciiValue code))
+    replace "code" = Ascii.toText (fromRange (Code.asciiValue value))
     replace "email" = fromEmail email
     replace x = x
 

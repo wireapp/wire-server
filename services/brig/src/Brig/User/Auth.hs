@@ -127,12 +127,13 @@ login (PasswordLogin li pw label code) typ = do
   where
     verifyCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
     verifyCode c u = do
-      mbAccount <- lift $ Data.lookupAccount u
-      mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` (join $ userTeam <$> accountUser <$> mbAccount)
-      let featureStatus = maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
+      (mbEmail, mbTeamId) <- getEmailAndTeamId u
+      featureStatus <- lift $ do
+        mbStatus <- Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
+        pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
       case featureStatus of
+        Public.TeamFeatureDisabled -> pure ()
         Public.TeamFeatureEnabled -> do
-          let mbEmail = join $ userEmail <$> accountUser <$> mbAccount
           case mbEmail of
             Just email -> do
               key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
@@ -140,8 +141,13 @@ login (PasswordLogin li pw label code) typ = do
               case mbCode of
                 Just _ -> pure ()
                 Nothing -> loginFailed u -- TODO(leif): better error
-            Nothing -> loginFailed u -- TODO(leif): better error
-        Public.TeamFeatureDisabled -> pure ()
+            Nothing -> loginFailedNoEmail u
+    getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
+    getEmailAndTeamId u = lift $ do
+      mbAccount <- Data.lookupAccount u
+      pure (join $ userEmail <$> accountUser <$> mbAccount, join $ userTeam <$> accountUser <$> mbAccount)
+    loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
+    loginFailedNoEmail = loginFailed
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
