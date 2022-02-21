@@ -61,7 +61,7 @@ import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 
 data ConversationStore m a where
-  CreateConversation :: NewConversation -> ConversationStore m Conversation
+  CreateConversation :: Local x -> NewConversation -> ConversationStore m Conversation
   CreateConnectConversation ::
     UUID V4 ->
     UUID V4 ->

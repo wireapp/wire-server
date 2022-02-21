@@ -60,6 +60,5 @@ data NewConversation = NewConversation
     ncReceiptMode :: Maybe ReceiptMode,
     ncUsers :: ConvSizeChecked UserList UserId,
     ncRole :: RoleName,
-    ncProtocol :: Protocol,
-    ncGroupId :: Maybe GroupId
+    ncProtocol :: Protocol
   }

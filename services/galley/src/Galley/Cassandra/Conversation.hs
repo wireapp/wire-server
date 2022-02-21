@@ -51,17 +51,21 @@ import qualified System.Logger as Log
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.MLS.GroupId
 
-createConversation :: NewConversation -> Client Conversation
-createConversation (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol groupid) = do
+createConversation :: Local x -> NewConversation -> Client Conversation
+createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol) = do
   conv <- Id <$> liftIO nextRandom
+  let groupId = case protocol of
+        ProtocolProteus -> Nothing
+        ProtocolMLS -> Just . fromConvId . qUntagged . qualifyAs loc $ conv
   retry x5 $ case mtid of
     Nothing ->
-      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Nothing, mtimer, recpt, protocol, groupid))
+      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Nothing, mtimer, recpt, protocol, groupId))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Just tid, mtimer, recpt, protocol, groupid)
+      addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Just tid, mtimer, recpt, protocol, groupId)
       addPrepQuery Cql.insertTeamConv (tid, conv)
   let newUsers = fmap (,role) (fromConvSize users)
   (lmems, rmems) <- addMembers conv (ulAddLocal (usr, roleNameWireAdmin) newUsers)
@@ -80,7 +84,7 @@ createConversation (NewConversation ty usr acc arole name mtid mtimer recpt user
         convMessageTimer = mtimer,
         convReceiptMode = recpt,
         convProtocol = Just protocol,
-        convGroupId = groupid
+        convGroupId = groupId
       }
 
 createConnectConversation ::
@@ -385,7 +389,7 @@ interpretConversationStoreToCassandra ::
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra = interpret $ \case
-  CreateConversation nc -> embedClient $ createConversation nc
+  CreateConversation loc nc -> embedClient $ createConversation loc nc
   CreateConnectConversation x y name ->
     embedClient $ createConnectConversation x y name
   CreateConnectConversationWithRemote cid lusr mems ->

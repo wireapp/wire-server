@@ -647,7 +647,8 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = convMessageTimer,
       rcReceiptMode = convReceiptMode,
-      rcProtocol = convProtocol
+      rcProtocol = convProtocol,
+      rcGroupId = convGroupId
     }
   where
     toMembers ::
@@ -717,7 +718,8 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             cnvmTeam = Nothing,
             cnvmMessageTimer = rcMessageTimer,
             cnvmReceiptMode = rcReceiptMode,
-            cnvmProtocol = rcProtocol
+            cnvmProtocol = fromMaybe ProtocolProteus rcProtocol,
+            cnvmGroupId = rcGroupId
           }
         (ConvMembers this others)
 

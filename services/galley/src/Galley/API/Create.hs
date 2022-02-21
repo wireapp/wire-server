@@ -104,13 +104,15 @@ createGroupConversation lusr conn body = do
   name <- rangeCheckedMaybe (newConvName body)
   o <- input
   checkedUsers <- case newConvProtocol body of
-    ProtocolProteus -> undefined
-    ProtocolMLS -> undefined
-    checkedConvSize o allUsers
+    ProtocolProteus -> checkedConvSize o allUsers
+    ProtocolMLS -> do
+      unless (null allUsers) $ throw MLSNonEmptyMemberList
+      pure mempty
   checkCreateConvPermissions lusr body tinfo allUsers
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
     E.createConversation
+      lusr
       NewConversation
         { ncType = RegularConv,
           ncCreator = tUnqualified lusr,

@@ -20,6 +20,8 @@ module Wire.API.MLS.GroupId
     mkGroupId,
     serialise,
     testGId,
+    toConvId,
+    fromConvId,
   )
 where
 
@@ -90,3 +92,15 @@ testGId =
     Qualified
       (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
       (Domain "to-be-parsed.com")
+
+-- | Currently the mapping from a group ID to a conversation ID is
+-- straightforward, but in the future it might be more involved if the
+-- representation is to change.
+toConvId :: GroupId -> Qualified ConvId
+toConvId = unGroupId
+
+-- | Currently the mapping from a conversation ID to a group ID is
+-- straightforward, but in the future it might be more involved if the
+-- representation is to change.
+fromConvId :: Qualified ConvId -> GroupId
+fromConvId = GroupId
