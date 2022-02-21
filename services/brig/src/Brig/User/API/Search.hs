@@ -56,8 +56,10 @@ import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
+import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
 import qualified Wire.API.User.Search as Public
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
@@ -135,14 +137,16 @@ searchRemotely domain searchTerm = do
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
-  contacts <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  searchResponse <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  let contacts = S.contacts searchResponse
   let count = length contacts
   pure
     SearchResult
       { searchResults = contacts,
         searchFound = count,
         searchReturned = count,
-        searchTook = 0
+        searchTook = 0,
+        searchPolicy = S.searchPolicy searchResponse
       }
 
 searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
@@ -158,7 +162,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
   esResult <-
     if esMaxResults > 0
       then Q.searchIndex (Just searcherId) (Just teamSearchInfo) searchTerm esMaxResults
-      else pure $ SearchResult 0 0 0 []
+      else pure $ SearchResult 0 0 0 [] FullSearch
 
   -- Prepend results matching exact handle and results from ES.
   pure $

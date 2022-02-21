@@ -212,6 +212,9 @@ data:
       setPropertyMaxValueLen: {{ .setPropertyMaxValueLen }}
       setDeleteThrottleMillis: {{ .setDeleteThrottleMillis }}
       setFederationDomain: {{ .setFederationDomain }}
+      {{- if .setFederationDomainConfigs }}
+      setFederationDomainConfigs: {{ toYaml .setFederationDomainConfigs | nindent 8 }}
+      {{- end }}
       {{- if .setSearchSameTeamOnly }}
       setSearchSameTeamOnly: {{ .setSearchSameTeamOnly }}
       {{- end }}

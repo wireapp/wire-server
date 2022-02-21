@@ -75,5 +75,6 @@
     ],
     "found": 1,
     "returned": 5,
+    "search_policy": "full_search",
     "took": 5
 }

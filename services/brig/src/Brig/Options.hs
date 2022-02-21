@@ -37,7 +37,7 @@ import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
 import Data.Range
-import Data.Schema (Schema (Schema), ToSchema (schema), element, enum)
+import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -50,6 +50,7 @@ import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 import qualified Wire.API.Team.Feature as ApiFT
+import Wire.API.User.Search (FederatedUserSearchPolicy)
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -356,6 +357,42 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
+data AllowedUserSearch
+  = NoSearch
+  | ExactHandleSearch
+  | FullSearch
+  deriving (Show, Generic, Enum, Bounded)
+
+instance ToJSON AllowedUserSearch where
+  toJSON NoSearch = "no_search"
+  toJSON ExactHandleSearch = "exact_handle_search"
+  toJSON FullSearch = "full_search"
+
+instance FromJSON AllowedUserSearch where
+  parseJSON = withText "AllowedUserSearch" $ \case
+    "no_search" -> pure NoSearch
+    "exact_handle_search" -> pure ExactHandleSearch
+    "full_search" -> pure FullSearch
+    _ ->
+      fail $
+        "unexpected value for AllowedUserSearch settings: "
+          <> "expected one of "
+          <> show (Aeson.encode <$> [(minBound :: AllowedUserSearch) ..])
+
+data FederationDomainConfig = FederationDomainConfig
+  { domain :: Domain,
+    cfgSearchPolicy :: FederatedUserSearchPolicy
+  }
+  deriving (Show, Generic)
+  deriving (ToJSON, FromJSON) via Schema FederationDomainConfig
+
+instance ToSchema FederationDomainConfig where
+  schema =
+    object "FederationDomainConfig" $
+      FederationDomainConfig
+        <$> domain .= field "domain" schema
+        <*> cfgSearchPolicy .= field "search_policy" schema
+
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -488,7 +525,7 @@ data Settings = Settings
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the 'setFederationAllowedDomains' can be set to empty in Federator)
+    -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
@@ -496,10 +533,11 @@ data Settings = Settings
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
     -- Remember to keep it the same in Galley.
     -- Example:
-    --   setFederationAllowedDomains:
+    --   allowedDomains:
     --     - wire.com
     --     - example.com
     setFederationDomain :: !Domain,
+    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -736,7 +774,8 @@ Lens.makeLensesFor
     ("setFederationDomain", "federationDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
     ("setSftStaticUrl", "sftStaticUrl"),
-    ("setSftListAllServers", "sftListAllServers")
+    ("setSftListAllServers", "sftListAllServers"),
+    ("setFederationDomainConfigs", "federationDomainConfigs")
   ]
   ''Settings
 

@@ -319,8 +319,6 @@ tests =
       testRoundTrip @User.RichInfo.RichInfoAssocList,
       testRoundTrip @User.RichInfo.RichInfoMapAndList,
       testRoundTrip @User.RichInfo.RichInfo,
-      testRoundTrip @(User.Search.SearchResult User.Search.Contact),
-      testRoundTrip @User.Search.Contact,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int)

@@ -417,3 +417,23 @@ This option is the default user locale to be used if it is not set in the user p
 optSettings:
   setDefaultUserLocale: en
 ```
+
+### Federated domain specific configuration settings 
+#### Restrict user search
+
+The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
+
+```yaml
+# [brig.yaml]
+optSettings:
+  setFederationDomainConfigs:
+    - domain: example.com
+      search_policy: no_search
+```
+
+Valid values for `search_policy` are:
+- `no_search`: No users are returned by federated searches.
+- `exact_handle_search`: Only users where the handle exactly matches are returned.
+- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+If there is no configuration for a domain, it's defaulted to `no_search`.

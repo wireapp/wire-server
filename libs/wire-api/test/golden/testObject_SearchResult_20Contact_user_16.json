@@ -2,5 +2,6 @@
     "documents": [],
     "found": -4,
     "returned": 4,
+    "search_policy": "exact_handle_search",
     "took": -7
 }

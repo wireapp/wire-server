@@ -25,7 +25,6 @@ module Brig.Federation.Client where
 import Brig.App
 import Brig.Types (PrekeyBundle)
 import Brig.Types.Client (PubClient)
-import qualified Brig.Types.Search as Public
 import Brig.Types.User
 import Control.Lens
 import Control.Monad
@@ -81,7 +80,7 @@ claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated @"claim-multi-prekey-bundle" domain uc
 
-searchUsers :: Domain -> SearchRequest -> (FederationAppIO r) [Public.Contact]
+searchUsers :: Domain -> SearchRequest -> (FederationAppIO r) SearchResponse
 searchUsers domain searchTerm = do
   Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated @"search-users" domain searchTerm
