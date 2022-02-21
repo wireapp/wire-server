@@ -1,1 +1,0 @@
-Escape disallowed characters at the beginning of CSV cells to prevent CSV injection vulnerability.

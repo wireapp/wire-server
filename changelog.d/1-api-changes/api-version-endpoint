@@ -1,1 +1,0 @@
-Added minimal API version support: a list of supported API versions can be found at the endpoint `GET /api-version`. Versions can be selected by adding a prefix of the form `/vN` to every route, where `N` is the desired version number (so for example `/v1/conversations` to access version 1 of the `/conversations` endpoint).

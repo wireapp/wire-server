@@ -1,1 +1,0 @@
-The field `icon` in the body of the `PUT /team/:tid` endpoint is now typed to prevent potential injection attacks.

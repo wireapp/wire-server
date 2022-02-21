@@ -1,4 +1,0 @@
-To investigate issues related to push notifications, adjust Gundeck `Debug`
-leveled logs to not print the message itself. So, that it can safely be turned
-on in production environments. Add a log entry when a bulk notification is 
-pushed to Cannon.
