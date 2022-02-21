@@ -32,11 +32,11 @@ import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((^.))
 import Data.Aeson hiding (Error, json)
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -747,7 +747,7 @@ getUserData uid = do
         "properties" .= properties
       ]
   where
-    noEmail = MarketoResult $ M.singleton "results" emptyArray
+    noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
 
 -- Utilities
 

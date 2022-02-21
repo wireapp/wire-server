@@ -23,6 +23,7 @@ library:
   - brig-types                >= 0.9.6
   - bytestring                >= 0.10
   - bytestring-conversion     >= 0.2
+  - containers
   - data-default              >= 0.5
   - errors                    >= 1.4
   - exceptions                >= 0.6

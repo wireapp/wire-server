@@ -27,9 +27,9 @@ module Stern.Types where
 
 import Brig.Types
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.TH
 import Data.ByteString.Conversion
-import qualified Data.HashMap.Strict as M
 import Data.Json.Util
 import Data.Range
 import Galley.Types.Teams
@@ -44,8 +44,8 @@ instance ToJSON TeamMemberInfo where
     case teamMemberJson (const True) m of
       Object o ->
         Object $
-          M.insert "can_update_billing" (Bool (hasPermission m SetBilling)) $
-            M.insert "can_view_billing" (Bool (hasPermission m GetBilling)) $
+          KeyMap.insert "can_update_billing" (Bool (hasPermission m SetBilling)) $
+            KeyMap.insert "can_view_billing" (Bool (hasPermission m GetBilling)) $
               o
       other ->
         error $ "toJSON TeamMemberInfo: not an object: " <> show (encode other)
@@ -95,7 +95,7 @@ instance ToJSON TeamAdminInfo where
       ]
 
 newtype UserProperties = UserProperties
-  { unUserProperties :: M.HashMap PropertyKey PropertyValue
+  { unUserProperties :: Map PropertyKey PropertyValue
   }
   deriving (Eq, Show, ToJSON)
 
