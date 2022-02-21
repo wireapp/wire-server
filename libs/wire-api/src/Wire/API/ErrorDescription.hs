@@ -213,6 +213,8 @@ type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Convers
 
 type TooManyMembers = ErrorDescription 403 "too-many-members" "Maximum number of members per conversation reached."
 
+type MLSNonEmptyMemberList = ErrorDescription 400 "non-empty-member-list" "Attempting to add group members outside MLS"
+
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"

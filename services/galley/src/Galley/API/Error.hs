@@ -120,6 +120,7 @@ data ConversationError
   | ConvMemberNotFound
   | NoBindingTeamMembers
   | GuestLinksDisabled
+  | MLSNonEmptyMemberList
 
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
@@ -128,6 +129,7 @@ instance APIError ConversationError where
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
   toWai GuestLinksDisabled = guestLinksDisabled
+  toWai MLSNonEmptyMemberList = errorDescriptionTypeToWai @MLSNonEmptyMemberList
 
 data TeamError
   = NoBindingTeam
