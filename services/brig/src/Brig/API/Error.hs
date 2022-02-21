@@ -18,7 +18,6 @@
 module Brig.API.Error where
 
 import Brig.API.Types
-import Brig.Data.MLS.PublicKey
 import Brig.Options (DomainsBlockedForRegistration)
 import Brig.Phone (PhoneException (..))
 import Brig.Types (DeletionCodeTimeout (..))
@@ -206,10 +205,6 @@ clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
-clientError (ClientMLSPublicKeyDataError e) = mlsPublicKeyDataError e
-
-mlsPublicKeyDataError :: MLSPublicKeyDataError -> Error
-mlsPublicKeyDataError MLSPublicKeyDuplicate = StdError $ errorDescriptionTypeToWai @DuplicateMLSPublicKey
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
@@ -222,6 +217,7 @@ clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyCli
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorDescriptionTypeToWai @MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorDescriptionTypeToWai @MalformedPrekeys)
+clientDataError MLSPublicKeyDuplicate = StdError $ errorDescriptionTypeToWai @DuplicateMLSPublicKey
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)
