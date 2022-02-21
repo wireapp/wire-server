@@ -133,6 +133,7 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
         Nothing
         Nothing
+        mempty
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser ::

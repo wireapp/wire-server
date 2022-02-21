@@ -594,7 +594,8 @@ data NewClient = NewClient
     newClientCookie :: Maybe CookieLabel,
     newClientPassword :: Maybe PlainTextPassword,
     newClientModel :: Maybe Text,
-    newClientCapabilities :: Maybe (Set ClientCapability)
+    newClientCapabilities :: Maybe (Set ClientCapability),
+    newClientMLSPublicKeys :: Map Text LByteString
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
@@ -696,6 +697,13 @@ instance ToSchema NewClient where
             )
         <*> newClientModel .= maybe_ (optField "model" schema)
         <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
+        <*> newClientMLSPublicKeys
+          .= fmap
+            (fromMaybe mempty)
+            ( optField
+                "mls_public_keys"
+                (map_ (Base64ByteString .= fmap fromBase64ByteString base64Schema))
+            )
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -708,7 +716,8 @@ newClient t k =
       newClientCookie = Nothing,
       newClientPassword = Nothing,
       newClientModel = Nothing,
-      newClientCapabilities = Nothing
+      newClientCapabilities = Nothing,
+      newClientMLSPublicKeys = mempty
     }
 
 --------------------------------------------------------------------------------
