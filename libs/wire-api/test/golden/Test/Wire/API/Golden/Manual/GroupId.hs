@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,11 +17,34 @@
 
 module Test.Wire.API.Golden.Manual.GroupId where
 
+import Data.Domain
 import Data.Either.Combinators
+import Data.Id
+import Data.Qualified
+import qualified Data.UUID as UUID
 import Imports
 import Wire.API.MLS.GroupId
 
-testGId :: GroupId
-testGId =
+convId1 :: Qualified ConvId
+convId1 =
+  Qualified
+    (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
+    (Domain "mydomain.com")
+
+convId2 :: Qualified ConvId
+convId2 =
+  Qualified
+    (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001")))
+    (Domain "abcdef.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.com")
+
+-- convId1 corresponds to (toConvId testObject_GroupId_1).
+testObject_GroupId_1 :: GroupId
+testObject_GroupId_1 =
   fromRight' . mkGroupId $
     "\0\0\0\1\0\0\0\0\0\0\0\0\0\0\0\1mydomain.com"
+
+-- convId2 corresponds to (toConvId testObject_GroupId_2).
+testObject_GroupId_2 :: GroupId
+testObject_GroupId_2 =
+  fromRight' . mkGroupId $
+    "\0\0\0\2\0\0\0\0\0\0\0\0\0\0\0\1abcdefg.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.testObjectGroupId2.com"

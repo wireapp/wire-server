@@ -26,9 +26,9 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
 import Imports
+import Test.Wire.API.Golden.Manual.GroupId
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (parseRoleName)
-import Wire.API.MLS.GroupId (testGId)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
@@ -98,7 +98,7 @@ testObject_Conversation_user_2 =
             cnvmReceiptMode = Nothing,
             cnvmProtocol = ProtocolMLS,
             -- cnvmGroupId = Just . fromRight undefined . mkGroupId $ undefined
-            cnvmGroupId = Just testGId
+            cnvmGroupId = Just testObject_GroupId_1
           },
       cnvMembers =
         ConvMembers

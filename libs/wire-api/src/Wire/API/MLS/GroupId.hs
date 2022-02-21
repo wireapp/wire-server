@@ -19,7 +19,6 @@ module Wire.API.MLS.GroupId
   ( GroupId,
     mkGroupId,
     serialise,
-    testGId,
     toConvId,
     fromConvId,
   )
@@ -38,7 +37,6 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text.Encoding as T
 import Data.UUID
-import qualified Data.UUID as UUID (fromString)
 import Imports hiding (drop, length, take)
 import Wire.API.Arbitrary
 
@@ -85,13 +83,6 @@ mkGroupId bs = do
 serialise :: GroupId -> ByteString
 serialise (unGroupId -> Qualified (Id cnvId) (Domain domain)) =
   toStrict (toByteString cnvId) <> T.encodeUtf8 domain
-
-testGId :: GroupId
-testGId =
-  GroupId $
-    Qualified
-      (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-      (Domain "to-be-parsed.com")
 
 -- | Currently the mapping from a group ID to a conversation ID is
 -- straightforward, but in the future it might be more involved if the

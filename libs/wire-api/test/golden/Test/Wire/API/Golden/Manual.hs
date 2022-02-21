@@ -36,7 +36,6 @@ import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
-import Test.Wire.API.Golden.Runner (testObjects)
 
 tests :: TestTree
 tests =
@@ -115,8 +114,8 @@ tests =
           ],
       testGroup "Contact" $
         testObjects
-          [(testObject_Contact_1, "testObject_Contact_1.json"),
-           (testObject_Contact_2, "testObject_Contact_2.json")
+          [ (testObject_Contact_1, "testObject_Contact_1.json"),
+            (testObject_Contact_2, "testObject_Contact_2.json")
           ],
       testGroup "SearchResult Contact" $
         testObjects [(testObject_SearchResultContact_1, "testObject_SearchResultContact_1.json")],
