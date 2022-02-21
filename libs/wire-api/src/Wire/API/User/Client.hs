@@ -703,7 +703,7 @@ instance ToSchema NewClient where
             (fromMaybe mempty)
             ( optField
                 "mls_public_keys"
-                (map_ (Base64ByteString .= fmap fromBase64ByteString base64Schema))
+                (map_ base64SchemaL)
             )
 
 newClient :: ClientType -> LastPrekey -> NewClient
