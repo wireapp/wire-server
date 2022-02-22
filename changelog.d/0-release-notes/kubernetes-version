@@ -1,0 +1,1 @@
+Your kubernetes server version must be >= 1.19 (type `kubectl version` to check)
