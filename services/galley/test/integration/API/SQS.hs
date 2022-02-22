@@ -124,7 +124,7 @@ ensureNoMessages :: HasCallStack => Amazon ()
 ensureNoMessages = do
   QueueUrl url <- view eventQueue
   amazonkaEnv <- view awsEnv
-  msgs <- view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 1 url)
+  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 1 url)
   liftIO $ assertEqual "ensureNoMessages: length" 0 (length msgs)
 
 fetchMessage :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> Amazon ()
