@@ -8,7 +8,9 @@ nginx-ingress:
       # As a Wire employee, for Wire-internal discussions and context see
       # * https://wearezeta.atlassian.net/browse/FS-33
       # * https://wearezeta.atlassian.net/browse/FS-444
+      # TODO add TLS 1.3 ciphers to the list
       ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+      ssl-protocols: "TLSv1.2 TLSv1.3"
       http2-max-field-size: 16k
       http2-max-header-size: 32k
       proxy-buffer-size: 16k
