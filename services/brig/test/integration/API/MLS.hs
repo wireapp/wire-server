@@ -27,6 +27,7 @@ tests m b _opts =
   testGroup
     "MLS"
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
+      test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
       test m "GET /mls/key-packages/claim/:domain/:user" (testKeyPackageClaim b)
     ]
@@ -38,26 +39,24 @@ testKeyPackageUpload brig = do
   withSystemTempFile "store.db" $ \store _ ->
     uploadKeyPackages brig store SetKey u c 5
 
-  count :: KeyPackageCount <-
-    responseJsonError
-      =<< get
-        ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
-            . zUser (qUnqualified u)
-        )
-      <!! const 200 === statusCode
+  count <- getKeyPackageCount brig u c
   liftIO $ count @?= 5
+
+testKeyPackageUploadNoKey :: Brig -> Http ()
+testKeyPackageUploadNoKey brig = do
+  u <- userQualifiedId <$> randomUser brig
+  c <- createClient brig u 0
+  withSystemTempFile "store.db" $ \store _ ->
+    uploadKeyPackages brig store DontSetKey u c 5
+
+  count <- getKeyPackageCount brig u c
+  liftIO $ count @?= 0
 
 testKeyPackageZeroCount :: Brig -> Http ()
 testKeyPackageZeroCount brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- randomClient
-  count :: KeyPackageCount <-
-    responseJsonError
-      =<< get
-        ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
-            . zUser (qUnqualified u)
-        )
-      <!! const 200 === statusCode
+  count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
 
 testKeyPackageClaim :: Brig -> Http ()
@@ -66,9 +65,9 @@ testKeyPackageClaim brig = do
   u <- userQualifiedId <$> randomUser brig
   [c1, c2] <- for [0, 1] $ \i -> do
     c <- createClient brig u i
-    -- upload 5 key packages for each client
+    -- upload 3 key packages for each client
     withSystemTempFile "store.db" $ \store _ ->
-      uploadKeyPackages brig store SetKey u c 5
+      uploadKeyPackages brig store SetKey u c 3
     pure c
 
   -- claim packages for both clients of u
@@ -92,12 +91,21 @@ testKeyPackageClaim brig = do
               . zUser (qUnqualified u)
           )
         <!! const 200 === statusCode
-    liftIO $ count @?= 4
+    liftIO $ count @?= 2
 
 --------------------------------------------------------------------------------
 
 data SetKey = SetKey | DontSetKey
   deriving (Eq)
+
+getKeyPackageCount :: Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
+getKeyPackageCount brig u c =
+  responseJsonError
+    =<< get
+      ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+          . zUser (qUnqualified u)
+      )
+    <!! const 200 === statusCode
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
@@ -140,4 +148,4 @@ uploadKeyPackages brig store sk u c n = do
         . zUser (qUnqualified u)
         . json upload
     )
-    !!! const 201 === statusCode
+    !!! const (case sk of SetKey -> 201; DontSetKey -> 400) === statusCode
