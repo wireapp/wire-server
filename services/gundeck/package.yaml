@@ -46,7 +46,8 @@ library:
   - network-uri >=2.6
   - optparse-applicative >=0.10
   - psqueues >=0.2.2
-  - redis-io >=0.4
+  # - redis-io >=0.4
+  - hedis >=0.14.0
   - resourcet >=1.1
   - retry >=0.5
   - safe-exceptions

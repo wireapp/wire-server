@@ -29,7 +29,7 @@ import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
 import Data.Time.Clock.POSIX
-import qualified Database.Redis.IO as Redis
+import qualified Database.Redis as Redis
 import qualified Gundeck.Aws as Aws
 import Gundeck.Options as Opt
 import Gundeck.ThreadBudget
@@ -46,7 +46,7 @@ data Env = Env
     _applog :: !Logger.Logger,
     _manager :: !Manager,
     _cstate :: !ClientState,
-    _rstate :: !Redis.Pool,
+    _rstate :: !Redis.Connection,
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState)
@@ -72,15 +72,15 @@ createEnv m o = do
           managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize),
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
-  r <-
-    Redis.mkPool (Logger.clone (Just "redis.gundeck") l) $
-      Redis.setHost (unpack $ o ^. optRedis . epHost)
-        . Redis.setPort (o ^. optRedis . epPort)
-        . Redis.setMaxConnections 100
-        . Redis.setPoolStripes 4
-        . Redis.setConnectTimeout 3
-        . Redis.setSendRecvTimeout 5
-        $ Redis.defSettings
+
+  let redisConnInfo =
+        Redis.defaultConnectInfo
+          { Redis.connectHost = unpack $ o ^. optRedis . epHost,
+            connectPort = PortNumber (o ^. optRedis . epPort),
+            -- connectTimeout = Just (5 seconds in NominalDiffTime),
+            connectMaxConnections = 100
+          }
+  r <- Redis.connect redisConnInfo
   p <-
     C.init $
       C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
