@@ -53,13 +53,6 @@ import Util
 import Wire.API.MLS.Credential
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client
-  ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
-    ClientCapabilityList (ClientCapabilityList),
-    QualifiedUserClients (..),
-    UserClients (..),
-    mkQualifiedUserClientPrekeyMap,
-    mkUserClientPrekeyMap,
-  )
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
@@ -599,7 +592,11 @@ testUpdateClient opts brig = do
     const (Just PhoneClient) === (clientClass <=< responseJsonMaybe)
     const (Just "featurephone") === (clientModel <=< responseJsonMaybe)
   let newPrekey = somePrekeys !! 2
-  let update = UpdateClient [newPrekey] Nothing (Just "label") Nothing mempty
+  let update =
+        defUpdateClient
+          { updateClientPrekeys = [newPrekey],
+            updateClientLabel = Just "label"
+          }
   put
     ( brig
         . paths ["clients", toByteString' (clientId c)]
@@ -635,7 +632,7 @@ testUpdateClient opts brig = do
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
     const Nothing === (preview (key "mls_public_keys") <=< responseJsonMaybe @Value)
 
-  let update' = UpdateClient [] Nothing Nothing Nothing mempty
+  let update' = defUpdateClient
 
   -- empty update should be a no-op
   put
@@ -656,7 +653,7 @@ testUpdateClient opts brig = do
   -- update supported client capabilities work
   let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
-        let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> capsIn) mempty
+        let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
         put
           ( brig
               . paths ["clients", toByteString' (clientId c)]
@@ -715,8 +712,12 @@ testUpdateClient opts brig = do
       ( brig
           . paths ["clients", toByteString' (clientId c)]
           . zUser uid
-          . contentJson
-          . (body . RequestBodyLBS . encode $ UpdateClient [prekey] (Just lastprekey) (Just label) Nothing mempty)
+          . json
+            defUpdateClient
+              { updateClientPrekeys = [prekey],
+                updateClientLastKey = Just lastprekey,
+                updateClientLabel = Just label
+              }
       )
       !!! const 200 === statusCode
     checkClientLabel
@@ -724,8 +725,7 @@ testUpdateClient opts brig = do
       ( brig
           . paths ["clients", toByteString' (clientId c)]
           . zUser uid
-          . contentJson
-          . (body . RequestBodyLBS . encode $ UpdateClient [] Nothing Nothing caps mempty)
+          . json defUpdateClient {updateClientCapabilities = caps}
       )
       !!! const 200 === statusCode
     checkClientLabel
