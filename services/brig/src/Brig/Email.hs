@@ -47,9 +47,10 @@ import Control.Lens (view)
 import qualified Data.Text as Text
 import Imports
 import Network.Mail.Mime
+import Polysemy
 
 -------------------------------------------------------------------------------
-sendMail :: Mail -> (AppIO r) ()
+sendMail :: Member (Final IO) r => Mail -> (AppIO r) ()
 sendMail m =
   view smtpEnv >>= \case
     Just smtp -> SMTP.sendMail smtp m

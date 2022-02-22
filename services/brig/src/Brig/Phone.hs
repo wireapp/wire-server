@@ -50,6 +50,7 @@ import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
+import Polysemy
 import qualified Ropes.Nexmo as Nexmo
 import Ropes.Twilio (LookupDetail (..))
 import qualified Ropes.Twilio as Twilio
@@ -73,7 +74,7 @@ data PhoneException
 
 instance Exception PhoneException
 
-sendCall :: forall r. Nexmo.Call -> AppIO r ()
+sendCall :: forall r. Member (Final IO) r => Nexmo.Call -> AppIO r ()
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
   m <- view httpManager
   cred <- view nexmoCreds
@@ -109,7 +110,7 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
           ~~ field "error" (show ex)
           ~~ field "phone" (Nexmo.callTo call)
 
-sendSms :: forall r. Locale -> SMSMessage -> (AppIO r) ()
+sendSms :: forall r. Member (Final IO) r => Locale -> SMSMessage -> AppIO r ()
 sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
   m <- view httpManager
   withSmsBudget smsTo $ do
@@ -194,7 +195,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 
 -- | Validate a phone number. Returns the canonical
 -- E.164 format of the given phone number on success.
-validatePhone :: Phone -> (AppIO r) (Maybe Phone)
+validatePhone :: Member (Final IO) r => Phone -> AppIO r (Maybe Phone)
 validatePhone (Phone p)
   | isTestPhone p = return (Just (Phone p))
   | otherwise = do
@@ -223,7 +224,7 @@ smsBudget =
       budgetValue = 5 -- # of SMS within timeout
     }
 
-withSmsBudget :: Text -> (AppIO r) a -> (AppIO r) a
+withSmsBudget :: Member (Final IO) r => Text -> AppIO r a -> AppIO r a
 withSmsBudget phone go = do
   let k = BudgetKey ("sms#" <> phone)
   r <- withBudget k smsBudget go
@@ -251,7 +252,7 @@ callBudget =
       budgetValue = 2 -- # of voice calls within timeout
     }
 
-withCallBudget :: Text -> (AppIO r) a -> (AppIO r) a
+withCallBudget :: Member (Final IO) r => Text -> (AppIO r) a -> (AppIO r) a
 withCallBudget phone go = do
   let k = BudgetKey ("call#" <> phone)
   r <- withBudget k callBudget go

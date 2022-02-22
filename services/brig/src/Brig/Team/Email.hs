@@ -38,25 +38,45 @@ import Data.Id (TeamId, idToText)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import Polysemy
 
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> (AppIO r) ()
+sendInvitationMail ::
+  Member (Final IO) r =>
+  Email ->
+  TeamId ->
+  Email ->
+  InvitationCode ->
+  Maybe Locale ->
+  AppIO r ()
 sendInvitationMail to tid from code loc = do
   tpl <- invitationEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
   Email.sendMail $ renderInvitationEmail mail tpl branding
 
-sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppIO r) ()
+sendCreatorWelcomeMail ::
+  Member (Final IO) r =>
+  Email ->
+  TeamId ->
+  Text ->
+  Maybe Locale ->
+  AppIO r ()
 sendCreatorWelcomeMail to tid teamName loc = do
   tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = CreatorWelcomeEmail to tid teamName
   Email.sendMail $ renderCreatorWelcomeMail mail tpl branding
 
-sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppIO r) ()
+sendMemberWelcomeMail ::
+  Member (Final IO) r =>
+  Email ->
+  TeamId ->
+  Text ->
+  Maybe Locale ->
+  AppIO r ()
 sendMemberWelcomeMail to tid teamName loc = do
   tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding

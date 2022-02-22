@@ -50,39 +50,40 @@ import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import Polysemy
 import qualified Ropes.Nexmo as Nexmo
 
-sendActivationSms :: Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
+sendActivationSms :: Member (Final IO) r => Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
 sendActivationSms to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderActivationSms (ActivationSms to c) (activationSms tpl) branding
 
-sendPasswordResetSms :: Phone -> PasswordResetPair -> Maybe Locale -> (AppIO r) ()
+sendPasswordResetSms :: Member (Final IO) r => Phone -> PasswordResetPair -> Maybe Locale -> (AppIO r) ()
 sendPasswordResetSms to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderPasswordResetSms (PasswordResetSms to c) (passwordResetSms tpl) branding
 
-sendLoginSms :: Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
+sendLoginSms :: Member (Final IO) r => Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
 sendLoginSms to code loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderLoginSms (LoginSms to code) (loginSms tpl) branding
 
-sendDeletionSms :: Phone -> Code.Key -> Code.Value -> Locale -> (AppIO r) ()
+sendDeletionSms :: Member (Final IO) r => Phone -> Code.Key -> Code.Value -> Locale -> (AppIO r) ()
 sendDeletionSms to key code loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates (Just loc)
   sendSms loc' $ renderDeletionSms (DeletionSms to key code) (deletionSms tpl) branding
 
-sendActivationCall :: Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
+sendActivationCall :: Member (Final IO) r => Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
 sendActivationCall to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendCall $ renderActivationCall (ActivationCall to c) (activationCall tpl) loc' branding
 
-sendLoginCall :: Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
+sendLoginCall :: Member (Final IO) r => Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
 sendLoginCall to c loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc

@@ -1,5 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+-- TODO(md): This should be a temporary option needed for instances on the (Sem
+-- r) monad. It will be removed by the end of polysemizing the Brig service.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -94,7 +97,7 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
@@ -123,6 +126,8 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
+import Polysemy
+import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
@@ -438,51 +443,84 @@ closeEnv e = do
 -------------------------------------------------------------------------------
 -- App Monad
 newtype AppT r m a = AppT
-  { unAppT :: ReaderT Env m a
-  }
-  deriving newtype
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadMask,
-      MonadReader Env
-    )
+  {unAppT :: Member (Final m) r => ReaderT Env (Sem r) a}
+  deriving (Functor)
   deriving
     ( Semigroup,
       Monoid
     )
     via (Ap (AppT r m) a)
 
+liftSem :: (Member (Final m) r => Sem r a) -> AppT r m a
+liftSem sem = AppT $ lift sem
+
+instance Applicative (AppT r m) where
+  pure a = AppT $ pure a
+  liftA2 f a b = AppT $ liftA2 f (unAppT a) (unAppT b)
+
+instance Monad (AppT r m) where
+  return = pure
+  f >>= a = AppT $ unAppT f >>= unAppT . a
+
+instance Member (Final IO) r => MonadIO (AppT r m) where
+  -- TODO(md): 'embedFinal' is discuraged to be used in application code, but it
+  -- should be justified as a crutch until the transition to Polysemy in Brig is
+  -- done.
+  liftIO m = liftSem $ embedFinal m
+
+instance MonadReader Env (AppT r m) where
+  ask = AppT ask
+  local f m = AppT $ local f $ unAppT m
+
+instance Member (Final IO) r => MonadThrow (Sem r) where
+  throwM = embedFinal . throwM @IO
+
+instance Member (Final IO) r => MonadThrow (AppT r m) where
+  throwM = liftSem . embedFinal . throwM @IO
+
+instance Member (Final IO) r => MonadCatch (Sem r) where
+  catch m handler = withStrategicToFinal @IO $ do
+    m' <- runS m
+    st <- getInitialStateS
+    handler' <- bindS handler
+    pure $ m' `catch` \e -> handler' $ e <$ st
+
+instance Member (Final IO) r => MonadCatch (AppT r m) where
+  catch _m _handler = undefined
+
+-- TODO(md): define the instance
+instance Member (Final IO) r => MonadMask (AppT r m) where
+  mask _ = undefined
+  uninterruptibleMask _ = undefined
+  generalBracket = undefined
+
 type AppIO r = AppT r IO
 
-instance MonadIO m => MonadLogger (AppT r m) where
+instance (MonadIO m, Member (Final IO) r) => MonadLogger (AppT r m) where
   log l m = do
     g <- view applog
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
+instance (MonadIO m, Member (Final IO) r) => MonadLogger (ExceptT err (AppT r m)) where
   log l m = lift (LC.log l m)
 
-instance (Monad m, MonadIO m) => MonadHttp (AppT r m) where
+instance (Monad m, MonadIO m, Member (Final IO) r) => MonadHttp (AppT r m) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r m) where
+instance (MonadIO m, Member (Final IO) r) => MonadZAuth (AppT r m) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
-instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
+instance (MonadIO m, Member (Final IO) r) => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
 
-instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
+instance (MonadCatch m, MonadIO m, Member (Final IO) r) => MonadClient (AppT r m) where
   liftClient m = view casClient >>= \c -> runClient c m
   localState f = local (over casClient f)
 
-instance MonadIndexIO (AppIO r) where
+instance Member (Final IO) r => MonadIndexIO (AppIO r) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
@@ -491,21 +529,23 @@ instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r
 instance Monad m => HasRequestId (AppT r m) where
   getRequestId = view requestId
 
-instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
-  withRunInIO inner =
-    AppT . ReaderT $ \r ->
-      withRunInIO $ \run ->
-        inner (run . flip runReaderT r . unAppT)
+instance Member (Final IO) r => MonadUnliftIO (AppIO r) where
+  -- TODO(md): define the instance
+  withRunInIO _inner = undefined
 
-runAppT :: Env -> AppT r m a -> m a
-runAppT e (AppT ma) = runReaderT ma e
+-- AppT . ReaderT $ \r ->
+--   withRunInIO $ \run ->
+--     inner (run . flip runReaderT r . unAppT)
 
-runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
+runAppT :: Monad m => Env -> AppT '[Final m] m a -> m a
+runAppT e (AppT ma) = runFinal $ runReaderT ma e
+
+runAppResourceT :: r ~ '[Final IO] => ResourceT (AppIO r) a -> (AppIO r) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppIO :: Maybe UserId -> (AppIO r) a -> (AppIO r) ()
+forkAppIO :: r ~ '[Final IO] => Maybe UserId -> AppIO r a -> AppIO r ()
 forkAppIO u ma = do
   a <- ask
   g <- view applog

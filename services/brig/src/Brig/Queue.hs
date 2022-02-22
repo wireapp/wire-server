@@ -38,6 +38,7 @@ import qualified Data.Text.Encoding as T
 import Imports
 import Network.AWS.SQS (smrsMD5OfMessageBody)
 import OpenSSL.EVP.Digest (Digest, digestLBS)
+import Polysemy
 import System.Logger.Class as Log hiding (settings)
 
 -- Note [queue refactoring]
@@ -63,7 +64,7 @@ import System.Logger.Class as Log hiding (settings)
 -- | Enqueue a message.
 --
 -- Throws an error in case of failure.
-enqueue :: ToJSON a => Queue -> a -> (AppIO r) ()
+enqueue :: Member (Final IO) r => ToJSON a => Queue -> a -> AppIO r ()
 enqueue (StompQueue queue) message =
   view stompEnv >>= \case
     Just env -> Stomp.enqueue (Stomp.broker env) queue message
@@ -93,7 +94,7 @@ enqueue (SqsQueue queue) message =
 --
 -- See documentation of underlying functions (e.g. 'Stomp.listen') for
 -- extra details.
-listen :: (Show a, FromJSON a) => Queue -> (a -> (AppIO r) ()) -> (AppIO r) ()
+listen :: (r ~ '[Final IO], Show a, FromJSON a) => Queue -> (a -> (AppIO r) ()) -> AppIO r ()
 listen (StompQueue queue) callback =
   view stompEnv >>= \case
     Just env -> Stomp.listen (Stomp.broker env) queue callback

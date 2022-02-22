@@ -38,6 +38,7 @@ import Data.Range (Range)
 import qualified Data.Text as T
 import GHC.TypeLits
 import Imports
+import Polysemy
 import Servant.Client hiding (client)
 import Servant.Client.Core
 import qualified System.Logger.Class as Log
@@ -52,27 +53,31 @@ import Wire.API.UserMap (UserMap)
 
 type FederationAppIO r = ExceptT FederationError (AppIO r)
 
-getUserHandleInfo :: Remote Handle -> (FederationAppIO r) (Maybe UserProfile)
+getUserHandleInfo ::
+  Member (Final IO) r =>
+  Remote Handle ->
+  (FederationAppIO r) (Maybe UserProfile)
 getUserHandleInfo (qUntagged -> Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   executeFederated @"get-user-by-handle" domain handle
 
-getUsersByIds :: Domain -> [UserId] -> (FederationAppIO r) [UserProfile]
+getUsersByIds :: Member (Final IO) r => Domain -> [UserId] -> (FederationAppIO r) [UserProfile]
 getUsersByIds domain uids = do
   Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   executeFederated @"get-users-by-ids" domain uids
 
-claimPrekey :: Qualified UserId -> ClientId -> (FederationAppIO r) (Maybe ClientPrekey)
+claimPrekey :: Member (Final IO) r => Qualified UserId -> ClientId -> (FederationAppIO r) (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
   executeFederated @"claim-prekey" domain (user, client)
 
-claimPrekeyBundle :: Qualified UserId -> (FederationAppIO r) PrekeyBundle
+claimPrekeyBundle :: Member (Final IO) r => Qualified UserId -> (FederationAppIO r) PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
   executeFederated @"claim-prekey-bundle" domain user
 
 claimMultiPrekeyBundle ::
+  Member (Final IO) r =>
   Domain ->
   UserClients ->
   (FederationAppIO r) UserClientPrekeyMap
@@ -80,17 +85,18 @@ claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated @"claim-multi-prekey-bundle" domain uc
 
-searchUsers :: Domain -> SearchRequest -> (FederationAppIO r) SearchResponse
+searchUsers :: Member (Final IO) r => Domain -> SearchRequest -> (FederationAppIO r) SearchResponse
 searchUsers domain searchTerm = do
   Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated @"search-users" domain searchTerm
 
-getUserClients :: Domain -> GetUserClients -> (FederationAppIO r) (UserMap (Set PubClient))
+getUserClients :: Member (Final IO) r => Domain -> GetUserClients -> (FederationAppIO r) (UserMap (Set PubClient))
 getUserClients domain guc = do
   Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
   executeFederated @"get-user-clients" domain guc
 
 sendConnectionAction ::
+  Member (Final IO) r =>
   Local UserId ->
   Remote UserId ->
   RemoteConnectionAction ->
@@ -101,6 +107,7 @@ sendConnectionAction self (qUntagged -> other) action = do
   executeFederated @"send-connection-action" (qDomain other) req
 
 notifyUserDeleted ::
+  Member (Final IO) r =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
   (FederationAppIO r) ()
@@ -110,7 +117,7 @@ notifyUserDeleted self remotes = do
     executeFederated @"on-user-deleted-connections" (tDomain remotes) $
       UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
 
-runBrigFederatorClient :: Domain -> FederatorClient 'Brig a -> (FederationAppIO r) a
+runBrigFederatorClient :: forall r a. Member (Final IO) r => Domain -> FederatorClient 'Brig a -> (FederationAppIO r) a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
@@ -127,10 +134,11 @@ executeFederated ::
   forall (name :: Symbol) api r.
   ( HasFedEndpoint 'Brig api name,
     HasClient ClientM api,
-    HasClient (FederatorClient 'Brig) api
+    HasClient (FederatorClient 'Brig) api,
+    Member (Final IO) r
   ) =>
   Domain ->
   Client (FederationAppIO r) api
 executeFederated domain =
-  hoistClient (Proxy @api) (runBrigFederatorClient @_ @r domain) $
+  hoistClient (Proxy @api) (runBrigFederatorClient @r @_ domain) $
     clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig))

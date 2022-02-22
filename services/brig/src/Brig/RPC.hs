@@ -35,6 +35,7 @@ import Imports
 import Network.HTTP.Client (HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import Polysemy
 import System.Logger.Class hiding (name, (.=))
 
 x3 :: RetryPolicy
@@ -60,24 +61,28 @@ expect ss rq = rq {checkResponse = check}
           HttpExceptionRequest rq' (StatusCodeException rs' mempty)
 
 cargoholdRequest ::
+  Member (Final IO) r =>
   StdMethod ->
   (Request -> Request) ->
   (AppIO r) (Response (Maybe BL.ByteString))
 cargoholdRequest = serviceRequest "cargohold" cargohold
 
 galleyRequest ::
+  Member (Final IO) r =>
   StdMethod ->
   (Request -> Request) ->
   (AppIO r) (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
 
 gundeckRequest ::
+  Member (Final IO) r =>
   StdMethod ->
   (Request -> Request) ->
   (AppIO r) (Response (Maybe BL.ByteString))
 gundeckRequest = serviceRequest "gundeck" gundeck
 
 serviceRequest ::
+  Member (Final IO) r =>
   LT.Text ->
   Control.Lens.Getting Request Env Request ->
   StdMethod ->
