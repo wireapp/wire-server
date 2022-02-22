@@ -76,11 +76,12 @@ createEnv m o = do
   let redisConnInfo =
         Redis.defaultConnectInfo
           { Redis.connectHost = unpack $ o ^. optRedis . epHost,
-            connectPort = PortNumber (o ^. optRedis . epPort),
-            -- connectTimeout = Just (5 seconds in NominalDiffTime),
-            connectMaxConnections = 100
+            Redis.connectPort = Redis.PortNumber (fromIntegral $ o ^. optRedis . epPort),
+            -- TODO
+            -- Redis.connectTimeout = Just (5 seconds in NominalDiffTime),
+            Redis.connectMaxConnections = 100
           }
-  r <- Redis.connect redisConnInfo
+  r <- Redis.checkedConnect redisConnInfo
   p <-
     C.init $
       C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))

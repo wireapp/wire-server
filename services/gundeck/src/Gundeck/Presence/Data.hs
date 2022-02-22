@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LazyChars
 import Data.Id
 import Data.Misc (Milliseconds)
-import Database.Redis.IO hiding (Milliseconds)
+import Database.Redis
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
 import Gundeck.Util.Redis

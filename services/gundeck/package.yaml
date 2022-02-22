@@ -48,6 +48,7 @@ library:
   - psqueues >=0.2.2
   # - redis-io >=0.4
   - hedis >=0.14.0
+  - network
   - resourcet >=1.1
   - retry >=0.5
   - safe-exceptions
