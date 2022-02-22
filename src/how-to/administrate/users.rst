@@ -146,7 +146,7 @@ First, ssh to an elasticsearch instance.
 
 .. code:: sh
 
-  ssh <ip of elasticsearch instance> 
+  ssh <ip of elasticsearch instance>
 
 Then run the following:
 
@@ -170,7 +170,7 @@ First, ssh to an elasticsearch instance:
 
 .. code:: sh
 
-  ssh <ip of elasticsearch instance> 
+  ssh <ip of elasticsearch instance>
 
 Next, check that the user exists:
 
@@ -228,7 +228,7 @@ For example, one such execution of the script could look like:
 
 .. code:: sh
 
-   sh create_team_members.sh -a 9122e5de-b4fb-40fa-99ad-1b5d7d07bae5 -t 123e4567-e89b-12d3-a456-426614174000 -h http://localhost:9999 -c users_to_invite.csv 
+   sh create_team_members.sh -a 9122e5de-b4fb-40fa-99ad-1b5d7d07bae5 -t 123e4567-e89b-12d3-a456-426614174000 -h http://localhost:9999 -c users_to_invite.csv
 
 Note: the 'http://localhost:9999' implies you are running the 'kubectl port-forward' given at the top of this document
 .
@@ -240,7 +240,7 @@ If you have a lot of invitations to send and this is too slow, you can speed thi
 How to obtain logs from an Android client to investigate issues
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Wire clients communicate with Wire servers (backend). 
+Wire clients communicate with Wire servers (backend).
 
 Sometimes to investigate server issues, you (or the Wire team) will need client information, in the form of client logs.
 
@@ -260,7 +260,7 @@ In order to obtain client logs on the Android Wire client, follow this procedure
 How to obtain logs from an iOS client to investigate issues
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Wire clients communicate with Wire servers (backend). 
+Wire clients communicate with Wire servers (backend).
 
 Sometimes to investigate server issues, you (or the Wire team) will need client information, in the form of client logs.
 

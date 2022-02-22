@@ -23,7 +23,8 @@ which may yield output like this:
 How can I see if my TLS certificates are configured the way I expect?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Note: The following assumes you're querying a server from outside (e.g. your laptop). See the next section if operating on a server from an SSH session.
+.. note::
+   The following assumes you're querying a server from outside (e.g. your laptop). See the next section if operating on a server from an SSH session.
 
 You can use openssl to check, with e.g.
 

@@ -1,6 +1,6 @@
 
 Operational procedures
-~~~~~~~~~~~~~~~~~~~~~~
+======================
 
 This section describes common operations to be performed on operational clusters.
 
@@ -93,7 +93,7 @@ We have two major release tags that you sometimes want to map on each other: *gi
 Github have a tag of the form `vYYYY-MM-DD`, and the release notes and (some build artefacts) can be found on github, eg., `here <https://github.com/wireapp/wire-server/releases/v2022-01-18>`__.  Helm chart tags have the form `N.NNN.0`.  The minor version `0` is for the development branch; non-zero values refer to unreleased intermediate states.
 
 On the command line
-~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 You can find the github tag for a helm chart tag like this:
 
@@ -120,7 +120,7 @@ A list of all releases can be produced like this:
 If you want to find the
 
 In the github UI
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 Consult `the changelog
 <https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md>`__
