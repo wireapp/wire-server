@@ -1,5 +1,6 @@
 # Default values for nginx-ingress-controller
 
+# TODO: this should probably be ingress-nginx now
 nginx-ingress:
   controller:
     config:
