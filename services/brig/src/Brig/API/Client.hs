@@ -161,6 +161,7 @@ updateClient u c r = do
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
+  Data.addMLSPublicKeys u c (Map.assocs (updateClientMLSPublicKeys r)) !>> ClientDataError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

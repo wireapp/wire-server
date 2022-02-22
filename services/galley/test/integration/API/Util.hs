@@ -121,7 +121,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Member (mkNewTeamMember)
-import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
+import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Identity (mkSimpleSampleUref)
 
@@ -2235,7 +2235,7 @@ putCapabilities zusr cid caps = do
       ( brig
           . zUser zusr
           . paths ["clients", toByteString' cid]
-          . json (UpdateClient mempty Nothing Nothing (Just . Set.fromList $ caps))
+          . json defUpdateClient {updateClientCapabilities = Just (Set.fromList caps)}
           . expect2xx
       )
 

@@ -31,13 +31,16 @@ module Brig.Data.Client
     lookupClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
-    Brig.Data.Client.updateClientLabel,
-    Brig.Data.Client.updateClientCapabilities,
+    updateClientLabel,
+    updateClientCapabilities,
 
     -- * Prekeys
     claimPrekey,
     updatePrekeys,
     lookupPrekeyIds,
+
+    -- * MLS public keys
+    addMLSPublicKeys,
   )
 where
 
@@ -50,7 +53,6 @@ import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
-import Brig.Types
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
@@ -80,7 +82,8 @@ import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.MLS.Credential
-import Wire.API.User.Client (ClientCapability, ClientCapabilityList (ClientCapabilityList))
+import Wire.API.User.Client hiding (UpdateClient (..))
+import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
