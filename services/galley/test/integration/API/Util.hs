@@ -78,6 +78,7 @@ import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
+import Galley.Types.UserList
 import Gundeck.Types.Notification
   ( Notification (..),
     NotificationId,
@@ -543,8 +544,40 @@ createOne2OneTeamConv u1 u2 n tid = do
         NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
+postConv ::
+  UserId ->
+  [UserId] ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
+
+-- | Create an MLS conversation
+postMLSConv ::
+  Local UserId ->
+  UserList UserId ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  TestM ResponseLBS
+postMLSConv lusr (UserList locals remotes) name access r timer =
+  postConvQualified
+    (tUnqualified lusr)
+    NewConv
+      { newConvUsers = [],
+        newConvQualifiedUsers = fmap (qUntagged . qualifyAs lusr) locals <> fmap qUntagged remotes,
+        newConvName = name,
+        newConvAccess = Set.fromList access,
+        newConvAccessRoles = r,
+        newConvTeam = Nothing,
+        newConvMessageTimer = timer,
+        newConvUsersRole = roleNameWireAdmin,
+        newConvReceiptMode = Nothing,
+        newConvProtocol = ProtocolMLS
+      }
 
 defNewProteusConv :: NewConv
 defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus
@@ -595,7 +628,15 @@ deleteTeamConv tid convId zusr = do
         . zConn "conn"
     )
 
-postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRole ::
+  UserId ->
+  [UserId] ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ResponseLBS
 postConvWithRole u members name access arole timer role =
   postConvQualified
     u

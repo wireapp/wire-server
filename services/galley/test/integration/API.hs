@@ -71,6 +71,7 @@ import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
+import Galley.Types.UserList
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -117,7 +118,9 @@ tests s =
         "Main Conversations API"
         [ test s "status" status,
           test s "metrics" metrics,
-          test s "create conversation" postConvOk,
+          test s "create Proteus conversation" postProteusConvOk,
+          test s "fail to create MLS conversation" postMLSConvFail,
+          test s "create MLS conversation" postMLSConvOk,
           test s "create conversation with remote users" postConvWithRemoteUsersOk,
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
@@ -251,8 +254,8 @@ metrics = do
     -- Should contain the request duration metric in its output
     const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
 
-postConvOk :: TestM ()
-postConvOk = do
+postProteusConvOk :: TestM ()
+postProteusConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
@@ -281,6 +284,20 @@ postConvOk = do
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
+
+postMLSConvFail :: TestM ()
+postMLSConvFail = do
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  lAlice <- flip toLocalUnsafe alice <$> viewFederationDomain
+  bob <- randomUser
+  connectUsers alice (list1 bob [])
+  postMLSConv lAlice (UserList [bob] []) Nothing [] Nothing Nothing !!! do
+    const 400 === statusCode
+    const (Just "non-empty-member-list") === fmap label . responseJsonError
+
+postMLSConvOk :: TestM ()
+postMLSConvOk = pure ()
 
 postConvWithRemoteUsersOk :: TestM ()
 postConvWithRemoteUsersOk = do
