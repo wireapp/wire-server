@@ -116,6 +116,7 @@ library
       Brig.User.Search.TeamSize
       Brig.User.Search.TeamUserSearch
       Brig.User.Template
+      Brig.Version
       Brig.Whitelist
       Brig.ZAuth
       Main

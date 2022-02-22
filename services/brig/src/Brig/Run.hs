@@ -39,6 +39,7 @@ import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
+import Brig.Version
 import Cassandra (Page (Page), liftClient)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -130,7 +131,7 @@ mkApp o = do
             :<|> Servant.hoistServer (Proxy @BrigAPI) (toServantHandler e) servantSitemap
             :<|> Servant.hoistServer (Proxy @IAPI.API) (toServantHandler e) IAPI.servantSitemap
             :<|> Servant.hoistServer (Proxy @FederationAPI) (toServantHandler e) federationSitemap
-            :<|> versionAPI
+            :<|> Servant.hoistServer (Proxy @VersionAPI) (toServantHandler e) versionAPI
             :<|> Servant.Tagged (app e)
         )
 

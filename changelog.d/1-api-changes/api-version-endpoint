@@ -1,0 +1,6 @@
+The `api-version` endpoint now returns additional information about the backend:
+
+  - whether federation is supported (field `federation`);
+  - the federation domain (field `domain`).
+
+Note that the federation domain is always set, even if federation is disabled.
