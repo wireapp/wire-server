@@ -41,6 +41,7 @@ module Brig.Data.Client
 
     -- * MLS public keys
     addMLSPublicKeys,
+    lookupMLSPublicKey,
   )
 where
 
@@ -264,6 +265,10 @@ claimPrekey u c =
       ind <- liftIO $ randomRIO (0, length pks' - 1)
       return $ atMay pks' ind
 
+lookupMLSPublicKey :: UserId -> ClientId -> SignatureSchemeTag -> AppIO r (Maybe LByteString)
+lookupMLSPublicKey u c ss =
+  (fromBlob . runIdentity) <$$> retry x1 (query1 selectMLSPublicKey (params LocalQuorum (u, c, ss)))
+
 addMLSPublicKeys ::
   UserId ->
   ClientId ->
@@ -332,6 +337,9 @@ removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"
 
 checkClient :: PrepQuery R (UserId, ClientId) (Identity ClientId)
 checkClient = "SELECT client from clients where user = ? and client = ?"
+
+selectMLSPublicKey :: PrepQuery R (UserId, ClientId, SignatureSchemeTag) (Identity Blob)
+selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client = ? and sig_scheme = ?"
 
 selectMLSPublicKeys :: PrepQuery R (UserId, ClientId) (SignatureSchemeTag, Blob)
 selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = ? and client = ?"

@@ -70,6 +70,9 @@ newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, Arbitrary)
 
+signatureScheme :: SignatureSchemeTag -> SignatureScheme
+signatureScheme = SignatureScheme . signatureSchemeNumber
+
 data SignatureSchemeTag = Ed25519
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
