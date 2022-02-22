@@ -11,7 +11,7 @@ Visit https://docs.wire.com/
 The structure of this document has been heavily inspired by [this blog
 post](https://www.divio.com/blog/documentation/).
 
-We use [sphinx](https://sphinx-doc.org/) for rendering documentation.
+We use [sphinx](https://www.sphinx-doc.org/) for rendering documentation.
 
 Most documentation is written in RestructuredText (with `.rst` file extension).
 The reason for that is A) the default support from sphinx and B) some of the
@@ -21,8 +21,8 @@ etc.
 
 For dealing with RST, here are some resources:
 
-* here is a [cheat sheet](https://docutils.sourceforge.net/docs/user/rst/quickref.html)
-* [here is another one](https://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
+* here is a [cheat sheet](https://docutils.sourceforge.io/docs/user/rst/quickref.html)
+* [here is another one](https://docutils.sourceforge.io/docs/user/rst/cheatsheet.html).
 * And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
 At the popular request, there is now also some support for markdown files (`.md` file
