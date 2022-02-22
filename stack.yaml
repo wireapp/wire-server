@@ -130,9 +130,10 @@ extra-deps:
 - stache-2.3.1
 - microlens-aeson-2.4.1
 
-# Use latest amazonka from upstream to support aeson >= 2
-- git: https://github.com/brendanhay/amazonka
-  commit: f73a957d05f64863e867cf39d0db260718f0fadd
+# Fork to force usage of path-style s3 URLs. More about S3 URLs:
+# https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/
+- git: https://github.com/wireapp/amazonka
+  commit: 1acd0133490d615934dc9e1f5b97045580e0e379 # (2022-02-22) branch: s3-no-vhost
   subdirs:
   - lib/amazonka
   - lib/amazonka-core
