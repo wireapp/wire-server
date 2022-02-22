@@ -49,6 +49,7 @@ module Wire.API.User.Client
     NewClient (..),
     newClient,
     UpdateClient (..),
+    defUpdateClient,
     RmClient (..),
 
     -- * re-exports
@@ -443,7 +444,7 @@ data Client = Client
     clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
     clientCapabilities :: ClientCapabilityList,
-    clientMLSPublicKeys :: Map SignatureSchemeTag LByteString
+    clientMLSPublicKeys :: MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
@@ -609,7 +610,7 @@ data NewClient = NewClient
     newClientPassword :: Maybe PlainTextPassword,
     newClientModel :: Maybe Text,
     newClientCapabilities :: Maybe (Set ClientCapability),
-    newClientMLSPublicKeys :: Map SignatureSchemeTag LByteString
+    newClientMLSPublicKeys :: MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
@@ -736,11 +737,22 @@ data UpdateClient = UpdateClient
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text,
     -- | see haddocks for 'ClientCapability'
-    updateClientCapabilities :: Maybe (Set ClientCapability)
+    updateClientCapabilities :: Maybe (Set ClientCapability),
+    updateClientMLSPublicKeys :: MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpdateClient
+
+defUpdateClient :: UpdateClient
+defUpdateClient =
+  UpdateClient
+    { updateClientPrekeys = [],
+      updateClientLastKey = Nothing,
+      updateClientLabel = Nothing,
+      updateClientCapabilities = Nothing,
+      updateClientMLSPublicKeys = mempty
+    }
 
 instance ToSchema UpdateClient where
   schema =
@@ -768,6 +780,7 @@ instance ToSchema UpdateClient where
                 schema
             )
         <*> updateClientCapabilities .= maybe_ capabilitiesFieldSchema
+        <*> updateClientMLSPublicKeys .= mlsPublicKeysSchema
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do
