@@ -142,6 +142,7 @@ login (PasswordLogin li pw label code) typ = do
                 codeValid <- isJust <$> Code.verify key Code.AccountLogin c
                 unless codeValid $ loginFailedWith LoginNoPendingCode u
 
+
     getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = lift $ do
       mbAccount <- Data.lookupAccount u
