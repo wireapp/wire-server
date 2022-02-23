@@ -74,8 +74,11 @@ newtype Gundeck a = Gundeck
       MonadUnliftIO
     )
 
--- instance Redis.MonadClient Gundeck where
---   liftClient m = view rstate >>= \p -> Redis.runRedis p m
+-- TODO: is this the correct behaviour?
+instance Redis.MonadRedis Gundeck where
+  liftRedis m = do
+    p <- view rstate
+    liftIO $ Redis.runRedis p m
 
 instance MonadLogger Gundeck where
   log l m = do
