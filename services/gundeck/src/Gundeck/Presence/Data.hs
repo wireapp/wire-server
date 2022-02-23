@@ -24,6 +24,7 @@ module Gundeck.Presence.Data
 where
 
 import Control.Monad.Catch
+import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString as Strict
 import Data.ByteString.Builder (byteString)
@@ -34,6 +35,7 @@ import qualified Data.ByteString.Lazy.Char8 as LazyChars
 import Data.Id
 import Data.Misc (Milliseconds)
 import Database.Redis
+import Database.Redis.Sentinel (multiExec)
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
 import Gundeck.Util.Redis
@@ -61,23 +63,26 @@ add p = do
   now <- posixTime
   let k = toKey (userId p)
   let v = toField (connId p)
-  let d = encode $ PresenceData (resource p) (clientId p) now
-  -- TODO: No instance for (RedisCtx Gundeck f0) arising from a use of ‘set’
-  -- void $ set k v
-  -- void $ setex k maxIdleTime v
-
-  -- retry x3 . commands $ do
-  --   multi
-  --   void $ hset k v d
-  --   -- nb. All presences of a user are expired 'maxIdleTime' after the
-  --   -- last presence was registered. A client who keeps a presence
-  --   -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
-  --   -- silently dropped and receives no more notifications.
-  --   void $ expire k maxIdleTime
-  --   exec
-
-  undefined
+  let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
+  -- TODO error handling
+  void . liftRedis . multiExec $ do
+    void $ hset k v d
+    -- nb. All presences of a user are expired 'maxIdleTime' after the
+    -- last presence was registered. A client who keeps a presence
+    -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
+    -- silently dropped and receives no more notifications.
+    expire k maxIdleTime
   where
+    -- retry x3 . commands $ do
+    --   multi
+    --   void $ hset k v d
+    --   -- nb. All presences of a user are expired 'maxIdleTime' after the
+    --   -- last presence was registered. A client who keeps a presence
+    --   -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
+    --   -- silently dropped and receives no more notifications.
+    --   void $ expire k maxIdleTime
+    --   exec
+
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
 deleteAll :: (MonadRedis m, MonadMask m) => [Presence] -> m ()
@@ -98,15 +103,21 @@ deleteAll pp = for_ pp $ \p -> do
 --   exec
 
 list :: MonadRedis m => UserId -> m [Presence]
-list u = undefined
+-- list :: (MonadRedis m, MonadError Reply m) => UserId -> m [Presence]
+list u = liftRedis $ do
+  ePresenses <- list' u
+  case ePresenses of
+    Left reply -> undefined -- throwError reply
+    Right ps -> pure ps
 
--- list u = mapMaybe (readPresence u) <$> commands (hgetall (toKey u))
+list' :: (RedisCtx m f, Functor f) => UserId -> m (f [Presence])
+list' u = mapMaybe (readPresence u) <$$> hgetall (toKey u)
 
 listAll :: MonadRedis m => [UserId] -> m [[Presence]]
 listAll [] = return []
 listAll uu = undefined
 
--- zipWith fn uu <$> commands (mapM (hgetall . toKey) uu)
+-- zipWith fn uu <$> mapM (hgetall . toKey) uu
 -- where
 --   fn u = mapMaybe (readPresence u)
 
