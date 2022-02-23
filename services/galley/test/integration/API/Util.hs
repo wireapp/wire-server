@@ -561,6 +561,44 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
         . json conv
     )
 
+-- | Create a team MLS conversation
+createMLSTeamConv ::
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Local UserId ->
+  TeamId ->
+  UserList UserId ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  m (Local ConvId)
+createMLSTeamConv lusr tid (UserList locals remotes) name access role timer convRole = do
+  g <- viewGalley
+  let conv =
+        NewConv
+          { newConvUsers = [],
+            newConvQualifiedUsers = fmap (qUntagged . qualifyAs lusr) locals <> fmap qUntagged remotes,
+            newConvName = name,
+            newConvAccess = fromMaybe Set.empty access,
+            newConvAccessRoles = role,
+            newConvTeam = Just . ConvTeamInfo $ tid,
+            newConvMessageTimer = timer,
+            newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
+            newConvReceiptMode = Nothing,
+            newConvProtocol = ProtocolMLS
+          }
+  r <-
+    post
+      ( g
+          . path "/conversations"
+          . zUser (tUnqualified lusr)
+          . zConn "conn"
+          . zType "access"
+          . json conv
+      )
+  qualifyAs lusr <$> fromBS (getHeader' "Location" r)
+
 updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
   g <- view tsGalley
@@ -590,7 +628,7 @@ postConv ::
   TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
--- | Create an MLS conversation
+-- | Create a group MLS conversation
 postMLSConv ::
   Local UserId ->
   UserList UserId ->

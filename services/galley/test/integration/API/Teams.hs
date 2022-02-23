@@ -119,6 +119,7 @@ tests s =
       test s "add team conversation (no role as argument)" testAddTeamConvLegacy,
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
+      test s "add team MLS conversation" testCreateTeamMLSConv,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty),
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
@@ -855,6 +856,31 @@ testAddTeamConvWithRole = do
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem2
     -- ... but not to regular ones.
     Util.assertNotConvMember (mem1 ^. userId) cid2
+
+testCreateTeamMLSConv :: TestM ()
+testCreateTeamMLSConv = do
+  c <- view tsCannon
+  owner <- Util.randomUser
+  lOwner <- flip toLocalUnsafe owner <$> viewFederationDomain
+  extern <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  WS.bracketR2 c owner extern $ \(wsOwner, wsExtern) -> do
+    lConvId <-
+      Util.createMLSTeamConv
+        lOwner
+        tid
+        mempty
+        (Just "Team MLS conversation")
+        Nothing
+        Nothing
+        Nothing
+        Nothing
+    Right conv <- fmap cnvMetadata . responseJsonError <$> getConv owner (tUnqualified lConvId)
+    liftIO $ do
+      assertEqual "protocol mismatch" ProtocolMLS (cnvmProtocol conv)
+      assertEqual "group ID mismatch" True (isJust . cnvmGroupId $ conv)
+    checkConvCreateEvent (tUnqualified lConvId) wsOwner
+    WS.assertNoEvent (2 # Second) [wsExtern]
 
 testAddTeamConvAsExternalPartner :: TestM ()
 testAddTeamConvAsExternalPartner = do
