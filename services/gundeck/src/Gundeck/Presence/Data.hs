@@ -31,11 +31,9 @@ import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as StrictChars
 import Data.ByteString.Conversion hiding (fromList)
 import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.Char8 as LazyChars
 import Data.Id
 import Data.Misc (Milliseconds)
 import Database.Redis
-import Database.Redis.Sentinel (multiExec)
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
 import Gundeck.Util.Redis
@@ -57,69 +55,60 @@ import Imports
 --    connection can be used directly instead.
 --
 
--- make integration-"Register a user"
 add :: Presence -> Gundeck ()
 add p = do
   now <- posixTime
   let k = toKey (userId p)
   let v = toField (connId p)
   let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
-  -- TODO error handling
-  void . liftRedis . multiExec $ do
-    void $ hset k v d
-    -- nb. All presences of a user are expired 'maxIdleTime' after the
-    -- last presence was registered. A client who keeps a presence
-    -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
-    -- silently dropped and receives no more notifications.
-    expire k maxIdleTime
+  -- TODO error handling?
+  retry x3 $ do
+    void . liftRedis . multiExec $ do
+      void $ hset k v d
+      -- nb. All presences of a user are expired 'maxIdleTime' after the
+      -- last presence was registered. A client who keeps a presence
+      -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
+      -- silently dropped and receives no more notifications.
+      expire k maxIdleTime
   where
-    -- retry x3 . commands $ do
-    --   multi
-    --   void $ hset k v d
-    --   -- nb. All presences of a user are expired 'maxIdleTime' after the
-    --   -- last presence was registered. A client who keeps a presence
-    --   -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
-    --   -- silently dropped and receives no more notifications.
-    --   void $ expire k maxIdleTime
-    --   exec
-
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
 deleteAll :: (MonadRedis m, MonadMask m) => [Presence] -> m ()
 deleteAll [] = return ()
-deleteAll pp = for_ pp $ \p -> do
-  undefined
-
--- let k = toKey (userId p)
--- let f = __field p
--- retry x3 . commands $ do
---   watch (pure k)
---   value <- hget k f
---   multi
---   for_ value $ \v -> do
---     let p' = readPresence (userId p) (f, Lazy.toStrict v)
---     when (Just p == p') $
---       void (hdel k (pure f))
---   exec
+deleteAll pp = for_ pp $ \p -> liftRedis $ do
+  let k = toKey (userId p)
+  let f = Lazy.toStrict $ __field p
+  -- TODO:
+  -- Could not deduce (MonadMask Redis) arising from a use of ‘retry’
+  --  from the context: (MonadRedis m, MonadMask m)
+  -- void . retry x3 $ do
+  void $ do
+    void $ watch (pure k)
+    value <- hget k f
+    void . liftRedis . multiExec $ do
+      for_ value $ \case
+        Nothing -> pure ()
+        Just v -> do
+          let p' = readPresence (userId p) (f, v)
+          when (Just p == p') $
+            void $ hdel k (pure f)
+      -- TODO this is silly; how can we return the correct Queued type inside multiExec?
+      hexists k f
 
 list :: MonadRedis m => UserId -> m [Presence]
--- list :: (MonadRedis m, MonadError Reply m) => UserId -> m [Presence]
 list u = liftRedis $ do
   ePresenses <- list' u
   case ePresenses of
-    Left reply -> undefined -- throwError reply
+    Left _ -> undefined -- TODO: throwM with named exceptions
     Right ps -> pure ps
 
 list' :: (RedisCtx m f, Functor f) => UserId -> m (f [Presence])
 list' u = mapMaybe (readPresence u) <$$> hgetall (toKey u)
 
+-- TODO: do we need to manually optimize this for redis pipelining?
 listAll :: MonadRedis m => [UserId] -> m [[Presence]]
 listAll [] = return []
-listAll uu = undefined
-
--- zipWith fn uu <$> mapM (hgetall . toKey) uu
--- where
---   fn u = mapMaybe (readPresence u)
+listAll uu = mapM list uu
 
 -- Helpers -------------------------------------------------------------------
 
