@@ -381,8 +381,8 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
 
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  gen <- Code.mk6DigitGen (Code.ForEmail email)
-  Just vcode <- lookupCode db gen Code.AccountLogin
+  key <- Code.mkKey (Code.ForEmail email)
+  Just vcode <- lookupCode db key Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
 testLoginVerify6DigitWrongCodeFails :: Brig -> Galley -> Http ()
@@ -412,8 +412,8 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
 
-lookupCode :: MonadIO m => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
+lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
+lookupCode db key = liftIO . DB.runClient db . Code.lookup key
 
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
