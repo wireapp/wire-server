@@ -297,7 +297,23 @@ postMLSConvFail = do
     const (Just "non-empty-member-list") === fmap label . responseJsonError
 
 postMLSConvOk :: TestM ()
-postMLSConvOk = pure ()
+postMLSConvOk = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  bob <- randomUser
+  let alice = qUnqualified qalice
+  lAlice <- flip toLocalUnsafe alice <$> viewFederationDomain
+  let nameMaxSize = T.replicate 256 "a"
+  connectUsers alice (list1 bob [])
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    rsp <-
+      postMLSConv lAlice mempty (Just nameMaxSize) [] Nothing Nothing
+    pure rsp !!! do
+      const 201 === statusCode
+      const Nothing === fmap label . responseJsonError
+    cid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
+    WS.assertNoEvent (2 # Second) [wsB]
+    checkConvCreateEvent cid wsA
 
 postConvWithRemoteUsersOk :: TestM ()
 postConvWithRemoteUsersOk = do

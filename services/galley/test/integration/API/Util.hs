@@ -2424,7 +2424,7 @@ checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdTeamUpdate upd)
 
-checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
+checkConvCreateEvent :: (MonadIO m, MonadCatch m) => HasCallStack => ConvId -> WS.WebSocket -> m ()
 checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
