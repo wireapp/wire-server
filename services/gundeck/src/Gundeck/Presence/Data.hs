@@ -55,25 +55,30 @@ import Imports
 --    connection can be used directly instead.
 --
 
+-- make integration-"Register a user"
 add :: Presence -> Gundeck ()
 add p = do
-  undefined
+  now <- posixTime
+  let k = toKey (userId p)
+  let v = toField (connId p)
+  let d = encode $ PresenceData (resource p) (clientId p) now
+  -- TODO: No instance for (RedisCtx Gundeck f0) arising from a use of ‘set’
+  -- void $ set k v
+  -- void $ setex k maxIdleTime v
 
--- now <- posixTime
--- let k = toKey (userId p)
--- let v = toField (connId p)
--- let d = encode $ PresenceData (resource p) (clientId p) now
--- retry x3 . commands $ do
---   multi
---   void $ hset k v d
---   -- nb. All presences of a user are expired 'maxIdleTime' after the
---   -- last presence was registered. A client who keeps a presence
---   -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
---   -- silently dropped and receives no more notifications.
---   void $ expire k maxIdleTime
---   exec
--- where
---   maxIdleTime = Seconds (7 * 24 * 60 * 60) -- 7 days
+  -- retry x3 . commands $ do
+  --   multi
+  --   void $ hset k v d
+  --   -- nb. All presences of a user are expired 'maxIdleTime' after the
+  --   -- last presence was registered. A client who keeps a presence
+  --   -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
+  --   -- silently dropped and receives no more notifications.
+  --   void $ expire k maxIdleTime
+  --   exec
+
+  undefined
+  where
+    maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
 deleteAll :: (MonadRedis m, MonadMask m) => [Presence] -> m ()
 deleteAll [] = return ()
@@ -140,12 +145,3 @@ readPresence u (f, b) = do
       then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
       else decodeStrict' b
   return (Presence u (fromField f) uri clt tme (Lazy.fromStrict f))
-
--- TODO
-commands = undefined
-
-multi = undefined
-
-exec = undefined
-
-newtype Seconds = Seconds {s :: Integer}
