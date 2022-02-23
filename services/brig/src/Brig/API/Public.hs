@@ -1082,7 +1082,7 @@ sendVerificationCode req = do
           mbPendingCode <- lift $ Code.lookup (Code.genKey gen) (scope action)
           case mbPendingCode of
             Nothing -> do
-              Timeout timeout <- setActivationTimeout <$> view settings
+              Timeout timeout <- setActivationTimeout <$> view settings -- todo(leif): define a config
               code <-
                 Code.generate
                   gen
@@ -1091,19 +1091,19 @@ sendVerificationCode req = do
                   (Code.Timeout timeout)
                   (Just (toUUID userId))
               Code.insert code
-              let mbLocale = Public.userLocale <$> accountUser <$> mbAccount
-              lift $ sendMail email (Code.codeKey code) (Code.codeValue code) mbLocale action
+              let mbLocale = Public.userLocale . accountUser <$> mbAccount
+              lift $ sendMail email (Code.codeValue code) mbLocale action
             Just _ -> pure ()
         _ -> pure ()
   where
     scope = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> Code.AccountLogin
-    sendMail email key value mbLocale = \case
+    sendMail email value mbLocale = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
-      Public.Login -> sendLoginVerificationMail email key value mbLocale
+      Public.Login -> sendLoginVerificationMail email value mbLocale
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (join $ Public.userTeam <$> accountUser <$> mbAccount)
+      mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated
