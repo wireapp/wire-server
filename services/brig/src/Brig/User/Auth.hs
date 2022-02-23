@@ -148,6 +148,7 @@ login (PasswordLogin li pw label code) typ = do
       mbAccount <- Data.lookupAccount u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
+
     loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
     loginFailedNoEmail = loginFailed
 login (SmsLogin phone code label) typ = do
