@@ -27,6 +27,7 @@ import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.ByteString as Strict
 import Data.ByteString.Builder (byteString)
+import qualified Data.ByteString.Char8 as StrictChars
 import Data.ByteString.Conversion hiding (fromList)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LazyChars
@@ -56,46 +57,53 @@ import Imports
 
 add :: Presence -> Gundeck ()
 add p = do
-  now <- posixTime
-  let k = toKey (userId p)
-  let v = toField (connId p)
-  let d = encode $ PresenceData (resource p) (clientId p) now
-  retry x3 . commands $ do
-    multi
-    void $ hset k v d
-    -- nb. All presences of a user are expired 'maxIdleTime' after the
-    -- last presence was registered. A client who keeps a presence
-    -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
-    -- silently dropped and receives no more notifications.
-    void $ expire k maxIdleTime
-    exec
-  where
-    maxIdleTime = Seconds (7 * 24 * 60 * 60) -- 7 days
+  undefined
 
-deleteAll :: (MonadClient m, MonadMask m) => [Presence] -> m ()
+-- now <- posixTime
+-- let k = toKey (userId p)
+-- let v = toField (connId p)
+-- let d = encode $ PresenceData (resource p) (clientId p) now
+-- retry x3 . commands $ do
+--   multi
+--   void $ hset k v d
+--   -- nb. All presences of a user are expired 'maxIdleTime' after the
+--   -- last presence was registered. A client who keeps a presence
+--   -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
+--   -- silently dropped and receives no more notifications.
+--   void $ expire k maxIdleTime
+--   exec
+-- where
+--   maxIdleTime = Seconds (7 * 24 * 60 * 60) -- 7 days
+
+deleteAll :: (MonadRedis m, MonadMask m) => [Presence] -> m ()
 deleteAll [] = return ()
 deleteAll pp = for_ pp $ \p -> do
-  let k = toKey (userId p)
-  let f = __field p
-  retry x3 . commands $ do
-    watch (pure k)
-    value <- hget k f
-    multi
-    for_ value $ \v -> do
-      let p' = readPresence (userId p) (f, Lazy.toStrict v)
-      when (Just p == p') $
-        void (hdel k (pure f))
-    exec
+  undefined
 
-list :: MonadClient m => UserId -> m [Presence]
-list u = mapMaybe (readPresence u) <$> commands (hgetall (toKey u))
+-- let k = toKey (userId p)
+-- let f = __field p
+-- retry x3 . commands $ do
+--   watch (pure k)
+--   value <- hget k f
+--   multi
+--   for_ value $ \v -> do
+--     let p' = readPresence (userId p) (f, Lazy.toStrict v)
+--     when (Just p == p') $
+--       void (hdel k (pure f))
+--   exec
 
-listAll :: MonadClient m => [UserId] -> m [[Presence]]
+list :: MonadRedis m => UserId -> m [Presence]
+list u = undefined
+
+-- list u = mapMaybe (readPresence u) <$> commands (hgetall (toKey u))
+
+listAll :: MonadRedis m => [UserId] -> m [[Presence]]
 listAll [] = return []
-listAll uu =
-  zipWith fn uu <$> commands (mapM (hgetall . toKey) uu)
-  where
-    fn u = mapMaybe (readPresence u)
+listAll uu = undefined
+
+-- zipWith fn uu <$> commands (mapM (hgetall . toKey) uu)
+-- where
+--   fn u = mapMaybe (readPresence u)
 
 -- Helpers -------------------------------------------------------------------
 
@@ -116,19 +124,28 @@ instance FromJSON PresenceData where
       <*> o .:? "c"
       <*> o .:? "t" .!= 0
 
-toKey :: UserId -> Key
-toKey u = Key $ runBuilder (byteString "user:" <> builder u)
+toKey :: UserId -> ByteString
+toKey u = Lazy.toStrict $ runBuilder (byteString "user:" <> builder u)
 
-toField :: ConnId -> Field
-toField (ConnId con) = Lazy.fromStrict con
+toField :: ConnId -> ByteString
+toField (ConnId con) = con
 
-fromField :: Field -> ConnId
-fromField = ConnId . Lazy.toStrict . LazyChars.takeWhile (/= '@')
+fromField :: ByteString -> ConnId
+fromField = ConnId . StrictChars.takeWhile (/= '@')
 
-readPresence :: UserId -> (Field, ByteString) -> Maybe Presence
+readPresence :: UserId -> (ByteString, ByteString) -> Maybe Presence
 readPresence u (f, b) = do
   PresenceData uri clt tme <-
     if "http" `Strict.isPrefixOf` b
       then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
       else decodeStrict' b
-  return (Presence u (fromField f) uri clt tme f)
+  return (Presence u (fromField f) uri clt tme (Lazy.fromStrict f))
+
+-- TODO
+commands = undefined
+
+multi = undefined
+
+exec = undefined
+
+newtype Seconds = Seconds {s :: Integer}
