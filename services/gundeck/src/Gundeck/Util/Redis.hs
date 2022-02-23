@@ -19,8 +19,8 @@ module Gundeck.Util.Redis where
 
 import Control.Monad.Catch
 import Control.Retry
-import qualified Data.ByteString.Lazy as BSL
-import Database.Redis
+-- import qualified Data.ByteString.Lazy as BSL
+-- import Database.Redis
 import Imports
 
 retry :: (MonadIO m, MonadMask m) => RetryPolicyM m -> m a -> m a
@@ -32,6 +32,7 @@ x1 = limitRetries 1 <> exponentialBackoff 100000
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
+-- TODO
 handlers :: Monad m => [a -> Handler m Bool]
 handlers = undefined
 
