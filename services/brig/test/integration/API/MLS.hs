@@ -14,6 +14,7 @@ import Imports
 import System.Process
 import Test.Tasty
 import Test.Tasty.HUnit
+import UnliftIO.Temporary
 import Util
 import Wire.API.MLS.KeyPackage
 import Wire.API.User
@@ -31,8 +32,9 @@ tests m b _opts =
 testKeyPackageUpload :: Brig -> Http ()
 testKeyPackageUpload brig = do
   u <- userQualifiedId <$> randomUser brig
-  c <- randomClient
-  uploadKeyPackages brig u c 5
+  c <- createClient brig u 0
+  withSystemTempFile "store.db" $ \store _ ->
+    uploadKeyPackages brig store u c 5
 
   count :: KeyPackageCount <-
     responseJsonError
@@ -61,16 +63,10 @@ testKeyPackageClaim brig = do
   -- setup a user u with two clients c1 and c2
   u <- userQualifiedId <$> randomUser brig
   [c1, c2] <- for [0, 1] $ \i -> do
-    c <-
-      fmap clientId $
-        responseJsonError
-          =<< addClient
-            brig
-            (qUnqualified u)
-            (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
-          <!! const 201 === statusCode
+    c <- createClient brig u i
     -- upload 5 key packages for each client
-    uploadKeyPackages brig u c 5
+    withSystemTempFile "store.db" $ \store _ ->
+      uploadKeyPackages brig store u c 5
     pure c
 
   -- claim packages for both clients of u
@@ -98,16 +94,28 @@ testKeyPackageClaim brig = do
 
 --------------------------------------------------------------------------------
 
-uploadKeyPackages :: Brig -> Qualified UserId -> ClientId -> Int -> Http ()
-uploadKeyPackages brig u c n = do
-  let cmd =
-        "crypto-cli key-package "
-          <> show (qUnqualified u)
+createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
+createClient brig u i =
+  fmap clientId $
+    responseJsonError
+      =<< addClient
+        brig
+        (qUnqualified u)
+        (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
+      <!! const 201 === statusCode
+
+uploadKeyPackages :: Brig -> FilePath -> Qualified UserId -> ClientId -> Int -> Http ()
+uploadKeyPackages brig store u c n = do
+  let cmd0 = ["crypto-cli", "--store", store, "--enc-key", "test"]
+      clientId =
+        show (qUnqualified u)
           <> ":"
           <> T.unpack (client c)
           <> "@"
           <> T.unpack (domainText (qDomain u))
-  kps <- replicateM n . liftIO . fmap (KeyPackageData . LBS.fromStrict) . spawn $ shell cmd
+  kps <-
+    replicateM n . liftIO . fmap (KeyPackageData . LBS.fromStrict) . spawn . shell . unwords $
+      cmd0 <> ["key-package", clientId]
   let upload = KeyPackageUpload kps
   post
     ( brig
