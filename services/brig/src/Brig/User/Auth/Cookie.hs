@@ -59,6 +59,7 @@ import Network.Wai.Utilities.Response (addHeader)
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Web.Cookie as WebCookie
+import Wire.API.Routes.Version
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
@@ -222,19 +223,22 @@ newCookieLimited u typ label = do
 
 setResponseCookie ::
   (Monad m, MonadReader Env m, ZAuth.UserTokenLike u) =>
+  Maybe Version ->
   Cookie (ZAuth.Token u) ->
   Response ->
   m Response
-setResponseCookie c r = do
+setResponseCookie mv c r = do
   s <- view settings
   let hdr = toByteString' (WebCookie.renderSetCookie (cookie s))
   return (addHeader "Set-Cookie" hdr r)
   where
+    versionPrefix :: ByteString
+    versionPrefix = foldMap (("/v" <>) . toByteString') mv
     cookie s =
       WebCookie.def
         { WebCookie.setCookieName = "zuid",
           WebCookie.setCookieValue = toByteString' (cookieValue c),
-          WebCookie.setCookiePath = Just "/access",
+          WebCookie.setCookiePath = Just (versionPrefix <> "/access"),
           WebCookie.setCookieExpires =
             if cookieType c == PersistentCookie
               then Just (cookieExpires c)

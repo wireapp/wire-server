@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Version.Wai where
 
+import Data.ByteString.Conversion
 import qualified Data.Text.Lazy as LText
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -44,4 +45,12 @@ parseVersion req = do
     [] -> Nothing
     (x : xs) -> pure (x, xs)
   n <- readVersionNumber version
-  pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
+  let req' =
+        rewriteRequestPure
+          (\(_, q) _ -> (pinfo, q))
+          req
+            { requestHeaders =
+                requestHeaders req
+                  <> [("Wire-API-Version", toByteString' n)]
+            }
+  pure (req', n)

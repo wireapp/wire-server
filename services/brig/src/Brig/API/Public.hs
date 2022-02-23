@@ -366,7 +366,8 @@ sitemap = do
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email code or phone code is provided
   post "/register" (continue createUserH) $
-    accept "application" "json"
+    opt (header "Wire-API-Version")
+      .&. accept "application" "json"
       .&. jsonRequest @Public.NewUserPublic
   document "POST" "register" $ do
     Doc.summary "Register a new user."
@@ -669,10 +670,10 @@ getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> (Handler r) Response
-createUserH (_ ::: req) = do
+createUserH :: Maybe Version ::: JSON ::: JsonRequest Public.NewUserPublic -> (Handler r) Response
+createUserH (v ::: _ ::: req) = do
   CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
-  lift . Auth.setResponseCookie cok
+  lift . Auth.setResponseCookie v cok
     . setStatus status201
     . addHeader "Location" (toByteString' loc)
     $ json prof

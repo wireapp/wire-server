@@ -32,6 +32,9 @@ where
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
+import Data.Attoparsec.ByteString.Char8
+import Data.ByteString.Builder
+import Data.ByteString.Conversion
 import Data.Domain
 import Data.Schema
 import qualified Data.Swagger as S
@@ -47,12 +50,24 @@ data Version = V0 | V1
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
+versionNumber :: Version -> Integer
+versionNumber V0 = 0
+versionNumber V1 = 1
+
 instance ToSchema Version where
   schema =
-    enum @Integer "Version" . mconcat $
-      [ element 0 V0,
-        element 1 V1
-      ]
+    enum @Integer "Version" $
+      foldMap
+        (\v -> element (versionNumber v) v)
+        [minBound .. maxBound]
+
+instance FromByteString Version where
+  parser =
+    maybe (fail "Unsupported version") pure
+      =<< fmap mkVersion decimal
+
+instance ToByteString Version where
+  builder = integerDec . versionNumber
 
 readVersionNumber :: Text -> Maybe Integer
 readVersionNumber v = do

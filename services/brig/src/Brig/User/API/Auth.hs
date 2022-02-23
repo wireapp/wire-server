@@ -55,6 +55,7 @@ import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Wire.API.ErrorDescription
+import Wire.API.Routes.Version
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
@@ -62,7 +63,8 @@ import Wire.Swagger as Doc (pendingLoginError)
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/access" (continue renewH) $
-    accept "application" "json"
+    opt (header "Wire-API-Version")
+      .&. accept "application" "json"
       .&. tokenRequest
   document "POST" "newAccessToken" $ do
     Doc.summary "Obtain an access tokens for a cookie."
@@ -101,7 +103,8 @@ routesPublic = do
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
 
   post "/login" (continue loginH) $
-    jsonRequest @Public.Login
+    opt (header "Wire-API-Version")
+      .&. jsonRequest @Public.Login
       .&. def False (query "persist")
       .&. accept "application" "json"
   document "POST" "login" $ do
@@ -190,7 +193,8 @@ routesInternal = do
       .&. accept "application" "json"
 
   post "/i/sso-login" (continue ssoLoginH) $
-    jsonRequest @SsoLogin
+    opt (header "Wire-API-Version")
+      .&. jsonRequest @SsoLogin
       .&. def False (query "persist")
       .&. accept "application" "json"
 
@@ -231,18 +235,18 @@ reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
   User.reauthenticate uid (reAuthPassword body) !>> reauthError
 
-loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
-loginH (req ::: persist ::: _) = do
-  lift . tokenResponse =<< flip login persist =<< parseJsonBody req
+loginH :: Maybe Version ::: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
+loginH (v ::: req ::: persist ::: _) = do
+  lift . tokenResponse v =<< flip login persist =<< parseJsonBody req
 
 login :: Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   Auth.login l typ !>> loginError
 
-ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
-ssoLoginH (req ::: persist ::: _) = do
-  lift . tokenResponse =<< flip ssoLogin persist =<< parseJsonBody req
+ssoLoginH :: Maybe Version ::: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
+ssoLoginH (v ::: req ::: persist ::: _) = do
+  lift . tokenResponse v =<< flip ssoLogin persist =<< parseJsonBody req
 
 ssoLogin :: SsoLogin -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 ssoLogin l persist = do
@@ -251,7 +255,7 @@ ssoLogin l persist = do
 
 legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
 legalHoldLoginH (req ::: _) = do
-  lift . tokenResponse =<< legalHoldLogin =<< parseJsonBody req
+  lift . tokenResponse Nothing =<< legalHoldLogin =<< parseJsonBody req
 
 legalHoldLogin :: LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
@@ -320,8 +324,13 @@ rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
 rmCookies uid (Public.RemoveCookies pw lls ids) = do
   Auth.revokeAccess uid pw ids lls !>> authError
 
-renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
-renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
+renewH ::
+  Maybe Version
+    ::: JSON
+    ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
+    ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  (Handler r) Response
+renewH (v ::: _ ::: ut ::: at) = lift . either (tokenResponse v) (tokenResponse v) =<< renew ut at
 
 -- | renew access for either:
 -- * a user with user token and optional access token, or
@@ -406,9 +415,9 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
           )
       Just t -> return t
 
-tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppIO r) Response
-tokenResponse (Auth.Access t Nothing) = pure $ json t
-tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
+tokenResponse :: ZAuth.UserTokenLike u => Maybe Version -> Auth.Access u -> (AppIO r) Response
+tokenResponse _ (Auth.Access t Nothing) = pure $ json t
+tokenResponse v (Auth.Access t (Just c)) = Auth.setResponseCookie v c (json t)
 
 -- | Internal utilities: These functions are nearly copies verbatim from the original
 -- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
