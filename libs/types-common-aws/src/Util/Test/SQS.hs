@@ -122,7 +122,7 @@ newtype MatchFailure a = MatchFailure {mFailure :: (a, SomeException)}
 -- match during the timeout, it asserts with the given label
 -- Matched matches are consumed while unmatched ones are republished to the queue
 tryMatch ::
-  (Monad m, Show a, Message a, MonadReader AWS.Env m, MonadResource m, MonadThrow m, MonadCatch m) =>
+  (Show a, Message a, MonadReader AWS.Env m, MonadResource m, MonadThrow m, MonadCatch m) =>
   String ->
   Int ->
   Text ->
