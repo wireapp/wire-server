@@ -1096,12 +1096,17 @@ sendVerificationCode req = do
             Just _ -> pure ()
         _ -> pure ()
   where
+    scope :: Public.SndFactorPasswordChallengeAction -> Code.Scope
     scope = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> Code.AccountLogin
+
+    sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.SndFactorPasswordChallengeAction -> AppIO r ()
     sendMail email value mbLocale = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> sendLoginVerificationMail email value mbLocale
+
+    getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
       mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
