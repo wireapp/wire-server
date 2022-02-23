@@ -191,7 +191,7 @@ loginError (LoginBlocked wait) =
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
 loginError LoginCodeRequired = StdError loginCodeAuthenticationRequired
-loginError LoginNoPendingCode = StdError loginCodeNotFound
+loginError LoginNoPendingCode = StdError loginCodeAuthenticationFailed
 
 authError :: AuthError -> Error
 authError AuthInvalidUser = StdError (errorDescriptionTypeToWai @BadCredentials)
@@ -304,6 +304,9 @@ loginCodePending = Wai.mkError status403 "pending-login" "A login code is still 
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
+
+loginCodeAuthenticationFailed :: Wai.Error
+loginCodeAuthenticationFailed = Wai.mkError status403 "code-authentication-failed" "The login code is not valid."
 
 loginCodeAuthenticationRequired :: Wai.Error
 loginCodeAuthenticationRequired = Wai.mkError status403 "code-authentication-required" "A login verification code is required."

@@ -56,8 +56,7 @@ data UserTemplates = UserTemplates
     loginCall :: !LoginCallTemplate,
     deletionSms :: !DeletionSmsTemplate,
     deletionEmail :: !DeletionEmailTemplate,
-    newClientEmail :: !NewClientEmailTemplate,
-    loginVerificationEmail :: !VerificationEmailTemplate
+    newClientEmail :: !NewClientEmailTemplate
   }
 
 data ActivationSmsTemplate = ActivationSmsTemplate
@@ -215,13 +214,6 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <$> readTemplate fp "email/new-client-subject.txt"
             <*> readTemplate fp "email/new-client.txt"
             <*> readTemplate fp "email/new-client.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( VerificationEmailTemplate activationUrl
-            <$> readTemplate fp "email/verification-subject.txt"
-            <*> readTemplate fp "email/verification-login.txt"
-            <*> readTemplate fp "email/verification.html"
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
         )

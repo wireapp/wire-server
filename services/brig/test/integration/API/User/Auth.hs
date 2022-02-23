@@ -48,7 +48,9 @@ import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
+import Data.Range (unsafeRange)
 import qualified Data.Text as Text
+import Data.Text.Ascii (AsciiChars (validate))
 import Data.Text.IO (hPutStrLn)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time.Clock
@@ -122,7 +124,10 @@ tests conf m z db b g n =
             ],
           testGroup
             "snd-factor-password-challenge"
-            [test m "test-login-verify6-digit-email-code" $ testLoginVerify6DigitEmailCode b g db]
+            [ test m "test-login-verify6-digit-email-code-success" $ testLoginVerify6DigitEmailCodeSuccess b g db,
+              test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
+              test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g
+            ]
         ],
       testGroup
         "refresh /access"
@@ -368,24 +373,44 @@ testSendLoginCode brig = do
   let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
-testLoginVerify6DigitEmailCode :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitEmailCode brig galley db = do
+testLoginVerify6DigitEmailCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
+testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   (u, tid) <- createUserWithTeam' brig
-  let checkLogin body status = login brig body PersistentCookie !!! const status === statusCode
-  let checkLoginFails body = checkLogin body 403
-  let checkLoginSucceeds body = checkLogin body 200
+  let Just email = userEmail u
+  let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
 
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
-  let Just email = userEmail u
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   gen <- Code.mk6DigitGen (Code.ForEmail email)
   Just vcode <- lookupCode db gen Code.AccountLogin
+  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
-  let loginMissingCode = PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
-  checkLoginFails loginMissingCode
+testLoginVerify6DigitWrongCodeFails :: Brig -> Galley -> Http ()
+testLoginVerify6DigitWrongCodeFails brig galley = do
+  (u, tid) <- createUserWithTeam' brig
+  let Just email = userEmail u
+  let checkLoginFails body =
+        login brig body PersistentCookie !!! do
+          const 403 === statusCode
+          const (Just "code-authentication-failed") === errorLabel
 
-  let loginWithCode = PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
-  checkLoginSucceeds loginWithCode
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just wrongCode)
+
+testLoginVerify6DigitMissingCodeFails :: Brig -> Galley -> Http ()
+testLoginVerify6DigitMissingCodeFails brig galley = do
+  (u, tid) <- createUserWithTeam' brig
+  let Just email = userEmail u
+  let checkLoginFails body =
+        login brig body PersistentCookie !!! do
+          const 403 === statusCode
+          const (Just "code-authentication-required") === errorLabel
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
 
 lookupCode :: MonadIO m => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
