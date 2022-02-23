@@ -128,27 +128,25 @@ login (PasswordLogin li pw label code) typ = do
     verifyCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
     verifyCode mbCode u = do
       (mbEmail, mbTeamId) <- getEmailAndTeamId u
-      featureStatus <- lift $ do
-        mbStatus <- Intra.getTeamSndFactorPasswordChallenge `traverse` mbTeamId
-        pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
-      case featureStatus of
-        Public.TeamFeatureDisabled -> pure ()
-        Public.TeamFeatureEnabled -> do
-          case mbCode of
-            Nothing -> loginFailedWith LoginCodeRequired u
-            Just c ->
-              case mbEmail of
-                Nothing -> loginFailedNoEmail u
-                Just email -> do
-                  key <- Code.genKey <$> (Code.mk6DigitGen $ Code.ForEmail email)
-                  codeValid <- isJust <$> Code.verify key Code.AccountLogin c
-                  if codeValid
-                    then pure ()
-                    else loginFailedWith LoginNoPendingCode u
+      featureEnabled <- lift $ do
+        mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
+        pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
+      when featureEnabled $ do
+        case mbCode of
+          Nothing -> loginFailedWith LoginCodeRequired u
+          Just c ->
+            case mbEmail of
+              Nothing -> loginFailedNoEmail u
+              Just email -> do
+                key <- Code.genKey <$> Code.mk6DigitGen (Code.ForEmail email)
+                codeValid <- isJust <$> Code.verify key Code.AccountLogin c
+                unless codeValid $ loginFailedWith LoginNoPendingCode u
+
     getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = lift $ do
       mbAccount <- Data.lookupAccount u
-      pure (join $ userEmail <$> accountUser <$> mbAccount, join $ userTeam <$> accountUser <$> mbAccount)
+      pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
+
     loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
     loginFailedNoEmail = loginFailed
 login (SmsLogin phone code label) typ = do

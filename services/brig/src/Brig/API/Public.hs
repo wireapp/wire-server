@@ -112,7 +112,6 @@ import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
-import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
@@ -1076,9 +1075,9 @@ sendVerificationCode req = do
       let email = Public.svcEmail req
       mbUserId <- lift $ UserKey.lookupKey $ UserKey.userEmailKey email
       mbAccount <- lift $ join <$> Data.lookupAccount `traverse` mbUserId
-      featureStatus <- getFeatureStatus mbAccount
-      case (mbUserId, featureStatus) of
-        (Just userId, Public.TeamFeatureEnabled) -> do
+      featureEnabled <- getFeatureStatus mbAccount
+      case (mbUserId, featureEnabled) of
+        (Just userId, True) -> do
           gen <- Code.mk6DigitGen $ Code.ForEmail email
           mbPendingCode <- lift $ Code.lookup (Code.genKey gen) (scope action)
           case mbPendingCode of
@@ -1104,8 +1103,8 @@ sendVerificationCode req = do
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
       Public.Login -> sendLoginVerificationMail email key value mbLocale
     getFeatureStatus mbAccount = do
-      mbStatus <- lift $ Intra.getTeamSndFactorPasswordChallenge `traverse` (join $ Public.userTeam <$> accountUser <$> mbAccount)
-      pure $ maybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus) Public.tfwoStatus mbStatus
+      mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (join $ Public.userTeam <$> accountUser <$> mbAccount)
+      pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated
 
