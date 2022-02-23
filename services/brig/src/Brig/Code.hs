@@ -157,29 +157,31 @@ mkGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
   return (initGen sha256 cfor)
   where
-    initGen d (ForEmail e) =
-      let key = mkKey d (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
-          val = Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
-       in Gen cfor key val
-    initGen d (ForPhone p) = mk6DigitGen' cfor d (Text.encodeUtf8 (phoneKeyUniq (mkPhoneKey p)))
+    initGen d (ForEmail e) = mkEmailLinkGen e d
+    initGen d _ = mk6DigitGen' cfor d
 
 mk6DigitGen :: MonadIO m => CodeFor -> m Gen
 mk6DigitGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
-  return . mk6DigitGen' cfor sha256 . Text.encodeUtf8 $ case cfor of
-    ForEmail e -> emailKeyUniq (mkEmailKey e)
-    ForPhone p -> phoneKeyUniq (mkPhoneKey p)
+  return $ mk6DigitGen' cfor sha256
+
+mk6DigitGen' :: CodeFor -> Digest -> Gen
+mk6DigitGen' cfor d =
+  let uniqueK = case cfor of
+        ForEmail e -> emailKeyUniq (mkEmailKey e)
+        ForPhone p -> phoneKeyUniq (mkPhoneKey p)
+      key = mkKey d $ Text.encodeUtf8 uniqueK
+      val = Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d" <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
+   in Gen cfor key val
+
+mkEmailLinkGen :: Email -> Digest -> Gen
+mkEmailLinkGen e d =
+  let key = mkKey d (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
+      val = Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
+   in Gen (ForEmail e) key val
 
 mkKey :: Digest -> ByteString -> Key
 mkKey d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
-
-mk6DigitGen' :: CodeFor -> Digest -> ByteString -> Gen
-mk6DigitGen' cfor d key =
-  let k = mkKey d key
-      v =
-        Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d"
-          <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
-   in Gen cfor k v
 
 -- | Generate a new 'Code'.
 generate ::
