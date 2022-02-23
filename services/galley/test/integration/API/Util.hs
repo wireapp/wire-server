@@ -499,18 +499,54 @@ createTeamConvLegacy u tid us name = do
     )
     >>= \r -> fromBS (getHeader' "Location" r)
 
-createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
+createTeamConv ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe Milliseconds ->
+  TestM ConvId
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
 
-createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
+createTeamConvWithRole ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ConvId
 createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  TestM ConvId
 createTeamConvAccess u tid us name acc role mtimer convRole = do
   r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
   fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
+createTeamConvAccessRaw ::
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  TestM ResponseLBS
 createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- view tsGalley
   let tinfo = ConvTeamInfo tid
