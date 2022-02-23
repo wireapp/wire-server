@@ -81,6 +81,10 @@ createEnv m o = do
             -- Redis.connectTimeout = Just (5 seconds in NominalDiffTime),
             Redis.connectMaxConnections = 100
           }
+  -- TODO parse a config value whether to connect normally or in cluster mode
+  -- use either Redis.checkedConnect or checkedConnectCluster
+  -- TODO: local tests with this function and a redis in cluster mode leads to gundeck not starting up (without logging in error); TODO investigate.
+  -- r <- checkedConnectCluster redisConnInfo
   r <- Redis.checkedConnect redisConnInfo
   p <-
     C.init $
@@ -108,3 +112,16 @@ createEnv m o = do
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
+
+-- | Similarly to 'checkedConnect' but for redis cluster:
+-- Constructs a 'Connection' pool to a Redis server designated by the
+-- given 'ConnectInfo', then tests if the server is actually there.
+-- Throws an exception if the connection to the Redis server can't be
+-- established.
+--
+-- Throws 'gundeck: ClusterConnectError (Error "ERR This instance has cluster support disabled")' when the redis server doesn't support cluster mode.
+checkedConnectCluster :: Redis.ConnectInfo -> IO Redis.Connection
+checkedConnectCluster connInfo = do
+  conn <- Redis.connectCluster connInfo
+  Redis.runRedis conn $ void Redis.ping
+  return conn
