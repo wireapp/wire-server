@@ -322,3 +322,87 @@ This is an example adapted for Cannon:
    curl -v http://127.0.0.1:7777/i/metrics
 
 In the output of this command, ``net_websocket_clients`` is roughly the number of connected clients.
+
+.. _reset session cookies:
+
+Reset session cookies
+~~~~~~~~~~~~~~~~~~~~~
+
+Remove session cookies on your system to force users to login again within the next 15 minutes (or whenever they come back online):
+
+.. warning::
+   This will cause interruptions to ongoing calls and should be timed properly.
+
+Reset cookies of all users
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code:: sh
+
+   ssh <name or IP of brig-cassandra>
+   # from the ssh session
+   cqlsh
+   # from the cqlsh shell
+   truncate brig.user_cookies;
+
+Reset cookies for a defined list of users
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code:: sh
+
+   ssh <name or IP of brig-cassandra>
+   # within the ssh session
+   cqlsh
+   # within the cqlsh shell: delete all users by userId
+   delete from brig.user_cookies where user in (c0d64244-8ab4-11ec-8fda-37788be3a4e2, ...);
+
+(Keep reading if you want to find out which users on your system are using SSO.)
+
+.. _identify sso users:
+
+Identify all users using SSO
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Collect all teams configured with an IdP:
+
+.. code:: sh
+
+   ssh <name or IP of spar-cassandra>
+   # within the ssh session start cqlsh
+   cqlsh
+   # within the cqlsh shell export all teams with idp
+   copy spar.idp (team) TO 'teams_with_idp.csv' with header=false;
+
+Close the session and proceed locally:
+
+.. code:: sh
+
+   # download csv file
+   scp <name or IP of spar-cassandra>:teams_with_idp.csv .
+   # convert to a single line, comma separated list
+   tr '\n' ',' < teams_with_idp.csv; echo
+
+And use this list to get all team members in these teams:
+
+.. code:: sh
+
+   ssh <name or IP of galley-cassandra>
+   # within the ssh session start cqlsh
+   cqlsh
+   # within the cqlsh shell select all members of previous identified teams
+   # <output of tr> should look like this: f2207d98-8ab3-11ec-b689-07fc1fd409c9, ...
+   select user from galley.team_member where team in (<output of tr>);
+   # alternatively, export the list of all users (for filterling locally in eg. excel)
+   copy galley.team_member (user, team, sso_id) TO 'users_with_idp.csv' with header=true;
+
+Close the session and proceed locally to generate the list of all users from teams with IdP:
+
+.. code:: sh
+
+   # download csv file
+   scp <name or IP of brig-cassandra>:users_with_idp.csv .
+   # convert to a single line, comma separated list
+   tr '\n' ',' < users_with_idp.csv; echo
+
+
+.. note::
+   Don't forget to dellete the created csv files after you have downloaded/processed them.
