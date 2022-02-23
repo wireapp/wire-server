@@ -33,7 +33,9 @@
         "team_member",
         "non_team_member"
     ],
+    "protocol": "proteus",
     "cnv_type": 0,
+    "group_id": null,
     "receipt_mode": 42,
     "message_timer": 1000,
     "cnv_name": "gossip",

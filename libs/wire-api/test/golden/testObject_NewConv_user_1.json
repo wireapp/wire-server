@@ -10,7 +10,7 @@
     ],
     "conversation_role": "8tp2gs7b6",
     "message_timer": 3320987366258987,
-    "protocol": 0,
+    "protocol": "proteus",
     "qualified_users": [],
     "receipt_mode": 1,
     "team": {

@@ -189,7 +189,13 @@ conversationMetadataObjectSchema =
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
     <*> cnvmProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" (schema @Protocol))
-    <*> cnvmGroupId .= maybe_ (optField "group_id" schema)
+    <*> cnvmGroupId
+      .= maybe_
+        ( optFieldWithDocModifier
+            "group_id"
+            (description ?~ "An MLS group identifier (at most 256 bytes long)")
+            schema
+        )
 
 data Protocol
   = ProtocolProteus
@@ -200,10 +206,10 @@ data Protocol
 
 instance ToSchema Protocol where
   schema =
-    enum @Integer "Protocol" $
+    enum @Text "Protocol" $
       mconcat
-        [ element 0 ProtocolProteus,
-          element 1 ProtocolMLS
+        [ element "proteus" ProtocolProteus,
+          element "mls" ProtocolMLS
         ]
 
 instance ToSchema ConversationMetadata where

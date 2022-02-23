@@ -7,7 +7,9 @@
         "team_member",
         "non_team_member"
     ],
+    "protocol": "mls",
     "cnv_type": 2,
+    "group_id": "\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001mydomain.com",
     "receipt_mode": null,
     "message_timer": null,
     "cnv_name": null,

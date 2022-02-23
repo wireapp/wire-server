@@ -18,6 +18,7 @@
 module Test.Wire.API.Federation.Golden.NewRemoteConversation where
 
 import Data.Domain
+import Data.Either.Combinators
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -65,7 +66,9 @@ testObject_NewRemoteConversation1 =
               }
           ],
       rcMessageTimer = Just (Ms 1000),
-      rcReceiptMode = Just (ReceiptMode 42)
+      rcReceiptMode = Just (ReceiptMode 42),
+      rcProtocol = Just ProtocolProteus,
+      rcGroupId = Nothing
     }
 
 testObject_NewRemoteConversation2 :: NewRemoteConversation ConvId
@@ -80,5 +83,12 @@ testObject_NewRemoteConversation2 =
       rcCnvName = Nothing,
       rcNonCreatorMembers = Set.fromList [],
       rcMessageTimer = Nothing,
-      rcReceiptMode = Nothing
+      rcReceiptMode = Nothing,
+      rcProtocol = Just ProtocolMLS,
+      rcGroupId = Just groupId
     }
+  where
+    groupId :: GroupId
+    groupId =
+      fromRight' . mkGroupId $
+        "\0\0\0\1\0\0\0\0\0\0\0\0\0\0\0\1mydomain.com"

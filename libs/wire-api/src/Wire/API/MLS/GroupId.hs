@@ -57,7 +57,7 @@ instance ToSchema GroupId where
       (Just . A.String . T.decodeUtf8 . serialise)
     where
       f :: Text -> A.Parser GroupId
-      f = either (fail . show) pure . mkGroupId . T.encodeUtf8
+      f = either fail pure . mkGroupId . T.encodeUtf8
 
 -- | Parse a ''GroupId' from a byte sequence in the network order.
 mkGroupId :: ByteString -> Either String GroupId
