@@ -166,9 +166,9 @@ mkGen cfor = liftIO $ do
 mk6DigitGen :: MonadIO m => CodeFor -> m Gen
 mk6DigitGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
-  case cfor of
-    ForEmail e -> return $ mk6DigitGen' cfor sha256 (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
-    ForPhone p -> return $ mk6DigitGen' cfor sha256 (Text.encodeUtf8 (phoneKeyUniq (mkPhoneKey p)))
+  return . mk6DigitGen' cfor sha256 . Text.encodeUtf8 $ case cfor of
+    ForEmail e -> emailKeyUniq (mkEmailKey e)
+    ForPhone p -> phoneKeyUniq (mkPhoneKey p)
 
 mkKey :: Digest -> ByteString -> Key
 mkKey d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
