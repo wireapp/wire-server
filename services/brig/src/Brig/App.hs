@@ -66,6 +66,7 @@ module Brig.App
     locationOf,
     viewFederationDomain,
     qualifyLocal,
+    wrapClient,
   )
 where
 
@@ -482,9 +483,12 @@ instance MonadIO m => MonadZAuth (AppT r m) where
 instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
 
-instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
-  liftClient m = view casClient >>= \c -> runClient c m
-  localState f = local (over casClient f)
+-- instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
+--   liftClient m = view casClient >>= \c -> runClient c m
+--   localState f = local (over casClient f)
+
+wrapClient :: Client a -> AppT r IO a
+wrapClient m = view casClient >>= \c -> runClient c m
 
 instance MonadIndexIO (AppIO r) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
