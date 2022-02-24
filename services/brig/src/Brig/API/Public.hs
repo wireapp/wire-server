@@ -1073,11 +1073,10 @@ sendVerificationCode req = do
     Public.GenerateScimToken -> pure ()
     Public.Login -> do
       let email = Public.svcEmail req
-      mbUserId <- lift $ UserKey.lookupKey $ UserKey.userEmailKey email
-      mbAccount <- lift $ join <$> Data.lookupAccount `traverse` mbUserId
+      mbAccount <- getAccount email
       featureEnabled <- getFeatureStatus mbAccount
-      case (mbUserId, featureEnabled) of
-        (Just userId, True) -> do
+      case (mbAccount, featureEnabled) of
+        (Just account, True) -> do
           gen <- Code.mk6DigitGen $ Code.ForEmail email
           mbPendingCode <- lift $ Code.lookup (Code.genKey gen) (scope action)
           case mbPendingCode of
@@ -1089,13 +1088,18 @@ sendVerificationCode req = do
                   (scope action)
                   (Code.Retries 3)
                   (Code.Timeout timeout)
-                  (Just (toUUID userId))
+                  (Just (toUUID (Public.userId (accountUser account))))
               Code.insert code
-              let mbLocale = Public.userLocale . accountUser <$> mbAccount
-              lift $ sendMail email (Code.codeValue code) mbLocale action
+              let locale = Public.userLocale $ accountUser $ account
+              lift $ sendMail email (Code.codeValue code) (Just locale) action
             Just _ -> pure ()
         _ -> pure ()
   where
+    getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
+    getAccount email = lift $ do
+      mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
+      join <$> Data.lookupAccount `traverse` mbUserId
+
     scope :: Public.SndFactorPasswordChallengeAction -> Code.Scope
     scope = \case
       Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
