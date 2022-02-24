@@ -55,6 +55,7 @@ import Ropes.Twilio (LookupDetail (..))
 import qualified Ropes.Twilio as Twilio
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
+import Cassandra (MonadClient)
 
 -------------------------------------------------------------------------------
 -- Sending SMS and Voice Calls
@@ -223,10 +224,10 @@ smsBudget =
       budgetValue = 5 -- # of SMS within timeout
     }
 
-withSmsBudget :: Text -> (AppIO r) a -> (AppIO r) a
+withSmsBudget :: Text -> m a -> (AppIO r) a
 withSmsBudget phone go = do
   let k = BudgetKey ("sms#" <> phone)
-  r <- withBudget k smsBudget go
+  r <- wrapClient $ withBudget k smsBudget go
   case r of
     BudgetExhausted t -> do
       Log.info $
@@ -251,10 +252,10 @@ callBudget =
       budgetValue = 2 -- # of voice calls within timeout
     }
 
-withCallBudget :: Text -> (AppIO r) a -> (AppIO r) a
+withCallBudget :: MonadClient m => Text -> m a -> (AppIO r) a
 withCallBudget phone go = do
   let k = BudgetKey ("call#" <> phone)
-  r <- withBudget k callBudget go
+  r <- wrapClient $ withBudget k callBudget go
   case r of
     BudgetExhausted t -> do
       Log.info $

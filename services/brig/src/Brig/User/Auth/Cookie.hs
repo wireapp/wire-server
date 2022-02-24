@@ -86,7 +86,7 @@ newCookie uid typ label = do
             cookieSucc = Nothing,
             cookieValue = tok
           }
-  DB.insertCookie uid c Nothing
+  wrapClient $ DB.insertCookie uid c Nothing
   return c
 
 -- | Renew the given cookie with a fresh token, if its age
@@ -109,7 +109,7 @@ nextCookie c = do
       Just ck -> do
         let uid = ZAuth.userTokenOf (cookieValue c)
         trackSuperseded uid (cookieId c)
-        cs <- DB.listCookies uid
+        cs <- wrapClient $ DB.listCookies uid
         case List.find (\x -> cookieId x == ck && persist x) cs of
           Nothing -> renewCookie c
           Just c' -> do
@@ -128,7 +128,7 @@ renewCookie old = do
   -- an ever growing chain of superseded cookies.
   let old' = old {cookieSucc = Just (cookieId new)}
   ttl <- setUserCookieRenewAge <$> view settings
-  DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
+  wrapClient $ DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
   return new
 
 -- | Whether a user has not renewed any of her cookies for longer than
@@ -172,13 +172,13 @@ lookupCookie t = do
   let user = ZAuth.userTokenOf t
   let rand = ZAuth.userTokenRand t
   let expi = ZAuth.tokenExpiresUTC t
-  fmap setToken <$> DB.lookupCookie user expi (CookieId rand)
+  wrapClient $ fmap setToken <$> DB.lookupCookie user expi (CookieId rand)
   where
     setToken c = c {cookieValue = t}
 
 listCookies :: UserId -> [CookieLabel] -> (AppIO r) [Cookie ()]
-listCookies u [] = DB.listCookies u
-listCookies u ll = filter byLabel <$> DB.listCookies u
+listCookies u [] = wrapClient $ DB.listCookies u
+listCookies u ll = wrapClient $ filter byLabel <$> DB.listCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
@@ -186,8 +186,8 @@ revokeAllCookies :: UserId -> (AppIO r) ()
 revokeAllCookies u = revokeCookies u [] []
 
 revokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> (AppIO r) ()
-revokeCookies u [] [] = DB.deleteAllCookies u
-revokeCookies u ids labels = do
+revokeCookies u [] [] = wrapClient $ DB.deleteAllCookies u
+revokeCookies u ids labels = wrapClient $ do
   cc <- filter matching <$> DB.listCookies u
   DB.deleteCookies u cc
   where
@@ -205,7 +205,7 @@ newCookieLimited ::
   Maybe CookieLabel ->
   (AppIO r) (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
-  cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
+  cs <- filter ((typ ==) . cookieType) <$> wrapClient (DB.listCookies u)
   now <- liftIO =<< view currentTime
   lim <- CookieLimit . setUserCookieLimit <$> view settings
   thr <- setUserCookieThrottle <$> view settings

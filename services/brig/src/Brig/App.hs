@@ -88,7 +88,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Cassandra (Keyspace (Keyspace), MonadClient, runClient)
+import Cassandra (Keyspace (Keyspace), runClient)
 import qualified Cassandra as Cas
 import Cassandra.Schema (versionCheck)
 import qualified Cassandra.Settings as Cas
@@ -488,7 +488,10 @@ instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
 --   localState f = local (over casClient f)
 
 wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
-wrapClient m = view casClient >>= \c -> runClient c m
+wrapClient m = do
+  c <- view casClient
+  env <- ask
+  runClient c $ runReaderT m env
 
 instance MonadIndexIO (AppIO r) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
