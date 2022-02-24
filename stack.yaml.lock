@@ -918,6 +918,13 @@ packages:
       sha256: 87e1a41e292526d86b55668bca628cf917056d82001438dc6975e4f35cf5210d
   original:
     hackage: implicit-hie-0.1.2.6
+- completed:
+    hackage: hoogle-5.0.18.3@sha256:91b0b724d283de28b5b7ba670ebb61867538a06aa1562982517c82660710bd2a,3173
+    pantry-tree:
+      size: 3414
+      sha256: c8eeaa1c1744fd293f1d8497e2f4bfdb09e38d4fdae8d7132c477d4a5d5e2679
+  original:
+    hackage: hoogle-5.0.18.3
 snapshots:
 - completed:
     size: 586296

@@ -274,3 +274,6 @@ extra-deps:
 
 - headroom-0.4.2.0
 - implicit-hie-0.1.2.6
+
+# For aeson >= 2
+- hoogle-5.0.18.3
