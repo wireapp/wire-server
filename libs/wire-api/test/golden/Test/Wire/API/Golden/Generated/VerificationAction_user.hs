@@ -17,12 +17,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.SndFactorPasswordChallengeAction_user where
+module Test.Wire.API.Golden.Generated.VerificationAction_user where
 
-import Wire.API.User (SndFactorPasswordChallengeAction (..))
+import Wire.API.User (VerificationAction (..))
 
-testObject_SndFactorPasswordChallengeAction_user_1 :: SndFactorPasswordChallengeAction
-testObject_SndFactorPasswordChallengeAction_user_1 = GenerateScimToken
+testObject_VerificationAction_user_1 :: VerificationAction
+testObject_VerificationAction_user_1 = GenerateScimToken
 
-testObject_SndFactorPasswordChallengeAction_user_2 :: SndFactorPasswordChallengeAction
-testObject_SndFactorPasswordChallengeAction_user_2 = Login
+testObject_VerificationAction_user_2 :: VerificationAction
+testObject_VerificationAction_user_2 = Login

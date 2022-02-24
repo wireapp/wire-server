@@ -175,6 +175,7 @@ type UserAPI =
     :<|> Named
            "send-verification-code"
            ( Summary "Send a verification code to a given email address."
+               :> CanThrow VerificationCodeNotImplemented
                :> "verification-code"
                :> "send"
                :> ReqBody '[JSON] SendVerificationCode

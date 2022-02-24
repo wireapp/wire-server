@@ -1066,49 +1066,45 @@ activate (Public.Activate tgt code dryrun)
 
 sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
 sendVerificationCode req = do
+  let email = Public.svcEmail req
   let action = Public.svcAction req
-  -- TODO(leif): guard as long as not all of the actions are implemented
-  -- remove when all done
-  case action of
-    Public.GenerateScimToken -> pure ()
-    Public.Login -> do
-      let email = Public.svcEmail req
-      mbAccount <- getAccount email
-      featureEnabled <- getFeatureStatus mbAccount
-      case (mbAccount, featureEnabled) of
-        (Just account, True) -> do
-          gen <- Code.mk6DigitGen $ Code.ForEmail email
-          mbPendingCode <- lift $ Code.lookup (Code.genKey gen) (scope action)
-          case mbPendingCode of
-            Nothing -> do
-              Timeout timeout <- setActivationTimeout <$> view settings -- todo(leif): define a config
-              code <-
-                Code.generate
-                  gen
-                  (scope action)
-                  (Code.Retries 3)
-                  (Code.Timeout timeout)
-                  (Just (toUUID (Public.userId (accountUser account))))
-              Code.insert code
-              let locale = Public.userLocale $ accountUser $ account
-              lift $ sendMail email (Code.codeValue code) (Just locale) action
-            Just _ -> pure ()
-        _ -> pure ()
+  mbAccount <- getAccount email
+  featureEnabled <- getFeatureStatus mbAccount
+  scope <- scope' action
+  case (mbAccount, featureEnabled) of
+    (Just account, True) -> do
+      gen <- Code.mk6DigitGen $ Code.ForEmail email
+      mbPendingCode <- lift $ Code.lookup (Code.genKey gen) scope
+      case mbPendingCode of
+        Nothing -> do
+          Timeout timeout <- setActivationTimeout <$> view settings -- todo(leif): define a config
+          code <-
+            Code.generate
+              gen
+              scope
+              (Code.Retries 3)
+              (Code.Timeout timeout)
+              (Just (toUUID (Public.userId (accountUser account))))
+          Code.insert code
+          let locale = Public.userLocale $ accountUser account
+          sendMail email (Code.codeValue code) (Just locale) action
+        Just _ -> pure ()
+    _ -> pure ()
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
       mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
       join <$> Data.lookupAccount `traverse` mbUserId
 
-    scope :: Public.SndFactorPasswordChallengeAction -> Code.Scope
-    scope = \case
-      Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
-      Public.Login -> Code.AccountLogin
+    scope' :: Public.VerificationAction -> (Handler r) Code.Scope
+    scope' = \case
+      Public.GenerateScimToken -> throwStd verificationCodeNotImplementedError
+      Public.Login -> pure Code.AccountLogin
 
-    sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.SndFactorPasswordChallengeAction -> AppIO r ()
+    sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale = \case
-      Public.GenerateScimToken -> error "not implemented (not reachable)" -- TODO(leif): implement
-      Public.Login -> sendLoginVerificationMail email value mbLocale
+      Public.GenerateScimToken -> throwStd verificationCodeNotImplementedError
+      Public.Login -> lift $ sendLoginVerificationMail email value mbLocale
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do

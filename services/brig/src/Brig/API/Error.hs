@@ -472,3 +472,6 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
       "[Customer extension] the email domain " <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
+
+verificationCodeNotImplementedError :: Wai.Error
+verificationCodeNotImplementedError = Wai.mkError status400 "verification-code-not-implemented" "Verification code for this action is not implemented."

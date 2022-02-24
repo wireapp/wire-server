@@ -99,9 +99,8 @@ module Wire.API.User
     modelVerifyDelete,
 
     -- * 2nd factor auth
-    SndFactorPasswordChallengeAction (..),
+    VerificationAction (..),
     SendVerificationCode (..),
-    TeamFeatureSndFPasswordChallengeNotImplemented (..),
   )
 where
 
@@ -1160,25 +1159,21 @@ instance S.ToSchema ListUsersQuery where
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge
 
--- | remove this type once we have an implementation in order to find all the places where we need to touch code.
-data TeamFeatureSndFPasswordChallengeNotImplemented
-  = TeamFeatureSndFPasswordChallengeNotImplemented
-
-data SndFactorPasswordChallengeAction = GenerateScimToken | Login
+data VerificationAction = GenerateScimToken | Login
   deriving stock (Eq, Show, Enum, Bounded, Generic)
-  deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeAction)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SndFactorPasswordChallengeAction)
+  deriving (Arbitrary) via (GenericUniform VerificationAction)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VerificationAction)
 
-instance ToSchema SndFactorPasswordChallengeAction where
+instance ToSchema VerificationAction where
   schema =
-    enum @Text "SndFactorPasswordChallengeAction" $
+    enum @Text "VerificationAction" $
       mconcat
         [ element "generate_scim_token" GenerateScimToken,
           element "login" Login
         ]
 
 data SendVerificationCode = SendVerificationCode
-  { svcAction :: SndFactorPasswordChallengeAction,
+  { svcAction :: VerificationAction,
     svcEmail :: Email
   }
   deriving stock (Eq, Show, Generic)

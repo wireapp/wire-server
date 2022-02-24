@@ -229,6 +229,8 @@ type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 
 type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification code"
 
+type VerificationCodeNotImplemented = ErrorDescription 400 "verification-code-not-implemented" "Verification code for this action is not implemented."
+
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
 
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
