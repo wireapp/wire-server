@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a076482d7234d177e10739a223063f35c3e2d5406cb2c60acb27e6103abad654
+-- hash: 546e7936cf8835f249ceaf80c981335ff160a2848a48cc55a707845fc3c5d2c5
 
 name:           stern
 version:        1.7.2
@@ -77,7 +77,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
-      aeson >=0.11
+      aeson >=2.0.1.0 && <2.1
     , base >=4.5 && <5
     , bilge >=0.12
     , brig-types >=0.9.6
