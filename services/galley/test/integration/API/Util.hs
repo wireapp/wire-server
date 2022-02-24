@@ -637,12 +637,12 @@ postMLSConv ::
   Maybe (Set AccessRoleV2) ->
   Maybe Milliseconds ->
   TestM ResponseLBS
-postMLSConv lusr (UserList locals remotes) name access r timer =
+postMLSConv lusr us name access r timer =
   postConvQualified
     (tUnqualified lusr)
     NewConv
       { newConvUsers = [],
-        newConvQualifiedUsers = fmap (qUntagged . qualifyAs lusr) locals <> fmap qUntagged remotes,
+        newConvQualifiedUsers = ulAll lusr us,
         newConvName = name,
         newConvAccess = Set.fromList access,
         newConvAccessRoles = r,
