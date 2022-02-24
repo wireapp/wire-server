@@ -1993,7 +1993,6 @@ retryWhileN n f m =
 
 -- | Changing this will break tests; all prekeys and client Id must match the same
 -- fingerprint
--- TODO: Make sure fisx thinks this is ok.
 someClientId :: ClientId
 someClientId = ClientId "550d8c614fd20299"
 
