@@ -109,6 +109,7 @@ import Control.Applicative
 import Control.Error.Safe (rightMay)
 import Control.Lens (over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
@@ -116,7 +117,6 @@ import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
@@ -786,7 +786,7 @@ newtype InvitationCode = InvitationCode
 -- FUTUREWORK: Why is the SSO ID passed separately?
 parseIdentity :: Maybe UserSSOId -> A.Object -> A.Parser (Maybe UserIdentity)
 parseIdentity ssoid o =
-  if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
+  if isJust (KeyMap.lookup "email" o <|> KeyMap.lookup "phone" o) || isJust ssoid
     then Just <$> parseJSON (A.Object o)
     else pure Nothing
 

@@ -25,10 +25,9 @@ module Test.Schema.UserSpec
 where
 
 import Data.Aeson
-import qualified Data.CaseInsensitive as CI
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Either (isLeft, isRight)
 import Data.Foldable (for_)
-import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
@@ -41,7 +40,7 @@ import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress)
 import qualified Web.Scim.Class.User as UserClass
 import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..))
+import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
 import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
 import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
@@ -65,14 +64,14 @@ prop_roundtrip = property $ do
 
 type PatchTag = TestTag Text () () UserExtraPatch
 
-type UserExtraPatch = HM.HashMap Text Text
+type UserExtraPatch = KeyMap.KeyMap Text
 
 spec :: Spec
 spec = do
   describe "applyPatch" $ do
     it "only applies patch for supported fields" $ do
       let schemas' = []
-      let extras = HM.empty
+      let extras = KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       for_
         [ ("username", String "lol"),
@@ -86,7 +85,7 @@ spec = do
           User.applyPatch user patchOp `shouldSatisfy` isRight
     it "does not support multi-value attributes" $ do
       let schemas' = []
-      let extras = HM.empty
+      let extras = KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       for_
         [ ("schemas", toJSON @[Schema] mempty),
@@ -113,12 +112,12 @@ spec = do
           User.applyPatch user patchOp `shouldSatisfy` isLeft
     it "applies patch to `extra`" $ do
       let schemas' = []
-      let extras = HM.empty
+      let extras = KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
       let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
       let patchOp = PatchOp [operation]
-      User.extra <$> (User.applyPatch user patchOp) `shouldBe` Right (HM.singleton "programmingLanguage" "haskell")
+      User.extra <$> (User.applyPatch user patchOp) `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
@@ -444,7 +443,7 @@ instance FromJSON UserExtraTest where
       Nothing -> pure UserExtraEmpty
       Just (lowercase -> o2) -> UserExtraObject <$> o2 .: "test"
     where
-      lowercase = HM.fromList . map (over _1 CI.foldCase) . HM.toList
+      lowercase = KeyMap.fromList . map (over _1 lowerKey) . KeyMap.toList
 
 instance ToJSON UserExtraTest where
   toJSON UserExtraEmpty = object []

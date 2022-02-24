@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4b83070073d35300a38f4eeaac64a4d3ad4822df651b881a6a8eea293aa4dfcf
+-- hash: b83bb5e2ebe7499bdd426bff59d23e2c08935fc24e6f182114fd5ef296f19928
 
 name:           types-common-aws
 version:        0.16.0
@@ -87,6 +87,7 @@ library
     , lens >=4.10
     , monad-control
     , proto-lens
+    , resourcet
     , safe >=0.3
     , tasty
     , tasty-hunit

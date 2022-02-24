@@ -32,9 +32,11 @@ module Galley.Aws
   )
 where
 
+import qualified Amazonka as AWS
+import qualified Amazonka.SQS as SQS
+import qualified Amazonka.SQS.Lens as SQS
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import qualified Control.Monad.Trans.AWS as AWST
 import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import qualified Data.ByteString.Base64 as B64
@@ -45,9 +47,6 @@ import Data.UUID (toText)
 import Data.UUID.V4
 import Galley.Options
 import Imports
-import qualified Network.AWS as AWS
-import qualified Network.AWS.Env as AWS
-import qualified Network.AWS.SQS as SQS
 import Network.HTTP.Client
   ( HttpException (..),
     HttpExceptionContent (..),
@@ -98,9 +97,6 @@ newtype Amazon a = Amazon
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
-instance AWS.MonadAWS Amazon where
-  liftAWS aws = view awsEnv >>= \e -> AWS.runAWS e aws
-
 mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
   let g = Logger.clone (Just "aws.galley") lgr
@@ -108,12 +104,17 @@ mkEnv lgr mgr opts = do
   q <- getQueueUrl e (opts ^. awsQueueName)
   return (Env e g q)
   where
-    sqs e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) SQS.sqs
-    mkAwsEnv g =
-      set AWS.envLogger (awsLogger g)
-        . set AWS.envRetryCheck retryCheck
-        <$> AWS.newEnvWith AWS.Discover Nothing mgr
-        <&> AWS.configure (sqs (opts ^. awsEndpoint))
+    sqs e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) SQS.defaultService
+    mkAwsEnv g = do
+      baseEnv <-
+        AWS.newEnv AWS.discover
+          <&> AWS.configure (sqs (opts ^. awsEndpoint))
+      pure $
+        baseEnv
+          { AWS.envLogger = awsLogger g,
+            AWS.envRetryCheck = retryCheck,
+            AWS.envManager = mgr
+          }
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
     -- Debug output from amazonka can be very useful for tracing requests
@@ -146,12 +147,12 @@ mkEnv lgr mgr opts = do
     getQueueUrl :: AWS.Env -> Text -> IO QueueUrl
     getQueueUrl e q = do
       x <-
-        runResourceT . AWST.runAWST e $
-          AWST.trying AWS._Error $
-            AWST.send (SQS.getQueueURL q)
+        runResourceT $
+          AWS.trying AWS._Error $
+            AWS.send e (SQS.newGetQueueUrl q)
       either
         (throwM . GeneralError)
-        (return . QueueUrl . view SQS.gqursQueueURL)
+        (return . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
         x
 
 execute :: MonadIO m => Env -> Amazon a -> m a
@@ -161,19 +162,20 @@ enqueue :: E.TeamEvent -> Amazon ()
 enqueue e = do
   QueueUrl url <- view eventQueue
   rnd <- liftIO nextRandom
-  res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url rnd))
+  amaznkaEnv <- view awsEnv
+  res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch amaznkaEnv (req url rnd))
   either (throwM . GeneralError) (const (return ())) res
   where
     event = decodeLatin1 $ B64.encode $ encodeMessage e
     req url dedup =
-      SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
-        & SQS.smMessageDeduplicationId .~ Just (toText dedup)
+      SQS.newSendMessage url event & SQS.sendMessage_messageGroupId ?~ "team.events"
+        & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
 
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: AWS.AWSRequest r => r -> Amazon (Either AWS.Error (AWS.Rs r))
-sendCatch = AWST.trying AWS._Error . AWS.send
+sendCatch :: AWS.AWSRequest r => AWS.Env -> r -> Amazon (Either AWS.Error (AWS.AWSResponse r))
+sendCatch e = AWS.trying AWS._Error . AWS.send e
 
 canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False

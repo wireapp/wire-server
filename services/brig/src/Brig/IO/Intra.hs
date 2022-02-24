@@ -87,6 +87,7 @@ import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import Data.Coerce (coerce)
@@ -94,7 +95,6 @@ import qualified Data.Conduit.List as C
 import qualified Data.Currency as Currency
 import Data.Domain
 import Data.Either.Combinators (whenLeft)
-import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
@@ -416,19 +416,19 @@ notifyContacts events orig route conn = do
 toPushFormat :: Event -> Maybe Object
 toPushFormat (UserEvent (UserCreated u)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.new" :: Text),
         "user" .= SelfProfile (u {userIdentity = Nothing})
       ]
 toPushFormat (UserEvent (UserActivated u)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
 toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel))) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.update" :: Text),
         "user"
           .= object
@@ -447,7 +447,7 @@ toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb
       ]
 toPushFormat (UserEvent (UserIdentityUpdated UserIdentityUpdatedData {..})) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.update" :: Text),
         "user"
           .= object
@@ -459,7 +459,7 @@ toPushFormat (UserEvent (UserIdentityUpdated UserIdentityUpdatedData {..})) =
       ]
 toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.identity-remove" :: Text),
         "user"
           .= object
@@ -471,7 +471,7 @@ toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
       ]
 toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name)) =
   Just $
-    M.fromList $
+    KeyMap.fromList $
       "type" .= ("user.connection" :: Text)
         # "connection" .= uc
         # "user" .= case name of
@@ -480,69 +480,69 @@ toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name)) =
         # []
 toPushFormat (UserEvent (UserSuspended i)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.suspend" :: Text),
         "id" .= i
       ]
 toPushFormat (UserEvent (UserResumed i)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.resume" :: Text),
         "id" .= i
       ]
 toPushFormat (UserEvent (UserDeleted qid)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.delete" :: Text),
         "id" .= qUnqualified qid,
         "qualified_id" .= qid
       ]
 toPushFormat (UserEvent (UserLegalHoldDisabled i)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.legalhold-disable" :: Text),
         "id" .= i
       ]
 toPushFormat (UserEvent (UserLegalHoldEnabled i)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.legalhold-enable" :: Text),
         "id" .= i
       ]
 toPushFormat (PropertyEvent (PropertySet _ k v)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.properties-set" :: Text),
         "key" .= k,
         "value" .= v
       ]
 toPushFormat (PropertyEvent (PropertyDeleted _ k)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.properties-delete" :: Text),
         "key" .= k
       ]
 toPushFormat (PropertyEvent (PropertiesCleared _)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.properties-clear" :: Text)
       ]
 toPushFormat (ClientEvent (ClientAdded _ c)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.client-add" :: Text),
         "client" .= c
       ]
 toPushFormat (ClientEvent (ClientRemoved _ c)) =
   Just $
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.client-remove" :: Text),
         "client" .= IdObject (clientId c)
       ]
 toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
   let LegalHoldClientRequestedData targetUser lastPrekey' clientId = payload
    in Just $
-        M.fromList
+        KeyMap.fromList
           [ "type" .= ("user.legalhold-request" :: Text),
             "id" .= targetUser,
             "last_prekey" .= lastPrekey',

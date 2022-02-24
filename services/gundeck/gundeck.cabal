@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4b94342561027580e950514565f60bb0d8d1465d92c773a7c4f588966dab6ffc
+-- hash: b5ae0ca8cfcc22e0751375eaf5b925d7557c88056d881b85cf7d82e3a8c322be
 
 name:           gundeck
 version:        1.45.0
@@ -101,7 +101,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fwarn-incomplete-uni-patterns
   build-depends:
       HsOpenSSL >=0.11
-    , aeson >=0.11
+    , aeson >=2.0.1.0
     , amazonka >=1.3.7
     , amazonka-sns >=1.3.7
     , amazonka-sqs >=1.3.7

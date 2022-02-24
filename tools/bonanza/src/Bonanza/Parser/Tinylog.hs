@@ -32,10 +32,11 @@ import Bonanza.Types
 import Control.Applicative (optional)
 import Control.Lens.Operators
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import Data.Aeson.KeyMap (fromList)
 import Data.Attoparsec.ByteString.Char8
 import Data.Bifunctor
 import qualified Data.ByteString.Char8 as B
-import Data.HashMap.Strict (fromList)
 import qualified Data.Text as T
 import Imports hiding (isDigit)
 
@@ -52,7 +53,7 @@ instance ToLogEvent TinyLogRecord where
     mempty & logTags .~ tgs & logMessage ?~ tMessage
     where
       tgs =
-        Tags . fromList . map (second String) $
+        Tags . fromList . map (bimap Key.fromText String) $
           ("level", T.singleton tLevel) :
           tFields
             ++ maybeToList ((,) "time" <$> tDate)

@@ -53,9 +53,10 @@ where
 
 import Control.Lens
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Either.Extra (eitherToMaybe)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Qualified
 import Data.String.Conversions (cs)
@@ -218,15 +219,15 @@ getAllFeatureConfigs zusr = do
           Members '[Error ActionError, Error TeamError, Error NotATeamMember, TeamStore] r
         ) =>
         (GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus ps a)) ->
-        Sem r (Text, Aeson.Value)
+        Sem r (Aeson.Key, Aeson.Value)
       getStatus getter = do
         when (isJust mbTeam) $ do
           void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
         status <- getter (maybe (Left (Just zusr)) Right mbTeam)
         let feature = Public.knownTeamFeatureName @a
-        pure $ cs (toByteString' feature) Aeson..= status
+        pure $ AesonKey.fromText (cs (toByteString' feature)) Aeson..= status
 
-  AllFeatureConfigs . HashMap.fromList
+  AllFeatureConfigs . KeyMap.fromList
     <$> sequence
       [ getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
         getStatus @'Public.WithoutLockStatus @'Public.TeamFeatureSSO getSSOStatusInternal,
@@ -298,11 +299,11 @@ getAllFeatures uid tid = do
         Aeson.ToJSON (Public.TeamFeatureStatus ps a)
       ) =>
       (GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus ps a)) ->
-      Sem r (Text, Aeson.Value)
+      Sem r (Aeson.Key, Aeson.Value)
     getStatus getter = do
       status <- getFeatureStatus @ps @a getter (DoAuth uid) tid
       let feature = Public.knownTeamFeatureName @a
-      pure $ cs (toByteString' feature) Aeson..= status
+      pure $ AesonKey.fromText (cs (toByteString' feature)) Aeson..= status
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) r.

@@ -51,8 +51,8 @@ where
 import Bonanza.Parser.IP (IPv4 (..))
 import Control.Lens
 import Data.Aeson hiding (Value)
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as M
 import qualified Data.List as L
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
@@ -98,7 +98,7 @@ instance Monoid LogEvent where
 --------------------------------------------------------------------------------
 -- Auxiliary Types
 
-newtype Tags = Tags {fromTags :: HashMap Text TagValue}
+newtype Tags = Tags {fromTags :: KeyMap.KeyMap TagValue}
   deriving (Eq, Show, Generic)
 
 instance ToJSON Tags where
@@ -106,9 +106,9 @@ instance ToJSON Tags where
 
 instance FromJSON Tags where
   parseJSON (Object o) =
-    fmap (Tags . M.fromList)
+    fmap (Tags . KeyMap.fromList)
       . mapM (\(k, v) -> (,) k <$> parseJSON v)
-      . M.toList
+      . KeyMap.toList
       $ o
   parseJSON _ = mzero
 

@@ -1994,7 +1994,7 @@ retryWhileN n f m =
 -- | Changing this will break tests; all prekeys and client Id must match the same
 -- fingerprint
 someClientId :: ClientId
-someClientId = ClientId "1dbfbe22c8a35cb2"
+someClientId = ClientId "550d8c614fd20299"
 
 -- | Changing these will break tests; all prekeys and client Id must match the same
 -- fingerprint

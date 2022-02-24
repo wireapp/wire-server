@@ -9,7 +9,7 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
-- aeson >=0.6
+- aeson >=2.0.1.0
 - attoparsec >=0.10
 - base >=4 && <5
 - bytestring >=0.10

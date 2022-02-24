@@ -66,11 +66,6 @@ source-repository-package
 
 source-repository-package
     type: git
-    location: https://github.com/haskell-servant/servant-swagger
-    tag: bb0a84faa073fa9530f60337610d7da3d5b9393c
-
-source-repository-package
-    type: git
     location: https://github.com/haskell-servant/servant.git
     tag: 75db4a5327d6d04ae2460bd5ffd008fe16197ba8
     subdir: servant
@@ -97,20 +92,22 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/amazonka
-    tag: 412172d8c28906591f01576a78792de7c34cc3eb
-    subdir: amazonka
-            amazonka-cloudfront
-            amazonka-dynamodb
-            amazonka-s3
-            amazonka-ses
-            amazonka-sns
-            amazonka-sqs
-            core
+    tag: 7ced54b0396296307b9871d293cc0ac161e5743d
+    subdir: lib/amazonka
+            lib/amazonka-core
+            lib/services/amazonka-cloudfront
+            lib/services/amazonka-dynamodb
+            lib/services/amazonka-s3
+            lib/services/amazonka-ses
+            lib/services/amazonka-sns
+            lib/services/amazonka-sqs
+            lib/services/amazonka-sso
+            lib/services/amazonka-sts
 
 source-repository-package
     type: git
     location: https://github.com/wireapp/bloodhound
-    tag: 92de9aa632d590f288a353d03591c38ba72b3cb3
+    tag: d444579f808115ddb0f20a1fe169fafad24f5165
 
 source-repository-package
     type: git
@@ -125,7 +122,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/hsaml2
-    tag: b652ec6e69d1647e827cbee0fa290605ac09dc63
+    tag: ef7b1de45ab0ea3a0a333b335579a02d8f88340c
 
 source-repository-package
     type: git
@@ -155,6 +152,11 @@ source-repository-package
     type: git
     location: https://github.com/wireapp/snappy
     tag: b0e5c08af48911caecffa4fa6a3e74872018b258
+
+source-repository-package
+    type: git
+    location: https://gitlab.com/axeman/swagger
+    tag: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
 
 source-repository-package
     type: git

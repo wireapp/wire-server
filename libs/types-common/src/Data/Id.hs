@@ -57,6 +57,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encoding as A
+import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
@@ -202,7 +203,7 @@ instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
 
 instance A.ToJSONKey (Id a) where
-  toJSONKey = A.ToJSONKeyText idToText (A.text . idToText)
+  toJSONKey = A.ToJSONKeyText (Key.fromText . idToText) (A.text . idToText)
 
 instance A.FromJSONKey (Id a) where
   fromJSONKey = A.FromJSONKeyTextParser idFromText

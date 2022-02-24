@@ -54,7 +54,7 @@ import Conduit
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Control.Retry
-import Data.Aeson hiding (Error)
+import Data.Aeson hiding (Error, Key)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L

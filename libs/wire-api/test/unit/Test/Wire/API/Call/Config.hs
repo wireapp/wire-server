@@ -18,7 +18,7 @@
 module Test.Wire.API.Call.Config where
 
 import Data.Aeson
-import qualified Data.HashMap.Strict as HM
+import qualified Data.Aeson.KeyMap as KeyMap
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)
@@ -68,7 +68,7 @@ udpPriority uris = do
 
 sftServersAreNeverNull :: RTCConfiguration -> Bool
 sftServersAreNeverNull cfg = case toJSON cfg of
-  Object o -> HM.lookup "sft_servers" o /= Just Null
+  Object o -> KeyMap.lookup "sft_servers" o /= Just Null
   v -> error . show $ "type mismatch, expected RTCConfiguration to be Object, but got: " <> encode v
 
 newtype ZeroToTen = ZeroToTen Int

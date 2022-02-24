@@ -18,7 +18,7 @@
 module Web.Scim.Schema.Meta where
 
 import Data.Aeson
-import qualified Data.HashMap.Lazy as HML
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text as Text
 import Data.Time.Clock
@@ -77,7 +77,7 @@ data WithMeta a = WithMeta
 
 instance (ToJSON a) => ToJSON (WithMeta a) where
   toJSON (WithMeta m v) = case toJSON v of
-    (Object o) -> Object (HML.insert "meta" (toJSON m) o)
+    (Object o) -> Object (KeyMap.insert "meta" (toJSON m) o)
     other -> other
 
 instance (FromJSON a) => FromJSON (WithMeta a) where
