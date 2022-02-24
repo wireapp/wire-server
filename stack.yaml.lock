@@ -249,11 +249,11 @@ packages:
     pantry-tree:
       size: 1257
       sha256: 0257a27c3332e400abc0f4a38f7a875c4a2a04b03ac342d7481e19d9d5665040
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/amazonka
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/amazonka-core
     name: amazonka-core
@@ -261,12 +261,12 @@ packages:
     git: https://github.com/wireapp/amazonka
     pantry-tree:
       size: 3117
-      sha256: d62458a7551b623e3d78c1e6e0768e72acba1d0627d1bdfcfef4251c0f468733
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+      sha256: 4d7f1929bb36acfd5c2e852afe8f7d6fa7124f3c5ac3e7e30265c3bda6eab8a9
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/amazonka-core
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-cloudfront
     name: amazonka-cloudfront
@@ -275,11 +275,11 @@ packages:
     pantry-tree:
       size: 35830
       sha256: e823334938503329b08c904bb69cc745c855a6634e5152ff05d8cf04f384c9e9
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-cloudfront
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-dynamodb
     name: amazonka-dynamodb
@@ -288,11 +288,11 @@ packages:
     pantry-tree:
       size: 24222
       sha256: 35c575ca698414ba74f43ab3825c9bc386e30b4ee052acfe86d187ee92bfd16e
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-dynamodb
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-s3
     name: amazonka-s3
@@ -301,11 +301,11 @@ packages:
     pantry-tree:
       size: 37929
       sha256: 57bc3c2aa426230e1f339fee5710eb43ace36d05c91113bd035b4de5aac26329
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-s3
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-ses
     name: amazonka-ses
@@ -314,11 +314,11 @@ packages:
     pantry-tree:
       size: 22980
       sha256: b9345ff2c3c1a2c1fa8550314912a1f105e1275c9779d472121808cda3a95da9
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-ses
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-sns
     name: amazonka-sns
@@ -327,11 +327,11 @@ packages:
     pantry-tree:
       size: 10926
       sha256: 98e24892961bdee8bec5678f6e0840fd73be5f9092af19c50133be44afd4eaa9
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-sns
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-sqs
     name: amazonka-sqs
@@ -340,11 +340,11 @@ packages:
     pantry-tree:
       size: 6376
       sha256: 75cc731a0b471b03aa224677552944fb0c4ea1330bfc58504e0af5efdf8b330c
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-sqs
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-sso
     name: amazonka-sso
@@ -353,11 +353,11 @@ packages:
     pantry-tree:
       size: 1869
       sha256: f11babeeaf0481ae68134ced86e9d1d9396d1beb7bd70e0a1e6b77bc4148a192
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-sso
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     subdir: lib/services/amazonka-sts
     name: amazonka-sts
@@ -366,11 +366,11 @@ packages:
     pantry-tree:
       size: 2932
       sha256: 64ed22eaaea868b32cf56f162d1bd7332b048d8f2ea073c4e9827ed08e71cc70
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
   original:
     subdir: lib/services/amazonka-sts
     git: https://github.com/wireapp/amazonka
-    commit: 1acd0133490d615934dc9e1f5b97045580e0e379
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
 - completed:
     name: swagger
     version: 0.3.0

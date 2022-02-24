@@ -133,7 +133,7 @@ extra-deps:
 # Fork to force usage of path-style s3 URLs. More about S3 URLs:
 # https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/
 - git: https://github.com/wireapp/amazonka
-  commit: 1acd0133490d615934dc9e1f5b97045580e0e379 # (2022-02-22) branch: s3-no-vhost
+  commit: 7ced54b0396296307b9871d293cc0ac161e5743d # (2022-02-24) branch: s3-no-vhost
   subdirs:
   - lib/amazonka
   - lib/amazonka-core

@@ -92,7 +92,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/amazonka
-    tag: 1acd0133490d615934dc9e1f5b97045580e0e379
+    tag: 7ced54b0396296307b9871d293cc0ac161e5743d
     subdir: lib/amazonka
             lib/amazonka-core
             lib/services/amazonka-cloudfront
