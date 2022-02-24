@@ -192,7 +192,6 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     accountAPI = Named @"register" createUser
 
     clientAPI :: ServerT ClientAPI (Handler r)
-    clientAPI :: ServerT ClientAPI Handler
     clientAPI =
       Named @"get-user-clients-unqualified" getUserClientsUnqualified
         :<|> Named @"get-user-clients-qualified" getUserClientsQualified
