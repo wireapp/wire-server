@@ -438,11 +438,11 @@ publish arn txt attrs = do
 
 listen :: Int -> (Event -> IO ()) -> Amazon ()
 listen throttleMillis callback = do
-  e <- view awsEnv
+  amazonkaEnv <- view awsEnv
   QueueUrl url <- view eventQueue
   forever . handleAny unexpectedError $ do
-    msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> send e (receive url)
-    void $ mapConcurrently (onMessage e url) msgs
+    msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> send amazonkaEnv (receive url)
+    void $ mapConcurrently (onMessage amazonkaEnv url) msgs
     when (null msgs) $
       threadDelay (1000 * throttleMillis)
   where
