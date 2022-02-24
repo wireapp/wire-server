@@ -169,7 +169,7 @@ allow-newer: *
 -- Changes by ./tools/convert-to-cabal/generate.sh 
 
 tests: True
-
+benchmarks: True
 
 package api-bot
     ghc-options: -Werror

@@ -20,6 +20,7 @@ module Main
   )
 where
 
+import Amazonka (Region (Ireland))
 import Control.Lens ((^.))
 import Criterion.Main
 import Data.Id (ClientId (..), ConnId (..), randomId)
@@ -31,7 +32,6 @@ import Gundeck.Push.Native.Types
 import Gundeck.ThreadBudget.Internal
 import Gundeck.Types.Push
 import Imports
-import Network.AWS (Region (Ireland))
 import OpenSSL (withOpenSSL)
 import System.Random (randomRIO)
 
