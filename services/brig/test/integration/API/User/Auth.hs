@@ -127,7 +127,8 @@ tests conf m z db b g n =
             [ test m "test-login-verify6-digit-email-code-success" $ testLoginVerify6DigitEmailCodeSuccess b g db,
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
-              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db
+              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
+              test m "test-login-verify6-digit-resend-code-success" $ testLoginVerify6DigitResendCodeSuccess b g db
             ]
         ],
       testGroup
@@ -385,6 +386,32 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- lookupCode db key Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+
+testLoginVerify6DigitResendCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
+testLoginVerify6DigitResendCodeSuccess brig galley db = do
+  (u, tid) <- createUserWithTeam' brig
+  let Just email = userEmail u
+  let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
+  let checkLoginFails body =
+        login brig body PersistentCookie !!! do
+          const 403 === statusCode
+          const (Just "code-authentication-failed") === errorLabel
+  let getCodeFromDb = do
+        key <- Code.mkKey (Code.ForEmail email)
+        Just c <- lookupCode db key Code.AccountLogin
+        pure c
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  fstCode <- getCodeFromDb
+
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  mostRecentCode <- getCodeFromDb
+
+  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue fstCode)
+  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue mostRecentCode)
 
 testLoginVerify6DigitWrongCodeFails :: Brig -> Galley -> Http ()
 testLoginVerify6DigitWrongCodeFails brig galley = do

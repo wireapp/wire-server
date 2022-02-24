@@ -1074,21 +1074,16 @@ sendVerificationCode req = do
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
       gen <- Code.mk6DigitGen $ Code.ForEmail email
-      mbPendingCode <- lift $ Code.lookup (Code.genKey gen) scope
-      case mbPendingCode of
-        Nothing -> do
-          timeout <- setVerificationTimeout <$> view settings
-          code <-
-            Code.generate
-              gen
-              scope
-              (Code.Retries 3)
-              timeout
-              (Just (toUUID (Public.userId (accountUser account))))
-          Code.insert code
-          let locale = Public.userLocale $ accountUser account
-          sendMail email (Code.codeValue code) (Just locale) action
-        Just _ -> pure ()
+      timeout <- setVerificationTimeout <$> view settings
+      code <-
+        Code.generate
+          gen
+          scope
+          (Code.Retries 3)
+          timeout
+          (Just $ toUUID $ Public.userId $ accountUser account)
+      Code.insert code
+      sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
