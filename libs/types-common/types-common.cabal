@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 00836419e46c5f3ba70a9a8c3048fe32fb28f3d7176f97a681722bfb63807bd3
+-- hash: 2c3bc5bfc76fcdf9df35835ee7538dde7612554c1364af5a68136e44fa66e22b
 
 name:           types-common
 version:        0.16.0
@@ -89,7 +89,7 @@ library
   ghc-prof-options: -fprof-auto-exported
   build-depends:
       QuickCheck >=2.9
-    , aeson >=1.0
+    , aeson >=2.0.1.0
     , attoparsec >=0.11
     , base ==4.*
     , base16-bytestring >=0.1

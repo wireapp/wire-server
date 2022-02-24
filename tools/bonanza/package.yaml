@@ -21,7 +21,7 @@ library:
   - -fno-warn-unused-do-bind
   dependencies:
   - base ==4.*
-  - aeson >=2.0
+  - aeson >=2.0.1.0
   - attoparsec >=0.10
   - binary
   - cereal
@@ -64,7 +64,7 @@ executables:
     - -funbox-small-strict-fields
     - -rtsopts
     dependencies:
-    - aeson >=1.0
+    - aeson >=2.0.1.0
     - base
     - clock
     - cryptonite

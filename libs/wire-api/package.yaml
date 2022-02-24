@@ -10,7 +10,7 @@ copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 
 dependencies:
-- aeson >=0.6
+- aeson >=2.0.1.0
 - case-insensitive
 - containers >=0.5
 - filepath

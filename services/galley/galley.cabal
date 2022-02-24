@@ -170,7 +170,7 @@ library
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
     , QuickCheck >=2.14
-    , aeson >=0.11
+    , aeson >=2.0.1.0
     , amazonka >=1.4.5
     , amazonka-sqs >=1.4.5
     , async >=2.0

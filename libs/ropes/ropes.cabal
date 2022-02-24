@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 037e046804ad490d6ca65048cb0f7809f2b15ff57a4b513a64cf34153a2a7342
+-- hash: 8ecd96e484d77945f2e5e3bf9e52fbe5847ee47bdfa13e7ecb07c186db73e04c
 
 name:           ropes
 version:        0.4.20
@@ -67,7 +67,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.6
+      aeson >=2.0.1.0
     , base ==4.*
     , bytestring >=0.9
     , errors >=2.0

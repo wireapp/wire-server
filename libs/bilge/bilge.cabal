@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 35c665e33076366baa18f5cac9e0d715b8d137004bf07f93b69eb9ae99c93195
+-- hash: 57b03ca9ff6cfe827c27bb6a0f6fb21156c8465d090f29d8a7a3d443bb308137
 
 name:           bilge
 version:        0.22.0
@@ -77,7 +77,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.6
+      aeson >=2.0.1.0
     , ansi-terminal >=0.6
     , base >=4.7 && <5
     , bytestring >=0.9

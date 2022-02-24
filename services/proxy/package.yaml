@@ -17,7 +17,7 @@ library:
   - -funbox-strict-fields
   dependencies:
   - base >=4.6 && <5
-  - aeson >=1.0
+  - aeson >=2.0.1.0
   - bilge >=0.21
   - bytestring >=0.10
   - case-insensitive >=1.2

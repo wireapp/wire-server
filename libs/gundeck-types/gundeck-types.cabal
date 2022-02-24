@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dba11fae094eb5ca67d599427dc30c857a0263eb293cf917e14442c7101bdb97
+-- hash: 5e5b9d44e914092fd283c32d8a12768443221b3f7f7e0f41cc1388f17f4ce373
 
 name:           gundeck-types
 version:        1.45.0
@@ -73,7 +73,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.6
+      aeson >=2.0.1.0
     , attoparsec >=0.10
     , base ==4.*
     , bytestring >=0.10
