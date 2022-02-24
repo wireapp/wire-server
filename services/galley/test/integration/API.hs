@@ -225,6 +225,7 @@ tests s =
           test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
           test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
           test s "post code rejected if guest links disabled" testPostCodeRejectedIfGuestLinksDisabled,
+          test s "conv code involving several teams with different feature configs" testPostCodeWithGuestLinksCrossTeams,
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
@@ -1245,6 +1246,59 @@ testPostCodeRejectedIfGuestLinksDisabled = do
   checkPostCode 409
   setStatus Public.TeamFeatureEnabled
   checkPostCode 200
+
+testPostCodeWithGuestLinksCrossTeams :: TestM ()
+testPostCodeWithGuestLinksCrossTeams = do
+  galley <- view tsGalley
+  let setStatus owner teamId tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+  (owner1, teamId1, []) <- Util.createBindingTeamWithNMembers 0
+  (owner2, teamId2, []) <- Util.createBindingTeamWithNMembers 0
+  setStatus owner1 teamId1 Public.TeamFeatureDisabled
+  setStatus owner2 teamId2 Public.TeamFeatureEnabled
+
+  let createConv :: HasCallStack => UserId -> TeamId -> Text -> [AccessRoleV2] -> [UserId] -> TestM ConvId
+      createConv uid tid convName (Set.fromList -> accessRolesV2) mems =
+        decodeConvId
+          <$> (postTeamConv tid uid mems (Just convName) [CodeAccess] (Just accessRolesV2) Nothing <!! statusCode === const 200)
+
+  teamNoConvNo <- createConv owner1 teamId1 "teamNoConvNo" [TeamMemberAccessRole, NonTeamMemberAccessRole] [owner2]
+  teamNoConvYes <- createConv owner1 teamId1 "teamNoConvYes" [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] [owner2]
+  teamYesConvNo <- createConv owner2 teamId2 "teamYesConvNo" [TeamMemberAccessRole, NonTeamMemberAccessRole] [owner1]
+  teamYesConvYes <- createConv owner2 teamId2 "teamYesConvYes" [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] [owner1]
+
+  let checkPostCode :: HasCallStack => UserId -> ConvId -> Int -> TestM (Maybe ConversationCode)
+      checkPostCode uid convId expectedStatus = do
+        resp <- postConvCode uid convId <!! statusCode === const expectedStatus
+        if expectedStatus < 300
+          then pure . Just $ decodeConvCodeEvent resp
+          else pure Nothing
+
+      checkJoin :: HasCallStack => Int -> ConversationCode -> TestM ()
+      checkJoin expectedStatus cCode = do
+        eve <- ephemeralUser
+        postJoinCodeConv eve cCode !!! statusCode === const expectedStatus
+
+  Nothing <- checkPostCode owner1 teamNoConvNo 409
+  Nothing <- checkPostCode owner1 teamNoConvYes 409
+  Nothing <- checkPostCode owner1 teamYesConvNo 409
+  checkJoin 200 . fromJust =<< checkPostCode owner1 teamYesConvYes 201
+
+  Nothing <- checkPostCode owner2 teamNoConvNo 409
+  Nothing <- checkPostCode owner2 teamNoConvYes 409
+  Nothing <- checkPostCode owner2 teamYesConvNo 409
+  checkJoin 200 . fromJust =<< checkPostCode owner2 teamYesConvYes 201
+
+  _ <- error "TODO: which of these expectations should actually fail?"
+  _ <-
+    error {-
+             shouldn't we allow guest link creation, but not guests to follow them?
+             but that would mess with the application logic that does not distinguish between the two, no?
+             document this properly!
+          -}
+      "TODO: what if we drop 'NonTeamMemberAccessRole'?"
+  pure ()
 
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
