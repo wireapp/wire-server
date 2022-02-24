@@ -32,6 +32,7 @@ import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withTex
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
+import qualified Data.Code as Code
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
@@ -459,6 +460,9 @@ data Opts = Opts
 data Settings = Settings
   { -- | Activation timeout, in seconds
     setActivationTimeout :: !Timeout,
+    -- | Default verification code timeout, in seconds
+    -- use `setVerificationTimeout` as the getter function which always provides a default value
+    setVerificationTimeoutInternal :: !(Maybe Code.Timeout),
     -- | Team invitation timeout, in seconds
     setTeamInvitationTimeout :: !Timeout,
     -- | Check for expired users every so often, in seconds
@@ -575,6 +579,12 @@ defaultUserLocale = defaultTemplateLocale
 
 setDefaultUserLocale :: Settings -> Locale
 setDefaultUserLocale = fromMaybe defaultUserLocale . setDefaultUserLocaleInternal
+
+defVerificationTimeout :: Code.Timeout
+defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
+
+setVerificationTimeout :: Settings -> Code.Timeout
+setVerificationTimeout = fromMaybe defVerificationTimeout . setVerificationTimeoutInternal
 
 setDefaultTemplateLocale :: Settings -> Locale
 setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateLocaleInternal
@@ -752,6 +762,7 @@ instance FromJSON Settings where
           { fieldLabelModifier = \case
               "setDefaultUserLocaleInternal" -> "setDefaultUserLocale"
               "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
+              "setVerificationTimeoutInternal" -> "setVerificationTimeout"
               other -> other
           }
 

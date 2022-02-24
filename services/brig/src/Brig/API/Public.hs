@@ -1077,13 +1077,13 @@ sendVerificationCode req = do
       mbPendingCode <- lift $ Code.lookup (Code.genKey gen) scope
       case mbPendingCode of
         Nothing -> do
-          Timeout timeout <- setActivationTimeout <$> view settings -- todo(leif): define a config
+          timeout <- setVerificationTimeout <$> view settings
           code <-
             Code.generate
               gen
               scope
               (Code.Retries 3)
-              (Code.Timeout timeout)
+              timeout
               (Just (toUUID (Public.userId (accountUser account))))
           Code.insert code
           let locale = Public.userLocale $ accountUser account

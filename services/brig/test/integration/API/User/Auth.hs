@@ -126,7 +126,8 @@ tests conf m z db b g n =
             "snd-factor-password-challenge"
             [ test m "test-login-verify6-digit-email-code-success" $ testLoginVerify6DigitEmailCodeSuccess b g db,
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
-              test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g
+              test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
+              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db
             ]
         ],
       testGroup
@@ -411,6 +412,23 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
+
+testLoginVerify6DigitExpiredCodeFails :: Brig -> Galley -> DB.ClientState -> Http ()
+testLoginVerify6DigitExpiredCodeFails brig galley db = do
+  (u, tid) <- createUserWithTeam' brig
+  let Just email = userEmail u
+  let checkLoginFails body =
+        login brig body PersistentCookie !!! do
+          const 403 === statusCode
+          const (Just "code-authentication-failed") === errorLabel
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  key <- Code.mkKey (Code.ForEmail email)
+  Just vcode <- lookupCode db key Code.AccountLogin
+  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
+  threadDelay $ (5 * 1000000) + 1000
+  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
 lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db key = liftIO . DB.runClient db . Code.lookup key
