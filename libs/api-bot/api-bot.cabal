@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e1d75e3473601a708c1154cd12e54b8990937ab09168ea17d8359c4573dd5987
+-- hash: 208b12ff1a7bb406c0e9b006b8badb293d9f3fb39750fa4df03a5267cf5d7bfd
 
 name:           api-bot
 version:        0.4.2
@@ -80,7 +80,7 @@ library
   build-depends:
       HaskellNet >=0.5
     , HaskellNet-SSL >=0.3
-    , aeson >=0.11
+    , aeson >=2.0.1.0
     , ansi-terminal >=0.6
     , api-client
     , async >=2.0

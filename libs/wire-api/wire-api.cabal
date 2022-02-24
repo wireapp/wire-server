@@ -148,7 +148,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       QuickCheck >=2.14
-    , aeson >=0.6
+    , aeson >=2.0.1.0
     , attoparsec >=0.10
     , base ==4.*
     , base64-bytestring >=1.0
@@ -518,7 +518,7 @@ test-suite wire-api-golden-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck
-    , aeson >=0.6
+    , aeson >=2.0.1.0
     , aeson-pretty
     , aeson-qq
     , base
@@ -622,7 +622,7 @@ test-suite wire-api-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck
-    , aeson >=0.6
+    , aeson >=2.0.1.0
     , aeson-pretty
     , aeson-qq
     , base

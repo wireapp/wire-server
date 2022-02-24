@@ -31,10 +31,8 @@ module Wire.API.Arbitrary
 where
 
 import qualified Codec.MIME.Type as MIME
-import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
-import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.List.NonEmpty (NonEmpty (..))
@@ -46,7 +44,7 @@ import qualified Generic.Random as Generic
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import qualified Test.QuickCheck.Arbitrary as QC
-import Test.QuickCheck.Gen (Gen (MkGen), oneof)
+import Test.QuickCheck.Gen (Gen (MkGen))
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Random
 
@@ -113,23 +111,6 @@ deriving via (GenericUniform ISO639_1) instance Arbitrary ISO639_1
 deriving stock instance Bounded ISO639_1
 
 deriving via (GenericUniform CountryCode) instance Arbitrary CountryCode
-
-instance Arbitrary Aeson.Value where
-  arbitrary = oneof [genBaseCase, genObject, genArray]
-    where
-      genObject =
-        Aeson.Object . HashMap.fromList
-          <$> listOf' (liftA2 (,) arbitrary genBaseCase)
-      genArray =
-        Aeson.Array . foldMap pure
-          <$> listOf' genBaseCase
-      genBaseCase =
-        oneof
-          [ pure Aeson.Null,
-            Aeson.String <$> arbitrary,
-            Aeson.Number <$> arbitrary,
-            Aeson.Bool <$> arbitrary
-          ]
 
 -- | Use Arbitrary instance to generate an example to be used in swagger where
 -- we cannot rely on swagger-ui to generate nice examples. So far, this is only

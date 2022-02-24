@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a517eff209060dd72d3ddfdf3d5af57021c95a989da62cca8c98584144cbb7e3
+-- hash: aaa0bf2f2e8b434044d86eef4704bf30525c4c86315058ba1290f1d34d561c9e
 
 name:           cassandra-util
 version:        0.16.5
@@ -71,7 +71,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.7
+      aeson >=2.0.1.0
     , base >=4.6 && <5.0
     , conduit
     , containers

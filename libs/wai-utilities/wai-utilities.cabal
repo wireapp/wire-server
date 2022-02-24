@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 52a60b4f6f7985a3b05c720cb7f00a1034117a09c5d39bbf1d9bb4f0828b86c8
+-- hash: f032f8354316816e361796a0e1b2d5da703e8d447d4b12f9e6cab7be5e252e6f
 
 name:           wai-utilities
 version:        0.16.1
@@ -73,7 +73,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.6
+      aeson >=2.0.1.0
     , async >=2.0
     , base >=4.6 && <5.0
     , bytestring >=0.10

@@ -32,9 +32,10 @@ import Bonanza.Types
 import Control.Applicative (optional)
 import Control.Lens ((.~))
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import Data.Aeson.KeyMap (fromList)
 import Data.Attoparsec.ByteString.Char8
 import Data.Bifunctor
-import Data.HashMap.Strict (fromList)
 import Data.Text (strip)
 import Data.Time (UTCTime (..))
 import Imports
@@ -51,7 +52,7 @@ instance ToLogEvent a => ToLogEvent (SvLogRecord a) where
     (mempty & logTime .~ svTime & logTags .~ tgs)
       <> toLogEvent svMessage
     where
-      tgs = Tags . fromList . map (second String) $ svTags
+      tgs = Tags . fromList . map (bimap Key.fromText String) $ svTags
 
 svLogRecord :: Parser (SvLogRecord Text)
 svLogRecord = svLogRecordWith $ strip . toText <$> takeTill (== '\n')

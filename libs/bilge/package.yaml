@@ -12,7 +12,7 @@ license: AGPL-3
 extra-source-files:
 - README.md
 dependencies:
-- aeson >=0.6
+- aeson >=2.0.1.0
 - ansi-terminal >=0.6
 - base >=4.7 && <5
 - bytestring >=0.9

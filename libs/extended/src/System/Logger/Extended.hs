@@ -36,6 +36,7 @@ import Cassandra (MonadClient)
 import Control.Monad.Catch
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding (list, pair, text)
+import qualified Data.Aeson.Key as Key
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Map.Lazy as Map
@@ -74,12 +75,12 @@ collect = foldr go (Element' mempty [])
     go (Bytes b) (Element' f m) =
       Element' f (b : m)
     go (Field k v) (Element' f m) =
-      Element' (f <> pair (cs . eval $ k) (text . cs . eval $ v)) m
+      Element' (f <> pair (Key.fromText . cs . eval $ k) (text . cs . eval $ v)) m
 
 jsonRenderer :: Renderer
 jsonRenderer _sep _dateFormat _logLevel = fromEncoding . elementToEncoding . collect
 
-data StructuredJSONOutput = StructuredJSONOutput {lvl :: Maybe Level, msgs :: [Text], fields :: Map Text [Text]}
+data StructuredJSONOutput = StructuredJSONOutput {lvl :: Maybe Level, msgs :: [Text], fields :: Map Key [Text]}
 
 -- | Displays all the 'Bytes' segments in a list under key @msgs@ and 'Field'
 -- segments as key-value pair in a JSON
@@ -127,7 +128,7 @@ structuredJSONRenderer _sep _dateFmt _lvlThreshold logElems =
                in case parseLevel buildMsg of
                     Nothing -> o {msgs = builderToText b : msgs o}
                     Just lvl -> o {lvl = Just lvl}
-            Field k v -> o {fields = Map.insertWith (<>) (builderToText k) (map builderToText [v]) (fields o)}
+            Field k v -> o {fields = Map.insertWith (<>) (Key.fromText $ builderToText k) (map builderToText [v]) (fields o)}
         )
         (StructuredJSONOutput Nothing [] mempty)
 

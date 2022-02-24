@@ -23,7 +23,6 @@ module Gundeck.Presence.Data
   )
 where
 
-import Control.Monad.Catch
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString as Strict

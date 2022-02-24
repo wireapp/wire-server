@@ -23,6 +23,7 @@ module Gundeck.Instances
   )
 where
 
+import Amazonka.Data
 import Cassandra.CQL
 import qualified Data.Attoparsec.Text as Parser
 import qualified Data.ByteString.Lazy as Bytes
@@ -32,7 +33,6 @@ import qualified Data.UUID as Uuid
 import Gundeck.Aws.Arn (EndpointArn)
 import Gundeck.Types
 import Imports
-import Network.AWS.Data
 
 instance Cql Transport where
   ctype = Tagged IntColumn
@@ -82,8 +82,9 @@ instance ToText (Id a) where
   toText = Text.decodeUtf8 . Uuid.toASCIIBytes . toUUID
 
 instance FromText (Id a) where
-  parser =
-    Parser.take 36 >>= \txt ->
-      txt & Text.encodeUtf8
-        & Uuid.fromASCIIBytes
-        & maybe (fail "Invalid UUID") (return . Id)
+  fromText =
+    Parser.parseOnly $
+      Parser.take 36 >>= \txt ->
+        txt & Text.encodeUtf8
+          & Uuid.fromASCIIBytes
+          & maybe (fail "Invalid UUID") (return . Id)

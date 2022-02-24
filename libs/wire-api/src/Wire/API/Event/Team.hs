@@ -46,8 +46,8 @@ where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (Parser)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
@@ -122,7 +122,7 @@ instance ToJSON Event where
 
 instance ToJSONObject Event where
   toJSONObject e =
-    HashMap.fromList
+    KeyMap.fromList
       [ "type" .= _eventType e,
         "team" .= _eventTeam e,
         "time" .= _eventTime e,

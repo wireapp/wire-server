@@ -37,7 +37,11 @@ module CargoHold.S3
   )
 where
 
+import Amazonka hiding (Error, ToByteString, (.=))
+import Amazonka.S3
+import Amazonka.S3.Lens
 import CargoHold.API.Error
+import CargoHold.AWS (amazonkaEnv)
 import qualified CargoHold.AWS as AWS
 import CargoHold.App hiding (Env, Handler)
 import CargoHold.Options
@@ -61,9 +65,6 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
-import Network.AWS hiding (Error)
-import Network.AWS.Data.Body
-import Network.AWS.S3
 import Network.Wai.Utilities.Error (Error (..))
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
@@ -125,9 +126,9 @@ uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok s
 
     req :: Text -> PutObject
     req b =
-      putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
-        & poContentType ?~ MIME.showType ct
-        & poMetadata .~ metaHeaders tok prc
+      newPutObject (BucketName b) (ObjectKey key) (toBody reqBdy)
+        & putObject_contentType ?~ MIME.showType ct
+        & putObject_metadata .~ metaHeaders tok prc
 
 -- | Turn a 'ResourceT IO' action into a pure @Conduit@.
 --
@@ -144,12 +145,12 @@ downloadV3 ::
   ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
 downloadV3 (s3Key . mkKey -> key) = do
   env <- view aws
-  pure . flattenResourceT $ _streamBody . view gorsBody <$> AWS.execStream env req
+  pure . flattenResourceT $ _streamBody . view getObjectResponse_body <$> AWS.execStream env req
   where
     req :: Text -> GetObject
     req b =
-      getObject (BucketName b) (ObjectKey key)
-        & goResponseContentType ?~ MIME.showType octets
+      newGetObject (BucketName b) (ObjectKey key)
+        & getObject_responseContentType ?~ MIME.showType octets
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
@@ -160,10 +161,10 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         (val "Getting asset metadata")
   maybe (return Nothing) handle =<< execCatch req
   where
-    req b = headObject (BucketName b) (ObjectKey key)
+    req b = newHeadObject (BucketName b) (ObjectKey key)
     handle r = do
-      let ct = fromMaybe octets (MIME.parseMIMEType =<< r ^. horsContentType)
-      let meta = HML.toList $ r ^. horsMetadata
+      let ct = fromMaybe octets (MIME.parseMIMEType =<< r ^. headObjectResponse_contentType)
+      let meta = HML.toList $ r ^. headObjectResponse_metadata
       return $ parse ct meta
     parse ct h =
       S3AssetMeta
@@ -183,7 +184,7 @@ deleteV3 (s3Key . mkKey -> key) = do
       ~~ msg (val "Deleting asset")
   void $ exec req
   where
-    req b = deleteObject (BucketName b) (ObjectKey key)
+    req b = newDeleteObject (BucketName b) (ObjectKey key)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
@@ -201,10 +202,10 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
         urlEncode [] $
           Text.encodeUtf8 (b <> "/" <> key)
     req b =
-      copyObject (BucketName b) (copySrc b) (ObjectKey key)
-        & coContentType ?~ MIME.showType ct
-        & coMetadataDirective ?~ MDReplace
-        & coMetadata .~ metaHeaders tok prc
+      newCopyObject (BucketName b) (copySrc b) (ObjectKey key)
+        & copyObject_contentType ?~ MIME.showType ct
+        & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
+        & copyObject_metadata .~ metaHeaders tok prc
 
 signedURL :: (ToByteString p) => p -> ExceptT Error App URI
 signedURL path = do
@@ -212,10 +213,10 @@ signedURL path = do
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
   ttl <- view (settings . setDownloadLinkTTL)
-  let req = getObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
+  let req = newGetObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
   signed <-
     AWS.execute (AWS.useDownloadEndpoint e) $
-      presignURL now (Seconds (fromIntegral ttl)) req
+      presignURL (e ^. amazonkaEnv) now (Seconds (fromIntegral ttl)) req
   toUri signed
   where
     toUri x = case parseURI strictURIParserOptions x of
@@ -311,7 +312,7 @@ parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []
 
-exec :: (AWSRequest r, Show r) => (Text -> r) -> ExceptT Error App (Rs r)
+exec :: (AWSRequest r, Show r) => (Text -> r) -> ExceptT Error App (AWSResponse r)
 exec req = do
   env <- view aws
   AWS.exec env req
@@ -319,7 +320,7 @@ exec req = do
 execCatch ::
   (AWSRequest r, Show r) =>
   (Text -> r) ->
-  ExceptT Error App (Maybe (Rs r))
+  ExceptT Error App (Maybe (AWSResponse r))
 execCatch req = do
   env <- view aws
   AWS.execCatch env req
@@ -336,9 +337,9 @@ otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show
 getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
 getMetadata ast = do
   r <- execCatch req
-  return $ parse <$> HML.toList <$> view horsMetadata <$> r
+  return $ parse <$> HML.toList <$> view headObjectResponse_metadata <$> r
   where
-    req b = headObject (BucketName b) (ObjectKey . Text.pack $ show ast)
+    req b = newHeadObject (BucketName b) (ObjectKey . Text.pack $ show ast)
     parse =
       maybe False (Text.isInfixOf "public=true" . Text.toLower)
         . lookupCI "zasset"
@@ -347,6 +348,6 @@ getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
 getOtrMetadata cnv ast = do
   let S3AssetKey key = otrKey cnv ast
   r <- execCatch (req key)
-  return $ getAmzMetaUser =<< HML.toList <$> view horsMetadata <$> r
+  return $ getAmzMetaUser =<< HML.toList <$> view headObjectResponse_metadata <$> r
   where
-    req k b = headObject (BucketName b) (ObjectKey k)
+    req k b = newHeadObject (BucketName b) (ObjectKey k)

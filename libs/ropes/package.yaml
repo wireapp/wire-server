@@ -15,7 +15,7 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
-  - aeson >=0.6
+  - aeson >=2.0.1.0
   - base ==4.*
   - http-client >=0.5
   - http-types >=0.7

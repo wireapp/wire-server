@@ -98,7 +98,7 @@ allowEmpty p str = Just <$> p str
 
 parseByteString :: forall a. FromByteString a => ByteString -> Parser a
 parseByteString bstr =
-  case parseOnly (parser @a) (unquoted bstr) of
+  case parseOnly (parser @a) (cs (unquoted bstr)) of
     Left err -> fail err
     Right thing -> pure thing
 

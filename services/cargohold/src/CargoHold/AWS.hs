@@ -39,19 +39,17 @@ module CargoHold.AWS
   )
 where
 
+import Amazonka (AWSRequest, AWSResponse)
+import qualified Amazonka as AWS
+import qualified Amazonka.S3 as S3
 import CargoHold.CloudFront
 import CargoHold.Options
 import Conduit
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import qualified Control.Monad.Trans.AWS as AWST
 import Control.Retry
 import Data.ByteString.Builder (toLazyByteString)
 import Imports
-import Network.AWS (AWSRequest, Rs)
-import qualified Network.AWS as AWS
-import qualified Network.AWS.Env as AWS
-import qualified Network.AWS.S3 as S3
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import qualified System.Logger as Logger
 import System.Logger.Class (Logger, MonadLogger (log), (~~))
@@ -98,9 +96,6 @@ newtype Amazon a = Amazon
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
-instance AWS.MonadAWS Amazon where
-  liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
-
 mkEnv ::
   Logger ->
   -- | S3 endpoint
@@ -114,16 +109,21 @@ mkEnv ::
   IO Env
 mkEnv lgr s3End s3Download bucket cfOpts mgr = do
   let g = Logger.clone (Just "aws.cargohold") lgr
-  e <- mkAwsEnv g (setAWSEndpoint s3End S3.s3)
+  e <- mkAwsEnv g (setAWSEndpoint s3End S3.defaultService)
   cf <- mkCfEnv cfOpts
   return (Env g bucket e s3Download cf)
   where
     mkCfEnv (Just o) = Just <$> initCloudFront (o ^. cfPrivateKey) (o ^. cfKeyPairId) 300 (o ^. cfDomain)
     mkCfEnv Nothing = return Nothing
-    mkAwsEnv g s3 =
-      AWS.newEnvWith AWS.Discover Nothing mgr
-        <&> set AWS.envLogger (awsLogger g)
-        <&> AWS.configure s3
+    mkAwsEnv g s3 = do
+      baseEnv <-
+        AWS.newEnv AWS.discover
+          <&> AWS.configure s3
+      pure $
+        baseEnv
+          { AWS.envLogger = awsLogger g,
+            AWS.envManager = mgr
+          }
     awsLogger g l = Logger.log g (mapLevel l) . Log.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
     -- Debug output from amazonka can be very useful for tracing requests
@@ -154,11 +154,11 @@ instance Exception Error
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: (MonadCatch m, AWS.MonadAWS m, AWSRequest r) => r -> m (Either AWS.Error (Rs r))
-sendCatch = AWST.trying AWS._Error . AWS.send
+sendCatch :: (MonadCatch m, AWSRequest r, MonadResource m) => AWS.Env -> r -> m (Either AWS.Error (AWSResponse r))
+sendCatch env = AWS.trying AWS._Error . AWS.send env
 
-send :: AWSRequest r => r -> Amazon (Rs r)
-send r = throwA =<< sendCatch r
+send :: AWSRequest r => AWS.Env -> r -> Amazon (AWSResponse r)
+send env r = throwA =<< sendCatch env r
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
@@ -167,10 +167,10 @@ exec ::
   (AWSRequest r, Show r, MonadLogger m, MonadIO m, MonadThrow m) =>
   Env ->
   (Text -> r) ->
-  m (Rs r)
+  m (AWSResponse r)
 exec env request = do
   let req = request (_s3Bucket env)
-  resp <- execute env (sendCatch req)
+  resp <- execute env (sendCatch (env ^. amazonkaEnv) req)
   case resp of
     Left err -> do
       Logger.info (view logger env) $
@@ -186,10 +186,10 @@ execStream ::
   (AWSRequest r, Show r) =>
   Env ->
   (Text -> r) ->
-  ResourceT IO (Rs r)
+  ResourceT IO (AWSResponse r)
 execStream env request = do
   let req = request (_s3Bucket env)
-  resp <- AWS.runAWS (view amazonkaEnv env) (sendCatch req)
+  resp <- sendCatch (env ^. amazonkaEnv) req
   case resp of
     Left err -> do
       Logger.info (view logger env) $
@@ -205,10 +205,10 @@ execCatch ::
   (AWSRequest r, Show r, MonadLogger m, MonadIO m) =>
   Env ->
   (Text -> r) ->
-  m (Maybe (Rs r))
+  m (Maybe (AWSResponse r))
 execCatch env request = do
   let req = request (_s3Bucket env)
-  resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch req)))
+  resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch (env ^. amazonkaEnv) req)))
   case resp of
     Left err -> do
       Log.info $

@@ -22,6 +22,7 @@ module Gundeck.Push.Native
   )
 where
 
+import Amazonka.Data (toText)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion.To
@@ -42,7 +43,6 @@ import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
 import Gundeck.Util
 import Imports
-import Network.AWS.Data (toText)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)

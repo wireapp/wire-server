@@ -104,7 +104,7 @@ spec = describe "toScimStoredUser'" $ do
             { Scim.resourceType = ScimR.UserResource,
               Scim.created = fromUTCTimeMillis now,
               Scim.lastModified = fromUTCTimeMillis now,
-              Scim.version = Scim.Weak "46246ab15ccab8a70b59f97f7182d6fb557dd454c0f06cdcb83d99d027cff08e",
+              Scim.version = Scim.Weak "ee3ebd2f5722d0b95e20ded809a81321b3810543457ca6ca459d822294c12c71",
               Scim.location =
                 Scim.URI . fromJust $
                   Network.URI.parseURI

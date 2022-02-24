@@ -28,12 +28,12 @@ import Brig.User.Search.Index
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens
-import qualified Control.Lens.Internal.ByteString as LensBS
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Metrics as Metrics
+import Data.String.Conversions (cs)
 import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client as HTTP
@@ -121,7 +121,7 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
     throwM $
       ReindexFromAnotherIndexError $
         "Task failed with error: "
-          <> LensBS.unpackLazy8 (Aeson.encode $ ES.taskResponseError task)
+          <> cs (Aeson.encode $ ES.taskResponseError task)
   where
     isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
     isTaskComplete (Left e) = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e

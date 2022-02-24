@@ -28,9 +28,10 @@ import Bonanza.Parser.Svlogd
 import Bonanza.Types
 import Control.Lens.Operators
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import Data.Aeson.KeyMap (fromList)
 import Data.Attoparsec.ByteString.Char8
 import Data.Bifunctor
-import Data.HashMap.Strict (fromList)
 import Data.Text (strip)
 import Imports
 
@@ -49,7 +50,7 @@ instance ToLogEvent RktLogRecord where
     mempty & logTags .~ tgs
       & logMessage ?~ rktMessage
     where
-      tgs = Tags . fromList . map (second String) $ rktTags
+      tgs = Tags . fromList . map (bimap Key.fromText String) $ rktTags
 
 rktLogRecord :: Parser RktLogRecord
 rktLogRecord = do

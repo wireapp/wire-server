@@ -19,6 +19,7 @@ dependencies:
 - proto-lens
 - lens >=4.10
 - monad-control
+- resourcet
 - safe >=0.3
 - tasty
 - tasty-hunit

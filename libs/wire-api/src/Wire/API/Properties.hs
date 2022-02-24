@@ -29,6 +29,7 @@ module Wire.API.Properties
 where
 
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
 import qualified Data.Swagger.Build.Api as Doc
@@ -46,7 +47,7 @@ modelPropertyDictionary =
     Doc.description "A JSON object with properties as attribute/value pairs."
 
 instance ToJSON PropertyKeysAndValues where
-  toJSON (PropertyKeysAndValues kvs) = object [toText k .= v | (PropertyKey k, v) <- kvs]
+  toJSON (PropertyKeysAndValues kvs) = object [Key.fromText (toText k) .= v | (PropertyKey k, v) <- kvs]
 
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
