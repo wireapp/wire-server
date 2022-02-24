@@ -109,7 +109,6 @@ import Control.Applicative
 import Control.Error.Safe (rightMay)
 import Control.Lens (over, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
