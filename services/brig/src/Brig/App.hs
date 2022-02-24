@@ -487,7 +487,7 @@ instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
 --   liftClient m = view casClient >>= \c -> runClient c m
 --   localState f = local (over casClient f)
 
-wrapClient :: Client a -> AppT r IO a
+wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
 wrapClient m = view casClient >>= \c -> runClient c m
 
 instance MonadIndexIO (AppIO r) where

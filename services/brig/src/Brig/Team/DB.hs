@@ -56,7 +56,6 @@ import Galley.Types.Teams (Role)
 import qualified Galley.Types.Teams as Team
 import Imports
 import OpenSSL.Random (randBytes)
-import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 
 mkInvitationCode :: IO InvitationCode
@@ -197,13 +196,13 @@ lookupInvitationInfo ic@(InvitationCode c)
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
 
-lookupInvitationByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m (Maybe Invitation)
+lookupInvitationByEmail :: MonadClient m => Email -> m (Maybe Invitation)
 lookupInvitationByEmail e =
   lookupInvitationInfoByEmail e >>= \case
     InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
     _ -> return Nothing
 
-lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
+lookupInvitationInfoByEmail :: MonadClient m => Email -> m InvitationByEmail
 lookupInvitationInfoByEmail email = do
   res <- retry x1 (query cqlInvitationEmail (params LocalQuorum (Identity email)))
   case res of
@@ -213,9 +212,9 @@ lookupInvitationInfoByEmail email = do
       return $ InvitationByEmail (InvitationInfo code tid invId)
     _ : _ : _ -> do
       -- edge case: more than one pending invite from different teams
-      Log.info $
-        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
-          Log.~~ Log.field "email" (show email)
+      -- Log.info $
+      --   Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+      --     Log.~~ Log.field "email" (show email)
       return InvitationByEmailMoreThanOne
   where
     cqlInvitationEmail :: PrepQuery R (Identity Email) (TeamId, InvitationId, InvitationCode)

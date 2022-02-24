@@ -56,6 +56,7 @@ import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
 import qualified Brig.ZAuth as ZAuth
+import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
@@ -72,7 +73,6 @@ import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 import Wire.API.User (TeamFeatureSndFPasswordChallengeNotImplemented (..))
-import Cassandra (MonadClient)
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -90,7 +90,7 @@ sendLoginCode phone call force = do
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
-      Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
+      -- Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
       pw <- lift $ Data.lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
@@ -145,7 +145,8 @@ decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
 checkRetryLimit :: MonadClient m => UserId -> ExceptT LoginError m ()
 checkRetryLimit = withRetryLimit checkBudget
 
-withRetryLimit :: MonadClient m =>
+withRetryLimit ::
+  MonadClient m =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
@@ -167,7 +168,8 @@ logout uts at = do
   (u, ck) <- validateTokens uts (Just at)
   lift $ revokeCookies u [cookieId ck] []
 
-renewAccess :: MonadClient m =>
+renewAccess ::
+  MonadClient m =>
   ZAuth.TokenPair u a =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -180,7 +182,8 @@ renewAccess uts at = do
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   return $ Access at' ck'
 
-revokeAccess :: MonadClient m =>
+revokeAccess ::
+  MonadClient m =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
@@ -319,7 +322,7 @@ ssoLogin (SsoLogin uid label) typ = do
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
-legalHoldLogin :: MonadClient m  => LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError m (Access ZAuth.LegalHoldUser)
+legalHoldLogin :: MonadClient m => LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError m (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
   Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
   -- legalhold login is only possible if

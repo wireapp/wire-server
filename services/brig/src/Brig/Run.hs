@@ -40,7 +40,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
-import Cassandra (Page (Page), liftClient)
+import Cassandra (Page (Page))
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
@@ -188,7 +188,7 @@ pendingActivationCleanup = do
     forExpirationsPaged $ \exps -> do
       uids <-
         ( for exps $ \(UserPendingActivation uid expiresAt) -> do
-            isPendingInvitation <- (Just PendingInvitation ==) <$> API.lookupStatus uid
+            isPendingInvitation <- (Just PendingInvitation ==) <$> wrapClient (API.lookupStatus uid)
             pure $
               ( expiresAt < now,
                 isPendingInvitation,
@@ -226,7 +226,7 @@ pendingActivationCleanup = do
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
-            go =<< liftClient nextPage
+            go =<< wrapClient nextPage
 
     threadDelayRandom :: (AppIO r) ()
     threadDelayRandom = do

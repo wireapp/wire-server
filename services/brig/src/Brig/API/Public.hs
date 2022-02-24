@@ -638,18 +638,18 @@ getRichInfo self user = do
   -- other user
   selfUser <-
     ifNothing (errorDescriptionTypeToWai @UserNotFound)
-      =<< lift (Data.lookupUser NoPendingInvitations self)
+      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
   otherUser <-
     ifNothing (errorDescriptionTypeToWai @UserNotFound)
-      =<< lift (Data.lookupUser NoPendingInvitations user)
+      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe mempty <$> lift (API.lookupRichInfo user)
+  fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo user)
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
-getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
+getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -785,7 +785,7 @@ updateUser uid conn uu = do
 changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
 changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
-  loc <- lift $ API.lookupLocale u
+  loc <- lift $ wrapClient $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
   lift $ sendActivationSms pn apair loc
 
@@ -798,7 +798,7 @@ removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
 checkPasswordExists :: UserId -> (Handler r) Bool
-checkPasswordExists = fmap isJust . lift . API.lookupPassword
+checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 
 changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
@@ -845,7 +845,7 @@ beginPasswordReset :: Public.NewPasswordReset -> (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
-  loc <- lift $ API.lookupLocale u
+  loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> sendPasswordResetSms phone pair loc
@@ -941,7 +941,7 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 
     localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> (Handler r) Public.ConnectionsPage
     localsAndRemotes self pagingState size = do
-      localPage <- pageToConnectionsPage Public.PagingLocals <$> Data.lookupLocalConnectionsPage self pagingState (rcast size)
+      localPage <- lift $ pageToConnectionsPage Public.PagingLocals <$> wrapClient (Data.lookupLocalConnectionsPage self pagingState (rcast size))
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
         then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
@@ -951,7 +951,8 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 
     remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> (Handler r) Public.ConnectionsPage
     remotesOnly self pagingState size =
-      pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
+      lift . wrapClient $
+        pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
 
 getLocalConnection :: UserId -> UserId -> (Handler r) (Maybe Public.UserConnection)
 getLocalConnection self other = do
@@ -978,9 +979,9 @@ verifyDeleteUserH (r ::: _) = do
 
 updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
-  maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
+  maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
-  maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
+  maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
   where

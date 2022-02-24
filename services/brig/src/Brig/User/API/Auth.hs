@@ -25,13 +25,14 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as User
-import Brig.App (AppIO)
+import Brig.App (AppIO, wrapClient)
 import Brig.Phone
 import Brig.Types.Intra (ReAuthUser, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
+import Control.Monad.Except
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
@@ -231,7 +232,7 @@ reAuthUserH (uid ::: req) = do
 
 reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
-  User.reauthenticate uid (reAuthPassword body) !>> reauthError
+  mapExceptT wrapClient (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
 
 loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
 loginH (req ::: persist ::: _) = do
