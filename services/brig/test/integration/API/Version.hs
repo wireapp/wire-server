@@ -19,6 +19,7 @@ module API.Version (tests) where
 
 import Bilge
 import Bilge.Assert
+import Data.Domain
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
@@ -32,7 +33,8 @@ tests p brig =
     "version"
     [ test p "GET /api-version" $ testVersion brig,
       test p "GET /v1/api-version" $ testVersionV1 brig,
-      test p "GET /v500/api-version" $ testUnsupportedVersion brig
+      test p "GET /v500/api-version" $ testUnsupportedVersion brig,
+      test p "GET /api-version (federation info)" $ testFederationDomain brig
     ]
 
 testVersion :: Brig -> Http ()
@@ -57,3 +59,12 @@ testUnsupportedVersion brig = do
     responseJsonError =<< get (brig . path "/v500/api-version")
       <!! const 404 === statusCode
   liftIO $ Wai.label e @?= "unsupported-version"
+
+testFederationDomain :: Brig -> Http ()
+testFederationDomain brig = do
+  vinfo <-
+    responseJsonError =<< get (brig . path "/api-version")
+      <!! const 200 === statusCode
+  liftIO $ do
+    vinfoFederation vinfo @?= False
+    vinfoDomain vinfo @?= Domain "example.com"
