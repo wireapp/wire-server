@@ -31,6 +31,7 @@ import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.Aeson as JSON
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id ()
@@ -43,6 +44,7 @@ import Imports
 import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.User.RichInfo
 
 deriving instance Cql Name
@@ -285,3 +287,15 @@ instance Cql SignatureSchemeTag where
     note ("Unexpected signature scheme: " <> T.unpack name) $
       signatureSchemeFromName name
   fromCql _ = Left "SignatureScheme: Text expected"
+
+instance Cql KeyPackageRef where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
+  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
+
+instance Cql KeyPackageData where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . kpData
+  fromCql (CqlBlob b) = pure . KeyPackageData $ b
+  fromCql _ = Left "Expected CqlBlob"
