@@ -22,7 +22,6 @@ module Test.Wire.API.Golden.Generated.QueuedNotification_user where
 import Data.Aeson (Value (Array))
 import Data.Id (Id (Id))
 import qualified Data.List.NonEmpty as NonEmpty (fromList)
-import Data.List1 (List1 (List1))
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (fromJust)
@@ -32,12 +31,9 @@ testObject_QueuedNotification_user_1 :: QueuedNotification
 testObject_QueuedNotification_user_1 =
   ( queuedNotification
       (Id (fromJust (UUID.fromString "0000005f-0000-007b-0000-001a0000000a")))
-      ( ( List1
-            ( NonEmpty.fromList
-                [ fromList [],
-                  fromList [("\179372\&3", Array [])]
-                ]
-            )
-        )
+      ( NonEmpty.fromList
+          [ fromList [],
+            fromList [("\179372\&3", Array [])]
+          ]
       )
   )

@@ -41,11 +41,13 @@ module Wire.API.Notification
 where
 
 import Control.Lens (makeLenses)
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), (.!=), (.:), (.:?), (.=))
-import qualified Data.Aeson as JSON
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson.Types as Aeson
 import Data.Id
-import Data.Json.Util ((#))
-import Data.List1
+import Data.Json.Util
+import Data.List.NonEmpty (NonEmpty)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
@@ -56,7 +58,7 @@ type NotificationId = Id QueuedNotification
 -- FUTUREWORK:
 -- This definition is very opaque, but we know some of the structure already
 -- (e.g. visible in 'modelEvent'). Can we specify it in a better way?
-type Event = JSON.Object
+type Event = Aeson.Object
 
 modelEvent :: Doc.Model
 modelEvent = Doc.defineModel "NotificationEvent" $ do
@@ -69,13 +71,21 @@ modelEvent = Doc.defineModel "NotificationEvent" $ do
 
 data QueuedNotification = QueuedNotification
   { _queuedNotificationId :: NotificationId,
-    _queuedNotificationPayload :: List1 Event
+    _queuedNotificationPayload :: NonEmpty Event
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform QueuedNotification)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema QueuedNotification)
 
-queuedNotification :: NotificationId -> List1 Event -> QueuedNotification
+queuedNotification :: NotificationId -> NonEmpty Event -> QueuedNotification
 queuedNotification = QueuedNotification
+
+instance ToSchema QueuedNotification where
+  schema =
+    object "QueuedNotification" $
+      QueuedNotification
+        <$> _queuedNotificationId .= field "id" schema
+        <*> _queuedNotificationPayload .= field "payload" (nonEmptyArray jsonObject)
 
 makeLenses ''QueuedNotification
 
@@ -87,19 +97,6 @@ modelNotification = Doc.defineModel "Notification" $ do
   Doc.property "payload" (Doc.array (Doc.ref modelEvent)) $
     Doc.description "List of events"
 
-instance ToJSON QueuedNotification where
-  toJSON (QueuedNotification i p) =
-    JSON.object
-      [ "id" .= i,
-        "payload" .= p
-      ]
-
-instance FromJSON QueuedNotification where
-  parseJSON = JSON.withObject "QueuedNotification" $ \o ->
-    QueuedNotification
-      <$> o .: "id"
-      <*> o .: "payload"
-
 data QueuedNotificationList = QueuedNotificationList
   { _queuedNotifications :: [QueuedNotification],
     _queuedHasMore :: Bool,
@@ -107,11 +104,10 @@ data QueuedNotificationList = QueuedNotificationList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform QueuedNotificationList)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema QueuedNotificationList)
 
 queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
 queuedNotificationList = QueuedNotificationList
-
-makeLenses ''QueuedNotificationList
 
 modelNotificationList :: Doc.Model
 modelNotificationList = Doc.defineModel "NotificationList" $ do
@@ -121,18 +117,12 @@ modelNotificationList = Doc.defineModel "NotificationList" $ do
   Doc.property "has_more" Doc.bool' $
     Doc.description "Whether there are still more notifications."
 
-instance ToJSON QueuedNotificationList where
-  toJSON (QueuedNotificationList ns more t) =
-    JSON.object
-      ( "notifications" .= ns
-          # "has_more" .= more
-          # "time" .= t
-          # []
-      )
+instance ToSchema QueuedNotificationList where
+  schema =
+    object "QueuedNotificationList" $
+      QueuedNotificationList
+        <$> _queuedNotifications .= field "notifications" (array schema)
+        <*> _queuedHasMore .= fmap (fromMaybe False) (optField "has_more" schema)
+        <*> _queuedTime .= maybe_ (optField "time" utcTimeSchema)
 
-instance FromJSON QueuedNotificationList where
-  parseJSON = JSON.withObject "QueuedNotificationList" $ \o ->
-    QueuedNotificationList
-      <$> o .: "notifications"
-      <*> o .:? "has_more" .!= False
-      <*> o .:? "time"
+makeLenses ''QueuedNotificationList

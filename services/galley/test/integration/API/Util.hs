@@ -1212,7 +1212,7 @@ getTeamQueue zusr msince msize onlyLast =
         fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
 
     parseEvts :: QueuedNotification -> [(NotificationId, Object)]
-    parseEvts qn = (qn ^. queuedNotificationId,) <$> (toList . toNonEmpty $ qn ^. queuedNotificationPayload)
+    parseEvts qn = (qn ^. queuedNotificationId,) <$> (toList $ qn ^. queuedNotificationPayload)
 
     parseEvt :: Object -> UserId
     parseEvt o = case fromJSON (Object o) of
