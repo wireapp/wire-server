@@ -356,7 +356,7 @@ updateTeamH zusr zcon tid updateData = do
   E.setTeamData tid updateData
   now <- input
   memList <- getTeamMembersForFanout tid
-  let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
+  let e = newEvent tid now (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
@@ -444,7 +444,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     -- done asynchronously
     membs <- E.getTeamMembers tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
-    let e = newEvent TeamDelete tid now
+    let e = newEvent tid now EdTeamDelete
     pushDeleteEvents membs e ue
     E.deliverAsync be
     -- TODO: we don't delete bots here, but we should do that, since
@@ -948,7 +948,7 @@ updateTeamMember zusr zcon tid targetMember = do
           privilegedUpdate = mkUpdate $ Just targetPermissions
           privilegedRecipients = membersToRecipients Nothing privileged
       now <- input
-      let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
+      let ePriv = newEvent tid now privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
@@ -1071,7 +1071,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
     pushMemberLeaveEvent now = do
-      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
+      let e = newEvent tid now (EdMemberLeave remove)
       let r =
             list1
               (userRecipient (tUnqualified lusr))
@@ -1339,7 +1339,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
   sizeBeforeAdd <- ensureNotTooLarge tid
   E.createTeamMember tid new
   now <- input
-  let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
+  let e = newEvent tid now (EdMemberJoin (new ^. userId))
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
@@ -1400,7 +1400,7 @@ finishCreateTeam team owner others zcon = do
   for_ (owner : others) $
     E.createTeamMember (team ^. teamId)
   now <- input
-  let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
+  let e = newEvent (team ^. teamId) now (EdTeamCreate team)
   let r = membersToRecipients Nothing others
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
