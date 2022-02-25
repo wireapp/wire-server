@@ -179,7 +179,7 @@ data SomeExtension where
 instance Eq SomeExtension where
   SomeExtension SCapabilitiesExtensionTag caps1 == SomeExtension SCapabilitiesExtensionTag caps2 = caps1 == caps2
   SomeExtension SLifetimeExtensionTag lt1 == SomeExtension SLifetimeExtensionTag lt2 = lt1 == lt2
-  _ == _ = True
+  _ == _ = False
 
 instance Show SomeExtension where
   show (SomeExtension SReservedExtensionTag _) = show ()
