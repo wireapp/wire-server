@@ -26,7 +26,7 @@ module Brig.Data.PasswordReset
   )
 where
 
-import Brig.App (AppIO, currentTime)
+import Brig.App (AppIO, Env, currentTime)
 import Brig.Data.Instances ()
 import Brig.Types
 import Cassandra
@@ -48,7 +48,7 @@ maxAttempts = 3
 ttl :: NominalDiffTime
 ttl = 3600 -- 60 minutes
 
-createPasswordResetCode :: UserId -> Either Email Phone -> (AppIO r) PasswordResetPair
+createPasswordResetCode :: (MonadClient m, MonadReader Env m) => UserId -> Either Email Phone -> m PasswordResetPair
 createPasswordResetCode u target = do
   key <- liftIO $ mkPasswordResetKey u
   now <- liftIO =<< view currentTime
@@ -61,7 +61,7 @@ createPasswordResetCode u target = do
       PasswordResetCode . Ascii.unsafeFromText . pack . printf "%06d"
         <$> randIntegerZeroToNMinusOne 1000000
 
-lookupPasswordResetCode :: UserId -> (AppIO r) (Maybe PasswordResetCode)
+lookupPasswordResetCode :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe PasswordResetCode)
 lookupPasswordResetCode u = do
   key <- liftIO $ mkPasswordResetKey u
   now <- liftIO =<< view currentTime
@@ -70,7 +70,7 @@ lookupPasswordResetCode u = do
     validate now (Just (c, _, _, Just t)) | t > now = return $ Just c
     validate _ _ = return Nothing
 
-verifyPasswordResetCode :: PasswordResetPair -> (AppIO r) (Maybe UserId)
+verifyPasswordResetCode :: (MonadClient m, MonadReader Env m) => PasswordResetPair -> m (Maybe UserId)
 verifyPasswordResetCode (k, c) = do
   now <- liftIO =<< view currentTime
   code <- retry x1 (query1 codeSelect (params LocalQuorum (Identity k)))
@@ -84,7 +84,7 @@ verifyPasswordResetCode (k, c) = do
   where
     countdown = retry x5 . write codeInsert . params LocalQuorum
 
-deletePasswordResetCode :: PasswordResetKey -> (AppIO r) ()
+deletePasswordResetCode :: MonadClient m => PasswordResetKey -> m ()
 deletePasswordResetCode k = retry x5 . write codeDelete $ params LocalQuorum (Identity k)
 
 mkPasswordResetKey :: (MonadIO m) => UserId -> m PasswordResetKey

@@ -31,7 +31,7 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (AppIO)
+import Brig.App (AppIO, wrapClient)
 import Brig.Data.PasswordReset
 import Brig.Data.User
 import Brig.Data.UserKey
@@ -114,7 +114,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                   $ usr
            in handleExistingIdentity uid profileNeedsUpdate oldKey key
     handleExistingIdentity uid profileNeedsUpdate oldKey key
-      | oldKey == Just key && (not profileNeedsUpdate) = return Nothing
+      | oldKey == Just key && not profileNeedsUpdate = return Nothing
       -- activating existing key and exactly same profile
       -- (can happen when a user clicks on activation links more than once)
       | oldKey == Just key && profileNeedsUpdate = do

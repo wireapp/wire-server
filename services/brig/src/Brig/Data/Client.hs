@@ -120,7 +120,7 @@ addClient u newId c maxPermClients loc cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: ExceptT ClientDataError (AppIO r) Client
+    insert :: MonadClient m => ExceptT ClientDataError m Client
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
