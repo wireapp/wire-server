@@ -565,7 +565,7 @@ addCode lusr zcon lcnv = do
       E.createCode code
       now <- input
       conversationCode <- createCode code
-      let event = Event ConvCodeUpdate (qUntagged lcnv) (qUntagged lusr) now (EdConvCodeUpdate conversationCode)
+      let event = Event (qUntagged lcnv) (qUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just code -> do
@@ -621,7 +621,7 @@ rmCode lusr zcon lcnv = do
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
   now <- input
-  let event = Event ConvCodeDelete (qUntagged lcnv) (qUntagged lusr) now EdConvCodeDelete
+  let event = Event (qUntagged lcnv) (qUntagged lusr) now EdConvCodeDelete
   pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
   pure event
 
@@ -844,7 +844,7 @@ updateSelfMember lusr zcon qcnv update = do
   unless exists . throw $ ConvNotFound
   E.setSelfMember qcnv lusr update
   now <- input
-  let e = Event MemberStateUpdate qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
+  let e = Event qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) e (fmap pure lusr) []
   where
     checkLocalMembership ::
@@ -1055,7 +1055,7 @@ removeMemberFromRemoteConv cnv lusr victim
     handleSuccess _ = do
       t <- input
       pure . Just $
-        Event MemberLeave (qUntagged cnv) (qUntagged lusr) t $
+        Event (qUntagged cnv) (qUntagged lusr) t $
           EdMembersLeave (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
@@ -1351,7 +1351,7 @@ isTyping lusr zcon lcnv typingData = do
   mm <- E.getLocalMembers (tUnqualified lcnv)
   unless (tUnqualified lusr `isMember` mm) . throw $ ConvNotFound
   now <- input
-  let e = Event Typing (qUntagged lcnv) (qUntagged lusr) now (EdTyping typingData)
+  let e = Event (qUntagged lcnv) (qUntagged lusr) now (EdTyping typingData)
   for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
     E.push1 $
       p
@@ -1433,7 +1433,6 @@ addBot lusr zcon b = do
   bm <- E.createBotMember (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv)
   let e =
         Event
-          MemberJoin
           (qUntagged (qualifyAs lusr (b ^. addBotConv)))
           (qUntagged lusr)
           t
@@ -1509,7 +1508,7 @@ rmBot lusr zcon b = do
       t <- input
       do
         let evd = EdMembersLeave (QualifiedUserIdList [qUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
-        let e = Event MemberLeave (qUntagged lcnv) (qUntagged lusr) t evd
+        let e = Event (qUntagged lcnv) (qUntagged lusr) t evd
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
           E.push1 $ p & pushConn .~ zcon
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])

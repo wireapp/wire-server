@@ -55,24 +55,24 @@ conversationActionToEvent ::
   ConversationAction ->
   Event
 conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers role) =
-  Event MemberJoin qcnv quid now $
+  Event qcnv quid now $
     EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
 conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removedMembers) =
-  Event MemberLeave qcnv quid now $
+  Event qcnv quid now $
     EdMembersLeave (QualifiedUserIdList (toList removedMembers))
 conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
-  Event ConvRename qcnv quid now (EdConvRename rename)
+  Event qcnv quid now (EdConvRename rename)
 conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
-  Event ConvMessageTimerUpdate qcnv quid now (EdConvMessageTimerUpdate update)
+  Event qcnv quid now (EdConvMessageTimerUpdate update)
 conversationActionToEvent now quid qcnv (ConversationActionReceiptModeUpdate update) =
-  Event ConvReceiptModeUpdate qcnv quid now (EdConvReceiptModeUpdate update)
+  Event qcnv quid now (EdConvReceiptModeUpdate update)
 conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (OtherMemberUpdate role)) =
   let update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
-   in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
+   in Event qcnv quid now (EdMemberUpdate update)
 conversationActionToEvent now quid qcnv (ConversationActionAccessUpdate update) =
-  Event ConvAccessUpdate qcnv quid now (EdConvAccessUpdate update)
+  Event qcnv quid now (EdConvAccessUpdate update)
 conversationActionToEvent now quid qcnv ConversationActionDelete =
-  Event ConvDelete qcnv quid now EdConvDelete
+  Event qcnv quid now EdConvDelete
 
 conversationActionTag :: Qualified UserId -> ConversationAction -> Action
 conversationActionTag _ (ConversationActionAddMembers _ _) = AddConversationMember
