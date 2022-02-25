@@ -226,7 +226,7 @@ pendingActivationCleanup = do
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
-            go =<< wrapClient nextPage
+            go =<< wrapClient (lift nextPage)
 
     threadDelayRandom :: (AppIO r) ()
     threadDelayRandom = do

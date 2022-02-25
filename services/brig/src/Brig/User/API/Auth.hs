@@ -214,7 +214,7 @@ sendLoginCodeH req = do
 sendLoginCode :: Public.SendLoginCode -> (Handler r) Public.LoginCodeTimeout
 sendLoginCode (Public.SendLoginCode phone call force) = do
   checkWhitelist (Right phone)
-  c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
+  c <- mapExceptT wrapClient (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
   return $ Public.LoginCodeTimeout (pendingLoginTimeout c)
 
 getLoginCodeH :: JSON ::: Phone -> (Handler r) Response
@@ -222,7 +222,7 @@ getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
 
 getLoginCode :: Phone -> (Handler r) Public.PendingLoginCode
 getLoginCode phone = do
-  code <- lift $ Auth.lookupLoginCode phone
+  code <- lift $ wrapClient $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) return code
 
 reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
@@ -241,7 +241,7 @@ loginH (req ::: persist ::: _) = do
 login :: Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  Auth.login l typ !>> loginError
+  mapExceptT wrapClient (Auth.login l typ) !>> loginError
 
 ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
 ssoLoginH (req ::: persist ::: _) = do
@@ -250,7 +250,7 @@ ssoLoginH (req ::: persist ::: _) = do
 ssoLogin :: SsoLogin -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 ssoLogin l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  Auth.ssoLogin l typ !>> loginError
+  mapExceptT wrapClient (Auth.ssoLogin l typ) !>> loginError
 
 legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
 legalHoldLoginH (req ::: _) = do
@@ -259,7 +259,7 @@ legalHoldLoginH (req ::: _) = do
 legalHoldLogin :: LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
-  Auth.legalHoldLogin l typ !>> legalHoldLoginError
+  mapExceptT wrapClient (Auth.legalHoldLogin l typ) !>> legalHoldLoginError
 
 logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
@@ -274,8 +274,8 @@ logout Nothing (Just _) = throwStd authMissingCookie
 logout (Just _) Nothing = throwStd authMissingToken
 logout (Just (Left _)) (Just (Right _)) = throwStd authTokenMismatch
 logout (Just (Right _)) (Just (Left _)) = throwStd authTokenMismatch
-logout (Just (Left ut)) (Just (Left at)) = Auth.logout ut at !>> zauthError
-logout (Just (Right ut)) (Just (Right at)) = Auth.logout ut at !>> zauthError
+logout (Just (Left ut)) (Just (Left at)) = mapExceptT wrapClient (Auth.logout ut at) !>> zauthError
+logout (Just (Right ut)) (Just (Right at)) = mapExceptT wrapClient (Auth.logout ut at) !>> zauthError
 
 changeSelfEmailH ::
   JSON
@@ -306,7 +306,7 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
           Just (Right _legalholdAccessToken) ->
             throwStd invalidAccessToken
           Just (Left userTokens) ->
-            fst <$> (Auth.validateTokens userCookies (Just userTokens) !>> zauthError)
+            fst <$> (mapExceptT wrapClient (Auth.validateTokens userCookies (Just userTokens)) !>> zauthError)
 
 listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> (Handler r) Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
@@ -320,8 +320,8 @@ rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
 rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
-rmCookies uid (Public.RemoveCookies pw lls ids) = do
-  Auth.revokeAccess uid pw ids lls !>> authError
+rmCookies uid (Public.RemoveCookies pw lls ids) =
+  mapExceptT wrapClient (Auth.revokeAccess uid pw ids lls) !>> authError
 
 renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
@@ -346,7 +346,7 @@ renew = \case
     fmap Right . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
   where
     renewAccess uts mat =
-      Auth.renewAccess uts mat !>> zauthError
+      mapExceptT wrapClient (Auth.renewAccess uts mat) !>> zauthError
     matchingOrNone :: (a -> Maybe b) -> Maybe a -> (Handler r) (Maybe b)
     matchingOrNone matching = traverse $ \accessToken ->
       case matching accessToken of
@@ -425,7 +425,7 @@ cookies k r =
     [] -> Fail . addLabel "cookie" $ notAvailable k
     cc ->
       case mapMaybe fromByteString cc of
-        [] -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        [] -> Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies"
         (x : xs) -> return $ List1.list1 x xs
 
 notAvailable :: ByteString -> P.Error

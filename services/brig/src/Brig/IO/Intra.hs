@@ -186,15 +186,15 @@ updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
   UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ Search.reindex orig
+    when (isJust eiuEmail) $ wrapClient $ Search.reindex orig
   UserIdentityRemoved {} -> return ()
   UserLegalHoldDisabled {} -> return ()
   UserLegalHoldEnabled {} -> return ()
   LegalHoldClientRequested {} -> return ()
-  UserSuspended {} -> Search.reindex orig
-  UserResumed {} -> Search.reindex orig
-  UserActivated {} -> Search.reindex orig
-  UserDeleted {} -> Search.reindex orig
+  UserSuspended {} -> wrapClient $ Search.reindex orig
+  UserResumed {} -> wrapClient $ Search.reindex orig
+  UserActivated {} -> wrapClient $ Search.reindex orig
+  UserDeleted {} -> wrapClient $ Search.reindex orig
   UserUpdated UserUpdatedData {..} -> do
     let interesting =
           or
@@ -204,7 +204,7 @@ updateSearchIndex orig e = case e of
               isJust eupManagedBy,
               isJust eupSSOId || eupSSOIdRemoved
             ]
-    when interesting $ Search.reindex orig
+    when interesting $ wrapClient $ Search.reindex orig
 
 journalEvent :: UserId -> UserEvent -> (AppIO r) ()
 journalEvent orig e = case e of
@@ -916,7 +916,7 @@ memberIsTeamOwner :: TeamId -> UserId -> (AppIO r) Bool
 memberIsTeamOwner tid uid = do
   r <-
     galleyRequest GET $
-      (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
+      paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   pure $ responseStatus r /= status403
 
 -- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.

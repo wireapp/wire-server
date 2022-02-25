@@ -25,7 +25,7 @@ import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
-import Brig.App (qualifyLocal)
+import Brig.App (qualifyLocal, wrapClient)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
@@ -74,7 +74,7 @@ federationSitemap =
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> (Handler r) NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ Data.isActivated ncrTo
+  active <- lift $ wrapClient $ Data.isActivated ncrTo
   if active
     then do
       self <- qualifyLocal ncrTo

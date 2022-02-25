@@ -26,7 +26,7 @@ module Brig.Data.LoginCode
   )
 where
 
-import Brig.App (AppIO, currentTime)
+import Brig.App (AppIO, Env, currentTime)
 import Brig.Data.Instances ()
 import Brig.Types.Code (Timeout (..))
 import Brig.Types.User.Auth
@@ -48,7 +48,7 @@ maxAttempts = 3
 ttl :: NominalDiffTime
 ttl = 600
 
-createLoginCode :: UserId -> (AppIO r) PendingLoginCode
+createLoginCode :: (MonadClient m, MonadReader Env m) => UserId -> m PendingLoginCode
 createLoginCode u = do
   now <- liftIO =<< view currentTime
   code <- liftIO genCode
@@ -57,7 +57,7 @@ createLoginCode u = do
   where
     genCode = LoginCode . T.pack . printf "%06d" <$> randIntegerZeroToNMinusOne 1000000
 
-verifyLoginCode :: UserId -> LoginCode -> (AppIO r) Bool
+verifyLoginCode :: (MonadClient m, MonadReader Env m) => UserId -> LoginCode -> m Bool
 verifyLoginCode u c = do
   code <- retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
   now <- liftIO =<< view currentTime
@@ -67,7 +67,7 @@ verifyLoginCode u c = do
     Just (_, _, _) -> deleteLoginCode u >> return False
     Nothing -> return False
 
-lookupLoginCode :: UserId -> (AppIO r) (Maybe PendingLoginCode)
+lookupLoginCode :: (MonadReader Env m, MonadClient m) => UserId -> m (Maybe PendingLoginCode)
 lookupLoginCode u = do
   now <- liftIO =<< view currentTime
   validate now =<< retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
@@ -77,10 +77,10 @@ lookupLoginCode u = do
     pending c now t = PendingLoginCode c (timeout now t)
     timeout now t = Timeout (t `diffUTCTime` now)
 
-deleteLoginCode :: UserId -> (AppIO r) ()
+deleteLoginCode :: MonadClient m => UserId -> m ()
 deleteLoginCode u = retry x5 . write codeDelete $ params LocalQuorum (Identity u)
 
-insertLoginCode :: UserId -> LoginCode -> Int32 -> UTCTime -> (AppIO r) ()
+insertLoginCode :: MonadClient m => UserId -> LoginCode -> Int32 -> UTCTime -> m ()
 insertLoginCode u c n t = retry x5 . write codeInsert $ params LocalQuorum (u, c, n, t, round ttl)
 
 -- Queries

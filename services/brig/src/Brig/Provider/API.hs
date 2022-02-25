@@ -29,7 +29,7 @@ import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
-import Brig.App (AppIO, internalEvents, settings, viewFederationDomain)
+import Brig.App (AppIO, internalEvents, settings, viewFederationDomain, wrapClient)
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
@@ -54,6 +54,7 @@ import qualified Brig.ZAuth as ZAuth
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens (view, (^.))
+import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy.Char8 as LC8
@@ -330,14 +331,14 @@ newAccount new = do
   let descr = fromRange (Public.newProviderDescr new)
   let url = Public.newProviderUrl new
   let emailKey = mkEmailKey email
-  DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
+  mapExceptT wrapClient (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   (safePass, newPass) <- case pass of
     Just newPass -> (,Nothing) <$> mkSafePassword newPass
     Nothing -> do
       newPass <- genPassword
       safePass <- mkSafePassword newPass
       return (safePass, Just newPass)
-  pid <- DB.insertAccount name safePass url descr
+  pid <- mapExceptT wrapClient $ DB.insertAccount name safePass url descr
   gen <- Code.mkGen (Code.ForEmail email)
   code <-
     Code.generate
@@ -346,7 +347,7 @@ newAccount new = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  Code.insert code
+  mapExceptT wrapClient $ Code.insert code
   let key = Code.codeKey code
   let val = Code.codeValue code
   lift $ sendActivationMail name email key val False
@@ -358,17 +359,17 @@ activateAccountKeyH (key ::: val) = do
 
 activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
-  c <- Code.verify key Code.IdentityVerification val >>= maybeInvalidCode
+  c <- mapExceptT wrapClient (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> return (Id p, e)
     _ -> throwErrorDescriptionType @InvalidCode
-  (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
+  (name, memail, _url, _descr) <- mapExceptT wrapClient (DB.lookupAccountData pid) >>= maybeInvalidCode
   case memail of
     Just email' | email == email' -> return Nothing
     Just email' -> do
       -- Ensure we remove any pending password reset
       gen <- Code.mkGen (Code.ForEmail email')
-      lift $ Code.delete (Code.genKey gen) Code.PasswordReset
+      lift $ wrapClient $ Code.delete (Code.genKey gen) Code.PasswordReset
       -- Activate the new and remove the old key
       activate pid (Just email') email
       return . Just $ Public.ProviderActivationResponse email
@@ -388,10 +389,10 @@ getActivationCode e = do
     Right em -> return em
     Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
-  code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
+  code <- mapExceptT wrapClient $ Code.lookup (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (return . FoundActivationCode) code
 
-data FoundActivationCode = FoundActivationCode Code.Code
+newtype FoundActivationCode = FoundActivationCode Code.Code
 
 instance ToJSON FoundActivationCode where
   toJSON (FoundActivationCode vcode) =
@@ -404,10 +405,10 @@ approveAccountKeyH (key ::: val) = do
 
 approveAccountKey :: Code.Key -> Code.Value -> (Handler r) ()
 approveAccountKey key val = do
-  c <- Code.verify key Code.AccountApproval val >>= maybeInvalidCode
+  c <- mapExceptT wrapClient (Code.verify key Code.AccountApproval val) >>= maybeInvalidCode
   case (Code.codeAccount c, Code.codeForEmail c) of
     (Just pid, Just email) -> do
-      (name, _, _, _) <- DB.lookupAccountData (Id pid) >>= maybeInvalidCode
+      (name, _, _, _) <- mapExceptT wrapClient (DB.lookupAccountData (Id pid)) >>= maybeInvalidCode
       activate (Id pid) Nothing email
       lift $ sendApprovalConfirmMail name email
     _ -> throwErrorDescriptionType @InvalidCode
@@ -419,8 +420,8 @@ loginH req = do
 
 login :: Public.ProviderLogin -> (Handler r) ZAuth.ProviderToken
 login l = do
-  pid <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  pid <- mapExceptT wrapClient (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
+  pass <- mapExceptT wrapClient (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (providerLoginPassword l) pass) $
     throwErrorDescriptionType @BadCredentials
   ZAuth.newProviderToken pid
@@ -431,9 +432,9 @@ beginPasswordResetH req = do
 
 beginPasswordReset :: Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
-  pid <- DB.lookupKey (mkEmailKey target) >>= maybeBadCredentials
+  pid <- mapExceptT wrapClient (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
   gen <- Code.mkGen (Code.ForEmail target)
-  pending <- lift $ Code.lookup (Code.genKey gen) Code.PasswordReset
+  pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.PasswordReset
   code <- case pending of
     Just p -> throwE $ pwResetError (PasswordResetInProgress . Just $ Code.codeTTL p)
     Nothing ->
@@ -443,7 +444,7 @@ beginPasswordReset (Public.PasswordReset target) = do
         (Code.Retries 3)
         (Code.Timeout 3600) -- 1h
         (Just (toUUID pid))
-  Code.insert code
+  mapExceptT wrapClient $ Code.insert code
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
 completePasswordResetH :: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
@@ -452,15 +453,16 @@ completePasswordResetH req = do
 
 completePasswordReset :: Public.CompletePasswordReset -> (Handler r) ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
-  code <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
+  code <- mapExceptT wrapClient (Code.verify key Code.PasswordReset val) >>= maybeInvalidCode
   case Id <$> Code.codeAccount code of
     Nothing -> throwE $ pwResetError InvalidPasswordResetCode
     Just pid -> do
-      oldpass <- DB.lookupPassword pid >>= maybeBadCredentials
+      oldpass <- mapExceptT wrapClient (DB.lookupPassword pid) >>= maybeBadCredentials
       when (verifyPassword newpwd oldpass) $ do
         throwStd newPasswordMustDiffer
-      DB.updateAccountPassword pid newpwd
-      Code.delete key Code.PasswordReset
+      mapExceptT wrapClient $ do
+        DB.updateAccountPassword pid newpwd
+        Code.delete key Code.PasswordReset
 
 --------------------------------------------------------------------------------
 -- Provider API
@@ -472,8 +474,7 @@ getAccountH pid = do
     Nothing -> setStatus status404 empty
 
 getAccount :: ProviderId -> (Handler r) (Maybe Public.Provider)
-getAccount pid = do
-  DB.lookupAccount pid
+getAccount = mapExceptT wrapClient . DB.lookupAccount
 
 updateAccountProfileH :: ProviderId ::: JsonRequest Public.UpdateProvider -> (Handler r) Response
 updateAccountProfileH (pid ::: req) = do
@@ -481,12 +482,13 @@ updateAccountProfileH (pid ::: req) = do
 
 updateAccountProfile :: ProviderId -> Public.UpdateProvider -> (Handler r) ()
 updateAccountProfile pid upd = do
-  _ <- DB.lookupAccount pid >>= maybeInvalidProvider
-  DB.updateAccountProfile
-    pid
-    (updateProviderName upd)
-    (updateProviderUrl upd)
-    (updateProviderDescr upd)
+  _ <- mapExceptT wrapClient (DB.lookupAccount pid) >>= maybeInvalidProvider
+  mapExceptT wrapClient $
+    DB.updateAccountProfile
+      pid
+      (updateProviderName upd)
+      (updateProviderUrl upd)
+      (updateProviderDescr upd)
 
 updateAccountEmailH :: ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
 updateAccountEmailH (pid ::: req) = do
@@ -498,7 +500,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
     Right em -> return em
     Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
   let emailKey = mkEmailKey email
-  DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
+  mapExceptT wrapClient (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   gen <- Code.mkGen (Code.ForEmail email)
   code <-
     Code.generate
@@ -507,7 +509,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  Code.insert code
+  mapExceptT wrapClient $ Code.insert code
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
 updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
@@ -516,12 +518,12 @@ updateAccountPasswordH (pid ::: req) = do
 
 updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  pass <- mapExceptT wrapClient (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (cpOldPassword upd) pass) $
     throwErrorDescriptionType @BadCredentials
   when (verifyPassword (cpNewPassword upd) pass) $
     throwStd newPasswordMustDiffer
-  DB.updateAccountPassword pid (cpNewPassword upd)
+  mapExceptT wrapClient $ DB.updateAccountPassword pid (cpNewPassword upd)
 
 addServiceH :: ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
 addServiceH (pid ::: req) = do
@@ -529,7 +531,7 @@ addServiceH (pid ::: req) = do
 
 addService :: ProviderId -> Public.NewService -> (Handler r) Public.NewServiceResponse
 addService pid new = do
-  _ <- DB.lookupAccount pid >>= maybeInvalidProvider
+  _ <- mapExceptT wrapClient (DB.lookupAccount pid) >>= maybeInvalidProvider
   let name = newServiceName new
   let summary = fromRange (newServiceSummary new)
   let descr = fromRange (newServiceDescr new)
@@ -539,7 +541,7 @@ addService pid new = do
   let tags = fromRange (newServiceTags new)
   (pk, fp) <- validateServiceKey pubkey >>= maybeInvalidServiceKey
   token <- maybe randServiceToken return (newServiceToken new)
-  sid <- DB.insertService pid name summary descr baseUrl token pk fp assets tags
+  sid <- mapExceptT wrapClient $ DB.insertService pid name summary descr baseUrl token pk fp assets tags
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
   return $ Public.NewServiceResponse sid rstoken
 
@@ -547,15 +549,15 @@ listServicesH :: ProviderId -> (Handler r) Response
 listServicesH pid = json <$> listServices pid
 
 listServices :: ProviderId -> (Handler r) [Public.Service]
-listServices = DB.listServices
+listServices = mapExceptT wrapClient . DB.listServices
 
 getServiceH :: ProviderId ::: ServiceId -> (Handler r) Response
 getServiceH (pid ::: sid) = do
   json <$> getService pid sid
 
 getService :: ProviderId -> ServiceId -> (Handler r) Public.Service
-getService pid sid = do
-  DB.lookupService pid sid >>= maybeServiceNotFound
+getService pid sid =
+  mapExceptT wrapClient (DB.lookupService pid sid) >>= maybeServiceNotFound
 
 updateServiceH :: ProviderId ::: ServiceId ::: JsonRequest Public.UpdateService -> (Handler r) Response
 updateServiceH (pid ::: sid ::: req) = do
@@ -563,20 +565,31 @@ updateServiceH (pid ::: sid ::: req) = do
 
 updateService :: ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
 updateService pid sid upd = do
-  _ <- DB.lookupAccount pid >>= maybeInvalidProvider
+  _ <- mapExceptT wrapClient (DB.lookupAccount pid) >>= maybeInvalidProvider
   -- Update service profile
-  svc <- DB.lookupService pid sid >>= maybeServiceNotFound
+  svc <- mapExceptT wrapClient (DB.lookupService pid sid) >>= maybeServiceNotFound
   let name = serviceName svc
   let newName = updateServiceName upd
-  let nameChange = liftM2 (,) (pure name) newName
+  let nameChange = fmap (name,) newName
   let tags = unsafeRange (serviceTags svc)
   let newTags = updateServiceTags upd
-  let tagsChange = liftM2 (,) (pure tags) (rcast <$> newTags)
+  let tagsChange = fmap (tags,) (rcast <$> newTags)
   let newSummary = fromRange <$> updateServiceSummary upd
   let newDescr = fromRange <$> updateServiceDescr upd
   let newAssets = updateServiceAssets upd
   -- Update service, tags/prefix index if the service is enabled
-  DB.updateService pid sid name tags nameChange newSummary newDescr newAssets tagsChange (serviceEnabled svc)
+  mapExceptT wrapClient $
+    DB.updateService
+      pid
+      sid
+      name
+      tags
+      nameChange
+      newSummary
+      newDescr
+      newAssets
+      tagsChange
+      (serviceEnabled svc)
 
 updateServiceConnH :: ProviderId ::: ServiceId ::: JsonRequest Public.UpdateServiceConn -> (Handler r) Response
 updateServiceConnH (pid ::: sid ::: req) = do
@@ -584,11 +597,11 @@ updateServiceConnH (pid ::: sid ::: req) = do
 
 updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
 updateServiceConn pid sid upd = do
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  pass <- mapExceptT wrapClient (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (updateServiceConnPassword upd) pass) $
     throwErrorDescriptionType @BadCredentials
-  scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
-  svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
+  scon <- mapExceptT wrapClient (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
+  svc <- mapExceptT wrapClient (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
   let newTokens = maybeList1 . fromRange =<< updateServiceConnTokens upd
   let newEnabled = updateServiceConnEnabled upd
@@ -596,7 +609,7 @@ updateServiceConn pid sid upd = do
   keys <- forM newKeyPems (mapM (validateServiceKey >=> maybeInvalidServiceKey))
   let newKeys = keys >>= maybeList1
   let newFps = fmap snd <$> newKeys
-  DB.updateServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
+  mapExceptT wrapClient $ DB.updateServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
   let scon' =
         scon
           { sconBaseUrl = fromMaybe (sconBaseUrl scon) newBaseUrl,
@@ -612,8 +625,8 @@ updateServiceConn pid sid upd = do
       let tags = unsafeRange (serviceProfileTags svc)
       -- Update index, make it visible over search
       if sconEnabled scon
-        then DB.deleteServiceIndexes pid sid name tags
-        else DB.insertServiceIndexes pid sid name tags
+        then mapExceptT wrapClient $ DB.deleteServiceIndexes pid sid name tags
+        else mapExceptT wrapClient $ DB.insertServiceIndexes pid sid name tags
 
 -- TODO: Send informational email to provider.
 
@@ -633,19 +646,19 @@ deleteServiceH (pid ::: sid ::: req) = do
 -- delete the service. See 'finishDeleteService'.
 deleteService :: ProviderId -> ServiceId -> Public.DeleteService -> (Handler r) ()
 deleteService pid sid del = do
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  pass <- mapExceptT wrapClient (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteServicePassword del) pass) $
     throwErrorDescriptionType @BadCredentials
-  _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+  _ <- mapExceptT wrapClient (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Disable the service
-  DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
+  mapExceptT wrapClient $ DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
   -- Create an event
   queue <- view internalEvents
   lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
 
 finishDeleteService :: ProviderId -> ServiceId -> (AppIO r) ()
 finishDeleteService pid sid = do
-  mbSvc <- DB.lookupService pid sid
+  mbSvc <- wrapClient $ DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
@@ -663,19 +676,20 @@ deleteAccountH (pid ::: req) = do
 
 deleteAccount :: ProviderId -> Public.DeleteProvider -> (Handler r) ()
 deleteAccount pid del = do
-  prov <- DB.lookupAccount pid >>= maybeInvalidProvider
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  prov <- mapExceptT wrapClient (DB.lookupAccount pid) >>= maybeInvalidProvider
+  pass <- mapExceptT wrapClient (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwErrorDescriptionType @BadCredentials
-  svcs <- DB.listServices pid
+  svcs <- mapExceptT wrapClient $ DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
-  DB.deleteKey (mkEmailKey (providerEmail prov))
-  DB.deleteAccount pid
+    mapExceptT wrapClient $ DB.deleteService pid sid name tags
+  mapExceptT wrapClient $ do
+    DB.deleteKey (mkEmailKey (providerEmail prov))
+    DB.deleteAccount pid
 
 --------------------------------------------------------------------------------
 -- User API
@@ -685,24 +699,23 @@ getProviderProfileH pid = do
   json <$> getProviderProfile pid
 
 getProviderProfile :: ProviderId -> (Handler r) Public.ProviderProfile
-getProviderProfile pid = do
-  DB.lookupAccountProfile pid >>= maybeProviderNotFound
+getProviderProfile pid =
+  mapExceptT wrapClient (DB.lookupAccountProfile pid) >>= maybeProviderNotFound
 
 listServiceProfilesH :: ProviderId -> (Handler r) Response
 listServiceProfilesH pid = do
   json <$> listServiceProfiles pid
 
 listServiceProfiles :: ProviderId -> (Handler r) [Public.ServiceProfile]
-listServiceProfiles pid = do
-  DB.listServiceProfiles pid
+listServiceProfiles = mapExceptT wrapClient . DB.listServiceProfiles
 
 getServiceProfileH :: ProviderId ::: ServiceId -> (Handler r) Response
 getServiceProfileH (pid ::: sid) = do
   json <$> getServiceProfile pid sid
 
 getServiceProfile :: ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
-getServiceProfile pid sid = do
-  DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
+getServiceProfile pid sid =
+  mapExceptT wrapClient (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
 
 searchServiceProfilesH :: Maybe (Public.QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> (Handler r) Response
 searchServiceProfilesH (qt ::: start ::: size) = do
@@ -715,9 +728,9 @@ searchServiceProfilesH (qt ::: start ::: size) = do
 searchServiceProfiles :: Maybe (Public.QueryAnyTags 1 3) -> Maybe Text -> Range 10 100 Int32 -> (Handler r) Public.ServiceProfilePage
 searchServiceProfiles Nothing (Just start) size = do
   prefix :: Range 1 128 Text <- rangeChecked start
-  DB.paginateServiceNames (Just prefix) (fromRange size) =<< setProviderSearchFilter <$> view settings
+  mapExceptT wrapClient . DB.paginateServiceNames (Just prefix) (fromRange size) . setProviderSearchFilter =<< view settings
 searchServiceProfiles (Just tags) start size = do
-  DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
+  (mapExceptT wrapClient . DB.paginateServiceTags tags start (fromRange size)) . setProviderSearchFilter =<< view settings
 searchServiceProfiles Nothing Nothing _ = do
   throwStd $ badRequest "At least `tags` or `start` must be provided."
 
@@ -739,11 +752,11 @@ searchTeamServiceProfiles uid tid prefix filterDisabled size = do
   -- Check that the user actually belong to the team they claim they
   -- belong to. (Note: the 'tid' team might not even exist but we'll throw
   -- 'insufficientTeamPermissions' anyway)
-  teamId <- lift $ User.lookupUserTeam uid
+  teamId <- lift $ wrapClient $ User.lookupUserTeam uid
   unless (Just tid == teamId) $
     throwStd insufficientTeamPermissions
   -- Get search results
-  DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
+  mapExceptT wrapClient $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
 getServiceTagListH :: () -> (Handler r) Response
 getServiceTagListH () = json <$> getServiceTagList ()
@@ -772,14 +785,14 @@ updateServiceWhitelist uid con tid upd = do
       newWhitelisted = updateServiceWhitelistStatus upd
   -- Preconditions
   ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
-  _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+  _ <- mapExceptT wrapClient (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
-  whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+  whitelisted <- mapExceptT wrapClient $ DB.getServiceWhitelistStatus tid pid sid
   case (whitelisted, newWhitelisted) of
     (False, False) -> return UpdateServiceWhitelistRespUnchanged
     (True, True) -> return UpdateServiceWhitelistRespUnchanged
     (False, True) -> do
-      DB.insertServiceWhitelist tid pid sid
+      mapExceptT wrapClient $ DB.insertServiceWhitelist tid pid sid
       return UpdateServiceWhitelistRespChanged
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
@@ -803,7 +816,7 @@ addBotH (zuid ::: zcon ::: cid ::: req) = do
 
 addBot :: UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
-  zusr <- lift (User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
+  zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
@@ -819,12 +832,12 @@ addBot zuid zcon cid add = do
   unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
     throwStd invalidConv
   -- Lookup the relevant service data
-  scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
+  scon <- mapExceptT wrapClient (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   unless (sconEnabled scon) $
     throwStd serviceDisabled
-  svp <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
+  svp <- mapExceptT wrapClient (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   for_ (cnvTeam cnv) $ \tid -> do
-    whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+    whitelisted <- mapExceptT wrapClient $ DB.getServiceWhitelistStatus tid pid sid
     unless whitelisted $
       throwStd serviceNotWhitelisted
   -- Prepare a user ID, client ID and token for the bot.
@@ -853,7 +866,7 @@ addBot zuid zcon cid add = do
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
+  lift $ wrapClient $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <- do
     _ <- do
@@ -902,7 +915,7 @@ botGetSelfH bot = json <$> botGetSelf bot
 
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
-  p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
+  p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwErrorDescriptionType @UserNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> (Handler r) Response
@@ -910,8 +923,8 @@ botGetClientH bot = do
   maybe (throwErrorDescriptionType @ClientNotFound) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> (AppIO r) (Maybe Public.Client)
-botGetClient bot = do
-  listToMaybe <$> User.lookupClients (botUserId bot)
+botGetClient bot =
+  listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
 
 botListPrekeysH :: BotId -> (Handler r) Response
 botListPrekeysH bot = do
@@ -919,10 +932,10 @@ botListPrekeysH bot = do
 
 botListPrekeys :: BotId -> (Handler r) [Public.PrekeyId]
 botListPrekeys bot = do
-  clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
+  clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
   case clientId <$> clt of
     Nothing -> return []
-    Just ci -> lift (User.lookupPrekeyIds (botUserId bot) ci)
+    Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
 botUpdatePrekeysH :: BotId ::: JsonRequest Public.UpdateBotPrekeys -> (Handler r) Response
 botUpdatePrekeysH (bot ::: req) = do
@@ -930,12 +943,12 @@ botUpdatePrekeysH (bot ::: req) = do
 
 botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
 botUpdatePrekeys bot upd = do
-  clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
+  clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
   case clt of
     Nothing -> throwErrorDescriptionType @ClientNotFound
     Just c -> do
       let pks = updateBotPrekeyList upd
-      User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
+      mapExceptT wrapClient (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
 
 botClaimUsersPrekeysH :: JsonRequest Public.UserClients -> (Handler r) Response
 botClaimUsersPrekeysH req = do
@@ -954,7 +967,7 @@ botListUserProfilesH uids = do
 
 botListUserProfiles :: List UserId -> (Handler r) [Public.BotUserView]
 botListUserProfiles uids = do
-  us <- lift $ User.lookupUsers NoPendingInvitations (fromList uids)
+  us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromList uids)
   return (map mkBotUserView us)
 
 botGetUserClientsH :: UserId -> (Handler r) Response
@@ -962,8 +975,8 @@ botGetUserClientsH uid = do
   json <$> lift (botGetUserClients uid)
 
 botGetUserClients :: UserId -> (AppIO r) [Public.PubClient]
-botGetUserClients uid = do
-  pubClient <$$> User.lookupClients uid
+botGetUserClients uid =
+  pubClient <$$> wrapClient (User.lookupClients uid)
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
@@ -973,7 +986,7 @@ botDeleteSelfH (bid ::: cid) = do
 
 botDeleteSelf :: BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
-  bot <- lift $ User.lookupUser NoPendingInvitations (botUserId bid)
+  bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
   _ <- lift $ deleteBot (botUserId bid) Nothing bid cid
   return ()
@@ -987,10 +1000,10 @@ minRsaKeySize = 256 -- Bytes (= 2048 bits)
 activate :: ProviderId -> Maybe Public.Email -> Public.Email -> (Handler r) ()
 activate pid old new = do
   let emailKey = mkEmailKey new
-  taken <- maybe False (/= pid) <$> DB.lookupKey emailKey
+  taken <- maybe False (/= pid) <$> mapExceptT wrapClient (DB.lookupKey emailKey)
   when taken $
     throwStd emailExists
-  DB.insertKey pid (mkEmailKey <$> old) emailKey
+  mapExceptT wrapClient $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> (AppIO r) (Maybe Public.Event)
 deleteBot zusr zcon bid cid = do
@@ -998,22 +1011,22 @@ deleteBot zusr zcon bid cid = do
   ev <- RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  mbUser <- User.lookupUser NoPendingInvitations buid
-  User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+  mbUser <- wrapClient $ User.lookupUser NoPendingInvitations buid
+  wrapClient (User.lookupClients buid) >>= mapM_ (User.rmClient buid . clientId)
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
-    User.deleteServiceUser pid sid bid
+    wrapClient $ User.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  User.updateStatus buid Deleted
+  wrapClient $ User.updateStatus buid Deleted
   return ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
 validateServiceKey pem =
   liftIO $
     readPublicKey >>= \pk ->
-      case join (SSL.toPublicKey <$> pk) of
+      case SSL.toPublicKey =<< pk of
         Nothing -> return Nothing
         Just pk' -> do
           Just sha <- SSL.getDigestByName "SHA256"
@@ -1029,7 +1042,7 @@ validateServiceKey pem =
     readPublicKey =
       handleAny
         (const $ return Nothing)
-        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
+        (SSL.readPublicKey (LC8.unpack (toByteString pem)) <&> Just)
 
 mkBotUserView :: User -> Public.BotUserView
 mkBotUserView u =

@@ -230,7 +230,7 @@ getInvitationCode t r = do
   code <- lift . wrapClient $ DB.lookupInvitationCode t r
   maybe (throwStd $ errorDescriptionTypeToWai @InvalidInvitationCode) (return . FoundInvitationCode) code
 
-data FoundInvitationCode = FoundInvitationCode InvitationCode
+newtype FoundInvitationCode = FoundInvitationCode InvitationCode
   deriving (Eq, Show, Generic)
 
 instance ToJSON FoundInvitationCode where
@@ -424,7 +424,7 @@ getInvitationByEmailH (_ ::: email) =
 
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ DB.lookupInvitationByEmail email
+  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) return inv
 
 suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
@@ -434,7 +434,7 @@ suspendTeamH (_ ::: tid) = do
 suspendTeam :: TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
-  lift $ DB.deleteInvitations tid
+  lift $ wrapClient $ DB.deleteInvitations tid
   lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH :: JSON ::: TeamId -> (Handler r) Response
@@ -451,7 +451,7 @@ unsuspendTeam tid = do
 
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
 changeTeamAccountStatuses tid s = do
-  team <- Team.tdTeam <$> (lift $ Intra.getTeam tid)
+  team <- Team.tdTeam <$> lift (Intra.getTeam tid)
   unless (team ^. Team.teamBinding == Team.Binding) $
     throwStd noBindingTeam
   uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)

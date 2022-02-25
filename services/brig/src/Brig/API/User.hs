@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -184,8 +186,8 @@ identityErrorToBrigError = \case
 
 verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
-  checkKey Nothing uk
-  blacklisted <- lift $ Blacklist.exists uk
+  mapExceptT wrapClient $ checkKey Nothing uk
+  blacklisted <- lift $ wrapClient $ Blacklist.exists uk
   when blacklisted $
     throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
   where
@@ -216,7 +218,7 @@ createUser new = do
       Nothing ->
         pure (Nothing, Nothing, Nothing)
   let mbInv = Team.inInvitation . fst <$> teamInvitation
-  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
+  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> wrapClient $ Data.lookupAccount (Id uuid))
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -241,13 +243,13 @@ createUser new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- newAccount new' mbInv tid mbHandle
+    (account, pw) <- wrapClient $ newAccount new' mbInv tid mbHandle
 
     let uid = userId (accountUser account)
     Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
-    Data.insertAccount account Nothing pw False
+    wrapClient $ Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
     Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
@@ -318,9 +320,9 @@ createUser new = do
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppIO r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
-      lift (Team.lookupInvitationInfo c) >>= \case
+      lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
-          inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
+          inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do
@@ -351,7 +353,7 @@ createUser new = do
       ExceptT RegisterError (AppT r IO) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
-      ok <- lift $ Data.claimKey uk uid
+      ok <- lift . wrapClient $ Data.claimKey uk uid
       unless ok $
         throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
@@ -360,14 +362,14 @@ createUser new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
+        wrapClient $ activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
         Log.info $
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
         Data.usersPendingActivationRemove uid
-        Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
+        wrapClient $ Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppIO r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
@@ -376,7 +378,7 @@ createUser new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        activateUser uid ident
+        wrapClient $ activateUser uid ident
         void $ onActivated (AccountActivated account)
         Log.info $
           field "user" (toByteString uid)
@@ -424,7 +426,7 @@ createUser new = do
 initAccountFeatureConfig :: UserId -> (AppIO r) ()
 initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
-  forM_ mbCciDefNew $ Data.updateFeatureConferenceCalling uid . Just
+  forM_ mbCciDefNew $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
@@ -434,7 +436,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
   email <- either (const . throwE . Error.StdError $ errorDescriptionTypeToWai @InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
-  account <- lift $ newAccountInviteViaScim uid tid loc name email
+  account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
@@ -450,7 +452,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
         -- would not produce an identity, and so we won't have the email address to construct
         -- the SCIM user.
         True
-  lift $ Data.insertAccount account Nothing Nothing activated
+  lift . wrapClient $ Data.insertAccount account Nothing Nothing activated
 
   return account
 
@@ -471,7 +473,7 @@ checkRestrictedUserCreation new = do
 updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppIO r) ()
 updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
-    mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
+    mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
     user <- maybe (throwE ProfileNotFound) pure mbUser
     unless
       ( userManagedBy user /= ManagedByScim
@@ -480,7 +482,7 @@ updateUser uid mconn uu allowScim = do
       )
       $ throwE DisplayNameManagedByScim
   lift $ do
-    Data.updateUser uid uu
+    wrapClient $ Data.updateUser uid uu
     Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
@@ -488,7 +490,7 @@ updateUser uid mconn uu allowScim = do
 
 changeLocale :: UserId -> ConnId -> LocaleUpdate -> (AppIO r) ()
 changeLocale uid conn (LocaleUpdate loc) = do
-  Data.updateLocale uid loc
+  wrapClient $ Data.updateLocale uid loc
   Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
 -------------------------------------------------------------------------------
@@ -496,7 +498,7 @@ changeLocale uid conn (LocaleUpdate loc) = do
 
 changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppIO r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
-  Data.updateManagedBy uid mb
+  wrapClient $ Data.updateManagedBy uid mb
   Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
@@ -506,7 +508,7 @@ changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT 
 changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
-  usr <- lift $ Data.lookupUser WithPendingInvitations uid
+  usr <- lift $ wrapClient $ Data.lookupUser WithPendingInvitations uid
   case usr of
     Nothing -> throwE ChangeHandleNoIdentity
     Just u -> do
@@ -601,15 +603,15 @@ changeEmail u email allowScim = do
       return
       (validateEmail email)
   let ek = userEmailKey em
-  blacklisted <- lift $ Blacklist.exists ek
+  blacklisted <- lift . wrapClient $ Blacklist.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
-  available <- lift $ Data.keyAvailable ek (Just u)
+  available <- lift . wrapClient $ Data.keyAvailable ek (Just u)
   unless available $
     throwE $
       EmailExists email
-  usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (Data.lookupUser WithPendingInvitations u)
-  case join (emailIdentity <$> userIdentity usr) of
+  usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
+  case emailIdentity =<< userIdentity usr of
     -- The user already has an email address and the new one is exactly the same
     Just current | current == em -> return ChangeEmailIdempotent
     _ -> do
@@ -633,15 +635,15 @@ changePhone u phone = do
       return
       =<< lift (validatePhone phone)
   let pk = userPhoneKey canonical
-  available <- lift $ Data.keyAvailable pk (Just u)
+  available <- lift . wrapClient $ Data.keyAvailable pk (Just u)
   unless available $
     throwE PhoneExists
   timeout <- setActivationTimeout <$> view settings
-  blacklisted <- lift $ Blacklist.exists pk
+  blacklisted <- lift . wrapClient $ Blacklist.exists pk
   when blacklisted $
     throwE BlacklistedNewPhone
   -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+  prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
   when prefixExcluded $
     throwE BlacklistedNewPhone
   act <- lift $ Data.newActivation pk timeout (Just u)
@@ -655,8 +657,8 @@ removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity e _) -> lift $ do
-      deleteKey $ userEmailKey e
-      Data.deleteEmail uid
+      wrapClient . deleteKey $ userEmailKey e
+      wrapClient $ Data.deleteEmail uid
       Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
@@ -669,12 +671,12 @@ removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity _ p) -> do
-      pw <- lift $ Data.lookupPassword uid
+      pw <- lift . wrapClient $ Data.lookupPassword uid
       unless (isJust pw) $
         throwE NoPassword
       lift $ do
-        deleteKey $ userPhoneKey p
-        Data.deletePhone uid
+        wrapClient . deleteKey $ userPhoneKey p
+        wrapClient $ Data.deletePhone uid
         Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
@@ -685,7 +687,7 @@ removePhone uid conn = do
 revokeIdentity :: Either Email Phone -> (AppIO r) ()
 revokeIdentity key = do
   let uk = either userEmailKey userPhoneKey key
-  mu <- Data.lookupKey uk
+  mu <- wrapClient $ Data.lookupKey uk
   case mu of
     Nothing -> return ()
     Just u ->
@@ -723,11 +725,11 @@ changeAccountStatus usrs status = do
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
-  liftIO $ mapConcurrently_ (runAppT e . (update ev)) usrs
+  liftIO $ mapConcurrently_ (runAppT e . update ev) usrs
   where
     update :: (UserId -> UserEvent) -> UserId -> (AppIO r) ()
     update ev u = do
-      Data.updateStatus u status
+      wrapClient $ Data.updateStatus u status
       Intra.onUserEvent u Nothing (ev u)
 
 suspendAccount :: HasCallStack => List1 UserId -> (AppIO r) ()
@@ -804,11 +806,11 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         (const . throwE . InvalidRecipient $ userEmailKey email)
         (return . userEmailKey)
         (validateEmail email)
-    exists <- lift $ isJust <$> Data.lookupKey ek
+    exists <- lift $ isJust <$> wrapClient (Data.lookupKey ek)
     when exists $
       throwE $
         UserKeyInUse ek
-    blacklisted <- lift $ Blacklist.exists ek
+    blacklisted <- lift . wrapClient $ Blacklist.exists ek
     when blacklisted $
       throwE (ActivationBlacklistedUserKey ek)
     uc <- lift $ Data.lookupActivationCode ek
@@ -824,15 +826,15 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         return
         =<< lift (validatePhone phone)
     let pk = userPhoneKey canonical
-    exists <- lift $ isJust <$> Data.lookupKey pk
+    exists <- lift $ isJust <$> wrapClient (Data.lookupKey pk)
     when exists $
       throwE $
         UserKeyInUse pk
-    blacklisted <- lift $ Blacklist.exists pk
+    blacklisted <- lift . wrapClient $ Blacklist.exists pk
     when blacklisted $
       throwE (ActivationBlacklistedUserKey pk)
     -- check if any prefixes of this phone number are blocked
-    prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+    prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
     when prefixExcluded $
       throwE (ActivationBlacklistedUserKey pk)
     c <- lift $ fmap snd <$> Data.lookupActivationCode pk
@@ -859,7 +861,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
-      u <- maybe (notFound uid) return =<< lift (Data.lookupUser WithPendingInvitations uid)
+      u <- maybe (notFound uid) return =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations uid)
       p <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u
@@ -900,27 +902,27 @@ mkActivationKey (ActivatePhone p) = do
 
 changePassword :: UserId -> PasswordChange -> ExceptT ChangePasswordError (AppIO r) ()
 changePassword uid cp = do
-  activated <- lift $ Data.isActivated uid
+  activated <- lift . wrapClient $ Data.isActivated uid
   unless activated $
     throwE ChangePasswordNoIdentity
-  currpw <- lift $ Data.lookupPassword uid
+  currpw <- lift . wrapClient $ Data.lookupPassword uid
   let newpw = cpNewPassword cp
   case (currpw, cpOldPassword cp) of
-    (Nothing, _) -> lift $ Data.updatePassword uid newpw
+    (Nothing, _) -> lift . wrapClient $ Data.updatePassword uid newpw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
       unless (verifyPassword pw' pw) $
         throwE InvalidCurrentPassword
       when (verifyPassword newpw pw) $
         throwE ChangePasswordMustDiffer
-      lift $ Data.updatePassword uid newpw >> revokeAllCookies uid
+      lift $ wrapClient (Data.updatePassword uid newpw) >> revokeAllCookies uid
 
 beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError (AppIO r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
   let key = either userEmailKey userPhoneKey target
-  user <- lift (Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) return
+  user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) return
   Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
-  status <- lift $ Data.lookupStatus user
+  status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
   code <- lift $ Data.lookupPasswordResetCode user
@@ -938,7 +940,7 @@ completePasswordReset ident code pw = do
       Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
       checkNewIsDifferent uid pw
       lift $ do
-        Data.updatePassword uid pw
+        wrapClient $ Data.updatePassword uid pw
         Data.deletePasswordResetCode key
         revokeAllCookies uid
 
@@ -946,7 +948,7 @@ completePasswordReset ident code pw = do
 -- If the two are the same, throw an error.  If no current password can be found, do nothing.
 checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError (AppIO r) ()
 checkNewIsDifferent uid pw = do
-  mcurrpw <- lift $ Data.lookupPassword uid
+  mcurrpw <- lift . wrapClient $ Data.lookupPassword uid
   case mcurrpw of
     Just currpw | verifyPassword pw currpw -> throwE ResetPasswordMustDiffer
     _ -> pure ()
@@ -954,8 +956,8 @@ checkNewIsDifferent uid pw = do
 mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError (AppIO r) PasswordResetKey
 mkPasswordResetKey ident = case ident of
   PasswordResetIdentityKey k -> return k
-  PasswordResetEmailIdentity e -> user (userEmailKey e) >>= liftIO . Data.mkPasswordResetKey
-  PasswordResetPhoneIdentity p -> user (userPhoneKey p) >>= liftIO . Data.mkPasswordResetKey
+  PasswordResetEmailIdentity e -> mapExceptT wrapClient (user (userEmailKey e)) >>= liftIO . Data.mkPasswordResetKey
+  PasswordResetPhoneIdentity p -> mapExceptT wrapClient (user (userPhoneKey p)) >>= liftIO . Data.mkPasswordResetKey
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
 
@@ -972,7 +974,7 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError (AppIO r) (Maybe Timeout)
 deleteUser uid pwd = do
-  account <- lift $ Data.lookupAccount uid
+  account <- lift . wrapClient $ Data.lookupAccount uid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -1006,7 +1008,7 @@ deleteUser uid pwd = do
       Log.info $
         field "user" (toByteString uid)
           . msg (val "Attempting account deletion with a password")
-      actual <- lift $ Data.lookupPassword uid
+      actual <- lift . wrapClient $ Data.lookupPassword uid
       case actual of
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do
@@ -1015,7 +1017,7 @@ deleteUser uid pwd = do
           lift $ deleteAccount a >> return Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
-      pending <- lift $ Code.lookup (Code.genKey gen) Code.AccountDeletion
+      pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
       case pending of
         Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
         Nothing -> do
@@ -1029,7 +1031,7 @@ deleteUser uid pwd = do
               (Code.Retries 3)
               (Code.Timeout 600)
               (Just (toUUID uid))
-          Code.insert c
+          mapExceptT wrapClient $ Code.insert c
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
@@ -1038,7 +1040,7 @@ deleteUser uid pwd = do
             (\e -> lift $ sendDeletionEmail n e k v l)
             (\p -> lift $ sendDeletionSms p k v l)
             target
-            `onException` Code.delete k Code.AccountDeletion
+            `onException` mapExceptT wrapClient (Code.delete k Code.AccountDeletion)
           return $! Just $! Code.codeTTL c
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
@@ -1047,11 +1049,11 @@ verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError (AppIO r) ()
 verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
-  c <- lift $ Code.verify key Code.AccountDeletion code
+  c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) return (Code.codeAccount =<< c)
-  account <- lift $ Data.lookupAccount (Id a)
+  account <- lift . wrapClient $ Data.lookupAccount (Id a)
   for_ account $ lift . deleteAccount
-  lift $ Code.delete key Code.AccountDeletion
+  lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
 -- via deleting self.
@@ -1062,15 +1064,15 @@ deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  for_ (userEmail user) $ deleteKey . userEmailKey
-  for_ (userPhone user) $ deleteKey . userPhoneKey
+  for_ (userEmail user) $ wrapClient . deleteKey . userEmailKey
+  for_ (userPhone user) $ wrapClient . deleteKey . userPhoneKey
   for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   Data.clearProperties uid
   tombstone <- mkTombstone
-  Data.insertAccount tombstone Nothing Nothing False
+  wrapClient $ Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
-  Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+  wrapClient (Data.lookupClients uid) >>= mapM_ (Data.rmClient uid . clientId)
   luid <- qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
@@ -1108,7 +1110,7 @@ lookupActivationCode emailOrPhone = do
 lookupPasswordResetCode :: Either Email Phone -> (AppIO r) (Maybe PasswordResetPair)
 lookupPasswordResetCode emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  usr <- Data.lookupKey uk
+  usr <- wrapClient $ Data.lookupKey uk
   case usr of
     Nothing -> return Nothing
     Just u -> do
@@ -1186,7 +1188,7 @@ lookupLocalProfiles ::
   [UserId] ->
   (AppIO r) [UserProfile]
 lookupLocalProfiles requestingUser others = do
-  users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
+  users <- wrapClient (Data.lookupUsers NoPendingInvitations others) >>= mapM userGC
   css <- case requestingUser of
     Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
     Nothing -> mempty
@@ -1208,7 +1210,7 @@ lookupLocalProfiles requestingUser others = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- Data.lookupUser NoPendingInvitations selfId
+      mUser <- wrapClient $ Data.lookupUser NoPendingInvitations selfId
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
@@ -1224,7 +1226,7 @@ lookupLocalProfiles requestingUser others = do
        in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus :: UserId -> (AppIO r) (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< lookupAccount uid
+getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< wrapClient (lookupAccount uid)
 
 getLegalHoldStatus' :: User -> (AppIO r) UserLegalHoldStatus
 getLegalHoldStatus' user =
@@ -1261,9 +1263,9 @@ getEmailForProfile _ EmailVisibleToSelf' = Nothing
 lookupAccountsByIdentity :: Either Email Phone -> Bool -> (AppIO r) [UserAccount]
 lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  activeUid <- Data.lookupKey uk
+  activeUid <- wrapClient $ Data.lookupKey uk
   uidFromKey <- (>>= fst) <$> Data.lookupActivationCode uk
-  result <- Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
+  result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
   if includePendingInvitations
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
@@ -1271,23 +1273,23 @@ lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
 isBlacklisted :: Either Email Phone -> (AppIO r) Bool
 isBlacklisted emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  Blacklist.exists uk
+  wrapClient $ Blacklist.exists uk
 
 blacklistInsert :: Either Email Phone -> (AppIO r) ()
 blacklistInsert emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  Blacklist.insert uk
+  wrapClient $ Blacklist.insert uk
 
 blacklistDelete :: Either Email Phone -> (AppIO r) ()
 blacklistDelete emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  Blacklist.delete uk
+  wrapClient $ Blacklist.delete uk
 
 phonePrefixGet :: PhonePrefix -> (AppIO r) [ExcludedPrefix]
-phonePrefixGet prefix = Blacklist.getAllPrefixes prefix
+phonePrefixGet = wrapClient . Blacklist.getAllPrefixes
 
 phonePrefixDelete :: PhonePrefix -> (AppIO r) ()
-phonePrefixDelete = Blacklist.deletePrefix
+phonePrefixDelete = wrapClient . Blacklist.deletePrefix
 
 phonePrefixInsert :: ExcludedPrefix -> (AppIO r) ()
-phonePrefixInsert = Blacklist.insertPrefix
+phonePrefixInsert = wrapClient . Blacklist.insertPrefix

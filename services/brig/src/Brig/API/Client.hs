@@ -85,10 +85,10 @@ import Wire.API.User.Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
 lookupLocalClient :: UserId -> ClientId -> (AppIO r) (Maybe Client)
-lookupLocalClient = Data.lookupClient
+lookupLocalClient uid = wrapClient . Data.lookupClient uid
 
 lookupLocalClients :: UserId -> (AppIO r) [Client]
-lookupLocalClients = Data.lookupClients
+lookupLocalClients = wrapClient . Data.lookupClients
 
 lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError (AppIO r) (Maybe PubClient)
 lookupPubClient qid cid = do
@@ -117,15 +117,15 @@ lookupPubClientsBulk qualifiedUids = do
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppIO r) (UserMap (Set PubClient))
-lookupLocalPubClientsBulk = Data.lookupPubClientsBulk
+lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppIO r) Client
 addClient u con ip new = do
-  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   loc <- maybe (return Nothing) locationOf ip
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
         where
@@ -151,21 +151,21 @@ addClient u con ip new = do
 
 updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError (AppIO r) ()
 updateClient u c r = do
-  client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
-  for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
+  client <- lift (wrapClient $ Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
+  for_ (updateClientLabel r) $ lift . wrapClient . Data.updateClientLabel u c . Just
   for_ (updateClientCapabilities r) $ \caps' -> do
     let ClientCapabilityList caps = clientCapabilities client
     if caps `Set.isSubsetOf` caps'
-      then lift . Data.updateClientCapabilities u c . Just $ caps'
+      then lift . wrapClient . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
-  Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
+  mapExceptT wrapClient (Data.updatePrekeys u c (lk ++ updateClientPrekeys r)) !>> ClientDataError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError (AppIO r) ()
 rmClient u con clt pw =
-  maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
+  maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
   where
     fn client = do
       case clientType client of
@@ -174,7 +174,7 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
+        _ -> mapExceptT wrapClient (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
 claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError (AppIO r) (Maybe ClientPrekey)
@@ -204,7 +204,7 @@ claimPrekeyBundle protectee domain uid = do
 
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
-  clients <- map clientId <$> Data.lookupClients u
+  clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
   guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey u) clients)
 
@@ -287,7 +287,7 @@ noPrekeys u c = do
       ~~ field "client" (toByteString c)
       ~~ msg (val "No prekey found. Ensuring client does not exist.")
   Intra.rmClient u c
-  client <- Data.lookupClient u c
+  client <- wrapClient $ Data.lookupClient u c
   for_ client $ \_ ->
     Log.err $
       field "user" (toByteString u)
@@ -314,7 +314,7 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 
 removeLegalHoldClient :: UserId -> (AppIO r) ()
 removeLegalHoldClient uid = do
-  clients <- Data.lookupClients uid
+  clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case

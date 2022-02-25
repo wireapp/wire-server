@@ -46,6 +46,7 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Email
 import qualified Brig.IO.Intra as Intra
+import Brig.Options
 import qualified Brig.Options as Opt
 import Brig.Phone
 import Brig.Types.Common
@@ -79,7 +80,7 @@ data Access u = Access
     accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
   }
 
-sendLoginCode :: MonadClient m => Phone -> Bool -> Bool -> ExceptT SendLoginCodeError m PendingLoginCode
+sendLoginCode :: (MonadClient m, MonadReader Env m) => Phone -> Bool -> Bool -> ExceptT SendLoginCodeError m PendingLoginCode
 sendLoginCode phone call force = do
   pk <-
     maybe
@@ -111,7 +112,14 @@ lookupLoginCode phone =
       Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
       Data.lookupLoginCode u
 
-login :: MonadClient m => Login -> CookieType -> ExceptT LoginError m (Access ZAuth.User)
+login ::
+  ( MonadClient m,
+    Log.MonadLogger (ExceptT LoginError m),
+    MonadReader Env m
+  ) =>
+  Login ->
+  CookieType ->
+  ExceptT LoginError m (Access ZAuth.User)
 login (PasswordLogin li pw label _) typ = do
   case TeamFeatureSndFPasswordChallengeNotImplemented of
     -- mark this place to implement handling verification codes later
@@ -119,10 +127,11 @@ login (PasswordLogin li pw label _) typ = do
     _ -> pure ()
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  checkRetryLimit uid
+  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  checkRetryLimit mLimitFailedLogins uid
   Data.authenticate uid pw `catchE` \case
-    AuthInvalidUser -> loginFailed uid
-    AuthInvalidCredentials -> loginFailed uid
+    AuthInvalidUser -> loginFailed mLimitFailedLogins uid
+    AuthInvalidCredentials -> loginFailed mLimitFailedLogins uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
@@ -130,28 +139,29 @@ login (PasswordLogin li pw label _) typ = do
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  checkRetryLimit uid
+  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  checkRetryLimit mLimitFailedLogins uid
   ok <- lift $ Data.verifyLoginCode uid code
   unless ok $
-    loginFailed uid
+    loginFailed mLimitFailedLogins uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
-loginFailed :: MonadClient m => UserId -> ExceptT LoginError m ()
-loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+loginFailed :: MonadClient m => Maybe LimitFailedLogins -> UserId -> ExceptT LoginError m ()
+loginFailed mLimitFailedLogins uid = decrRetryLimit mLimitFailedLogins uid >> throwE LoginFailed
 
-decrRetryLimit :: MonadClient m => UserId -> ExceptT LoginError m ()
+decrRetryLimit :: MonadClient m => Maybe LimitFailedLogins -> UserId -> ExceptT LoginError m ()
 decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
 
-checkRetryLimit :: MonadClient m => UserId -> ExceptT LoginError m ()
+checkRetryLimit :: MonadClient m => Maybe LimitFailedLogins -> UserId -> ExceptT LoginError m ()
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
   MonadClient m =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
+  Maybe LimitFailedLogins ->
   UserId ->
   ExceptT LoginError m ()
-withRetryLimit action uid = do
-  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+withRetryLimit action mLimitFailedLogins uid = do
   forM_ mLimitFailedLogins $ \opts -> do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =

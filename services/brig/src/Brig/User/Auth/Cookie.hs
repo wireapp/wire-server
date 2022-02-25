@@ -47,6 +47,7 @@ import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
+import Cassandra
 import Control.Lens (to, view)
 import Data.ByteString.Conversion
 import Data.Id
@@ -152,7 +153,12 @@ mustSuspendInactiveUser uid =
             | otherwise = True
       pure mustSuspend
 
-newAccessToken :: forall u a r. ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> (AppIO r) AccessToken
+newAccessToken ::
+  forall u a r m.
+  (ZAuth.TokenPair u a, MonadReader Env m, ZAuth.MonadZAuth m) =>
+  Cookie (ZAuth.Token u) ->
+  Maybe (ZAuth.Token a) ->
+  m AccessToken
 newAccessToken c mt = do
   t' <- case mt of
     Nothing -> ZAuth.newAccessToken (cookieValue c)
@@ -167,27 +173,27 @@ newAccessToken c mt = do
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: ZAuth.UserTokenLike u => ZAuth.Token u -> (AppIO r) (Maybe (Cookie (ZAuth.Token u)))
+lookupCookie :: (ZAuth.UserTokenLike u, MonadClient m) => ZAuth.Token u -> m (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
   let user = ZAuth.userTokenOf t
   let rand = ZAuth.userTokenRand t
   let expi = ZAuth.tokenExpiresUTC t
-  wrapClient $ fmap setToken <$> DB.lookupCookie user expi (CookieId rand)
+  fmap setToken <$> DB.lookupCookie user expi (CookieId rand)
   where
     setToken c = c {cookieValue = t}
 
-listCookies :: UserId -> [CookieLabel] -> (AppIO r) [Cookie ()]
-listCookies u [] = wrapClient $ DB.listCookies u
-listCookies u ll = wrapClient $ filter byLabel <$> DB.listCookies u
+listCookies :: MonadClient m => UserId -> [CookieLabel] -> m [Cookie ()]
+listCookies u [] = DB.listCookies u
+listCookies u ll = filter byLabel <$> DB.listCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: UserId -> (AppIO r) ()
+revokeAllCookies :: MonadClient m => UserId -> m ()
 revokeAllCookies u = revokeCookies u [] []
 
-revokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> (AppIO r) ()
-revokeCookies u [] [] = wrapClient $ DB.deleteAllCookies u
-revokeCookies u ids labels = wrapClient $ do
+revokeCookies :: MonadClient m => UserId -> [CookieId] -> [CookieLabel] -> m ()
+revokeCookies u [] [] = DB.deleteAllCookies u
+revokeCookies u ids labels = do
   cc <- filter matching <$> DB.listCookies u
   DB.deleteCookies u cc
   where

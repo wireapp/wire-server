@@ -356,7 +356,7 @@ filterActive us =
     isActiveUser (_, True, Just Active) = True
     isActiveUser _ = False
 
-lookupUser :: MonadClient m => HavePendingInvitations -> UserId -> m (Maybe User)
+lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
 lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
 activateUser :: MonadClient m => UserId -> UserIdentity -> m ()
@@ -369,7 +369,7 @@ deactivateUser :: MonadClient m => UserId -> m ()
 deactivateUser u =
   retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
 
-lookupLocale :: MonadClient m => (MonadClient m, MonadReader Env m) => UserId -> m (Maybe Locale)
+lookupLocale :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe Locale)
 lookupLocale u = do
   defLoc <- setDefaultUserLocale <$> view settings
   fmap (toLocale defLoc) <$> retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
