@@ -368,8 +368,9 @@ createUser new = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
-        Data.usersPendingActivationRemove uid
-        wrapClient $ Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
+        wrapClient $ do
+          Data.usersPendingActivationRemove uid
+          Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppIO r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
@@ -445,7 +446,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
     ttl <- setTeamInvitationTimeout <$> view settings
     now <- liftIO =<< view currentTime
     pure $ addUTCTime (realToFrac ttl) now
-  lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
+  lift . wrapClient $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
 
   let activated =
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
@@ -721,7 +722,7 @@ changeAccountStatus usrs status = do
   e <- ask
   ev <- case status of
     Active -> return UserResumed
-    Suspended -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
+    Suspended -> liftIO $ mapConcurrently (runAppT e . wrapClient . revokeAllCookies) usrs >> return UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
@@ -915,7 +916,7 @@ changePassword uid cp = do
         throwE InvalidCurrentPassword
       when (verifyPassword newpw pw) $
         throwE ChangePasswordMustDiffer
-      lift $ wrapClient (Data.updatePassword uid newpw) >> revokeAllCookies uid
+      lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
 
 beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError (AppIO r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
@@ -925,22 +926,22 @@ beginPasswordReset target = do
   status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
-  code <- lift $ Data.lookupPasswordResetCode user
+  code <- lift . wrapClient $ Data.lookupPasswordResetCode user
   when (isJust code) $
     throwE (PasswordResetInProgress Nothing)
-  (user,) <$> lift (Data.createPasswordResetCode user target)
+  (user,) <$> lift (wrapClient $ Data.createPasswordResetCode user target)
 
 completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError (AppIO r) ()
 completePasswordReset ident code pw = do
   key <- mkPasswordResetKey ident
-  muid :: Maybe UserId <- lift $ Data.verifyPasswordResetCode (key, code)
+  muid :: Maybe UserId <- lift . wrapClient $ Data.verifyPasswordResetCode (key, code)
   case muid of
     Nothing -> throwE InvalidPasswordResetCode
     Just uid -> do
       Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
       checkNewIsDifferent uid pw
-      lift $ do
-        wrapClient $ Data.updatePassword uid pw
+      lift . wrapClient $ do
+        Data.updatePassword uid pw
         Data.deletePasswordResetCode key
         revokeAllCookies uid
 
@@ -1068,7 +1069,7 @@ deleteAccount account@(accountUser -> user) = do
   for_ (userPhone user) $ wrapClient . deleteKey . userPhoneKey
   for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
-  Data.clearProperties uid
+  wrapClient $ Data.clearProperties uid
   tombstone <- mkTombstone
   wrapClient $ Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
@@ -1078,7 +1079,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   Data.deleteConnections uid
-  revokeAllCookies uid
+  wrapClient $ revokeAllCookies uid
   where
     mkTombstone = do
       defLoc <- setDefaultUserLocale <$> view settings
@@ -1115,7 +1116,7 @@ lookupPasswordResetCode emailOrPhone = do
     Nothing -> return Nothing
     Just u -> do
       k <- liftIO $ Data.mkPasswordResetKey u
-      c <- Data.lookupPasswordResetCode u
+      c <- wrapClient $ Data.lookupPasswordResetCode u
       return $ (k,) <$> c
 
 deleteUserNoVerify :: UserId -> (AppIO r) ()
@@ -1133,7 +1134,7 @@ deleteUsersNoVerify uids = do
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
 userGC :: User -> (AppIO r) User
-userGC u = case (userExpire u) of
+userGC u = case userExpire u of
   Nothing -> return u
   (Just (fromUTCTimeMillis -> e)) -> do
     now <- liftIO =<< view currentTime
@@ -1161,8 +1162,8 @@ lookupProfiles ::
   [Qualified UserId] ->
   ExceptT FederationError (AppIO r) [UserProfile]
 lookupProfiles self others =
-  fmap concat $
-    traverseConcurrentlyWithErrors
+  concat
+    <$> traverseConcurrentlyWithErrors
       (lookupProfilesFromDomain self)
       (bucketQualified others)
 
@@ -1190,7 +1191,7 @@ lookupLocalProfiles ::
 lookupLocalProfiles requestingUser others = do
   users <- wrapClient (Data.lookupUsers NoPendingInvitations others) >>= mapM userGC
   css <- case requestingUser of
-    Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
+    Just localReqUser -> toMap <$> wrapClient (Data.lookupConnectionStatus (map userId users) [localReqUser])
     Nothing -> mempty
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of

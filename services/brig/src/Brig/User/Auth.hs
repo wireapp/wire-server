@@ -80,31 +80,31 @@ data Access u = Access
     accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
   }
 
-sendLoginCode :: (MonadClient m, MonadReader Env m) => Phone -> Bool -> Bool -> ExceptT SendLoginCodeError m PendingLoginCode
+sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError (AppIO r) PendingLoginCode
 sendLoginCode phone call force = do
   pk <-
     maybe
       (throwE $ SendLoginInvalidPhone phone)
       (return . userPhoneKey)
       =<< lift (validatePhone phone)
-  user <- lift $ Data.lookupKey pk
+  user <- lift . wrapClient $ Data.lookupKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
       -- Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
-      pw <- lift $ Data.lookupPassword u
+      pw <- lift . wrapClient $ Data.lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ do
-        l <- Data.lookupLocale u
-        c <- Data.createLoginCode u
+        l <- wrapClient $ Data.lookupLocale u
+        c <- wrapClient $ Data.createLoginCode u
         void . forPhoneKey pk $ \ph ->
           if call
             then sendLoginCall ph (pendingLoginCode c) l
             else sendLoginSms ph (pendingLoginCode c) l
         return c
 
-lookupLoginCode :: MonadClient m => Phone -> m (Maybe PendingLoginCode)
+lookupLoginCode :: (MonadClient m, Log.MonadLogger m, MonadReader Env m) => Phone -> m (Maybe PendingLoginCode)
 lookupLoginCode phone =
   Data.lookupKey (userPhoneKey phone) >>= \case
     Nothing -> return Nothing
@@ -113,13 +113,10 @@ lookupLoginCode phone =
       Data.lookupLoginCode u
 
 login ::
-  ( MonadClient m,
-    Log.MonadLogger (ExceptT LoginError m),
-    MonadReader Env m
-  ) =>
+  ZAuth.MonadZAuth (ReaderT Env Client) =>
   Login ->
   CookieType ->
-  ExceptT LoginError m (Access ZAuth.User)
+  ExceptT LoginError (AppIO r) (Access ZAuth.User)
 login (PasswordLogin li pw label _) typ = do
   case TeamFeatureSndFPasswordChallengeNotImplemented of
     -- mark this place to implement handling verification codes later
@@ -128,10 +125,10 @@ login (PasswordLogin li pw label _) typ = do
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
-  checkRetryLimit mLimitFailedLogins uid
-  Data.authenticate uid pw `catchE` \case
-    AuthInvalidUser -> loginFailed mLimitFailedLogins uid
-    AuthInvalidCredentials -> loginFailed mLimitFailedLogins uid
+  mapExceptT wrapClient $ checkRetryLimit mLimitFailedLogins uid
+  mapExceptT wrapClient (Data.authenticate uid pw) `catchE` \case
+    AuthInvalidUser -> mapExceptT wrapClient $ loginFailed mLimitFailedLogins uid
+    AuthInvalidCredentials -> mapExceptT wrapClient $ loginFailed mLimitFailedLogins uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
@@ -140,10 +137,10 @@ login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
-  checkRetryLimit mLimitFailedLogins uid
-  ok <- lift $ Data.verifyLoginCode uid code
+  mapExceptT wrapClient $ checkRetryLimit mLimitFailedLogins uid
+  ok <- lift . wrapClient $ Data.verifyLoginCode uid code
   unless ok $
-    loginFailed mLimitFailedLogins uid
+    mapExceptT wrapClient $ loginFailed mLimitFailedLogins uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 loginFailed :: MonadClient m => Maybe LimitFailedLogins -> UserId -> ExceptT LoginError m ()
@@ -179,21 +176,20 @@ logout uts at = do
   lift $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
-  MonadClient m =>
-  ZAuth.TokenPair u a =>
+  (ZAuth.TokenPair u a, ZAuth.MonadZAuth (ReaderT Env Client), Log.MonadLogger (ReaderT Env Client)) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
-  ExceptT ZAuth.Failure m (Access u)
+  ExceptT ZAuth.Failure (AppIO r) (Access u)
 renewAccess uts at = do
-  (uid, ck) <- validateTokens uts at
+  (uid, ck) <- mapExceptT wrapClient $ validateTokens uts at
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- lift $ nextCookie ck
+  ck' <- lift . wrapClient $ nextCookie ck
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   return $ Access at' ck'
 
 revokeAccess ::
-  MonadClient m =>
+  (MonadClient m, Log.MonadLogger (ExceptT AuthError m)) =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
@@ -207,9 +203,9 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-catchSuspendInactiveUser :: MonadClient m => UserId -> e -> ExceptT e m ()
+catchSuspendInactiveUser :: UserId -> e -> ExceptT e (AppIO r) ()
 catchSuspendInactiveUser uid errval = do
-  mustsuspend <- lift $ mustSuspendInactiveUser uid
+  mustsuspend <- lift . wrapClient $ mustSuspendInactiveUser uid
   when mustsuspend $ do
     Log.warn $
       msg (val "Suspending user due to inactivity")
@@ -218,17 +214,26 @@ catchSuspendInactiveUser uid errval = do
     lift $ suspendAccount (List1.singleton uid)
     throwE errval
 
-newAccess :: forall u a r m. MonadClient m => ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError m (Access u)
+newAccess ::
+  forall u a r.
+  ( ZAuth.UserTokenLike u,
+    ZAuth.MonadZAuth (ReaderT Env Client),
+    ZAuth.TokenPair u a
+  ) =>
+  UserId ->
+  CookieType ->
+  Maybe CookieLabel ->
+  ExceptT LoginError (AppIO r) (Access u)
 newAccess uid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
-  r <- lift $ newCookieLimited uid ct cl
+  r <- lift . wrapClient $ newCookieLimited uid ct cl
   case r of
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do
       t <- lift $ newAccessToken @u @a ck Nothing
       return $ Access t (Just ck)
 
-resolveLoginId :: MonadClient m => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
   usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
   case usr of
@@ -240,7 +245,7 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> return uid
 
-validateLoginId :: MonadClient m => LoginId -> ExceptT LoginError m (Either UserKey Handle)
+validateLoginId :: LoginId -> ExceptT LoginError m (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
@@ -297,8 +302,8 @@ validateTokens uts at = do
     -- FUTUREWORK: There is surely a better way to do this
     getFirstSuccessOrFirstFail :: List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) -> ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
     getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
-      (_, (suc : _)) -> return suc
-      ((e : _), _) -> throwE e
+      (_, suc : _) -> return suc
+      (e : _, _) -> throwE e
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::

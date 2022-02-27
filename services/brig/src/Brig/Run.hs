@@ -181,20 +181,19 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r. (AppIO r) ()
+pendingActivationCleanup :: forall r. AppIO r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
     forExpirationsPaged $ \exps -> do
       uids <-
-        ( for exps $ \(UserPendingActivation uid expiresAt) -> do
-            isPendingInvitation <- (Just PendingInvitation ==) <$> wrapClient (API.lookupStatus uid)
-            pure $
-              ( expiresAt < now,
-                isPendingInvitation,
-                uid
-              )
-          )
+        for exps $ \(UserPendingActivation uid expiresAt) -> do
+          isPendingInvitation <- (Just PendingInvitation ==) <$> wrapClient (API.lookupStatus uid)
+          pure
+            ( expiresAt < now,
+              isPendingInvitation,
+              uid
+            )
 
       API.deleteUsersNoVerify $
         catMaybes
@@ -202,7 +201,7 @@ pendingActivationCleanup = do
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
 
-      usersPendingActivationRemoveMultiple $
+      wrapClient . usersPendingActivationRemoveMultiple $
         catMaybes
           ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
@@ -220,9 +219,9 @@ pendingActivationCleanup = do
 
     forExpirationsPaged :: ([UserPendingActivation] -> (AppIO r) ()) -> (AppIO r) ()
     forExpirationsPaged f = do
-      go =<< usersPendingActivationList
+      go =<< wrapClient usersPendingActivationList
       where
-        go :: (Page UserPendingActivation) -> (AppIO r) ()
+        go :: Page UserPendingActivation -> (AppIO r) ()
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
