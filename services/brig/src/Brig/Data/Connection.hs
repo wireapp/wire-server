@@ -48,11 +48,10 @@ module Brig.Data.Connection
   )
 where
 
-import Brig.App (AppIO, qualifyLocal)
+import Brig.App (AppIO, Env, qualifyLocal, wrapClient)
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
-import qualified Brig.Types as BT
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
@@ -67,7 +66,6 @@ import Data.Time (getCurrentTime)
 import Imports hiding (local)
 import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Connection
-import qualified Wire.API.Connection as WireAPI
 import Wire.API.Routes.Internal.Brig.Connection
 
 insertConnection ::
@@ -76,7 +74,7 @@ insertConnection ::
   Qualified UserId ->
   RelationWithHistory ->
   Qualified ConvId ->
-  m WireAPI.UserConnection
+  m UserConnection
 insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
@@ -87,22 +85,22 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
           params LocalQuorum (tUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
   retry x5 $ foldQualified self local remote target
   pure $
-    WireAPI.UserConnection
-      { WireAPI.ucFrom = tUnqualified self,
-        WireAPI.ucTo = target,
-        WireAPI.ucStatus = relationDropHistory rel,
-        WireAPI.ucLastUpdate = now,
-        WireAPI.ucConvId = Just qcnv
+    UserConnection
+      { ucFrom = tUnqualified self,
+        ucTo = target,
+        ucStatus = relationDropHistory rel,
+        ucLastUpdate = now,
+        ucConvId = Just qcnv
       }
 
-updateConnection :: WireAPI.UserConnection -> RelationWithHistory -> (AppIO r) WireAPI.UserConnection
+updateConnection :: (MonadClient m, MonadReader Env m) => UserConnection -> RelationWithHistory -> m UserConnection
 updateConnection c status = do
-  self <- qualifyLocal (WireAPI.ucFrom c)
-  now <- updateConnectionStatus self (BT.ucTo c) status
+  self <- qualifyLocal (ucFrom c)
+  now <- updateConnectionStatus self (ucTo c) status
   pure $
     c
-      { WireAPI.ucStatus = relationDropHistory status,
-        WireAPI.ucLastUpdate = now
+      { ucStatus = relationDropHistory status,
+        ucLastUpdate = now
       }
 
 updateConnectionStatus :: MonadClient m => Local UserId -> Qualified UserId -> RelationWithHistory -> m UTCTimeMillis
@@ -118,7 +116,7 @@ updateConnectionStatus self target status = do
   pure now
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
-lookupConnection :: MonadClient m => Local UserId -> Qualified UserId -> m (Maybe WireAPI.UserConnection)
+lookupConnection :: MonadClient m => Local UserId -> Qualified UserId -> m (Maybe UserConnection)
 lookupConnection self target = runMaybeT $ do
   let local (tUnqualified -> ltarget) = do
         (_, _, rel, time, mcnv) <-
@@ -132,12 +130,12 @@ lookupConnection self target = runMaybeT $ do
         pure (rel, time, Just (Qualified cnv cdomain))
   (rel, time, mqcnv) <- hoist (retry x1) $ foldQualified self local remote target
   pure $
-    WireAPI.UserConnection
-      { WireAPI.ucFrom = tUnqualified self,
-        WireAPI.ucTo = target,
-        WireAPI.ucStatus = relationDropHistory rel,
-        WireAPI.ucLastUpdate = time,
-        WireAPI.ucConvId = mqcnv
+    UserConnection
+      { ucFrom = tUnqualified self,
+        ucTo = target,
+        ucStatus = relationDropHistory rel,
+        ucLastUpdate = time,
+        ucConvId = mqcnv
       }
 
 -- | 'lookupConnection' with more 'Relation' info.
@@ -155,10 +153,10 @@ lookupRelationWithHistory self target = do
         query1 remoteRelationSelect (params LocalQuorum (tUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
 
-lookupRelation :: Local UserId -> Qualified UserId -> (AppIO r) Brig.Types.Relation
+lookupRelation :: MonadClient m => Local UserId -> Qualified UserId -> m Relation
 lookupRelation self target =
   lookupRelationWithHistory self target <&> \case
-    Nothing -> Brig.Types.Cancelled
+    Nothing -> Cancelled
     Just relh -> (relationDropHistory relh)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
@@ -167,7 +165,7 @@ lookupLocalConnections ::
   Local UserId ->
   Maybe UserId ->
   Range 1 500 Int32 ->
-  m (ResultPage BT.UserConnection)
+  m (ResultPage UserConnection)
 lookupLocalConnections lfrom start (fromRange -> size) =
   toResult <$> case start of
     Just u ->
@@ -187,7 +185,7 @@ lookupLocalConnectionsPage ::
   Local UserId ->
   Maybe PagingState ->
   Range 1 1000 Int32 ->
-  m (PageWithState BT.UserConnection)
+  m (PageWithState UserConnection)
 lookupLocalConnectionsPage self pagingState (fromRange -> size) =
   fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState LocalQuorum (Identity (tUnqualified self)) size pagingState)
 
@@ -197,7 +195,7 @@ lookupRemoteConnectionsPage ::
   Local UserId ->
   Maybe PagingState ->
   Int32 ->
-  m (PageWithState BT.UserConnection)
+  m (PageWithState UserConnection)
 lookupRemoteConnectionsPage self pagingState size =
   fmap (toRemoteUserConnection self)
     <$> paginateWithState
@@ -216,37 +214,37 @@ lookupConnectionStatus' from =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect' (params LocalQuorum (Identity from)))
 
-lookupLocalConnectionStatuses :: MonadClient m => [UserId] -> Local [UserId] -> m [ConnectionStatusV2]
+lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> AppIO r [ConnectionStatusV2]
 lookupLocalConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
     lookupStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos)))
+        <$> wrapClient (retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos))))
 
-lookupRemoteConnectionStatuses :: MonadClient m => [UserId] -> Remote [UserId] -> m [ConnectionStatusV2]
+lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> AppIO r [ConnectionStatusV2]
 lookupRemoteConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> m [ConnectionStatusV2]
+    lookupStatuses :: UserId -> AppIO r [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos)))
+        <$> wrapClient (retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos))))
 
-lookupAllStatuses :: MonadClient m => Local [UserId] -> m [ConnectionStatusV2]
+lookupAllStatuses :: Local [UserId] -> AppIO r [ConnectionStatusV2]
 lookupAllStatuses lfroms = do
   let froms = tUnqualified lfroms
   concat <$> pooledMapConcurrentlyN 16 lookupAndCombine froms
   where
-    lookupAndCombine :: UserId -> m [ConnectionStatusV2]
-    lookupAndCombine u = (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
+    lookupAndCombine :: UserId -> AppIO r [ConnectionStatusV2]
+    lookupAndCombine u = wrapClient $ (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
 
-    lookupLocalStatuses :: UserId -> m [ConnectionStatusV2]
+    lookupLocalStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupLocalStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain lfroms))
         <$> retry x1 (query relationsSelectAll (params LocalQuorum (Identity from)))
-    lookupRemoteStatuses :: UserId -> m [ConnectionStatusV2]
+    lookupRemoteStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupRemoteStatuses from =
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params LocalQuorum (Identity from)))
@@ -270,7 +268,7 @@ lookupContactListWithRelation u =
 -- | Count the number of connections a user has in a specific relation status.
 -- (If you want to distinguish 'RelationWithHistory', write a new function.)
 -- Note: The count is eventually consistent.
-countConnections :: MonadClient m => Local UserId -> [Wire.API.Connection.Relation] -> m Int64
+countConnections :: MonadClient m => Local UserId -> [Relation] -> m Int64
 countConnections u r = do
   rels <- retry x1 . query selectStatus $ params One (Identity (tUnqualified u))
   relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (tUnqualified u))
@@ -286,7 +284,7 @@ countConnections u r = do
     count n (Identity s) | relationDropHistory s `elem` r = n + 1
     count n _ = n
 
-deleteConnections :: MonadClient m => UserId -> m ()
+deleteConnections :: UserId -> AppIO r ()
 deleteConnections u = do
   runConduit $
     paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
@@ -294,12 +292,12 @@ deleteConnections u = do
   retry x1 . write connectionClear $ params LocalQuorum (Identity u)
   retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
   where
-    delete (other, _status) = write connectionDelete $ params LocalQuorum (other, u)
+    delete (other, _status) = wrapClient $ write connectionDelete $ params LocalQuorum (other, u)
 
-deleteRemoteConnections :: MonadClient m => Remote UserId -> Range 1 1000 [UserId] -> m ()
+deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO r ()
 deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
-    write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
+    wrapClient $ write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
 -- Queries
 
@@ -383,16 +381,16 @@ remoteConnectionsSelectUsers = "SELECT right_domain, right_user FROM connection_
 toLocalUserConnection ::
   Local x ->
   (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) ->
-  Wire.API.Connection.UserConnection
+  UserConnection
 toLocalUserConnection loc (l, r, relationDropHistory -> rel, time, cid) =
-  Wire.API.Connection.UserConnection l (qUntagged (qualifyAs loc r)) rel time (fmap (qUntagged . qualifyAs loc) cid)
+  UserConnection l (qUntagged (qualifyAs loc r)) rel time (fmap (qUntagged . qualifyAs loc) cid)
 
 toRemoteUserConnection ::
   Local UserId ->
   (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ->
-  Wire.API.Connection.UserConnection
+  UserConnection
 toRemoteUserConnection l (rDomain, r, relationDropHistory -> rel, time, cDomain, cid) =
-  Wire.API.Connection.UserConnection (tUnqualified l) (Qualified r rDomain) rel time (Just $ Qualified cid cDomain)
+  UserConnection (tUnqualified l) (Qualified r rDomain) rel time (Just $ Qualified cid cDomain)
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel
