@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,27 +17,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module V67_MLSKeyPackages
+  ( migration,
   )
 where
 
+import Cassandra.Schema
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import Text.RawString.QQ
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests
-      ]
+migration :: Migration
+migration =
+  Migration 67 "Add table for MLS key packages" $
+    schema'
+      [r|
+        CREATE TABLE mls_key_packages
+            ( user uuid
+            , client text
+            , ref blob
+            , data blob
+            , PRIMARY KEY ((user, client), ref)
+        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+          AND gc_grace_seconds = 864000;
+     |]

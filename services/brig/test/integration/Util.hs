@@ -110,8 +110,11 @@ import qualified Servant.Client as Servant
 import Servant.Client.Core (RunClient (throwClientError))
 import qualified Servant.Client.Core as Servant
 import qualified Servant.Client.Core.Request as ServantRequest
+import System.Exit
+import System.Process
 import System.Random (randomIO, randomRIO)
 import qualified System.Timeout as System
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
@@ -238,6 +241,9 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
 
 fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
 fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+
+randomClient :: MonadIO m => m ClientId
+randomClient = liftIO $ generate arbitrary
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -1215,3 +1221,11 @@ runWaiTestFedClient ::
   WaiTest.Session a
 runWaiTestFedClient domain action =
   runReaderT (unWaiTestFedClient action) domain
+
+spawn :: CreateProcess -> IO ByteString
+spawn cp = do
+  (mout, ex) <- withCreateProcess cp {std_out = CreatePipe} $ \_ mouth _ ph ->
+    (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
+  case (mout, ex) of
+    (Just out, ExitSuccess) -> pure out
+    _ -> assertFailure "Failed spawning process"

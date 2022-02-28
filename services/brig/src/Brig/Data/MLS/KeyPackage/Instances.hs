@@ -14,28 +14,23 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
-module Main
-  ( main,
-  )
-where
+module Brig.Data.MLS.KeyPackage.Instances () where
 
+import Cassandra
+import qualified Data.ByteString.Lazy as LBS
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import Wire.API.MLS.KeyPackage
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests
-      ]
+instance Cql KeyPackageRef where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
+  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
+
+instance Cql KeyPackageData where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . kpData
+  fromCql (CqlBlob b) = pure . KeyPackageData $ b
+  fromCql _ = Left "Expected CqlBlob"

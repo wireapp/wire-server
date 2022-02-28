@@ -155,9 +155,11 @@ tests:
     dependencies:
     - aeson
     - base
+    - binary
     - bloodhound
     - brig
     - brig-types
+    - bytestring
     - containers
     - dns
     - dns-util
@@ -241,6 +243,7 @@ executables:
     - network
     - optparse-applicative
     - pem
+    - process
     - proto-lens
     - QuickCheck
     - random >=1.0

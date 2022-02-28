@@ -418,6 +418,21 @@ optSettings:
   setDefaultUserLocale: en
 ```
 
+### MLS settings
+
+#### `setKeyPackageMaximumLifetime`
+
+This option specifies the maximum accepted lifetime of a key package from the moment it is uploaded, in seconds. For example, when brig is configured as follows:
+
+```
+# [brig.yaml]
+optSettings:
+  setKeyPackageMaximumLifetime: 1296000 # 15 days
+```
+
+any key package whose expiry date is set further than 15 days after upload time will be rejected.
+
+
 ### Federated domain specific configuration settings 
 #### Restrict user search
 

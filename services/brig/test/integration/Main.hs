@@ -23,6 +23,7 @@ where
 import qualified API.Calling as Calling
 import qualified API.Federation
 import qualified API.Internal
+import qualified API.MLS as MLS
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
@@ -139,7 +140,11 @@ runTests iConf brigOpts otherArgs = do
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
+
   let versionApi = API.Version.tests mg b
+
+  let mlsApi = MLS.tests mg b brigOpts
+
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -160,7 +165,8 @@ runTests iConf brigOpts otherArgs = do
           browseTeam,
           federationEndpoints,
           internalApi,
-          versionApi
+          versionApi,
+          mlsApi
         ]
         <> [federationEnd2End | includeFederationTests]
   where

@@ -15,27 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Wire.API.MLS.Servant (MLS, mimeUnrenderMLSWith) where
 
+import Data.Bifunctor
+import Data.Binary
+import qualified Data.Text as T
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import Network.HTTP.Media ((//))
+import Servant.API hiding (Get)
+import Wire.API.MLS.Serialisation
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests
-      ]
+data MLS
+
+instance Accept MLS where
+  contentType _ = "message" // "mls"
+
+instance {-# OVERLAPPABLE #-} ParseMLS a => MimeUnrender MLS a where
+  mimeUnrender _ = mimeUnrenderMLSWith parseMLS
+
+mimeUnrenderMLSWith :: Get a -> LByteString -> Either String a
+mimeUnrenderMLSWith p = first T.unpack . decodeMLSWith p

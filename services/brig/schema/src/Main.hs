@@ -76,6 +76,7 @@ import qualified V63_AddUsersPendingActivation
 import qualified V64_ClientCapabilities
 import qualified V65_FederatedConnections
 import qualified V66_PersonalFeatureConfCallInit
+import qualified V67_MLSKeyPackages
 import qualified V9
 
 main :: IO ()
@@ -141,7 +142,8 @@ main = do
       V63_AddUsersPendingActivation.migration,
       V64_ClientCapabilities.migration,
       V65_FederatedConnections.migration,
-      V66_PersonalFeatureConfCallInit.migration
+      V66_PersonalFeatureConfCallInit.migration,
+      V67_MLSKeyPackages.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 
