@@ -248,7 +248,9 @@ testDownloadURLOverride = do
         const Nothing === responseBody
     downloadURL <- parseUrlThrow (C8.unpack (getHeader' "Location" downloadURLRes))
     liftIO $ do
-      assertEqual "status" downloadEndpoint (HTTP.host downloadURL)
+      assertEqual "download host" downloadEndpoint (HTTP.host downloadURL)
+      assertEqual "download port" 443 (HTTP.port downloadURL)
+      assertEqual "download secure" True (HTTP.secure downloadURL)
 
 --------------------------------------------------------------------------------
 -- Client compatibility tests
