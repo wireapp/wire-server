@@ -62,6 +62,7 @@ module Wire.API.Asset
   )
 where
 
+import Cassandra as Cas (ColumnType (TextColumn), Cql (..), Tagged (Tagged), Value (CqlText))
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -176,9 +177,15 @@ assetKeyToText = T.decodeUtf8 . toByteString'
 
 instance ToSchema AssetKey where
   schema =
-    (T.decodeUtf8 . toByteString')
+    assetKeyToText
       .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
         & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
+
+instance Cql AssetKey where
+  ctype = Cas.Tagged TextColumn
+  toCql = CqlText . assetKeyToText
+  fromCql (CqlText txt) = runParser parser $ T.encodeUtf8 txt
+  fromCql _ = Left "AssetKey: Expected CqlText"
 
 instance S.ToParamSchema AssetKey where
   toParamSchema _ = S.toParamSchema (Proxy @Text)

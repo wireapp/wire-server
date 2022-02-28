@@ -30,12 +30,14 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.Aeson as JSON
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id ()
 import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
+import Data.Text.Encoding
 import Imports
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.User.RichInfo
@@ -171,7 +173,7 @@ instance Cql Asset where
   toCql (ImageAsset k s) =
     CqlUdt
       [ ("typ", CqlInt 0),
-        ("key", CqlText k),
+        ("key", CqlText (decodeUtf8 . toByteString' $ k)),
         ("size", toCql s)
       ]
 

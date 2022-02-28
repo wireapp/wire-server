@@ -88,6 +88,7 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Wire.API.Event.Conversation
+import Wire.API.Asset hiding (Asset)
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do
@@ -1561,7 +1562,11 @@ defServiceTags :: Range 1 3 (Set ServiceTag)
 defServiceTags = unsafeRange (Set.singleton SocialTag)
 
 defServiceAssets :: [Asset]
-defServiceAssets = [ImageAsset "key" (Just AssetComplete)]
+defServiceAssets =
+  [ ImageAsset
+      (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring)
+      (Just AssetComplete)
+  ]
 
 -- TODO: defServiceToken :: ServiceToken
 
