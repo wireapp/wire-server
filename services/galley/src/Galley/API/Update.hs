@@ -52,6 +52,7 @@ module Galley.API.Update
     -- * Talking
     postProteusMessage,
     postOtrMessageUnqualified,
+    postProteusBroadcast,
     postOtrBroadcastUnqualified,
     isTypingUnqualified,
 
@@ -1113,6 +1114,32 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
     (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) c (rpValue msg))
     (\c -> postRemoteOtrMessage (qUntagged sender) c (rpRaw msg))
     conv
+
+postProteusBroadcast ::
+  Members
+    '[ BotAccess,
+       BrigAccess,
+       ClientStore,
+       ConversationStore,
+       Error ActionError,
+       Error TeamError,
+       FederatorAccess,
+       GundeckAccess,
+       ExternalAccess,
+       Input Opts,
+       Input UTCTime,
+       MemberStore,
+       TeamStore,
+       TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  QualifiedNewOtrMessage ->
+  Sem r (PostOtrResponse MessageSendingStatus)
+postProteusBroadcast sender zcon msg =
+  runLocalInput sender $
+    postBroadcast sender (Just zcon) msg
 
 unqualifyEndpoint ::
   Functor f =>
