@@ -97,25 +97,24 @@ instance Alternative f => Semigroup (RequiredExtensions f) where
 instance Alternative f => Monoid (RequiredExtensions f) where
   mempty = RequiredExtensions empty empty
 
-checkRequiredExtensions :: Applicative f => RequiredExtensions f -> f (RequiredExtensions Identity)
+checkRequiredExtensions :: RequiredExtensions Maybe -> Either Text (RequiredExtensions Identity)
 checkRequiredExtensions re =
   RequiredExtensions
-    <$> (Identity <$> reLifetime re)
-    <*> (Identity <$> reCapabilities re)
+    <$> maybe (Left "Missing lifetime extension") (pure . Identity) (reLifetime re)
+    <*> maybe (Left "Missing capability extension") (pure . Identity) (reCapabilities re)
 
-findExtensions :: [SomeExtension] -> Maybe (RequiredExtensions Identity)
-findExtensions = checkRequiredExtensions . foldMap findExtension
+findExtensions :: [Extension] -> Either Text (RequiredExtensions Identity)
+findExtensions = (checkRequiredExtensions =<<) . getAp . foldMap findExtension
 
-findExtension :: SomeExtension -> RequiredExtensions Maybe
-findExtension (SomeExtension SLifetimeExtensionTag lt) = RequiredExtensions (pure lt) Nothing
-findExtension (SomeExtension SCapabilitiesExtensionTag _) = RequiredExtensions Nothing (pure ())
-findExtension _ = mempty
+findExtension :: Extension -> Ap (Either Text) (RequiredExtensions Maybe)
+findExtension ext = flip foldMap (decodeExtension ext) $ \case
+  (SomeExtension SLifetimeExtensionTag lt) -> pure $ RequiredExtensions (Just lt) Nothing
+  (SomeExtension SCapabilitiesExtensionTag _) -> pure $ RequiredExtensions Nothing (Just ())
+  _ -> Ap (Left "Invalid extension")
 
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
-  re <-
-    maybe (throwErrorDescription (mlsProtocolError "Missing required extensions")) pure $
-      findExtensions (foldMap (maybeToList . decodeExtension) exts)
+  re <- either (throwErrorDescription . mlsProtocolError) pure $ findExtensions exts
   validateLifetime . runIdentity . reLifetime $ re
 
 validateLifetime :: Lifetime -> Handler r ()

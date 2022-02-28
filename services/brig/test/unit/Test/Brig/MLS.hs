@@ -56,34 +56,31 @@ midpoint lt =
         )
     )
 
-newtype ValidExtensions = ValidExtensions [SomeExtension]
+newtype ValidExtensions = ValidExtensions [Extension]
 
 instance Show ValidExtensions where
   show (ValidExtensions exts) = "ValidExtensions (length " <> show (length exts) <> ")"
 
+-- | Generate a list of extensions containing all the required ones.
 instance Arbitrary ValidExtensions where
   arbitrary = do
-    lt <- SomeExtension SLifetimeExtensionTag <$> arbitrary
-    caps <- SomeExtension SCapabilitiesExtensionTag <$> arbitrary
-    exts0 <- foldMap (maybeToList . decodeExtension) <$> arbitrary @[_]
-    exts1 <- foldMap (maybeToList . decodeExtension) <$> arbitrary @[_]
-    exts2 <- foldMap (maybeToList . decodeExtension) <$> arbitrary @[_]
-    pure . ValidExtensions $ exts0 <> [lt] <> exts1 <> [caps] <> exts2
+    exts0 <- listOf (arbitrary `suchThat` ((/= 0) . extType))
+    LifetimeAndExtension ext1 _ <- arbitrary
+    exts2 <- listOf (arbitrary `suchThat` ((/= 0) . extType))
+    CapabilitiesAndExtension ext3 _ <- arbitrary
+    exts4 <- listOf (arbitrary `suchThat` ((/= 0) . extType))
+    pure . ValidExtensions $ exts0 <> [ext1] <> exts2 <> [ext3] <> exts4
 
-newtype InvalidExtensions = InvalidExtensions [SomeExtension]
+newtype InvalidExtensions = InvalidExtensions [Extension]
 
+-- | Generate a list of extensions which does not contain one of the required extensions.
 instance Show InvalidExtensions where
   show (InvalidExtensions exts) = "InvalidExtensions (length " <> show (length exts) <> ")"
 
 instance Arbitrary InvalidExtensions where
   arbitrary = do
-    exts <- foldMap (maybeToList . decodeExtension) <$> arbitrary @[_]
-    pure . InvalidExtensions . filter (not . isRequired) $ exts
-    where
-      isRequired :: SomeExtension -> Bool
-      isRequired (SomeExtension SLifetimeExtensionTag _) = True
-      isRequired (SomeExtension SCapabilitiesExtensionTag _) = True
-      isRequired _ = False
+    req <- fromIntegral . fromEnum <$> elements [LifetimeExtensionTag, CapabilitiesExtensionTag]
+    InvalidExtensions <$> listOf (arbitrary `suchThat` ((/= req) . extType))
 
 data LifetimeAndExtension = LifetimeAndExtension Extension Lifetime
   deriving (Show)
@@ -142,9 +139,9 @@ tests =
       testGroup
         "Extensions"
         [ testProperty "required extensions are found" $ \(ValidExtensions exts) ->
-            isJust (findExtensions exts),
+            isRight (findExtensions exts),
           testProperty "missing required extensions" $ \(InvalidExtensions exts) ->
-            isNothing (findExtensions exts),
+            isLeft (findExtensions exts),
           testProperty "lifetime extension" $ \(LifetimeAndExtension ext lt) ->
             decodeExtension ext == Just (SomeExtension SLifetimeExtensionTag lt),
           testProperty "capabilities extension" $ \(CapabilitiesAndExtension ext caps) ->
