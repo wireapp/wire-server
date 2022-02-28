@@ -21,6 +21,10 @@ import Imports
 import Wire.API.MLS.Serialisation
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
+  deriving (Eq, Show)
+
+instance IsString GroupId where
+  fromString = GroupId . fromString
 
 instance ParseMLS GroupId where
   parseMLS = GroupId <$> parseMLSBytes @Word8

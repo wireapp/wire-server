@@ -114,6 +114,7 @@ tests:
     - cassava
     - currency-codes
     - directory
+    - either
     - hex
     - iso3166-country-codes
     - iso639

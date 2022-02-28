@@ -229,7 +229,7 @@ data KeyPackageTBS = KeyPackageTBS
     kpCredential :: Credential,
     kpExtensions :: [Extension]
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform KeyPackageTBS
 
 instance ParseMLS KeyPackageTBS where
@@ -245,10 +245,10 @@ data KeyPackage = KeyPackage
   { kpTBS :: KeyPackageTBS,
     kpSignature :: ByteString
   }
-  deriving (Show)
+  deriving stock (Eq, Show)
 
 newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 instance ParseMLS KeyPackageRef where
   parseMLS = KeyPackageRef <$> getByteString 16

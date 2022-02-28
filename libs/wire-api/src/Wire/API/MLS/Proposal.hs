@@ -50,6 +50,7 @@ data Proposal
   | ExternalInitProposal ByteString
   | AppAckProposal [MessageRange]
   | GroupContextExtensionsProposal [Extension]
+  deriving stock (Eq, Show)
 
 instance ParseMLS Proposal where
   parseMLS =
@@ -71,6 +72,7 @@ instance ParseMLS PreSharedKeyTag where
   parseMLS = parseMLSEnum @Word16 "PreSharedKeyID type"
 
 data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
+  deriving stock (Eq, Show)
 
 instance ParseMLS PreSharedKeyID where
   parseMLS = do
@@ -84,6 +86,7 @@ data Resumption = Resumption
     resGroupId :: GroupId,
     resEpoch :: Word64
   }
+  deriving stock (Eq, Show)
 
 instance ParseMLS Resumption where
   parseMLS =
@@ -98,6 +101,7 @@ data ReInit = ReInit
     riCipherSuite :: CipherSuite,
     riExtensions :: [Extension]
   }
+  deriving stock (Eq, Show)
 
 instance ParseMLS ReInit where
   parseMLS =
@@ -112,6 +116,7 @@ data MessageRange = MessageRange
     aaFirstGeneration :: Word32,
     aaLastGenereation :: Word32
   }
+  deriving stock (Eq, Show)
 
 instance ParseMLS MessageRange where
   parseMLS =
@@ -121,12 +126,13 @@ instance ParseMLS MessageRange where
       <*> parseMLS
 
 data ProposalOrRefTag = InlineTag | RefTag
-  deriving (Bounded, Enum, Eq, Show)
+  deriving stock (Bounded, Enum, Eq, Show)
 
 instance ParseMLS ProposalOrRefTag where
   parseMLS = parseMLSEnum @Word8 "ProposalOrRef type"
 
 data ProposalOrRef = Inline Proposal | Ref ProposalRef
+  deriving stock (Eq, Show)
 
 instance ParseMLS ProposalOrRef where
   parseMLS =
@@ -135,6 +141,7 @@ instance ParseMLS ProposalOrRef where
       RefTag -> Ref <$> parseMLS
 
 newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
+  deriving stock (Eq, Show)
 
 instance ParseMLS ProposalRef where
   parseMLS = ProposalRef <$> getByteString 16

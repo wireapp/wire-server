@@ -646,6 +646,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , either
     , filepath
     , hex
     , hscim

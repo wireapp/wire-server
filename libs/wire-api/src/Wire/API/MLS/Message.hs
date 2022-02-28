@@ -20,6 +20,8 @@
 
 module Wire.API.MLS.Message
   ( Message (..),
+    WireFormatTag (..),
+    SWireFormatTag (..),
     SomeMessage (..),
     MessagePayload (..),
     MessagePayloadTBS (..),
@@ -74,13 +76,13 @@ instance ParseMLS (Message 'MLSCipherText) where
     pure $ Message g e d s (CipherText ct p)
 
 data SomeMessage where
-  SomeMessage :: Message tag -> SomeMessage
+  SomeMessage :: Sing tag -> Message tag -> SomeMessage
 
 instance ParseMLS SomeMessage where
   parseMLS =
     parseMLS >>= \case
-      MLSPlainText -> SomeMessage @'MLSPlainText <$> parseMLS
-      MLSCipherText -> SomeMessage @'MLSCipherText <$> parseMLS
+      MLSPlainText -> SomeMessage SMLSPlainText <$> parseMLS
+      MLSCipherText -> SomeMessage SMLSCipherText <$> parseMLS
 
 data family Sender (tag :: WireFormatTag) :: *
 
