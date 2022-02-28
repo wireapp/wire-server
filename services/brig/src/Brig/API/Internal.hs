@@ -406,7 +406,7 @@ getActivationCodeH (_ ::: emailOrPhone) = do
 
 getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
-  apair <- lift $ API.lookupActivationCode emailOrPhone
+  apair <- lift . wrapClient $ API.lookupActivationCode emailOrPhone
   maybe (throwStd activationKeyNotFound) (return . GetActivationCodeResp) apair
 
 newtype GetActivationCodeResp = GetActivationCodeResp (ActivationKey, ActivationCode)

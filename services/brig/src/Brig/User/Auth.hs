@@ -176,7 +176,6 @@ logout uts at = do
   lift $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
-  (ZAuth.TokenPair u a, ZAuth.MonadZAuth (ReaderT Env Client), Log.MonadLogger (ReaderT Env Client)) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppIO r) (Access u)
@@ -184,7 +183,7 @@ renewAccess uts at = do
   (uid, ck) <- mapExceptT wrapClient $ validateTokens uts at
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- lift . wrapClient $ nextCookie ck
+  ck' <- lift $ nextCookie ck
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   return $ Access at' ck'
 
@@ -245,7 +244,7 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> return uid
 
-validateLoginId :: LoginId -> ExceptT LoginError m (Either UserKey Handle)
+validateLoginId :: LoginId -> ExceptT LoginError (AppIO r) (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)

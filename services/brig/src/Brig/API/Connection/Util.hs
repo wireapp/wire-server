@@ -39,6 +39,6 @@ type ConnectionM r = ExceptT ConnectionError (AppIO r)
 
 checkLimit :: Local UserId -> ExceptT ConnectionError (AppIO r) ()
 checkLimit u = noteT (TooManyConnections (tUnqualified u)) $ do
-  n <- lift $ Data.countConnections u [Accepted, Sent]
+  n <- lift . wrapClient $ Data.countConnections u [Accepted, Sent]
   l <- setUserMaxConnections <$> view settings
   guard (n < l)
