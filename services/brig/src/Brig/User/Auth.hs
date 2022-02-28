@@ -225,16 +225,16 @@ newAccess ::
   ExceptT LoginError (AppIO r) (Access u)
 newAccess uid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
-  r <- lift . wrapClient $ newCookieLimited uid ct cl
+  r <- lift $ newCookieLimited uid ct cl
   case r of
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do
       t <- lift $ newAccessToken @u @a ck Nothing
       return $ Access t (Just ck)
 
-resolveLoginId :: LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: LoginId -> ExceptT LoginError (AppIO r) UserId
 resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
+  usr <- validateLoginId li >>= lift . either (wrapClient . lookupKey) lookupHandle
   case usr of
     Nothing -> do
       pending <- lift $ isPendingActivation li
@@ -244,7 +244,7 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> return uid
 
-validateLoginId :: LoginId -> ExceptT LoginError (AppIO r) (Either UserKey Handle)
+validateLoginId :: LoginId -> ExceptT LoginError m (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)

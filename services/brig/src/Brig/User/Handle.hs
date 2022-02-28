@@ -34,7 +34,7 @@ import Data.Id
 import Imports
 
 -- | Claim a new handle for an existing 'User'.
-claimHandle :: UserId -> Maybe Handle -> Handle -> (AppIO r) Bool
+claimHandle :: MonadClient m => UserId -> Maybe Handle -> Handle -> m Bool
 claimHandle uid oldHandle newHandle =
   isJust <$> do
     owner <- lookupHandle newHandle
@@ -47,28 +47,28 @@ claimHandle uid oldHandle newHandle =
           runAppT env $
             do
               -- Record ownership
-              retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))
+              wrapClient $ retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))
               -- Update profile
-              result <- User.updateHandle uid newHandle
+              result <- wrapClient $ User.updateHandle uid newHandle
               -- Free old handle (if it changed)
               for_ (mfilter (/= newHandle) oldHandle) $
-                freeHandle uid
+                wrapClient . freeHandle uid
               return result
 
 -- | Free a 'Handle', making it available to be claimed again.
-freeHandle :: UserId -> Handle -> (AppIO r) ()
+freeHandle :: MonadClient m => UserId -> Handle -> m ()
 freeHandle uid h = do
   retry x5 $ write handleDelete (params LocalQuorum (Identity h))
   let key = "@" <> fromHandle h
   deleteClaim uid key (30 # Minute)
 
 -- | Lookup the current owner of a 'Handle'.
-lookupHandle :: Handle -> (AppIO r) (Maybe UserId)
+lookupHandle :: MonadClient m => Handle -> m (Maybe UserId)
 lookupHandle = lookupHandleWithPolicy LocalQuorum
 
 -- | A weaker version of 'lookupHandle' that trades availability
 -- (and potentially speed) for the possibility of returning stale data.
-glimpseHandle :: Handle -> (AppIO r) (Maybe UserId)
+glimpseHandle :: MonadClient m => Handle -> m (Maybe UserId)
 glimpseHandle = lookupHandleWithPolicy One
 
 {-# INLINE lookupHandleWithPolicy #-}
@@ -78,9 +78,9 @@ glimpseHandle = lookupHandleWithPolicy One
 --
 -- FUTUREWORK: This should ideally be tackled by hiding constructor for 'Handle'
 -- and only allowing it to be parsed.
-lookupHandleWithPolicy :: Consistency -> Handle -> (AppIO r) (Maybe UserId)
+lookupHandleWithPolicy :: MonadClient m => Consistency -> Handle -> m (Maybe UserId)
 lookupHandleWithPolicy policy h = do
-  join . fmap runIdentity
+  (runIdentity =<<)
     <$> retry x1 (query1 handleSelect (params policy (Identity h)))
 
 --------------------------------------------------------------------------------
