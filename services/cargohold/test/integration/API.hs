@@ -23,6 +23,7 @@ import API.Util
 import Bilge hiding (body)
 import Bilge.Assert
 import CargoHold.API.Error
+import CargoHold.Options (awsS3DownloadEndpoint, optAws)
 import CargoHold.Types
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
@@ -43,6 +44,7 @@ import Data.UUID.V4
 import Federator.MockServer
 import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media ((//))
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities (Error (label))
@@ -50,6 +52,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
+import Util.Options
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Component
 
@@ -63,7 +66,8 @@ tests s =
           test s "download with accept header" testDownloadWithAcceptHeader,
           test s "tokens" testSimpleTokens,
           test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
-          test s "client-compatibility" testUploadCompatibility
+          test s "client-compatibility" testUploadCompatibility,
+          test s "download url override" testDownloadURLOverride
         ],
       testGroup
         "remote"
@@ -218,6 +222,33 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
       let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
       uploadSimple (path "/assets/v3") uid sets part2
         !!! const 201 === statusCode
+
+testDownloadURLOverride :: TestM ()
+testDownloadURLOverride = do
+  -- This is a .example domain, it shouldn't resolve. But it is also not
+  -- supposed to be used by cargohold to make connections.
+  let downloadEndpoint = "external-s3-url.example"
+  withSettingsOverrides (optAws . awsS3DownloadEndpoint ?~ AWSEndpoint downloadEndpoint True 443) $ do
+    uid <- liftIO $ Id <$> nextRandom
+
+    -- Upload, should work, shouldn't try to use the S3DownloadEndpoint
+    let bdy = (applicationText, "Hello World")
+    uploadRes <-
+      uploadSimple (path "/assets/v3") uid V3.defAssetSettings bdy
+        <!! const 201 === statusCode
+    let loc = decodeHeaderOrFail "Location" uploadRes :: ByteString
+    let Just ast = responseJsonMaybe @V3.Asset uploadRes
+    let Just tok = view V3.assetToken ast
+
+    -- Lookup with token and get download URL. Should return the
+    -- S3DownloadEndpoint, but not try to use it.
+    downloadURLRes <-
+      downloadAsset uid loc (Just tok) <!! do
+        const 302 === statusCode
+        const Nothing === responseBody
+    downloadURL <- parseUrlThrow (C8.unpack (getHeader' "Location" downloadURLRes))
+    liftIO $ do
+      assertEqual "status" downloadEndpoint (HTTP.host downloadURL)
 
 --------------------------------------------------------------------------------
 -- Client compatibility tests
