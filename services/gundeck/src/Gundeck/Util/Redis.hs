@@ -32,7 +32,7 @@ x1 = limitRetries 1 <> exponentialBackoff 100000
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
--- TODO
+-- TODO  add tests
 handlers :: Monad m => [a -> Handler m Bool]
 handlers =
   [ const . Handler $ \case

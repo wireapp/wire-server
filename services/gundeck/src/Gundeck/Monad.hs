@@ -74,7 +74,6 @@ newtype Gundeck a = Gundeck
       MonadUnliftIO
     )
 
--- TODO: is this the correct behaviour?
 instance Redis.MonadRedis Gundeck where
   liftRedis m = do
     p <- view rstate
