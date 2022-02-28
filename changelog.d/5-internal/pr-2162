@@ -1,1 +1,1 @@
-Asset keys are now internally validated to prevent code injection.
+Asset keys are now internally validated.
