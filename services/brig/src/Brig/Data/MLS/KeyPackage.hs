@@ -33,7 +33,7 @@ import Data.Id
 import Imports
 import Wire.API.MLS.KeyPackage
 
-insertKeyPackages :: UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> AppIO r ()
+insertKeyPackages :: MonadClient m => UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> m ()
 insertKeyPackages uid cid kps = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
@@ -60,7 +60,7 @@ claimKeyPackage u c = MaybeT $ do
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
 
-countKeyPackages :: UserId -> ClientId -> AppIO r Int64
+countKeyPackages :: MonadClient m => UserId -> ClientId -> m Int64
 countKeyPackages u c =
   retry x1 $ sum . fmap runIdentity <$> query1 q (params LocalQuorum (u, c))
   where
