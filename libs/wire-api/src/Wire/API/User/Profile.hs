@@ -69,6 +69,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Asset (AssetKey (..))
 import Wire.API.User.Orphans ()
 
 --------------------------------------------------------------------------------
@@ -106,7 +107,7 @@ defaultAccentId = ColourId 0
 
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset
-  { assetKey :: Text,
+  { assetKey :: AssetKey,
     assetSize :: Maybe AssetSize
   }
   deriving stock (Eq, Show, Generic)

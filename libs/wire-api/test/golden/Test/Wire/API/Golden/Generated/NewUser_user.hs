@@ -36,6 +36,7 @@ import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
+import Wire.API.Asset
 import Wire.API.Team (BindingNewTeam (..), NewTeam (..))
 import Wire.API.User
   ( Asset (ImageAsset),
@@ -76,9 +77,9 @@ testObject_NewUser_user_1 =
       newUserIdentity = Just (EmailIdentity (Email {emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB", emailDomain = "P.b"})),
       newUserPict = Just (Pict {fromPict = []}),
       newUserAssets =
-        [ ImageAsset "\5112\&5\DC4\1019826\95472`\a\SUBG{?" (Just AssetPreview),
-          ImageAsset "something" (Just AssetComplete),
-          ImageAsset "KE" Nothing
+        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing
         ],
       newUserAccentId = Just (ColourId {fromColourId = -7404}),
       newUserEmailCode = Just (ActivationCode {fromActivationCode = fromRight undefined (validate "1YgaHo0=")}),
