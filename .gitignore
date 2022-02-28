@@ -106,3 +106,4 @@ telepresence.log
 # local config
 .envrc.local
 cabal.project.local
+cabal.project.local-custom

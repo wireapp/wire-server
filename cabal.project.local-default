@@ -1,0 +1,101 @@
+optimization: False
+package api-bot
+    ghc-options: -O0
+package api-client
+    ghc-options: -O0
+package api-simulations
+    ghc-options: -O0
+package auto-whitelist
+    ghc-options: -O0
+package bilge
+    ghc-options: -O0
+package billing-team-member-backfill
+    ghc-options: -O0
+package bonanza
+    ghc-options: -O0
+package brig
+    ghc-options: -O0
+package brig-types
+    ghc-options: -O0
+package cannon
+    ghc-options: -O0
+package cargohold
+    ghc-options: -O0
+package cargohold-types
+    ghc-options: -O0
+package cassandra-util
+    ghc-options: -O0
+package cql-parser
+    ghc-options: -O0
+package deriving-swagger2
+    ghc-options: -O0
+package dns-util
+    ghc-options: -O0
+package extended
+    ghc-options: -O0
+package federator
+    ghc-options: -O0
+package find-undead
+    ghc-options: -O0
+package galley
+    ghc-options: -O0
+package galley-types
+    ghc-options: -O0
+package gundeck
+    ghc-options: -O0
+package gundeck-types
+    ghc-options: -O0
+package hscim
+    ghc-options: -O0
+package imports
+    ghc-options: -O0
+package makedeb
+    ghc-options: -O0
+package metrics-core
+    ghc-options: -O0
+package metrics-wai
+    ghc-options: -O0
+package migrate-sso-feature-flag
+    ghc-options: -O0
+package move-team
+    ghc-options: -O0
+package polysemy-wire-zoo
+    ghc-options: -O0
+package proxy
+    ghc-options: -O0
+package repair-handles
+    ghc-options: -O0
+package rex
+    ghc-options: -O0
+package ropes
+    ghc-options: -O0
+package schema-profunctor
+    ghc-options: -O0
+package service-backfill
+    ghc-options: -O0
+package sodium-crypto-sign
+    ghc-options: -O0
+package spar
+    ghc-options: -O0
+package ssl-util
+    ghc-options: -O0
+package stern
+    ghc-options: -O0
+package tasty-cannon
+    ghc-options: -O0
+package types-common
+    ghc-options: -O0
+package types-common-aws
+    ghc-options: -O0
+package types-common-journal
+    ghc-options: -O0
+package wai-utilities
+    ghc-options: -O0
+package wire-api
+    ghc-options: -O0
+package wire-api-federation
+    ghc-options: -O0
+package wire-message-proto-lens
+    ghc-options: -O0
+package zauth
+    ghc-options: -O0
