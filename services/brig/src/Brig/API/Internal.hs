@@ -95,7 +95,7 @@ ejpdAPI =
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
 
-accountAPI :: ServerT BrigIRoutes.AccountAPI Handler
+accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
