@@ -23,6 +23,7 @@ module Wire.API.MLS.Serialisation
     parseMLSEnum,
     BinaryMLS (..),
     MLSEnumError (..),
+    fromMLSEnum,
     toMLSEnum',
     toMLSEnum,
     decodeMLS,
@@ -91,6 +92,9 @@ toMLSEnum name = either err pure . toMLSEnum'
   where
     err MLSEnumUnkonwn = fail $ "Unknown " <> name
     err MLSEnumInvalid = fail $ "Invalid " <> name
+
+fromMLSEnum :: (Integral w, Enum a) => a -> w
+fromMLSEnum = fromIntegral . succ . fromEnum
 
 instance ParseMLS Word8 where parseMLS = get
 

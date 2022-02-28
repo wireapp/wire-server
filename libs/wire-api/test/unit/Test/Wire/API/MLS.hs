@@ -40,7 +40,8 @@ tests :: TestTree
 tests =
   testGroup "MLS" $
     [ testCase "parse key package" testParseKeyPackage,
-      testCase "parse commit message" testParseCommit
+      testCase "parse commit message" testParseCommit,
+      testCase "parse application message" testParseApplication
     ]
 
 testParseKeyPackage :: IO ()
@@ -87,3 +88,16 @@ testParseCommit = do
   case cProposals commit of
     [Inline (AddProposal _)] -> pure ()
     _ -> assertFailure "Unexpected proposals"
+
+testParseApplication :: IO ()
+testParseApplication = do
+  msgData <- LBS.readFile "test/resources/app_message1.mls"
+  msg :: Message 'MLSCipherText <- case decodeMLS @SomeMessage msgData of
+    Left err -> assertFailure (T.unpack err)
+    Right (SomeMessage SMLSCipherText msg) -> pure msg
+    Right (SomeMessage SMLSPlainText _) ->
+      assertFailure "Expected encrypted message, found plain text"
+
+  msgGroupId msg @?= "test_group"
+  msgEpoch msg @?= 0
+  msgContentType (msgPayload msg) @?= fromMLSEnum ApplicationMessageTag

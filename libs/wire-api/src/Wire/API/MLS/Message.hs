@@ -23,6 +23,7 @@ module Wire.API.MLS.Message
     WireFormatTag (..),
     SWireFormatTag (..),
     SomeMessage (..),
+    ContentType (..),
     MessagePayload (..),
     MessagePayloadTBS (..),
     Sender (..),
