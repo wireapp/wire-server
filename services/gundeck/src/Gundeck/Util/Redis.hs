@@ -19,8 +19,8 @@ module Gundeck.Util.Redis where
 
 import Control.Monad.Catch
 import Control.Retry
--- import qualified Data.ByteString.Lazy as BSL
--- import Database.Redis
+import qualified Data.ByteString as BS
+import Database.Redis
 import Imports
 
 retry :: (MonadIO m, MonadMask m) => RetryPolicyM m -> m a -> m a
@@ -34,7 +34,12 @@ x3 = limitRetries 3 <> exponentialBackoff 100000
 
 -- TODO
 handlers :: Monad m => [a -> Handler m Bool]
-handlers = undefined
+handlers =
+  [ const . Handler $ \case
+      RedisSimpleError (Error msg) -> pure $ "READONLY" `BS.isPrefixOf` msg
+      RedisTxError msg -> pure $ "READONLY" `isPrefixOf` msg
+      _ -> pure $ False
+  ]
 
 -- [ const . Handler $ \(e :: RedisError) -> case e of
 --     RedisError msg -> pure $ "READONLY" `BSL.isPrefixOf` msg
@@ -45,3 +50,20 @@ handlers = undefined
 --     TransactionAborted -> pure True
 --     _ -> pure False
 -- ]
+--
+
+-- Error -------------------------------------------------------------------
+
+data RedisError
+  = RedisSimpleError Reply
+  | RedisTxAborted
+  | RedisTxError String
+  deriving (Show)
+
+instance Exception RedisError
+
+fromTxResult :: MonadThrow m => TxResult a -> m a
+fromTxResult = \case
+  TxSuccess a -> pure a
+  TxAborted -> throwM RedisTxAborted
+  TxError e -> throwM $ RedisTxError e

@@ -61,9 +61,8 @@ add p = do
   let k = toKey (userId p)
   let v = toField (connId p)
   let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
-  -- TODO error handling?
   retry x3 $ do
-    void . liftRedis . multiExec $ do
+    void . (fromTxResult =<<) . liftRedis . multiExec $ do
       void $ hset k v d
       -- nb. All presences of a user are expired 'maxIdleTime' after the
       -- last presence was registered. A client who keeps a presence
@@ -73,14 +72,14 @@ add p = do
   where
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
-deleteAll :: (MonadRedis m, MonadMask m, MonadIO m, RedisCtx m (Either Reply)) => [Presence] -> m ()
+deleteAll :: (MonadRedis m, MonadMask m, MonadThrow m, MonadIO m, RedisCtx m (Either Reply)) => [Presence] -> m ()
 deleteAll [] = return ()
 deleteAll pp = for_ pp $ \p -> do
   let k = toKey (userId p)
   let f = Lazy.toStrict $ __field p
   void . retry x3 $ do
     void . liftRedis $ watch (pure k)
-    value <- either (const undefined) id <$> hget k f
+    value <- either (throwM . RedisSimpleError) id <$> hget k f
     void . liftRedis . multiExec $ do
       case value of
         Nothing -> pure $ pure ()
@@ -90,17 +89,17 @@ deleteAll pp = for_ pp $ \p -> do
             then void <$> hdel k (pure f)
             else pure $ pure ()
 
-list :: MonadRedis m => UserId -> m [Presence]
-list u = liftRedis $ do
-  ePresenses <- list' u
+list :: (MonadRedis m, MonadThrow m) => UserId -> m [Presence]
+list u = do
+  ePresenses <- liftRedis $ list' u
   case ePresenses of
-    Left _ -> undefined -- TODO: throwM with named exceptions
+    Left r -> throwM $ RedisSimpleError r
     Right ps -> pure ps
 
 list' :: (RedisCtx m f, Functor f) => UserId -> m (f [Presence])
 list' u = mapMaybe (readPresence u) <$$> hgetall (toKey u)
 
-listAll :: MonadRedis m => [UserId] -> m [[Presence]]
+listAll :: (MonadRedis m, MonadThrow m) => [UserId] -> m [[Presence]]
 listAll [] = return []
 listAll uu = mapM list uu
 
