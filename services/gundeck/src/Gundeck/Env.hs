@@ -28,6 +28,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
+import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Database.Redis as Redis
 import qualified Gundeck.Aws as Aws
@@ -77,8 +78,7 @@ createEnv m o = do
         Redis.defaultConnectInfo
           { Redis.connectHost = unpack $ o ^. optRedis . epHost,
             Redis.connectPort = Redis.PortNumber (fromIntegral $ o ^. optRedis . epPort),
-            -- TODO
-            -- Redis.connectTimeout = Just (5 seconds in NominalDiffTime),
+            Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
             Redis.connectMaxConnections = 100
           }
   -- TODO parse a config value whether to connect normally or in cluster mode
