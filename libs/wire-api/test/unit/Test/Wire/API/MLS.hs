@@ -35,13 +35,15 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 
 tests :: TestTree
 tests =
   testGroup "MLS" $
     [ testCase "parse key package" testParseKeyPackage,
       testCase "parse commit message" testParseCommit,
-      testCase "parse application message" testParseApplication
+      testCase "parse application message" testParseApplication,
+      testCase "parse welcome message" testParseWelcome
     ]
 
 testParseKeyPackage :: IO ()
@@ -101,3 +103,13 @@ testParseApplication = do
   msgGroupId msg @?= "test_group"
   msgEpoch msg @?= 0
   msgContentType (msgPayload msg) @?= fromMLSEnum ApplicationMessageTag
+
+testParseWelcome :: IO ()
+testParseWelcome = do
+  welData <- LBS.readFile "test/resources/welcome1.mls"
+  wel <- case decodeMLS welData of
+    Left err -> assertFailure (T.unpack err)
+    Right x -> pure x
+
+  welCipherSuite wel @?= CipherSuite 1
+  map gsNewMember (welSecrets wel) @?= [KeyPackageRef (fromRight' (unhex "ab4692703ca6d50ffdeaae3096f885c2"))]

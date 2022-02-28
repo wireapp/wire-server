@@ -45,6 +45,7 @@ library
       Wire.API.MLS.Proposal
       Wire.API.MLS.Serialisation
       Wire.API.MLS.Servant
+      Wire.API.MLS.Welcome
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
