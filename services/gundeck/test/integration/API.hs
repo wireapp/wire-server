@@ -40,6 +40,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as BL
 import Data.Id
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Range
@@ -339,7 +340,7 @@ sendMultipleUsers = do
   liftIO . forM_ [ntfs1, ntfs2] $ \ntfs -> do
     assertEqual "Not exactly 1 notification" 1 (length ntfs)
     let p = view queuedNotificationPayload (Prelude.head ntfs)
-    assertEqual "Wrong events in notification" pload p
+    assertEqual "Wrong events in notification" (List1.toNonEmpty pload) p
   -- 'uid3' should have two notifications, one for the message and one
   -- for the removed token.
   ntfs3 <- listNotifications uid3 Nothing
@@ -348,10 +349,10 @@ sendMultipleUsers = do
     let (n1, nx) = checkNotifications ntfs3
     -- The first notification must be the test payload
     let p1 = view queuedNotificationPayload n1
-    assertEqual "Wrong events in 1st notification" pload p1
+    assertEqual "Wrong events in 1st notification" (List1.toNonEmpty pload) p1
     -- Followed by at least one notification for the token removal
     forM_ nx $ \n ->
-      let p2 = fromJSON (Object (List1.head (n ^. queuedNotificationPayload)))
+      let p2 = fromJSON (Object (NonEmpty.head (n ^. queuedNotificationPayload)))
        in assertEqual "Wrong events in notification" (Success (PushRemove tok)) p2
   where
     checkNotifications [] = error "No notifications received!"
@@ -407,7 +408,7 @@ targetClientPush = do
   liftIO . forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
     assertEqual "Not exactly 1 notification" 1 (length ns)
     let p = view queuedNotificationPayload (Prelude.head ns)
-    assertEqual "Wrong events in notification" (pload c) p
+    assertEqual "Wrong events in notification" (List1.toNonEmpty (pload c)) p
   where
     pevent c = KeyMap.fromList ["foo" .= client c]
     pload c = List1.singleton (pevent c)
@@ -435,7 +436,7 @@ testFetchAllNotifs = do
   liftIO $
     assertEqual
       "Unexpected notification payloads"
-      (replicate 10 pload)
+      (replicate 10 (List1.toNonEmpty pload))
       (map (view queuedNotificationPayload) ns)
 
 testFetchNewNotifs :: TestM ()
