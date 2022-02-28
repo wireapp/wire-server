@@ -73,27 +73,22 @@ add p = do
   where
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
-deleteAll :: (MonadRedis m, MonadMask m) => [Presence] -> m ()
+deleteAll :: (MonadRedis m, MonadMask m, MonadIO m, RedisCtx m (Either Reply)) => [Presence] -> m ()
 deleteAll [] = return ()
-deleteAll pp = for_ pp $ \p -> liftRedis $ do
+deleteAll pp = for_ pp $ \p -> do
   let k = toKey (userId p)
   let f = Lazy.toStrict $ __field p
-  -- TODO:
-  -- Could not deduce (MonadMask Redis) arising from a use of ‘retry’
-  --  from the context: (MonadRedis m, MonadMask m)
-  -- void . retry x3 $ do
-  void $ do
-    void $ watch (pure k)
-    value <- hget k f
+  void . retry x3 $ do
+    void . liftRedis $ watch (pure k)
+    value <- either (const undefined) id <$> hget k f
     void . liftRedis . multiExec $ do
-      for_ value $ \case
-        Nothing -> pure ()
+      case value of
+        Nothing -> pure $ pure ()
         Just v -> do
           let p' = readPresence (userId p) (f, v)
-          when (Just p == p') $
-            void $ hdel k (pure f)
-      -- TODO this is silly; how can we return the correct Queued type inside multiExec?
-      hexists k f
+          if Just p == p'
+            then void <$> hdel k (pure f)
+            else pure $ pure ()
 
 list :: MonadRedis m => UserId -> m [Presence]
 list u = liftRedis $ do
@@ -105,7 +100,6 @@ list u = liftRedis $ do
 list' :: (RedisCtx m f, Functor f) => UserId -> m (f [Presence])
 list' u = mapMaybe (readPresence u) <$$> hgetall (toKey u)
 
--- TODO: do we need to manually optimize this for redis pipelining?
 listAll :: MonadRedis m => [UserId] -> m [[Presence]]
 listAll [] = return []
 listAll uu = mapM list uu
