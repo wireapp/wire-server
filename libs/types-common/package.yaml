@@ -17,9 +17,11 @@ library:
   dependencies:
   - aeson >=2.0.1.0
   - attoparsec >=0.11
+  - attoparsec-iso8601
   - base16-bytestring >=0.1
   - base ==4.*
   - base64-bytestring >=1.0
+  - binary
   - bytestring >=0.10
   - bytestring-conversion >=0.2
   - cassandra-util

@@ -36,6 +36,12 @@ library
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
+      Wire.API.MLS.CipherSuite
+      Wire.API.MLS.Credential
+      Wire.API.MLS.KeyPackage
+      Wire.API.MLS.Proposal
+      Wire.API.MLS.Serialisation
+      Wire.API.MLS.Servant
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
@@ -153,6 +159,7 @@ library
     , base ==4.*
     , base64-bytestring >=1.0
     , binary
+    , binary-parsers
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive
@@ -161,6 +168,7 @@ library
     , cereal
     , comonad
     , conduit
+    , constraints
     , containers >=0.5
     , cookie
     , cryptonite
@@ -566,6 +574,7 @@ test-suite wire-api-tests
   other-modules:
       Test.Wire.API.Call.Config
       Test.Wire.API.Conversation
+      Test.Wire.API.MLS
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
@@ -635,6 +644,7 @@ test-suite wire-api-tests
     , currency-codes
     , directory
     , filepath
+    , hex
     , hscim
     , imports
     , iso3166-country-codes

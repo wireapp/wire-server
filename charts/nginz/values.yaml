@@ -123,6 +123,9 @@ nginx_conf:
     - path: /clients
       envs:
       - all
+    - path: /mls/key-packages
+      envs:
+      - all
     - path: /properties
       envs:
       - all

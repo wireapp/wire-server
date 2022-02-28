@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 83646796a68e282b2b169035619c5d5ca2c53e12d08311ae712682f24cd90658
+-- hash: fa464d91df7452e4c1891d1d922b9998bdff09e33af3b55625efa52adb24aaff
 
 name:           schema-profunctor
 version:        0.1.0
@@ -66,7 +66,7 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=1.0 && <1.6
+      aeson >=2.0.1.0 && <2.1
     , base ==4.*
     , bifunctors
     , comonad
@@ -74,7 +74,7 @@ library
     , imports
     , lens
     , profunctors
-    , swagger2 >=2 && <2.7
+    , swagger2 >=2 && <2.9
     , text
     , transformers
     , vector

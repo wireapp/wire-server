@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cc7fa8ec12ced95fc2d21c5f8c7fc9c5f91f6ac43197701f4b0495fdd72f3d70
+-- hash: 8325cabb6835adebe7d0c773eb6059ab230d35b8f8b0b22c5d618f3dc91f66fd
 
 name:           brig-types
 version:        1.35.0
@@ -97,7 +97,7 @@ library
     , deriving-swagger2 >=0.1.0
     , imports
     , servant-server >=0.18.2
-    , servant-swagger >=1.1.11
+    , servant-swagger >=1.1.10
     , string-conversions
     , swagger2 >=2.5
     , text >=0.11

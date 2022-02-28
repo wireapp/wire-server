@@ -37,6 +37,8 @@ library
       Brig.API.Federation
       Brig.API.Handler
       Brig.API.Internal
+      Brig.API.MLS.KeyPackages
+      Brig.API.MLS.KeyPackages.Validation
       Brig.API.Properties
       Brig.API.Public
       Brig.API.Types
@@ -57,6 +59,8 @@ library
       Brig.Data.Connection
       Brig.Data.Instances
       Brig.Data.LoginCode
+      Brig.Data.MLS.KeyPackage
+      Brig.Data.MLS.KeyPackage.Instances
       Brig.Data.PasswordReset
       Brig.Data.Properties
       Brig.Data.Types
@@ -406,6 +410,7 @@ executable brig-integration
       API.Internal
       API.Internal.Util
       API.Metrics
+      API.MLS
       API.Provider
       API.RichInfo.Util
       API.Search
@@ -518,6 +523,7 @@ executable brig-integration
     , network
     , optparse-applicative
     , pem
+    , process
     , proto-lens
     , random >=1.0
     , random-shuffle
@@ -616,6 +622,7 @@ executable brig-schema
       V64_ClientCapabilities
       V65_FederatedConnections
       V66_PersonalFeatureConfCallInit
+      V67_MLSKeyPackages
       V9
       Paths_brig
   hs-source-dirs:
@@ -679,6 +686,7 @@ test-suite brig-tests
   other-modules:
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.MLS
       Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
       Paths_brig
@@ -728,9 +736,11 @@ test-suite brig-tests
   build-depends:
       aeson
     , base
+    , binary
     , bloodhound
     , brig
     , brig-types
+    , bytestring
     , containers
     , dns
     , dns-util

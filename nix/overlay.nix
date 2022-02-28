@@ -1,6 +1,7 @@
 self: super: {
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
+  crypto_cli = self.callPackage ./pkgs/crypto_cli { };
 
   nginxModules = super.nginxModules // {
     zauth = {

@@ -563,7 +563,8 @@ data Settings = Settings
     -- loadbalanced servers of `setSftStaticUrl` under the @sft_servers_all@
     -- field. The default setting is to exclude and omit the field from the
     -- response.
-    setSftListAllServers :: Maybe ListAllSFTServers
+    setSftListAllServers :: Maybe ListAllSFTServers,
+    setKeyPackageMaximumLifetime :: Maybe NominalDiffTime
   }
   deriving (Show, Generic)
 

@@ -26,6 +26,7 @@ import Data.Aeson.Types (toJSONKeyText)
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (Bifunctor (first))
+import Data.Binary
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
@@ -63,7 +64,7 @@ import Util.Attoparsec (takeUpToWhile)
 -- The domain will be normalized to lowercase when parsed.
 newtype Domain = Domain {_domainText :: Text}
   deriving stock (Eq, Ord, Generic, Show)
-  deriving newtype (S.ToParamSchema)
+  deriving newtype (S.ToParamSchema, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Domain
 
 instance ToSchema Domain where

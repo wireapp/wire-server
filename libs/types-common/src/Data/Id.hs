@@ -61,6 +61,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Binary
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
@@ -144,7 +145,7 @@ newtype Id a = Id
   { toUUID :: UUID
   }
   deriving stock (Eq, Ord, Generic)
-  deriving newtype (Hashable, NFData, ToParamSchema)
+  deriving newtype (Hashable, NFData, ToParamSchema, Binary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (Id a)
 
 instance ToSchema (Id a) where
@@ -282,7 +283,7 @@ newtype ClientId = ClientId
   { client :: Text
   }
   deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
-  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData)
+  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
 instance ToSchema ClientId where

@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 2c3bc5bfc76fcdf9df35835ee7538dde7612554c1364af5a68136e44fa66e22b
 
 name:           types-common
 version:        0.16.0
@@ -91,9 +89,11 @@ library
       QuickCheck >=2.9
     , aeson >=2.0.1.0
     , attoparsec >=0.11
+    , attoparsec-iso8601
     , base ==4.*
     , base16-bytestring >=0.1
     , base64-bytestring >=1.0
+    , binary
     , bytestring >=0.10
     , bytestring-conversion >=0.2
     , cassandra-util

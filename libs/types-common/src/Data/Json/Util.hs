@@ -29,6 +29,8 @@ module Data.Json.Util
 
     -- * UTCTimeMillis
     UTCTimeMillis,
+    utcTimeTextSchema,
+    utcTimeSchema,
     toUTCTimeMillis,
     fromUTCTimeMillis,
     showUTCTimeMillis,
@@ -39,6 +41,7 @@ module Data.Json.Util
     fromBase64TextLenient,
     fromBase64Text,
     toBase64Text,
+    base64Schema,
   )
 where
 
@@ -47,6 +50,8 @@ import Control.Lens (coerced, (%~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
+import qualified Data.Attoparsec.Text as Atto
+import qualified Data.Attoparsec.Time as Atto
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Base64.Lazy as B64L
 import qualified Data.ByteString.Builder as BB
@@ -57,7 +62,7 @@ import Data.Fixed
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import Data.Text (pack)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import Data.Time.Clock
@@ -94,23 +99,28 @@ newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UTCTimeMillis
 
 instance ToSchema UTCTimeMillis where
-  schema =
-    UTCTimeMillis <$> showUTCTimeMillis
-      .= mkSchema swagger parseJSON (pure . A.String . pack)
-    where
-      swagger =
-        S.NamedSchema (Just "UTCTimeMillis") <$> mempty
-          & S.schema . S.type_ ?~ S.SwaggerString
-          & S.schema . S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq"
-          & S.schema . S.example ?~ "2021-05-12T10:52:02.671Z"
+  schema = UTCTimeMillis <$> showUTCTimeMillis .= utcTimeTextSchema
+
+utcTimeTextSchema :: ValueSchemaP NamedSwaggerDoc Text UTCTime
+utcTimeTextSchema =
+  parsedText "UTCTime" (Atto.parseOnly (Atto.utcTime <* Atto.endOfInput))
+    & doc . S.schema
+      %~ (S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq")
+        . (S.example ?~ "2021-05-12T10:52:02.671Z")
+
+utcTimeSchema :: ValueSchema NamedSwaggerDoc UTCTime
+utcTimeSchema = showUTCTime .= utcTimeTextSchema
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
 toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 1e9) . (`div` 1e9))
 
 {-# INLINE showUTCTimeMillis #-}
-showUTCTimeMillis :: UTCTimeMillis -> String
-showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale "%FT%T.%03qZ" t
+showUTCTimeMillis :: UTCTimeMillis -> Text
+showUTCTimeMillis = Text.pack . formatTime defaultTimeLocale "%FT%T.%03qZ" . fromUTCTimeMillis
+
+showUTCTime :: UTCTime -> Text
+showUTCTime = Text.pack . formatTime defaultTimeLocale "%FT%T%QZ"
 
 readUTCTimeMillis :: String -> Maybe UTCTimeMillis
 readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale formatUTCTimeMillis
@@ -119,7 +129,7 @@ formatUTCTimeMillis :: String
 formatUTCTimeMillis = "%FT%T%QZ"
 
 instance Show UTCTimeMillis where
-  showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
+  showsPrec d = showParen (d > 10) . showString . Text.unpack . showUTCTimeMillis
 
 instance BS.ToByteString UTCTimeMillis where
   builder = BB.byteString . cs . show
@@ -194,6 +204,9 @@ instance IsString Base64ByteString where
 
 instance Arbitrary Base64ByteString where
   arbitrary = Base64ByteString <$> arbitrary
+
+base64Schema :: ValueSchema SwaggerDoc Base64ByteString
+base64Schema = mkSchema mempty A.parseJSON (pure . A.toJSON)
 
 --------------------------------------------------------------------------------
 -- Utilities
