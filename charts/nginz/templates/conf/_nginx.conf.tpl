@@ -230,7 +230,7 @@ http {
 
             {{- if $location.strip_version }}
 
-    rewrite ^/v[0-9]+({{ $location.path }}) $1
+    rewrite ^/v[0-9]+({{ $location.path }}) $1;
             {{- end }}
 
     {{- $versioned := ternary $location.versioned true (hasKey $location "versioned") -}}
