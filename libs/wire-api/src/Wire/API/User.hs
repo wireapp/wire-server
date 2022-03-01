@@ -147,7 +147,6 @@ import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-import Wire.API.Util.Aeson (eitherToParser)
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -457,7 +456,7 @@ newtype NewUserPublic = NewUserPublic NewUser
 
 instance ToSchema NewUserPublic where
   schema =
-    unwrap .= withParser schema (eitherToParser . validateNewUserPublic)
+    unwrap .= withParser schema (either fail pure . validateNewUserPublic)
     where
       unwrap (NewUserPublic nu) = nu
 
@@ -685,7 +684,7 @@ newUserToRaw NewUser {..} =
 newUserFromRaw :: NewUserRaw -> A.Parser NewUser
 newUserFromRaw NewUserRaw {..} = do
   origin <-
-    eitherToParser $
+    either fail pure $
       maybeNewUserOriginFromComponents
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
