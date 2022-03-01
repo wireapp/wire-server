@@ -39,7 +39,7 @@ import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
 import Data.Text.Encoding (encodeUtf8)
 import Imports
-import Wire.API.Asset (AssetKey, assetKeyToText)
+import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.User.RichInfo
 
@@ -132,7 +132,7 @@ instance Cql Pict where
 instance Cql AssetKey where
   ctype = Tagged TextColumn
   toCql = CqlText . assetKeyToText
-  fromCql (CqlText txt) = runParser parser $ encodeUtf8 txt
+  fromCql (CqlText txt) = pure $ fromRight nilAssetKey $ runParser parser $ encodeUtf8 txt
   fromCql _ = Left "AssetKey: Expected CqlText"
 
 instance Cql AssetSize where

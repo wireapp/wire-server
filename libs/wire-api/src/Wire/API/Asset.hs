@@ -31,6 +31,7 @@ module Wire.API.Asset
     -- * AssetKey
     AssetKey (..),
     assetKeyToText,
+    nilAssetKey,
 
     -- * AssetToken
     AssetToken (..),
@@ -185,6 +186,9 @@ instance S.ToParamSchema AssetKey where
 
 instance FromHttpApiData AssetKey where
   parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
+
+nilAssetKey :: AssetKey
+nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
 
 --------------------------------------------------------------------------------
 -- AssetToken
