@@ -37,7 +37,7 @@ import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
 import Wire.API.Asset
-import Wire.API.Team (BindingNewTeam (..), NewTeam (..))
+import Wire.API.Team (BindingNewTeam (..), Icon (..), NewTeam (..))
 import Wire.API.User
   ( Asset (ImageAsset),
     AssetSize (..),
@@ -165,9 +165,7 @@ testObject_NewUser_user_7 =
                   { _newTeamName =
                       unsafeRange
                         "\fe\ENQ\1011760zm",
-                    _newTeamIcon =
-                      unsafeRange
-                        "Coq\52427\v\182208",
+                    _newTeamIcon = DefaultIcon,
                     _newTeamIconKey =
                       Just
                         ( unsafeRange
