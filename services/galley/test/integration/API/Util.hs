@@ -118,6 +118,7 @@ import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Member (mkNewTeamMember)
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
@@ -224,7 +225,7 @@ createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM 
 createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
+  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon & newTeamMembers .~ mm
   resp <-
     post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -251,7 +252,7 @@ createBindingTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM T
 createBindingTeamInternalNoActivate name owner = do
   g <- view tsGalley
   tid <- randomId
-  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
+  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
     put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -1760,7 +1761,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
+            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: HasCallStack => TestM UserId
