@@ -27,8 +27,10 @@ import Cassandra
 import Control.Error
 import Control.Lens
 import Control.Monad.Random (randomRIO)
+import Data.Domain
 import Data.Functor
 import Data.Id
+import Data.Qualified
 import Imports
 import Wire.API.MLS.KeyPackage
 
@@ -42,22 +44,29 @@ insertKeyPackages uid cid kps = retry x5 . batch $ do
     q :: PrepQuery W (UserId, ClientId, KeyPackageData, KeyPackageRef) ()
     q = "INSERT INTO mls_key_packages (user, client, data, ref) VALUES (?, ?, ?, ?)"
 
-claimKeyPackage :: UserId -> ClientId -> MaybeT (AppIO r) KeyPackageData
-claimKeyPackage u c = MaybeT $ do
+claimKeyPackage :: Local UserId -> ClientId -> MaybeT (AppIO r) KeyPackageData
+claimKeyPackage u c = do
   -- FUTUREWORK: investigate better locking strategies
-  lock <- view keyPackageLocalLock
-  withMVar lock . const $ do
-    kps <- retry x1 $ query lookupQuery (params LocalQuorum (u, c))
+  lock <- lift $ view keyPackageLocalLock
+  -- get a random key package and delete it
+  (ref, kpd) <- MaybeT . withMVar lock . const $ do
+    kps <- retry x1 $ query lookupQuery (params LocalQuorum (tUnqualified u, c))
     mk <- liftIO (pick kps)
     for mk $ \(ref, kpd) -> do
-      retry x5 $ write deleteQuery (params LocalQuorum (u, c, ref))
-      pure kpd
+      retry x5 $ write deleteQuery (params LocalQuorum (tUnqualified u, c, ref))
+      pure (ref, kpd)
+  -- add key package ref to mapping table
+  lift $ write insertQuery (params LocalQuorum (ref, tDomain u, tUnqualified u, c))
+  pure kpd
   where
     lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
     lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ?"
 
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
+
+    insertQuery :: PrepQuery W (KeyPackageRef, Domain, UserId, ClientId) ()
+    insertQuery = "INSERT INTO mls_key_package_refs (ref, domain, user, client) VALUES (?, ?, ?, ?)"
 
 countKeyPackages :: MonadClient m => UserId -> ClientId -> m Int64
 countKeyPackages u c =
