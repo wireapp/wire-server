@@ -132,6 +132,8 @@ instance Cql Pict where
 instance Cql AssetKey where
   ctype = Tagged TextColumn
   toCql = CqlText . assetKeyToText
+
+  -- if the asset key is invalid we will return the nil asset key (`3-1-00000000-0000-0000-0000-000000000000`)
   fromCql (CqlText txt) = pure $ fromRight nilAssetKey $ runParser parser $ encodeUtf8 txt
   fromCql _ = Left "AssetKey: Expected CqlText"
 
