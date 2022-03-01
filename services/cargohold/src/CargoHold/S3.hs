@@ -41,7 +41,7 @@ import Amazonka hiding (Error, ToByteString, (.=))
 import Amazonka.S3
 import Amazonka.S3.Lens
 import CargoHold.API.Error
-import CargoHold.AWS (amazonkaEnv)
+import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
 import CargoHold.App hiding (Env, Handler)
 import CargoHold.Options
@@ -215,8 +215,7 @@ signedURL path = do
   ttl <- view (settings . setDownloadLinkTTL)
   let req = newGetObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
   signed <-
-    AWS.execute (AWS.useDownloadEndpoint e) $
-      presignURL (e ^. amazonkaEnv) now (Seconds (fromIntegral ttl)) req
+    presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req
   toUri signed
   where
     toUri x = case parseURI strictURIParserOptions x of
