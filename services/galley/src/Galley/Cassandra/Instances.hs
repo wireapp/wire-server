@@ -25,13 +25,16 @@ where
 
 import Cassandra.CQL
 import Control.Error (note)
+import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText, mkDomain)
+import qualified Data.Text.Encoding as T
 import Galley.Types
 import Galley.Types.Bot ()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
+import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
 
 deriving instance Cql MutedStatus
@@ -168,3 +171,9 @@ instance Cql Public.EnforceAppLock where
     1 -> pure (Public.EnforceAppLock True)
     _ -> Left "fromCql EnforceAppLock: int out of range"
   fromCql _ = Left "fromCql EnforceAppLock: int expected"
+
+instance Cql Icon where
+  ctype = Tagged TextColumn
+  toCql = CqlText . T.decodeUtf8 . toByteString'
+  fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
+  fromCql _ = Left "Icon: Text expected"
