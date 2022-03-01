@@ -1658,7 +1658,7 @@ postCryptoBroadcastMessageJson bcast = do
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         Util.postBroadcast (q alice) ac bcast {bMessage = msg} !!! do
           const 201 === statusCode
-          assertMismatch [] [] []
+          assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $
           WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext1"))
@@ -1725,7 +1725,7 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam bcast = do
           let inbody = Just [alice, bob, charlie, dan]
           Util.postBroadcast (q alice) ac bcast {bReport = inbody, bMessage = msg} !!! do
             const 201 === statusCode
-            assertMismatch [] [] []
+            assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $
           WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext1"))
@@ -1756,7 +1756,7 @@ postCryptoBroadcastMessageJsonReportMissingBody bcast = do
         BroadcastLegacyQueryParams -> id
         _ -> queryItem "report_missing" (toByteString' alice)
       msg = [(alice, ac, "ciphertext0")]
-  Util.postBroadcast qalice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery, bAPI = BroadcastLegacyBody}
+  Util.postBroadcast qalice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery}
     !!! const 412 === statusCode
 
 postCryptoBroadcastMessageJson2 :: Broadcast -> TestM ()
@@ -1781,13 +1781,13 @@ postCryptoBroadcastMessageJson2 bcast = do
   let m1 = [(bob, bc, toBase64Text "ciphertext1")]
   Util.postBroadcast (q alice) ac bcast {bMessage = m1} !!! do
     const 412 === statusCode
-    assertMismatchWithMessage (Just "1: Only Charlie and his device") [(charlie, Set.singleton cc)] [] []
+    assertBroadcastMismatch localDomain (bAPI bcast) [(charlie, Set.singleton cc)] [] []
   -- Complete
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     let m2 = [(bob, bc, toBase64Text "ciphertext2"), (charlie, cc, toBase64Text "ciphertext2")]
     Util.postBroadcast (q alice) ac bcast {bMessage = m2} !!! do
       const 201 === statusCode
-      assertMismatchWithMessage (Just "No devices expected") [] [] []
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
     void . liftIO $
       WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext2"))
     void . liftIO $
@@ -1801,7 +1801,7 @@ postCryptoBroadcastMessageJson2 bcast = do
           ]
     Util.postBroadcast (q alice) ac bcast {bMessage = m3} !!! do
       const 201 === statusCode
-      assertMismatchWithMessage (Just "2: Only Alice and her device") [] [(alice, Set.singleton ac)] []
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [(alice, Set.singleton ac)] []
     void . liftIO $
       WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext3"))
     void . liftIO $
@@ -1814,7 +1814,7 @@ postCryptoBroadcastMessageJson2 bcast = do
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (charlie, cc, toBase64Text "ciphertext4")]
     Util.postBroadcast (q alice) ac bcast {bMessage = m4} !!! do
       const 201 === statusCode
-      assertMismatchWithMessage (Just "3: Only Charlie and his device") [] [] [(charlie, Set.singleton cc)]
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [] [(charlie, Set.singleton cc)]
     void . liftIO $
       WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext4"))
     -- charlie should not get it
@@ -1846,7 +1846,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
     let msg = (bob, bc, toBase64Text "ciphertext") : (f <$> others)
     Util.postBroadcast qalice ac bcast {bMessage = msg} !!! do
       const 201 === statusCode
-      assertMismatch [] [] []
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
     let qbobself = Qualified (selfConv bob) localDomain
     void . liftIO $
       WS.assertMatch t (Imports.head ws) (wsAssertOtr qbobself qalice ac bc (toBase64Text "ciphertext"))

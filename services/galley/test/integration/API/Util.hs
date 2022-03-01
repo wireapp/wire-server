@@ -773,9 +773,10 @@ postBroadcast lu c b = do
                 runPut . encodeMessage $
                   mkOtrProtoMessage c (otrRecipients (bMessage b)) bodyReport (bData b)
            in contentProtobuf . bytes m
+  let name = case bAPI b of BroadcastQualified -> "proteus"; _ -> "otr"
   post $
     g . bReq b
-      . paths ["broadcast", "otr", "messages"]
+      . paths ["broadcast", name, "messages"]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1962,6 +1963,21 @@ assertExpected msg expected tparser =
           else Just (addTitle (unlines ["Expected: ", show expected, "But got:", show parsed]))
   where
     addTitle s = unlines [msg, s]
+
+assertBroadcastMismatch ::
+  Domain ->
+  BroadcastAPI ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  Assertions ()
+assertBroadcastMismatch localDomain BroadcastQualified =
+  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d)
+  where
+    mk :: [(UserId, Set ClientId)] -> Client.QualifiedUserClients
+    mk [] = mempty
+    mk uc = Client.QualifiedUserClients . Map.singleton localDomain . Map.fromList $ uc
+assertBroadcastMismatch _ _ = assertMismatch
 
 assertMismatchWithMessage ::
   HasCallStack =>
