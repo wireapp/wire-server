@@ -38,6 +38,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
+import Data.Default
 import Data.Id
 import Data.Json.Util hiding ((#))
 import qualified Data.LegalHold as LH
@@ -135,13 +136,19 @@ tests s =
       test s "team tests around truncation limits - no events, too large team" (testTeamAddRemoveMemberAboveThresholdNoEvents >> ensureQueueEmpty),
       test s "send billing events to owners even in large teams" testBillingInLargeTeam,
       test s "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)" testBillingInLargeTeamWithoutIndexedBillingTeamMembers,
-      test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
-      test s "post crypto broadcast message json - filtered only, too large team" postCryptoBroadcastMessageJsonFilteredTooLargeTeam,
-      test s "post crypto broadcast message json (report missing in body)" postCryptoBroadcastMessageJsonReportMissingBody,
-      test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
-      test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
-      test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam,
-      test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns
+      testGroup "broadcast" $
+        [BroadcastLegacyBody, BroadcastLegacyQueryParams] <&> \api ->
+          let bcast = def {bAPI = api}
+           in testGroup
+                (broadcastAPIName api)
+                [ test s "json" (postCryptoBroadcastMessageJson bcast),
+                  test s "json - filtered only, too large team" (postCryptoBroadcastMessageJsonFilteredTooLargeTeam bcast),
+                  test s "json - report missing in body" (postCryptoBroadcastMessageJsonReportMissingBody bcast),
+                  test s "protobuf" (postCryptoBroadcastMessageProto bcast),
+                  test s "redundant/missing" (postCryptoBroadcastMessageJson2 bcast),
+                  test s "no-team" (postCryptoBroadcastMessageNoTeam bcast),
+                  test s "100 (or max conns)" (postCryptoBroadcastMessage100OrMaxConns bcast)
+                ]
     ]
 
 timeout :: WS.Timeout
@@ -1613,8 +1620,8 @@ testUpdateTeamStatus = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
-postCryptoBroadcastMessageJson :: TestM ()
-postCryptoBroadcastMessageJson = do
+postCryptoBroadcastMessageJson :: Broadcast -> TestM ()
+postCryptoBroadcastMessageJson bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1645,7 +1652,7 @@ postCryptoBroadcastMessageJson = do
     -- Alice's clients 1 and 2 listen to their own messages only
     WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
-        Util.postOtrBroadcastMessage id alice ac msg !!! do
+        Util.postBroadcast alice ac bcast {bMessage = msg} !!! do
           const 201 === statusCode
           assertMismatch [] [] []
         -- Bob should get the broadcast (team member of alice)
@@ -1663,13 +1670,12 @@ postCryptoBroadcastMessageJson = do
         void . liftIO $
           WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
-postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: TestM ()
-postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
+postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: Broadcast -> TestM ()
+postCryptoBroadcastMessageJsonFilteredTooLargeTeam bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
   opts <- view tsGConf
-  g <- view tsCannon
   c <- view tsCannon
   -- Team1: alice, bob and 3 unnamed
   (alice, tid) <- Util.createBindingTeam
@@ -1708,12 +1714,12 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
                 & optSettings . setMaxConvSize .~ 4
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large
-          Util.postOtrBroadcastMessage' g Nothing id alice ac msg !!! do
+          Util.postBroadcast alice ac bcast {bMessage = msg} !!! do
             const 400 === statusCode
             const "too-many-users-to-broadcast" === Error.label . responseJsonUnsafeWithMsg "error label"
           -- We target the message to the 4 users, that should be fine
           let inbody = Just [alice, bob, charlie, dan]
-          Util.postOtrBroadcastMessage' g inbody id alice ac msg !!! do
+          Util.postBroadcast alice ac bcast {bReport = inbody, bMessage = msg} !!! do
             const 201 === statusCode
             assertMismatch [] [] []
         -- Bob should get the broadcast (team member of alice)
@@ -1731,23 +1737,24 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
         void . liftIO $
           WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
-postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
-postCryptoBroadcastMessageJsonReportMissingBody = do
-  g <- view tsGalley
+postCryptoBroadcastMessageJsonReportMissingBody :: Broadcast -> TestM ()
+postCryptoBroadcastMessageJsonReportMissingBody bcast = do
   (alice, tid) <- Util.createBindingTeam
   bob <- view userId <$> Util.addUserToTeam alice tid
   _bc <- Util.randomClient bob (someLastPrekeys !! 1) -- this is important!
   assertQueue "add bob" $ tUpdate 2 [alice]
   refreshIndex
   ac <- Util.randomClient alice (someLastPrekeys !! 0)
-  let inbody = Just [bob] -- body triggers report
-      inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
+  let -- add extraneous query parameter (unless using query parameter API)
+      inquery = case bAPI bcast of
+        BroadcastLegacyQueryParams -> id
+        _ -> queryItem "report_missing" (toByteString' alice)
       msg = [(alice, ac, "ciphertext0")]
-  Util.postOtrBroadcastMessage' g inbody inquery alice ac msg
+  Util.postBroadcast alice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery, bAPI = BroadcastLegacyBody}
     !!! const 412 === statusCode
 
-postCryptoBroadcastMessageJson2 :: TestM ()
-postCryptoBroadcastMessageJson2 = do
+postCryptoBroadcastMessageJson2 :: Broadcast -> TestM ()
+postCryptoBroadcastMessageJson2 bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1766,13 +1773,13 @@ postCryptoBroadcastMessageJson2 = do
   let t = 3 # Second -- WS receive timeout
   -- Missing charlie
   let m1 = [(bob, bc, toBase64Text "ciphertext1")]
-  Util.postOtrBroadcastMessage id alice ac m1 !!! do
+  Util.postBroadcast alice ac bcast {bMessage = m1} !!! do
     const 412 === statusCode
     assertMismatchWithMessage (Just "1: Only Charlie and his device") [(charlie, Set.singleton cc)] [] []
   -- Complete
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     let m2 = [(bob, bc, toBase64Text "ciphertext2"), (charlie, cc, toBase64Text "ciphertext2")]
-    Util.postOtrBroadcastMessage id alice ac m2 !!! do
+    Util.postBroadcast alice ac bcast {bMessage = m2} !!! do
       const 201 === statusCode
       assertMismatchWithMessage (Just "No devices expected") [] [] []
     void . liftIO $
@@ -1786,7 +1793,7 @@ postCryptoBroadcastMessageJson2 = do
             (bob, bc, toBase64Text "ciphertext3"),
             (charlie, cc, toBase64Text "ciphertext3")
           ]
-    Util.postOtrBroadcastMessage id alice ac m3 !!! do
+    Util.postBroadcast alice ac bcast {bMessage = m3} !!! do
       const 201 === statusCode
       assertMismatchWithMessage (Just "2: Only Alice and her device") [] [(alice, Set.singleton ac)] []
     void . liftIO $
@@ -1799,7 +1806,7 @@ postCryptoBroadcastMessageJson2 = do
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (charlie, cc, toBase64Text "ciphertext4")]
-    Util.postOtrBroadcastMessage id alice ac m4 !!! do
+    Util.postBroadcast alice ac bcast {bMessage = m4} !!! do
       const 201 === statusCode
       assertMismatchWithMessage (Just "3: Only Charlie and his device") [] [] [(charlie, Set.singleton cc)]
     void . liftIO $
@@ -1807,8 +1814,8 @@ postCryptoBroadcastMessageJson2 = do
     -- charlie should not get it
     assertNoMsg wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext4"))
 
-postCryptoBroadcastMessageProto :: TestM ()
-postCryptoBroadcastMessageProto = do
+postCryptoBroadcastMessageProto :: Broadcast -> TestM ()
+postCryptoBroadcastMessageProto bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1831,8 +1838,8 @@ postCryptoBroadcastMessageProto = do
   let t = 1 # Second -- WS receive timeout
   let ciphertext = toBase64Text "hello bob"
   WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
-    let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
-    Util.postProtoOtrBroadcast alice ac msg !!! do
+    let msg = [(bob, bc, ciphertext), (charlie, cc, ciphertext), (dan, dc, ciphertext)]
+    Util.postBroadcast alice ac bcast {bMessage = msg, bType = BroadcastProto} !!! do
       const 201 === statusCode
       assertMismatch [] [] []
     -- Bob should get the broadcast (team member of alice)
@@ -1843,22 +1850,24 @@ postCryptoBroadcastMessageProto = do
     void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (toBase64Text "data") (q (selfConv dan)) (q alice) ac dc ciphertext)
     -- Alice should not get her own broadcast
     WS.assertNoEvent timeout ws
-  let inbody = Just [bob] -- body triggers report
-      inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
-      msg = otrRecipients [(alice, [(ac, ciphertext)])]
-  Util.postProtoOtrBroadcast' inbody inquery alice ac msg
+  let -- add extraneous query parameter (unless using query parameter API)
+      inquery = case bAPI bcast of
+        BroadcastLegacyQueryParams -> id
+        _ -> queryItem "report_missing" (toByteString' alice)
+      msg = [(alice, ac, ciphertext)]
+  Util.postBroadcast alice ac bcast {bMessage = msg, bType = BroadcastProto, bReport = Just [bob], bReq = inquery}
     !!! const 412 === statusCode
 
-postCryptoBroadcastMessageNoTeam :: TestM ()
-postCryptoBroadcastMessageNoTeam = do
+postCryptoBroadcastMessageNoTeam :: Broadcast -> TestM ()
+postCryptoBroadcastMessageNoTeam bcast = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   connectUsers alice (list1 bob [])
   let msg = [(bob, bc, toBase64Text "ciphertext1")]
-  Util.postOtrBroadcastMessage id alice ac msg !!! const 404 === statusCode
+  Util.postBroadcast alice ac bcast {bMessage = msg} !!! const 404 === statusCode
 
-postCryptoBroadcastMessage100OrMaxConns :: TestM ()
-postCryptoBroadcastMessage100OrMaxConns = do
+postCryptoBroadcastMessage100OrMaxConns :: Broadcast -> TestM ()
+postCryptoBroadcastMessage100OrMaxConns bcast = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
@@ -1871,7 +1880,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
   WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
     let f (u, clt) = (u, clt, toBase64Text "ciphertext")
     let msg = (bob, bc, toBase64Text "ciphertext") : (f <$> others)
-    Util.postOtrBroadcastMessage id alice ac msg !!! do
+    Util.postBroadcast alice ac bcast {bMessage = msg} !!! do
       const 201 === statusCode
       assertMismatch [] [] []
     let qbobself = Qualified (selfConv bob) localDomain

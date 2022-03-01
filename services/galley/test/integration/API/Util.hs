@@ -42,6 +42,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Data (Proxy (Proxy))
+import Data.Default
 import Data.Domain
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
@@ -711,23 +712,59 @@ postProteusMessageQualified senderUser senderClient (Qualified conv domain) reci
       . contentProtobuf
       . bytes (Protolens.encodeMessage protoMsg)
 
--- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
-postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage req usrs clt rcps = do
-  g <- view tsGalley
-  postOtrBroadcastMessage' g Nothing req usrs clt rcps
+data BroadcastAPI
+  = BroadcastLegacyQueryParams
+  | BroadcastLegacyBody
+  | BroadcastQualified
 
--- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
-postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
-postOtrBroadcastMessage' g reportMissingBody f u d rec =
+data BroadcastType = BroadcastJSON | BroadcastProto
+
+broadcastAPIName :: BroadcastAPI -> String
+broadcastAPIName BroadcastLegacyQueryParams = "legacy API with query parameters only"
+broadcastAPIName BroadcastLegacyBody = "legacy API with report_missing in the body"
+broadcastAPIName BroadcastQualified = "qualified API"
+
+data Broadcast = Broadcast
+  { bAPI :: BroadcastAPI,
+    bType :: BroadcastType,
+    bMessage :: [(UserId, ClientId, Text)],
+    bReport :: Maybe [UserId],
+    bReq :: Request -> Request
+  }
+
+instance Default Broadcast where
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty mempty id
+
+postBroadcast ::
+  (MonadIO m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  ClientId ->
+  Broadcast ->
+  m ResponseLBS
+postBroadcast u c b = do
+  g <- viewGalley
+  let (bodyReport, queryReport) = case bAPI b of
+        BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
+        BroadcastLegacyBody -> (bReport b, id)
+        BroadcastQualified -> error "TODO"
+  let bdy = case bType b of
+        BroadcastJSON -> json (mkOtrPayload c (bMessage b) bodyReport)
+        BroadcastProto ->
+          let m =
+                runPut . encodeMessage $
+                  mkOtrProtoMessage c (otrRecipients (bMessage b)) bodyReport
+           in contentProtobuf . bytes m
   post $
-    g
-      . f
+    g . bReq b
       . paths ["broadcast", "otr", "messages"]
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec reportMissingBody)
+      . queryReport
+      . bdy
+
+mkOtrReportMissing :: [UserId] -> Request -> Request
+mkOtrReportMissing = queryItem "report_missing" . BS.intercalate "," . map toByteString'
 
 mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Value
 mkOtrPayload sender rec reportMissingBody =
@@ -755,23 +792,6 @@ postProtoOtrMessage' reportMissing modif u d c rec = do
         g
           . modif
           . paths ["conversations", toByteString' c, "otr", "messages"]
-          . zUser u
-          . zConn "conn"
-          . zType "access"
-          . contentProtobuf
-          . bytes m
-
-postProtoOtrBroadcast :: UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrBroadcast = postProtoOtrBroadcast' Nothing id
-
-postProtoOtrBroadcast' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrBroadcast' reportMissing modif u d rec = do
-  g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
-   in post $
-        g
-          . modif
-          . paths ["broadcast", "otr", "messages"]
           . zUser u
           . zConn "conn"
           . zType "access"
@@ -1964,10 +1984,13 @@ assertMismatchQualified failedToSend missing redundant deleted = do
 
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
 
-otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
-otrRecipients = OtrRecipients . UserClientMap . buildMap
-  where
-    buildMap = fmap Map.fromList . Map.fromList
+otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
+otrRecipients =
+  OtrRecipients
+    . UserClientMap
+    . fmap Map.fromList
+    . foldr (uncurry Map.insert . fmap pure) mempty
+    . map (\(a, b, c) -> (a, (b, c)))
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
