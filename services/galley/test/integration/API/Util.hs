@@ -47,7 +47,7 @@ import Data.Domain
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util hiding ((#))
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
@@ -674,7 +674,7 @@ postOtrMessage' reportMissing f u d c rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec reportMissing)
+      . json (mkOtrPayload d rec reportMissing "ZXhhbXBsZQ==")
 
 postProteusMessageQualifiedWithMockFederator ::
   UserId ->
@@ -717,42 +717,61 @@ data BroadcastAPI
   | BroadcastLegacyBody
   | BroadcastQualified
 
-data BroadcastType = BroadcastJSON | BroadcastProto
-
 broadcastAPIName :: BroadcastAPI -> String
 broadcastAPIName BroadcastLegacyQueryParams = "legacy API with query parameters only"
 broadcastAPIName BroadcastLegacyBody = "legacy API with report_missing in the body"
 broadcastAPIName BroadcastQualified = "qualified API"
 
+data BroadcastType = BroadcastJSON | BroadcastProto
+
+broadcastTypeName :: BroadcastType -> String
+broadcastTypeName BroadcastJSON = "json"
+broadcastTypeName BroadcastProto = "protobuf"
+
 data Broadcast = Broadcast
   { bAPI :: BroadcastAPI,
     bType :: BroadcastType,
     bMessage :: [(UserId, ClientId, Text)],
+    bData :: Text,
     bReport :: Maybe [UserId],
     bReq :: Request -> Request
   }
 
 instance Default Broadcast where
-  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty mempty id
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty id
 
 postBroadcast ::
   (MonadIO m, MonadHttp m, HasGalley m) =>
-  UserId ->
+  Qualified UserId ->
   ClientId ->
   Broadcast ->
   m ResponseLBS
-postBroadcast u c b = do
+postBroadcast lu c b = do
+  let u = qUnqualified lu
   g <- viewGalley
   let (bodyReport, queryReport) = case bAPI b of
         BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
-        BroadcastLegacyBody -> (bReport b, id)
-        BroadcastQualified -> error "TODO"
-  let bdy = case bType b of
-        BroadcastJSON -> json (mkOtrPayload c (bMessage b) bodyReport)
-        BroadcastProto ->
+        _ -> (bReport b, id)
+  let bdy = case (bAPI b, bType b) of
+        (BroadcastQualified, BroadcastJSON) -> error "JSON not supported for the qualified broadcast API"
+        (BroadcastQualified, BroadcastProto) ->
+          let m =
+                Protolens.encodeMessage $
+                  mkQualifiedOtrPayload
+                    c
+                    (map ((_1 %~ (lu $>)) . (_3 %~ fromBase64TextLenient)) (bMessage b))
+                    (fromBase64TextLenient (bData b))
+                    ( maybe
+                        MismatchReportAll
+                        (MismatchReportOnly . Set.fromList . map (lu $>))
+                        (bReport b)
+                    )
+           in contentProtobuf . bytes m
+        (_, BroadcastJSON) -> json (mkOtrPayload c (bMessage b) bodyReport (bData b))
+        (_, BroadcastProto) ->
           let m =
                 runPut . encodeMessage $
-                  mkOtrProtoMessage c (otrRecipients (bMessage b)) bodyReport
+                  mkOtrProtoMessage c (otrRecipients (bMessage b)) bodyReport (bData b)
            in contentProtobuf . bytes m
   post $
     g . bReq b
@@ -766,12 +785,12 @@ postBroadcast u c b = do
 mkOtrReportMissing :: [UserId] -> Request -> Request
 mkOtrReportMissing = queryItem "report_missing" . BS.intercalate "," . map toByteString'
 
-mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Value
-mkOtrPayload sender rec reportMissingBody =
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Text -> Value
+mkOtrPayload sender rec reportMissingBody ad =
   object
     [ "sender" .= sender,
       "recipients" .= (HashMap.map toJSON . HashMap.fromListWith HashMap.union $ map mkOtrMessage rec),
-      "data" .= Just ("data" :: Text),
+      "data" .= Just ad,
       "report_missing" .= reportMissingBody
     ]
 
@@ -787,7 +806,7 @@ postProtoOtrMessage = postProtoOtrMessage' Nothing id
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing "ZXhhbXBsZQ==")
    in post $
         g
           . modif
@@ -798,13 +817,13 @@ postProtoOtrMessage' reportMissing modif u d c rec = do
           . contentProtobuf
           . bytes m
 
-mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Proto.NewOtrMessage
-mkOtrProtoMessage sender rec reportMissing =
+mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Text -> Proto.NewOtrMessage
+mkOtrProtoMessage sender rec reportMissing ad =
   let rcps = protoFromOtrRecipients rec
       sndr = Proto.fromClientId sender
       rmis = Proto.fromUserId <$> fromMaybe [] reportMissing
    in Proto.newOtrMessage sndr rcps
-        & Proto.newOtrMessageData ?~ "data"
+        & Proto.newOtrMessageData ?~ fromBase64TextLenient ad
         & Proto.newOtrMessageReportMissing .~ rmis
 
 getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
@@ -1419,7 +1438,7 @@ wsAssertOtr ::
   Text ->
   Notification ->
   IO ()
-wsAssertOtr = wsAssertOtr' "data"
+wsAssertOtr = wsAssertOtr' "ZXhhbXBsZQ=="
 
 wsAssertOtr' ::
   HasCallStack =>
