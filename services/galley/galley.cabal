@@ -599,7 +599,7 @@ executable galley-schema
       V58_ConversationAccessRoleV2
       V59_FileSharingLockStatus
       V60_TeamFeatureSndFactorPasswordChallenge
-      V61_MLSCreateConversation
+      V61_MLSConversation
       Paths_galley
   hs-source-dirs:
       schema/src

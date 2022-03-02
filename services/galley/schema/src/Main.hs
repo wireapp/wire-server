@@ -63,7 +63,7 @@ import qualified V57_GuestLinksLockStatus
 import qualified V58_ConversationAccessRoleV2
 import qualified V59_FileSharingLockStatus
 import qualified V60_TeamFeatureSndFactorPasswordChallenge
-import qualified V61_MLSCreateConversation
+import qualified V61_MLSConversation
 
 main :: IO ()
 main = do
@@ -113,7 +113,7 @@ main = do
       V58_ConversationAccessRoleV2.migration,
       V59_FileSharingLockStatus.migration,
       V60_TeamFeatureSndFactorPasswordChallenge.migration,
-      V61_MLSCreateConversation.migration
+      V61_MLSConversation.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
