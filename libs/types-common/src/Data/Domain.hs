@@ -31,14 +31,16 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
+import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
+import GHC.TypeLits
 import Imports hiding (isAlphaNum)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (Arbitrary (arbitrary))
+import Test.QuickCheck (Arbitrary (arbitrary), Gen)
 import qualified Test.QuickCheck as QC
 import Util.Attoparsec (takeUpToWhile)
 
@@ -97,7 +99,7 @@ instance FromHttpApiData Domain where
 instance ToHttpApiData Domain where
   toUrlPiece = toUrlPiece . _domainText
 
-domainParser :: Maybe Int -> Atto.Parser Domain
+domainParser :: Maybe Word -> Atto.Parser Domain
 domainParser domainLimit = do
   parts <- domainLabel `Atto.sepBy1` Atto.char '.'
   when (length parts < 2) $
@@ -105,7 +107,7 @@ domainParser domainLimit = do
   when (isDigit (BS.Char8.head (last parts))) $
     fail "Invalid domain name: last label cannot start with digit"
   let bs = BS.intercalate "." parts
-  when (BS.length bs > fromMaybe 253 domainLimit) $
+  when (BS.length bs > maybe 253 fromIntegral domainLimit) $
     fail "Invalid domain name: too long"
   case Text.E.decodeUtf8' bs of
     Left err -> fail $ "Invalid UTF-8 in Domain: " <> show err
@@ -129,13 +131,22 @@ instance FromJSONKey Domain where
 
 instance Arbitrary Domain where
   arbitrary =
-    either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary
+    either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary @(DomainText 255)
 
--- | only for QuickCheck
-newtype DomainText = DomainText {getDomainText :: Text}
+-- | Generate a domain of at most 240 characters that can be used for MLS group
+-- IDs.
+mlsDomain :: Gen Domain
+mlsDomain =
+  either (error . ("arbitrary @Domain: " <>)) id . mkMLSDomain . getDomainText <$> arbitrary @(DomainText 240)
+
+-- | Only for QuickCheck. The type variable is used in the value generator to
+-- limit the length of the domain text. This is useful in generating a domain
+-- that is used in the current semantics of an MLS group ID where it corresponds
+-- to a qualified conversation UUID, limiting the domain to 240 bytes.
+newtype DomainText (lenLimit :: Nat) = DomainText {getDomainText :: Text}
   deriving (Eq, Show)
 
-instance Arbitrary DomainText where
+instance KnownNat lenLimit => Arbitrary (DomainText lenLimit) where
   arbitrary = DomainText <$> domain
     where
       -- <domain> ::= <label> "." <tld> | <label> "." <domain>
@@ -144,7 +155,7 @@ instance Arbitrary DomainText where
           [ conc [label, pure ".", tldLabel],
             conc [label, pure ".", domain]
           ]
-          `QC.suchThat` ((<= 255) . Text.length)
+          `QC.suchThat` ((<= (fromIntegral . natVal $ Proxy @lenLimit)) . Text.length)
       -- <tld> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
       tldLabel =
         conc [letter, opt (conc [opt ldhStr, letDig])]

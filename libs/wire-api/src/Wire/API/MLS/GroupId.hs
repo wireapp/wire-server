@@ -16,22 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.GroupId
-  ( GroupId,
-    mkGroupId,
-    serialise,
-    toConvId,
-    fromConvId,
+  ( GroupId (..),
+    parseConvId,
+
+    -- * Convenience utilities
+    convIdToGroupId,
+    decodeConvId,
   )
 where
 
 import Control.Error.Util
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
-import Data.ByteString
-import Data.ByteString.Lazy (fromStrict, toStrict)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Either.Combinators
 import Data.Id
+import Data.Json.Util (Base64ByteString (Base64ByteString, fromBase64ByteString), base64Schema)
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
@@ -40,58 +41,56 @@ import Data.UUID
 import Imports hiding (drop, length, take)
 import Wire.API.Arbitrary
 
--- | An MLS group ID
-newtype GroupId = GroupId {unGroupId :: Qualified ConvId}
+-- | An MLS group ID. It is represented as a byte sequence.
+newtype GroupId = GroupId {unGroupId :: LBS.ByteString}
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform GroupId)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
 
-instance ToSchema GroupId where
-  -- SchemaP NamedSwaggerDoc Value Value GroupId GroupId
-  -- parsedText "Group ID" :: (Text -> Either String GroupId) -> SchemaP NamedSwaggerDoc Value Value Text GroupId
-  -- schema = _ -- parsedText "Group ID" (mapLeft show . mkGroupId)
-  schema =
-    mkSchema
-      undefined
-      (A.withText "Group ID" f)
-      (Just . A.String . T.decodeUtf8 . serialise)
-    where
-      f :: Text -> A.Parser GroupId
-      f = either fail pure . mkGroupId . T.encodeUtf8
+instance Arbitrary GroupId where
+  arbitrary = fmap convIdToGroupId $ Qualified <$> arbitrary <*> mlsDomain
 
--- | Parse a ''GroupId' from a byte sequence in the network order.
-mkGroupId :: ByteString -> Either String GroupId
-mkGroupId ((<= 256) . length -> False) = Left "GroupId: it has to be up to 256 bytes in size"
-mkGroupId bs = do
+instance ToSchema GroupId where
+  schema =
+    GroupId
+      <$> unGroupId
+      .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString base64Schema)
+
+-- | Parse a 'GroupId' byte sequence in the network order as a qualified
+-- conversation ID.
+parseConvId :: GroupId -> A.Parser (Qualified ConvId)
+parseConvId ((<= 256) . LBS.length . unGroupId -> False) =
+  fail "GroupId: it has to be up to 256 bytes in size"
+parseConvId (GroupId bs) = do
   convId <-
-    fmap Id
+    either fail (pure . Id)
       . note "Not a UUID"
       . fromByteString
-      . fromStrict
-      $ take l bs
+      $ LBS.take l bs
   domain <-
-    mkMLSDomain
-      =<< ( mapLeft show
-              . T.decodeUtf8'
-              $ drop l bs
-          )
-  pure . GroupId $ Qualified convId domain
+    either fail pure $
+      mkMLSDomain
+        =<< ( mapLeft show
+                . T.decodeUtf8'
+                . LBS.toStrict
+                $ LBS.drop l bs
+            )
+  pure $ Qualified convId domain
   where
     l = 16
-
--- | Serialise a 'GroupId' into a byte sequence in the network order.
-serialise :: GroupId -> ByteString
-serialise (unGroupId -> Qualified (Id cnvId) (Domain domain)) =
-  toStrict (toByteString cnvId) <> T.encodeUtf8 domain
 
 -- | Currently the mapping from a group ID to a conversation ID is
 -- straightforward, but in the future it might be more involved if the
 -- representation is to change.
-toConvId :: GroupId -> Qualified ConvId
-toConvId = unGroupId
+decodeConvId :: GroupId -> Either String (Qualified ConvId)
+decodeConvId = A.parseEither parseConvId
 
--- | Currently the mapping from a conversation ID to a group ID is
+-- | Serialise a 'Qualified ConvId' into a byte sequence in the network order
+-- that is used as a group ID.
+--
+-- Currently the mapping from a conversation ID to a group ID is
 -- straightforward, but in the future it might be more involved if the
 -- representation is to change.
-fromConvId :: Qualified ConvId -> GroupId
-fromConvId = GroupId
+convIdToGroupId :: Qualified ConvId -> GroupId
+convIdToGroupId (Qualified (Id cnvId) (Domain domain)) =
+  GroupId $
+    toByteString cnvId <> LBS.fromStrict (T.encodeUtf8 domain)

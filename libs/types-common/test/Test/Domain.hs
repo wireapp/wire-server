@@ -68,9 +68,9 @@ testDomainSerialization =
           Left _ -> pure ()
           Right parsed -> assertFailure $ "invalid domain parsed successfully: " <> show (h, parsed),
     testProperty "Arbitrary DomainText generates valid domains" $
-      \(DomainText x) ->
+      \((DomainText x) :: DomainText 255) ->
         isRight $ mkDomain x,
     testProperty "parsing a domain normalizes it" $
-      \(DomainText x) ->
+      \((DomainText x) :: DomainText 255) ->
         (domainText <$> mkDomain x) === Right (Text.toCaseFold x)
   ]
