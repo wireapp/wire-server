@@ -47,5 +47,6 @@
     ],
     "found": 3,
     "returned": 2,
+    "search_policy": "exact_handle_search",
     "took": -1
 }

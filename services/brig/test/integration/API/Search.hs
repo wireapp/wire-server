@@ -65,7 +65,9 @@ import Text.RawString.QQ (r)
 import qualified URI.ByteString as URI
 import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
+import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -457,18 +459,19 @@ testSearchOtherDomain opts brig = do
   -- We cannot assert on a real federated request here, so we make a request to
   -- a mocked federator started and stopped during this test
   otherSearchResult :: [Contact] <- liftIO $ generate arbitrary
-  let mockResponse = Aeson.encode otherSearchResult
-  (results, _) <- liftIO . withTempMockFederator opts mockResponse $ do
+  let mockResponse = Aeson.encode (SearchResponse otherSearchResult ExactHandleSearch)
+  (searchResult, _) <- liftIO . withTempMockFederator opts mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   let expectedResult =
         SearchResult
           { searchResults = otherSearchResult,
             searchFound = length otherSearchResult,
             searchReturned = length otherSearchResult,
-            searchTook = 0
+            searchTook = 0,
+            searchPolicy = ExactHandleSearch
           }
   liftIO $ do
-    assertEqual "The search request should get its result from federator" expectedResult results
+    assertEqual "The search request should get its result from federator" expectedResult searchResult
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices

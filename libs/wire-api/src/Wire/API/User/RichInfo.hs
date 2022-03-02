@@ -47,13 +47,12 @@ module Wire.API.User.RichInfo
 where
 
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashMap.Strict as HashMap
-import Data.Hashable (Hashable)
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import Data.String.Conversions (cs)
@@ -160,7 +159,7 @@ modelRichInfo = Doc.defineModel "RichInfo" $ do
 instance ToJSON RichInfoMapAndList where
   toJSON u =
     object
-      [ richInfoAssocListURN
+      [ Key.fromText richInfoAssocListURN
           .= object
             [ "richInfo"
                 .= object
@@ -168,33 +167,33 @@ instance ToJSON RichInfoMapAndList where
                     "version" .= (0 :: Int)
                   ]
             ],
-        richInfoMapURN .= Map.mapKeys CI.original (richInfoMap u)
+        Key.fromText richInfoMapURN .= Map.mapKeys CI.original (richInfoMap u)
       ]
 
 instance FromJSON RichInfoMapAndList where
   parseJSON =
     withObject "RichInfo" $
       \o ->
-        let objWithCIKeys = hmMapKeys CI.mk o
+        let objWithCIKeys = mapKeys CI.mk (KeyMap.toMapText o)
          in normalizeRichInfoMapAndList
               <$> ( RichInfoMapAndList
                       <$> extractMap objWithCIKeys
                       <*> extractAssocList objWithCIKeys
                   )
     where
-      extractMap :: HashMap (CI Text) Value -> Aeson.Parser (Map (CI Text) Text)
+      extractMap :: Map (CI Text) Value -> Aeson.Parser (Map (CI Text) Text)
       extractMap o =
-        case HM.lookup (CI.mk richInfoMapURN) o of
+        case Map.lookup (CI.mk richInfoMapURN) o of
           Nothing -> pure mempty
           Just innerObj -> do
             Map.mapKeys CI.mk <$> parseJSON innerObj
 
-      extractAssocList :: HashMap (CI Text) Value -> Aeson.Parser [RichField]
+      extractAssocList :: Map (CI Text) Value -> Aeson.Parser [RichField]
       extractAssocList o =
-        case HM.lookup (CI.mk richInfoAssocListURN) o of
+        case Map.lookup (CI.mk richInfoAssocListURN) o of
           Nothing -> pure []
           Just (Object innerObj) -> do
-            richInfo <- lookupOrFail "richinfo" $ hmMapKeys CI.mk innerObj
+            richInfo <- lookupOrFail "richinfo" $ mapKeys CI.mk (KeyMap.toMapText innerObj)
             case richInfo of
               Object richinfoObj -> do
                 richInfoAssocListFromObject richinfoObj
@@ -202,11 +201,11 @@ instance FromJSON RichInfoMapAndList where
               v -> Aeson.typeMismatch "Object or Array" v
           Just v -> Aeson.typeMismatch "Object" v
 
-      hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
-      hmMapKeys f = HashMap.fromList . map (Data.Bifunctor.first f) . HashMap.toList
+      mapKeys :: (Eq k2, Ord k2) => (k1 -> k2) -> Map k1 v -> Map k2 v
+      mapKeys f = Map.fromList . map (Data.Bifunctor.first f) . Map.toList
 
-      lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
-      lookupOrFail key theMap = case HM.lookup key theMap of
+      lookupOrFail :: (MonadFail m, Show k, Eq k, Ord k) => k -> Map k v -> m v
+      lookupOrFail key theMap = case Map.lookup key theMap of
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
         Just v -> return v
 

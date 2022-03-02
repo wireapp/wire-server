@@ -21,6 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
+import Test.Wire.API.Golden.Manual.Contact
 import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationPagingState
@@ -30,6 +31,7 @@ import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
+import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
@@ -108,5 +110,9 @@ tests =
             (testObject_CreateScimToken_2, "testObject_CreateScimToken_2.json"),
             (testObject_CreateScimToken_3, "testObject_CreateScimToken_3.json"),
             (testObject_CreateScimToken_4, "testObject_CreateScimToken_4.json")
-          ]
+          ],
+      testGroup "Contact" $
+        testObjects [(testObject_Contact_1, "testObject_Contact_1.json"), (testObject_Contact_2, "testObject_Contact_2.json")],
+      testGroup "SearchResult Contact" $
+        testObjects [(testObject_SearchResultContact_1, "testObject_SearchResultContact_1.json")]
     ]

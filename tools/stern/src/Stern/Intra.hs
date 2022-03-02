@@ -70,14 +70,15 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (emptyArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
+import qualified Data.Map as Map
 import Data.Qualified (qUnqualified)
 import Data.String.Conversions (cs)
 import Data.Text (strip)
@@ -691,7 +692,7 @@ getMarketoResult email = do
     404 -> return noEmail
     _ -> throwE (mkError status502 "bad-upstream" "")
   where
-    noEmail = MarketoResult $ M.singleton "results" emptyArray
+    noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
 
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do
@@ -786,7 +787,7 @@ getUserProperties uid = do
         )
   info $ msg ("Response" ++ show r)
   keys <- parseResponse (mkError status502 "bad-upstream") r :: Handler [PropertyKey]
-  UserProperties <$> fetchProperty b keys M.empty
+  UserProperties <$> fetchProperty b keys mempty
   where
     fetchProperty _ [] acc = return acc
     fetchProperty b (x : xs) acc = do
@@ -802,7 +803,7 @@ getUserProperties uid = do
             )
       info $ msg ("Response" ++ show r)
       value <- parseResponse (mkError status502 "bad-upstream") r
-      fetchProperty b xs (M.insert x value acc)
+      fetchProperty b xs (Map.insert x value acc)
 
 getUserNotifications :: UserId -> Handler [QueuedNotification]
 getUserNotifications uid = do

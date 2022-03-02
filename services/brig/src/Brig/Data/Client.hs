@@ -41,6 +41,9 @@ module Brig.Data.Client
   )
 where
 
+import qualified Amazonka as AWS
+import qualified Amazonka.DynamoDB as AWS
+import qualified Amazonka.DynamoDB.Lens as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
@@ -70,9 +73,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Imports
-import qualified Network.AWS as AWS
-import qualified Network.AWS.Data as AWS
-import qualified Network.AWS.DynamoDB as AWS
 import System.CryptoBox (Result (Success))
 import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
@@ -325,7 +325,7 @@ ddbVersion :: Text
 ddbVersion = "version"
 
 ddbKey :: UserId -> ClientId -> AWS.AttributeValue
-ddbKey u c = AWS.attributeValue & AWS.avS ?~ UUID.toText (toUUID u) <> "." <> client c
+ddbKey u c = AWS.S (UUID.toText (toUUID u) <> "." <> client c)
 
 key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
 key u c = HashMap.singleton ddbClient (ddbKey u c)
@@ -334,7 +334,7 @@ deleteOptLock :: UserId -> ClientId -> (AppIO r) ()
 deleteOptLock u c = do
   t <- view (awsEnv . prekeyTable)
   e <- view (awsEnv . amazonkaEnv)
-  void $ exec e (AWS.deleteItem t & AWS.diKey .~ (key u c))
+  void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
 withOptLock :: forall effs a. UserId -> ClientId -> (AppIO effs) a -> (AppIO effs) a
 withOptLock u c ma = go (10 :: Int)
@@ -348,30 +348,32 @@ withOptLock u c ma = go (10 :: Int)
         Nothing -> reportFailureAndLogError >> return a
         Just _ -> return a
     version :: AWS.GetItemResponse -> Maybe Word32
-    version v = conv =<< HashMap.lookup ddbVersion (view AWS.girsItem v)
+    version v = conv =<< HashMap.lookup ddbVersion (view AWS.getItemResponse_item v)
       where
         conv :: AWS.AttributeValue -> Maybe Word32
-        conv = readMaybe . Text.unpack <=< view AWS.avN
+        conv = \case
+          AWS.N t -> readMaybe $ Text.unpack t
+          _ -> Nothing
     get :: Text -> AWS.GetItem
     get t =
-      AWS.getItem t & AWS.giKey .~ (key u c)
-        & AWS.giConsistentRead ?~ True
+      AWS.newGetItem t & AWS.getItem_key .~ key u c
+        & AWS.getItem_consistentRead ?~ True
     put :: Maybe Word32 -> Text -> AWS.PutItem
     put v t =
-      AWS.putItem t & AWS.piItem .~ item v
-        & AWS.piExpected .~ check v
+      AWS.newPutItem t & AWS.putItem_item .~ item v
+        & AWS.putItem_expected ?~ check v
     check :: Maybe Word32 -> HashMap Text AWS.ExpectedAttributeValue
-    check Nothing = HashMap.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.Null
+    check Nothing = HashMap.singleton ddbVersion $ AWS.newExpectedAttributeValue & AWS.expectedAttributeValue_comparisonOperator ?~ AWS.ComparisonOperator_NULL
     check (Just v) =
       HashMap.singleton ddbVersion $
-        AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.EQ'
-          & AWS.eavAttributeValueList .~ [toAttributeValue v]
+        AWS.newExpectedAttributeValue & AWS.expectedAttributeValue_comparisonOperator ?~ AWS.ComparisonOperator_EQ
+          & AWS.expectedAttributeValue_attributeValueList ?~ [toAttributeValue v]
     item :: Maybe Word32 -> HashMap Text AWS.AttributeValue
     item v =
       HashMap.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+ 1) v)) $
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
-    toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
+    toAttributeValue w = AWS.N $ AWS.toText (fromIntegral w :: Int)
     reportAttemptFailure :: (AppIO effs) ()
     reportAttemptFailure =
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
@@ -382,7 +384,7 @@ withOptLock u c ma = go (10 :: Int)
           . Log.field "client" (toByteString' c)
           . msg (val "PreKeys: Optimistic lock failed")
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
-    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.Rs r -> Maybe x) -> (Text -> r) -> (AppIO effs) (Maybe x)
+    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.AWSResponse r -> Maybe x) -> (Text -> r) -> (AppIO effs) (Maybe x)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
@@ -394,7 +396,7 @@ withOptLock u c ma = go (10 :: Int)
           AWS.AWSRequest p =>
           AWS.Env ->
           Metrics.Metrics ->
-          (AWS.Rs p -> Maybe y) ->
+          (AWS.AWSResponse p -> Maybe y) ->
           p ->
           IO (Maybe y)
         execDyn' e m conv cmd = recovering policy handlers (const run)

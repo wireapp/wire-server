@@ -19,7 +19,7 @@ module Test.Wire.API.User.Search where
 
 import Data.Aeson (encode, toJSON)
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.String.Conversions (cs)
 import Imports
 import qualified Test.Tasty as T
@@ -36,6 +36,6 @@ searchResultBackwardsCompatibility =
     $ \(c :: Contact) ->
       let prop =
             case toJSON c of
-              Aeson.Object o -> "id" `elem` HashMap.keys o
+              Aeson.Object o -> "id" `elem` KeyMap.keys o
               _ -> False
        in counterexample ("This json doesn't contain 'id': \n" <> cs (encode c)) prop

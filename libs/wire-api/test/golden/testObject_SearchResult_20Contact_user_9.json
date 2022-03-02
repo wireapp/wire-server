@@ -2,5 +2,6 @@
     "documents": [],
     "found": -5,
     "returned": -6,
+    "search_policy": "full_search",
     "took": 3
 }

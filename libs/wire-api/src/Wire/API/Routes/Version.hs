@@ -15,11 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Version where
+module Wire.API.Routes.Version
+  ( -- * API version endpoint
+    VersionAPI,
+    VersionInfo (..),
+    versionSwagger,
+
+    -- * Version
+    Version (..),
+    supportedVersions,
+    readVersionNumber,
+    mkVersion,
+  )
+where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
+import Data.Domain
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
@@ -56,13 +69,28 @@ mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
-newtype VersionInfo = VersionInfo {vinfoSupported :: [Version]}
+data VersionInfo = VersionInfo
+  { vinfoSupported :: [Version],
+    vinfoFederation :: Bool,
+    vinfoDomain :: Domain
+  }
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VersionInfo)
 
 instance ToSchema VersionInfo where
   schema =
-    (S.schema . S.example ?~ toJSON (VersionInfo supportedVersions))
-      (VersionInfo <$> vinfoSupported .= vinfoSchema schema)
+    objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
+      VersionInfo
+        <$> vinfoSupported .= vinfoObjectSchema schema
+        <*> vinfoFederation .= field "federation" schema
+        <*> vinfoDomain .= field "domain" schema
+    where
+      example :: VersionInfo
+      example =
+        VersionInfo
+          { vinfoSupported = supportedVersions,
+            vinfoFederation = False,
+            vinfoDomain = Domain "example.com"
+          }
 
 type VersionAPI =
   Named
@@ -70,11 +98,6 @@ type VersionAPI =
     ( "api-version"
         :> Get '[JSON] VersionInfo
     )
-
-versionAPI :: Applicative m => ServerT VersionAPI m
-versionAPI =
-  Named @"get-version" $
-    pure . VersionInfo $ supportedVersions
 
 versionSwagger :: S.Swagger
 versionSwagger = toSwagger (Proxy @VersionAPI)

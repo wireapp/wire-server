@@ -37,11 +37,12 @@ module Bonanza.Streaming.Kibana
 where
 
 import Bonanza.Types
-import Control.Lens ((^.))
+import Control.Lens (ifoldl', over, (^.))
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.HashMap.Strict as Map
 import Data.Text (pack)
 import qualified Data.Text as T
 import Data.Time
@@ -104,10 +105,13 @@ fromLogEvent evt = do
     -- replace them by underscore
     dedotKeys =
       Tags
-        . Map.foldlWithKey'
-          (\m k v -> Map.insert (T.replace "." "_" k) v m)
-          Map.empty
+        . ifoldl'
+          (\k m v -> KeyMap.insert (k & over keyTextL (T.replace "." "_")) v m)
+          KeyMap.empty
         . fromTags
+
+keyTextL :: Functor f => (Text -> f Text) -> Key -> f Key
+keyTextL f key = fmap Key.fromText (f (Key.toText key))
 
 jsonEncode :: Text -> KibanaEvent -> BL.ByteString
 jsonEncode idxpre kev@KibanaEvent {..} =
@@ -127,13 +131,13 @@ jsonEncode idxpre kev@KibanaEvent {..} =
           _type = fromMaybe "generic" srv,
           _id = mkDocId esTimestamp esTags
         }
-    srv = tagTxt $ Map.lookup "srv" (fromTags esTags)
+    srv = tagTxt $ KeyMap.lookup "srv" (fromTags esTags)
     idx = IndexName $ idxpre <> "-" <> ts
     ts = pack . showGregorian . localDay . zonedTimeToLocalTime $ esTimestamp
 
 mkDocId :: ZonedTime -> Tags -> Maybe Text
 mkDocId ts tgs =
-  if Map.member "srv" (fromTags tgs)
+  if KeyMap.member "srv" (fromTags tgs)
     then (<>) <$> requestId tgs <*> pure ("-" <> secs ts)
     else Nothing
   where
@@ -141,7 +145,7 @@ mkDocId ts tgs =
 
 requestId :: Tags -> Maybe Text
 requestId (Tags t) =
-  let rid = Map.lookup "request" t
+  let rid = KeyMap.lookup "request" t
    in mfilter (/= "N/A") (tagTxt rid)
 
 tagTxt :: Maybe TagValue -> Maybe Text

@@ -30,6 +30,7 @@ import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, 
 import Control.Lens (view, (%~), (.~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Lens
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
@@ -38,8 +39,8 @@ import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Range
@@ -172,7 +173,7 @@ replacePresence = do
     assertTrue "Old Cannon is removed" $
       notElem localhost8080 . map resource . decodePresence
   where
-    pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
+    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 removeStalePresence :: TestM ()
@@ -192,14 +193,14 @@ removeStalePresence = do
     sendPush (push (Just uid) [uid])
     ensurePresent uid 0
   where
-    pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
+    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 singleUserPush :: TestM ()
 singleUserPush = testSingleUserPush smallMsgPayload
   where
     -- JSON: {"foo":42}
-    smallMsgPayload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
+    smallMsgPayload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
 
 testSingleUserPush :: List1 Object -> TestM ()
 testSingleUserPush msgPayload = do
@@ -221,7 +222,7 @@ singleUserPushLargeMessage :: TestM ()
 singleUserPushLargeMessage = testSingleUserPush largeMsgPayload
   where
     -- JSON: {"list":["1","2", ... ,"10000"]}
-    largeMsgPayload = List1.singleton $ HashMap.fromList ["list" .= [show i | i <- [1 .. 10000] :: [Int]]]
+    largeMsgPayload = List1.singleton $ KeyMap.fromList ["list" .= [show i | i <- [1 .. 10000] :: [Int]]]
 
 -- | Create a number of users with a number of connections each, and connect each user's connections
 -- | Create a number of users with a number of connections each, and connect each user's connections
@@ -263,7 +264,7 @@ bulkPush isE2E numUsers numConnsPerUser = do
           where
             shoulds' = drop (length connids) shoulds
     ploadGroup :: List1 Aeson.Object
-    ploadGroup = List1.singleton $ HashMap.fromList [("foo" :: Text) .= (42 :: Int)]
+    ploadGroup = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
     pushGroup :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
     pushGroup u ucs = [newPush (Just u) (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
       where
@@ -271,7 +272,7 @@ bulkPush isE2E numUsers numConnsPerUser = do
           [ connid | (_, cns) <- ucs, (connid, shouldSend) <- cns, shouldSend
           ]
     ploadE2E :: ConnId -> List1 Aeson.Object
-    ploadE2E connid = List1.singleton $ HashMap.fromList ["connid" .= connid]
+    ploadE2E connid = List1.singleton $ KeyMap.fromList ["connid" .= connid]
     pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
     pushE2E u ucs =
       targets <&> \(uid, connid) ->
@@ -307,7 +308,7 @@ sendSingleUserNoPiggyback = do
     msg <- waitForMessage ch
     assertBool "Push message received" (isNothing msg)
   where
-    pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
+    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just d
 
 sendMultipleUsers :: TestM ()
@@ -339,7 +340,7 @@ sendMultipleUsers = do
   liftIO . forM_ [ntfs1, ntfs2] $ \ntfs -> do
     assertEqual "Not exactly 1 notification" 1 (length ntfs)
     let p = view queuedNotificationPayload (Prelude.head ntfs)
-    assertEqual "Wrong events in notification" pload p
+    assertEqual "Wrong events in notification" (List1.toNonEmpty pload) p
   -- 'uid3' should have two notifications, one for the message and one
   -- for the removed token.
   ntfs3 <- listNotifications uid3 Nothing
@@ -348,16 +349,16 @@ sendMultipleUsers = do
     let (n1, nx) = checkNotifications ntfs3
     -- The first notification must be the test payload
     let p1 = view queuedNotificationPayload n1
-    assertEqual "Wrong events in 1st notification" pload p1
+    assertEqual "Wrong events in 1st notification" (List1.toNonEmpty pload) p1
     -- Followed by at least one notification for the token removal
     forM_ nx $ \n ->
-      let p2 = fromJSON (Object (List1.head (n ^. queuedNotificationPayload)))
+      let p2 = fromJSON (Object (NonEmpty.head (n ^. queuedNotificationPayload)))
        in assertEqual "Wrong events in notification" (Success (PushRemove tok)) p2
   where
     checkNotifications [] = error "No notifications received!"
     checkNotifications (x : xs) = (x, xs)
     pload = List1.singleton pevent
-    pevent = HashMap.fromList ["foo" .= (42 :: Int)]
+    pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 targetConnectionPush :: TestM ()
@@ -374,7 +375,7 @@ targetConnectionPush = do
     assertBool "No push message received" (isJust e1)
     assertBool "Unexpected push message received" (isNothing e2)
   where
-    pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
+    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
     push u t = newPush (Just u) (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
 targetClientPush :: TestM ()
@@ -407,9 +408,9 @@ targetClientPush = do
   liftIO . forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
     assertEqual "Not exactly 1 notification" 1 (length ns)
     let p = view queuedNotificationPayload (Prelude.head ns)
-    assertEqual "Wrong events in notification" (pload c) p
+    assertEqual "Wrong events in notification" (List1.toNonEmpty (pload c)) p
   where
-    pevent c = HashMap.fromList ["foo" .= client c]
+    pevent c = KeyMap.fromList ["foo" .= client c]
     pload c = List1.singleton (pevent c)
     rcpt u c =
       recipient u RouteAny
@@ -435,7 +436,7 @@ testFetchAllNotifs = do
   liftIO $
     assertEqual
       "Unexpected notification payloads"
-      (replicate 10 pload)
+      (replicate 10 (List1.toNonEmpty pload))
       (map (view queuedNotificationPayload) ns)
 
 testFetchNewNotifs :: TestM ()
@@ -1131,7 +1132,7 @@ randomBytes :: MonadIO m => Int -> m ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n (randomIO :: IO Word8)
 
 textPayload :: Text -> List1 Object
-textPayload txt = List1.singleton (HashMap.fromList ["text" .= txt])
+textPayload txt = List1.singleton (KeyMap.fromList ["text" .= txt])
 
 parseNotification :: Response (Maybe BL.ByteString) -> Maybe QueuedNotification
 parseNotification = responseBody >=> decode

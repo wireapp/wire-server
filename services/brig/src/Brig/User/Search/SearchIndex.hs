@@ -38,6 +38,7 @@ import Data.Qualified (Qualified (Qualified))
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
+import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
 
 searchIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
@@ -72,7 +73,8 @@ queryIndex (IndexQuery q f _) s = do
             { searchFound = ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
-              searchResults = results
+              searchResults = results,
+              searchPolicy = FullSearch
             }
 
 userDocToContact :: MonadThrow m => Domain -> UserDoc -> m Contact

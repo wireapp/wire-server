@@ -46,7 +46,6 @@ import qualified Data.Text.Lazy.Builder.Int as T
 import Data.Text.Lazy.Builder.Scientific
 import Data.Time
 import Data.Time.Clock.POSIX
-import qualified Data.Vector as V
 import Imports
 import Network.HTTP.Types.Method
 import Test.QuickCheck hiding ((.&.))
@@ -239,16 +238,6 @@ instance Arbitrary FieldValue where
         [ utf8 . quoted <$> arbitrary,
           utf8 . unquoted <$> arbitrary
         ]
-
-instance Arbitrary TagValue where
-  arbitrary =
-    oneof
-      [ String . utf8 . unquoted <$> arbitrary,
-        Number . fromIntegral <$> (arbitrary :: Gen Int),
-        Number . realToFrac <$> (arbitrary :: Gen Double),
-        Bool <$> arbitrary,
-        Array . V.fromList <$> listOf (arbitrary :: Gen TagValue)
-      ]
 
 newtype Field = Field {field :: (AlphaNumeric, FieldValue)}
   deriving (Eq, Show)

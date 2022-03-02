@@ -24,6 +24,7 @@ module Brig.API.Util
     logEmail,
     traverseConcurrentlyWithErrors,
     exceptTToMaybe,
+    lookupSearchPolicy,
   )
 where
 
@@ -31,12 +32,16 @@ import Brig.API.Error
 import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.App (AppIO)
+import Brig.App (AppIO, settings)
 import qualified Brig.Data.User as Data
+import Brig.Options (FederationDomainConfig, federationDomainConfigs)
+import qualified Brig.Options as Opts
 import Brig.Types
 import Brig.Types.Intra (accountUser)
+import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
+import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
@@ -49,6 +54,7 @@ import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 import Wire.API.ErrorDescription
+import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -92,3 +98,12 @@ traverseConcurrentlyWithErrors f =
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
+
+lookupDomainConfig :: Domain -> (Handler r) (Maybe FederationDomainConfig)
+lookupDomainConfig domain = do
+  domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
+  pure $ find ((== domain) . Opts.domain) domainConfigs
+
+-- | If domain is not configured fall back to `FullSearch`
+lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)

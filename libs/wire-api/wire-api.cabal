@@ -36,6 +36,12 @@ library
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
+      Wire.API.MLS.CipherSuite
+      Wire.API.MLS.Credential
+      Wire.API.MLS.KeyPackage
+      Wire.API.MLS.Proposal
+      Wire.API.MLS.Serialisation
+      Wire.API.MLS.Servant
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
@@ -148,11 +154,12 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       QuickCheck >=2.14
-    , aeson >=0.6
+    , aeson >=2.0.1.0
     , attoparsec >=0.10
     , base ==4.*
     , base64-bytestring >=1.0
     , binary
+    , binary-parsers
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive
@@ -161,6 +168,7 @@ library
     , cereal
     , comonad
     , conduit
+    , constraints
     , containers >=0.5
     , cookie
     , cryptonite
@@ -457,6 +465,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual
       Test.Wire.API.Golden.Manual.ClientCapability
       Test.Wire.API.Golden.Manual.ClientCapabilityList
+      Test.Wire.API.Golden.Manual.Contact
       Test.Wire.API.Golden.Manual.ConversationCoverView
       Test.Wire.API.Golden.Manual.ConversationPagingState
       Test.Wire.API.Golden.Manual.ConversationsResponse
@@ -466,6 +475,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
+      Test.Wire.API.Golden.Manual.SearchResultContact
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserIdList
       Test.Wire.API.Golden.Protobuf
@@ -516,7 +526,7 @@ test-suite wire-api-golden-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck
-    , aeson >=0.6
+    , aeson >=2.0.1.0
     , aeson-pretty
     , aeson-qq
     , base
@@ -564,6 +574,7 @@ test-suite wire-api-tests
   other-modules:
       Test.Wire.API.Call.Config
       Test.Wire.API.Conversation
+      Test.Wire.API.MLS
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
@@ -620,7 +631,7 @@ test-suite wire-api-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck
-    , aeson >=0.6
+    , aeson >=2.0.1.0
     , aeson-pretty
     , aeson-qq
     , base
@@ -633,6 +644,7 @@ test-suite wire-api-tests
     , currency-codes
     , directory
     , filepath
+    , hex
     , hscim
     , imports
     , iso3166-country-codes

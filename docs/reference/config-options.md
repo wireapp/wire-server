@@ -417,3 +417,38 @@ This option is the default user locale to be used if it is not set in the user p
 optSettings:
   setDefaultUserLocale: en
 ```
+
+### MLS settings
+
+#### `setKeyPackageMaximumLifetime`
+
+This option specifies the maximum accepted lifetime of a key package from the moment it is uploaded, in seconds. For example, when brig is configured as follows:
+
+```
+# [brig.yaml]
+optSettings:
+  setKeyPackageMaximumLifetime: 1296000 # 15 days
+```
+
+any key package whose expiry date is set further than 15 days after upload time will be rejected.
+
+
+### Federated domain specific configuration settings 
+#### Restrict user search
+
+The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
+
+```yaml
+# [brig.yaml]
+optSettings:
+  setFederationDomainConfigs:
+    - domain: example.com
+      search_policy: no_search
+```
+
+Valid values for `search_policy` are:
+- `no_search`: No users are returned by federated searches.
+- `exact_handle_search`: Only users where the handle exactly matches are returned.
+- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+If there is no configuration for a domain, it's defaulted to `no_search`.

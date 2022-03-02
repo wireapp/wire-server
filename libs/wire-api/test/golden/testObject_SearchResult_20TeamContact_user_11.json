@@ -99,5 +99,6 @@
     ],
     "found": -5,
     "returned": 7,
+    "search_policy": "full_search",
     "took": 1
 }

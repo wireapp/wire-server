@@ -15,5 +15,6 @@
     ],
     "found": 1,
     "returned": 4,
+    "search_policy": "full_search",
     "took": -4
 }

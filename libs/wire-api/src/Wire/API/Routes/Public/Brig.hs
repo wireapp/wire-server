@@ -36,9 +36,11 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Servant
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
@@ -675,7 +677,48 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
-type BrigAPI = UserAPI :<|> SelfAPI :<|> ClientAPI :<|> PrekeyAPI :<|> UserClientAPI :<|> ConnectionAPI
+type MLSKeyPackageAPI =
+  "key-packages"
+    :> ( Named
+           "mls-key-packages-upload"
+           ( "self"
+               :> Summary "Upload a fresh batch of key packages"
+               :> Description "The request body should be a json object containing a list of base64-encoded key packages."
+               :> CanThrow MLSProtocolError
+               :> CanThrow MLSIdentityMismatch
+               :> CaptureClientId "client"
+               :> ReqBody '[JSON] KeyPackageUpload
+               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
+           )
+           :<|> ( Named
+                    "mls-key-packages-claim"
+                    ( "claim"
+                        :> Summary "Claim one key package for each client of the given user"
+                        :> QualifiedCaptureUserId "user"
+                        :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
+                    )
+                )
+           :<|> ( Named
+                    "mls-key-packages-count"
+                    ( "self"
+                        :> CaptureClientId "client"
+                        :> "count"
+                        :> Summary "Return the number of unused key packages for the given client"
+                        :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
+                    )
+                )
+       )
+
+type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
+
+type BrigAPI =
+  UserAPI
+    :<|> SelfAPI
+    :<|> ClientAPI
+    :<|> PrekeyAPI
+    :<|> UserClientAPI
+    :<|> ConnectionAPI
+    :<|> MLSAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)

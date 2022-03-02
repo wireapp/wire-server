@@ -24,9 +24,9 @@ import Brig.Types (DeletionCodeTimeout (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Proxy
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
@@ -100,7 +100,7 @@ throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
-    (Object o1, Object o2) -> Object (HashMap.union o1 o2)
+    (Object o1, Object o2) -> Object (KeyMap.union o1 o2)
     (j, _) -> j
 
 -- Error Mapping ----------------------------------------------------------

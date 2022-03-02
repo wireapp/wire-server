@@ -376,3 +376,14 @@ type InvalidAction = ErrorDescription 403 "invalid-actions" "The specified actio
 type PasswordAuthenticationFailed = ErrorDescription 403 "password-authentication-failed" "Password authentication failed."
 
 type CodeAuthenticationFailed = ErrorDescription 403 "code-authentication-failed" "Code authentication failed."
+
+type MLSProtocolError = ErrorDescription 400 "mls-protocol-error" "MLS protocol error"
+
+mlsProtocolError :: Text -> MLSProtocolError
+mlsProtocolError = ErrorDescription
+
+type MLSIdentityMismatch =
+  ErrorDescription
+    403
+    "mls-identity-mismatch"
+    "Prekey credential does not match qualified client ID"

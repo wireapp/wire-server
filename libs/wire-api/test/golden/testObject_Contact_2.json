@@ -1,0 +1,11 @@
+{
+    "accent_id": null,
+    "handle": null,
+    "id": "00000018-0000-0020-0000-000e00000003",
+    "name": "Foobar2",
+    "qualified_id": {
+        "domain": "another.example.com",
+        "id": "00000018-0000-0020-0000-000e00000003"
+    },
+    "team": null
+}

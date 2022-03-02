@@ -88,6 +88,7 @@ import Control.Comonad
 import Control.Lens hiding (element, enum, set, (.=))
 import qualified Control.Lens as Lens
 import Control.Monad.Trans.Cont
+import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
 import Data.List.NonEmpty (NonEmpty)
@@ -279,11 +280,11 @@ class Functor f => FieldFunctor doc f where
   mkDocF :: doc -> doc
 
 instance FieldFunctor doc Identity where
-  parseFieldF f obj key = Identity <$> A.explicitParseField f obj key
+  parseFieldF f obj key = Identity <$> A.explicitParseField f obj (Key.fromText key)
   mkDocF = id
 
 instance HasOpt doc => FieldFunctor doc Maybe where
-  parseFieldF = A.explicitParseFieldMaybe
+  parseFieldF f obj key = A.explicitParseFieldMaybe f obj (Key.fromText key)
   mkDocF = mkOpt
 
 -- | A schema for a one-field JSON object.
@@ -335,7 +336,7 @@ fieldOverF l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
 
     w x = do
       v <- schemaOut sch x
-      pure [name A..= v]
+      pure [Key.fromText name A..= v]
 
     s = mkDocF @doc @f (mkField name (schemaDoc sch))
 

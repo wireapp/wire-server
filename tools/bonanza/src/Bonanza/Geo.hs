@@ -27,9 +27,10 @@ where
 import Bonanza.Types
 import Control.Lens
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Lens
 import Data.GeoIP2
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.IP as IP
 import qualified Data.Text as Text
 import Imports
@@ -53,13 +54,13 @@ geolocate db t evt =
       evt & logTags
         %~ _Wrapped'
           . at "geoip"
-          . non (Object HashMap.empty)
+          . non (Object KeyMap.empty)
           . _Object
           . at t
           .~ fmap (toJSON . toGeo) x
 
 ip :: Text -> LogEvent -> Maybe IP.IP
-ip t = join . fmap parse . view (logTags . _Wrapped' . at t)
+ip t = join . fmap parse . view (logTags . _Wrapped' . at (Key.fromText t))
   where
     parse =
       join

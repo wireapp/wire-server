@@ -1,3 +1,42 @@
+# [2022-03-01]
+
+## Release notes
+
+
+* Upgrade webapp version to 2022-02-22-production.0-v0.29.2-0-abb34f5 (#2148)
+
+
+## API changes
+
+
+* The `api-version` endpoint now returns additional information about the backend:
+
+    - whether federation is supported (field `federation`);
+    - the federation domain (field `domain`).
+
+  Note that the federation domain is always set, even if federation is disabled. (#2146)
+
+* Add MLS key package API (#2102)
+
+
+## Internal changes
+
+
+* Bump aeson to v2.0.3.0 and update amazonka fork from upstream repository.  (#2153, #2157, #2163)
+
+* Add schema-profunctor instances for `QueuedNotification` and `QueuedNotificationList` (#2161)
+
+* Dockerfile.builder: Add cabal update (#2168)
+
+
+## Federation changes
+
+
+* Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
+  Details about the configuration are described in [config-options.md](docs/reference/config-options.md).
+  There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
+
+
 # [2022-02-21]
 
 ## Release notes

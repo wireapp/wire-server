@@ -38,7 +38,6 @@ import qualified Wire.API.CustomBackend as CustomBackend
 import qualified Wire.API.Event.Conversation as Event.Conversation
 import qualified Wire.API.Event.Team as Event.Team
 import qualified Wire.API.Message as Message
-import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Provider as Provider
 import qualified Wire.API.Provider.Bot as Provider.Bot
@@ -141,8 +140,6 @@ tests =
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
       testRoundTrip @Message.ClientMismatch,
-      testRoundTrip @Notification.QueuedNotification,
-      testRoundTrip @Notification.QueuedNotificationList,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Properties.PropertyValue,
       testRoundTrip @Provider.Provider,
@@ -319,8 +316,6 @@ tests =
       testRoundTrip @User.RichInfo.RichInfoAssocList,
       testRoundTrip @User.RichInfo.RichInfoMapAndList,
       testRoundTrip @User.RichInfo.RichInfo,
-      testRoundTrip @(User.Search.SearchResult User.Search.Contact),
-      testRoundTrip @User.Search.Contact,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int)

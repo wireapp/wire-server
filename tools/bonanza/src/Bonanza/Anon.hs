@@ -22,12 +22,13 @@ where
 
 import Bonanza.Types
 import Control.Lens (over, (%~), _Wrapped')
-import Data.HashMap.Strict (filterWithKey)
+import qualified Data.Aeson.Key as Key
+import Data.Aeson.KeyMap (filterWithKey)
 import Imports
 
 anonymise :: [Text] -> LogEvent -> LogEvent
 anonymise [] evt = evt
 anonymise ts evt = evt & logTags %~ stripTags
   where
-    stripTags = over _Wrapped' (filterWithKey (\k _ -> not (k `elem` ts)))
+    stripTags = over _Wrapped' (filterWithKey (\k _ -> Key.toText k `notElem` ts))
 {-# INLINEABLE anonymise #-}

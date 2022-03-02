@@ -17,7 +17,7 @@
 -- for SES notifications
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -54,6 +54,7 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
+import Control.Exception (throw)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import qualified Control.Monad.Catch as Catch
@@ -65,6 +66,7 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
@@ -77,10 +79,13 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Qualified
 import Data.Range
+import qualified Data.Sequence as Seq
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Federator.MockServer as Mock
@@ -91,17 +96,25 @@ import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
-import Network.HTTP.Types (Method)
+import Network.HTTP.Media.RenderHeader (renderHeader)
+import Network.HTTP.Types (Method, http11, renderQuery)
+import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Test (Session)
 import qualified Network.Wai.Test as WaiTest
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
+import Servant.Client (ClientError (FailureResponse))
 import qualified Servant.Client as Servant
+import Servant.Client.Core (RunClient (throwClientError))
 import qualified Servant.Client.Core as Servant
+import qualified Servant.Client.Core.Request as ServantRequest
+import System.Exit
+import System.Process
 import System.Random (randomIO, randomRIO)
 import qualified System.Timeout as System
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
@@ -228,6 +241,9 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
 
 fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
 fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+
+randomClient :: MonadIO m => m ClientId
+randomClient = liftIO $ generate arbitrary
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -924,13 +940,13 @@ randomNameWithMaxLen maxLen = liftIO $ do
   chars <- fill len []
   return $ Name (Text.pack chars)
   where
-    fill 0 cs = return cs
-    fill 1 cs = (: cs) <$> randLetter
-    fill n cs = do
+    fill 0 chars = return chars
+    fill 1 chars = (: chars) <$> randLetter
+    fill n chars = do
       c <- randChar
       if isLetter c || isNumber c || isPunctuation c || isSymbol c
-        then fill (n - 1) (c : cs)
-        else fill n cs
+        then fill (n - 1) (c : chars)
+        else fill n chars
     randChar = chr <$> randomRIO (0x0000, 0xFFFF)
     randLetter = do
       c <- randChar
@@ -1118,3 +1134,98 @@ withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   where
     combineResults :: ((a, [Mock.FederatedRequest]), [ReceivedRequest]) -> (a, [Mock.FederatedRequest], [ReceivedRequest])
     combineResults ((a, mrr), rr) = (a, mrr, rr)
+
+newtype WaiTestFedClient a = WaiTestFedClient {unWaiTestFedClient :: ReaderT Domain WaiTest.Session a}
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance Servant.RunClient WaiTestFedClient where
+  runRequestAcceptStatus expectedStatuses servantRequest = WaiTestFedClient $ do
+    domain <- ask
+    let req' = fromServantRequest domain servantRequest
+    res <- lift $ WaiTest.srequest req'
+    let servantResponse = toServantResponse res
+    let status = Servant.responseStatusCode servantResponse
+    let statusIsSuccess =
+          case expectedStatuses of
+            Nothing -> HTTP.statusIsSuccessful status
+            Just ex -> status `elem` ex
+    unless statusIsSuccess $
+      unWaiTestFedClient $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
+    pure servantResponse
+  throwClientError = liftIO . throw
+
+fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
+fromServantRequest domain r =
+  let pathBS = "/federation" <> Data.String.Conversions.cs (toLazyByteString (Servant.requestPath r))
+      bodyBS = case Servant.requestBody r of
+        Nothing -> ""
+        Just (bdy, _) -> case bdy of
+          Servant.RequestBodyLBS lbs -> Data.String.Conversions.cs lbs
+          Servant.RequestBodyBS bs -> bs
+          Servant.RequestBodySource _ -> error "fromServantRequest: not implemented for RequestBodySource"
+
+      -- Content-Type and Accept are specified by requestBody and requestAccept
+      headers =
+        filter (\(h, _) -> h /= "Accept" && h /= "Content-Type") $
+          toList $ Servant.requestHeaders r
+      acceptHdr
+        | null hs = Nothing
+        | otherwise = Just ("Accept", renderHeader hs)
+        where
+          hs = toList $ ServantRequest.requestAccept r
+      contentTypeHdr = case ServantRequest.requestBody r of
+        Nothing -> Nothing
+        Just (_', typ) -> Just (HTTP.hContentType, renderHeader typ)
+      req =
+        Wai.defaultRequest
+          { Wai.requestMethod = Servant.requestMethod r,
+            Wai.rawPathInfo = pathBS,
+            Wai.rawQueryString = renderQuery True (toList (Servant.requestQueryString r)),
+            Wai.requestHeaders =
+              -- Inspired by 'Servant.Client.Internal.HttpClient.defaultMakeClientRequest',
+              -- the Servant function that maps @Request@ to @Client.Request@.
+              -- This solution is a bit sophisticated due to two constraints:
+              --   - Accept header may contain a list of accepted media types.
+              --   - Accept and Content-Type headers should only appear once in the result.
+              maybeToList acceptHdr
+                <> maybeToList contentTypeHdr
+                <> headers
+                <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
+            Wai.isSecure = True,
+            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (C8.split '/' pathBS)),
+            Wai.queryString = toList (Servant.requestQueryString r)
+          }
+   in WaiTest.SRequest req (cs bodyBS)
+
+toServantResponse :: WaiTest.SResponse -> Servant.Response
+toServantResponse res =
+  Servant.Response
+    { Servant.responseStatusCode = WaiTest.simpleStatus res,
+      Servant.responseHeaders = Seq.fromList (WaiTest.simpleHeaders res),
+      Servant.responseBody = WaiTest.simpleBody res,
+      Servant.responseHttpVersion = http11
+    }
+
+createWaiTestFedClient ::
+  forall (name :: Symbol) comp api.
+  ( HasFedEndpoint comp api name,
+    Servant.HasClient WaiTestFedClient api
+  ) =>
+  Servant.Client WaiTestFedClient api
+createWaiTestFedClient =
+  Servant.clientIn (Proxy @api) (Proxy @WaiTestFedClient)
+
+runWaiTestFedClient ::
+  Domain ->
+  WaiTestFedClient a ->
+  WaiTest.Session a
+runWaiTestFedClient domain action =
+  runReaderT (unWaiTestFedClient action) domain
+
+spawn :: CreateProcess -> IO ByteString
+spawn cp = do
+  (mout, ex) <- withCreateProcess cp {std_out = CreatePipe} $ \_ mouth _ ph ->
+    (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
+  case (mout, ex) of
+    (Just out, ExitSuccess) -> pure out
+    _ -> assertFailure "Failed spawning process"

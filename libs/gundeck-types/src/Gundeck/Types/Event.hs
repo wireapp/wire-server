@@ -20,7 +20,7 @@
 module Gundeck.Types.Event where
 
 import Data.Aeson
-import qualified Data.HashMap.Strict as M
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Json.Util
 import Gundeck.Types.Push
 import Imports
@@ -37,7 +37,7 @@ instance ToJSON PushRemove where
 
 instance ToJSONObject PushRemove where
   toJSONObject (PushRemove t) =
-    M.fromList
+    KeyMap.fromList
       [ "type" .= ("user.push-remove" :: Text),
         "token" .= t
       ]

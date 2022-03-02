@@ -184,6 +184,7 @@ in
   pkgs.yq
   pkgs.rsync
   pkgs.netcat
+  pkgs.crypto_cli
 
   # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
   pkgs.buildah

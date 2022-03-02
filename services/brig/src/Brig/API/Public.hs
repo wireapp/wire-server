@@ -30,6 +30,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
@@ -161,7 +162,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI
+servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -226,6 +227,12 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"update-connection-unqualified" updateLocalConnection
         :<|> Named @"update-connection" updateConnection
         :<|> Named @"search-contacts" Search.search
+
+    mlsAPI :: ServerT MLSAPI (Handler r)
+    mlsAPI =
+      Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count" countKeyPackages
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

@@ -25,7 +25,7 @@ where
 import Control.Arrow ((&&&))
 import Control.Lens (makePrisms, _1)
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Json.Util (ToJSONObject (..))
 import Data.Schema
 import qualified Data.Swagger as S
@@ -93,7 +93,7 @@ instance ToSchema Event where
 
 instance ToJSONObject Event where
   toJSONObject =
-    HashMap.fromList
+    KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
 

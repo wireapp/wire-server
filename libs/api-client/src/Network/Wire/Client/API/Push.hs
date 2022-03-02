@@ -54,11 +54,11 @@ import Control.Concurrent.Async
 import Control.Exception (bracket, finally, onException)
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson hiding (Error)
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as L
 import Data.Default.Class
-import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.List.NonEmpty
 import Data.Text (pack)
@@ -271,7 +271,7 @@ parseEvent _ t = fail $ "Unknown event type: " ++ T.unpack t
 
 instance FromJSON Event where
   parseJSON = withObject "event" $ \o ->
-    case M.lookup "type" o of
+    case KeyMap.lookup "type" o of
       Just (String t) -> parseEvent o t
       Just _ -> fail "Event type is not a string"
       Nothing -> fail "Missing event type"

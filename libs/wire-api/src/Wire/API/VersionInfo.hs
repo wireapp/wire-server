@@ -16,12 +16,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.VersionInfo
-  ( vinfoSchema,
+  ( vinfoObjectSchema,
   )
 where
 
 import Data.Schema
-import Imports
 
-vinfoSchema :: ValueSchema NamedSwaggerDoc v -> ValueSchema NamedSwaggerDoc [v]
-vinfoSchema sch = object "VersionInfo" $ field "supported" (array sch)
+vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
+vinfoObjectSchema sch = field "supported" (array sch)

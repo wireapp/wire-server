@@ -52,13 +52,14 @@ where
 
 import qualified Control.Retry as Retry
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.QQ
 import Data.Aeson.Types (JSONPathElement (Key))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as L
-import qualified Data.HashMap.Strict as SMap
 import Data.Proxy
 import Data.Text
 import Data.UUID as UUID
@@ -231,16 +232,16 @@ getField (Field a) = a
 -- Copied from https://hackage.haskell.org/package/aeson-extra-0.4.1.1/docs/src/Data.Aeson.Extra.SingObject.html
 instance (KnownSymbol s, FromJSON a) => FromJSON (Field s a) where
   parseJSON = withObject ("Field " <> show key) $ \obj ->
-    case SMap.lookup key obj of
+    case KeyMap.lookup key obj of
       Nothing -> fail $ "key " ++ show key ++ " not present"
       Just v -> Field <$> parseJSON v <?> Key key
     where
-      key = pack $ symbolVal (Proxy :: Proxy s)
+      key = Key.fromString $ symbolVal (Proxy :: Proxy s)
 
 instance (KnownSymbol s, ToJSON a) => ToJSON (Field s a) where
   toJSON (Field x) = object [key .= x]
     where
-      key = pack $ symbolVal (Proxy :: Proxy s)
+      key = Key.fromString $ symbolVal (Proxy :: Proxy s)
 
 ----------------------------------------------------------------------------
 -- Tag
