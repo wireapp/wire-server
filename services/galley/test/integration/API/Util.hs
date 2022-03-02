@@ -578,7 +578,7 @@ createMLSTeamConv lusr tid users name access role timer convRole = do
   let conv =
         NewConv
           { newConvUsers = [],
-            newConvQualifiedUsers = ulAll users,
+            newConvQualifiedUsers = ulAll lusr users,
             newConvName = name,
             newConvAccess = fromMaybe Set.empty access,
             newConvAccessRoles = role,
