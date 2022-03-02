@@ -19,6 +19,7 @@ module Brig.Data.MLS.KeyPackage
   ( insertKeyPackages,
     claimKeyPackage,
     countKeyPackages,
+    derefKeyPackage,
   )
 where
 
@@ -32,6 +33,7 @@ import Data.Functor
 import Data.Id
 import Data.Qualified
 import Imports
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 
 insertKeyPackages :: MonadClient m => UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> m ()
@@ -44,7 +46,7 @@ insertKeyPackages uid cid kps = retry x5 . batch $ do
     q :: PrepQuery W (UserId, ClientId, KeyPackageData, KeyPackageRef) ()
     q = "INSERT INTO mls_key_packages (user, client, data, ref) VALUES (?, ?, ?, ?)"
 
-claimKeyPackage :: Local UserId -> ClientId -> MaybeT (AppIO r) KeyPackageData
+claimKeyPackage :: Local UserId -> ClientId -> MaybeT (AppIO r) (KeyPackageRef, KeyPackageData)
 claimKeyPackage u c = do
   -- FUTUREWORK: investigate better locking strategies
   lock <- lift $ view keyPackageLocalLock
@@ -57,7 +59,7 @@ claimKeyPackage u c = do
       pure (ref, kpd)
   -- add key package ref to mapping table
   lift $ write insertQuery (params LocalQuorum (ref, tDomain u, tUnqualified u, c))
-  pure kpd
+  pure (ref, kpd)
   where
     lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
     lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ?"
@@ -74,6 +76,14 @@ countKeyPackages u c =
   where
     q :: PrepQuery R (UserId, ClientId) (Identity Int64)
     q = "SELECT COUNT(*) FROM mls_key_packages WHERE user = ? AND client = ?"
+
+derefKeyPackage :: MonadClient m => KeyPackageRef -> MaybeT m ClientIdentity
+derefKeyPackage ref = do
+  (d, u, c) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
+  pure $ ClientIdentity d u c
+  where
+    q :: PrepQuery R (Identity KeyPackageRef) (Domain, UserId, ClientId)
+    q = "SELECT domain, user, client from mls_key_package_refs WHERE ref = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities
