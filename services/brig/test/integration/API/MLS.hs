@@ -132,7 +132,7 @@ uploadKeyPackages brig store sk u c n = do
   when (sk == SetKey) $
     do
       pk <-
-        liftIO . fmap LBS.fromStrict . spawn . shell . unwords $
+        liftIO . spawn . shell . unwords $
           cmd0 <> ["public-key", clientId]
       put
         ( brig
