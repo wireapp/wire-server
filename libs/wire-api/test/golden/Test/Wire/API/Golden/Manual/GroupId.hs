@@ -30,7 +30,6 @@ convId1 =
     (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
     (Domain "mydomain.com")
 
--- convId1 corresponds to (toConvId testObject_GroupId_1).
 testObject_GroupId_1 :: GroupId
 testObject_GroupId_1 = convIdToGroupId convId1
 
@@ -40,6 +39,5 @@ convId2 =
     (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001")))
     (Domain "abcdef.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.com")
 
--- convId2 corresponds to (toConvId testObject_GroupId_2).
 testObject_GroupId_2 :: GroupId
 testObject_GroupId_2 = convIdToGroupId convId2
