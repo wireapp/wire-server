@@ -18,7 +18,6 @@
 module Test.Wire.API.Federation.Golden.NewRemoteConversation where
 
 import Data.Domain
-import Data.Either.Combinators
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -90,5 +89,7 @@ testObject_NewRemoteConversation2 =
   where
     groupId :: GroupId
     groupId =
-      fromRight' . mkGroupId $
-        "\0\0\0\1\0\0\0\0\0\0\0\0\0\0\0\1mydomain.com"
+      convIdToGroupId $
+        Qualified
+          (Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")))
+          (Domain "mydomain.com")

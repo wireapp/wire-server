@@ -51,7 +51,6 @@ import qualified System.Logger as Log
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.MLS.GroupId
 
 createConversation :: Local x -> NewConversation -> Client Conversation
 createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol) = do

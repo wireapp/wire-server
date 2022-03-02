@@ -45,6 +45,7 @@ module Wire.API.Conversation
     Protocol (..),
     GroupId (..),
     decodeConvId,
+    convIdToGroupId,
 
     -- * Conversation properties
     Access (..),
