@@ -36,6 +36,8 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Servant
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -111,6 +113,7 @@ type ServantAPI =
     :<|> BotAPI
     :<|> TeamAPI
     :<|> FeatureAPI
+    :<|> MLSAPI
 
 type ConversationAPI =
   Named
@@ -1034,6 +1037,17 @@ type AllFeatureConfigsGet =
         :> "feature-configs"
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
+
+type MLSMessagingAPI =
+  Named
+    "mls-welcome-message"
+    ( Summary "Post an MLS welcome message"
+        :> "welcome"
+        :> ReqBody '[MLS] Welcome
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
+    )
+
+type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

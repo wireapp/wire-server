@@ -18,6 +18,7 @@
 module Galley.API.Public.Servant (servantSitemap) where
 
 import Galley.API.Create
+import Galley.API.MLS
 import Galley.API.Query
 import Galley.API.Teams
 import Galley.API.Teams.Features
@@ -33,7 +34,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
-servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<|> team :<|> features
+servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<|> team :<|> features :<|> mls
   where
     conversations =
       Named @"get-unqualified-conversation" getUnqualifiedConversation
@@ -94,6 +95,8 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<
         :<|> Named @"get-teams" getManyTeams
         :<|> Named @"get-team" getTeamH
         :<|> Named @"delete-team" deleteTeam
+
+    mls = Named @"mls-welcome-message" postMLSWelcome
 
     features =
       Named @'("get", 'TeamFeatureSSO)

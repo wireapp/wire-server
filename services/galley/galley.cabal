@@ -34,6 +34,7 @@ library
       Galley.API.LegalHold.Conflicts
       Galley.API.Mapping
       Galley.API.Message
+      Galley.API.MLS
       Galley.API.One2One
       Galley.API.Public
       Galley.API.Public.Servant
