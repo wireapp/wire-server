@@ -19,8 +19,9 @@
 
 module Wire.API.MLS.Credential where
 
-import Data.Aeson
-import Data.Aeson.Types
+import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Parser
@@ -28,6 +29,8 @@ import Data.Binary.Parser.Char8
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.UUID
 import Imports
@@ -101,16 +104,16 @@ parseSignatureScheme name =
     (signatureSchemeFromName name)
 
 instance FromJSON SignatureSchemeTag where
-  parseJSON = withText "SignatureScheme" parseSignatureScheme
+  parseJSON = Aeson.withText "SignatureScheme" parseSignatureScheme
 
 instance FromJSONKey SignatureSchemeTag where
-  fromJSONKey = FromJSONKeyTextParser parseSignatureScheme
+  fromJSONKey = Aeson.FromJSONKeyTextParser parseSignatureScheme
 
 instance ToJSON SignatureSchemeTag where
-  toJSON = String . signatureSchemeName
+  toJSON = Aeson.String . signatureSchemeName
 
 instance ToJSONKey SignatureSchemeTag where
-  toJSONKey = toJSONKeyText signatureSchemeName
+  toJSONKey = Aeson.toJSONKeyText signatureSchemeName
 
 data ClientIdentity = ClientIdentity
   { ciDomain :: Domain,
@@ -118,6 +121,15 @@ data ClientIdentity = ClientIdentity
     ciClient :: ClientId
   }
   deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientIdentity
+
+instance ToSchema ClientIdentity where
+  schema =
+    object "ClientIdentity" $
+      ClientIdentity
+        <$> ciDomain .= field "domain" schema
+        <*> ciUser .= field "user_id" schema
+        <*> ciClient .= field "client_id" schema
 
 instance ParseMLS ClientIdentity where
   parseMLS = do
