@@ -26,10 +26,17 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 61 "Add MLS fields protocol and group_id to the conversation table" $
+  Migration 61 "Add MLS fields to conversation and create a group ID to conversation ID mapping table" $ do
     schema'
       [r| ALTER TABLE conversation ADD (
             protocol int,
             group_id blob
           )
-       |]
+        |]
+    schema'
+      [r| CREATE TABLE group_id_conv_id (
+            group_id blob PRIMARY KEY,
+            conv_id uuid,
+            domain text
+          )
+        |]

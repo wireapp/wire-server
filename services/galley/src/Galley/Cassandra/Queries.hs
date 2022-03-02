@@ -252,6 +252,11 @@ insertUserConv = "insert into user (user, conv) values (?, ?)"
 deleteUserConv :: PrepQuery W (UserId, ConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
 
+-- MLS Conversations --------------------------------------------------------
+
+insertGroupId :: PrepQuery W (GroupId, ConvId, Domain) ()
+insertGroupId = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
+
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32

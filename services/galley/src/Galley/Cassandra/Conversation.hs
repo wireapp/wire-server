@@ -58,14 +58,14 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
   let groupId = case protocol of
         ProtocolProteus -> Nothing
         ProtocolMLS -> Just . convIdToGroupId . qUntagged . qualifyAs loc $ conv
-  retry x5 $ case mtid of
-    Nothing ->
-      write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Nothing, mtimer, recpt, protocol, groupId))
-    Just tid -> batch $ do
-      setType BatchLogged
-      setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Just tid, mtimer, recpt, protocol, groupId)
-      addPrepQuery Cql.insertTeamConv (tid, conv)
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery
+      Cql.insertConv
+      (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, mtid, mtimer, recpt, protocol, groupId)
+    for_ mtid $ \tid -> addPrepQuery Cql.insertTeamConv (tid, conv)
+    for_ groupId $ \gid -> addPrepQuery Cql.insertGroupId (gid, conv, tDomain loc)
   let newUsers = fmap (,role) (fromConvSize users)
   (lmems, rmems) <- addMembers conv (ulAddLocal (usr, roleNameWireAdmin) newUsers)
   pure $
