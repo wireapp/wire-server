@@ -25,7 +25,6 @@ where
 
 import Cassandra.CQL
 import Control.Error (note)
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
 import Galley.Types
 import Galley.Types.Bot ()
@@ -33,7 +32,6 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
-import Wire.API.MLS.GroupId
 import qualified Wire.API.Team.Feature as Public
 
 deriving instance Cql MutedStatus
@@ -186,7 +184,7 @@ instance Cql Protocol where
 instance Cql GroupId where
   ctype = Tagged BlobColumn
 
-  toCql = CqlBlob . LBS.fromStrict . serialise
+  toCql = CqlBlob . unGroupId
 
-  fromCql (CqlBlob b) = mkGroupId . LBS.toStrict $ b
+  fromCql (CqlBlob b) = Right . GroupId $ b
   fromCql _ = Left "group_id: blob expected"

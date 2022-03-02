@@ -43,7 +43,7 @@ module Wire.API.Conversation
     pattern ConversationPagingState,
     ConversationsResponse (..),
     Protocol (..),
-    GroupId,
+    GroupId (..),
     decodeConvId,
 
     -- * Conversation properties

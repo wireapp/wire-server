@@ -107,7 +107,7 @@ import TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (decodeConvId)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)

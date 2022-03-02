@@ -58,7 +58,7 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
   conv <- Id <$> liftIO nextRandom
   let groupId = case protocol of
         ProtocolProteus -> Nothing
-        ProtocolMLS -> Just . fromConvId . qUntagged . qualifyAs loc $ conv
+        ProtocolMLS -> Just . convIdToGroupId . qUntagged . qualifyAs loc $ conv
   retry x5 $ case mtid of
     Nothing ->
       write Cql.insertConv (params LocalQuorum (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, Nothing, mtimer, recpt, protocol, groupId))
