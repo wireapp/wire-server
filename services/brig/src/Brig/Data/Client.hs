@@ -67,6 +67,7 @@ import Control.Monad.Random (randomRIO)
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
@@ -272,7 +273,7 @@ lookupMLSPublicKey u c ss =
 addMLSPublicKeys ::
   UserId ->
   ClientId ->
-  [(SignatureSchemeTag, LByteString)] ->
+  [(SignatureSchemeTag, ByteString)] ->
   ExceptT ClientDataError (AppIO r) ()
 addMLSPublicKeys u c = traverse_ (uncurry (addMLSPublicKey u c))
 
@@ -280,10 +281,10 @@ addMLSPublicKey ::
   UserId ->
   ClientId ->
   SignatureSchemeTag ->
-  LByteString ->
+  ByteString ->
   ExceptT ClientDataError (AppIO r) ()
 addMLSPublicKey u c ss pk = do
-  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob pk))
+  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob (LBS.fromStrict pk)))
   case rows of
     [row]
       | C.fromRow 0 row /= Right (Just True) ->
@@ -380,7 +381,7 @@ toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl,
       clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
-      clientMLSPublicKeys = fmap fromBlob (Map.fromList keys)
+      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
     }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
