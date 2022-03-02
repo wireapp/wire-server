@@ -213,7 +213,7 @@ data EventData
 
 instance ToJSON EventData where
   toJSON (EdTeamCreate tem) = toJSON tem
-  toJSON EdTeamDelete = object []
+  toJSON EdTeamDelete = Null
   toJSON (EdMemberJoin usr) = object ["user" .= usr]
   toJSON (EdMemberUpdate usr mPerm) =
     object $
