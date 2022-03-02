@@ -97,7 +97,6 @@ testObject_Conversation_user_2 =
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Nothing,
             cnvmProtocol = ProtocolMLS,
-            -- cnvmGroupId = Just . fromRight undefined . mkGroupId $ undefined
             cnvmGroupId = Just testObject_GroupId_1
           },
       cnvMembers =
