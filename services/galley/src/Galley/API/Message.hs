@@ -234,7 +234,7 @@ postRemoteOtrMessage ::
   Members '[FederatorAccess] r =>
   Qualified UserId ->
   Remote ConvId ->
-  LByteString ->
+  ByteString ->
   Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =

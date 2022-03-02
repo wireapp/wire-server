@@ -80,7 +80,7 @@ import qualified Data.ProtocolBuffers as Protobuf
 import Data.Qualified (Qualified (..))
 import Data.SOP (I (..), NS (..), unI, unZ)
 import Data.Schema
-import Data.Serialize (runGetLazy)
+import Data.Serialize (runGet)
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -157,7 +157,7 @@ instance ToSchema NewOtrMessage where
         <*> newOtrReportMissing .= maybe_ (optField "report_missing" (array schema))
 
 instance FromProto NewOtrMessage where
-  fromProto bs = protoToNewOtrMessage <$> runGetLazy Protobuf.decodeMessage bs
+  fromProto bs = protoToNewOtrMessage <$> runGet Protobuf.decodeMessage bs
 
 protoToNewOtrMessage :: Proto.NewOtrMessage -> NewOtrMessage
 protoToNewOtrMessage msg =
@@ -198,10 +198,10 @@ instance S.ToSchema QualifiedNewOtrMessage where
                \https://github.com/wireapp/generic-message-proto/blob/master/proto/otr.proto."
 
 instance FromProto QualifiedNewOtrMessage where
-  fromProto bs = protolensToQualifiedNewOtrMessage =<< ProtoLens.decodeMessage (LBS.toStrict bs)
+  fromProto bs = protolensToQualifiedNewOtrMessage =<< ProtoLens.decodeMessage bs
 
 instance ToProto QualifiedNewOtrMessage where
-  toProto = LBS.fromStrict . ProtoLens.encodeMessage . qualifiedNewOtrMessageToProto
+  toProto = ProtoLens.encodeMessage . qualifiedNewOtrMessageToProto
 
 protolensToQualifiedNewOtrMessage :: Proto.Otr.QualifiedNewOtrMessage -> Either String QualifiedNewOtrMessage
 protolensToQualifiedNewOtrMessage protoMsg = do

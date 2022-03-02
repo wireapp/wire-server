@@ -93,7 +93,7 @@ instance ToSchema KeyPackageData where
   schema =
     (S.schema . S.example ?~ "a2V5IHBhY2thZ2UgZGF0YQo=")
       ( KeyPackageData <$> kpData
-          .= named "KeyPackage" (Base64ByteString .= fmap fromBase64ByteString base64Schema)
+          .= named "KeyPackage" (unnamed base64SchemaL)
       )
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry

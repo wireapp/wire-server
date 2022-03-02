@@ -83,7 +83,7 @@ protoTestObject ::
   IO Bool
 protoTestObject obj path = do
   let actual = toProto obj
-  msg <- assertRight (decodeMessage @m (LBS.toStrict actual))
+  msg <- assertRight (decodeMessage @m actual)
   let pretty = render (pprintMessage msg)
       dir = "test/golden"
       fullPath = dir <> "/" <> path
@@ -100,7 +100,7 @@ protoTestObject obj path = do
   assertEqual
     (show (typeRep @a) <> ": FromProto of " <> path <> " should match object")
     (Right obj)
-    (fromProto (LBS.fromStrict (encodeMessage expected)))
+    (fromProto (encodeMessage expected))
 
   pure exists
 

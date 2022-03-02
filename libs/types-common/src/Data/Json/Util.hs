@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -38,10 +39,12 @@ module Data.Json.Util
 
     -- * Base64
     Base64ByteString (..),
+    base64Schema,
+    Base64ByteStringL (..),
+    base64SchemaL,
     fromBase64TextLenient,
     fromBase64Text,
     toBase64Text,
-    base64Schema,
   )
 where
 
@@ -52,12 +55,12 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Attoparsec.Time as Atto
+import Data.Bifunctor
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Base64.Lazy as B64L
+import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Conversion as BS
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Fixed
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -70,6 +73,7 @@ import Data.Time.Format (formatTime, parseTimeM)
 import qualified Data.Time.Lens as TL
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import Imports
+import Servant
 import Test.QuickCheck (Arbitrary (arbitrary))
 -- for UTCTime
 import Test.QuickCheck.Instances ()
@@ -174,39 +178,65 @@ toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop
     dropPrefix = dropWhile (not . isUpper)
 
 --------------------------------------------------------------------------------
--- base64-encoded lazy bytestrings
 
--- | Lazy 'ByteString' with base64 json encoding.  Relevant discussion:
--- <https://github.com/bos/aeson/issues/126>.  See test suite for more details.
-newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: L.ByteString}
+-- | Base64-encoded strict 'ByteString'.
+--
+-- For proper Swagger generation, avoid using this type directly in APIs. Instead,
+-- use a plain 'ByteString' (or a more specific newtype wrapper), and construct
+-- instances using @deriving via@.
+--
+-- For URLs or HTTP headers, the base64url encoding is used.
+--
+-- Some related discussion: <https://github.com/bos/aeson/issues/126>.
+newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: ByteString}
+  deriving stock (Eq, Ord, Show)
+  deriving (FromJSON, ToJSON) via Schema Base64ByteString
+  deriving newtype (Arbitrary, IsString)
+
+instance ToSchema Base64ByteString where
+  schema = fromBase64ByteString .= fmap Base64ByteString base64SchemaN
+
+instance FromHttpApiData Base64ByteString where
+  parseUrlPiece = bimap Text.pack Base64ByteString . B64U.decode . Text.encodeUtf8
+
+instance ToHttpApiData Base64ByteString where
+  toUrlPiece = Text.decodeUtf8With Text.lenientDecode . B64U.encode . fromBase64ByteString
+
+base64SchemaN :: ValueSchema NamedSwaggerDoc ByteString
+base64SchemaN = toBase64Text .= parsedText "Base64ByteString" fromBase64Text
+
+base64Schema :: ValueSchema SwaggerDoc ByteString
+base64Schema = unnamed base64SchemaN
+
+--------------------------------------------------------------------------------
+
+-- | Base64-encoded lazy 'ByteString'.
+-- Similar to 'Base64ByteString', but based on 'LByteString'.
+newtype Base64ByteStringL = Base64ByteStringL {fromBase64ByteStringL :: LByteString}
   deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via Schema Base64ByteStringL
+  deriving newtype (Arbitrary, IsString)
 
-instance FromJSON Base64ByteString where
-  parseJSON (A.String st) = handleError . B64L.decode . stToLbs $ st
-    where
-      stToLbs = L.fromChunks . pure . Text.encodeUtf8
-      handleError =
-        either
-          (const $ fail "parse Base64ByteString: invalid base64 encoding")
-          (pure . Base64ByteString)
-  parseJSON _ = fail "parse Base64ByteString: not a string"
+base64FromStrict :: Base64ByteString -> Base64ByteStringL
+base64FromStrict = Base64ByteStringL . L.fromStrict . fromBase64ByteString
 
-instance ToJSON Base64ByteString where
-  toJSON (Base64ByteString lbs) = A.String . lbsToSt . B64L.encode $ lbs
-    where
-      lbsToSt =
-        Text.decodeUtf8With Text.lenientDecode
-          . mconcat
-          . L.toChunks
+base64ToStrict :: Base64ByteStringL -> Base64ByteString
+base64ToStrict = Base64ByteString . L.toStrict . fromBase64ByteStringL
 
-instance IsString Base64ByteString where
-  fromString = Base64ByteString . L8.pack
+instance ToSchema Base64ByteStringL where
+  schema = fromBase64ByteStringL .= fmap Base64ByteStringL base64SchemaLN
 
-instance Arbitrary Base64ByteString where
-  arbitrary = Base64ByteString <$> arbitrary
+instance FromHttpApiData Base64ByteStringL where
+  parseUrlPiece = fmap base64FromStrict . parseUrlPiece
 
-base64Schema :: ValueSchema SwaggerDoc Base64ByteString
-base64Schema = mkSchema mempty A.parseJSON (pure . A.toJSON)
+instance ToHttpApiData Base64ByteStringL where
+  toUrlPiece = toUrlPiece . base64ToStrict
+
+base64SchemaLN :: ValueSchema NamedSwaggerDoc LByteString
+base64SchemaLN = L.toStrict .= fmap L.fromStrict base64SchemaN
+
+base64SchemaL :: ValueSchema SwaggerDoc LByteString
+base64SchemaL = unnamed base64SchemaLN
 
 --------------------------------------------------------------------------------
 -- Utilities
