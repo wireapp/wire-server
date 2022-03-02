@@ -573,12 +573,12 @@ createMLSTeamConv ::
   Maybe Milliseconds ->
   Maybe RoleName ->
   m (Local ConvId)
-createMLSTeamConv lusr tid (UserList locals remotes) name access role timer convRole = do
+createMLSTeamConv lusr tid users name access role timer convRole = do
   g <- viewGalley
   let conv =
         NewConv
           { newConvUsers = [],
-            newConvQualifiedUsers = fmap (qUntagged . qualifyAs lusr) locals <> fmap qUntagged remotes,
+            newConvQualifiedUsers = ulAll users,
             newConvName = name,
             newConvAccess = fromMaybe Set.empty access,
             newConvAccessRoles = role,
