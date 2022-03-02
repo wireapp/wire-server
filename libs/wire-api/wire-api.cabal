@@ -539,7 +539,6 @@ test-suite wire-api-golden-tests
     , containers >=0.5
     , currency-codes
     , directory
-    , either
     , filepath
     , hscim
     , imports
