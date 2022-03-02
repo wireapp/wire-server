@@ -146,10 +146,10 @@ tests s =
             let bcast = def {bAPI = api, bType = ty}
              in testGroup
                   (broadcastAPIName api <> " - " <> broadcastTypeName ty)
-                  [ test s "message" (postCryptoBroadcastMessageJson bcast),
-                    test s "filtered only, too large team" (postCryptoBroadcastMessageJsonFilteredTooLargeTeam bcast),
-                    test s "report missing in body" (postCryptoBroadcastMessageJsonReportMissingBody bcast),
-                    test s "redundant/missing" (postCryptoBroadcastMessageJson2 bcast),
+                  [ test s "message" (postCryptoBroadcastMessage bcast),
+                    test s "filtered only, too large team" (postCryptoBroadcastMessageFilteredTooLargeTeam bcast),
+                    test s "report missing in body" (postCryptoBroadcastMessageReportMissingBody bcast),
+                    test s "redundant/missing" (postCryptoBroadcastMessage2 bcast),
                     test s "no-team" (postCryptoBroadcastMessageNoTeam bcast),
                     test s "100 (or max conns)" (postCryptoBroadcastMessage100OrMaxConns bcast)
                   ]
@@ -1624,8 +1624,8 @@ testUpdateTeamStatus = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
-postCryptoBroadcastMessageJson :: Broadcast -> TestM ()
-postCryptoBroadcastMessageJson bcast = do
+postCryptoBroadcastMessage :: Broadcast -> TestM ()
+postCryptoBroadcastMessage bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1674,8 +1674,8 @@ postCryptoBroadcastMessageJson bcast = do
         void . liftIO $
           WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
-postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: Broadcast -> TestM ()
-postCryptoBroadcastMessageJsonFilteredTooLargeTeam bcast = do
+postCryptoBroadcastMessageFilteredTooLargeTeam :: Broadcast -> TestM ()
+postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1741,8 +1741,8 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam bcast = do
         void . liftIO $
           WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
-postCryptoBroadcastMessageJsonReportMissingBody :: Broadcast -> TestM ()
-postCryptoBroadcastMessageJsonReportMissingBody bcast = do
+postCryptoBroadcastMessageReportMissingBody :: Broadcast -> TestM ()
+postCryptoBroadcastMessageReportMissingBody bcast = do
   localDomain <- viewFederationDomain
   (alice, tid) <- Util.createBindingTeam
   let qalice = Qualified alice localDomain
@@ -1759,8 +1759,8 @@ postCryptoBroadcastMessageJsonReportMissingBody bcast = do
   Util.postBroadcast qalice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery}
     !!! const 412 === statusCode
 
-postCryptoBroadcastMessageJson2 :: Broadcast -> TestM ()
-postCryptoBroadcastMessageJson2 bcast = do
+postCryptoBroadcastMessage2 :: Broadcast -> TestM ()
+postCryptoBroadcastMessage2 bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
