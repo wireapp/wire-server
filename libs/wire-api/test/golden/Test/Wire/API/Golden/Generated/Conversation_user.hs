@@ -26,7 +26,6 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
 import Imports
-import Test.Wire.API.Golden.Manual.GroupId
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
@@ -96,8 +95,8 @@ testObject_Conversation_user_2 =
             cnvmTeam = Nothing,
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Nothing,
-            cnvmProtocol = ProtocolMLS,
-            cnvmGroupId = Just testObject_GroupId_1
+            cnvmProtocol = ProtocolProteus,
+            cnvmGroupId = Nothing
           },
       cnvMembers =
         ConvMembers
