@@ -33,7 +33,6 @@ module Galley.API.Action
     ensureConversationActionAllowed,
     addMembersToLocalConversation,
     notifyConversationAction,
-    notifyRemoteConversationAction,
     ConversationUpdate,
   )
 where
@@ -41,7 +40,6 @@ where
 import qualified Brig.Types.User as User
 import Control.Arrow
 import Control.Lens
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Kind
 import Data.List.NonEmpty (nonEmpty)
@@ -74,8 +72,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger as Log
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
@@ -605,51 +601,3 @@ notifyConversationAction tag quid con lcnv targets action = do
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets) $> e
-
--- | Notify all local members about a remote conversation update that originated
--- from a local user
-notifyRemoteConversationAction ::
-  Members
-    '[ FederatorAccess,
-       ExternalAccess,
-       GundeckAccess,
-       MemberStore,
-       Input (Local ()),
-       P.TinyLog
-     ]
-    r =>
-  Remote ConversationUpdate ->
-  ConnId ->
-  Sem r Event
-notifyRemoteConversationAction rconvUpdate con = do
-  let convUpdate = tUnqualified rconvUpdate
-      rconvId = qualifyAs rconvUpdate . cuConvId $ convUpdate
-
-  let event =
-        case cuAction convUpdate of
-          SomeConversationAction tag action ->
-            conversationActionToEvent tag (cuTime convUpdate) (cuOrigUserId convUpdate) (qUntagged rconvId) action
-
-  -- Note: we generally do not send notifications to users that are not part of
-  -- the conversation (from our point of view), to prevent spam from the remote
-  -- backend.
-  (presentUsers, allUsersArePresent) <-
-    E.selectRemoteMembers (cuAlreadyPresentUsers convUpdate) rconvId
-  loc <- qualifyLocal ()
-  let localPresentUsers = qualifyAs loc presentUsers
-
-  unless allUsersArePresent $
-    P.warn $
-      Log.field "conversation" (toByteString' . tUnqualified $ rconvId)
-        . Log.field "domain" (toByteString' (tDomain rconvUpdate))
-        . Log.msg
-          ( "Attempt to send notification about conversation update \
-            \to users not in the conversation" ::
-              ByteString
-          )
-
-  -- FUTUREWORK: Check if presentUsers contain bots when federated bots are
-  -- implemented.
-  let bots = []
-
-  pushConversationEvent (Just con) event localPresentUsers bots $> event

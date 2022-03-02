@@ -38,7 +38,6 @@ module API.Federation where
 import API.Util
 import Bilge
 import Bilge.Assert
-import Bilge.TestSession (liftSession)
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
@@ -105,8 +104,7 @@ tests s =
       test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
-      test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
-      test s "POST /federation/update-conversation : Remote admin changes Receipt Mode" updateConversationReceiptMode
+      test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1058,91 +1056,3 @@ onUserDeleted = do
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
       FedGalley.cuAction cDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure $ qUntagged bob)))
-
-updateConversationReceiptMode :: TestM ()
-updateConversationReceiptMode = do
-  c <- view tsCannon
-  (alice, qAlice) <- randomUserTuple
-
-  let cDomain = Domain "c.example.com"
-      dDomain = Domain "d.example.com"
-  qChad <- randomQualifiedId cDomain
-  qDee <- randomQualifiedId dDomain
-  mapM_ (connectWithRemoteUser alice) [qChad, qDee]
-
-  let convName = "Test Conv"
-  WS.bracketR c alice $ \wsAlice -> do
-    (rsp, _federatedRequests) <-
-      withTempMockFederator (const ()) $
-        postConvQualified alice defNewConv {newConvName = Just convName, newConvQualifiedUsers = [qChad, qDee]}
-          <!! const 201 === statusCode
-    cid <- assertConvQualified rsp RegularConv alice qAlice [qChad, qDee] (Just convName) Nothing
-    let cnv = Qualified cid (qDomain qAlice)
-
-    let newReceiptMode = ReceiptMode 3
-    let action = (SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate newReceiptMode))
-
-    (_rsp, federatedRequests) <-
-      withTempMockFederator (const ()) $ do
-        -- 1. promote chad to admin
-        putOtherMemberQualified alice qChad (OtherMemberUpdate (Just roleNameWireAdmin)) cnv
-          !!! const 200 === statusCode
-
-        -- 2. chad changes receipt mode (update-converation)
-        --    -> dDomain gets on-conversation-udpate
-        --       but not cDomain
-
-        let cnvUpdateRequest =
-              ConversationUpdateRequest
-                { curUser = qUnqualified qChad,
-                  curConvId = qUnqualified cnv,
-                  curAction = action
-                }
-        resp <-
-          conversationUpdateResponse
-            <$> ( liftSession $
-                    runWaiTestFedClient cDomain $
-                      createWaiTestFedClient @"update-conversation" @'Galley $
-                        cnvUpdateRequest
-                )
-
-        cnvUpdate' <- liftIO $ case resp of
-          Left err -> assertFailure ("Expected (Right ConversationUpdate) but got " <> show err)
-          Right up -> pure up
-
-        liftIO $ do
-          cuOrigUserId cnvUpdate' @?= qChad
-          cuConvId cnvUpdate' @?= qUnqualified cnv
-          cuAlreadyPresentUsers cnvUpdate' @?= [qUnqualified qChad]
-          cuAction cnvUpdate' @?= action
-
-        pure ()
-
-    liftIO $ do
-      dDomainRPC <- assertOne $ filter (\r -> frTargetDomain r == dDomain) federatedRequests
-      frOriginDomain dDomainRPC @?= cDomain
-      frComponent dDomainRPC @?= Galley
-      frRPC dDomainRPC @?= "on-conversation-updated"
-      let cnvUpdate' :: ConversationUpdate = fromRight (error "meh") $ A.eitherDecode (frBody dDomainRPC)
-      cuOrigUserId cnvUpdate' @?= qChad
-      cuConvId cnvUpdate' @?= qUnqualified cnv
-      cuAlreadyPresentUsers cnvUpdate' @?= [qUnqualified qDee]
-      cuAction cnvUpdate' @?= action
-
-      assertNone $ filter (\r -> frTargetDomain r == cDomain) federatedRequests
-
-    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-      wsAssertConvReceiptModeUpdate cnv qChad newReceiptMode n
---  where
---    toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
---    convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
---    checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
---      ntfTransient n @?= False
---      let e = List1.head (WS.unpackPayload n)
---      evtConv e @?= cnvQualifiedId cnv
---      evtType e @?= ConvCreate
---      evtFrom e @?= qalice
---      case evtData e of
---        EdConversation c' -> assertConvEquals cnv c'
---        _ -> assertFailure "Unexpected event data"
---

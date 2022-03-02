@@ -31,7 +31,6 @@ import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (sing)
-import Data.Singletons.TH (sCases)
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
@@ -61,13 +60,10 @@ import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
-import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -84,7 +80,6 @@ federationSitemap =
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"send-message" sendMessage
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
-    :<|> Named @"update-conversation" updateConversation
 
 onConversationCreated ::
   Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>
@@ -247,7 +242,6 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
--- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
   Members
     '[ ConversationStore,
@@ -421,54 +415,3 @@ onUserDeleted origDomain udcn = do
                   botsAndMembers = convBotsAndMembers conv
               void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse
-
-updateConversation ::
-  forall r.
-  ( Members
-      '[ BrigAccess,
-         CodeStore,
-         BotAccess,
-         FireAndForget,
-         Error ActionError,
-         Error ConversationError,
-         Error FederationError,
-         Error InvalidInput,
-         Error LegalHoldError,
-         Error NotATeamMember,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         MemberStore,
-         TeamStore,
-         ConversationStore,
-         Input (Local ())
-       ]
-      r
-  ) =>
-  -- |
-  Domain ->
-  -- |
-  F.ConversationUpdateRequest ->
-  Sem r ConversationUpdateResponse
-updateConversation origDomain updateRequest = do
-  loc <- qualifyLocal ()
-  let rusr = toRemoteUnsafe origDomain (F.curUser updateRequest)
-      lcnv = qualifyAs loc (F.curConvId updateRequest)
-
-  let runUpdate =
-        case F.curAction updateRequest of
-          SomeConversationAction tag action ->
-            $(sCases ''ConversationActionTag [|tag|] [|updateLocalConversationWithRemoteUser tag lcnv rusr action|])
-
-  (F.ConversationUpdateResponse . Right <$> runUpdate)
-    `catchError` (\NoChanges -> pure $ F.ConversationUpdateResponse (Left F.TODO))
-  where
-    catchError :: Sem (Error e ': r) a -> (e -> Sem r a) -> Sem r a
-    catchError action handler = do
-      eith <- runError action
-      case eith of
-        Left err -> handler err
-        Right x -> pure x
