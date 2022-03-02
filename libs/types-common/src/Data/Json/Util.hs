@@ -202,6 +202,9 @@ instance FromHttpApiData Base64ByteString where
 instance ToHttpApiData Base64ByteString where
   toUrlPiece = Text.decodeUtf8With Text.lenientDecode . B64U.encode . fromBase64ByteString
 
+instance S.ToParamSchema Base64ByteString where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
 base64SchemaN :: ValueSchema NamedSwaggerDoc ByteString
 base64SchemaN = toBase64Text .= parsedText "Base64ByteString" fromBase64Text
 
@@ -231,6 +234,9 @@ instance FromHttpApiData Base64ByteStringL where
 
 instance ToHttpApiData Base64ByteStringL where
   toUrlPiece = toUrlPiece . base64ToStrict
+
+instance S.ToParamSchema Base64ByteStringL where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
 
 base64SchemaLN :: ValueSchema NamedSwaggerDoc LByteString
 base64SchemaLN = L.toStrict .= fmap L.fromStrict base64SchemaN
