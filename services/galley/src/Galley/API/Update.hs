@@ -1137,9 +1137,7 @@ postProteusBroadcast ::
   ConnId ->
   QualifiedNewOtrMessage ->
   Sem r (PostOtrResponse MessageSendingStatus)
-postProteusBroadcast sender zcon msg =
-  runLocalInput sender $
-    postBroadcast sender (Just zcon) msg
+postProteusBroadcast sender zcon msg = postBroadcast sender (Just zcon) msg
 
 unqualifyEndpoint ::
   Functor f =>
