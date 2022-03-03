@@ -87,8 +87,8 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
-import Wire.API.Event.Conversation
 import Wire.API.Asset hiding (Asset)
+import Wire.API.Event.Conversation
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do
