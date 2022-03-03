@@ -20,6 +20,7 @@
 module Galley.API.Push
   ( -- * Message metadata
     MessageMetadata (..),
+    defMessageMetadata,
 
     -- * Message pushes
     MessagePush (..),
@@ -63,6 +64,15 @@ data MessageMetadata = MessageMetadata
     mmData :: Maybe Text
   }
   deriving (Eq, Ord, Show)
+
+defMessageMetadata :: MessageMetadata
+defMessageMetadata =
+  MessageMetadata
+    { mmNativePush = True,
+      mmTransient = False,
+      mmNativePriority = Nothing,
+      mmData = Nothing
+    }
 
 data MessageType = NormalMessage | Broadcast
 

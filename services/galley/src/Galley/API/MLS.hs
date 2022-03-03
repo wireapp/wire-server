@@ -20,12 +20,18 @@ module Galley.API.MLS (postMLSWelcome) where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
+import Data.Time
 import Galley.API.Error
+import Galley.API.Push
+import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
+import Galley.Effects.GundeckAccess
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Wire.API.ErrorDescription
+import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -34,15 +40,18 @@ import Wire.API.MLS.Welcome
 postMLSWelcome ::
   Members
     '[ BrigAccess,
-       Error UnknownWelcomeRecipient
+       GundeckAccess,
+       Error UnknownWelcomeRecipient,
+       Input UTCTime
      ]
     r =>
   Local UserId ->
   RawMLS Welcome ->
   Sem r ()
-postMLSWelcome _ wel = do
+postMLSWelcome lusr wel = do
+  now <- input
   rcpts <- welcomeRecipients (extract wel)
-  traverse_ (sendWelcome (rmRaw wel)) rcpts
+  traverse_ (sendWelcomes now lusr (rmRaw wel)) (bucketQualified rcpts)
 
 welcomeRecipients ::
   Members
@@ -51,11 +60,40 @@ welcomeRecipients ::
      ]
     r =>
   Welcome ->
-  Sem r [ClientIdentity]
-welcomeRecipients = traverse (derefKeyPackage . gsNewMember) . welSecrets
+  Sem r [Qualified (UserId, ClientId)]
+welcomeRecipients = traverse (fmap cidQualifiedClient . derefKeyPackage . gsNewMember) . welSecrets
 
-sendWelcome :: ByteString -> ClientIdentity -> Sem r ()
-sendWelcome _ _ = pure ()
+sendWelcomes ::
+  Members '[GundeckAccess] r =>
+  UTCTime ->
+  Local x ->
+  ByteString ->
+  Qualified [(UserId, ClientId)] ->
+  Sem r ()
+sendWelcomes now loc rawWelcome =
+  foldQualified loc (sendLocalWelcomes now rawWelcome) (sendRemoteWelcomes rawWelcome)
+
+sendLocalWelcomes ::
+  Members '[GundeckAccess] r =>
+  UTCTime ->
+  ByteString ->
+  Local [(UserId, ClientId)] ->
+  Sem r ()
+sendLocalWelcomes now rawWelcome lclients = do
+  runMessagePush lclients Nothing $
+    foldMap (uncurry mkPush) (tUnqualified lclients)
+  where
+    -- TODO: add ConnId header to endpoint
+    mkPush :: UserId -> ClientId -> MessagePush 'Broadcast
+    mkPush u c =
+      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
+      let lcnv = qualifyAs lclients (selfConv u)
+          lusr = qualifyAs lclients u
+          e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSMessage rawWelcome
+       in newMessagePush lclients () Nothing defMessageMetadata (u, c) e
+
+sendRemoteWelcomes :: ByteString -> Remote [(UserId, ClientId)] -> Sem r ()
+sendRemoteWelcomes = undefined
 
 derefKeyPackage ::
   Members

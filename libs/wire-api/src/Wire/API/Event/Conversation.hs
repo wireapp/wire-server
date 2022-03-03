@@ -41,6 +41,7 @@ module Wire.API.Event.Conversation
     _EdConversation,
     _EdTyping,
     _EdOtrMessage,
+    _EdMLSMessage,
 
     -- * Event data helpers
     SimpleMember (..),
@@ -123,6 +124,7 @@ data EventType
   | ConvDelete
   | ConvReceiptModeUpdate
   | OtrMessageAdd
+  | MLSMessageAdd
   | Typing
   deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform EventType)
@@ -163,6 +165,7 @@ data EventData
   | EdConversation Conversation
   | EdTyping TypingData
   | EdOtrMessage OtrMessage
+  | EdMLSMessage ByteString
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -180,6 +183,7 @@ genEventData = \case
   ConvReceiptModeUpdate -> EdConvReceiptModeUpdate <$> arbitrary
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
+  MLSMessageAdd -> EdMLSMessage <$> arbitrary
   ConvDelete -> pure EdConvDelete
 
 eventDataType :: EventData -> EventType
@@ -196,6 +200,7 @@ eventDataType (EdConversation _) = ConvCreate
 eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
+eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType EdConvDelete = ConvDelete
 
 --------------------------------------------------------------------------------
@@ -366,6 +371,7 @@ taggedEventDataSchema =
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
+      MLSMessageAdd -> tag _EdOtrMessage (unnamed schema)
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
