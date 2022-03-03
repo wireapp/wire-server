@@ -44,33 +44,29 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Set.Lens
+import Data.Singletons
 import Data.Time.Clock (UTCTime)
 import Galley.API.Error
 import Galley.API.LegalHold.Conflicts
+import Galley.API.Push
 import Galley.API.Util
 import Galley.Data.Conversation
-import Galley.Data.Services as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
-import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import Galley.Intra.Push
 import Galley.Options
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
-import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -512,7 +508,7 @@ byDomain =
 
 sendLocalMessages ::
   forall t r x.
-  ( RunMessagePush t,
+  ( SingI t,
     Members (MessagePushEffects t) r,
     Monoid (MessagePush t)
   ) =>
@@ -587,47 +583,6 @@ flattenMap :: QualifiedOtrRecipients -> Map (Domain, UserId, ClientId) ByteStrin
 flattenMap (QualifiedOtrRecipients (QualifiedUserClientMap m)) =
   toMapOf (reindexed (\(d, (u, c)) -> (d, u, c)) (itraversed <.> itraversed <.> itraversed)) m
 
-data MessageType = NormalMessage | Broadcast
-
-data family MessagePush (t :: MessageType)
-
-data instance MessagePush 'NormalMessage = NormalMessagePush
-  { userPushes :: [Push],
-    botPushes :: [(BotMember, Event)]
-  }
-
-data instance MessagePush 'Broadcast = BroadcastPush
-  {broadcastPushes :: [Push]}
-
-instance Semigroup (MessagePush 'NormalMessage) where
-  NormalMessagePush us1 bs1 <> NormalMessagePush us2 bs2 =
-    NormalMessagePush (us1 <> us2) (bs1 <> bs2)
-
-instance Monoid (MessagePush 'NormalMessage) where
-  mempty = NormalMessagePush mempty mempty
-
-instance Semigroup (MessagePush 'Broadcast) where
-  BroadcastPush us1 <> BroadcastPush us2 = BroadcastPush (us1 <> us2)
-
-instance Monoid (MessagePush 'Broadcast) where
-  mempty = BroadcastPush mempty
-
-class HasUserPush (t :: MessageType) where
-  newUserPush :: Push -> MessagePush t
-
-instance HasUserPush 'NormalMessage where
-  newUserPush p = NormalMessagePush {userPushes = pure p, botPushes = mempty}
-
-instance HasUserPush 'Broadcast where
-  newUserPush p = BroadcastPush (pure p)
-
-newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
-newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
-
-type family LocalMemberMap (t :: MessageType) = (m :: *) | m -> t where
-  LocalMemberMap 'NormalMessage = Map UserId LocalMember
-  LocalMemberMap 'Broadcast = ()
-
 newMessageEvent ::
   Maybe (Qualified ConvId) ->
   Qualified UserId ->
@@ -646,79 +601,6 @@ newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) 
             otrCiphertext = cipherText,
             otrData = dat
           }
-
-class RunMessagePush (t :: MessageType) where
-  type MessagePushEffects t :: [Effect]
-  newMessagePush ::
-    Local x ->
-    LocalMemberMap t ->
-    Maybe ConnId ->
-    MessageMetadata ->
-    (UserId, ClientId) ->
-    Event ->
-    MessagePush t
-  runMessagePush ::
-    Members (MessagePushEffects t) r =>
-    Local x ->
-    Maybe (Qualified ConvId) ->
-    MessagePush t ->
-    Sem r ()
-
-instance RunMessagePush 'NormalMessage where
-  type MessagePushEffects 'NormalMessage = '[ExternalAccess, GundeckAccess, P.TinyLog]
-  newMessagePush loc members mconn mm (k, client) e = fold $ do
-    member <- Map.lookup k members
-    newBotMessagePush member <|> newUserMessagePush loc mconn mm (lmId member) client e
-    where
-      newBotMessagePush :: LocalMember -> Maybe (MessagePush 'NormalMessage)
-      newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
-  runMessagePush loc mqcnv mp = do
-    push (userPushes mp)
-    pushToBots (botPushes mp)
-    where
-      pushToBots ::
-        Members '[ExternalAccess, P.TinyLog] r =>
-        [(BotMember, Event)] ->
-        Sem r ()
-      pushToBots pushes = for_ mqcnv $ \qcnv ->
-        if tDomain loc /= qDomain qcnv
-          then unless (null pushes) $ do
-            P.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
-          else deliverAndDeleteAsync (qUnqualified qcnv) pushes
-
-instance RunMessagePush 'Broadcast where
-  type MessagePushEffects 'Broadcast = '[GundeckAccess]
-  newMessagePush loc () mconn mm (user, client) e =
-    fold $
-      newUserMessagePush loc mconn mm user client e
-
-  runMessagePush _ _ mp = push (broadcastPushes mp)
-
-newUserMessagePush ::
-  HasUserPush t =>
-  Local x ->
-  Maybe ConnId ->
-  MessageMetadata ->
-  UserId ->
-  ClientId ->
-  Event ->
-  Maybe (MessagePush t)
-newUserMessagePush loc mconn mm user cli e =
-  fmap newUserPush $
-    newConversationEventPush e (qualifyAs loc [user])
-      <&> set pushConn mconn
-        . set pushNativePriority (mmNativePriority mm)
-        . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
-        . set pushTransient (mmTransient mm)
-        . set (pushRecipients . traverse . recipientClients) (RecipientClientsSome (singleton cli))
-
-data MessageMetadata = MessageMetadata
-  { mmNativePush :: Bool,
-    mmTransient :: Bool,
-    mmNativePriority :: Maybe Priority,
-    mmData :: Maybe Text
-  }
-  deriving (Eq, Ord, Show)
 
 qualifiedNewOtrMetadata :: QualifiedNewOtrMessage -> MessageMetadata
 qualifiedNewOtrMetadata msg =

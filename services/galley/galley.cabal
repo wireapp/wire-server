@@ -38,6 +38,7 @@ library
       Galley.API.One2One
       Galley.API.Public
       Galley.API.Public.Servant
+      Galley.API.Push
       Galley.API.Query
       Galley.API.Teams
       Galley.API.Teams.Features
@@ -223,6 +224,7 @@ library
     , safe >=0.3
     , safe-exceptions >=0.1
     , saml2-web-sso >=0.18
+    , semigroups
     , servant
     , servant-client
     , servant-client-core
