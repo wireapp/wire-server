@@ -50,22 +50,28 @@ tests =
 
 testParseKeyPackage :: IO ()
 testParseKeyPackage = do
-  kpData <- LBS.readFile "test/resources/key_package1.mls"
-  case decodeMLS @KeyPackage kpData of
+  kpData <- BS.readFile "test/resources/key_package1.mls"
+  kp <- case decodeMLS' @KeyPackage kpData of
     Left err -> assertFailure (T.unpack err)
-    Right kp -> do
-      pvTag (kpProtocolVersion kp) @?= Just ProtocolMLS10
-      kpCipherSuite kp @?= CipherSuite 1
-      BS.length (kpInitKey kp) @?= 32
-      case decodeMLS' @ClientIdentity (bcIdentity (kpCredential kp)) of
-        Left err -> assertFailure $ "Failed to parse identity: " <> T.unpack err
-        Right identity ->
-          identity
-            @?= ClientIdentity
-              { ciDomain = Domain "mls.example.com",
-                ciUser = Id (fromJust (UUID.fromString "b455a431-9db6-4404-86e7-6a3ebe73fcaf")),
-                ciClient = newClientId 0x3ae58155
-              }
+    Right x -> pure x
+
+  pvTag (kpProtocolVersion kp) @?= Just ProtocolMLS10
+  kpCipherSuite kp @?= CipherSuite 1
+  BS.length (kpInitKey kp) @?= 32
+
+  case decodeMLS' @ClientIdentity (bcIdentity (kpCredential kp)) of
+    Left err -> assertFailure $ "Failed to parse identity: " <> T.unpack err
+    Right identity ->
+      identity
+        @?= ClientIdentity
+          { ciDomain = Domain "mls.example.com",
+            ciUser = Id (fromJust (UUID.fromString "b455a431-9db6-4404-86e7-6a3ebe73fcaf")),
+            ciClient = newClientId 0x3ae58155
+          }
+
+  -- check raw TBS package
+  let rawTBS = rmRaw (kpTBS kp)
+  rawTBS @?= BS.take 196 kpData
 
 testParseCommit :: IO ()
 testParseCommit = do
