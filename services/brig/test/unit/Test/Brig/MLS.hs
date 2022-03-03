@@ -28,6 +28,7 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 
 -- | A lifetime with a length of at least 1 day.
 newtype ValidLifetime = ValidLifetime Lifetime
@@ -85,7 +86,7 @@ instance Show InvalidExtensions where
 
 instance Arbitrary InvalidExtensions where
   arbitrary = do
-    req <- fromIntegral . succ . fromEnum <$> elements [LifetimeExtensionTag, CapabilitiesExtensionTag]
+    req <- fromMLSEnum <$> elements [LifetimeExtensionTag, CapabilitiesExtensionTag]
     InvalidExtensions <$> listOf (arbitrary `suchThat` ((/= req) . extType))
 
 data LifetimeAndExtension = LifetimeAndExtension Extension Lifetime
