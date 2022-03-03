@@ -49,14 +49,7 @@ First install Git and Docker:
 
 ```bash
     sudo apt update
-    sudo apt install git docker.io
-```
-
-Then clone the legalhold repository: 
-
-```bash
-    git clone https://github.com/wireapp/legalhold.git
-    cd legalhold/
+    sudo apt install docker.io
 ```
 
 Generate a random secret to use as your service token. 
@@ -81,6 +74,8 @@ Finally, run the actual Docker container for the LegalHold service:
 
 Now that the legalhold service is running, you need to configure the DNS for your domain so that `legal.<yourdomain>` redirects to this service.
 
+Make sure you implement/enable HTTPS, and remember your TLS public key as it will be necessary in the Team Settings configuration.
+
 ## Configuring Team Settings to use Legal Hold
 
 The next step is to configure the Wire Team, in the Team Settings interface, to interface with the newly installed Legal Hold service.
@@ -89,24 +84,49 @@ To do this, first go to  `teams.<your-domain>`.
 
 Once in the interface, select `Customization` in the menu on the left:
 
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+
 ![Customization](img/legalhold-step01-click-customization.png)
+
+</div>
 
 
 On the customization page, go to `Legal Hold`:
 
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+
 ![Legal Hold](img/legalhold-step02-goto-legalhold.png)
 
+</div>
 
 Under the Legal Hold section, click the small down-pointing blue arrow:
 
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+
 ![Arrow](img/legalhold-step03-click-arrow.png)
 
+</div>
 
 In the extended Legal Hold section, click on `Manage Configuration`:
 
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+
 ![Manage Configuration](img/legalhold-step04-click-manage-configuration.png)
+
+</div>
 
 From here, you can fill in the required configuration info:
 
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+
 ![Fill in configuration](img/legalhold-step05-fill-info.png)
 
+</div>
+
+Here, fill in the different fields:
+
+* `Service URL` is the domain you set up in the first step: `https://legal.<your-domain>`
+* `Authentication token` is the token you created in first step, we used `secr3t` as an example, but you might have generated a random token with `openssl rand -hex 20`
+* `Public Key` is the TLS public key for the certificate you generated when implementing HTTPS in the first step.
+
+Finally, click on `Save`.
