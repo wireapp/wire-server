@@ -22,6 +22,7 @@ module Brig.Data.Activation
     ActivationCode (..),
     ActivationEvent (..),
     ActivationError (..),
+    activationErrorToRegisterError,
     newActivation,
     mkActivationKey,
     lookupActivationCode,
@@ -48,6 +49,7 @@ import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Text.Printf (printf)
+import Wire.API.User
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation
@@ -60,9 +62,18 @@ data Activation = Activation
 
 data ActivationError
   = UserKeyExists !LT.Text
-  | InvalidActivationCode !LT.Text
+  | InvalidActivationCodeWrongUser
+  | InvalidActivationCodeWrongCode
   | InvalidActivationEmail !Email !String
   | InvalidActivationPhone !Phone
+
+activationErrorToRegisterError :: ActivationError -> RegisterError
+activationErrorToRegisterError = \case
+  UserKeyExists _ -> RegisterErrorUserKeyExists
+  InvalidActivationCodeWrongUser -> RegisterErrorInvalidActivationCodeWrongUser
+  InvalidActivationCodeWrongCode -> RegisterErrorInvalidActivationCodeWrongCode
+  InvalidActivationEmail _ _ -> RegisterErrorInvalidEmail
+  InvalidActivationPhone _ -> RegisterErrorInvalidPhone
 
 data ActivationEvent
   = AccountActivated !UserAccount
@@ -189,10 +200,10 @@ deleteActivationPair :: ActivationKey -> (AppIO r) ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError
-invalidUser = InvalidActivationCode "User does not exist."
+invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."
 
 invalidCode :: ActivationError
-invalidCode = InvalidActivationCode "Invalid activation code"
+invalidCode = InvalidActivationCodeWrongCode -- "Invalid activation code"
 
 keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
 keyInsert =

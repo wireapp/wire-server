@@ -90,7 +90,7 @@ routesPublic = do
     Doc.response 201 "Invitation was created and sent." Doc.end
     Doc.errorResponse noEmail
     Doc.errorResponse (errorDescriptionToWai (noIdentity 6))
-    Doc.errorResponse invalidEmail
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse tooManyTeamInvitations
 
@@ -149,7 +149,7 @@ routesPublic = do
       Doc.description "Invitation code"
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 200 "Invitation successful." Doc.end
-    Doc.errorResponse invalidInvitationCode
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidInvitationCode)
 
   -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
   head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
@@ -228,7 +228,7 @@ getInvitationCodeH (_ ::: t ::: r) = do
 getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
 getInvitationCode t r = do
   code <- lift $ DB.lookupInvitationCode t r
-  maybe (throwStd invalidInvitationCode) (return . FoundInvitationCode) code
+  maybe (throwStd $ errorDescriptionTypeToWai @InvalidInvitationCode) (return . FoundInvitationCode) code
 
 data FoundInvitationCode = FoundInvitationCode InvitationCode
   deriving (Eq, Show, Generic)
@@ -321,7 +321,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  inviteeEmail <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
+  inviteeEmail <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidEmail)) return (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey inviteeEmail
   blacklistedEm <- lift $ Blacklist.exists uke
   when blacklistedEm $
@@ -404,7 +404,7 @@ getInvitationByCodeH (_ ::: c) = do
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
   inv <- lift $ DB.lookupInvitationByCode c
-  maybe (throwStd invalidInvitationCode) return inv
+  maybe (throwStd $ errorDescriptionTypeToWai @InvalidInvitationCode) return inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
 headInvitationByEmailH (_ ::: e) = do

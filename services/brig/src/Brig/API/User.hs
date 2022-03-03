@@ -88,13 +88,14 @@ module Brig.API.User
   )
 where
 
+import Brig.API.Error (errorDescriptionTypeToWai)
 import qualified Brig.API.Error as Error
-import qualified Brig.API.Handler as API (Handler)
+import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
-import Brig.Data.Activation (ActivationEvent (..))
+import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
@@ -150,6 +151,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
+import Wire.API.ErrorDescription
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
@@ -163,21 +165,37 @@ data AllowSCIMUpdates
 -------------------------------------------------------------------------------
 -- Create User
 
-verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT CreateUserError (AppIO r) ()
+data IdentityError
+  = IdentityErrorBlacklistedEmail
+  | IdentityErrorBlacklistedPhone
+  | IdentityErrorUserKeyExists
+
+identityErrorToRegisterError :: IdentityError -> RegisterError
+identityErrorToRegisterError = \case
+  IdentityErrorBlacklistedEmail -> RegisterErrorBlacklistedEmail
+  IdentityErrorBlacklistedPhone -> RegisterErrorBlacklistedPhone
+  IdentityErrorUserKeyExists -> RegisterErrorUserKeyExists
+
+identityErrorToBrigError :: IdentityError -> Error.Error
+identityErrorToBrigError = \case
+  IdentityErrorBlacklistedEmail -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedEmail
+  IdentityErrorBlacklistedPhone -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedPhone
+  IdentityErrorUserKeyExists -> Error.StdError $ errorDescriptionTypeToWai @UserKeyExists
+
+verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   checkKey Nothing uk
   blacklisted <- lift $ Blacklist.exists uk
   when blacklisted $
-    throwE (BlacklistedUserKey uk)
+    throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
   where
     checkKey u k = do
       av <- lift $ Data.keyAvailable k u
       unless av $
-        throwE $
-          DuplicateUserKey k
+        throwE IdentityErrorUserKeyExists
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: NewUser -> ExceptT CreateUserError (AppIO r) CreateUserResult
+createUser :: NewUser -> ExceptT RegisterError (AppIO r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -276,29 +294,29 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT CreateUserError (AppT r IO) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r IO) (Maybe Email, Maybe Phone)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
         either
-          (throwE . InvalidEmail e)
+          (const $ throwE RegisterErrorInvalidEmail)
           return
           (validateEmail e)
 
       -- Validate phone
       phone <- for (newUserPhone newUser) $ \p ->
         maybe
-          (throwE (InvalidPhone p))
+          (throwE RegisterErrorInvalidPhone)
           return
           =<< lift (validatePhone p)
 
-      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ do
-        verifyUniquenessAndCheckBlacklist
+      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
+        verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
       pure (email, phone)
 
-    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError (AppIO r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
-    findTeamInvitation Nothing _ = throwE MissingIdentity
+    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppIO r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+    findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
       lift (Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
@@ -308,20 +326,20 @@ createUser new = do
               | e == userEmailKey em -> do
                 _ <- ensureMemberCanJoin (Team.iiTeam ii)
                 return $ Just (invite, ii, Team.iiTeam ii)
-            _ -> throwE InvalidInvitationCode
-        Nothing -> throwE InvalidInvitationCode
+            _ -> throwE RegisterErrorInvalidInvitationCode
+        Nothing -> throwE RegisterErrorInvalidInvitationCode
 
-    ensureMemberCanJoin :: TeamId -> ExceptT CreateUserError (AppIO r) ()
+    ensureMemberCanJoin :: TeamId -> ExceptT RegisterError (AppIO r) ()
     ensureMemberCanJoin tid = do
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
       (TeamSize teamSize) <- TeamSize.teamSize tid
       when (teamSize >= maxSize) $
-        throwE TooManyTeamMembers
+        throwE RegisterErrorTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
       --             Remove after the next release.
       canAdd <- lift $ Intra.checkUserCanJoinTeam tid
       case canAdd of
-        Just e -> throwE (ExternalPreconditionFailed e)
+        Just e -> throwM $ API.UserNotAllowedToJoinTeam e
         Nothing -> pure ()
 
     acceptTeamInvitation ::
@@ -330,18 +348,17 @@ createUser new = do
       Team.InvitationInfo ->
       UserKey ->
       UserIdentity ->
-      ExceptT CreateUserError (AppT r IO) ()
+      ExceptT RegisterError (AppT r IO) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
       unless ok $
-        throwE $
-          DuplicateUserKey uk
+        throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
       added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
-        throwE TooManyTeamMembers
+        throwE RegisterErrorTooManyTeamMembers
       lift $ do
         activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
@@ -352,12 +369,12 @@ createUser new = do
         Data.usersPendingActivationRemove uid
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
-    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError (AppIO r) CreateUserTeam
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppIO r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
       added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
       unless added $
-        throwE TooManyTeamMembers
+        throwE RegisterErrorTooManyTeamMembers
       lift $ do
         activateUser uid ident
         void $ onActivated (AccountActivated account)
@@ -369,7 +386,7 @@ createUser new = do
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT CreateUserError (AppT r IO) (Maybe Activation)
+    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
       fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
@@ -382,13 +399,15 @@ createUser new = do
           return $ Just edata
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey ek
-          void $ activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam) !>> EmailActivationError
+          void $
+            activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
+              !>> activationErrorToRegisterError
           return Nothing
 
     -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT CreateUserError (AppT r IO) (Maybe Activation)
+    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
     handlePhoneActivation phone uid = do
-      pdata <- fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
+      fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           pdata <- lift $ Data.newActivation pk timeout (Just uid)
@@ -399,9 +418,8 @@ createUser new = do
           return $ Just pdata
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey pk
-          void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
+          void $ activate (ActivateKey ak) c (Just uid) !>> activationErrorToRegisterError
           return Nothing
-      pure pdata
 
 initAccountFeatureConfig :: UserId -> (AppIO r) ()
 initAccountFeatureConfig uid = do
@@ -412,10 +430,10 @@ initAccountFeatureConfig uid = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppIO r) UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
-  email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
+  email <- either (const . throwE . Error.StdError $ errorDescriptionTypeToWai @InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
-  verifyUniquenessAndCheckBlacklist emKey
+  verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 
@@ -428,7 +446,6 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
 
   let activated =
-        -- It would be nice to set this to 'False' to make sure we're not accidentally
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
         -- would not produce an identity, and so we won't have the email address to construct
         -- the SCIM user.
@@ -438,7 +455,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
-checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError (AppIO r) ()
+checkRestrictedUserCreation :: NewUser -> ExceptT RegisterError (AppIO r) ()
 checkRestrictedUserCreation new = do
   restrictPlease <- lift . asks $ fromMaybe False . setRestrictUserCreation . view settings
   when
@@ -446,7 +463,7 @@ checkRestrictedUserCreation new = do
         && not (isNewUserTeamMember new)
         && not (isNewUserEphemeral new)
     )
-    $ throwE UserCreationRestricted
+    $ throwE RegisterErrorUserCreationRestricted
 
 -------------------------------------------------------------------------------
 -- Update Profile

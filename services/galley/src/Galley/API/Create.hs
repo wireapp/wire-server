@@ -381,7 +381,7 @@ createConnectConversation lusr conn j = do
       c <- E.createConnectConversation x y n
       now <- input
       let lcid = qualifyAs lusr (Data.convId c)
-          e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
+          e = Event (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
@@ -422,7 +422,7 @@ createConnectConversation lusr conn j = do
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- input
-        let e = Event ConvConnect (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
+        let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           E.push1 $
             p
@@ -472,7 +472,7 @@ notifyCreatedConversation dtime lusr conn c = do
     toPush t m = do
       let lconv = qualifyAs lusr (Data.convId c)
       c' <- conversationView (qualifyAs lusr (lmId m)) c
-      let e = Event ConvCreate (qUntagged lconv) (qUntagged lusr) t (EdConversation c')
+      let e = Event (qUntagged lconv) (qUntagged lusr) t (EdConversation c')
       return $
         newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn

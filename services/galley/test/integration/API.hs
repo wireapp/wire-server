@@ -87,6 +87,7 @@ import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation hiding (decodeConvId)
 import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Galley

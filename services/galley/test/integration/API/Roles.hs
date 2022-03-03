@@ -42,6 +42,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 

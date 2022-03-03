@@ -356,7 +356,7 @@ updateTeamH zusr zcon tid updateData = do
   E.setTeamData tid updateData
   now <- input
   memList <- getTeamMembersForFanout tid
-  let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
+  let e = newEvent tid now (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
@@ -444,7 +444,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     -- done asynchronously
     membs <- E.getTeamMembers tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
-    let e = newEvent TeamDelete tid now
+    let e = newEvent tid now EdTeamDelete
     pushDeleteEvents membs e ue
     E.deliverAsync be
     -- TODO: we don't delete bots here, but we should do that, since
@@ -483,7 +483,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event Conv.ConvDelete qconvId (qUntagged lusr) now Conv.EdConvDelete
+      let e = Conv.Event qconvId (qUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -948,7 +948,7 @@ updateTeamMember zusr zcon tid targetMember = do
           privilegedUpdate = mkUpdate $ Just targetPermissions
           privilegedRecipients = membersToRecipients Nothing privileged
       now <- input
-      let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
+      let ePriv = newEvent tid now privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
@@ -1071,7 +1071,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
     pushMemberLeaveEvent now = do
-      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
+      let e = newEvent tid now (EdMemberLeave remove)
       let r =
             list1
               (userRecipient (tUnqualified lusr))
@@ -1099,7 +1099,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       let qconvId = qUntagged $ qualifyAs lusr (Data.convId dc)
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
-      let y = Conv.Event Conv.MemberLeave qconvId (qUntagged lusr) now edata
+      let y = Conv.Event qconvId (qUntagged lusr) now edata
       for_ (newPushLocal (mems ^. teamMemberListType) (tUnqualified lusr) (ConvEvent y) (recipient <$> x)) $ \p ->
         E.push1 $ p & pushConn .~ zcon
       E.deliverAsync (bots `zip` repeat y)
@@ -1339,7 +1339,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
   sizeBeforeAdd <- ensureNotTooLarge tid
   E.createTeamMember tid new
   now <- input
-  let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
+  let e = newEvent tid now (EdMemberJoin (new ^. userId))
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
@@ -1400,7 +1400,7 @@ finishCreateTeam team owner others zcon = do
   for_ (owner : others) $
     E.createTeamMember (team ^. teamId)
   now <- input
-  let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
+  let e = newEvent (team ^. teamId) now (EdTeamCreate team)
   let r = membersToRecipients Nothing others
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
@@ -1429,6 +1429,18 @@ canUserJoinTeamH ::
 canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 
 -- This could be extended for more checks, for now we test only legalhold
+--
+-- Brig's `POST /register` endpoint throws the errors returned by this endpoint
+-- verbatim.
+--
+-- FUTUREWORK: When this enpoint gets Servantified, it should have a more
+-- precise list of errors, LegalHoldError is too wide, currently this can
+-- actaully only error with TooManyTeamMembersOnTeamWithLegalhold. Once we have
+-- a more precise list of errors and the endpoint is servantified, we can use
+-- those to enrich 'Wire.API.User.RegisterError' and ensure that these errors
+-- also show up in swagger. Currently, the error returned by this endpoint is
+-- thrown in IO, we could then refactor that to be thrown in `ExceptT
+-- RegisterError`.
 canUserJoinTeam ::
   Members
     '[ BrigAccess,

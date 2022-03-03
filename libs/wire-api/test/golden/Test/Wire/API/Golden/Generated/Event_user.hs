@@ -41,7 +41,6 @@ domain = Domain "golden.example.com"
 testObject_Event_user_1 :: Event
 testObject_Event_user_1 =
   Event
-    ConvDelete
     (Qualified (Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com"))
     (read "1864-05-22 09:51:07.104 UTC")
@@ -50,7 +49,6 @@ testObject_Event_user_1 =
 testObject_Event_user_2 :: Event
 testObject_Event_user_2 =
   Event
-    ConvAccessUpdate
     (Qualified (Id (fromJust (UUID.fromString "0000064d-0000-7a7f-0000-5749000029e1"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2"))) (Domain "faraway.example.com"))
     (read "1864-06-05 23:01:18.769 UTC")
@@ -65,7 +63,6 @@ testObject_Event_user_2 =
 testObject_Event_user_3 :: Event
 testObject_Event_user_3 =
   Event
-    OtrMessageAdd
     (Qualified (Id (fromJust (UUID.fromString "00006f8c-0000-00d6-0000-1568000001e9"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188"))) (Domain "faraway.example.com"))
     (read "1864-04-27 15:44:23.844 UTC")
@@ -82,7 +79,6 @@ testObject_Event_user_3 =
 testObject_Event_user_4 :: Event
 testObject_Event_user_4 =
   Event
-    ConvCodeDelete
     (Qualified (Id (fromJust (UUID.fromString "00004f04-0000-3939-0000-472d0000316b"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7"))) (Domain "faraway.example.com"))
     (read "1864-05-12 00:59:09.2 UTC")
@@ -91,7 +87,6 @@ testObject_Event_user_4 =
 testObject_Event_user_5 :: Event
 testObject_Event_user_5 =
   Event
-    MemberStateUpdate
     (Qualified (Id (fromJust (UUID.fromString "00003c8c-0000-6394-0000-294b0000098b"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9"))) (Domain "faraway.example.com"))
     (read "1864-04-12 03:04:00.298 UTC")
@@ -119,7 +114,6 @@ testObject_Event_user_5 =
 testObject_Event_user_6 :: Event
 testObject_Event_user_6 =
   Event
-    ConvMessageTimerUpdate
     (Qualified (Id (fromJust (UUID.fromString "00001fdb-0000-3127-0000-23ef00007183"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8"))) (Domain "faraway.example.com"))
     (read "1864-05-09 05:44:41.382 UTC")
@@ -128,7 +122,6 @@ testObject_Event_user_6 =
 testObject_Event_user_7 :: Event
 testObject_Event_user_7 =
   Event
-    Typing
     (Qualified (Id (fromJust (UUID.fromString "00006ac1-0000-543e-0000-7c8f00000be7"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))) (Domain "faraway.example.com"))
     (read "1864-04-18 05:01:13.761 UTC")
@@ -137,7 +130,6 @@ testObject_Event_user_7 =
 testObject_Event_user_8 :: Event
 testObject_Event_user_8 =
   Event
-    ConvCreate
     (Qualified (Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))) (Domain "faraway.example.com"))
     (read "1864-05-29 19:31:31.226 UTC")
@@ -202,7 +194,6 @@ testObject_Event_user_8 =
 testObject_Event_user_9 :: Event
 testObject_Event_user_9 =
   Event
-    ConvReceiptModeUpdate
     (Qualified (Id (fromJust (UUID.fromString "00000b98-0000-618d-0000-19e200004651"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726"))) (Domain "faraway.example.com"))
     (read "1864-05-01 11:57:35.123 UTC")
@@ -211,7 +202,6 @@ testObject_Event_user_9 =
 testObject_Event_user_10 :: Event
 testObject_Event_user_10 =
   Event
-    ConvConnect
     (Qualified (Id (fromJust (UUID.fromString "00005e43-0000-3b56-0000-7c270000538c"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d"))) (Domain "faraway.example.com"))
     (read "1864-05-25 01:31:49.802 UTC")
@@ -231,7 +221,6 @@ testObject_Event_user_10 =
 testObject_Event_user_11 :: Event
 testObject_Event_user_11 =
   Event
-    MemberLeave
     (Qualified (Id (fromJust (UUID.fromString "0000303b-0000-23a9-0000-25de00002f80"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
     (read "1864-04-12 01:28:25.705 UTC")
@@ -248,7 +237,6 @@ testObject_Event_user_11 =
 testObject_Event_user_12 :: Event
 testObject_Event_user_12 =
   Event
-    MemberJoin
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")
@@ -271,7 +259,6 @@ testObject_Event_user_12 =
 testObject_Event_user_13 :: Event
 testObject_Event_user_13 =
   Event
-    ConvRename
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")
@@ -280,7 +267,6 @@ testObject_Event_user_13 =
 testObject_Event_user_14 :: Event
 testObject_Event_user_14 =
   Event
-    ConvCodeUpdate
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")

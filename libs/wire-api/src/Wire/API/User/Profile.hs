@@ -67,7 +67,6 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
-import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Orphans ()
@@ -252,7 +251,7 @@ data ManagedBy
     ManagedByScim
   deriving stock (Eq, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
-  deriving (S.ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ManagedBy", CamelToSnake)] ManagedBy)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ManagedBy)
 
 typeManagedBy :: Doc.DataType
 typeManagedBy =
@@ -262,17 +261,13 @@ typeManagedBy =
         "scim"
       ]
 
-instance ToJSON ManagedBy where
-  toJSON =
-    A.String . \case
-      ManagedByWire -> "wire"
-      ManagedByScim -> "scim"
-
-instance FromJSON ManagedBy where
-  parseJSON = A.withText "ManagedBy" $ \case
-    "wire" -> pure ManagedByWire
-    "scim" -> pure ManagedByScim
-    other -> fail $ "Invalid ManagedBy: " ++ show other
+instance ToSchema ManagedBy where
+  schema =
+    enum @Text "ManagedBy" $
+      mconcat
+        [ element "wire" ManagedByWire,
+          element "scim" ManagedByScim
+        ]
 
 instance ToByteString ManagedBy where
   builder ManagedByWire = "wire"
