@@ -1125,11 +1125,11 @@ postProteusMessage ::
   Qualified ConvId ->
   RawProto QualifiedNewOtrMessage ->
   Sem r (PostOtrResponse MessageSendingStatus)
-postProteusMessage sender zcon conv msg' = runLocalInput sender $ do
+postProteusMessage sender zcon conv msg = runLocalInput sender $ do
   foldQualified
     sender
-    (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) c (rpValue msg'))
-    (\c -> postRemoteOtrMessage (qUntagged sender) c (rpRaw msg'))
+    (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) c (rpValue msg))
+    (\c -> postRemoteOtrMessage (qUntagged sender) c (rpRaw msg))
     conv
 
 postProteusBroadcast ::

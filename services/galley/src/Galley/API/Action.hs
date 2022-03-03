@@ -141,20 +141,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
     Members '[ConversationStore, Error NoChanges] r
 
--- -- | A sum type consisting of all possible conversation actions.
--- data ConversationAction
---   = ConversationActionAddMembers (NonEmpty (Qualified UserId)) RoleName
---   | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
---   | ConversationActionRename ConversationRename
---   | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
---   | ConversationActionReceiptModeUpdate ConversationReceiptModeUpdate
---   | ConversationActionMemberUpdate (Qualified UserId) OtherMemberUpdate
---   | ConversationActionAccessUpdate ConversationAccessData
---   | ConversationActionDelete
---   deriving stock (Eq, Show, Generic)
---   deriving (Arbitrary) via (GenericUniform ConversationAction)
---   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)
-
 noChanges :: Member (Error NoChanges) r => Sem r a
 noChanges = throw NoChanges
 
@@ -175,7 +161,7 @@ ensureAllowed loc action conv origUser = do
         void $ E.getTeamMember tid (tUnqualified lusr) >>= noteED @NotATeamMember
     SConversationAccessDataTag -> do
       -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
-      -- so on; users are not supposed to be able to make other conversations
+      -- so on; users not supposed to be able to make other conversations
       -- have 'PrivateAccessRole'
       when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
         throw InvalidTargetAccess

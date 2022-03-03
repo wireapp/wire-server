@@ -169,7 +169,7 @@ onConversationUpdated requestingDomain cu = do
   -- way to make sure that they are actually supposed to receive that notification.
 
   (mActualAction :: Maybe SomeConversationAction, extraTargets :: [UserId]) <- case F.cuAction cu of
-    SomeConversationAction signTag action -> case signTag of
+    sca@(SomeConversationAction signTag action) -> case signTag of
       SConversationJoinTag -> do
         let ConversationJoin toAdd role = action
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
@@ -182,21 +182,21 @@ onConversationUpdated requestingDomain cu = do
         let ConversationLeave toLeave = action
             localUsers = getLocalUsers (tDomain loc) toLeave
         E.deleteMembersInRemoteConversation rconvId localUsers
-        pure (Just $ SomeConversationAction (sing @'ConversationLeaveTag) action, [])
+        pure (Just sca, [])
       SConversationRemoveMembersTag -> do
         let ConversationRemoveMembers toRemove = action
             localUsers = getLocalUsers (tDomain loc) toRemove
         E.deleteMembersInRemoteConversation rconvId localUsers
-        pure (Just $ SomeConversationAction (sing @'ConversationRemoveMembersTag) action, [])
+        pure (Just sca, [])
       SConversationMemberUpdateTag ->
-        pure (Just (SomeConversationAction (sing @'ConversationMemberUpdateTag) action), [])
+        pure (Just sca, [])
       SConversationDeleteTag -> do
         E.deleteMembersInRemoteConversation rconvId presentUsers
-        pure (Just (SomeConversationAction (sing @'ConversationDeleteTag) action), [])
-      SConversationRenameTag -> pure (Just (SomeConversationAction (sing @'ConversationRenameTag) action), [])
-      SConversationMessageTimerUpdateTag -> pure (Just (SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) action), [])
-      SConversationReceiptModeUpdateTag -> pure (Just (SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action), [])
-      SConversationAccessDataTag -> pure (Just (SomeConversationAction (sing @'ConversationAccessDataTag) action), [])
+        pure (Just sca, [])
+      SConversationRenameTag -> pure (Just sca, [])
+      SConversationMessageTimerUpdateTag -> pure (Just sca, [])
+      SConversationReceiptModeUpdateTag -> pure (Just sca, [])
+      SConversationAccessDataTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
