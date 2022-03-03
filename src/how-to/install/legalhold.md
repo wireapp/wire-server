@@ -85,7 +85,7 @@ Now that the legalhold service is running, you need to configure the DNS for you
 
 The next step is to configure the Wire Team, in the Team Settings interface, to interface with the newly installed Legal Hold service.
 
-To do this, first go to `teams.wire.com` or `teams.<your-domain>` depending on your setup, and log in.
+To do this, first go to  `teams.<your-domain>`.
 
 Once in the interface, select `Customization` in the menu on the left:
 
