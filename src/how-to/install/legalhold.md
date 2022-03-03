@@ -43,6 +43,12 @@ Then use this command to change the password:
    ALTER USER postgres PASSWORD '<your-postgresql-password>';
 ```
 
+Also create a `legalhold` database:
+
+```sql
+   CREATE DATABASE legalhold;
+```
+
 Now that we have a working PostgreSQL database, we need to install the actual legalhold services.
 
 First install Git and Docker:
@@ -52,7 +58,7 @@ First install Git and Docker:
     sudo apt install docker.io
 ```
 
-Generate a random secret to use as your service token. 
+Generate a random secret (`SERVICE_TOKEN`) to use as your service token. This will be used in the Team Settings step later when entering configuration.
 
 Here we will use `secr3t` as an example, however you can for example use this command to generate one:
 
@@ -71,6 +77,8 @@ Finally, run the actual Docker container for the LegalHold service:
     -p 80:8080 \
     --name secure-hold --rm quay.io/wire/legalhold:1.0.4
 ```
+
+* `DB_URL` is the URL of your PostgreSQL database.
 
 Now that the legalhold service is running, you need to configure the DNS for your domain so that `legal.<yourdomain>` redirects to this service.
 
