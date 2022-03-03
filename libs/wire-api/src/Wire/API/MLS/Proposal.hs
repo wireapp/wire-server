@@ -112,9 +112,9 @@ instance ParseMLS ReInit where
         <*> parseMLSVector @Word32 parseMLS
 
 data MessageRange = MessageRange
-  { aaSender :: KeyPackageRef,
-    aaFirstGeneration :: Word32,
-    aaLastGenereation :: Word32
+  { mrSender :: KeyPackageRef,
+    mrFirstGeneration :: Word32,
+    mrLastGenereation :: Word32
   }
   deriving stock (Eq, Show)
 
