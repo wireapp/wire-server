@@ -43,6 +43,8 @@ where
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Json.Util ((#))
+import Data.Schema (Schema (..), ToSchema, schemaIn)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
@@ -84,7 +86,8 @@ newtype ActivationKey = ActivationKey
 newtype ActivationCode = ActivationCode
   {fromActivationCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToByteString, FromByteString, ToSchema, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ActivationCode
 
 --------------------------------------------------------------------------------
 -- Activate
@@ -181,7 +184,7 @@ instance ToJSON ActivationResponse where
 instance FromJSON ActivationResponse where
   parseJSON = withObject "ActivationResponse" $ \o ->
     ActivationResponse
-      <$> parseJSON (Object o)
+      <$> schemaIn userIdentityObjectSchema o
       <*> o .:? "first" .!= False
 
 --------------------------------------------------------------------------------

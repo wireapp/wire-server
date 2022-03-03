@@ -21,6 +21,7 @@
 module Wire.API.User.Orphans where
 
 import Control.Lens
+import qualified Data.Currency as Currency
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Proxy
@@ -121,3 +122,6 @@ instance ToParamSchema URI where
 
 instance ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema Currency.Alpha where
+  declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions

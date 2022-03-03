@@ -324,7 +324,7 @@ newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   email <- case validateEmail (Public.newProviderEmail new) of
     Right em -> return em
-    Left _ -> throwStd invalidEmail
+    Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
   let name = Public.newProviderName new
   let pass = Public.newProviderPassword new
   let descr = fromRange (Public.newProviderDescr new)
@@ -386,7 +386,7 @@ getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
 getActivationCode e = do
   email <- case validateEmail e of
     Right em -> return em
-    Left _ -> throwStd invalidEmail
+    Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
   code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (return . FoundActivationCode) code
@@ -496,7 +496,7 @@ updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   email <- case validateEmail new of
     Right em -> return em
-    Left _ -> throwStd invalidEmail
+    Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
   let emailKey = mkEmailKey email
   DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
   gen <- Code.mkGen (Code.ForEmail email)

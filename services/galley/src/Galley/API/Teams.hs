@@ -1429,6 +1429,18 @@ canUserJoinTeamH ::
 canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 
 -- This could be extended for more checks, for now we test only legalhold
+--
+-- Brig's `POST /register` endpoint throws the errors returned by this endpoint
+-- verbatim.
+--
+-- FUTUREWORK: When this enpoint gets Servantified, it should have a more
+-- precise list of errors, LegalHoldError is too wide, currently this can
+-- actaully only error with TooManyTeamMembersOnTeamWithLegalhold. Once we have
+-- a more precise list of errors and the endpoint is servantified, we can use
+-- those to enrich 'Wire.API.User.RegisterError' and ensure that these errors
+-- also show up in swagger. Currently, the error returned by this endpoint is
+-- thrown in IO, we could then refactor that to be thrown in `ExceptT
+-- RegisterError`.
 canUserJoinTeam ::
   Members
     '[ BrigAccess,

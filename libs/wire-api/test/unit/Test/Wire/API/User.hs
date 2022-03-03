@@ -26,6 +26,7 @@ import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Qualified
+import Data.Schema (schemaIn)
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Test.Tasty
@@ -53,28 +54,28 @@ testUserProfile = do
 
 parseIdentityTests :: [TestTree]
 parseIdentityTests =
-  [ let (=#=) :: Either String (Maybe UserIdentity) -> (Maybe UserSSOId, [Pair]) -> Assertion
-        (=#=) uid (mssoid, object -> Object obj) = assertEqual "=#=" uid (parseEither (parseIdentity mssoid) obj)
+  [ let (=#=) :: Either String (Maybe UserIdentity) -> [Pair] -> Assertion
+        (=#=) uid (object -> Object obj) = assertEqual "=#=" uid (parseEither (schemaIn maybeUserIdentityObjectSchema) obj)
         (=#=) _ bad = error $ "=#=: impossible: " <> show bad
      in testGroup
           "parseIdentity"
           [ testCase "FullIdentity" $
-              Right (Just (FullIdentity hemail hphone)) =#= (Nothing, [email, phone]),
+              Right (Just (FullIdentity hemail hphone)) =#= [email, phone],
             testCase "EmailIdentity" $
-              Right (Just (EmailIdentity hemail)) =#= (Nothing, [email]),
+              Right (Just (EmailIdentity hemail)) =#= [email],
             testCase "PhoneIdentity" $
-              Right (Just (PhoneIdentity hphone)) =#= (Nothing, [phone]),
+              Right (Just (PhoneIdentity hphone)) =#= [phone],
             testCase "SSOIdentity" $ do
-              Right (Just (SSOIdentity hssoid Nothing Nothing)) =#= (Just hssoid, [ssoid])
-              Right (Just (SSOIdentity hssoid Nothing (Just hphone))) =#= (Just hssoid, [ssoid, phone])
-              Right (Just (SSOIdentity hssoid (Just hemail) Nothing)) =#= (Just hssoid, [ssoid, email])
-              Right (Just (SSOIdentity hssoid (Just hemail) (Just hphone))) =#= (Just hssoid, [ssoid, email, phone]),
+              Right (Just (SSOIdentity hssoid Nothing Nothing)) =#= [ssoid]
+              Right (Just (SSOIdentity hssoid Nothing (Just hphone))) =#= [ssoid, phone]
+              Right (Just (SSOIdentity hssoid (Just hemail) Nothing)) =#= [ssoid, email]
+              Right (Just (SSOIdentity hssoid (Just hemail) (Just hphone))) =#= [ssoid, email, phone],
             testCase "Bad phone" $
-              Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= (Nothing, [badphone]),
+              Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone],
             testCase "Bad email" $
-              Left "Error in $.email: Invalid email. Expected '<local>@<domain>'." =#= (Nothing, [bademail]),
+              Left "Error in $.email: Invalid email. Expected '<local>@<domain>'." =#= [bademail],
             testCase "Nothing" $
-              Right Nothing =#= (Nothing, [("something_unrelated", "#")])
+              Right Nothing =#= [("something_unrelated", "#")]
           ]
   ]
   where
