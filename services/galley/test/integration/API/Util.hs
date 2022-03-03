@@ -109,7 +109,7 @@ import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Event.Conversation (_EdConversation, _EdMembersJoin, _EdMembersLeave)
+import Wire.API.Event.Conversation
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -1219,8 +1219,8 @@ getTeamQueue zusr msince msize onlyLast =
       (Error msg) -> error msg
       (Success (e :: TE.Event)) ->
         case e ^. TE.eventData of
-          Just (EdMemberJoin uid) -> uid
-          _ -> error ("bad even type: " <> show (e ^. TE.eventType))
+          EdMemberJoin uid -> uid
+          _ -> error ("bad event type: " <> show (TE.eventType e))
 
 getTeamQueue' :: HasCallStack => UserId -> Maybe NotificationId -> Maybe Int -> Bool -> TestM ResponseLBS
 getTeamQueue' zusr msince msize onlyLast = do
@@ -1545,7 +1545,7 @@ decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCodeEvent r = case responseJsonUnsafe r of
-  (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
+  (Event _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
@@ -2359,25 +2359,22 @@ checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TE.MemberJoin
   e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdMemberJoin uid)
+  e ^. eventData @?= EdMemberJoin uid
 
 checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TE.MemberLeave
   e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdMemberLeave usr)
+  e ^. eventData @?= EdMemberLeave usr
 
 checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TE.TeamUpdate
   e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdTeamUpdate upd)
+  e ^. eventData @?= EdTeamUpdate upd
 
 checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
@@ -2411,9 +2408,8 @@ checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TE.TeamDelete
   e ^. eventTeam @?= tid
-  e ^. eventData @?= Nothing
+  e ^. eventData @?= EdTeamDelete
 
 checkConvDeleteEvent :: HasCallStack => Qualified ConvId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do

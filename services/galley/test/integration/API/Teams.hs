@@ -160,9 +160,8 @@ testCreateTeam = do
       eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e ^. eventType @?= TeamCreate
         e ^. eventTeam @?= tid
-        e ^. eventData @?= Just (EdTeamCreate team)
+        e ^. eventData @?= EdTeamCreate team
       void $ WS.assertSuccess eventChecks
 
 testGetTeams :: TestM ()
@@ -237,9 +236,8 @@ testCreateTeamWithMembers = do
     checkCreateEvent team w = WS.assertMatch_ timeout w $ \notif -> do
       ntfTransient notif @?= False
       let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= TeamCreate
       e ^. eventTeam @?= (team ^. teamId)
-      e ^. eventData @?= Just (EdTeamCreate team)
+      e ^. eventData @?= EdTeamCreate team
 
 testListTeamMembersDefaultLimit :: TestM ()
 testListTeamMembersDefaultLimit = do
@@ -1584,9 +1582,8 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
       ntfTransient notif @?= False
       let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= MemberUpdate
       e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdMemberUpdate uid mPerm)
+      e ^. eventData @?= EdMemberUpdate uid mPerm
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do
@@ -1925,6 +1922,5 @@ checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket 
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberJoin
   e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdMemberJoin usr)
+  e ^. eventData @?= EdMemberJoin usr

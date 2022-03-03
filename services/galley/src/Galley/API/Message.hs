@@ -639,7 +639,7 @@ newMessageEvent ::
   Event
 newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
   let convId = fromMaybe (qUntagged (fmap selfConv receiver)) mconvId
-   in Event OtrMessageAdd convId sender time . EdOtrMessage $
+   in Event convId sender time . EdOtrMessage $
         OtrMessage
           { otrSender = senderClient,
             otrRecipient = receiverClient,

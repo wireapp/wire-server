@@ -72,6 +72,7 @@ import TestSetup
 import Wire.API.Conversation.Action (ConversationAction (..))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley

@@ -111,7 +111,6 @@ onConversationCreated domain rc = do
   forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
-            ConvCreate
             (qUntagged (F.rcCnvId qrcConnected))
             (qUntagged (F.rcRemoteOrigUserId qrcConnected))
             (F.rcTime qrcConnected)
