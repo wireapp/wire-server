@@ -17,7 +17,7 @@
 
 module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
-    validateKeyPackageData,
+    validateKeyPackage,
 
     -- * Exported for unit tests
     findExtensions,
@@ -39,23 +39,22 @@ import Imports
 import Wire.API.ErrorDescription
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
-validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r (KeyPackageRef, KeyPackageData)
-validateKeyPackageData identity kpd = do
-  -- parse key package data
-  (kp, tbs) <- parseKeyPackage kpd
+validateKeyPackage :: ClientIdentity -> RawMLS KeyPackage -> Handler r (KeyPackageRef, KeyPackageData)
+validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
   -- get ciphersuite
   cs <-
     maybe
       (throwErrorDescription (mlsProtocolError "Unsupported ciphersuite"))
       pure
-      $ cipherSuiteTag (kpCipherSuite (kpTBS kp))
+      $ cipherSuiteTag (kpCipherSuite kp)
 
   -- validate signature scheme
   let ss = csSignatureScheme cs
-  when (signatureScheme ss /= bcSignatureScheme (kpCredential (kpTBS kp))) $
+  when (signatureScheme ss /= bcSignatureScheme (kpCredential kp)) $
     throwErrorDescription $
       mlsProtocolError "Signature scheme incompatible with ciphersuite"
 
@@ -66,31 +65,23 @@ validateKeyPackageData identity kpd = do
         (throwErrorDescription (mlsProtocolError "No key associated to the given identity and signature scheme"))
         pure
         =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
-  when (key /= bcSignatureKey (kpCredential (kpTBS kp))) $
+  when (key /= bcSignatureKey (kpCredential kp)) $
     throwErrorDescription $
       mlsProtocolError "Unrecognised signature key"
 
   -- validate signature
-  unless (csVerifySignature cs key (LBS.toStrict tbs) (kpSignature kp)) $
+  unless (csVerifySignature cs key (rmRaw (kpTBS kp)) (kpSignature kp)) $
     throwErrorDescription (mlsProtocolError "Invalid signature")
-  -- validate credential and extensions
-  validateKeyPackage identity kp
-  pure (kpRef cs kpd, kpd)
-
--- | Parse a key package, and return parsed structure and signed data.
-parseKeyPackage :: KeyPackageData -> Handler r (KeyPackage, LByteString)
-parseKeyPackage (kpData -> kpd) = do
-  (kp, off) <- either (throwErrorDescription . mlsProtocolError) pure (decodeMLSWith kpSigOffset kpd)
-  pure (kp, LBS.take off kpd)
-
-validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
-validateKeyPackage identity (kpTBS -> kp) = do
+  -- validate protocol version
   maybe
     (throwErrorDescription (mlsProtocolError "Unsupported protocol version"))
     pure
     (pvTag (kpProtocolVersion kp) >>= guard . (== ProtocolMLS10))
+  -- validate credential
   validateCredential identity (kpCredential kp)
+  -- validate extensions
   validateExtensions (kpExtensions kp)
+  pure (kpRef cs kpd, kpd)
 
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do

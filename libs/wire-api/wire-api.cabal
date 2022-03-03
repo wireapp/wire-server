@@ -39,6 +39,7 @@ library
       Wire.API.MLS.CipherSuite
       Wire.API.MLS.Commit
       Wire.API.MLS.Credential
+      Wire.API.MLS.Extension
       Wire.API.MLS.Group
       Wire.API.MLS.KeyPackage
       Wire.API.MLS.Message

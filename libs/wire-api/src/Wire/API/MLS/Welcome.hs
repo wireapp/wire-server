@@ -22,6 +22,7 @@ import qualified Data.Swagger as S
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
+import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 

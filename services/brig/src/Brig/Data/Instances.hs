@@ -296,6 +296,6 @@ instance Cql KeyPackageRef where
 
 instance Cql KeyPackageData where
   ctype = Tagged BlobColumn
-  toCql = CqlBlob . kpData
-  fromCql (CqlBlob b) = pure . KeyPackageData $ b
+  toCql = CqlBlob . LBS.fromStrict . kpData
+  fromCql (CqlBlob b) = pure . KeyPackageData . LBS.toStrict $ b
   fromCql _ = Left "Expected CqlBlob"

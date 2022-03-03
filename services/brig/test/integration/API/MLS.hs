@@ -3,10 +3,11 @@ module API.MLS where
 import Bilge
 import Bilge.Assert
 import Brig.Options
+import Data.Aeson (object, toJSON, (.=))
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
+import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -139,7 +140,7 @@ uploadKeyPackages brig store sk u c n = do
           <> "@"
           <> T.unpack (domainText (qDomain u))
   kps <-
-    replicateM n . liftIO . fmap (KeyPackageData . LBS.fromStrict) . spawn . shell . unwords $
+    replicateM n . liftIO . spawn . shell . unwords $
       cmd0 <> ["key-package", clientId]
   when (sk == SetKey) $
     do
@@ -153,7 +154,7 @@ uploadKeyPackages brig store sk u c n = do
             . json defUpdateClient {updateClientMLSPublicKeys = Map.fromList [(Ed25519, pk)]}
         )
       !!! const 200 === statusCode
-  let upload = KeyPackageUpload kps
+  let upload = object ["key_packages" .= toJSON (map Base64ByteString kps)]
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' c]

@@ -30,14 +30,21 @@ module Wire.API.MLS.Serialisation
     decodeMLS',
     decodeMLSWith,
     decodeMLSWith',
+    RawMLS (..),
+    rawMLSSchema,
+    parseRawMLS,
   )
 where
 
 import Control.Applicative
+import Control.Comonad
+import Data.Bifunctor
 import Data.Binary
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
+import Data.Json.Util
+import Data.Schema
+import qualified Data.Text as Text
 import Imports
 
 -- | Parse a value encoded using the "TLS presentation" format.
@@ -121,10 +128,51 @@ decodeMLS' = decodeMLS . LBS.fromStrict
 -- Return an error message in case of failure.
 decodeMLSWith :: Get a -> LByteString -> Either Text a
 decodeMLSWith p b = case runGetOrFail p b of
-  Left (_, _, msg) -> Left (T.pack msg)
+  Left (_, _, msg) -> Left (Text.pack msg)
   Right (remainder, pos, x)
     | LBS.null remainder -> Right x
-    | otherwise -> Left $ "Trailing data at position " <> T.pack (show pos)
+    | otherwise -> Left $ "Trailing data at position " <> Text.pack (show pos)
 
 decodeMLSWith' :: Get a -> ByteString -> Either Text a
 decodeMLSWith' p = decodeMLSWith p . LBS.fromStrict
+
+-- | An MLS value together with its serialisation.
+--
+-- This can be used whenever we need to parse an object, but at the same time
+-- retain the original serialised bytes (e.g. for signature verification, or to
+-- forward them verbatim).
+data RawMLS a = RawMLS
+  { rmRaw :: ByteString,
+    rmValue :: a
+  }
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+
+-- | A schema for a raw MLS object.
+--
+-- This can be used for embedding MLS objects into JSON. It expresses the
+-- object as a base64-encoded string containing the raw bytes of its native MLS
+-- serialisation.
+--
+-- Note that a 'ValueSchema' for the underlying type @a@ is /not/ required.
+rawMLSSchema :: Text -> (ByteString -> Either Text a) -> ValueSchema NamedSwaggerDoc (RawMLS a)
+rawMLSSchema name p =
+  (toBase64Text . rmRaw)
+    .= parsedText
+      name
+      (fromBase64Text >=> first Text.unpack . sequenceA . (RawMLS <*> p))
+
+instance Comonad RawMLS where
+  extract = rmValue
+  duplicate rm = RawMLS (rmRaw rm) rm
+
+-- | Parse an MLS object, but keep the raw bytes as well.
+parseRawMLS :: Get a -> Get (RawMLS a)
+parseRawMLS p = do
+  -- mark the starting position
+  begin <- bytesRead
+  -- read value, but don't consume input, and mark final position
+  (x, end) <- lookAhead $ (,) <$> p <*> bytesRead
+  -- now just get the input data
+  raw <- getByteString (fromIntegral (end - begin))
+  -- construct RawMLS value
+  pure $ RawMLS raw x

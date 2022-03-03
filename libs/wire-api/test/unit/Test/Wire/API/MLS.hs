@@ -31,6 +31,7 @@ import Test.Tasty.HUnit
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -52,7 +53,7 @@ testParseKeyPackage = do
   kpData <- LBS.readFile "test/resources/key_package1.mls"
   case decodeMLS @KeyPackage kpData of
     Left err -> assertFailure (T.unpack err)
-    Right (kpTBS -> kp) -> do
+    Right kp -> do
       pvTag (kpProtocolVersion kp) @?= Just ProtocolMLS10
       kpCipherSuite kp @?= CipherSuite 1
       BS.length (kpInitKey kp) @?= 32
@@ -117,6 +118,6 @@ testParseWelcome = do
 
 testKeyPackageRef :: IO ()
 testKeyPackageRef = do
-  kpData <- LBS.readFile "test/resources/key_package1.mls"
+  kpData <- BS.readFile "test/resources/key_package1.mls"
   ref <- KeyPackageRef <$> BS.readFile "test/resources/key_package_ref1"
   kpRef MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (KeyPackageData kpData) @?= ref
