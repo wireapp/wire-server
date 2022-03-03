@@ -255,12 +255,14 @@ type AllErrorEffects =
      P.Error TeamError,
      P.Error TeamFeatureError,
      P.Error TeamNotificationError,
-     P.Error NotATeamMember
+     P.Error NotATeamMember,
+     P.Error UnknownWelcomeRecipient
    ]
 
 mapAllErrors :: Member (P.Error Error) r => Sem (Append AllErrorEffects r) a -> Sem r a
 mapAllErrors =
   P.mapError errorDescriptionToWai
+    . P.mapError errorDescriptionToWai
     . P.mapError toWai
     . P.mapError toWai
     . P.mapError toWai

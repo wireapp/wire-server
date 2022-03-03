@@ -38,12 +38,16 @@ where
 
 import Control.Applicative
 import Control.Comonad
+import Data.Aeson (FromJSON (..))
+import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import Data.Binary
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as LBS
 import Data.Json.Util
+import Data.Proxy
 import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Imports
 
@@ -157,9 +161,18 @@ data RawMLS a = RawMLS
 rawMLSSchema :: Text -> (ByteString -> Either Text a) -> ValueSchema NamedSwaggerDoc (RawMLS a)
 rawMLSSchema name p =
   (toBase64Text . rmRaw)
-    .= parsedText
-      name
-      (fromBase64Text >=> first Text.unpack . sequenceA . (RawMLS <*> p))
+    .= parsedText name (rawMLSFromText p)
+
+rawMLSFromText :: (ByteString -> Either Text a) -> Text -> Either String (RawMLS a)
+rawMLSFromText p = fromBase64Text >=> first Text.unpack . sequenceA . (RawMLS <*> p)
+
+instance S.ToSchema a => S.ToSchema (RawMLS a) where
+  declareNamedSchema _ = S.declareNamedSchema (Proxy @a)
+
+instance ParseMLS a => FromJSON (RawMLS a) where
+  parseJSON =
+    Aeson.withText "Base64 MLS object" $
+      either fail pure . rawMLSFromText decodeMLS'
 
 instance Comonad RawMLS where
   extract = rmValue
@@ -176,3 +189,6 @@ parseRawMLS p = do
   raw <- getByteString (fromIntegral (end - begin))
   -- construct RawMLS value
   pure $ RawMLS raw x
+
+instance ParseMLS a => ParseMLS (RawMLS a) where
+  parseMLS = parseRawMLS parseMLS

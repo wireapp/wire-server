@@ -36,6 +36,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -1043,7 +1044,7 @@ type MLSMessagingAPI =
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
         :> "welcome"
-        :> ReqBody '[MLS] Welcome
+        :> ReqBody '[MLS] (RawMLS Welcome)
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
     )
 

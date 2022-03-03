@@ -22,6 +22,7 @@ module Galley.Intra.Client
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
+    getClientByKeyPackageRef,
   )
 where
 
@@ -50,7 +51,10 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
+import Servant
 import qualified System.Logger.Class as Logger
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
@@ -157,5 +161,15 @@ brigAddClient uid connId client = do
         . paths ["i", "clients", toByteString' uid]
         . contentJson
         . json client
+        . expect2xx
+  parseResponse (mkError status502 "server-error") r
+
+-- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
+getClientByKeyPackageRef :: KeyPackageRef -> App (Maybe ClientIdentity)
+getClientByKeyPackageRef ref = do
+  r <-
+    call Brig $
+      method GET
+        . paths ["i", "mls", "key-packages", toHeader ref]
         . expect2xx
   parseResponse (mkError status502 "server-error") r

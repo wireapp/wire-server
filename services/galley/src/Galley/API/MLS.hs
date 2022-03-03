@@ -17,11 +17,54 @@
 
 module Galley.API.MLS (postMLSWelcome) where
 
+import Control.Comonad
 import Data.Id
 import Data.Qualified
+import Galley.API.Error
+import Galley.Effects.BrigAccess
 import Imports
 import Polysemy
+import Polysemy.Error
+import Wire.API.ErrorDescription
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
-postMLSWelcome :: Local UserId -> Welcome -> Sem r ()
-postMLSWelcome _lusr _wel = pure () -- TODO
+postMLSWelcome ::
+  Members
+    '[ BrigAccess,
+       Error UnknownWelcomeRecipient
+     ]
+    r =>
+  Local UserId ->
+  RawMLS Welcome ->
+  Sem r ()
+postMLSWelcome _ wel = do
+  rcpts <- welcomeRecipients (extract wel)
+  traverse_ (sendWelcome (rmRaw wel)) rcpts
+
+welcomeRecipients ::
+  Members
+    '[ BrigAccess,
+       Error UnknownWelcomeRecipient
+     ]
+    r =>
+  Welcome ->
+  Sem r [ClientIdentity]
+welcomeRecipients = traverse (derefKeyPackage . gsNewMember) . welSecrets
+
+sendWelcome :: ByteString -> ClientIdentity -> Sem r ()
+sendWelcome _ _ = pure ()
+
+derefKeyPackage ::
+  Members
+    '[ BrigAccess,
+       Error UnknownWelcomeRecipient
+     ]
+    r =>
+  KeyPackageRef ->
+  Sem r ClientIdentity
+derefKeyPackage ref =
+  maybe (throwED @UnknownWelcomeRecipient) pure
+    =<< getClientByKeyPackageRef ref
