@@ -130,3 +130,7 @@ Here, fill in the different fields:
 * `Public Key` is the TLS public key for the certificate you generated when implementing HTTPS in the first step.
 
 Finally, click on `Save`.
+
+Here is the entire process animated:
+
+![Animated](img/legalhold-screencast.gif)
