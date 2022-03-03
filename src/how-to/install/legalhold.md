@@ -81,6 +81,24 @@ Finally, run the actual Docker container for the LegalHold service:
 
 Now that the legalhold service is running, you need to configure the DNS for your domain so that `legal.<yourdomain>` redirects to this service.
 
-
 ## Configuring Team Settings to use Legal Hold
+
+The next step is to configure the Wire Team, in the Team Settings interface, to interface with the newly installed Legal Hold service.
+
+To do this, first go to `teams.wire.com` or `teams.<your-domain>` depending on your setup, and log in.
+
+Once in the interface, select `Customization` in the menu on the left:
+
+
+On the customization page, go to `Legal Hold`:
+
+
+Under the Legal Hold section, click the small down-pointing blue arrow:
+
+
+In the extended Legal Hold section, click on `Manage Configuration`:
+
+
+
+
 
