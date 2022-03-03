@@ -92,11 +92,31 @@ deriveFromJSON toOptionFieldName ''MaxConcurrentNativePushes
 
 makeLenses ''MaxConcurrentNativePushes
 
+data RedisConnectionMode
+  = Normal -- "standalone?" "plain"?
+  | Sentinel
+  | Clustered
+  deriving (Show, Generic)
+
+-- deriveFromJSON toOptionFieldName ''RedisConnectionMode
+deriveJSON defaultOptions {constructorTagModifier = map toLower} ''RedisConnectionMode
+
+data RedisEndpoint = RedisEndpoint
+  { _rHost :: !Text,
+    _rPort :: !Word16,
+    _rConnectionMode :: !RedisConnectionMode
+  }
+  deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''RedisEndpoint
+
+makeLenses ''RedisEndpoint
+
 data Opts = Opts
   { -- | Hostname and port to bind to
     _optGundeck :: !Endpoint,
     _optCassandra :: !CassandraOpts,
-    _optRedis :: !Endpoint,
+    _optRedis :: !RedisEndpoint,
     _optAws :: !AWSOpts,
     _optDiscoUrl :: !(Maybe Text),
     _optSettings :: !Settings,

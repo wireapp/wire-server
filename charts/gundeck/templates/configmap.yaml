@@ -21,6 +21,7 @@ data:
     redis:
       host: {{ .redis.host }}
       port: {{ .redis.port }}
+      connectionMode: {{ .redis.connectionMode }}
 
     # Gundeck uses discovery for AWS access key / secrets
     # For more details, check amazonka's documentation at:

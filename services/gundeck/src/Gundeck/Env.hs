@@ -76,16 +76,17 @@ createEnv m o = do
 
   let redisConnInfo =
         Redis.defaultConnectInfo
-          { Redis.connectHost = unpack $ o ^. optRedis . epHost,
-            Redis.connectPort = Redis.PortNumber (fromIntegral $ o ^. optRedis . epPort),
+          { Redis.connectHost = unpack $ o ^. optRedis . rHost,
+            Redis.connectPort = Redis.PortNumber (fromIntegral $ o ^. optRedis . rPort),
             Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
             Redis.connectMaxConnections = 100
           }
-  -- TODO parse a config value whether to connect normally or in cluster mode
-  -- use either Redis.checkedConnect or checkedConnectCluster
+
   -- TODO: local tests with this function and a redis in cluster mode leads to gundeck not starting up (without logging in error); TODO investigate.
-  -- r <- checkedConnectCluster redisConnInfo
-  r <- Redis.checkedConnect redisConnInfo
+  r <- case o ^. optRedis . rConnectionMode of
+    Normal -> Redis.checkedConnect redisConnInfo
+    Clustered -> checkedConnectCluster redisConnInfo
+    _ -> undefined
   p <-
     C.init $
       C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
