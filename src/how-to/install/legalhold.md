@@ -89,16 +89,24 @@ To do this, first go to `teams.wire.com` or `teams.<your-domain>` depending on y
 
 Once in the interface, select `Customization` in the menu on the left:
 
+![Customization](img/legalhold-step01-click-customization.png)
+
 
 On the customization page, go to `Legal Hold`:
+
+![Legal Hold](img/legalhold-step02-goto-legalhold.png)
 
 
 Under the Legal Hold section, click the small down-pointing blue arrow:
 
+![Arrow](img/legalhold-step03-click-arrow.png)
+
 
 In the extended Legal Hold section, click on `Manage Configuration`:
 
+![Manage Configuration](img/legalhold-step04-click-manage-configuration.png)
 
+From here, you can fill in the required configuration info:
 
-
+![Fill in configuration](img/legalhold-step05-fill-info.png)
 
