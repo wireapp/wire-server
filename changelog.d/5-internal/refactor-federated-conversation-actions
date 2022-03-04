@@ -1,0 +1,7 @@
+Refactor conversation actions to an existential type consisting of a singleton
+tag (identifying the action) and a dedicated type for the action itself.
+Previously, actions were represented by a big sum type. The new approach
+enables us to describe the needed effects of an action much more precise.
+The existential type is initialized by the Servant endpoints in a way to
+mimic the previous behavior. Thus, no specific migration or service restart
+order should be needed. 
