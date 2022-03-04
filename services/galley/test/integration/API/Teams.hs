@@ -75,6 +75,7 @@ import Test.Tasty.HUnit
 import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
@@ -204,7 +205,7 @@ testCreateMultipleBindingTeams = do
   _ <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   -- Cannot create more teams if bound (used internal API)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
+  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") DefaultIcon
   post (g . path "/teams" . zUser owner . zConn "conn" . json nt)
     !!! const 403 === statusCode
   -- If never used the internal API, can create multiple teams

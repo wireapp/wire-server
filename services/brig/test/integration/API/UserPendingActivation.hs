@@ -64,6 +64,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.Team (Icon (..))
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimUserExtra))
 
@@ -151,7 +152,7 @@ getInvitationByEmail brig email =
         )
 
 newTeam :: Galley.BindingNewTeam
-newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
 
 createUserWithTeamDisableSSO :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m, MonadFail m) => Brig -> Galley -> m (UserId, TeamId)
 createUserWithTeamDisableSSO brg gly = do
