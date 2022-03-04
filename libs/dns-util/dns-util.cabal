@@ -65,7 +65,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base >=4.6 && <5.0
     , dns
@@ -123,7 +123,7 @@ test-suite spec
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:

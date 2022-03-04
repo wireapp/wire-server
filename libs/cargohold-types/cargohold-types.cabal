@@ -63,7 +63,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base ==4.*
     , bytestring-conversion >=0.2

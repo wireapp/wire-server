@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 645c91889ea532ce07463edf54a10559d3f581091b53c20903607d9800f6fa3f
+-- hash: 3ba90f2521ceac7b355a97fc0167700910e2aae15719aefbbd787d75e6c2962f
 
 name:           zauth
 version:        0.10.3
@@ -70,7 +70,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       attoparsec >=0.11
     , base >=4.6 && <5
@@ -135,7 +135,7 @@ executable zauth
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
     , base64-bytestring
@@ -199,7 +199,7 @@ test-suite zauth-unit
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
     , bytestring

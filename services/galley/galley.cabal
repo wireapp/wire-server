@@ -165,7 +165,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
@@ -300,7 +300,7 @@ executable galley
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-T -rtsopts
   build-depends:
       HsOpenSSL
     , base
@@ -385,7 +385,7 @@ executable galley-integration
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
   build-depends:
       HsOpenSSL
     , HsOpenSSL-x509-system
@@ -524,7 +524,7 @@ executable galley-migrate-data
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
     , case-insensitive
@@ -643,7 +643,7 @@ executable galley-schema
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
     , case-insensitive
@@ -720,7 +720,7 @@ test-suite galley-tests
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck
     , base

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 09458f8cad6c5214c9692291bb633f780944463c5690e2af99d7e516dc93e0f2
+-- hash: 0213c0c64b5157777ae5c6d16b3e259fbeb9577e48308bc4a988d0eb113ae9e8
 
 name:           imports
 version:        0.1.0
@@ -69,7 +69,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
     , bytestring

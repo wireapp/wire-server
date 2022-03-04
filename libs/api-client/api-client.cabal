@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c5b993207775ad794fae01115aca3500cbdb2ce9458af0185734c9ee5e025814
+-- hash: 8ccf59d004e4f5d52a934419868a4450227797ebc58511b72b8bd887cce4bdc6
 
 name:           api-client
 version:        0.4.2
@@ -75,7 +75,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       aeson >=2.0.1.0
     , async >=2.0

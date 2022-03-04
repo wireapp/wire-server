@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aecd5a2bbe1504d3601577aed1719da584856f3d5f53327650f3c80331619269
+-- hash: 73251d2e98af6ba6c2908fc85afcc187c4c4d1b9621f95a3acccd6889477c85e
 
 name:           auto-whitelist
 version:        1.0.0
@@ -64,7 +64,7 @@ executable auto-whitelist
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       base
     , brig-types

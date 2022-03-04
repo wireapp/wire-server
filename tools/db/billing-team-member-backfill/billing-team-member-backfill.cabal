@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ada20e0991745d0c8999668355177fca0aef12891245e599d89f28228f0961d4
+-- hash: 208dd90f4211cdb71fa3ff625504a784463923d529d46c00b0e2cd26d6d13c64
 
 name:           billing-team-member-backfill
 version:        1.0.0
@@ -64,7 +64,7 @@ executable billing-team-member-backfill
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       base
     , cassandra-util

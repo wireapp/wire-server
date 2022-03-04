@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ed00633977e31daad2e0efcc5e21e8e4a800a2737e5848e9b0770091f9a94b3d
+-- hash: bb776476c207d1be8e6dd91c8b0e2e346c027dcb4993cfd6d26510dbd4ff582f
 
 name:           metrics-core
 version:        0.3.2
@@ -65,7 +65,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base >=4.9
     , containers

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cc1ee9817c17b416b041da1872f67634723249762332426dc63b0b1ab43309e8
+-- hash: 99fce1acd8a0309ce09dbd8bde727a4e7fc963b2b4c78cd4076b78ac703d2da9
 
 name:           api-simulations
 version:        0.4.2
@@ -65,7 +65,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       api-bot
     , api-client
@@ -128,7 +128,7 @@ executable api-loadtest
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N -with-rtsopts=-T
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N -with-rtsopts=-T
   build-depends:
       api-bot
     , api-client
@@ -199,7 +199,7 @@ executable api-smoketest
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N -with-rtsopts=-T
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N -with-rtsopts=-T
   build-depends:
       api-bot
     , api-client

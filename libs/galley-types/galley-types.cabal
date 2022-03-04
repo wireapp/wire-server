@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9cb223453735258513c78908da15528c4b26797a131e07788f0dee41a0c469a4
+-- hash: 25c65404187fc65b6f672f29112c0684f43796e88d6e49b3fe1da84faf9b1083
 
 name:           galley-types
 version:        0.81.0
@@ -73,7 +73,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       QuickCheck
     , aeson >=2.0.1.0
@@ -147,7 +147,7 @@ test-suite galley-types-tests
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck
     , aeson

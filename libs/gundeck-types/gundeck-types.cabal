@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5e5b9d44e914092fd283c32d8a12768443221b3f7f7e0f41cc1388f17f4ce373
+-- hash: 63bd61dbd504873dd694a214e8f2ddaec4c7f1b9d41f4bf71f5289ea6247d1c3
 
 name:           gundeck-types
 version:        1.45.0
@@ -71,7 +71,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       aeson >=2.0.1.0
     , attoparsec >=0.10

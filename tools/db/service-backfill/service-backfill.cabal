@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d72d11c1f8954ebb055cecdaed92fb6e31c1b534a8083b486f14bbcf5849e0ba
+-- hash: b342752cb82446ef55859b64a80c15629f1267db4efe3281df609335bfdd6ad9
 
 name:           service-backfill
 version:        1.0.0
@@ -64,7 +64,7 @@ executable service-backfill
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       base
     , brig-types

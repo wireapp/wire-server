@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aa7fa2126e1b9420894641828a3548c191a7daa9c997585531827b092557e393
+-- hash: 1a79fc92316182074b87af67637f6d86ec7038ac5b7e07eb9ded3aca426bdd63
 
 name:           metrics-wai
 version:        0.5.7
@@ -69,7 +69,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   ghc-prof-options: -fprof-auto
   build-depends:
       base ==4.*
@@ -136,7 +136,7 @@ test-suite unit
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:

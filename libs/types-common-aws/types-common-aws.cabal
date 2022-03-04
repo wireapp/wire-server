@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b83bb5e2ebe7499bdd426bff59d23e2c08935fc24e6f182114fd5ef296f19928
+-- hash: 426064e5861cb14812612f67b2ce5025f79f6071de3333e89164118d2d821e7d
 
 name:           types-common-aws
 version:        0.16.0
@@ -75,7 +75,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   ghc-prof-options: -fprof-auto-exported
   build-depends:
       amazonka

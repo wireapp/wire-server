@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d2de3cb5a7dcf524d840d49e590bea00dd40610a5488224cf4b25b15991f64b
+-- hash: 0e8b72f0fa880e211da78c608a5b6063b0ece94991d712185b01083deb39b00a
 
 name:           tasty-cannon
 version:        0.4.0
@@ -64,7 +64,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       aeson
     , async

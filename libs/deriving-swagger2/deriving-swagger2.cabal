@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 314df46c4097fb6a56f853e430a9148ccc7ee76375387bec6d03b68c1827f51f
+-- hash: c27b0be0d876b65b72e07f4652164fc3c10ad69bfd7855651ddbf158fa33a27f
 
 name:           deriving-swagger2
 version:        0.1.0
@@ -64,7 +64,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base ==4.*
     , extra

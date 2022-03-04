@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 57b03ca9ff6cfe827c27bb6a0f6fb21156c8465d090f29d8a7a3d443bb308137
+-- hash: 228da92ba90534ba56d1739de4c8216c360f7ab47cfba14cbdbdaeb8ef71e31b
 
 name:           bilge
 version:        0.22.0
@@ -75,7 +75,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       aeson >=2.0.1.0
     , ansi-terminal >=0.6

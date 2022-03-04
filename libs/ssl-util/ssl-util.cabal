@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d91dea84564b802aae13b5514b1babf2f1a50b0d33a58bc7dade37d6c60c2182
+-- hash: 8fbe248895808413de6664fbab123684dde70c691215b0c922096d2dc5377232
 
 name:           ssl-util
 version:        0.1.0
@@ -65,7 +65,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       HsOpenSSL >=0.11
     , base >=4.7 && <5

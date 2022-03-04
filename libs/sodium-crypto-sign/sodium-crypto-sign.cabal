@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f0ee2a8b0a69d4f589716632e47f0b9bd431ca5cbfd7a8bf5dfe273c6489de0
+-- hash: 43c66089cc74fef137d29ecf56ac22d7de437cbc5fefb9858b30faf0092d7323
 
 name:           sodium-crypto-sign
 version:        0.1.2
@@ -65,7 +65,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   pkgconfig-depends:
       libsodium >= 0.4.5
   build-depends:

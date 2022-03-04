@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4b1ed885b5ee0e7a49013f134724d41277e8cc3ff45a6023404e24793c6303c5
+-- hash: 6c85b427659a1cd068bfb018aa80ae2ef851cab714b35f0912909e5b54e7b41c
 
 name:           polysemy-wire-zoo
 version:        0.1.0
@@ -64,7 +64,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base >=4.6 && <5.0
     , imports

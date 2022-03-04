@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 546e7936cf8835f249ceaf80c981335ff160a2848a48cc55a707845fc3c5d2c5
+-- hash: 0f0574befd9e63b83188ca6ed84989d2fb097444c3b4f52175709cb4a14b6bb3
 
 name:           stern
 version:        1.7.2
@@ -75,7 +75,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       aeson >=2.0.1.0 && <2.1
     , base >=4.5 && <5
@@ -160,7 +160,7 @@ executable stern
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-T
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-T
   build-depends:
       base
     , extended

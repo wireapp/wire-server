@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aaa0bf2f2e8b434044d86eef4704bf30525c4c86315058ba1290f1d34d561c9e
+-- hash: 5e84cd17da6d8b0c5b6148458f738625ac5df7ef08fa4617c3fae974b035235e
 
 name:           cassandra-util
 version:        0.16.5
@@ -69,7 +69,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       aeson >=2.0.1.0
     , base >=4.6 && <5.0

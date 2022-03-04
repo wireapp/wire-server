@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2168cecbb403740519009eb790938bbfec816c047f81bc1ec44d6157ff798516
+-- hash: f726f5c06a34e782adca6c9c1aa93f2d95f4c0c4ea05c4ca1e910641b3c0c8af
 
 name:           move-team
 version:        1.0.0
@@ -68,7 +68,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
     , base
@@ -142,7 +142,7 @@ executable move-team
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
     , base
@@ -217,7 +217,7 @@ executable move-team-generate
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
     , base

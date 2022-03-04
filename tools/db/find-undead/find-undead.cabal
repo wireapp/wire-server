@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 30202a4d538697375b0b0dc3d4789ad278c7b41e40169f1b41c538410d03d3da
+-- hash: f38e65bfb88f5c28c2476ecd72be4c2617aa523bdbf02a3c2828647f8dc6d098
 
 name:           find-undead
 version:        1.0.0
@@ -64,7 +64,7 @@ executable find-undead
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
     , base

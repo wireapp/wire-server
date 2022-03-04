@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 208b12ff1a7bb406c0e9b006b8badb293d9f3fb39750fa4df03a5267cf5d7bfd
+-- hash: 474dec0b29ebc3e831eb4c51b4e2a513d5b06e3b0de7525fc5824b91add10c51
 
 name:           api-bot
 version:        0.4.2
@@ -76,7 +76,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       HaskellNet >=0.5
     , HaskellNet-SSL >=0.3

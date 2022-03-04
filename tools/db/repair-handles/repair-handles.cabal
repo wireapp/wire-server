@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c8ad3a3ca71a54e03d9bb6572dad0629da8c5940cfe20febf7cf1971d549f042
+-- hash: 508a2b643b23d6e261dd895873262b952922f945cf626658eeabbe18f61bc715
 
 name:           repair-handles
 version:        1.0.0
@@ -66,7 +66,7 @@ executable repair-handles
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
     , brig

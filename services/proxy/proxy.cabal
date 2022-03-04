@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0dc85028d7242fe9422dc7b97417fd157c235bd8b6aa74a3c61f093e04e0f57a
+-- hash: 0f4933411791fd0e08b456b4348e85daee969223cba8920b11372ff305e5c677
 
 name:           proxy
 version:        0.9.0
@@ -75,7 +75,7 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       aeson >=2.0.1.0
     , base >=4.6 && <5
@@ -150,7 +150,7 @@ executable proxy
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-T
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-T
   build-depends:
       base
     , extended

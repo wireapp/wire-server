@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6a64c18d59c109cea4e58b9161d589c395fa1b34ba2705060aebc4926ee1f618
+-- hash: 43eba8065519419264c6a1c31949d82fcd4cb803846055b1f62639c529cac561
 
 name:           migrate-sso-feature-flag
 version:        1.0.0
@@ -64,7 +64,7 @@ executable migrate-sso-feature-flag
       TypeOperators
       UndecidableInstances
       ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       base
     , brig-types
