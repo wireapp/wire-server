@@ -1,0 +1,1 @@
+If your on-prem instance is older than 2021-04 AND you are using SCIM in any of your teams, deploy chart chart/4.4.0 before this one.
