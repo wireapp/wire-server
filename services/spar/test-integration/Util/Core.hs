@@ -200,6 +200,7 @@ import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
@@ -622,7 +623,7 @@ zAuthAccess :: UserId -> SBS -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
 newTeam :: Galley.BindingNewTeam
-newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
 
 randomEmail :: MonadIO m => m Brig.Email
 randomEmail = do
