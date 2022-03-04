@@ -379,51 +379,6 @@ veidEmail (ST.EmailOnly email) = Just email
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
--- | If we get a user from brig that hasn't been touched by scim yet, we call this function to
--- move it under scim control.
-importStoredScimUser ::
-  forall m r.
-  ( (m ~ Scim.ScimHandler (Sem r)),
-    Member (Logger String) r,
-    Member BrigAccess r,
-    Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
-    Member SAMLUserStore r
-  ) =>
-  Maybe IdP ->
-  TeamId ->
-  Scim.StoredUser ST.SparTag ->
-  m ()
-importStoredScimUser midp stiTeam storedUsr = do
-  let usr = (Scim.value . Scim.thing) storedUsr
-  veid <- mkValidExternalId midp (Scim.externalId usr)
-  let buid = (Scim.id . Scim.thing) $ storedUsr
-  lift $ Logger.debug ("importStoredScimUser: brig says " <> show buid)
-  assertExternalIdNotUsedElsewhere stiTeam veid buid
-  createValidScimUserSpar stiTeam buid storedUsr veid
-
--- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
--- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
--- lookup in that table either, but compute the `externalId` from the `UserRef`.
-createValidScimUserSpar ::
-  forall m r.
-  ( (m ~ Scim.ScimHandler (Sem r)),
-    Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
-    Member SAMLUserStore r
-  ) =>
-  TeamId ->
-  UserId ->
-  Scim.StoredUser ST.SparTag ->
-  ST.ValidExternalId ->
-  m ()
-createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
-  ScimUserTimesStore.write storedUser
-  ST.runValidExternalId
-    ((`SAMLUserStore.insert` uid))
-    (\email -> ScimExternalIdStore.insert stiTeam email uid)
-    veid
-
 -- | Creates a SCIM User.
 --
 -- User is created in Brig first, and then in SCIM and SAML.
@@ -531,6 +486,28 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
             active = Scim.active . Scim.value . Scim.thing $ storedUser
         when (new /= old) $ BrigAccess.setStatus buid new
       pure storedUser
+
+-- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
+-- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
+-- lookup in that table either, but compute the `externalId` from the `UserRef`.
+createValidScimUserSpar ::
+  forall m r.
+  ( (m ~ Scim.ScimHandler (Sem r)),
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member SAMLUserStore r
+  ) =>
+  TeamId ->
+  UserId ->
+  Scim.StoredUser ST.SparTag ->
+  ST.ValidExternalId ->
+  m ()
+createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
+  ScimUserTimesStore.write storedUser
+  ST.runValidExternalId
+    ((`SAMLUserStore.insert` uid))
+    (\email -> ScimExternalIdStore.insert stiTeam email uid)
+    veid
 
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
@@ -925,17 +902,20 @@ getUserById ::
   TeamId ->
   UserId ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
-getUserById mIdpConfig stiTeam uid = do
+getUserById midp stiTeam uid = do
   brigUser <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
   let mbveid =
         Brig.veidFromBrigUser
           (accountUser brigUser)
-          ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig)
+          ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
   case mbveid of
     Right veid | userTeam (accountUser brigUser) == Just stiTeam -> lift $ do
-      usr :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
-      importStoredScimUser mIdpConfig stiTeam usr
-      pure usr
+      storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
+      -- if we get a user from brig that hasn't been touched by scim yet, we call this
+      -- function to move it under scim control.
+      assertExternalIdNotUsedElsewhere stiTeam veid uid
+      createValidScimUserSpar stiTeam uid storedUser veid
+      pure storedUser
     _ -> Applicative.empty
 
 scimFindUserByHandle ::
