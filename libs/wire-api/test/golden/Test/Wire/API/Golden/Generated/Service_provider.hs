@@ -48,6 +48,7 @@ import URI.ByteString
         uriScheme
       ),
   )
+import Wire.API.Asset
 import Wire.API.Provider
   ( ServiceTag
       ( AudioTag,
@@ -238,7 +239,7 @@ testObject_Service_provider_2 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "" (Just AssetComplete)), (ImageAsset "" (Just AssetComplete))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
       serviceTags = fromList [],
       serviceEnabled = True
     }
@@ -431,7 +432,7 @@ testObject_Service_provider_4 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "" (Just AssetComplete))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
       serviceTags = fromList [MediaTag],
       serviceEnabled = False
     }
@@ -570,11 +571,11 @@ testObject_Service_provider_6 =
             )
         ),
       serviceAssets =
-        [ (ImageAsset "" (Just AssetComplete)),
-          (ImageAsset "" (Just AssetPreview)),
-          (ImageAsset "" (Nothing)),
-          (ImageAsset "" (Just AssetPreview)),
-          (ImageAsset "" (Just AssetPreview))
+        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
         ],
       serviceTags = fromList [FinanceTag, FitnessTag, MoviesTag],
       serviceEnabled = True
@@ -677,7 +678,7 @@ testObject_Service_provider_7 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "" (Just AssetPreview))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
       serviceTags = fromList [MoviesTag],
       serviceEnabled = True
     }
@@ -1017,7 +1018,7 @@ testObject_Service_provider_11 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "" (Just AssetComplete)), (ImageAsset "" (Just AssetComplete))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
       serviceTags = fromList [],
       serviceEnabled = False
     }
@@ -1109,9 +1110,9 @@ testObject_Service_provider_12 =
             )
         ),
       serviceAssets =
-        [ (ImageAsset "" (Just AssetPreview)),
-          (ImageAsset "" (Just AssetComplete)),
-          (ImageAsset "" (Just AssetComplete))
+        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
         ],
       serviceTags = fromList [MedicalTag, TravelTag, WeatherTag],
       serviceEnabled = False
@@ -1184,7 +1185,7 @@ testObject_Service_provider_13 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "" (Just AssetComplete))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
       serviceTags = fromList [EducationTag, MoviesTag, ShoppingTag],
       serviceEnabled = False
     }
@@ -1286,7 +1287,7 @@ testObject_Service_provider_14 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "A" (Just AssetPreview))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
       serviceTags = fromList [],
       serviceEnabled = True
     }
@@ -1354,13 +1355,13 @@ testObject_Service_provider_15 =
             )
         ),
       serviceAssets =
-        [ (ImageAsset "" (Just AssetPreview)),
-          (ImageAsset "" (Just AssetComplete)),
-          (ImageAsset "" (Just AssetPreview)),
-          (ImageAsset "" (Just AssetPreview)),
-          (ImageAsset "" (Nothing)),
-          (ImageAsset "" (Nothing)),
-          (ImageAsset "" (Just AssetComplete))
+        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
         ],
       serviceTags = fromList [DesignTag, LifestyleTag, QuizTag],
       serviceEnabled = True
@@ -1428,7 +1429,7 @@ testObject_Service_provider_16 =
                 ]
             )
         ),
-      serviceAssets = [(ImageAsset "" (Nothing)), (ImageAsset "" (Just AssetComplete))],
+      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
       serviceTags = fromList [PollTag],
       serviceEnabled = False
     }
