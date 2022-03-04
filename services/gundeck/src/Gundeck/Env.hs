@@ -86,7 +86,25 @@ createEnv m o = do
             Redis.connectMaxConnections = 100
           }
 
-  -- TODO: local tests with this function and a redis in cluster mode leads to gundeck not starting up (without logging in error); TODO investigate.
+  -- TODO: local tests with this function and a redis in cluster mode sometimes leads to a timeout after a long time (2 min) for unknown reasons, even though redis pods are up. To Reproduce, open a telepresence to a k8s with a clustered redis; set the following; then run gudeck process once now; kill it; then run it again after having deleted some or all redis pods. Even once they are back up and healthy, the error can be observed in some cases:
+  --  redis:
+  -- -  host: 127.0.0.1
+  -- +  host: redis-cluster-leader-headless
+  --    port: 6379
+  -- -  connectionMode: "master" # master | sentinel | cluster
+  -- +  connectionMode: cluster
+  --
+  -- TODO: should we wrap the checkedConnectCluster in a shorter 'timeout' so as not to potentially have to wait 2 minutes when there's a connection problem?
+  --
+  -- Example observed error after 2 minutes:
+  --
+  -- ❯ ./dist/gundeck -c services/gundeck/gundeck.integration.yaml
+  -- I, starting connection to redis..., connectionMode=Cluster, connInfo=ConnInfo {connectHost = "redis-cluster-leader-headless", connectPort = PortNumber 6379, connectAuth = Nothing, connectDatabase = 0, connectMaxConnections = 100, connectMaxIdleTime = 30s, connectTimeout = Just 5s, connectTLSParams = Nothing}
+  -- I, starting connection to redis in cluster mode ...
+  -- I, lazy connection established, running ping...
+
+  -- gundeck: Network.Socket.connect: <socket: 12>: timeout (Connection timed out)
+  -- ~/Documents/git/wire-server hedis-redis*  2m 11s
   Log.info l $
     Log.msg (Log.val "starting connection to redis...")
       . Log.field "connectionMode" (show $ o ^. optRedis . rConnectionMode)
