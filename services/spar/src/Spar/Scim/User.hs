@@ -384,12 +384,7 @@ veidEmail (ST.EmailOnly email) = Just email
 importStoredScimUser ::
   forall m r.
   ( (m ~ Scim.ScimHandler (Sem r)),
-    Member Random r,
-    Member Now r,
-    Member (Input Opts) r,
-    Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
-    Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
@@ -413,13 +408,6 @@ importStoredScimUser midp stiTeam storedUsr = do
 createValidScimUserSpar ::
   forall m r.
   ( (m ~ Scim.ScimHandler (Sem r)),
-    Member Random r,
-    Member Now r,
-    Member (Input Opts) r,
-    Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
     Member SAMLUserStore r
@@ -926,12 +914,9 @@ synthesizeScimUser info =
 getUserById ::
   forall r.
   ( Member BrigAccess r,
-    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
     Member Now r,
-    Member Random r,
     Member SAMLUserStore r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r
@@ -956,12 +941,9 @@ getUserById mIdpConfig stiTeam uid = do
 scimFindUserByHandle ::
   forall r.
   ( Member BrigAccess r,
-    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
     Member Now r,
-    Member Random r,
     Member SAMLUserStore r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r
@@ -984,12 +966,9 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 scimFindUserByEmail ::
   forall r.
   ( Member BrigAccess r,
-    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
     Member Now r,
-    Member Random r,
     Member SAMLUserStore r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r
