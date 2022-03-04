@@ -66,5 +66,5 @@ testFederationDomain brig = do
     responseJsonError =<< get (brig . path "/api-version")
       <!! const 200 === statusCode
   liftIO $ do
-    vinfoFederation vinfo @?= False
+    vinfoFederation vinfo @?= True
     vinfoDomain vinfo @?= Domain "example.com"
