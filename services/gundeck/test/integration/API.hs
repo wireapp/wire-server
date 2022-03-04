@@ -127,6 +127,15 @@ tests s =
 -----------------------------------------------------------------------------
 -- Push
 
+-- For one-of manual sanity tests if gundeck loses its connection to redis while this test is running.
+-- TODO remove commented code.
+-- addUser :: TestM ()
+-- addUser = forever $ do
+--   putStrLn "Running Test"
+--   void registerUser `catch` (\(_ :: SomeException) -> liftIO $ putStrLn "Failure")
+--   putStrLn "Ran Test"
+--   threadDelay 10000
+--
 addUser :: TestM (UserId, ConnId)
 addUser = registerUser
 
