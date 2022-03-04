@@ -38,6 +38,7 @@ import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
 import Gundeck.Util.Redis
 import Imports
+import System.Logger.Class (MonadLogger)
 
 -- Note [Migration] ---------------------------------------------------------
 --
@@ -72,7 +73,7 @@ add p = do
   where
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
-deleteAll :: (MonadRedis m, MonadMask m, MonadThrow m, MonadIO m, RedisCtx m (Either Reply)) => [Presence] -> m ()
+deleteAll :: (MonadRedis m, MonadMask m, MonadThrow m, MonadIO m, RedisCtx m (Either Reply), MonadLogger m) => [Presence] -> m ()
 deleteAll [] = return ()
 deleteAll pp = for_ pp $ \p -> do
   let k = toKey (userId p)

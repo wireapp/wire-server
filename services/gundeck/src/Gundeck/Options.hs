@@ -93,9 +93,9 @@ deriveFromJSON toOptionFieldName ''MaxConcurrentNativePushes
 makeLenses ''MaxConcurrentNativePushes
 
 data RedisConnectionMode
-  = Normal -- "standalone?" "plain"?
+  = Master
   | Sentinel
-  | Clustered
+  | Cluster
   deriving (Show, Generic)
 
 -- deriveFromJSON toOptionFieldName ''RedisConnectionMode

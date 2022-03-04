@@ -22,8 +22,11 @@ import Control.Retry
 import qualified Data.ByteString as BS
 import Database.Redis
 import Imports
+import System.Logger.Class (MonadLogger)
+import qualified System.Logger.Class as Log
+import System.Logger.Message
 
-retry :: (MonadIO m, MonadMask m) => RetryPolicyM m -> m a -> m a
+retry :: (MonadIO m, MonadMask m, MonadLogger m) => RetryPolicyM m -> m a -> m a
 retry x = recovering x handlers . const
 
 x1 :: RetryPolicy
@@ -32,25 +35,17 @@ x1 = limitRetries 1 <> exponentialBackoff 100000
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
--- TODO  add tests
-handlers :: Monad m => [a -> Handler m Bool]
+handlers :: (MonadLogger m, Monad m) => [a -> Handler m Bool]
 handlers =
   [ const . Handler $ \case
-      RedisSimpleError (Error msg) -> pure $ "READONLY" `BS.isPrefixOf` msg
-      RedisTxError msg -> pure $ "READONLY" `isPrefixOf` msg
-      _ -> pure $ False
+      RedisSimpleError (Error err) -> pure $ "READONLY" `BS.isPrefixOf` err
+      RedisTxError err -> pure $ "READONLY" `isPrefixOf` err
+      err -> do
+        Log.warn $
+          Log.msg (Log.val "Redis error; not retrying.")
+            ~~ "redis.errMsg" .= show err
+        pure False
   ]
-
--- [ const . Handler $ \(e :: RedisError) -> case e of
---     RedisError msg -> pure $ "READONLY" `BSL.isPrefixOf` msg
---     _ -> pure False,
---   const . Handler $ \(_ :: ConnectionError) -> pure True,
---   const . Handler $ \(_ :: Timeout) -> pure True,
---   const . Handler $ \case
---     TransactionAborted -> pure True
---     _ -> pure False
--- ]
---
 
 -- Error -------------------------------------------------------------------
 

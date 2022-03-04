@@ -19,7 +19,7 @@ config:
   redis:
     host: redis-ephemeral-master
     port: 6379
-    connectionMode: "normal"
+    connectionMode: "master" # master | cluster | sentinel
   bulkPush: false
   aws:
     region: "eu-west-1"
