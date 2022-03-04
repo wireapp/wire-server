@@ -143,6 +143,7 @@ instance
       )
       $ do
         mIdpConfig <- maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
+        () <- error "TODO: fix this similarly to `getUser`?  (use importStoredScimUser somehow?)"
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
@@ -170,7 +171,10 @@ instance
         brigUser <- lift (BrigAccess.getAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
         unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
         case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
-          Right veid -> synthesizeStoredUser brigUser veid
+          Right veid -> do
+            usr :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
+            importStoredScimUser mIdpConfig stiTeam usr
+            pure usr
           Left _ -> throwError notfound
 
   postUser ::
@@ -383,6 +387,63 @@ veidEmail (ST.EmailOnly email) = Just email
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
+-- | If we get a user from brig that hasn't been touched by scim yet, we call this function to
+-- move it under scim control.
+importStoredScimUser ::
+  forall m r.
+  ( (m ~ Scim.ScimHandler (Sem r)),
+    Member Random r,
+    Member Now r,
+    Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member SAMLUserStore r
+  ) =>
+  Maybe IdP ->
+  TeamId ->
+  Scim.StoredUser ST.SparTag ->
+  m ()
+importStoredScimUser midp stiTeam storedUsr = do
+  let usr = (Scim.value . Scim.thing) storedUsr
+  veid <- mkValidExternalId midp (Scim.externalId usr)
+  let buid = (Scim.id . Scim.thing) $ storedUsr
+  lift $ Logger.debug ("importStoredScimUser: brig says " <> show buid)
+  assertExternalIdNotUsedElsewhere stiTeam veid buid
+  createValidScimUserSpar stiTeam buid storedUsr veid
+
+-- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
+-- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
+-- lookup in that table either, but compute the `externalId` from the `UserRef`.
+createValidScimUserSpar ::
+  forall m r.
+  ( (m ~ Scim.ScimHandler (Sem r)),
+    Member Random r,
+    Member Now r,
+    Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member SAMLUserStore r
+  ) =>
+  TeamId ->
+  UserId ->
+  Scim.StoredUser ST.SparTag ->
+  ST.ValidExternalId ->
+  m ()
+createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
+  ScimUserTimesStore.write storedUser
+  ST.runValidExternalId
+    ((`SAMLUserStore.insert` uid))
+    (\email -> ScimExternalIdStore.insert stiTeam email uid)
+    veid
+
 -- | Creates a SCIM User.
 --
 -- User is created in Brig first, and then in SCIM and SAML.
@@ -439,6 +500,9 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
             ST.runValidExternalId
               ( \uref ->
                   do
+                    -- FUTUREWORK: outsource this and some other fragments from
+                    -- `createValidScimUser` into a function `createValidScimUserBrig` similar
+                    -- to `createValidScimUserSpar`?
                     uid <- Id <$> Random.uuid
                     BrigAccess.createSAML uref uid stiTeam name ManagedByScim
               )
@@ -474,18 +538,13 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       lift $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
 
       -- {(arianvp): these two actions we probably want to make transactional.}
-      lift $ do
-        -- Store scim timestamps, saml credentials, scim externalId locally in spar.
-        ScimUserTimesStore.write storedUser
-        ST.runValidExternalId
-          (`SAMLUserStore.insert` buid)
-          (\email -> ScimExternalIdStore.insert stiTeam email buid)
-          veid
+      createValidScimUserSpar stiTeam buid storedUser veid
 
       -- If applicable, trigger email validation procedure on brig.
       lift $ ST.runValidExternalId (validateEmailIfExists buid) (\_ -> pure ()) veid
 
-      -- {suspension via scim: if we don't reach the following line, the user will be active.}
+      -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
+      -- reach the following line due to a crash, the user will be active.
       lift $ do
         old <- BrigAccess.getStatus buid
         let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
