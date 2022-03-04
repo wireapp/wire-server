@@ -86,8 +86,6 @@ createEnv m o = do
             Redis.connectMaxConnections = 100
           }
 
-  -- TODO: use withCheckedConnect (?) and/or clean up resources on server shutdown?
-
   -- TODO: local tests with this function and a redis in cluster mode leads to gundeck not starting up (without logging in error); TODO investigate.
   Log.info l $
     Log.msg (Log.val "starting connection to redis...")
