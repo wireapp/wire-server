@@ -33,6 +33,9 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Servant
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley
 import Wire.API.Util.Aeson (CustomEncoded (..))
@@ -57,6 +60,14 @@ type GalleyApi =
     -- this backend
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
+    :<|> GalleyMLSApi
+
+type GalleyMLSApi =
+  NamedFed
+    "mls-send-welcome"
+    ( ReqBody '[MLS] (RawMLS Welcome)
+        :> Post '[JSON] MLSMessageSendResponse
+    )
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -229,3 +240,5 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
+
+type MLSMessageSendResponse = EmptyResponse

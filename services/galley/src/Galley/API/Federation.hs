@@ -35,6 +35,7 @@ import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Util
@@ -63,10 +64,13 @@ import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -83,6 +87,11 @@ federationSitemap =
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"send-message" sendMessage
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
+    :<|> mlsAPI
+
+mlsAPI :: ServerT F.GalleyMLSApi (Sem GalleyEffects)
+mlsAPI =
+  Named @"mls-send-welcome" sendMLSWelcome
 
 onConversationCreated ::
   Members
@@ -417,3 +426,19 @@ onUserDeleted origDomain udcn = do
                   botsAndMembers = convBotsAndMembers conv
               void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse
+
+sendMLSWelcome ::
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       Input (Local ()),
+       Input UTCTime
+     ]
+    r =>
+  Domain ->
+  RawMLS Welcome ->
+  Sem r EmptyResponse
+sendMLSWelcome _ wel = do
+  loc <- qualifyLocal ()
+  -- TODO: handle errors
+  runError @UnknownWelcomeRecipient (sendLocalWelcome loc wel) $> EmptyResponse

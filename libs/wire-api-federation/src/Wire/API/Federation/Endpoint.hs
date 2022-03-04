@@ -21,10 +21,10 @@ import Servant.API
 import Wire.API.Federation.Domain
 import Wire.API.Routes.Named
 
+type NamedFed name api = Named name (name :> OriginDomainHeader :> api)
+
 type FedEndpoint name input output =
-  Named
-    name
-    (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
+  NamedFed name (ReqBody '[JSON] input :> Post '[JSON] output)
 
 type StreamingFedEndpoint name input output =
   Named

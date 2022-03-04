@@ -19,6 +19,7 @@ module Wire.API.MLS.Servant (MLS, mimeUnrenderMLSWith) where
 
 import Data.Bifunctor
 import Data.Binary
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import Imports
 import Network.HTTP.Media ((//))
@@ -35,3 +36,6 @@ instance {-# OVERLAPPABLE #-} ParseMLS a => MimeUnrender MLS a where
 
 mimeUnrenderMLSWith :: Get a -> LByteString -> Either String a
 mimeUnrenderMLSWith p = first T.unpack . decodeMLSWith p
+
+instance MimeRender MLS (RawMLS a) where
+  mimeRender _ = LBS.fromStrict . rmRaw

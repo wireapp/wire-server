@@ -25,6 +25,7 @@ import Galley.API.MLS.KeyPackage
 import Galley.API.Push
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
+import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
 import Polysemy
@@ -32,6 +33,7 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -81,7 +83,7 @@ sendWelcomes ::
   Sem r ()
 sendWelcomes loc con rawWelcome recipients = do
   now <- input
-  foldQualified loc (sendLocalWelcomes con now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
+  foldQualified loc (sendLocalWelcomes rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
@@ -102,5 +104,11 @@ sendLocalWelcomes con now rawWelcome lclients = do
           e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
        in newMessagePush lclients () (Just con) defMessageMetadata (u, c) e
 
-sendRemoteWelcomes :: ByteString -> Remote [(UserId, ClientId)] -> Sem r ()
-sendRemoteWelcomes = undefined
+sendRemoteWelcomes ::
+  Members '[FederatorAccess] r =>
+  RawMLS Welcome ->
+  [Remote (UserId, ClientId)] ->
+  Sem r ()
+sendRemoteWelcomes wel rcpts = do
+  runFederatedConcurrently_ (fmap void rcpts) $ \_ ->
+    void $ fedClient @'Galley @"mls-send-welcome" wel
