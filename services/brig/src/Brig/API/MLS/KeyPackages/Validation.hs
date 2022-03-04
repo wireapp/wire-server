@@ -107,10 +107,9 @@ findExtensions :: [Extension] -> Either Text (RequiredExtensions Identity)
 findExtensions = (checkRequiredExtensions =<<) . getAp . foldMap findExtension
 
 findExtension :: Extension -> Ap (Either Text) (RequiredExtensions Maybe)
-findExtension ext = flip foldMap (decodeExtension ext) $ \case
+findExtension ext = (Ap (decodeExtension ext) >>=) . foldMap $ \case
   (SomeExtension SLifetimeExtensionTag lt) -> pure $ RequiredExtensions (Just lt) Nothing
   (SomeExtension SCapabilitiesExtensionTag _) -> pure $ RequiredExtensions Nothing (Just ())
-  _ -> Ap (Left "Invalid extension")
 
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
