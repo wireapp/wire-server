@@ -32,8 +32,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), Value, object, withObject, (.:), 
 import Data.Id
 import Data.Qualified (Qualified)
 import Data.Schema (ToSchema, element, enum, schema, schemaParseJSON, schemaToJSON)
-import Data.Singletons (Sing, SomeSing (SomeSing), fromSing, toSing)
-import Data.Singletons.TH (genSingletons, sCases)
+import Data.Singletons.TH 
 import Data.Time.Clock
 import Imports
 import Test.QuickCheck (elements)
@@ -80,6 +79,9 @@ instance FromJSON ConversationActionTag where
 
 $(genSingletons [''ConversationActionTag])
 
+$(singEqInstance ''ConversationActionTag)
+$(singDecideInstance ''ConversationActionTag)
+
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
@@ -102,25 +104,9 @@ instance Show SomeConversationAction where
 
 instance Eq SomeConversationAction where
   (SomeConversationAction tag1 action1) == (SomeConversationAction tag2 action2) =
-    case (tag1, tag2) of
-      (SConversationJoinTag, SConversationJoinTag) -> action1 == action2
-      (SConversationJoinTag, _) -> False
-      (SConversationLeaveTag, SConversationLeaveTag) -> action1 == action2
-      (SConversationLeaveTag, _) -> False
-      (SConversationMemberUpdateTag, SConversationMemberUpdateTag) -> action1 == action2
-      (SConversationMemberUpdateTag, _) -> False
-      (SConversationDeleteTag, SConversationDeleteTag) -> action1 == action2
-      (SConversationDeleteTag, _) -> False
-      (SConversationRenameTag, SConversationRenameTag) -> action1 == action2
-      (SConversationRenameTag, _) -> False
-      (SConversationMessageTimerUpdateTag, SConversationMessageTimerUpdateTag) -> action1 == action2
-      (SConversationMessageTimerUpdateTag, _) -> False
-      (SConversationReceiptModeUpdateTag, SConversationReceiptModeUpdateTag) -> action1 == action2
-      (SConversationReceiptModeUpdateTag, _) -> False
-      (SConversationAccessDataTag, SConversationAccessDataTag) -> action1 == action2
-      (SConversationAccessDataTag, _) -> False
-      (SConversationRemoveMembersTag, SConversationRemoveMembersTag) -> action1 == action2
-      (SConversationRemoveMembersTag, _) -> False
+    case tag1 %~ tag2 of
+      Proved Refl -> $(sCases ''ConversationActionTag [|tag1|] [|action1 == action2|])
+      Disproved _ -> False
 
 instance ToJSON SomeConversationAction where
   toJSON (SomeConversationAction sb action) =
