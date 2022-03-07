@@ -43,7 +43,7 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type GalleyApi =
   -- | Register a new conversation
-  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) CreateConversationResponse
+  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
@@ -117,9 +117,7 @@ data NewRemoteConversation conv = NewRemoteConversation
     -- | Members of the conversation apart from the creator
     rcNonCreatorMembers :: Set OtherMember,
     rcMessageTimer :: Maybe Milliseconds,
-    rcReceiptMode :: Maybe ReceiptMode,
-    rcProtocol :: Maybe Protocol,
-    rcGroupId :: Maybe GroupId
+    rcReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
@@ -227,17 +225,3 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
-
-data CreateConversationError
-  = CreateConversationErrorExistingGroupId GroupId
-  | CreateConversationErrorEmptyGroupId
-  deriving stock (Generic)
-  deriving
-    (ToJSON, FromJSON)
-    via (CustomEncoded CreateConversationError)
-
-newtype CreateConversationResponse = CreateConversationResponse
-  {createResponse :: Either CreateConversationError ()}
-  deriving
-    (ToJSON, FromJSON)
-    via (Either (CustomEncoded CreateConversationError) ())

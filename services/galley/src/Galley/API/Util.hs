@@ -646,9 +646,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       rcCnvName = convName,
       rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = convMessageTimer,
-      rcReceiptMode = convReceiptMode,
-      rcProtocol = convProtocol,
-      rcGroupId = convGroupId
+      rcReceiptMode = convReceiptMode
     }
   where
     toMembers ::
@@ -718,8 +716,8 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             cnvmTeam = Nothing,
             cnvmMessageTimer = rcMessageTimer,
             cnvmReceiptMode = rcReceiptMode,
-            cnvmProtocol = fromMaybe ProtocolProteus rcProtocol,
-            cnvmGroupId = rcGroupId
+            cnvmProtocol = ProtocolProteus,
+            cnvmGroupId = Nothing
           }
         (ConvMembers this others)
 
@@ -736,8 +734,7 @@ registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toNewRemoteConversation now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->
-    -- FUTUREWORK: handle group ID and potentially other errors from remotes
-    void $ fedClient @'Galley @"on-conversation-created" rc
+    fedClient @'Galley @"on-conversation-created" rc
 
 --------------------------------------------------------------------------------
 -- Legalhold
