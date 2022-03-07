@@ -63,6 +63,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.MLS.Group (isEmptyId)
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -81,41 +82,59 @@ federationSitemap =
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onConversationCreated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       GundeckAccess,
+       ExternalAccess,
+       Input (Local ()),
+       MemberStore,
+       P.TinyLog
+     ]
+    r =>
   Domain ->
   F.NewRemoteConversation ConvId ->
-  Sem r ()
-onConversationCreated domain rc = do
-  let qrc = fmap (toRemoteUnsafe domain) rc
-  loc <- qualifyLocal ()
-  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
+  Sem r F.CreateConversationResponse
+onConversationCreated domain rc = fmap F.CreateConversationResponse $
+  runError $ do
+    let qrc = fmap (toRemoteUnsafe domain) rc
+    loc <- qualifyLocal ()
+    let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
 
-  addedUserIds <-
-    addLocalUsersToRemoteConv
-      (F.rcCnvId qrc)
-      (qUntagged (F.rcRemoteOrigUserId qrc))
-      localUserIds
+    for_ (F.rcGroupId rc) $ \gId -> do
+      when (isEmptyId gId) $
+        throw F.CreateConversationErrorEmptyGroupId
+      whenM (isJust <$> E.getConversationIdByGroupId gId)
+        . throw
+        $ F.CreateConversationErrorExistingGroupId gId
+      E.setGroupId gId (qUntagged . F.rcCnvId $ qrc)
 
-  let connectedMembers =
-        Set.filter
-          ( foldQualified
-              loc
-              (flip Set.member addedUserIds . tUnqualified)
-              (const True)
-              . omQualifiedId
-          )
-          (F.rcNonCreatorMembers rc)
-  -- Make sure to notify only about local users connected to the adder
-  let qrcConnected = qrc {F.rcNonCreatorMembers = connectedMembers}
+    addedUserIds <-
+      addLocalUsersToRemoteConv
+        (F.rcCnvId qrc)
+        (qUntagged (F.rcRemoteOrigUserId qrc))
+        localUserIds
 
-  forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
-    let event =
-          Event
-            (qUntagged (F.rcCnvId qrcConnected))
-            (qUntagged (F.rcRemoteOrigUserId qrcConnected))
-            (F.rcTime qrcConnected)
-            (EdConversation c)
-    pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
+    let connectedMembers =
+          Set.filter
+            ( foldQualified
+                loc
+                (flip Set.member addedUserIds . tUnqualified)
+                (const True)
+                . omQualifiedId
+            )
+            (F.rcNonCreatorMembers rc)
+    -- Make sure to notify only about local users connected to the adder
+    let qrcConnected = qrc {F.rcNonCreatorMembers = connectedMembers}
+
+    forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
+      let event =
+            Event
+              (qUntagged (F.rcCnvId qrcConnected))
+              (qUntagged (F.rcRemoteOrigUserId qrcConnected))
+              (F.rcTime qrcConnected)
+              (EdConversation c)
+      pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 
 getConversations ::
   Members '[ConversationStore, Input (Local ())] r =>

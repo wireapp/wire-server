@@ -394,6 +394,14 @@ toConv cid mms remoteMems conv =
             prot
             gid
 
+mapGroupId :: GroupId -> Qualified ConvId -> Client ()
+mapGroupId gId conv =
+  write Cql.insertGroupId (params LocalQuorum (gId, qUnqualified conv, qDomain conv))
+
+lookupGroupId :: GroupId -> Client (Maybe (Qualified ConvId))
+lookupGroupId gId =
+  uncurry Qualified <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
+
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>
   Sem (ConversationStore ': r) a ->
@@ -422,3 +430,5 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationReceiptMode cid value -> embedClient $ updateConvReceiptMode cid value
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
   DeleteConversation cid -> embedClient $ deleteConversation cid
+  GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
+  SetGroupId gId cid -> embedClient $ mapGroupId gId cid

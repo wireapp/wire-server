@@ -3521,10 +3521,10 @@ removeUser = do
             F.rcProtocol = Just ProtocolProteus,
             F.rcGroupId = Nothing
           }
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
+  void . runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
+  void . runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
+  void . runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
+  void . runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
     let handler :: FederatedRequest -> IO LByteString

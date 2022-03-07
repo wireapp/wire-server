@@ -30,6 +30,10 @@ newtype GroupId = GroupId {unGroupId :: ByteString}
   deriving (Arbitrary) via (GenericUniform GroupId)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
 
+isEmptyId :: GroupId -> Bool
+isEmptyId (GroupId "") = True
+isEmptyId _ = False
+
 instance IsString GroupId where
   fromString = GroupId . fromString
 

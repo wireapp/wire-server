@@ -258,6 +258,9 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 insertGroupId :: PrepQuery W (GroupId, ConvId, Domain) ()
 insertGroupId = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
 
+lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain)
+lookupGroupId = "SELECT (conv_id, domain) from group_id_conv_id where group_id = ?"
+
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32

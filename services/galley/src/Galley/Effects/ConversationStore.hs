@@ -34,6 +34,7 @@ module Galley.Effects.ConversationStore
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
+    getConversationIdByGroupId,
 
     -- * Update conversation
     setConversationType,
@@ -42,6 +43,7 @@ module Galley.Effects.ConversationStore
     setConversationReceiptMode,
     setConversationMessageTimer,
     acceptConnectConversation,
+    setGroupId,
 
     -- * Delete conversation
     deleteConversation,
@@ -105,6 +107,8 @@ data ConversationStore m a where
   SetConversationAccess :: ConvId -> ConversationAccessData -> ConversationStore m ()
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
+  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
+  SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

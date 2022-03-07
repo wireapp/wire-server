@@ -1400,7 +1400,7 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+  void . runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
     NewRemoteConversation
       { rcTime = now,
         rcOrigUserId = originUser,
