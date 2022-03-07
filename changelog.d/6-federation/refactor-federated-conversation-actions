@@ -3,5 +3,6 @@ tag (identifying the action) and a dedicated type for the action itself.
 Previously, actions were represented by a big sum type. The new approach
 enables us to describe the needed effects of an action much more precise.
 The existential type is initialized by the Servant endpoints in a way to
-mimic the previous behavior. Thus, no specific migration or service restart
-order should be needed. 
+mimic the previous behavior. But, the messages between services changed.
+Thus, all federated backends need to run the same (new) version. The
+deployment order itself does not matter.
