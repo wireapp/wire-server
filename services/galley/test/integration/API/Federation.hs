@@ -42,7 +42,6 @@ import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util (Base64ByteString (..), toBase64Text)
@@ -885,9 +884,7 @@ sendMessage = do
         FedGalley.MessageSendRequest
           { FedGalley.msrConvId = convId,
             FedGalley.msrSender = bobId,
-            FedGalley.msrRawMessage =
-              Base64ByteString
-                (LBS.fromStrict (Protolens.encodeMessage msg))
+            FedGalley.msrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
           }
   let responses2 req
         | frComponent req == Brig =

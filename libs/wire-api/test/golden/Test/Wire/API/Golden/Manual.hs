@@ -118,10 +118,9 @@ tests =
             (testObject_Contact_2, "testObject_Contact_2.json")
           ],
       testGroup "SearchResult Contact" $
-        testObjects [(testObject_SearchResultContact_1, "testObject_SearchResultContact_1.json")],
+        testObjects
+          [(testObject_SearchResultContact_1, "testObject_SearchResultContact_1.json")],
       testGroup "GroupId" $
         testObjects
-          [ (testObject_GroupId_1, "testObject_GroupId_1.json"),
-            (testObject_GroupId_2, "testObject_GroupId_2.json")
-          ]
+          [(testObject_GroupId_1, "testObject_GroupId_1.json")]
     ]

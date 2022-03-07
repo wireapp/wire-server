@@ -44,8 +44,6 @@ module Wire.API.Conversation
     ConversationsResponse (..),
     Protocol (..),
     GroupId (..),
-    decodeConvId,
-    convIdToGroupId,
 
     -- * Conversation properties
     Access (..),
@@ -115,7 +113,7 @@ import System.Random (randomRIO)
 import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
-import Wire.API.MLS.GroupId
+import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
 
 --------------------------------------------------------------------------------

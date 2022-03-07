@@ -42,11 +42,12 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Data (Proxy (Proxy))
+import Data.Default
 import Data.Domain
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util hiding ((#))
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
@@ -107,7 +108,7 @@ import TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
-import Wire.API.Conversation hiding (decodeConvId)
+import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
@@ -119,6 +120,7 @@ import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Member (mkNewTeamMember)
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
@@ -225,7 +227,7 @@ createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM 
 createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
+  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon & newTeamMembers .~ mm
   resp <-
     post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -252,7 +254,7 @@ createBindingTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM T
 createBindingTeamInternalNoActivate name owner = do
   g <- view tsGalley
   tid <- randomId
-  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
+  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
     put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -788,7 +790,7 @@ postOtrMessage' reportMissing f u d c rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec reportMissing)
+      . json (mkOtrPayload d rec reportMissing "ZXhhbXBsZQ==")
 
 postProteusMessageQualifiedWithMockFederator ::
   UserId ->
@@ -826,30 +828,86 @@ postProteusMessageQualified senderUser senderClient (Qualified conv domain) reci
       . contentProtobuf
       . bytes (Protolens.encodeMessage protoMsg)
 
--- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
-postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage req usrs clt rcps = do
-  g <- view tsGalley
-  postOtrBroadcastMessage' g Nothing req usrs clt rcps
+data BroadcastAPI
+  = BroadcastLegacyQueryParams
+  | BroadcastLegacyBody
+  | BroadcastQualified
 
--- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
-postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
-postOtrBroadcastMessage' g reportMissingBody f u d rec =
+broadcastAPIName :: BroadcastAPI -> String
+broadcastAPIName BroadcastLegacyQueryParams = "legacy API with query parameters only"
+broadcastAPIName BroadcastLegacyBody = "legacy API with report_missing in the body"
+broadcastAPIName BroadcastQualified = "qualified API"
+
+data BroadcastType = BroadcastJSON | BroadcastProto
+
+broadcastTypeName :: BroadcastType -> String
+broadcastTypeName BroadcastJSON = "json"
+broadcastTypeName BroadcastProto = "protobuf"
+
+data Broadcast = Broadcast
+  { bAPI :: BroadcastAPI,
+    bType :: BroadcastType,
+    bMessage :: [(UserId, ClientId, Text)],
+    bData :: Text,
+    bReport :: Maybe [UserId],
+    bReq :: Request -> Request
+  }
+
+instance Default Broadcast where
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty id
+
+postBroadcast ::
+  (MonadIO m, MonadHttp m, HasGalley m) =>
+  Qualified UserId ->
+  ClientId ->
+  Broadcast ->
+  m ResponseLBS
+postBroadcast lu c b = do
+  let u = qUnqualified lu
+  g <- viewGalley
+  let (bodyReport, queryReport) = case bAPI b of
+        BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
+        _ -> (bReport b, id)
+  let bdy = case (bAPI b, bType b) of
+        (BroadcastQualified, BroadcastJSON) -> error "JSON not supported for the qualified broadcast API"
+        (BroadcastQualified, BroadcastProto) ->
+          let m =
+                Protolens.encodeMessage $
+                  mkQualifiedOtrPayload
+                    c
+                    (map ((_1 %~ (lu $>)) . (_3 %~ fromBase64TextLenient)) (bMessage b))
+                    (fromBase64TextLenient (bData b))
+                    ( maybe
+                        MismatchReportAll
+                        (MismatchReportOnly . Set.fromList . map (lu $>))
+                        (bReport b)
+                    )
+           in contentProtobuf . bytes m
+        (_, BroadcastJSON) -> json (mkOtrPayload c (bMessage b) bodyReport (bData b))
+        (_, BroadcastProto) ->
+          let m =
+                runPut . encodeMessage $
+                  mkOtrProtoMessage c (otrRecipients (bMessage b)) bodyReport (bData b)
+           in contentProtobuf . bytes m
+  let name = case bAPI b of BroadcastQualified -> "proteus"; _ -> "otr"
   post $
-    g
-      . f
-      . paths ["broadcast", "otr", "messages"]
+    g . bReq b
+      . paths ["broadcast", name, "messages"]
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec reportMissingBody)
+      . queryReport
+      . bdy
 
-mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Value
-mkOtrPayload sender rec reportMissingBody =
+mkOtrReportMissing :: [UserId] -> Request -> Request
+mkOtrReportMissing = queryItem "report_missing" . BS.intercalate "," . map toByteString'
+
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Text -> Value
+mkOtrPayload sender rec reportMissingBody ad =
   object
     [ "sender" .= sender,
       "recipients" .= (HashMap.map toJSON . HashMap.fromListWith HashMap.union $ map mkOtrMessage rec),
-      "data" .= Just ("data" :: Text),
+      "data" .= Just ad,
       "report_missing" .= reportMissingBody
     ]
 
@@ -865,7 +923,7 @@ postProtoOtrMessage = postProtoOtrMessage' Nothing id
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing "ZXhhbXBsZQ==")
    in post $
         g
           . modif
@@ -876,30 +934,13 @@ postProtoOtrMessage' reportMissing modif u d c rec = do
           . contentProtobuf
           . bytes m
 
-postProtoOtrBroadcast :: UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrBroadcast = postProtoOtrBroadcast' Nothing id
-
-postProtoOtrBroadcast' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrBroadcast' reportMissing modif u d rec = do
-  g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
-   in post $
-        g
-          . modif
-          . paths ["broadcast", "otr", "messages"]
-          . zUser u
-          . zConn "conn"
-          . zType "access"
-          . contentProtobuf
-          . bytes m
-
-mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Proto.NewOtrMessage
-mkOtrProtoMessage sender rec reportMissing =
+mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Text -> Proto.NewOtrMessage
+mkOtrProtoMessage sender rec reportMissing ad =
   let rcps = protoFromOtrRecipients rec
       sndr = Proto.fromClientId sender
       rmis = Proto.fromUserId <$> fromMaybe [] reportMissing
    in Proto.newOtrMessage sndr rcps
-        & Proto.newOtrMessageData ?~ "data"
+        & Proto.newOtrMessageData ?~ fromBase64TextLenient ad
         & Proto.newOtrMessageReportMissing .~ rmis
 
 getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
@@ -1516,7 +1557,7 @@ wsAssertOtr ::
   Text ->
   Notification ->
   IO ()
-wsAssertOtr = wsAssertOtr' "data"
+wsAssertOtr = wsAssertOtr' "ZXhhbXBsZQ=="
 
 wsAssertOtr' ::
   HasCallStack =>
@@ -1877,7 +1918,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
+            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: HasCallStack => TestM UserId
@@ -2041,6 +2082,21 @@ assertExpected msg expected tparser =
   where
     addTitle s = unlines [msg, s]
 
+assertBroadcastMismatch ::
+  Domain ->
+  BroadcastAPI ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  Assertions ()
+assertBroadcastMismatch localDomain BroadcastQualified =
+  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d)
+  where
+    mk :: [(UserId, Set ClientId)] -> Client.QualifiedUserClients
+    mk [] = mempty
+    mk uc = Client.QualifiedUserClients . Map.singleton localDomain . Map.fromList $ uc
+assertBroadcastMismatch _ _ = assertMismatch
+
 assertMismatchWithMessage ::
   HasCallStack =>
   Maybe String ->
@@ -2081,10 +2137,13 @@ assertMismatchQualified failedToSend missing redundant deleted = do
 
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
 
-otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
-otrRecipients = OtrRecipients . UserClientMap . buildMap
-  where
-    buildMap = fmap Map.fromList . Map.fromList
+otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
+otrRecipients =
+  OtrRecipients
+    . UserClientMap
+    . fmap Map.fromList
+    . foldr (uncurry Map.insert . fmap pure) mempty
+    . map (\(a, b, c) -> (a, (b, c)))
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary

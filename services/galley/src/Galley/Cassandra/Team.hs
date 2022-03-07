@@ -62,6 +62,7 @@ import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Member
 
 interpretTeamStoreToCassandra ::
@@ -137,11 +138,11 @@ createTeam ::
   Maybe TeamId ->
   UserId ->
   Range 1 256 Text ->
-  Range 1 256 Text ->
+  Icon ->
   Maybe (Range 1 256 Text) ->
   TeamBinding ->
   Client Team
-createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
+createTeam t uid (fromRange -> n) i k b = do
   tid <- maybe (Id <$> liftIO nextRandom) return t
   retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
   pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))

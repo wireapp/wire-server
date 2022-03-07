@@ -40,7 +40,6 @@ module Wire.API.MLS.KeyPackage
     decodeExtension,
     parseExtension,
     ExtensionTag (..),
-    ReservedExtensionTagSym0,
     CapabilitiesExtensionTagSym0,
     LifetimeExtensionTagSym0,
     SExtensionTag (..),
@@ -56,7 +55,6 @@ module Wire.API.MLS.KeyPackage
 where
 
 import Control.Applicative
-import Control.Error.Util
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
@@ -93,7 +91,7 @@ instance ToSchema KeyPackageData where
   schema =
     (S.schema . S.example ?~ "a2V5IHBhY2thZ2UgZGF0YQo=")
       ( KeyPackageData <$> kpData
-          .= named "KeyPackage" (Base64ByteString .= fmap fromBase64ByteString base64Schema)
+          .= named "KeyPackage" base64SchemaL
       )
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry
@@ -156,20 +154,17 @@ instance ParseMLS Extension where
   parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
 
 data ExtensionTag
-  = ReservedExtensionTag
-  | CapabilitiesExtensionTag
+  = CapabilitiesExtensionTag
   | LifetimeExtensionTag
   deriving (Bounded, Enum)
 
 $(genSingletons [''ExtensionTag])
 
 type family ExtensionType (t :: ExtensionTag) :: * where
-  ExtensionType 'ReservedExtensionTag = ()
   ExtensionType 'CapabilitiesExtensionTag = Capabilities
   ExtensionType 'LifetimeExtensionTag = Lifetime
 
 parseExtension :: Sing t -> Get (ExtensionType t)
-parseExtension SReservedExtensionTag = pure ()
 parseExtension SCapabilitiesExtensionTag = parseMLS
 parseExtension SLifetimeExtensionTag = parseMLS
 
@@ -182,16 +177,16 @@ instance Eq SomeExtension where
   _ == _ = False
 
 instance Show SomeExtension where
-  show (SomeExtension SReservedExtensionTag _) = show ()
   show (SomeExtension SCapabilitiesExtensionTag caps) = show caps
   show (SomeExtension SLifetimeExtensionTag lt) = show lt
 
-decodeExtension :: Extension -> Maybe SomeExtension
+decodeExtension :: Extension -> Either Text (Maybe SomeExtension)
 decodeExtension e = do
-  t <- safeToEnum (fromIntegral (extType e))
-  hush $
-    withSomeSing t $ \st ->
-      decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)
+  case toMLSEnum' (extType e) of
+    Left MLSEnumUnkonwn -> pure Nothing
+    Left MLSEnumInvalid -> Left "Invalid extension type"
+    Right t -> withSomeSing t $ \st ->
+      Just <$> decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)
 
 data Capabilities = Capabilities
   { capVersions :: [ProtocolVersion],
@@ -234,7 +229,7 @@ data KeyPackageTBS = KeyPackageTBS
     kpCredential :: Credential,
     kpExtensions :: [Extension]
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform KeyPackageTBS
 
 instance ParseMLS KeyPackageTBS where
@@ -250,10 +245,13 @@ data KeyPackage = KeyPackage
   { kpTBS :: KeyPackageTBS,
     kpSignature :: ByteString
   }
-  deriving (Show)
+  deriving stock (Eq, Show)
 
 newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
-  deriving stock (Show)
+  deriving stock (Eq, Show)
+
+instance ParseMLS KeyPackageRef where
+  parseMLS = KeyPackageRef <$> getByteString 16
 
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =

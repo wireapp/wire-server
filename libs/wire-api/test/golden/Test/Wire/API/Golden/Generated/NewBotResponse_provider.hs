@@ -19,7 +19,10 @@
 
 module Test.Wire.API.Golden.Generated.NewBotResponse_provider where
 
-import Imports (Maybe (Just, Nothing))
+import Data.Id
+import qualified Data.UUID as UUID (fromString)
+import Imports (Maybe (Just, Nothing), fromJust)
+import Wire.API.Asset
 import Wire.API.Provider.External (NewBotResponse (..))
 import Wire.API.User.Client.Prekey (Prekey (Prekey, prekeyId, prekeyKey), PrekeyId (PrekeyId, keyId), lastPrekey)
 import Wire.API.User.Profile
@@ -71,10 +74,10 @@ testObject_NewBotResponse_provider_2 =
       rsNewBotColour = Nothing,
       rsNewBotAssets =
         Just
-          [ (ImageAsset "C#\1056358" (Just AssetComplete)),
-            (ImageAsset "\DC4\n" (Just AssetComplete)),
-            (ImageAsset "V" (Just AssetComplete)),
-            (ImageAsset "Y+_" (Just AssetComplete))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
           ]
     }
 
@@ -99,9 +102,9 @@ testObject_NewBotResponse_provider_3 =
       rsNewBotColour = Just (ColourId {fromColourId = 0}),
       rsNewBotAssets =
         Just
-          [ (ImageAsset "'\DC2" (Nothing)),
-            (ImageAsset "`" (Just AssetPreview)),
-            (ImageAsset "?\1084357\ESC" (Just AssetPreview))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
           ]
     }
 
@@ -180,10 +183,10 @@ testObject_NewBotResponse_provider_8 =
       rsNewBotColour = Nothing,
       rsNewBotAssets =
         Just
-          [ (ImageAsset "\5691~" (Just AssetPreview)),
-            (ImageAsset "i\97515" (Just AssetPreview)),
-            (ImageAsset "\\" (Nothing)),
-            (ImageAsset "%o" (Just AssetPreview))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
           ]
     }
 
@@ -220,7 +223,7 @@ testObject_NewBotResponse_provider_10 =
       rsNewBotLastPrekey = (lastPrekey ("R\165465")),
       rsNewBotName = Nothing,
       rsNewBotColour = Just (ColourId {fromColourId = -5}),
-      rsNewBotAssets = Just [(ImageAsset "" (Nothing))]
+      rsNewBotAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))]
     }
 
 testObject_NewBotResponse_provider_11 :: NewBotResponse
@@ -260,12 +263,12 @@ testObject_NewBotResponse_provider_13 =
       rsNewBotColour = Just (ColourId {fromColourId = -6}),
       rsNewBotAssets =
         Just
-          [ (ImageAsset "\DLEk" (Just AssetPreview)),
-            (ImageAsset "/" (Nothing)),
-            (ImageAsset "" (Just AssetPreview)),
-            (ImageAsset "" (Nothing)),
-            (ImageAsset "\21612\188425" (Just AssetComplete)),
-            (ImageAsset "\f\1077258E" (Just AssetPreview))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
           ]
     }
 
@@ -333,7 +336,7 @@ testObject_NewBotResponse_provider_16 =
       rsNewBotLastPrekey = (lastPrekey ("e!D*j")),
       rsNewBotName = Just (Name {fromName = "\174414\&4?rvqg%\DC2\167142\DC1t\CAN\62298\SI_\92287F"}),
       rsNewBotColour = Just (ColourId {fromColourId = -5}),
-      rsNewBotAssets = Just [(ImageAsset "\"\63981\1047766" (Just AssetComplete)), (ImageAsset "" (Just AssetComplete))]
+      rsNewBotAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))]
     }
 
 testObject_NewBotResponse_provider_17 :: NewBotResponse
@@ -358,9 +361,9 @@ testObject_NewBotResponse_provider_18 =
       rsNewBotColour = Just (ColourId {fromColourId = 8}),
       rsNewBotAssets =
         Just
-          [ (ImageAsset "\FS" (Just AssetComplete)),
-            (ImageAsset "\92915\984145" (Just AssetPreview)),
-            (ImageAsset "" (Just AssetPreview))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
           ]
     }
 
@@ -380,11 +383,11 @@ testObject_NewBotResponse_provider_19 =
       rsNewBotColour = Nothing,
       rsNewBotAssets =
         Just
-          [ (ImageAsset "\158941\DC1" (Just AssetComplete)),
-            (ImageAsset "\t" (Just AssetPreview)),
-            (ImageAsset "V#" (Just AssetComplete)),
-            (ImageAsset "" (Just AssetPreview)),
-            (ImageAsset "(\ETX" (Just AssetComplete))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
           ]
     }
 
@@ -401,8 +404,8 @@ testObject_NewBotResponse_provider_20 =
       rsNewBotColour = Nothing,
       rsNewBotAssets =
         Just
-          [ (ImageAsset "\"" (Just AssetPreview)),
-            (ImageAsset "\1076571d" (Just AssetPreview)),
-            (ImageAsset "8" (Just AssetComplete))
+          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
+            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
           ]
     }

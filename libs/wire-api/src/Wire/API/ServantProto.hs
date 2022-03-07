@@ -17,6 +17,7 @@
 
 module Wire.API.ServantProto where
 
+import qualified Data.ByteString.Lazy as LBS
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Swagger
 import Imports
@@ -34,22 +35,22 @@ data Proto
 -- it is fairly difficult to keep our custom data type, e.g. in
 -- Wire.API.Message.Proto in sync with the proto files.
 class FromProto a where
-  fromProto :: LByteString -> Either String a
+  fromProto :: ByteString -> Either String a
 
 class ToProto a where
-  toProto :: a -> LByteString
+  toProto :: a -> ByteString
 
 instance Accept Proto where
   contentTypes _ = ("application" // "x-protobuf") :| []
 
 instance FromProto a => MimeUnrender Proto a where
-  mimeUnrender _ bs = fromProto bs
+  mimeUnrender _ bs = fromProto (LBS.toStrict bs)
 
 -- | This wrapper can be used to get the raw protobuf representation of a type.
 -- It is used when the protobuf is supposed to be forwarded somewhere like a
 -- federated remote, this saves us from having to re-encode it.
 data RawProto a = RawProto
-  { rpRaw :: LByteString,
+  { rpRaw :: ByteString,
     rpValue :: a
   }
 

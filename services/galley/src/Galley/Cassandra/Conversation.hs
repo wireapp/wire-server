@@ -24,7 +24,9 @@ where
 
 import Cassandra hiding (Set)
 import qualified Cassandra as Cql
+import qualified Crypto.Hash.BLAKE2.BLAKE2b as Blake2
 import Data.ByteString.Conversion
+import Data.ByteString.Short
 import Data.Id
 import qualified Data.Map as Map
 import Data.Misc
@@ -48,6 +50,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
+import System.Random
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -55,9 +58,9 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 createConversation :: Local x -> NewConversation -> Client Conversation
 createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol) = do
   conv <- Id <$> liftIO nextRandom
-  let groupId = case protocol of
-        ProtocolProteus -> Nothing
-        ProtocolMLS -> Just . convIdToGroupId . qUntagged . qualifyAs loc $ conv
+  groupId <- case protocol of
+    ProtocolProteus -> pure Nothing
+    ProtocolMLS -> Just <$> liftIO randomGroupId
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -85,6 +88,14 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
         convProtocol = Just protocol,
         convGroupId = groupId
       }
+  where
+    randomGroupId :: MonadIO m => m GroupId
+    randomGroupId = do
+      g <- newStdGen
+      let (len, g2) = genWord8 g
+          bs = fromShort . fst $ genShortByteString 256 g2
+      -- The length can be at most 256 bytes
+      pure . GroupId $ Blake2.hash (fromIntegral len) mempty bs
 
 createConnectConversation ::
   U.UUID U.V4 ->

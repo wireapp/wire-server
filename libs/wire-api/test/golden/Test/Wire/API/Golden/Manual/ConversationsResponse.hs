@@ -27,7 +27,6 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Imports
-import Test.Wire.API.Golden.Manual.GroupId
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
 
@@ -111,7 +110,7 @@ conv2 =
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
             cnvmProtocol = ProtocolMLS,
-            cnvmGroupId = Just testObject_GroupId_1
+            cnvmGroupId = Just . GroupId $ "test_group"
           },
       cnvMembers =
         ConvMembers

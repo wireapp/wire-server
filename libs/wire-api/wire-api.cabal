@@ -37,12 +37,15 @@ library
       Wire.API.Message
       Wire.API.Message.Proto
       Wire.API.MLS.CipherSuite
+      Wire.API.MLS.Commit
       Wire.API.MLS.Credential
-      Wire.API.MLS.GroupId
+      Wire.API.MLS.Group
       Wire.API.MLS.KeyPackage
+      Wire.API.MLS.Message
       Wire.API.MLS.Proposal
       Wire.API.MLS.Serialisation
       Wire.API.MLS.Servant
+      Wire.API.MLS.Welcome
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
@@ -644,6 +647,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , either
     , filepath
     , hex
     , hscim

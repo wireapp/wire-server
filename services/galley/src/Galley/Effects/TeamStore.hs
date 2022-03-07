@@ -85,6 +85,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import qualified Proto.TeamEvents as E
+import Wire.API.Team (Icon)
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()
@@ -93,7 +94,7 @@ data TeamStore m a where
     Maybe TeamId ->
     UserId ->
     Range 1 256 Text ->
-    Range 1 256 Text ->
+    Icon ->
     Maybe (Range 1 256 Text) ->
     TeamBinding ->
     TeamStore m Team

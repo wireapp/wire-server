@@ -85,7 +85,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Conversation hiding (decodeConvId)
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -505,7 +505,7 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let ciphertext = toBase64Text "hello bob"
-  let m = otrRecipients [(bob, [(bc, ciphertext)])]
+  let m = otrRecipients [(bob, bc, ciphertext)]
   r1 <-
     postProtoOtrMessage alice ac conv m
       <!! const 412 === statusCode
@@ -534,7 +534,7 @@ postCryptoMessageNotAuthorizeUnknownClient = do
   conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   -- Unknown client ID => 403
   let ciphertext = toBase64Text "hello bob"
-  let m = otrRecipients [(bob, [(bc, ciphertext)])]
+  let m = otrRecipients [(bob, bc, ciphertext)]
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
@@ -609,7 +609,7 @@ postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   conv <- decodeConvId <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let msgMissingChadAndEve = [(bob, bc, toBase64Text "hello bob")]
-  let m' = otrRecipients [(bob, [(bc, toBase64Text "hello bob")])]
+  let m' = otrRecipients [(bob, bc, toBase64Text "hello bob")]
   -- These three are equivalent (i.e. report all missing clients)
   postOtrMessage id alice ac conv msgMissingChadAndEve
     !!! const 412 === statusCode

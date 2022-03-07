@@ -88,8 +88,4 @@ testObject_NewRemoteConversation2 =
     }
   where
     groupId :: GroupId
-    groupId =
-      convIdToGroupId $
-        Qualified
-          (Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")))
-          (Domain "mydomain.com")
+    groupId = GroupId "test_group"

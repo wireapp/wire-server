@@ -43,21 +43,20 @@ data Credential = BasicCredential
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Credential
 
-data CredentialTag = ReservedCredentialTag | BasicCredentialTag
-  deriving stock (Enum, Bounded, Show)
-  deriving (ParseMLS) via (EnumMLS Word16 CredentialTag)
+data CredentialTag = BasicCredentialTag
+  deriving stock (Enum, Bounded, Eq, Show)
+
+instance ParseMLS CredentialTag where
+  parseMLS = parseMLSEnum @Word16 "credential type"
 
 instance ParseMLS Credential where
-  parseMLS = do
-    tag <- parseMLS
-    case tag of
+  parseMLS =
+    parseMLS >>= \case
       BasicCredentialTag ->
         BasicCredential
           <$> parseMLSBytes @Word16
           <*> parseMLS
           <*> parseMLSBytes @Word16
-      ReservedCredentialTag ->
-        fail "Unexpected credential type"
 
 credentialTag :: Credential -> CredentialTag
 credentialTag (BasicCredential _ _ _) = BasicCredentialTag

@@ -17,27 +17,7 @@
 
 module Test.Wire.API.Golden.Manual.GroupId where
 
-import Data.Domain
-import Data.Id
-import Data.Qualified
-import qualified Data.UUID as UUID
-import Imports
-import Wire.API.MLS.GroupId
-
-convId1 :: Qualified ConvId
-convId1 =
-  Qualified
-    (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-    (Domain "mydomain.com")
+import Wire.API.MLS.Group
 
 testObject_GroupId_1 :: GroupId
-testObject_GroupId_1 = convIdToGroupId convId1
-
-convId2 :: Qualified ConvId
-convId2 =
-  Qualified
-    (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001")))
-    (Domain "abcdef.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.testObject_GroupId_2.com")
-
-testObject_GroupId_2 :: GroupId
-testObject_GroupId_2 = convIdToGroupId convId2
+testObject_GroupId_1 = GroupId "test_group"
