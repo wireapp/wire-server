@@ -396,7 +396,7 @@ Additionally if `setSftListAllServers` is set to `enabled` (disabled by default)
 
 #### setDefaultLocale (deprecated / ignored)
 
-The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this change, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`. 
+The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this change, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`.
 
 #### `setDefaultTemplateLocale`
 
@@ -433,7 +433,7 @@ optSettings:
 any key package whose expiry date is set further than 15 days after upload time will be rejected.
 
 
-### Federated domain specific configuration settings 
+### Federated domain specific configuration settings
 #### Restrict user search
 
 The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
