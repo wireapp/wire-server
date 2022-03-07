@@ -1,8 +1,8 @@
 Refactor conversation actions to an existential type consisting of a singleton
 tag (identifying the action) and a dedicated type for the action itself.
 Previously, actions were represented by a big sum type. The new approach
-enables us to describe the needed effects of an action much more precise.
+enables us to describe the needed effects of an action much more precisely.
 The existential type is initialized by the Servant endpoints in a way to
-mimic the previous behavior. But, the messages between services changed.
+mimic the previous behavior. However, the messages between services changed.
 Thus, all federated backends need to run the same (new) version. The
 deployment order itself does not matter.
