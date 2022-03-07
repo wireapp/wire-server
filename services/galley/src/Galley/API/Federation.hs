@@ -169,7 +169,7 @@ onConversationUpdated requestingDomain cu = do
   -- way to make sure that they are actually supposed to receive that notification.
 
   (mActualAction :: Maybe SomeConversationAction, extraTargets :: [UserId]) <- case F.cuAction cu of
-    sca@(SomeConversationAction signTag action) -> case signTag of
+    sca@(SomeConversationAction singTag action) -> case singTag of
       SConversationJoinTag -> do
         let ConversationJoin toAdd role = action
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
