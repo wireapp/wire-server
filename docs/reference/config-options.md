@@ -410,7 +410,7 @@ optSettings:
 
 #### `setDefaultUserLocale`
 
-This option determines which language to use for email communication. It is the default if not set in the user profile, or if no user profile exists (eg., if user is being provisioned via SCIM or manual team invitation via the team management app). If not set, `setDefaultTemplateLocale` is used instead.
+This option determines which language to use for email communication. It is the default value if none is given in the user profile, or if no user profile exists (eg., if user is being provisioned via SCIM or manual team invitation via the team management app). If not set, `setDefaultTemplateLocale` is used instead.
 
 ```
 # [brig.yaml]
