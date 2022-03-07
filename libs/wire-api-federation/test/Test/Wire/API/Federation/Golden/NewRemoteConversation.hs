@@ -65,9 +65,7 @@ testObject_NewRemoteConversation1 =
               }
           ],
       rcMessageTimer = Just (Ms 1000),
-      rcReceiptMode = Just (ReceiptMode 42),
-      rcProtocol = Just ProtocolProteus,
-      rcGroupId = Nothing
+      rcReceiptMode = Just (ReceiptMode 42)
     }
 
 testObject_NewRemoteConversation2 :: NewRemoteConversation ConvId
@@ -82,10 +80,5 @@ testObject_NewRemoteConversation2 =
       rcCnvName = Nothing,
       rcNonCreatorMembers = Set.fromList [],
       rcMessageTimer = Nothing,
-      rcReceiptMode = Nothing,
-      rcProtocol = Just ProtocolMLS,
-      rcGroupId = Just groupId
+      rcReceiptMode = Nothing
     }
-  where
-    groupId :: GroupId
-    groupId = GroupId "test_group"

@@ -1,43 +1,41 @@
 {
-    "orig_user_id": "eed9dea3-5468-45f8-b562-7ad5de2587d0",
-    "time": "1864-04-12T12:22:43.673Z",
     "cnv_access": [
         "invite",
         "code"
-    ],
-    "non_creator_members": [
-        {
-            "status": 0,
-            "conversation_role": "wire_admin",
-            "qualified_id": {
-                "domain": "golden.example.com",
-                "id": "50e6fff1-ffbd-4235-bc73-19c093433beb"
-            },
-            "id": "50e6fff1-ffbd-4235-bc73-19c093433beb"
-        },
-        {
-            "status": 0,
-            "service": {
-                "id": "abfe2452-ed22-4f94-b4d4-765b989d7dbb",
-                "provider": "11b91f61-917e-489b-a268-60b881d08f06"
-            },
-            "conversation_role": "wire_member",
-            "qualified_id": {
-                "domain": "golden.example.com",
-                "id": "6801e49b-918c-4eef-baed-f18522152fca"
-            },
-            "id": "6801e49b-918c-4eef-baed-f18522152fca"
-        }
     ],
     "cnv_access_roles": [
         "team_member",
         "non_team_member"
     ],
-    "protocol": "proteus",
-    "cnv_type": 0,
-    "group_id": null,
-    "receipt_mode": 42,
-    "message_timer": 1000,
+    "cnv_id": "d13dbe58-d4e3-450f-9c0c-1e632f548740",
     "cnv_name": "gossip",
-    "cnv_id": "d13dbe58-d4e3-450f-9c0c-1e632f548740"
+    "cnv_type": 0,
+    "message_timer": 1000,
+    "non_creator_members": [
+        {
+            "conversation_role": "wire_admin",
+            "id": "50e6fff1-ffbd-4235-bc73-19c093433beb",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "50e6fff1-ffbd-4235-bc73-19c093433beb"
+            },
+            "status": 0
+        },
+        {
+            "conversation_role": "wire_member",
+            "id": "6801e49b-918c-4eef-baed-f18522152fca",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "6801e49b-918c-4eef-baed-f18522152fca"
+            },
+            "service": {
+                "id": "abfe2452-ed22-4f94-b4d4-765b989d7dbb",
+                "provider": "11b91f61-917e-489b-a268-60b881d08f06"
+            },
+            "status": 0
+        }
+    ],
+    "orig_user_id": "eed9dea3-5468-45f8-b562-7ad5de2587d0",
+    "receipt_mode": 42,
+    "time": "1864-04-12T12:22:43.673Z"
 }
