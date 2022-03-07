@@ -29,8 +29,6 @@
 
 * Add MLS message types and corresponding deserialisers (#2145)
 
-* Asset keys are now internally validated. (#2162)
-
 * Servantify `POST /register` and `POST /i/users` endpoints (#2121)
 
 
