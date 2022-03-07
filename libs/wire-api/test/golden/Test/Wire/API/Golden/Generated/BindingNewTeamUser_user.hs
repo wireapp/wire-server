@@ -18,14 +18,10 @@
 module Test.Wire.API.Golden.Generated.BindingNewTeamUser_user where
 
 import Data.Currency (Alpha (XUA))
-import Data.Id (Id (..))
 import Data.Range (unsafeRange)
-import Data.UUID as UUID
-import Imports (Maybe (Just, Nothing), fromJust)
-import Wire.API.Asset
+import Imports (Maybe (Just, Nothing))
 import Wire.API.Team
   ( BindingNewTeam (BindingNewTeam),
-    Icon (..),
     NewTeam
       ( NewTeam,
         _newTeamIcon,
@@ -45,7 +41,9 @@ testObject_BindingNewTeamUser_user_1 =
               { _newTeamName =
                   unsafeRange
                     "\fe\ENQ\1011760zm\166331\&6+)g;5\989956Z\8196\&41\DC1\n\STX\ETX%|\NULM\996272S=`I\59956UK1\1003466]X\r\SUBa\EM!\74407+\ETXepRw\ACK\ENQ#\127835\1061771\1036174\1018930UX\66821]>i&r\137805\1055913Z\1070413\&6\DC4\DC4\1024114\1058863\1044802\ESC\SYNa4\NUL\1059602\1015948\123628\tLZ\ACKw$=\SYNu\ETXE1\63200C'\ENQ\151764\47003\134542$\100516\1112326\&9;#\1044763\1015439&\ESC\1026916k/\tu\\pk\NUL\STX\1083510)\FS/Lni]Q\NUL\SIZ|=\DC1V]]\FS5\156475U6>(\17233'\CAN\179678%'I1-D\"\1098303\n\78699\npkHY#\NUL\1014868u]\1078674\147414\STX\USj'\993967'\CAN\1042144&\35396E\37802=\135058Da\STX\v\1100351=\1083565V#\993183\RS\FSN#`uny\1003178\1094898\&53#\DEL/|,+\243pW\44721i4j",
-                _newTeamIcon = DefaultIcon,
+                _newTeamIcon =
+                  unsafeRange
+                    "Coq\52427\v\182208\&7\SYN\\N\134130\8419h3 \30278;X\STX\a\a$|D\NUL\SOHh'\62853\&3-m7\1078900\SOp\22214`\1093812\&6QF\CAN\SOH9\1062958\ETB\15747FP;lm\1075533\173111\134845\22570n:\rf\1044997\\:\35041\GS\GS\26754\EM\22764i\991235\ETXjj}\1010340~\989348{; \119085\1006542\SUBL&%2\170880;@\\2`gA\984195\&0\162341\&2\163058h\FSuF\DC4\17376\ESC\GS\SO\vYnKy?v\129546H\fcLdBy\170730\&4I\1108995i\1017125\ETBc6f\v\SOH\DC3\1018708ce\1083597\SOs3L&",
                 _newTeamIconKey =
                   Just
                     ( unsafeRange
@@ -66,7 +64,7 @@ testObject_BindingNewTeamUser_user_2 =
               { _newTeamName =
                   unsafeRange
                     "G\EOT\DC47\1030077bCy\83226&5\"\96437B$\STX\DC2QJb_\15727\1104659Y \156055\1044397Y\1004994g\v\991186xkJUi\1028168.=-\1054839\&2\1113630U\ESC]\SUB\1091929\DLE}R\157290\DC1\1111740\1096562+R/\1083774\170894p(M\ENQ5Fw<\144133E\1005699R\DLE44\1060383\SO%@FPG\986135JJ\vE\GSz\RS_\tb]0t_Ax}\rt\1057458h\DC3O\ACK\991050`\1038022vm-?$!)~\152722bh\RS\1011653\1007510\&0x \1092001\1078327+)A&mRfL\1109449\ENQ\1049319>K@\US\1006511\ab\vPDWG,\1062888/J~)%7?aRr\989765\&4*^\1035118K*\996771\EM\"\SO\987994\186383l\n\tE\136474\1037228\NAK\a\n\78251c?\\\ENQj\"\ESCpe\98450\NUL=\EM>J",
-                _newTeamIcon = Icon (AssetKeyV3 (Id (fromJust (UUID.fromString "55b9ad19-315c-4bda-8c0f-5d7b0e143008"))) AssetEternal),
+                _newTeamIcon = unsafeRange "\SUB4\NAKF",
                 _newTeamIconKey =
                   Just
                     ( unsafeRange

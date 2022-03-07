@@ -31,7 +31,6 @@ module Wire.API.Asset
     -- * AssetKey
     AssetKey (..),
     assetKeyToText,
-    nilAssetKey,
 
     -- * AssetToken
     AssetToken (..),
@@ -177,7 +176,7 @@ assetKeyToText = T.decodeUtf8 . toByteString'
 
 instance ToSchema AssetKey where
   schema =
-    assetKeyToText
+    (T.decodeUtf8 . toByteString')
       .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
         & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
 
@@ -186,9 +185,6 @@ instance S.ToParamSchema AssetKey where
 
 instance FromHttpApiData AssetKey where
   parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
-
-nilAssetKey :: AssetKey
-nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
 
 --------------------------------------------------------------------------------
 -- AssetToken

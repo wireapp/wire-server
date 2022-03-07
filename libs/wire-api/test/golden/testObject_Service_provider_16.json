@@ -1,7 +1,11 @@
 {
     "assets": [
         {
-            "key": "3-5-5cd81cc4-c643-4e9c-849c-c596a88c27fd",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
             "size": "complete",
             "type": "image"
         }

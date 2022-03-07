@@ -30,16 +30,13 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.Aeson as JSON
-import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id ()
 import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
-import Data.Text.Encoding (encodeUtf8)
 import Imports
-import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.User.RichInfo
 
@@ -129,14 +126,6 @@ instance Cql Pict where
 
   toCql = toCql . map (Blob . JSON.encode) . fromPict
 
-instance Cql AssetKey where
-  ctype = Tagged TextColumn
-  toCql = CqlText . assetKeyToText
-
-  -- if the asset key is invalid we will return the nil asset key (`3-1-00000000-0000-0000-0000-000000000000`)
-  fromCql (CqlText txt) = pure $ fromRight nilAssetKey $ runParser parser $ encodeUtf8 txt
-  fromCql _ = Left "AssetKey: Expected CqlText"
-
 instance Cql AssetSize where
   ctype = Tagged IntColumn
 
@@ -182,7 +171,7 @@ instance Cql Asset where
   toCql (ImageAsset k s) =
     CqlUdt
       [ ("typ", CqlInt 0),
-        ("key", toCql k),
+        ("key", CqlText k),
         ("size", toCql s)
       ]
 

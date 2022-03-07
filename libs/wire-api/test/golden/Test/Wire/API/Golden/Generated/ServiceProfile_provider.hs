@@ -23,7 +23,6 @@ import Data.Id (Id (Id))
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
-import Wire.API.Asset
 import Wire.API.Provider
   ( ServiceTag
       ( AudioTag,
@@ -59,7 +58,7 @@ testObject_ServiceProfile_provider_1 =
           },
       serviceProfileSummary = "\1008770\60807",
       serviceProfileDescr = "/Q",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      serviceProfileAssets = [(ImageAsset "\ESC" (Nothing))],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = True
     }
@@ -77,10 +76,10 @@ testObject_ServiceProfile_provider_2 =
       serviceProfileSummary = ")/",
       serviceProfileDescr = "",
       serviceProfileAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Just AssetComplete))
         ],
       serviceProfileTags = fromList [FoodDrinkTag, TravelTag],
       serviceProfileEnabled = True
@@ -98,7 +97,7 @@ testObject_ServiceProfile_provider_3 =
           },
       serviceProfileSummary = "\ETX* ",
       serviceProfileDescr = "\136788It",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      serviceProfileAssets = [(ImageAsset "" (Nothing)), (ImageAsset "" (Just AssetPreview))],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = True
     }
@@ -115,7 +114,7 @@ testObject_ServiceProfile_provider_4 =
           },
       serviceProfileSummary = "4E",
       serviceProfileDescr = "(",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+      serviceProfileAssets = [(ImageAsset "1" (Just AssetComplete))],
       serviceProfileTags = fromList [AudioTag, RatingTag],
       serviceProfileEnabled = True
     }
@@ -146,11 +145,11 @@ testObject_ServiceProfile_provider_6 =
       serviceProfileSummary = "4>#",
       serviceProfileDescr = "D\DEL",
       serviceProfileAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ (ImageAsset "" (Nothing)),
+          (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Nothing)),
+          (ImageAsset "" (Just AssetComplete))
         ],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = False
@@ -197,7 +196,7 @@ testObject_ServiceProfile_provider_9 =
       serviceProfileName = Name {fromName = "\EM\73877+\DC2\NUL!\USV\f\1025396\1106635_\1106841H#4\STX\1104704\DEL"},
       serviceProfileSummary = "a\1088958",
       serviceProfileDescr = "AU",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      serviceProfileAssets = [(ImageAsset "\DC1" (Nothing))],
       serviceProfileTags = fromList [BusinessTag, FinanceTag, PollTag],
       serviceProfileEnabled = False
     }
@@ -210,7 +209,7 @@ testObject_ServiceProfile_provider_10 =
       serviceProfileName = Name {fromName = ":h[\1059282\1033090\913Y$\ENQ\NAKE\1086801\186280\STX\US\28752"},
       serviceProfileSummary = ",AD",
       serviceProfileDescr = "s&\118974",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      serviceProfileAssets = [(ImageAsset "" (Just AssetPreview)), (ImageAsset "" (Nothing))],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = False
     }
@@ -257,7 +256,7 @@ testObject_ServiceProfile_provider_13 =
       serviceProfileName = Name {fromName = ":[\".\152322\USvU\1055877"},
       serviceProfileSummary = "",
       serviceProfileDescr = "A",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      serviceProfileAssets = [(ImageAsset "B" (Nothing))],
       serviceProfileTags = fromList [ProductivityTag],
       serviceProfileEnabled = False
     }
@@ -287,7 +286,7 @@ testObject_ServiceProfile_provider_15 =
           },
       serviceProfileSummary = "*P`",
       serviceProfileDescr = "u`\ENQ",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      serviceProfileAssets = [(ImageAsset "*" (Nothing))],
       serviceProfileTags = fromList [MusicTag, RatingTag],
       serviceProfileEnabled = False
     }
@@ -304,7 +303,7 @@ testObject_ServiceProfile_provider_16 =
           },
       serviceProfileSummary = "U,",
       serviceProfileDescr = "S\n",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      serviceProfileAssets = [(ImageAsset "" (Just AssetPreview)), (ImageAsset "" (Just AssetPreview))],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = False
     }
@@ -321,7 +320,7 @@ testObject_ServiceProfile_provider_17 =
           },
       serviceProfileSummary = "\SO4c",
       serviceProfileDescr = "\SI",
-      serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+      serviceProfileAssets = [(ImageAsset "" (Just AssetComplete)), (ImageAsset "" (Just AssetComplete))],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = False
     }

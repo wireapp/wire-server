@@ -23,7 +23,6 @@ import Data.Id (Id (Id))
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Bool (False, True), Maybe (Just), fromJust)
-import Wire.API.Asset
 import Wire.API.Provider (ServiceTag (BusinessTag, MusicTag))
 import Wire.API.Provider.Service
   ( ServiceProfile
@@ -788,7 +787,7 @@ testObject_ServiceProfilePage_provider_11 =
                   },
               serviceProfileSummary = "",
               serviceProfileDescr = "\42170",
-              serviceProfileAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+              serviceProfileAssets = [(ImageAsset "" (Just AssetPreview))],
               serviceProfileTags = fromList [],
               serviceProfileEnabled = True
             }
