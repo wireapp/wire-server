@@ -263,7 +263,7 @@ typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound 
 data TeamFeatureStatusValue
   = TeamFeatureEnabled
   | TeamFeatureDisabled
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamFeatureStatusValue)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusValue)
 
