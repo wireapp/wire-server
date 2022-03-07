@@ -396,7 +396,7 @@ Additionally if `setSftListAllServers` is set to `enabled` (disabled by default)
 
 #### setDefaultLocale (deprecated / ignored)
 
-The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this change, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`. 
+The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this change, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`.
 
 #### `setDefaultTemplateLocale`
 
@@ -410,7 +410,7 @@ optSettings:
 
 #### `setDefaultUserLocale`
 
-This option is the default user locale to be used if it is not set in the user profile. This can be the case if the users are provisioned by SCIM e.g. This option determines which language to use for email communication. If not set the default is the value that is configured for `setDefaultTemplateLocale`.
+This option determines which language to use for email communication. It is the default value if none is given in the user profile, or if no user profile exists (eg., if user is being provisioned via SCIM or manual team invitation via the team management app). If not set, `setDefaultTemplateLocale` is used instead.
 
 ```
 # [brig.yaml]
@@ -433,7 +433,7 @@ optSettings:
 any key package whose expiry date is set further than 15 days after upload time will be rejected.
 
 
-### Federated domain specific configuration settings 
+### Federated domain specific configuration settings
 #### Restrict user search
 
 The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
