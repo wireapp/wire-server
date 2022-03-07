@@ -163,30 +163,23 @@ conversationActionToEvent ::
   ConversationAction tag ->
   Event
 conversationActionToEvent tag now quid qcnv action =
-  case tag of
-    SConversationJoinTag ->
-      let ConversationJoin newMembers role = action
-       in Event qcnv quid now $
-            EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
-    SConversationLeaveTag ->
-      let ConversationLeave leavingMembers = action
-       in Event qcnv quid now $
-            EdMembersLeave (QualifiedUserIdList (toList leavingMembers))
-    SConversationRemoveMembersTag ->
-      let ConversationRemoveMembers targets = action
-       in Event qcnv quid now $
-            EdMembersLeave (QualifiedUserIdList (toList targets))
-    SConversationMemberUpdateTag ->
-      let ConversationMemberUpdate target (OtherMemberUpdate role) = action
-          update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
-       in Event qcnv quid now (EdMemberUpdate update)
-    SConversationDeleteTag ->
-      Event qcnv quid now EdConvDelete
-    SConversationRenameTag ->
-      Event qcnv quid now $ EdConvRename action
-    SConversationMessageTimerUpdateTag ->
-      Event qcnv quid now (EdConvMessageTimerUpdate action)
-    SConversationReceiptModeUpdateTag ->
-      Event qcnv quid now (EdConvReceiptModeUpdate action)
-    SConversationAccessDataTag ->
-      Event qcnv quid now (EdConvAccessUpdate action)
+  let edata = case tag of
+        SConversationJoinTag ->
+          let ConversationJoin newMembers role = action
+           in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
+        SConversationLeaveTag ->
+          let ConversationLeave leavingMembers = action
+           in EdMembersLeave (QualifiedUserIdList (toList leavingMembers))
+        SConversationRemoveMembersTag ->
+          let ConversationRemoveMembers targets = action
+           in EdMembersLeave (QualifiedUserIdList (toList targets))
+        SConversationMemberUpdateTag ->
+          let ConversationMemberUpdate target (OtherMemberUpdate role) = action
+              update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
+           in EdMemberUpdate update
+        SConversationDeleteTag -> EdConvDelete
+        SConversationRenameTag -> EdConvRename action
+        SConversationMessageTimerUpdateTag -> EdConvMessageTimerUpdate action
+        SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
+        SConversationAccessDataTag -> EdConvAccessUpdate action
+   in Event qcnv quid now edata
