@@ -17,6 +17,8 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    EJPD_API,
+    AccountAPI,
     EJPDRequest,
     GetAccountFeatureConfig,
     PutAccountFeatureConfig,
@@ -39,7 +41,10 @@ import Servant.Swagger.UI
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.User
 
 type EJPDRequest =
   Summary
@@ -109,15 +114,29 @@ type GetAllConnections =
     :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
     :> Post '[Servant.JSON] [ConnectionStatusV2]
 
+type EJPD_API =
+  ( EJPDRequest
+      :<|> GetAccountFeatureConfig
+      :<|> PutAccountFeatureConfig
+      :<|> DeleteAccountFeatureConfig
+      :<|> GetAllConnectionsUnqualified
+      :<|> GetAllConnections
+  )
+
+type AccountAPI =
+  -- This endpoint can lead to the following events being sent:
+  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+  -- - UserIdentityUpdated event to created user, if email or phone get activated
+  Named
+    "createUserNoVerify"
+    ( "users"
+        :> ReqBody '[Servant.JSON] NewUser
+        :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+    )
+
 type API =
   "i"
-    :> ( EJPDRequest
-           :<|> GetAccountFeatureConfig
-           :<|> PutAccountFeatureConfig
-           :<|> DeleteAccountFeatureConfig
-           :<|> GetAllConnectionsUnqualified
-           :<|> GetAllConnections
-       )
+    :> (EJPD_API :<|> AccountAPI)
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

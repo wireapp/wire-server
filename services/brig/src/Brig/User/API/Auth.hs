@@ -61,6 +61,8 @@ import Wire.Swagger as Doc (pendingLoginError)
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
+  -- Note: this endpoint should always remain available at its unversioned
+  -- path, since the login cookie hardcodes @/access@ as a path.
   post "/access" (continue renewH) $
     accept "application" "json"
       .&. tokenRequest
@@ -155,7 +157,7 @@ routesPublic = do
       Doc.description "JSON body"
     Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
     Doc.response 204 "No update, current and new email address are the same." Doc.end
-    Doc.errorResponse invalidEmail
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
     Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)

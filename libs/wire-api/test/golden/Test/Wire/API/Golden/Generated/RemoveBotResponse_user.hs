@@ -26,20 +26,12 @@ import qualified Data.UUID as UUID (fromString)
 import Imports (fromJust, read)
 import Wire.API.Conversation.Bot (RemoveBotResponse (..))
 import Wire.API.Event.Conversation
-  ( Event (Event),
-    EventData (..),
-    EventType
-      ( MemberLeave
-      ),
-    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
-  )
 
 testObject_RemoveBotResponse_user_1 :: RemoveBotResponse
 testObject_RemoveBotResponse_user_1 =
   RemoveBotResponse
     { rsRemoveBotEvent =
         Event
-          MemberLeave
           (Qualified (Id (fromJust (UUID.fromString "00003ab8-0000-0cff-0000-427f000000df"))) (Domain "faraway.example.com"))
           (Qualified (Id (fromJust (UUID.fromString "00004166-0000-1e32-0000-52cb0000428d"))) (Domain "faraway.example.com"))
           (read "1864-05-07 01:13:35.741 UTC")

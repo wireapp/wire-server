@@ -234,7 +234,7 @@ postRemoteOtrMessage ::
   Members '[FederatorAccess] r =>
   Qualified UserId ->
   Remote ConvId ->
-  LByteString ->
+  ByteString ->
   Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
@@ -639,7 +639,7 @@ newMessageEvent ::
   Event
 newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
   let convId = fromMaybe (qUntagged (fmap selfConv receiver)) mconvId
-   in Event OtrMessageAdd convId sender time . EdOtrMessage $
+   in Event convId sender time . EdOtrMessage $
         OtrMessage
           { otrSender = senderClient,
             otrRecipient = receiverClient,

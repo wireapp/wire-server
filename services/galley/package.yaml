@@ -169,6 +169,7 @@ executables:
     - cookie
     - currency-codes
     - metrics-wai
+    - data-default
     - data-timeout
     - errors
     - exceptions

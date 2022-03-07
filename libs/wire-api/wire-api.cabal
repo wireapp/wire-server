@@ -37,11 +37,15 @@ library
       Wire.API.Message
       Wire.API.Message.Proto
       Wire.API.MLS.CipherSuite
+      Wire.API.MLS.Commit
       Wire.API.MLS.Credential
+      Wire.API.MLS.Group
       Wire.API.MLS.KeyPackage
+      Wire.API.MLS.Message
       Wire.API.MLS.Proposal
       Wire.API.MLS.Serialisation
       Wire.API.MLS.Servant
+      Wire.API.MLS.Welcome
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
@@ -452,7 +456,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.UserConnection_user
       Test.Wire.API.Golden.Generated.UserConnectionList_user
       Test.Wire.API.Golden.Generated.UserHandleInfo_user
-      Test.Wire.API.Golden.Generated.UserIdentity_user
       Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team
       Test.Wire.API.Golden.Generated.UserProfile_user
       Test.Wire.API.Golden.Generated.UserSSOId_user
@@ -643,6 +646,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , either
     , filepath
     , hex
     , hscim
@@ -656,6 +660,7 @@ test-suite wire-api-tests
     , pretty
     , proto-lens
     , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-swagger-ui
     , string-conversions

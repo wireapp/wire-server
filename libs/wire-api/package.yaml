@@ -114,6 +114,7 @@ tests:
     - cassava
     - currency-codes
     - directory
+    - either
     - hex
     - iso3166-country-codes
     - iso639
@@ -123,6 +124,7 @@ tests:
     - pretty
     - proto-lens
     - QuickCheck
+    - schema-profunctor
     - string-conversions
     - swagger2
     - tasty

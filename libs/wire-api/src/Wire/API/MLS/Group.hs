@@ -15,18 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.AccessRoleLegacy_user where
+module Wire.API.MLS.Group where
 
-import Wire.API.Conversation (AccessRoleLegacy (..))
+import Imports
+import Wire.API.MLS.Serialisation
 
-testObject_AccessRoleLegacy_user_1 :: AccessRoleLegacy
-testObject_AccessRoleLegacy_user_1 = PrivateAccessRole
+newtype GroupId = GroupId {unGroupId :: ByteString}
+  deriving (Eq, Show)
 
-testObject_AccessRoleLegacy_user_2 :: AccessRoleLegacy
-testObject_AccessRoleLegacy_user_2 = NonActivatedAccessRole
+instance IsString GroupId where
+  fromString = GroupId . fromString
 
-testObject_AccessRoleLegacy_user_3 :: AccessRoleLegacy
-testObject_AccessRoleLegacy_user_3 = ActivatedAccessRole
-
-testObject_AccessRoleLegacy_user_4 :: AccessRoleLegacy
-testObject_AccessRoleLegacy_user_4 = TeamAccessRole
+instance ParseMLS GroupId where
+  parseMLS = GroupId <$> parseMLSBytes @Word8

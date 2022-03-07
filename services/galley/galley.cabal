@@ -408,6 +408,7 @@ executable galley-integration
     , containers
     , cookie
     , currency-codes
+    , data-default
     , data-timeout
     , errors
     , exceptions

@@ -19,6 +19,7 @@ module API.Version (tests) where
 
 import Bilge
 import Bilge.Assert
+import Brig.Options
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
@@ -26,13 +27,14 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Routes.Version
 
-tests :: Manager -> Brig -> TestTree
-tests p brig =
+tests :: Manager -> Opts -> Brig -> TestTree
+tests p opts brig =
   testGroup
     "version"
     [ test p "GET /api-version" $ testVersion brig,
       test p "GET /v1/api-version" $ testVersionV1 brig,
-      test p "GET /v500/api-version" $ testUnsupportedVersion brig
+      test p "GET /v500/api-version" $ testUnsupportedVersion brig,
+      test p "GET /api-version (federation info)" $ testFederationDomain opts brig
     ]
 
 testVersion :: Brig -> Http ()
@@ -57,3 +59,13 @@ testUnsupportedVersion brig = do
     responseJsonError =<< get (brig . path "/v500/api-version")
       <!! const 404 === statusCode
   liftIO $ Wai.label e @?= "unsupported-version"
+
+testFederationDomain :: Opts -> Brig -> Http ()
+testFederationDomain opts brig = do
+  let domain = setFederationDomain (optSettings opts)
+  vinfo <-
+    responseJsonError =<< get (brig . path "/api-version")
+      <!! const 200 === statusCode
+  liftIO $ do
+    vinfoFederation vinfo @?= True
+    vinfoDomain vinfo @?= domain

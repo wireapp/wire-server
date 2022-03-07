@@ -528,7 +528,6 @@ rmUser lusr conn = do
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event
-                    MemberLeave
                     (qUntagged (qualifyAs lusr (Data.convId c)))
                     (qUntagged lusr)
                     now
