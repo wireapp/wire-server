@@ -1326,6 +1326,12 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
 
+-- | @SF.Separation @TSFI.RESTfulAPI @S2
+-- Random users can use invite link
+-- Reusing previously used link yields same conv (idempotency)
+-- Guest can use invite link
+-- Guest cannot create invite link
+-- Non-admin cannot create invite link
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
   c <- view tsCannon
@@ -1350,6 +1356,7 @@ postJoinCodeConvOk = do
     postJoinCodeConv bob incorrectCode !!! const 404 === statusCode
     -- correct code works
     postJoinCodeConv bob payload !!! const 200 === statusCode
+    postConvCode bob conv !!! const 403 === statusCode
     -- test no-op
     postJoinCodeConv bob payload !!! const 204 === statusCode
     -- eve cannot join
@@ -1362,6 +1369,7 @@ postJoinCodeConvOk = do
     let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
+    postConvCode eve conv !!! const 403 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
     putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode

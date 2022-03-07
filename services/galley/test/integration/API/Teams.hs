@@ -1533,6 +1533,11 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
             . json change
         )
 
+-- | @SF.Management @TSFI.RESTfulAPI @S2
+-- Promotion, demotion of team roles.
+-- Demotion by superior roles is allowed.
+-- Demotion by inferior roles is NOT allowed.
+-- Group owner cannot make a guest a group admin.
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
@@ -1568,6 +1573,8 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure fullPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
   assertQueue "Member promoted to owner" $ tUpdate 2 [owner, member ^. userId]
+  -- owner can not promote guests (ephemeral users) to admins
+  () <- error "TODO"
   -- owner can **NOT** demote herself, even when another owner exists
   updateTeamMember g tid owner demoteOwner !!! do
     const 403 === statusCode
