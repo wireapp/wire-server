@@ -32,7 +32,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), Value, object, withObject, (.:), 
 import Data.Id
 import Data.Qualified (Qualified)
 import Data.Schema (ToSchema, element, enum, schema, schemaParseJSON, schemaToJSON)
-import Data.Singletons.TH 
+import Data.Singletons.TH
 import Data.Time.Clock
 import Imports
 import Test.QuickCheck (elements)
@@ -79,7 +79,6 @@ instance FromJSON ConversationActionTag where
 
 $(genSingletons [''ConversationActionTag])
 
-$(singEqInstance ''ConversationActionTag)
 $(singDecideInstance ''ConversationActionTag)
 
 -- | We use this type family instead of a sum type to be able to define
