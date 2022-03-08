@@ -486,6 +486,9 @@ instance MonadIO m => MonadZAuth (AppT r m) where
 instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
 
+-- | The function serves as a crutch while Brig is being polysemised. Use it
+-- whenever the compiler complains that there is no instance of `MonadClient`
+-- for `AppIO r`. It can be removed once there is no `AppT` anymore.
 wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
 wrapClient m = do
   c <- view casClient
