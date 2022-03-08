@@ -476,20 +476,13 @@ instance MonadIO m => MonadLogger (AppT r m) where
 instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
   log l m = lift (LC.log l m)
 
-instance MonadIO m => MonadHttp (ReaderT Env m) where
+instance MonadIO m => MonadHttp (AppT r m) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadHttp (AppT r m) where
-  handleRequestWithCont req handler =
-    AppT $ handleRequestWithCont req handler
-
-instance MonadIO m => MonadZAuth (ReaderT Env m) where
-  liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
-
 instance MonadIO m => MonadZAuth (AppT r m) where
-  liftZAuth za = AppT $ liftZAuth za
+  liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
 instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
@@ -509,11 +502,8 @@ instance MonadIndexIO (AppIO r) where
 instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance Monad m => HasRequestId (ReaderT Env m) where
-  getRequestId = view requestId
-
 instance Monad m => HasRequestId (AppT r m) where
-  getRequestId = AppT getRequestId
+  getRequestId = view requestId
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
   withRunInIO inner =
