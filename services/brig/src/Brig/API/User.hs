@@ -763,7 +763,7 @@ activateWithCurrency ::
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppIO r) ActivationResult
 activateWithCurrency tgt code usr cur = do
-  key <- mkActivationKey tgt
+  key <- mapExceptT wrapClient $ mkActivationKey tgt
   Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
@@ -782,10 +782,16 @@ activateWithCurrency tgt code usr cur = do
       tid <- Intra.getTeamId uid
       for_ tid $ \t -> Intra.changeTeamStatus t Team.Active cur
 
-preverify :: ActivationTarget -> ActivationCode -> ExceptT ActivationError (AppIO r) ()
+preverify ::
+  ( MonadClient m,
+    MonadReader Env m
+  ) =>
+  ActivationTarget ->
+  ActivationCode ->
+  ExceptT ActivationError m ()
 preverify tgt code = do
   key <- mkActivationKey tgt
-  void . mapExceptT wrapClient $ Data.verifyCode key code
+  void $ Data.verifyCode key code
 
 onActivated :: ActivationEvent -> (AppIO r) (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = do
@@ -1070,7 +1076,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Free unique keys
   for_ (userEmail user) $ wrapClient . deleteKey . userEmailKey
   for_ (userPhone user) $ wrapClient . deleteKey . userPhoneKey
-  for_ (userHandle user) $ freeHandle (userId user)
+  for_ (userHandle user) $ wrapClient . freeHandle (userId user)
   -- Wipe data
   wrapClient $ Data.clearProperties uid
   tombstone <- mkTombstone
